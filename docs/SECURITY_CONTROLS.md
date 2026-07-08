@@ -182,6 +182,49 @@ GT = Gitea adapter (v1.x).
   *Lands:* W1 · api plugin + web lint config. *Verify:* integration test snapshots headers;
   ESLint rule in CI; Playwright smoke asserts CSP header on served SPA.
 
+## W8 security-scanner suite (D8, C1a — docs/design/SECURITY_SUITE.md)
+
+- **SC-26 Snapshot extraction guards + size caps** (T-35). Streaming tar extraction
+  (SECURITY_SUITE.md §2.1): reject absolute paths, `..` traversal, symlink/hardlink entries
+  escaping the root — dropped + counted, never written; per-file cap 50 MB, total cap 2 GB
+  (workspace config) — breach ⇒ abort, scan_run `failed(size_cap)`; scratch dirs under
+  `SCAN_SCRATCH_ROOT` (tmpfs preferred), shredded in `finally` + startup/hourly orphan
+  sweeper (NFR-13). *Lands:* W8 · packages/security snapshot service. *Verify:* traversal +
+  zip-bomb fixture archives; kill-mid-scan (crash + SIGKILL) zero-residual-bytes test;
+  sweeper clears a planted orphan.
+- **SC-27 Scan container sandbox profile** (T-36). Per SECURITY_SUITE.md §2.2: tool-running
+  scanners execute in a locked-down Podman container per scan — non-root UID, snapshot
+  mounted read-only `noexec` at `/scan`, `--network=none`, `--pids-limit`, CPU/mem/wall caps
+  from `ScanBudget`, no forge credentials or env secrets mounted (host fetches the tarball;
+  container sees only extracted files); findings exit only as schema-validated JSON on
+  stdout. Lint gate: no scan-tool `child_process` spawn outside `packages/security/sandbox`
+  (NFR-14). *Lands:* W8 · sandbox module + deploy units. *Verify:* integration test asserts
+  network deny + read-only fs + non-root; lint gate in CI.
+- **SC-28 Scan-tool & data pinning** (T-37). Sandbox image pins tool versions
+  (semgrep/syft/grype) with checksums at build; vulnerability data (grype/OSV, CISA KEV) and
+  custom semgrep packs are fetched ONLY by the nightly host-side `db-sync` job from pinned,
+  checksum-verified sources into read-only volumes — scan containers never download;
+  tool + rulepack versions stamped in `scan_run.tool_versions` for reproducibility and audit
+  (FR-SEC-12). *Lands:* W8 · deploy db-sync + Containerfile.scan. *Verify:* image build
+  asserts digests; db-sync checksum-mismatch test refuses the volume swap; scan_run rows
+  carry versions in fixture runs.
+- **SC-29 Secret-value redaction** (T-38). Secrets findings never store the matched value:
+  fingerprint hash (sha256), rule id, and file/line location only; evidence rendered as
+  masked context; rule applies to findings rows, scan_run payloads, logs (SC-2 layer
+  extended with scanner field names), and reports. Live verification probes are
+  config-gated, default OFF. *Lands:* W8 · secrets scanner + shared findings helper.
+  *Verify:* DB-dump + log grep with a planted fixture secret finds zero plaintext
+  occurrences; serializer snapshot test on Security tab/report payloads.
+- **SC-30 Per-scanner budgets + scan lane** (T-39). `ScanBudget` per scanner (workspace
+  defaults, per-repo override): wall-clock timeout, container CPU/mem caps, forge-call quota
+  drawn from a new low-priority `scan` lane in the budgeted client (FR-FORGE-3 budget), LLM
+  token budget via gateway accounting; exhaustion ⇒ scan_run `budget_exceeded`, partial
+  findings kept + flagged. Scans run on the dedicated `security.scan` queue with its own
+  workers, priority below `analysis.review`, DLQ per NFR-11 — a crashing or budget-blown
+  scanner never blocks ingestion, Tier-1 metrics, or other scanners (NFR-15, FR-SEC-11).
+  *Lands:* W8 · scanner framework. *Verify:* budget-breach fixture keeps flagged partial
+  findings; chaos test crashes every scanner with ingest lag + dashboards unaffected.
+
 ## Coverage map (threat → control)
 
 | Threats | Controls |
@@ -193,3 +236,4 @@ GT = Gitea adapter (v1.x).
 | T-25..T-28 (data tier) | SC-1, SC-9, SC-10, SC-20, SC-21 |
 | T-29..T-31 (findings/share) | SC-16, SC-17, SC-22 |
 | T-32..T-34 (supply chain/platform) | SC-18, SC-19, SC-20 |
+| T-35..T-39 (W8 scanners: snapshot/sandbox/tools/secrets-at-rest/exhaustion) | SC-26, SC-27, SC-28, SC-29, SC-30, SC-19, SC-20, SC-11 |

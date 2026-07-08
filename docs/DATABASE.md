@@ -39,7 +39,14 @@ erDiagram
     users ||--o{ saved_views : owns
     workspaces ||--o{ egress_audit : audits
     forge_connections ||--o{ api_cache : caches
+    repos ||--o{ repo_scanner_config : configures
+    repos ||--o{ scan_runs : scanned_by
+    scan_runs ||--o{ findings : produces
+    repos ||--o{ sboms : inventories
 ```
+
+W8 additions (dashed conceptually — land with the W8 security-suite migration, D8):
+`repo_scanner_config`, `scan_runs`, `sboms`, plus the findings-table delta below.
 
 ## 2. Tables
 
@@ -180,6 +187,40 @@ is_default_for_owner bool, created_at, updated_at` (FR-API-6, FR-WEB-4/5).
 pull_request_id, analysis_run_id, initiator_user_id, model_id, bytes_sent int,
 tokens_sent int, tokens_received int, content_sha256 text, sent_at`. No content stored —
 digest only. Admin-queryable, never deleted.
+
+### Security scanning — **W8 migration delta** (D8, FR-SEC-12; docs/design/SECURITY_SUITE.md §1.3)
+
+Scanner findings live in the EXISTING findings store — no parallel store. The W8
+migration (additive-first per §5) applies:
+
+**findings delta** — `dimension` enum extended `+= 'secrets'|'dependency'|'sast'|'iac'|
+'chain'` (OWASP checklist scanners keep `security`); new nullable columns `scanner_key
+text, rule_id text, cve_id text, chain_id text, preconditions jsonb, yields jsonb,
+scan_run_id FK scan_runs`; `file`/`line_start`/`line_end` become nullable — repo-level
+findings (dependency posture, chains) have no single location (`file` = manifest path for
+dependency findings). Dedup key extended: `sha256(scanner_key + rule_id + dimension +
+(file ?? '') + normalize(evidence_quote))` — occurrence/reopen semantics unchanged
+(FR-ANALYSIS-6 extension). Lifecycle/triage/audit rails unchanged (FR-INSIGHTS-1).
+**Secret redaction rule (SC-29):** secrets findings store a fingerprint hash + file/line
+only — the matched secret value is NEVER written to any column, log, or report.
+
+**scan_runs** — `id, workspace_id, repo_id, scanner_key, trigger
+enum('pr_synced','push','schedule','manual'), commit_sha, status enum('queued','running',
+'done','failed','budget_exceeded'), started_at, finished_at, findings_count int,
+tool_versions jsonb, error text null`. Powers UI status, per-SHA reproducibility, and the
+NFR-13 audit trail. Index `(workspace_id, repo_id, scanner_key, started_at DESC)`.
+
+**sboms** — `id, workspace_id, repo_id, commit_sha, format text ('cyclonedx'), document
+jsonb, created_at`; unique `(repo_id, commit_sha)`. The one allowed persistence beyond
+findings (coordinates only, no repo code — SECURITY_SUITE.md §3.2). Feeds CVE matching,
+`owasp_llm` auto-enablement, and posture rollups.
+
+**repo_scanner_config** — `workspace_id, repo_id, scanner_key, enabled bool, config jsonb,
+updated_by, updated_at`; PK `(workspace_id, repo_id, scanner_key)`. Admin-only mutation
+(FR-AUTH-4, FR-SEC-11); workspace defaults per SECURITY_SUITE.md §1.
+
+Findings facet index gains scanner columns: `findings(workspace_id, repo_id, scanner_key,
+dimension, severity, status)` (W8 migration; supersedes nothing — additive).
 
 ## 3. Hot-path indexes (NFR-3: p95 < 500ms on every dashboard endpoint)
 

@@ -137,3 +137,31 @@ requests emitted, not just response shape.
   package's config); a threshold drop is a failing gate, not a warning.
 - Coverage is a floor, not a goal: every SRS acceptance sketch for the wave must map
   to a named test (traceability check at wave gate — grep FR ids in test titles).
+
+## 10. Scanner tests (W8) — seeded fixtures, NO live tool DBs in CI
+
+- **Seeded-vuln fixture repos**: synthetic, checked-in fixture trees under
+  `packages/security/fixtures/` (tarballs assembled at test time — nothing dangerous in
+  git, secrets are canary-format tokens). One per scanner: planted secrets (stream-diff
+  case + history-only committed-then-removed case), manifests/lockfiles with a known
+  CVE/KEV/slopsquat set, semgrep-rule-triggering source, OWASP checklist bait, plus a
+  chain-composable pair with matching yields→preconditions vocabulary.
+- **Scanner unit tests against fixtures**: each scanner asserts its expected finding set
+  to the rule id (FR-SEC-3..8 acceptance verbatim); rulepack/tool versions stamped on the
+  scan_run asserted; dedup re-run yields 0 new rows (FR-ANALYSIS-6 extension property test).
+- **NO live tool-DB downloads in CI, ever**: vendored mini grype/OSV/KEV databases and
+  pinned rulepack snapshots are committed test assets; the `db-sync` job is tested against
+  a local file server (checksum-mismatch case asserts refusal — SC-28). Same rule class as
+  the github.com/LLM bans above.
+- **Sandbox integration test** (NFR-14): the scan container profile is asserted live —
+  network egress attempt fails (`--network=none`), write to `/scan` fails (ro,noexec),
+  process runs non-root; lint gate proves no scan-tool spawn outside
+  `packages/security/sandbox`.
+- **Snapshot lifecycle test** (NFR-13): success, crash, and SIGKILL paths all leave zero
+  snapshot bytes on disk/DB/logs (post-run filesystem sweep assertion); orphan sweeper
+  clears a planted stale `snap-*` dir.
+- **Chainer golden test**: the seeded finding pair produces exactly the expected chain
+  finding (members, severity = max+1 capped at 5) — snapshot-tested; member resolution
+  auto-resolves the chain with an audit row.
+- **Gateway rules from §8 apply to `owasp_*` scanners**: mocked at the gateway boundary,
+  no live LLM calls; `meta.initiator = 'scanner:{key}'` asserted on accounting rows.

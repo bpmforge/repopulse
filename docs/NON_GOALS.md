@@ -1,12 +1,12 @@
 # RepoPulse — Non-Goals
 
-Traces to: `docs/work/FOUNDING_BRIEF.md` (C1, D1, D2, D3, D7). Each non-goal is
+Traces to: `docs/work/FOUNDING_BRIEF.md` (C1/C1a, D1, D2, D3, D7, D8). Each non-goal is
 binding for v1 unless the brief is amended. IDs N-x are citable from SCOPE.md and
 requirements docs.
 
 | ID | Non-goal | Rationale (one line) |
 |----|----------|----------------------|
-| N-1 | **No repository cloning or full-repo SAST (semgrep-style scanning) in v1.** | C1 is the product's defining constraint — clone-free ingestion is the moat; full-repo static analysis requires a checkout and a worker fleet we explicitly refuse to operate. |
+| N-1 | **No `git clone`, ever; no full-repo SAST in v1 — deferred to wave W8 (D8) over ephemeral API tarball snapshots (C1a).** | C1 clone-free ingestion remains the moat; the 2026-07-07 brief amendment (D8/C1a) permits W8 scanners to fetch the forge API tarball through the budgeted client into a sandboxed scratch dir — scan, shred, persist findings only (FR-SEC-2, NFR-13/14, S-30..S-35). Persistent checkouts, working copies, and `git clone` stay forbidden in every wave. |
 | N-2 | **No CI runner / build execution.** | RepoPulse observes CI results via forge APIs (check runs, statuses); running builds is a different product with a different risk and cost profile. |
 | N-3 | **No PR-blocking gate bot in v1.** | Dashboard-first (D5): trust must be earned before RepoPulse can block merges; advisory PR comments are a v1.x candidate (S-25), required status checks are not. |
 | N-4 | **No email digests or Slack push in v1.** | D7 locks delivery to the in-app report center with history + PDF export; outbound channels are explicitly deferred. |

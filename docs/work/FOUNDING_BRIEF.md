@@ -15,12 +15,17 @@ bpmforge family (ThreatForge sibling). All downstream docs trace to this brief.
 | D5 | MVP slice | Health dashboard first: connect org → backfill 12 months → Tier-1 metrics dashboard with drill-down (org → repo → PR/file → detail). LLM review is roadmap wave 2, not MVP. |
 | D6 | Auth | GitHub OAuth; login identity powers personalized views ("my PRs", "my review load"). |
 | D7 | Reports | In-app report center with history + exportable audit-ready PDF packs. Email digests / Slack push are explicitly deferred (non-goals v1). |
+| D8 | Security suite (added 2026-07-07) | Wave W8: productize the bpmforge security tooling — diff-stream + full-history secrets scanning, SBOM/CVE audit (syft/grype/OSV, KEV, slopsquatting), semgrep SAST runs, OWASP checklists + attack chaining — behind a **pluggable scanner framework** so capabilities still maturing in the bpm-opencode-experts go-forward plan (IaC checker, cloud security, anti-slop auditor, …) land as drop-in scanners. MVP (W0–W4) unchanged. |
 
 ## Hard constraints
 
 - **C1 No cloning.** All analysis via forge APIs (commits, PR files/diffs, targeted
   contents fetches, checks, reviews). Rate-limit budgeting, ETag conditional requests,
   and incremental sync cursors are first-class architecture concerns.
+  **C1a amendment (2026-07-07, with D8):** never `git clone`, but deep security scans
+  may fetch the forge API **tarball** into an ephemeral sandboxed scratch dir, scan,
+  and delete — nothing persisted except findings. Tarball fetches go through the
+  budgeted ForgeProvider client like every other call.
 - **C2 Local-LLM ops reality** (from prior bpmforge projects): 45000 maxTokens headroom
   per local call; retry + warm-up for LM Studio transient "model crashed"; real usable
   output ≈10k tokens on qwen3.6-class models → diff review must be chunked.

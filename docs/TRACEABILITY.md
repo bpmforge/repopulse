@@ -10,8 +10,8 @@ each link lives; validators + PR discipline keep the links honest.
 FOUNDING_BRIEF (D1-D7, C1-C3, P1-P4)
   → SCOPE.md (S-x)  /  NON_GOALS.md (N-x)  /  RISKS.md (R-x)
     → SRS.md (FR-<MODULE>-n, NFR-n)          ← each FR cites its D/C origin
-      → USER_STORIES.md (E1-E9 stories)      ← each story lists FR/NFR IDs
-        → plan.json tickets (W0-W7)          ← acceptance cites design-doc sections
+      → USER_STORIES.md (E1-E10 stories)     ← each story lists FR/NFR IDs
+        → plan.json tickets (W0-W8)          ← acceptance cites design-doc sections
           → docs/design/* + UX_SPEC.md       ← the spec the ticket implements
             → commits `feat(Wx-nn): ...`     ← ticket id in every commit message
 ```
@@ -29,6 +29,7 @@ FOUNDING_BRIEF (D1-D7, C1-C3, P1-P4)
 | E7 | Tier-3 + escalation | W7 | analysis |
 | E8 | Gitea adapter | W7 | forge |
 | E9 | Admin / ops | W2, W4, W7 | auth, api, web, deploy |
+| E10 | Security suite | W8 | security, web, reports, deploy |
 
 ## Verification of the chain
 

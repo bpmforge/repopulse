@@ -8,7 +8,8 @@ Every requirement has a stable ID for plan.json traceability (C3).
 
 Clone-free (C1) GitHub repo health/quality/delivery monitoring web service.
 Single deployment on bpmforge infra, workspace-scoped SaaS-ready schema (D1).
-Modules per brief: forge · ingest · metrics · analysis · insights · reports · auth · api · web.
+Modules per brief: forge · ingest · metrics · analysis · insights · reports · auth · api · web;
+plus `security` (scanner framework, wave W8 per D8 — §2.10).
 
 ### 1.1 Definitions
 
@@ -41,7 +42,7 @@ LM Studio LAN hosts (Tier 2), Claude API (Tier 3).
 | FR-FORGE-3 | All GitHub calls go through a rate-limit-aware client: reads `x-ratelimit-*` headers, maintains a token budget, queues/delays when remaining < configurable floor, honors `Retry-After` on secondary limits. | Unit test: simulated 100-remaining response throttles queue; no request is emitted once budget floor is hit. | MVP |
 | FR-FORGE-4 | ETag conditional-request cache: persist ETag per (endpoint, params); send `If-None-Match`; treat 304 as free (GitHub does not charge 304s against the core limit). | Repeat sync of an unchanged repo consumes ≥90% fewer rate-limit points than first sync (fixture test). | MVP |
 | FR-FORGE-5 | Support both auth modes for forge access: user PAT and GitHub App installation token, selected per workspace connection. | Both credential types successfully list a private org repo in integration test. | MVP |
-| FR-FORGE-6 | Targeted file-contents fetch (single path @ ref) for analysis context — never a tree/tarball clone (C1). | No code path calls tarball/zipball/git-clone endpoints; lint rule + code review gate. | MVP |
+| FR-FORGE-6 | Targeted file-contents fetch (single path @ ref) for analysis context — never a tree/tarball clone (C1). **C1a amendment (D8):** the API tarball endpoint is callable only from the W8 snapshot service (FR-SEC-2) via the budgeted client; `git clone` stays banned everywhere. | No code path outside `packages/security` snapshot service calls tarball/zipball endpoints; no code path anywhere calls git-clone; lint rule + code review gate. | MVP |
 | FR-FORGE-7 | `GiteaProvider` implementing the same interface (D3). | Same contract-test suite passes against a Gitea fixture server. | v1.x |
 
 ### 2.2 ingest — connect, backfill, webhooks, sync
@@ -210,6 +211,28 @@ consumed by UI tooltips (FR-WEB-1) and report footnotes (FR-REPORTS-*).
 | FR-WEB-8 | Sync/analysis transparency: repo pages show sync state (FR-INGEST-8) and, in v1.x, analysis tier/status per PR incl. Tier-2-degraded notice (NFR-7). | Backfilling repo shows progress instead of misleading empty metrics. | MVP |
 | FR-WEB-9 | Findings UX (v1.x): finding list with dimension/severity/status filters, finding detail with evidence + file/line context, status transitions per FR-INSIGHTS-1. | E2E: filter, open, acknowledge a finding. | v1.x |
 
+### 2.10 security — pluggable scanner suite (D8, C1a; wave W8; design: docs/design/SECURITY_SUITE.md)
+
+Common contract for FR-SEC-*: scanners never call forge hosts or LLMs directly — repo bytes
+only via `ScannerContext` (budgeted client), LLM calls only via the FR-ANALYSIS-1 gateway;
+all findings land in the FR-ANALYSIS-5 / FR-INSIGHTS-1 store (no parallel store). Priority
+**W8** = post-v1 wave 8 (D8).
+
+| ID | Requirement | Acceptance sketch | Priority |
+|----|-------------|-------------------|----------|
+| FR-SEC-1 | Scanner framework: TypeScript `Scanner` interface `{ key, displayName, version, inputs: 'diff'\|'manifests'\|'snapshot'\|'findings', triggers: ('pr_synced'\|'push'\|'schedule'\|'manual')[], requiredTools?, run(ctx) }` + `ScannerContext` (scoped diff stream, targeted contents fetch, snapshot handle, prior findings, LLM gateway, budget/abort) + static registry; the framework never branches on scanner keys — dispatch, persistence, UI facets, and report sections are registry-metadata-driven. | Adding a registered fixture scanner touches zero framework files; it dispatches, persists findings, and appears in facets from registry metadata alone. | W8 |
+| FR-SEC-2 | Snapshot service (C1a): fetch forge API tarball via the budgeted client (new `getTarball` op, low-priority `scan` lane), hash-pinned to a commit SHA; stream-extract into an ephemeral scratch dir with path-traversal/symlink guards + per-file and total size caps; shred on every exit path (finally + orphan sweeper). Never `git clone`. | Traversal/symlink fixture entries dropped; size-cap breach aborts `failed(size_cap)`; after success, crash, or SIGKILL zero snapshot bytes remain (NFR-13); tarball callable only from the snapshot service (FR-FORGE-6 lint gate). | W8 |
+| FR-SEC-3 | Secrets stream mode: regex+entropy ruleset in TruffleHog-compatible format runs on every ingested diff patch (`pr_synced`/`push`), riding W2 ingestion — no snapshot; verified secret ⇒ severity 5, confidence 5, immediate surfacing (org banner + Security tab top). | Planted-secret fixture diff yields finding ≤60s after webhook; verified-detector fixture escalates to sev 5; rulepack version stamped on finding. | W8 |
+| FR-SEC-4 | Secrets history mode: scheduled/manual sweep over all warehoused backfill patches (12-month window) catching committed-then-removed secrets; dedups against stream-mode findings. | Secret present only in an old patch is found; re-run creates 0 new rows (FR-ANALYSIS-6 dedup extension). | W8 |
+| FR-SEC-5 | Dependency audit: manifest+lockfile targeted fetches (no snapshot) → syft SBOM per (repo, default-branch SHA) → grype/OSV CVE match (`cve_id`, CVSS-mapped severity) → CISA KEV correlation (severity floor 4 + flag) → slopsquatting heuristics (package-exists, registry age, typo-distance to popular packages) → posture rollup (counts by severity + finding age). | Fixture manifests reproduce known CVE set; KEV fixture floors at sev 4; hallucinated-package fixture flagged `slopsquat`; posture counts reconcile with findings. | W8 |
+| FR-SEC-6 | Semgrep SAST: weekly/manual full runs over FR-SEC-2 snapshots with per-workspace rule-pack config (community packs + custom pack repo, versions stamped in scan_run); incremental diff-scoped mode on `pr_synced`; triage REAL/FP/UNVERIFIED maps to confirmed / dismissed(false_positive) / open on the FR-INSIGHTS-1 lifecycle. | Full run on fixture snapshot reproduces expected findings; PR run scans changed files only; triage transitions audited; FP feeds the tuning metric. | W8 |
+| FR-SEC-7 | OWASP checklist scanners: Web Top-10 (2021) + LLM Top-10 (2025) as versioned checklist prompts executed through the Tier-2/3 gateway with the same finding JSON schema plus `preconditions[]`/`yields[]`; `owasp_llm` auto-enables only when the SBOM shows LLM deps; T3 only under existing opt-in/escalation rules. | Checklist run emits schema-valid findings with preconditions/yields; repo without LLM deps never enqueues `owasp_llm`; gateway accounting rows carry `initiator: scanner:*`. | W8 |
+| FR-SEC-8 | Attack chainer: post-scan pass matching `yields → preconditions` across ALL open findings (any scanner) into multi-step exploit paths; emits `chain` findings with `chain_id`, member finding ids, severity = min(5, max(member)+1); chains auto-resolve when a member resolves; UI renders entry→…→impact path graph. | Fixture findings with matching vocab produce a chain at elevated severity; resolving one member resolves the chain with audit row; graph nodes link to member findings. | W8 |
+| FR-SEC-9 | Scheduling & triggers: `pr_synced` (secrets stream, semgrep incremental, optional OWASP), `push` (secrets), daily default-branch (dependency), weekly full (semgrep snapshot + chains recompute), manual "scan now"; dedicated `security.scan` queue with idempotency keys, priority below `analysis.review`. | Trigger-matrix test enqueues exactly the enabled scanners per event; duplicate deliveries collapse on idempotency key; chainer runs after batch completion. | W8 |
+| FR-SEC-10 | Surfaces: Findings Explorer gains scanner/dimension/CVE/KEV/chain facets; Repo Detail gains a Security tab (posture score, CVE/KEV table, secrets status, chains); Security Posture report (FR-REPORTS-4) gains per-scanner sections + chains appendix, degrading gracefully when scanners disabled; org-level security rollup tile; scanner findings feed the FR-INSIGHTS-2 security sub-score basis. | E2E: filter by scanner facet, open Security tab, generate enriched posture report; disabled scanners render "not enabled", never blank. | W8 |
+| FR-SEC-11 | Per-repo enablement + budgets: `repo_scanner_config` (admin-only, FR-AUTH-4) with workspace defaults (secrets/dependency on; semgrep weekly; OWASP manual / auto-LLM); per-scanner budgets — wall-clock, container CPU/mem, forge-call quota (`scan` lane), LLM tokens; exceeded ⇒ scan_run `budget_exceeded`, partial findings kept + flagged `partial`. | Disabled scanner never enqueues; member mutation → 403; budget-breach fixture keeps partial findings flagged. | W8 |
+| FR-SEC-12 | Findings integration (DATABASE.md delta, no new store): `dimension` enum += `secrets\|dependency\|sast\|iac\|chain`; new columns `scanner_key`, `rule_id`, `cve_id?`, `chain_id?`, `preconditions/yields jsonb`, `scan_run_id`; `file`/`line_range` nullable for repo-level findings; dedup key extended with scanner_key+rule_id; same lifecycle/triage/audit rails; `scan_run` table records trigger, SHA, status, tool versions. | Migration applies without data loss; scanner + analysis findings coexist in one Explorer; dedup/reopen semantics hold across scanner re-runs. | W8 |
+
 ## 3. Non-Functional Requirements
 
 | ID | Requirement | Verification | Priority |
@@ -226,6 +249,9 @@ consumed by UI tooltips (FR-WEB-1) and report footnotes (FR-REPORTS-*).
 | NFR-10 | Data freshness: webhook-driven changes visible in dashboards ≤60s after delivery (event→warehouse→cache-bust). | E2E timer on fixture webhook. | MVP |
 | NFR-11 | Job reliability: all BullMQ jobs idempotent with bounded retries + dead-letter queue surfaced on an admin ops page. | Poison-message test lands in DLQ, visible in UI. | MVP |
 | NFR-12 | Observability: structured logs with request ids, job/queue metrics, forge budget gauge, sync lag metric — sufficient to answer "is ingest healthy" without DB spelunking. | Metrics endpoints scraped in staging; runbook references them. | MVP |
+| NFR-13 | Snapshot never persisted (C1a): repo snapshot bytes exist only inside a scan job's ephemeral scratch dir — never in DB, logs, object storage, or beyond job end; shred on every exit path + orphan sweeper. | Kill scan mid-run (crash + SIGKILL cases): zero residual snapshot bytes on disk/DB/logs; sweeper clears a planted orphan dir. | W8 |
+| NFR-14 | Scan container isolation: tool-running scanners execute in a locked-down container — non-root, read-only `noexec` snapshot mount, `--network=none` (vuln DBs via pre-synced local volume), pids/CPU/mem/time limits, no forge credentials or secrets mounted; findings exit only as schema-validated JSON on stdout. | Container profile asserted in integration test; lint gate: no scan-tool spawn outside the sandbox module; malicious-fixture snapshot cannot reach network or write outside scratch. | W8 |
+| NFR-15 | Scanner failure isolation: a failing, crashing, or budget-blown scanner never blocks ingestion, Tier-1 metrics, other scanners, or page loads — separate queue/workers, DLQ per NFR-11, per-scanner error state in UI. | Chaos test: crash every scanner; ingest lag and dashboards unaffected; UI shows per-scanner error state, not a broken page. | W8 |
 
 ## 4. External interface requirements (summary)
 
@@ -235,6 +261,8 @@ consumed by UI tooltips (FR-WEB-1) and report footnotes (FR-REPORTS-*).
   (NFR-8); host list + concurrency cap are workspace config.
 - **Claude API** — via Tier-3 gateway only (FR-ANALYSIS-7), gated by opt-in + egress audit (NFR-9).
 - **Browser** — evergreen Chrome/Firefox/Safari; UI is the only API consumer at v1 (FR-API-1).
+- **Scan tool DBs (W8)** — grype/OSV vulnerability DB + CISA KEV list synced nightly by a
+  host-side job into local volumes (FR-SEC-5, NFR-14); scan containers themselves have no network.
 
 ## 5. Assumptions & data retention
 
@@ -244,5 +272,5 @@ consumed by UI tooltips (FR-WEB-1) and report footnotes (FR-REPORTS-*).
 
 ## 6. Traceability
 
-- Decisions: D1→FR-AUTH-3/NFR-4 · D2→§2.4/FR-INSIGHTS-* · D3→FR-FORGE-1/7 · D5→MVP flags · D6→FR-AUTH-1/6, FR-WEB-7 · D7→§2.6.
-- Constraints: C1→FR-FORGE-3/4/6, FR-API-2, NFR-1/2/3 · C2→FR-ANALYSIS-2/3, NFR-8 · C3→this ID scheme; USER_STORIES.md maps stories→FRs.
+- Decisions: D1→FR-AUTH-3/NFR-4 · D2→§2.4/FR-INSIGHTS-* · D3→FR-FORGE-1/7 · D5→MVP flags · D6→FR-AUTH-1/6, FR-WEB-7 · D7→§2.6 · D8→§2.10/FR-SEC-1..12, NFR-13/14/15.
+- Constraints: C1→FR-FORGE-3/4/6, FR-API-2, NFR-1/2/3 · C1a→FR-SEC-2, NFR-13/14 · C2→FR-ANALYSIS-2/3, NFR-8 · C3→this ID scheme; USER_STORIES.md maps stories→FRs.

@@ -1,9 +1,9 @@
 # RepoPulse — Roadmap
 
-> **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W7 are v1.x.
+> **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W8 are v1.x.
 > Gate rule (PLAYBOOK.md): no wave-N+1 ticket starts until wave-N exit criteria pass
 > and are recorded in `docs/STATUS.md` (W0-* tickets always claimable).
-> Points are rough, apportioned from USER_STORIES.md epic totals (168 total / 117 MVP).
+> Points are rough, apportioned from USER_STORIES.md epic totals (213 total / 117 MVP).
 
 ## Sequencing rationale
 
@@ -20,8 +20,12 @@ acceptance run on real seeded data. LLM analysis (W6) comes after the MVP gate p
 D5: Tier-1 delivers the health dashboard value proposition on its own, LLM review is
 additive, and its ops burden (LM Studio warm-up/retry, C2) must not block MVP.
 Views/reports (W5) slot between: they consume only W3/W4 surfaces and are the
-cheapest post-MVP value. Gitea + Tier-3 (W7) land last because both ride on
+cheapest post-MVP value. Gitea + Tier-3 (W7) land late because both ride on
 interfaces (ForgeProvider capabilities, analysis gateway) proven by then.
+The security suite (W8, D8) comes after W6 because every scanner persists into
+the W6 findings store/triage rails and the OWASP checklist scanners execute
+through the W6 analysis gateway — the framework productizes those rails rather
+than duplicating them.
 
 ---
 
@@ -153,3 +157,24 @@ Security Posture report (FR-REPORTS-4); a11y/perf/polish pass (NFR-3 k6, NFR-5 f
 - [ ] Gitea fixture server passes the shared ForgeProvider contract suite; metrics branch on capability flags, never provider name (grep gate).
 - [ ] k6: p95 < 500ms on all data endpoints against seeded 50-repo dataset (NFR-3); axe + Lighthouse + manual WCAG 2.2 AA checklist recorded (NFR-5).
 - [ ] STATUS.md v1.x gate section written; both remotes pushed.
+
+## W8 — Security Suite (~45 pts: E10, decision D8)
+
+**Goal:** the productized scanner framework — five scanners over sandboxed C1a snapshots, attack chains, and a Security surface — with every finding living on the SAME store, triage lifecycle, and report rails as Tier-2/3 analysis (docs/design/SECURITY_SUITE.md).
+
+Ticket themes: scanner framework + registry + per-repo enablement/budgets + `security.scan`
+queue (FR-SEC-1/9/11); findings-store delta migration + scan_run/sboms (FR-SEC-12);
+snapshot service + Podman sandbox + `getTarball`/scan lane (FR-SEC-2, C1a, NFR-13/14);
+secrets stream + history modes (FR-SEC-3/4); dependency SBOM/CVE/KEV/slopsquat audit
+(FR-SEC-5); semgrep full + incremental (FR-SEC-6); OWASP Web/LLM checklist scanners via
+the gateway (FR-SEC-7); attack chainer (FR-SEC-8); Security tab + Explorer facets + org
+rollup (FR-SEC-10); Security Posture report enrichment (FR-REPORTS-4); deploy delta
+(sandbox image, tool-DB/rulepack db-sync).
+
+**Exit criteria**
+- [ ] Seeded-vuln fixture repo produces the expected findings per scanner — planted secret (stream ≤60s post-webhook AND history-only case), known CVE set + KEV floor + slopsquat flag, semgrep rule hits, schema-valid OWASP checklist findings with preconditions/yields — tool/rulepack versions stamped on every scan_run.
+- [ ] Snapshot lifecycle: scan killed mid-run (crash and SIGKILL cases) leaves zero snapshot bytes on disk/DB/logs; sweeper clears a planted orphan `snap-*` dir; scratch dir provably deleted after every successful scan (NFR-13).
+- [ ] Sandbox integration test: scan container denied network (`--network=none`) and write access (ro,noexec mount) with non-root UID; lint gate proves no scan-tool spawn outside `packages/security/sandbox` (NFR-14).
+- [ ] Chain golden test: two seeded findings with matching yields→preconditions build one chain finding at severity max(member)+1 (cap 5); resolving a member auto-resolves the chain with an audit row.
+- [ ] Chaos: crash every scanner — ingestion lag and Tier-1 dashboards unaffected; UI shows per-scanner error state, never a broken page (NFR-15).
+- [ ] E2E: admin enables a scanner → manual "scan now" → finding faceted by scanner/CVE/KEV/chain in the Explorer → Security tab posture + chain graph → enriched Security Posture PDF; DB-dump grep proves no plaintext secret value at rest (SC-29).

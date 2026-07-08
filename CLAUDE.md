@@ -15,6 +15,9 @@ Entry point for coding agents: `MASTER_PROMPT.md` → `plan.json` → `PLAYBOOK.
 4. **No cloning, ever** (CONSTRAINTS.md C1): all repo analysis goes through
    the `ForgeProvider` interface and our own database. The web app never
    calls a forge API on page load — it reads only our Postgres.
+   C1a exception (D8): W8 security scanners may fetch the API **tarball**
+   into an ephemeral sandboxed scratch dir (via the budgeted client),
+   scan, and delete — never `git clone`, nothing persisted but findings.
 5. **Tenancy invariant**: every tenant-scoped table has `workspace_id`;
    every query is workspace-filtered. Tenancy tests must stay green even
    though v1 runs one workspace.

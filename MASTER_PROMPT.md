@@ -34,8 +34,10 @@ decided; your job is executing tickets, not redesigning. Read in this order
 ## Hard rules that override any instinct you have
 
 - **No cloning**: analysis data enters only via `ForgeProvider` through the
-  budgeted client. No raw octokit/fetch outside `packages/forge`. The web
-  app reads only our Postgres — never a forge API at request time.
+  budgeted client (incl. W8 tarball snapshots — ephemeral, sandboxed,
+  deleted after scan; never `git clone`). No raw octokit/fetch outside
+  `packages/forge`. The web app reads only our Postgres — never a forge
+  API at request time.
 - **Tenancy invariant**: `workspace_id` on every tenant-scoped table and
   query; tenancy tests are part of the gate from W1 on.
 - **Module boundaries**: domain packages never import `api`/`web`;

@@ -127,6 +127,20 @@ Legend: S poofing, T ampering, R epudiation, I nfo disclosure, D oS, E levation.
 | T-33 | I | Secrets leak via CI logs, git history, or scratch artifacts | M×H=H | SC-18, SC-22 |
 | T-34 | E | Container breakout / lateral movement on shared bpmforge Podman host | L×H=M | SC-20 |
 
+### 3.8 Worker — security scanners (W8: snapshot service, sandbox, scan tools)
+
+Added at the W8 wave gate (D8, C1a): the snapshot service materializes untrusted repo
+content on our disk for the first time, and third-party scan tools (semgrep, syft, grype)
+process it. Repo bytes are attacker-controlled input by definition.
+
+| ID | STRIDE | Threat | Rating | Mitigation |
+|---|---|---|---|---|
+| T-35 | T/D | Malicious tarball: path traversal (absolute paths, `..`, symlink/hardlink entries escaping the extraction root) writes outside the scratch dir; zip-bomb / oversized archive fills the worker disk or tmpfs | M×H=H | SC-26 |
+| T-36 | E | Sandbox escape: untrusted repo content adjacent to scan tools (tar edge cases, semgrep rule evaluation, crafted manifests) escalates on the worker host, reaches the LAN, or touches forge credentials | L×H=M | SC-27, SC-20 |
+| T-37 | T | Scan-tool supply chain: poisoned semgrep rule packs (custom pack repo) or tampered grype/OSV/KEV databases execute in our pipeline or blanket-suppress real findings | M×H=H | SC-28, SC-19 |
+| T-38 | I | Secrets findings ARE live credentials: storing matched secret values puts plaintext credentials at rest in findings/reports/logs — the scanner becomes a better exfil target than the leak it detects (extends A5) | M×H=H | SC-29 |
+| T-39 | D | Scanner resource exhaustion: hostile repo shape (huge trees, pathological files, giant manifests) burns CPU/mem/wall-clock and drains the forge budget, starving ingest, analysis, or other scanners | M×M=M | SC-30, SC-11 |
+
 ## 4. Abuse cases (product-specific narratives)
 
 - **AC-1 Stolen credential = read-everything (T-13/T-14/T-25).** RepoPulse concentrates

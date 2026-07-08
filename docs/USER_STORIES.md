@@ -1,6 +1,6 @@
 # RepoPulse — User Stories
 
-Traces to `docs/SRS.md` (FR/NFR IDs) and `docs/work/FOUNDING_BRIEF.md` (P1–P4, D1–D7).
+Traces to `docs/SRS.md` (FR/NFR IDs) and `docs/work/FOUNDING_BRIEF.md` (P1–P4, D1–D8).
 Points: Fibonacci. **[MVP]** = roadmap wave 1 (D5). Epics align to modules/waves.
 
 Personas: P1 Engineering Lead · P2 Developer · P3 Security Engineer · P4 EM/Exec.
@@ -196,6 +196,59 @@ As P1 (admin), I want a queue/DLQ page plus budget and sync-lag gauges so that "
 ### E9.4 Accessibility gate [MVP] — 3 pts — NFR-5
 As P2 (keyboard user), I want the whole app — palette, charts, drill-down — usable by keyboard and screen reader so that WCAG 2.2 AA holds incl. dark theme contrast.
 
+## Epic E10 — Security Suite (security) [wave W8, D8]
+
+### E10.1 Enable scanners per repo — 3 pts — FR-SEC-1, FR-SEC-11
+As P3 (with P1 as admin), I want to enable/disable each scanner per repo with sane workspace defaults so that noisy or irrelevant scanners never pollute findings.
+- Secrets + dependency on by default; semgrep weekly; OWASP manual (LLM Top-10 auto-enables only on LLM deps)
+- Admin-only config (members 403); disabled scanner never enqueues a job
+- Per-scanner budget/timeout visible; blown budget shows `budget_exceeded` with partial findings flagged
+
+### E10.2 Secrets caught on every diff — 5 pts — FR-SEC-3, FR-SEC-9
+As P3, I want every ingested diff scanned for secrets (regex + entropy, TruffleHog-compatible rules) so that a leaked token surfaces within a minute of the push, not at the next audit.
+- Finding appears ≤60s after webhook delivery; rides ingestion, no snapshot or container needed
+- Verified secret ⇒ severity 5 + org banner + top of the repo Security tab
+- Rulepack version stamped on every finding
+
+### E10.3 History secrets sweep — 3 pts — FR-SEC-4
+As P3, I want a scheduled sweep over all 12 months of backfilled patches so that secrets committed and then "removed" are still found.
+- Committed-then-deleted fixture secret is found from history alone
+- Re-runs dedup against stream findings (0 new rows on unchanged history)
+
+### E10.4 Dependency posture (SBOM/CVE/KEV/slopsquat) — 8 pts — FR-SEC-5, FR-SEC-9
+As P3, I want a daily SBOM + CVE + KEV + slopsquatting audit of every repo's default branch so that exploited-in-the-wild and AI-hallucinated dependencies are flagged without any checkout.
+- syft SBOM per (repo, head SHA) from targeted manifest/lockfile fetches only
+- grype/OSV findings carry `cve_id` + CVSS-mapped severity; KEV hits floored at severity 4 and faceted
+- Hallucinated/typo-distance package fixture flagged `slopsquat`; posture counts by severity + age on the Security tab
+
+### E10.5 Semgrep SAST over snapshots — 8 pts — FR-SEC-6, FR-SEC-2, NFR-13/14
+As P3, I want weekly full semgrep runs (community + our custom rule packs) over ephemeral tarball snapshots, plus cheap diff-scoped runs on PRs, so that full-repo SAST works without ever cloning.
+- Snapshot fetched via budgeted client at a pinned SHA, scanned in a no-network non-root container, shredded after — zero residual bytes even on crash
+- Rule-pack config per workspace; pack/tool versions stamped on the scan run
+- Triage REAL/FP/UNVERIFIED maps onto confirmed/dismissed(false_positive)/open
+
+### E10.6 OWASP checklist reviews — 5 pts — FR-SEC-7
+As P3, I want OWASP Web Top-10 and LLM Top-10 checklist reviews run through the existing Tier-2/3 gateway so that structured OWASP coverage lands in the same findings list as everything else.
+- Same JSON finding schema + preconditions/yields; zod-validated; T3 only under existing opt-in rules
+- LLM Top-10 auto-enabled only when the SBOM shows LLM dependencies
+
+### E10.7 Attack chains — 5 pts — FR-SEC-8
+As P3, I want findings from ALL scanners chained yields→preconditions into multi-step exploit paths so that three "medium" findings that compose into a breach read as the critical they are.
+- Chain finding carries member ids + elevated severity (max member +1, cap 5)
+- Dashboard renders the entry→…→impact path graph; nodes link to member findings
+- Resolving any member auto-resolves the chain with an audit row
+
+### E10.8 Security tab + org rollup — 5 pts — FR-SEC-10, FR-SEC-12
+As P1 (with P3), I want a per-repo Security tab and an org security rollup tile so that security posture sits beside health scores, not in a separate tool.
+- Security tab: posture score, CVE/KEV table, secrets status, open chains; Findings Explorer gains scanner/CVE/KEV/chain facets
+- Org tile: open findings by severity, KEV + verified-secret counts, worst chain; drills down
+- Scanner findings upgrade the health-score security sub-score basis label
+
+### E10.9 Audit-ready security posture pack — 3 pts — FR-SEC-10, FR-REPORTS-4
+As P3 (with P4), I want the Security Posture report enriched with per-scanner sections and a chains appendix so that the exported PDF is the audit evidence pack.
+- One section per enabled scanner with posture counts + deltas vs prior run; disabled scanners state "not enabled", never blank
+- Immutable history + PDF export semantics inherited from E5
+
 ## Summary
 
 | Epic | Stories | Points | MVP points |
@@ -209,4 +262,5 @@ As P2 (keyboard user), I want the whole app — palette, charts, drill-down — 
 | E7 Tier-3 + Scheduling | 3 | 11 | 0 |
 | E8 Gitea Adapter | 2 | 11 | 0 |
 | E9 Admin / Ops | 4 | 12 | 12 |
-| **Total** | **42** | **168** | **117** |
+| E10 Security Suite (W8) | 9 | 45 | 0 |
+| **Total** | **51** | **213** | **117** |

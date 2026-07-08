@@ -813,6 +813,202 @@
       "points": 2,
       "status": "todo",
       "notes": []
+    },
+    {
+      "id": "W8-01",
+      "title": "Scanner framework: Scanner/ScannerContext interfaces, static registry, per-repo enablement, budgets + security.scan queue",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/framework/**", "packages/security/src/registry.ts", "packages/security/src/config/**", "packages/security/src/queue/**", "apps/api/src/routes/scanners/**"],
+      "depends_on": ["W2-02", "W6-01", "W6-03"],
+      "acceptance": [
+        "Scanner/ScannerContext/ScanBudget types + static registry compile exactly per docs/design/SECURITY_SUITE.md §1; dispatch, budgets, findings persistence, UI facets and report sections are driven by registry metadata only — adding a registered fixture scanner touches zero framework files (FR-SEC-1)",
+        "repo_scanner_config enablement with the §1 workspace defaults (secrets+dependency ON, semgrep weekly, owasp manual/auto-LLM, chainer ON) behind an admin-only API; member mutation → 403; disabled scanner never enqueues (FR-SEC-11, FR-AUTH-4)",
+        "Dedicated security.scan BullMQ queue with own worker pool, priority below analysis.review, §4 idempotency keys and DLQ per NFR-11; trigger-matrix test enqueues exactly the enabled scanners per pr_synced/push/schedule/manual event (FR-SEC-9)",
+        "ScanBudget enforcement per §1.2 (wall-clock, container CPU/mem, forge-call quota on the scan lane, LLM tokens via gateway accounting with meta.initiator='scanner:{key}'); exhaustion ⇒ scan_run budget_exceeded with partial findings kept + flagged; chaos test: crash every scanner — ingestion lag and Tier-1 dashboards unaffected (NFR-15)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-02",
+      "title": "Findings-store schema delta migration + scan_run / sboms / repo_scanner_config tables",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/shared/src/db/schema/security/**", "packages/shared/src/db/schema/read/**", "packages/shared/src/db/index.ts", "packages/shared/drizzle/**"],
+      "depends_on": ["W1-02", "W6-03"],
+      "acceptance": [
+        "Migration extends findings per docs/design/SECURITY_SUITE.md §1.3 / FR-SEC-12: dimension enum += secrets|dependency|sast|iac|chain; new nullable scanner_key, rule_id, cve_id, chain_id, preconditions jsonb, yields jsonb, scan_run_id; file/line_range become nullable for repo-level findings; applies without data loss over a seeded W6 findings set, rollback note per docs/DATABASE.md §5",
+        "New tables scan_run (trigger, commit_sha, status incl. budget_exceeded, tool_versions jsonb per §1.3), sboms (CycloneDX per (repo, sha) per §3.2) and repo_scanner_config (§1) — all with workspace_id + indexes (Law 5); tenancy suite green",
+        "Dedup-key extension sha256(scanner_key + rule_id + dimension + file + normalize(evidence_quote)) in the shared findings helper; scanner re-run on unchanged input yields 0 new rows and reopen/occurrence semantics hold (FR-ANALYSIS-6 extension); scanner + analysis findings coexist in one store",
+        "Secret-redaction invariant in schema + helpers: secrets findings store fingerprint hash + file/line only — DB-dump grep with a planted fixture secret finds zero plaintext occurrences (SC-29)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-03",
+      "title": "Snapshot service (C1a): getTarball + scan lane, guarded extraction, shred + sweeper, Podman sandbox profile",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/snapshot/**", "packages/security/sandbox/**", "packages/forge/src/types.ts", "packages/forge/src/provider.ts", "packages/forge/src/client/**", "packages/forge/src/github/**", "packages/forge/test/**"],
+      "depends_on": ["W8-01", "W1-06"],
+      "acceptance": [
+        "ForgeProvider delta per docs/design/SECURITY_SUITE.md §1.4: getTarball op + supportsTarball capability + 'scan' lane (priority between backfill and reconcile) in the BudgetedClient; GitHub 302→codeload redirect followed, 1 core point charged (recorded fixture); FR-FORGE-6 lint gate amended — tarball callable only from the snapshot service, git clone banned everywhere (C1a)",
+        "Extraction per §2.1: SHA-pinned fetch, streaming tar guards drop absolute-path/'..'/symlink/hardlink escapes (dropped + counted), 50MB per-file / 2GB total caps ⇒ abort failed(size_cap); traversal and zip-bomb fixture archives covered (FR-SEC-2)",
+        "Shred on every exit path: finally-delete + startup/hourly orphan sweeper; kill-scan-mid-run tests (crash and SIGKILL) leave zero snapshot bytes on disk, DB or logs; sweeper clears a planted orphan snap-* dir (NFR-13)",
+        "Sandbox profile per §2.2: non-root UID, snapshot mounted /scan ro,noexec, --network=none, --pids-limit, CPU/mem/wall caps from ScanBudget, no forge credentials or env secrets mounted; findings leave only as schema-validated JSON on stdout; integration test asserts network deny + read-only fs; lint gate: no scan-tool spawn outside packages/security/sandbox (NFR-14)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-04",
+      "title": "Secrets scanner — stream mode riding ingestion (TruffleHog-compatible rulepack, verified-secret escalation)",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/secrets/**", "packages/security/rulepacks/**"],
+      "depends_on": ["W8-01", "W8-02", "W2-04"],
+      "acceptance": [
+        "Stream mode per docs/design/SECURITY_SUITE.md §3.1: regex+entropy ruleset in TruffleHog-compatible format (versioned rulepacks/secrets.v{N}.yaml) runs on every ingested diff patch on pr_synced/push — no snapshot, no container; planted-secret fixture diff yields a finding ≤60s after webhook delivery (FR-SEC-3)",
+        "Verified-secret escalation: verifying detector ⇒ severity 5 / confidence 5 + org banner + top of Security tab; live verification config-gated, default OFF; rulepack version stamped on every finding and scan_run",
+        "Findings store fingerprint hash + file/line only, never the secret value (SC-29); yields ['credential:{kind}'] populated for chaining"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-05",
+      "title": "Secrets scanner — history mode over warehoused backfill patches",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/secrets/**"],
+      "depends_on": ["W8-04", "W2-03"],
+      "acceptance": [
+        "Scheduled (monthly per §4) / manual sweep over all warehoused backfill patches in the 12-month window per docs/design/SECURITY_SUITE.md §3.1 history mode; a secret present only in an old committed-then-removed patch is found from history alone (FR-SEC-4)",
+        "Dedups against stream-mode findings: re-run on unchanged history creates 0 new rows (FR-ANALYSIS-6 extension); optional snapshot pass for current-tree files without patch coverage wired behind config"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-06",
+      "title": "Dependency scanner: syft SBOM → grype/OSV CVE → KEV correlation → slopsquatting → posture rollup",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/dependency/**"],
+      "depends_on": ["W8-01", "W8-02"],
+      "acceptance": [
+        "Pipeline per docs/design/SECURITY_SUITE.md §3.2: manifest+lockfile targeted fetches at default-branch head SHA (no snapshot, budgeted) → syft CycloneDX SBOM stored per (repo, sha) in sboms → grype/OSV match, one finding per (package, CVE) with cve_id + CVSS-mapped severity; fixture manifests reproduce the known CVE set (FR-SEC-5)",
+        "CISA KEV correlation floors severity at 4 + kev:true payload flag faceted in UI; slopsquatting heuristics (not-in-registry, registry age <90d + low downloads, Damerau-Levenshtein ≤2 to top-N) flag the hallucinated-package fixture as rule slopsquat severity 4",
+        "Posture rollup (counts by severity + finding-age percentiles) feeds the Security tab tile and FR-INSIGHTS-2 security sub-score; daily default-branch schedule + cheap pr_synced manifest-diff mode per §4; yields ['vuln-dependency:{cve}']",
+        "CI uses vendored mini grype/OSV/KEV databases — zero live tool-DB downloads (docs/TESTING.md §10)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-07",
+      "title": "Semgrep scanner: weekly snapshot full runs + diff-scoped incremental, rulepack config, REAL/FP triage mapping",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/semgrep/**"],
+      "depends_on": ["W8-01", "W8-02", "W8-03"],
+      "acceptance": [
+        "Full mode per docs/design/SECURITY_SUITE.md §3.3: weekly/manual semgrep over a §2 snapshot inside the §2.2 sandbox with per-workspace rulepack config (community packs + custom pack repo fetched host-side by db-sync, mounted read-only); pack + tool versions stamped in scan_run.tool_versions; seeded-vuln fixture snapshot reproduces the expected findings (FR-SEC-6)",
+        "Incremental mode on pr_synced scans changed files only via targeted fetches (no tarball); regression planted between weekly fulls is caught by the PR run",
+        "Triage mapping REAL→confirmed, FP→dismissed(false_positive), UNVERIFIED→open on the FR-INSIGHTS-1 lifecycle with audited transitions; FP dismissals feed the tuning metric; rule-declared yields recorded for chaining"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-08",
+      "title": "OWASP checklist scanners (owasp_web + owasp_llm) through the Tier-2/3 gateway",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/owasp/**", "packages/security/checklists/**"],
+      "depends_on": ["W8-01", "W8-02", "W8-06", "W6-02"],
+      "acceptance": [
+        "OWASP Web Top-10 (2021) + LLM Top-10 (2025) as versioned checklist prompt assets executed through the Tier-2/3 gateway per docs/design/SECURITY_SUITE.md §3.4 — chunking, 45k maxTokens, JSON-mode, zod validation, dedup and egress rules unchanged; gateway accounting rows carry meta.initiator='scanner:{key}' (FR-SEC-7)",
+        "Finding schema extended with preconditions[]/yields[] populated by the checklist prompts; fixture diffs emit schema-valid findings; T3 only under the existing opt-in/escalation rules (security ∧ severity ≥3), never silent egress",
+        "owasp_llm auto-enables only when the dependency scanner's SBOM contains LLM packages; a repo without LLM deps never enqueues owasp_llm (test); owasp_web manual/scheduled per repo"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-09",
+      "title": "Attack chainer: yields→preconditions chains across all open findings",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/chainer/**"],
+      "depends_on": ["W8-04", "W8-06", "W8-07", "W8-08"],
+      "acceptance": [
+        "Post-scan pass per docs/design/SECURITY_SUITE.md §3.5: reads ALL open findings via priorFindings and matches yields→preconditions over the shared vocabulary into chain findings (dimension chain, chain_id, member ids in payload, severity = min(5, max(member)+1)); golden test: two seeded findings with matching vocab produce exactly the expected chain at elevated severity (FR-SEC-8)",
+        "Chains auto-resolve with an audit row when any member finding resolves; chainer enqueued as completion job after each scan batch + weekly full recompute per §4",
+        "Chain graph payload (entry→step→…→impact, each node referencing its member finding) served for the dashboard renderer"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-10",
+      "title": "Security tab + Findings Explorer scanner facets + org security rollup tile",
+      "phase": 8,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/repos/$repoId/security.tsx", "apps/web/src/widgets/security/**", "apps/web/src/routes/findings/**", "apps/web/src/widgets/findings/**", "apps/api/src/routes/security/**", "apps/api/src/routes/findings/**"],
+      "depends_on": ["W8-01", "W8-02", "W6-04"],
+      "acceptance": [
+        "Findings Explorer gains scanner_key, extended dimension, cve_id, KEV-flag and chain-membership facets per docs/design/SECURITY_SUITE.md §5 (facets driven by registry metadata); finding detail shows rule id, scan_run link and chain graph (FR-SEC-10)",
+        "Repo Detail Security tab: posture score, CVE/KEV table, secrets status (last stream/history scan + open count), SAST summary, open chains rendered entry→…→impact with nodes linking member findings; per-scanner error and 'not enabled' states — never a blank or broken page (NFR-15)",
+        "Org security rollup tile: open findings by severity across repos, KEV count, verified-secret count (always red-flagged), worst chain — drills to per-repo Security tabs; health-score security sub-score basis label upgrades when scanner data present (FR-INSIGHTS-2)",
+        "E2E: filter by scanner facet → open Security tab → click a chain node → land on member finding; tenancy route-walker and axe green over all new routes"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-11",
+      "title": "Security Posture report: per-scanner sections + chains appendix",
+      "phase": 8,
+      "module": "reports",
+      "write_scope": ["packages/reports/src/assembler/security-posture.ts", "packages/reports/src/types/security-posture.ts", "packages/reports/fixtures/security/**"],
+      "depends_on": ["W7-03", "W8-02"],
+      "acceptance": [
+        "Security Posture report gains one section per enabled scanner (posture counts, deltas vs prior run, top findings) + a chains appendix per docs/design/SECURITY_SUITE.md §5; disabled scanners render 'not enabled', never blank (FR-SEC-10, FR-REPORTS-4)",
+        "Degrades to the existing Tier-1-only W7-03 sections when scanners are disabled; assembler snapshot tests cover both enriched and degraded renderings against the seeded-vuln fixture warehouse",
+        "Determinism pin intact: assembly reads findings/scan_run/snapshot rows as of snapshotAt only; regenerating with identical params is byte-identical (FR-REPORTS-6)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-12",
+      "title": "Deploy delta: scan sandbox image, tool/rulepack db-sync job, scratch tmpfs + runbook",
+      "phase": 8,
+      "module": "deploy",
+      "write_scope": ["deploy/**", "Containerfile.scan", "docs/RUNBOOK.md", "docs/STATUS.md"],
+      "depends_on": ["W7-05", "W8-03"],
+      "acceptance": [
+        "Scan sandbox image (semgrep/syft/grype at pinned versions with checksums) builds in CI; quadlet/compose units run scan workers with the docs/design/SECURITY_SUITE.md §2.2 profile — non-root, --network=none, ro,noexec snapshot mount, pids/CPU/mem caps, no secrets mounted (NFR-14, SC-27/SC-28)",
+        "Nightly host-side db-sync job refreshes grype/OSV/KEV data + custom semgrep pack volumes from pinned, checksum-verified sources into read-only volumes; scan containers themselves never get network; SCAN_SCRATCH_ROOT tmpfs sizing + sweeper documented in docs/RUNBOOK.md",
+        "Prod smoke: manual 'scan now' on a connected repo completes end-to-end and the scratch dir is provably deleted (NFR-13); result + date appended to docs/STATUS.md"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
     }
   ]
 }
