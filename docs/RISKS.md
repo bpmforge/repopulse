@@ -1,0 +1,24 @@
+# RepoPulse — Risk Register
+
+Traces to: `docs/work/FOUNDING_BRIEF.md` (C1, C2, D1, D2, D5, D7). Owner-phase =
+SDLC phase where the mitigation must be designed/landed. Likelihood/Impact: L/M/H.
+
+| ID | Risk | Likelihood | Impact | Mitigation | Owner-phase |
+|----|------|-----------|--------|------------|-------------|
+| R-1 | **GitHub rate limits throttle 12-month backfill** — a mid-size org exhausts 5k REST req/hr; backfill stalls or starves webhook processing. | H | H | Rate-limit **budgeter** as first-class `ingest` component (C1): per-installation budget split between backfill and live sync; prefer **GraphQL** batching for PR/review history; **incremental cursors** so backfill is resumable and never re-fetches; ETag conditional requests (304s are free); backfill progress UI so slow ≠ broken. | Phase 3 design, Phase 4 wave 1 |
+| R-2 | **Diff truncation on huge PRs** — GitHub caps files-per-PR listings and diff sizes; Tier-1 size metrics and Tier-2 review silently see partial data. | M | M | Detect truncation flags from the API; mark PR rows `partial=true` and surface the badge in UI; size metrics computed from per-file stats not raw patch; Tier-2 chunker skips-and-flags oversized files rather than reviewing a truncated patch. | Phase 3 design (metrics + analysis) |
+| R-3 | **Local LLM unavailability** — LM Studio LAN hosts (.48/.114) down or model crashed mid-run (known C2 failure mode). | H | M | Per C2: Tier-2 jobs go through BullMQ **queue with retry + warm-up probe**; on sustained failure, **degrade to Tier 1** (dashboard fully functional without LLM tiers); health check per LLM host; never block ingestion or metrics on analysis. | Phase 3 design, v1.x build (S-20) |
+| R-4 | **LLM review false positives erode trust** — noisy Tier-2 findings train users to ignore the `insights` panel. | H | H | **Confidence scores** on every finding; findings below threshold hidden by default; **verify tier**: Tier-3 (or human) confirmation upgrades/downgrades findings; dimension checklists (D2) constrain scope; track dismiss-rate per dimension as a quality metric. | v1.x design (S-20/S-23/S-24) |
+| R-5 | **Metric gaming / Goodhart's law** — cycle-time or churn becomes a target; behavior optimizes the number, not the outcome. | M | H | Present metrics as **signals, not scores** (no grades/leaderboards, NON_GOALS N-9); always pair a rate with its distribution and drill-down evidence; document each metric's known failure modes in the metric catalog doc. | Phase 2 requirements, Phase 3 UX |
+| R-6 | **Webhook delivery loss** — GitHub drops/fails deliveries; data silently drifts stale. | M | M | Verify webhook signatures + respond fast (enqueue, don't process inline); use GitHub **redelivery** API for failed deliveries; **nightly reconciliation sweep** compares cursors vs live API and backfills gaps (S-6); staleness indicator per repo in UI. | Phase 3 design, Phase 4 wave 1 |
+| R-7 | **SaaS-readiness drift** — code paths creep in that assume the single `default` workspace; retrofitting tenancy later is a rewrite. | M | H | D1 discipline enforced by tests: **tenancy test suite** (every tenant-scoped query filtered by `workspace_id`; a fixture second workspace must see zero rows); Drizzle schema lint that new tables carry `workspace_id`; code review checklist item. | Phase 3 DB design, every wave |
+| R-8 | **Scope creep on dashboard polish** — MVP stalls in chart/UX iteration instead of shipping the D5 slice. | H | M | D5 defines done; dashboard tickets carry S-8/S-9 IDs with acceptance criteria; polish beyond acceptance goes to a v1.x backlog; timebox chart work per metric. | Phase 4 execution |
+| R-9 | **Token/secret compromise** — GitHub OAuth tokens and webhook secrets in Postgres are a high-value target. | L | H | Encrypt tokens at rest (app-level, keyed from env/secret store); least-scope OAuth; webhook secret per installation; no tokens in logs; threat model in Phase 3 (ThreatForge sibling discipline). | Phase 3 security design |
+| R-10 | **Single-node Postgres/Redis outage or data loss** — bpmforge infra is single-node (CONSTRAINTS). | L | M | Nightly `pg_dump` + restore drill; ingestion is replayable from forge APIs (cursors make loss recoverable, not fatal); Redis holds only queues — safe to flush and re-enqueue via reconciliation. | Phase 3 infra design |
+| R-11 | **Backfill data volume surprises** — 12 months of a busy org (PR files, review comments) balloons Postgres and job runtime. | M | M | Store derived metrics + normalized entities, not raw payload archives; per-table growth estimates in DATABASE.md; retention policy for high-volume raw rows (e.g. check-run detail); backfill dry-run count before commit. | Phase 3 DB design |
+
+## Review cadence
+
+Revisit at every phase gate; any new HIGH-impact risk requires a mitigation row
+before the gate passes (C3 buildability: agents executing plan.json cite R-x IDs
+when a ticket exists to mitigate a risk).
