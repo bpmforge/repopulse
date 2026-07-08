@@ -1,0 +1,310 @@
+# RepoPulse — Architecture
+
+Traces to: FOUNDING_BRIEF.md D1–D7 / C1–C3, SRS FR/NFR IDs inline, docs/research/github-api.md
+(rate/limit ground truth). Versions: docs/TECH_STACK.md. This is the load-bearing doc: module
+boundaries here are enforced by lint + review gate (CLAUDE.md Laws 4/6/7/8).
+
+## 1. C1 — System Context
+
+```mermaid
+graph TB
+    P[P1 Eng Lead / P2 Developer / P3 Security Eng / P4 EM-Exec<br/>browser, evergreen] -->|HTTPS| RP[RepoPulse<br/>repopulse.bpmforge.com]
+    RP -->|REST v3 + GraphQL v4, budgeted, ETag| GH[GitHub<br/>github.com]
+    GH -->|webhooks: push, PR, review, check, deploy, release, issues| RP
+    RP -->|OpenAI-compatible API, LAN only| LM[LM Studio hosts<br/>192.168.x.x Tier 2]
+    RP -->|opt-in only, egress-audited| CL[Claude API<br/>Tier 3]
+    RP --- PG[(PostgreSQL 16<br/>warehouse)]
+    RP --- RD[(Redis 7<br/>queues + sessions)]
+```
+
+- Users never talk to GitHub through us live; every page reads the warehouse (FR-API-2, NFR-3).
+- GitHub is both pull source (REST/GraphQL) and push source (webhooks, FR-INGEST-5).
+- LM Studio egress is LAN-only; Claude API is the only external analysis egress and is
+  opt-in + audited (D2, NFR-9).
+
+## 2. C2 — Containers
+
+```mermaid
+graph TB
+    subgraph monorepo["one pnpm monorepo, three deployed processes (Podman, D1)"]
+      WEB[web — React 18 SPA<br/>Vite build, static assets]
+      API[api — Fastify 5<br/>REST /api/v1, SSE, OAuth, webhook receiver]
+      WRK[worker — BullMQ consumers<br/>queues: ingest / metrics / analysis / reports]
+    end
+    WEB -->|/api/v1 JSON + SSE| API
+    API -->|enqueue only| RD[(Redis 7)]
+    WRK -->|consume + enqueue| RD
+    API -->|read + auth writes| PG[(Postgres 16)]
+    WRK -->|read/write| PG
+    WRK -->|budgeted forge calls| GH[GitHub]
+    WRK -->|Tier 2| LM[LM Studio]
+    WRK -->|Tier 3| CL[Claude API]
+    GH -->|webhook POST| API
+```
+
+Separation rules:
+- **api** never calls a forge or LLM host (FR-API-2; the webhook receiver only verifies +
+  enqueues). All egress lives in **worker**.
+- **worker** hosts four queue families: `ingest` (backfill, delta sync, reconciliation),
+  `metrics` (recompute, nightly snapshots), `analysis` (Tier-2/3, v1.x), `reports`
+  (HTML render + Playwright PDF). Independent concurrency per queue (NFR-11).
+- web is a static bundle; api serves it (or a reverse proxy does). Scaling story: api and
+  worker scale horizontally later; BullMQ + Postgres already tolerate N workers.
+
+## 3. C3 — Components (packages) and dependency law
+
+| Module | Lives in | Responsibility | FR anchor |
+|---|---|---|---|
+| forge | packages/forge | ForgeProvider port, GitHubProvider, budgeter, ETag cache, webhook sig verify | FR-FORGE-1..6 |
+| ingest | packages/ingest | connect, backfill planner, webhook handlers, cursors, reconciliation | FR-INGEST-1..8 |
+| metrics | packages/metrics | Tier-1 metric computations, snapshot writer, metric catalog | FR-METRICS-1..15 |
+| analysis | packages/analysis | tiered LLM gateway, chunker, dimension checklists (v1.x) | FR-ANALYSIS-1..8 |
+| insights | packages/insights | findings store, health score, trend deltas, hotspot ranking | FR-INSIGHTS-1..5 |
+| reports | packages/reports | report definitions, HTML render, PDF export | FR-REPORTS-1..7 |
+| shared | packages/shared | Drizzle schema, zod contracts, config, logger, errors | (all) |
+| auth (in api) | apps/api/src/auth | GitHub OAuth, Redis sessions, RBAC, workspace scoping | FR-AUTH-1..6 |
+| api / web | apps/* | HTTP surface / SPA | FR-API-*, FR-WEB-* |
+
+### Allowed-dependency matrix (row imports column; ✅ allowed, blank forbidden — ESLint-enforced)
+
+| imports → | shared | forge | ingest | metrics | analysis | insights | reports |
+|---|---|---|---|---|---|---|---|
+| **forge** | ✅ | | | | | | |
+| **ingest** | ✅ | ✅ | | | | | |
+| **metrics** | ✅ | | | | | | |
+| **analysis** | ✅ | ✅¹ | | | | | |
+| **insights** | ✅ | | | ✅ | | | |
+| **reports** | ✅ | | | ✅ | | ✅ | |
+| **apps/api** | ✅ | ✅² | ✅² | ✅ | ✅ | ✅ | ✅ |
+| **apps/web** | (types only) | | | | | | |
+
+¹ analysis may call forge ONLY for on-demand `listPRFiles`/`getFileContents` through the
+budgeted client (diff text is not warehoused wholesale; research §6). No other domain
+package touches forge — metrics/insights/reports read the DB, never the forge (Law 6).
+² api imports forge/ingest solely for webhook signature verification + job enqueueing;
+route read-handlers must not (FR-API-2 static check).
+No package ever imports `apps/api` or `apps/web` (Law 6). Everyone may import shared.
+
+```mermaid
+graph BT
+    shared[packages/shared]
+    forge[packages/forge] --> shared
+    ingest[packages/ingest] --> forge & shared
+    metrics[packages/metrics] --> shared
+    analysis[packages/analysis] --> forge & shared
+    insights[packages/insights] --> metrics & shared
+    reports[packages/reports] --> metrics & insights & shared
+    api[apps/api] --> ingest & metrics & analysis & insights & reports & shared
+    web[apps/web] -.->|HTTP only| api
+```
+
+## 4. Data-flow sequences
+
+### 4a. Org connect + 12-month backfill (FR-INGEST-1..4, NFR-1/2)
+
+```mermaid
+sequenceDiagram
+    actor Admin
+    participant API as api
+    participant Q as Redis/BullMQ
+    participant W as worker(ingest)
+    participant F as forge (budgeted)
+    participant GH as GitHub
+    participant PG as Postgres
+    Admin->>API: POST /connections (App install or PAT)
+    API->>PG: forge_connections (credential AES-256-GCM)
+    API->>Q: enqueue discover-repos
+    W->>F: listOrgRepos (GraphQL/REST)
+    F->>GH: budgeted request (ETag, headers persisted)
+    W->>PG: repos rows, status=pending_backfill
+    W->>Q: per-repo backfill jobs, priority = recent activity DESC
+    loop per repo, entity order PRs→commits→checks→issues→releases
+        W->>F: page N (GraphQL for PR metadata ≈2pts/50 PRs; REST elsewhere)
+        F-->>W: data or BUDGET_FLOOR
+        alt budget floor hit (FR-FORGE-3)
+            W->>PG: checkpoint sync_cursors (repo, entity, cursor/page)
+            W->>Q: re-enqueue self with delay to x-ratelimit-reset
+        else page ok
+            W->>PG: idempotent upsert on natural keys (FR-INGEST-6)
+            W->>PG: advance cursor checkpoint (FR-INGEST-3 resumable)
+        end
+    end
+    W->>Q: enqueue metrics recompute; PG repo status=live
+```
+
+Budgeter respects BOTH buckets: REST 5000/hr and GraphQL points separately (App tokens —
+research §1), plus secondary limits (≤900 pts/min/endpoint → per-endpoint token buckets at
+≤10 req/s, ≤100 concurrent global, ≥1s write spacing). Installation tokens refreshed at
+~50 min (1h expiry, research §8).
+
+### 4b. Webhook → delta sync → dashboard (FR-INGEST-5/6, NFR-10)
+
+```mermaid
+sequenceDiagram
+    participant GH as GitHub
+    participant API as api (webhook receiver)
+    participant Q as BullMQ
+    participant W as worker
+    participant PG as Postgres
+    participant WEB as web (SPA)
+    GH->>API: POST /webhooks/github (X-Hub-Signature-256)
+    API->>API: timingSafeEqual HMAC on RAW body
+    alt invalid signature
+        API-->>GH: 401, nothing enqueued (FR-INGEST-5)
+    else valid
+        API-->>GH: 202 immediately (<10s rule, research §4)
+        API->>Q: typed event job (delivery id = idempotency key)
+        W->>PG: delta upsert (webhook payload + cursor pull if gap)
+        W->>Q: enqueue metrics recompute (affected repo/metric only)
+        W->>PG: write read-model rows / snapshots
+        W->>API: publish sync event (Redis pub/sub)
+        API-->>WEB: SSE sync tick → TanStack Query invalidate
+        WEB->>API: GET /api/v1/... (Postgres only, FR-API-2)
+    end
+```
+
+Webhooks are a hint; cursors + nightly reconciliation are truth (research §4 design rule).
+
+### 4c. Tier-2 review dispatch (FR-ANALYSIS-1..5, NFR-7/8 — v1.x)
+
+```mermaid
+sequenceDiagram
+    participant W as worker(analysis)
+    participant F as forge
+    participant GH as GitHub
+    participant LM as LM Studio (LAN)
+    participant PG as Postgres
+    Note over W: PR synced + repo policy auto-T2 → job enqueued
+    W->>F: listPRFiles (paginated /pulls/{n}/files — never raw diff >300 files/20k lines)
+    F->>GH: budgeted, ETag'd
+    W->>W: chunk by file / hunk-group, expected output ≤10k tokens (C2)
+    loop per chunk × dimension checklist
+        W->>LM: chat.completions (max_tokens 45000, checklist vN prompt)
+        alt "model crashed" / timeout
+            W->>LM: warm-up ping, retry with backoff (NFR-8)
+        end
+        LM-->>W: findings JSON
+        W->>W: zod-validate (FR-ANALYSIS-5); malformed → retry once → DLQ
+    end
+    W->>PG: findings upsert by dedup_key (FR-ANALYSIS-6), analysis_runs row
+```
+
+LM Studio unreachable → queue parks with backoff, UI banner "Tier-2 paused"; Tier-1
+dashboards unaffected (NFR-7, §6 below).
+
+### 4d. Tier-3 opt-in path with egress audit (FR-ANALYSIS-7, NFR-9 — v1.x)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as api
+    participant W as worker(analysis)
+    participant PG as Postgres
+    participant CL as Claude API
+    User->>API: POST /analyses {pr, tier:3}
+    API->>PG: check repo.tier3_opt_in ∧ role (FR-AUTH-4)
+    alt not opted in
+        API-->>User: 403 RFC7807 (T3 rejected, FR-ANALYSIS-1)
+    else opted in
+        API->>W: enqueue T3 job
+        W->>W: assemble MINIMUM context (diff + touched-file excerpts only)
+        W->>PG: egress_audit row BEFORE send (repo, pr, bytes, tokens, sha256 digest, model, initiator)
+        W->>CL: messages.create
+        CL-->>W: findings
+        W->>PG: findings + analysis_runs (cost recorded) + audit row finalized
+    end
+```
+
+### 4e. Report generation → HTML → PDF (FR-REPORTS-1/6/7)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as api
+    participant W as worker(reports)
+    participant PG as Postgres
+    User->>API: POST /reports {type, repo_set, window}
+    API->>PG: reports row status=queued (params stored, FR-REPORTS-7)
+    API->>W: enqueue render job
+    W->>PG: read snapshots/scores/findings (warehouse only)
+    W->>W: render report HTML (same components as dashboard)
+    W->>PG: store html_uri, status=rendered (immutable snapshot)
+    W->>W: Playwright chromium page.pdf (header/footer/page numbers)
+    W->>PG: pdf_uri, status=ready (≤30s, FR-REPORTS-6)
+    User->>API: GET /reports/{id}/pdf → stream
+```
+
+## 5. Architecture decision records
+
+**ADR-1 — Clone-free, API-only, with a persistent ETag cache layer.** (C1, FR-FORGE-4/6)
+Decision: zero git clone/tarball code paths (lint + review gate); all ingestion via
+ForgeProvider; every GET goes through an ETag store (`api_cache` table) so repeat polls of
+unchanged resources cost 0 rate-limit points (304s are free — research §2). Consequence:
+churn facts come from commit-detail / GraphQL PR files / stats endpoints with the 10k-commit
+degradation fallback (research §3), never from local diffing.
+
+**ADR-2 — CQRS-lite.** Ingest writes normalized facts (commits, prs, reviews, files, runs…);
+metrics materializes read models — `metric_snapshots` append-only + current-state rollups;
+UI/API read ONLY read models + warehoused facts (FR-API-2, FR-METRICS-13, NFR-3 p95<500ms).
+No request-time aggregation over raw facts for dashboard tiles; drill-down lists may read
+facts through indexed queries. Rejected: full event-sourcing (overkill, hostile to C3).
+
+**ADR-3 — Tenancy via `workspace_id` everywhere, RLS-ready.** (D1, FR-AUTH-3, NFR-4)
+Every tenant-scoped table carries `workspace_id` + composite indexes leading with it.
+v1 ships one `default` workspace but all queries filter by it (repo-layer helpers force the
+predicate). Postgres RLS policies are written but not enabled at launch; enabling them +
+`SET app.workspace_id` per request is the SaaS flip (§7).
+
+**ADR-4 — Queue topology + per-endpoint token buckets.** (FR-FORGE-3, FR-INGEST-4, NFR-1/11)
+Four BullMQ queue families (ingest/metrics/analysis/reports) with independent concurrency;
+ingest jobs are small (one repo × one entity-type × one page-range) so budget pauses lose
+≤1 page of work. The forge budgeter maintains: global REST budget from `x-ratelimit-*`
+headers persisted per installation, a separate GraphQL points budget, per-endpoint buckets
+honoring the 900 pts/min secondary limit, ≤100 concurrency, `Retry-After` compliance
+(research §1). Jobs that hit the floor checkpoint + self-reschedule (FR-INGEST-3/4).
+
+**ADR-5 — ForgeProvider port/adapter.** (D3, FR-FORGE-1/7) One TypeScript interface in
+packages/forge; GitHubProvider v1, GiteaProvider v1.x. Interface is capability-annotated
+(e.g. `supportsDeployments`, `supportsStats`) because Gitea lacks deployments/stats/GraphQL
+(research §7) — metrics code branches on capabilities, never on provider name.
+
+**ADR-6 — Tiered analysis gateway.** (D2, FR-ANALYSIS-1, NFR-8/9) One gateway in
+packages/analysis owns ALL LLM egress: T2 = OpenAI-compatible client → LM Studio with C2
+discipline baked in; T3 = Anthropic SDK gated by opt-in flag + egress audit. Dimension
+checklists are versioned prompt assets; runs record checklist + model ids. Lint forbids
+direct HTTP to LM/Claude hosts anywhere else.
+
+**ADR-7 — Metric snapshots as append-only time series.** (FR-METRICS-13, FR-INSIGHTS-4)
+Nightly job writes `(workspace, repo|org, metric_key, window, dims, value, computed_at)`
+rows; trends/deltas read snapshots only, never recompute. Retained ≥400d. This is what
+makes trend charts O(rows-in-range) and keeps NFR-3.
+
+## 6. Failure modes & degradation
+
+| Failure | Detection | Behavior | User-visible | FR/NFR |
+|---|---|---|---|---|
+| LM Studio host down | T2 call timeout/refused | analysis queue parks, exponential backoff; Tier-1 untouched | banner "Tier-2 analysis paused — host unreachable" | NFR-7 |
+| LM "model crashed" | error string match | warm-up ping + retry (bounded), then park | per-PR analysis status = retrying | FR-ANALYSIS-2, C2 |
+| GitHub rate exhaustion | budgeter floor / 403+Retry-After | jobs checkpoint + reschedule at reset; no request emitted over budget | sync status = paused-for-budget, lag shown | NFR-1, FR-INGEST-8 |
+| Secondary-limit 403 | Retry-After header | per-endpoint bucket drains to zero, honors header exactly | sync lag metric rises | research §1 |
+| Webhook delivery lost | cursor gap / nightly sweep | nightly reconciliation re-lists updated-since entities (ETag-cheap) | ≤24h drift worst case, usually none | FR-INGEST-7 |
+| Worker crash mid-backfill | BullMQ stalled-job | resume from sync_cursors checkpoint, idempotent upserts | progress % stalls then resumes | FR-INGEST-3, NFR-11 |
+| Claude API error/cost spike | SDK error / cost row | T3 job fails to DLQ with audit row intact; never silent retry-loop | analysis status = failed, admin DLQ page | NFR-9/11 |
+| Postgres down | api healthcheck | total outage — Postgres is the single source for UI, no forge fallback ever | 503 | FR-API-2 |
+| Redis down | api/worker healthcheck | reads still served (sessions fail → re-login); ingestion halts | login required; sync paused | FR-AUTH-2 |
+| Malformed LLM output | zod parse fail | retry once → dead-letter with raw payload kept | finding absent; DLQ visible on ops page | FR-ANALYSIS-5, NFR-11 |
+| Stats endpoint 202/422 (10k+ commits) | status code | retry-after-202 loop; 422 → per-commit REST fallback queued low-priority | none (slower churn backfill) | research §3 |
+
+## 7. SaaS-readiness (what flips for multi-tenant, D1)
+
+Designed-in now, activated later — no schema migration required:
+1. **Workspaces**: creation/invite flows replace the seeded `default` workspace;
+   `workspace_members` and roles (FR-AUTH-4) already model it.
+2. **RLS enable**: `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` + policies on
+   `workspace_id = current_setting('app.workspace_id')`; api sets the GUC per request from
+   the session. Tenancy test suite (NFR-4) already proves query-level isolation pre-RLS.
+3. **Per-workspace budgets**: budgeter keys are already `(workspace, connection)`; expose
+   budget share config per workspace (SRS §1.1 Budget).
+4. **Per-workspace LLM config**: LM host list, concurrency cap, T3 opt-in and spend caps
+   are workspace columns from day one (FR-ANALYSIS-8, NFR-9).
+5. Out of scope until then: billing, self-serve onboarding, email (D7 non-goals v1).
