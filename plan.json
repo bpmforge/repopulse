@@ -1,0 +1,818 @@
+{
+  "$schema_note": "Ticket board for coding agents. id=W<wave>-<nn>. Claim: set status in_progress + commit. Close: acceptance + full gate green. status: todo|in_progress|blocked|done. notes: append-only strings for HANDOFF/blockers.",
+  "version": 1,
+  "tickets": [
+    {
+      "id": "W0-01",
+      "title": "Monorepo scaffold + lint/typecheck/test toolchain",
+      "phase": 0,
+      "module": "infra",
+      "write_scope": ["pnpm-workspace.yaml", "package.json", "tsconfig.base.json", "eslint.config.js", ".prettierrc.json", "vitest.workspace.ts", "apps/**", "packages/**", ".gitignore", ".nvmrc"],
+      "depends_on": [],
+      "acceptance": [
+        "pnpm install succeeds on Node 22; workspaces apps/api (Fastify stub), apps/web (Vite React stub) and packages/{shared,forge,ingest,metrics,analysis,insights,reports,auth} exist per CLAUDE.md §Build, each with a placeholder src/index.ts",
+        "pnpm lint && pnpm typecheck && pnpm test all pass from the repo root (vitest, at least one placeholder test per workspace)",
+        "Dependency versions match docs/TECH_STACK.md; any deviation is recorded there in the same commit (CLAUDE.md Law 2)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W0-02",
+      "title": "Dev compose: Postgres 16 + Redis + env template",
+      "phase": 0,
+      "module": "infra",
+      "write_scope": ["compose.dev.yaml", ".env.example", "scripts/dev-up.sh", "scripts/dev-down.sh"],
+      "depends_on": [],
+      "acceptance": [
+        "podman compose -f compose.dev.yaml up starts PostgreSQL 16 and Redis with healthchecks and persistent named volumes (docs/ARCHITECTURE.md §2 dev container set)",
+        ".env.example documents every required variable (DATABASE_URL, REDIS_URL, SESSION_SECRET, CREDENTIAL_KEY, DATA_DIR) with safe local defaults; nothing secret committed (CLAUDE.md Law 9)"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W0-03",
+      "title": "CI pipeline + architecture guardrails (ESLint boundaries + validate-arch gate)",
+      "phase": 0,
+      "module": "infra",
+      "write_scope": [".github/workflows/ci.yml", "eslint.config.js", "scripts/validate-arch.sh"],
+      "depends_on": ["W0-01"],
+      "acceptance": [
+        "CI workflow runs pnpm lint, pnpm typecheck, pnpm test, bash scripts/validate-arch.sh and node scripts/validate-plan.mjs on every push/PR; CI never contacts github.com APIs (PLAYBOOK §Testing tiers: recorded fixtures only)",
+        "ESLint no-restricted-imports rules enforce the docs/ARCHITECTURE.md §3 allowed-dependency matrix: domain packages never import apps/api or apps/web; metrics/analysis/insights/reports never import packages/forge (CLAUDE.md Law 6)",
+        "bash scripts/validate-arch.sh exits 0 with all five rules printing PASS on the scaffolded tree"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W0-04",
+      "title": "GitHub API fixture recorder + replay helper",
+      "phase": 0,
+      "module": "infra",
+      "write_scope": ["tools/fixture-recorder/**", "packages/forge/fixtures/**"],
+      "depends_on": ["W0-01"],
+      "acceptance": [
+        "tools/fixture-recorder captures real GitHub REST/GraphQL responses (status + headers incl. x-ratelimit-*, etag) into packages/forge/fixtures as sanitized JSON with all tokens scrubbed",
+        "Fixture set covers the cases named in PLAYBOOK §Per-ticket loop: 304 conditional, 202 stats-warmup retry, truncated-diff (patchTruncated per docs/design/FORGE_PROVIDER.md §1 ForgeDiffFile), and rate-limit-header/secondary-403 cases",
+        "A replay helper serves fixtures to vitest contract tests with zero network; a guard test proves no live github.com call escapes in CI"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-01",
+      "title": "Drizzle schema: tenancy, identity and sync-machinery tables + migration tooling",
+      "phase": 1,
+      "module": "infra",
+      "write_scope": ["packages/shared/src/db/schema/core/**", "packages/shared/src/db/index.ts", "packages/shared/drizzle/**", "drizzle.config.ts"],
+      "depends_on": ["W0-01", "W0-02"],
+      "acceptance": [
+        "Tables per docs/DATABASE.md §2 'Tenancy & identity' + 'Sync machinery': workspace, user, membership, connection, credential, repo, sync_cursor, webhook_delivery, forge_etag, job_failure with the documented columns and types",
+        "Every tenant-scoped table has workspace_id NOT NULL and an index on it (CLAUDE.md Law 5); scripts/validate-arch.sh rule 5 passes",
+        "drizzle-kit generates migration 0000 that applies cleanly against the compose Postgres and carries a rollback note (PLAYBOOK §Migration tickets); docs/DATABASE.md §5 discipline followed"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-02",
+      "title": "Drizzle schema: fact tables + read-model tables",
+      "phase": 1,
+      "module": "infra",
+      "write_scope": ["packages/shared/src/db/schema/facts/**", "packages/shared/src/db/schema/read/**", "packages/shared/drizzle/**"],
+      "depends_on": ["W1-01"],
+      "acceptance": [
+        "Fact tables per docs/DATABASE.md §2 'Facts': commits, commit_file, pull_requests, pr_reviews, pr_comments, check/workflow runs, issues, releases, deployments — with natural-key unique indexes enabling idempotent upserts (FR-INGEST-6)",
+        "Read-model tables per docs/DATABASE.md §2 'Read models & analysis': metric_snapshot (shape per docs/design/METRICS.md §2 / FR-METRICS-13), saved_view, report, finding, finding_status_history, egress_audit",
+        "Hot-path indexes per docs/DATABASE.md §3 created; migration applies + rollback note; workspace_id tenancy check green on all new tenant-scoped tables"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-03",
+      "title": "GitHub OAuth login + Redis sessions",
+      "phase": 1,
+      "module": "auth",
+      "write_scope": ["packages/auth/src/oauth/**", "packages/auth/src/session/**", "apps/api/src/routes/auth/**"],
+      "depends_on": ["W1-01"],
+      "acceptance": [
+        "GitHub OAuth authorization-code flow per FR-AUTH-1 (docs/SRS.md §2.7): first login creates a user row linked to GitHub id/login/avatar; E2E against a mocked GitHub completes the round-trip to an authenticated session",
+        "Sessions per FR-AUTH-2: httpOnly+secure cookie, server-side Redis store, idle timeout + absolute lifetime, logout revokes; expired session yields 401 with the docs/API_DESIGN.md §1 error envelope",
+        "Endpoints match the docs/API_DESIGN.md §2 'auth' catalog"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-04",
+      "title": "Workspaces, roles and /api/v1 skeleton (error envelope, OpenAPI, authZ hooks)",
+      "phase": 1,
+      "module": "auth",
+      "write_scope": ["packages/auth/src/workspace/**", "apps/api/src/app.ts", "apps/api/src/plugins/**", "apps/api/src/lib/**"],
+      "depends_on": ["W1-03"],
+      "acceptance": [
+        "Fastify /api/v1 skeleton with error envelope {code,message,requestId}, OpenAPI generated from route schemas, and the shared cursor/sort/window/repo-set list-param fragment per docs/API_DESIGN.md §1 (FR-API-1/3/4)",
+        "Every route requires a session and is workspace-scoped; launch ships single 'default' workspace with auto-membership on first login (FR-AUTH-3, FOUNDING_BRIEF D1)",
+        "Role enforcement admin vs member per FR-AUTH-4: a member calling any admin (crown) route in docs/API_DESIGN.md §2 receives 403 — matrix test over all admin routes"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-05",
+      "title": "packages/forge core: ForgeProvider interface + BudgetedClient + ETag cache",
+      "phase": 1,
+      "module": "forge",
+      "write_scope": ["packages/forge/src/types.ts", "packages/forge/src/provider.ts", "packages/forge/src/client/**"],
+      "depends_on": ["W1-01"],
+      "acceptance": [
+        "ForgeProvider interface, normalized domain types, ForgeCapabilities and CallCtx lanes compile exactly as specified in docs/design/FORGE_PROVIDER.md §1–2 (FR-FORGE-1)",
+        "BudgetedClient per docs/design/FORGE_PROVIDER.md §3: priority lanes webhook>user>backfill>reconcile, hourly bucket seeded from x-ratelimit-* headers (never guessed), per-endpoint-family secondary buckets, global concurrency semaphore; unit test — simulated 100-remaining response parks backfill/reconcile lanes and zero requests are emitted below the floor (FR-FORGE-3)",
+        "ETag cache persists to forge_etag keyed by hash(method,path,params); 304 serves the cached body at zero primary charge; repeat-sync fixture consumes >=90% fewer rate-limit points than first sync (FR-FORGE-4)",
+        "Retry policy per §3: secondary 403/429 honors retry-after, else x-ratelimit-reset, else >=60s exponential backoff; 5xx retried 3x jittered; instrumentation counters/gauges from §3 exposed (NFR-12)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-06",
+      "title": "GitHubProvider adapter (REST + GraphQL, PAT + App auth) with recorded-fixture contract tests",
+      "phase": 1,
+      "module": "forge",
+      "write_scope": ["packages/forge/src/github/**", "packages/forge/test/**"],
+      "depends_on": ["W1-05", "W0-04"],
+      "acceptance": [
+        "Every ForgeProvider op implemented per docs/design/FORGE_PROVIDER.md §4: REST for PR-file patches/per-commit files/contents/Actions runs (monthly created slices), GraphQL backfill for listPullRequests in the backfill lane, GitHub capabilities object as documented",
+        "Both auth modes work in contract tests: PAT and GitHub App installation token (JWT <=10min, proactive refresh at 50min) list a private org repo (FR-FORGE-5)",
+        "Contract tests against W0-04 recorded fixtures cover every interface op including 304, 202-stats-warmup with per-commit REST fallback, patchTruncated and rate-limit-header cases (FR-FORGE-2); CI makes zero live GitHub calls",
+        "verifyWebhook implements X-Hub-Signature-256 HMAC-SHA256 with crypto.timingSafeEqual; no code path touches tarball/zipball/raw-diff/Search-backfill endpoints — scripts/validate-arch.sh rules 3–4 stay green (FR-FORGE-6, C1)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-07",
+      "title": "Tenancy isolation test suite (route walker, two-workspace fixture)",
+      "phase": 1,
+      "module": "auth",
+      "write_scope": ["apps/api/test/tenancy/**", "packages/shared/src/testing/**"],
+      "depends_on": ["W1-04"],
+      "acceptance": [
+        "Two-workspace fixture; a route walker asserts every registered /api/v1 route returns zero cross-workspace rows (NFR-4, FR-AUTH-3); adding an unscoped route fails the walker",
+        "Suite runs inside pnpm test and is part of the full gate from W1 on (MASTER_PROMPT §Hard rules: tenancy invariant)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W2-01",
+      "title": "Credential vault (encrypted at rest) + org connect flow + webhook registration",
+      "phase": 2,
+      "module": "ingest",
+      "write_scope": ["packages/auth/src/credentials/**", "packages/ingest/src/connect/**", "apps/api/src/routes/connections/**"],
+      "depends_on": ["W1-04", "W1-06"],
+      "acceptance": [
+        "Forge credentials AES-256-GCM encrypted at rest with key from env, decrypted only in forge-module memory; DB-dump grep test finds no plaintext token; log-scrubber test passes; API exposes last-4/fingerprint only (FR-AUTH-5, NFR-6)",
+        "Connect flow per docs/design/INGESTION.md §1: credential smoke-listing, repo selection including 'all + auto-add new', connection + repo rows created with status pending_backfill/queued (FR-INGEST-1 E2E: fixture org, 3 repos)",
+        "registerWebhook called per selected repo with a per-connection secret; bad-scope vs bad-token failures return distinct actionable errors (INGESTION.md §1 validation)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W2-02",
+      "title": "BullMQ queue topology + DLQ + graceful shutdown + backfill planner/state machine",
+      "phase": 2,
+      "module": "ingest",
+      "write_scope": ["packages/ingest/src/queues/**", "packages/ingest/src/plan/**", "apps/api/src/workers/**"],
+      "depends_on": ["W1-06", "W1-01"],
+      "acceptance": [
+        "Queue topology exactly per docs/design/INGESTION.md §6: queue names, jobId idempotency keys, retry policies; exhausted jobs copy to ingest.dlq + job_failure row — poison-message test lands in DLQ (NFR-11)",
+        "Backfill planner per INGESTION.md §3: window now-365d, repos ordered pushedAt desc, entity order PRs→commits→checks→issues→releases/deployments, recent-first within entity (FR-INGEST-4)",
+        "Per-repo sync state machine per INGESTION.md §2: queued→history→enrichment→live with paused_budget and error transitions",
+        "Graceful shutdown per INGESTION.md §6: SIGTERM stops intake, drains in-flight page transactions <=30s, restart resumes from cursor"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W2-03",
+      "title": "Backfill entity workers: per-page cursor checkpoints, idempotent upserts, budget yielding, enrichment",
+      "phase": 2,
+      "module": "ingest",
+      "write_scope": ["packages/ingest/src/backfill/**"],
+      "depends_on": ["W2-02", "W1-02"],
+      "acceptance": [
+        "sync_cursor checkpoint written after every page in the same transaction as that page's upserts; kill-worker-mid-backfill test resumes with no duplicate rows and reaches completion (FR-INGEST-3, INGESTION.md §3)",
+        "Upserts idempotent on natural keys (repo_id+sha / +pr_number / +external_id); backfilled fixture repo row counts match fixture ground truth for all entity types (FR-INGEST-2)",
+        "Budget yielding: jobs process <=20 pages then re-enqueue with their cursor; on floor-hit re-enqueue with delay-to-reset and repo flips to paused_budget — no busy-waiting (FR-INGEST-4, NFR-1)",
+        "Enrichment phase fills commit_file churn via getCommitFiles with 202-stats retry-then-fallback in the low-priority lane (INGESTION.md §2/§8); 50-repo simulated org completes within budget math of INGESTION.md §3 (NFR-2, scaled CI benchmark)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W2-04",
+      "title": "Webhook receiver + typed delta jobs + push coalescing",
+      "phase": 2,
+      "module": "ingest",
+      "write_scope": ["packages/ingest/src/webhooks/**", "apps/api/src/routes/webhooks/**"],
+      "depends_on": ["W2-01", "W2-02"],
+      "acceptance": [
+        "POST /webhooks/github per docs/design/INGESTION.md §4: verify signature → dedupe on delivery_id (ON CONFLICT DO NOTHING) → enqueue typed delta job → 202 well under 10s; tampered-signature fixture → 401 and nothing enqueued (FR-INGEST-5)",
+        "Delta jobs pull by cursor, not payload (payload is a doorbell); replaying the same delivery twice produces byte-identical warehouse state (FR-INGEST-6)",
+        "push events coalesce per repo (jobId push:{repoId}, 30s debounce) into one commits-since-cursor call; webhook-driven change visible in dashboard queries <=60s in fixture E2E (NFR-10)",
+        "All events from INGESTION.md §4 subscribed list are routed to handlers"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W2-05",
+      "title": "Nightly reconciliation sweep + sync status model/API/SSE",
+      "phase": 2,
+      "module": "ingest",
+      "write_scope": ["packages/ingest/src/reconcile/**", "packages/ingest/src/status/**", "apps/api/src/routes/sync/**", "apps/api/src/routes/events/**"],
+      "depends_on": ["W2-03", "W2-04"],
+      "acceptance": [
+        "Sweep per docs/design/INGESTION.md §5: lane=reconcile, conditional If-None-Match page-1 lists (unchanged repo costs ~0 primary budget via 304), walks pages until updated_at <= high_watermark; injected missed-webhook gap in fixtures is repaired (FR-INGEST-7)",
+        "Sweep also re-registers missing webhooks, picks up auto_add_new repos, requeues error repos, and tombstones rows absent from the forge (deletions/force-push per METRICS.md §0 superseded rule)",
+        "GET sync status returns RepoSyncStatus exactly per INGESTION.md §7 (phase, percentComplete time-coverage, entities, budget, lagSeconds, lastError), served from warehouse only (FR-INGEST-8, FR-API-2); org-level aggregate for the banner",
+        "SSE /api/v1/events emits sync.progress/sync.done/budget.warning per docs/API_DESIGN.md §3"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-01",
+      "title": "Metrics engine core: shared rules, window handling, metric catalog, fixture harness",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/engine/**", "packages/metrics/src/catalog.ts", "packages/metrics/fixtures/harness/**"],
+      "depends_on": ["W1-02"],
+      "acceptance": [
+        "Shared rules from docs/design/METRICS.md §0 implemented once and unit-tested: bot-list exclusion globs, merge-commit exclusion, superseded-commit tombstones, nearest-rank percentiles, ratio numerator/denominator retention, empty denominator ⇒ null never 0/100",
+        "Machine-readable catalog per FR-METRICS-15: id, name, formula text, unit, direction, heuristic notes for M1–M12; test asserts every FR-METRICS-1..12 id is present",
+        "Fixture harness loads warehouse fixtures shared with METRICS.md §4 worked examples E1–E3; all computations parameterized by window W in {7,30,90,365}d default 30d, warehouse-only (FR-API-2)",
+        "packages/metrics declares no dependency on packages/forge — validate-arch.sh rule 2 green (CLAUDE.md Law 6)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-02",
+      "title": "M1 commit churn + M2 file hotspots",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/churn.ts", "packages/metrics/src/metrics/hotspots.ts", "packages/metrics/fixtures/churn/**", "packages/metrics/fixtures/hotspots/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "M1 gross/net/rework churn per docs/design/METRICS.md §1 M1: 21-day rework lookback from commit_file sequence, rename chain via previousPath, repo/file/person grains; fixture repo reproduces gross/net/rework to the line (FR-METRICS-1)",
+        "M2 hotspot(f) = normChurn(f) × 2^(−daysSince/30) per METRICS.md §1 M2; worked example E1 reproduced exactly (api.ts 0.955, util.ts 0.100); untouched-for-a-year file scores ≈0",
+        "API-facing decomposition {gross, normChurn, daysSince, decay, score} + contributing commits exposed for drill-down (FR-METRICS-2); hotspot_v2 complexity proxy NOT implemented (v1.x flag)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-03",
+      "title": "M3 ownership / bus factor",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/ownership.ts", "packages/metrics/fixtures/ownership/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "Fixed trailing-365d ownership per docs/design/METRICS.md §1 M3: linesChanged per author, topShare, busFactor = smallest author set covering >=50% of linesChanged; directory grain = recursive sum of files",
+        "Fixture with authors at 60/30/10 yields busFactor 1 and no single_owner flag (0.60 < 0.80); a 85/15 fixture flags single_owner (FR-METRICS-3)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-04",
+      "title": "M4 PR cycle-time stages",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/cycle.ts", "packages/metrics/fixtures/cycle/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "Stages per docs/design/METRICS.md §1 M4: open→firstReview (non-author, any state), firstReview→approved (first APPROVED after the last review-re-request; dismissed approvals never count), approved→merged, e2e; bot PRs excluded",
+        "Worked example E2 reproduced exactly: 6h / 27h / 15h / e2e 48h (FR-METRICS-4 re-request sequence)",
+        "PRs merged with zero reviews contribute only to e2e; median + p90 per stage via nearest-rank on the pooled sample"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-05",
+      "title": "M5 review coverage % + M6 merged-without-review rate (pair)",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/review-coverage.ts", "packages/metrics/fixtures/review/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "M5 = covered/merged per docs/design/METRICS.md §1 M5 (covered = >=1 completed non-author review; self-review never counts); worked example E3 reproduced: bot PR excluded, self-approval uncovered, M5 = 6/9 = 66.7%",
+        "M6 = 1 − M5 with drill-down list {pr, author, merger, sizeBucket, mergedAt} that reconciles with the rate to the PR (FR-METRICS-5/6)"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-06",
+      "title": "M7 PR size distribution + M8 stale PRs (pair)",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/pr-size.ts", "packages/metrics/src/metrics/stale-prs.ts", "packages/metrics/fixtures/size-stale/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "M7 buckets XS[0,10) S[10,100) M[100,500) L[500,1000) XL[1000,∞) inclusive-lower/exclusive-upper, gross = PR-level additions+deletions, fixture-verified at every boundary (FR-METRICS-7, METRICS.md §1 M7)",
+        "M8 stale = open PRs with last tracked activity (commit push, review, review-comment, issue-comment) > N days, default 7 workspace-configurable; any tracked activity resets the clock; drafts flagged in a separate stale_drafts series (FR-METRICS-8, METRICS.md §1 M8)"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-07",
+      "title": "M9 CI pass rate, duration and flakiness",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/ci.ts", "packages/metrics/fixtures/ci/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "passRate = success / (completed − cancelled − skipped) per docs/design/METRICS.md §1 M9, default-branch vs PR runs reported separately; in-progress runs never in denominators (FR-METRICS-9)",
+        "Duration median + p90 of run_started_at→updated_at per repo and per workflow",
+        "flakiness(workflow) = fail→pass flips on same-head-SHA reruns ÷ rerun groups, ranked desc; flaky fixture workflow ranks first"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-08",
+      "title": "M10 issue throughput + M11 release cadence (pair)",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/issues.ts", "packages/metrics/src/metrics/releases.ts", "packages/metrics/fixtures/issues-releases/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "M10 per docs/design/METRICS.md §1 M10: isPullRequest=false only, opened/closed counts (reopen+reclose = 2 closes), median time-to-close (last open→close interval), open-age p50/p90 + histogram (FR-METRICS-10)",
+        "M11 per METRICS.md §1 M11: published non-draft releases (prerelease inclusion configurable, default off), tags-as-releases fallback labeled basis=tags, releases per window + median gap + days-since-last (FR-METRICS-11)"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-09",
+      "title": "M12 DORA approximations with basis labels",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/metrics/dora.ts", "packages/metrics/fixtures/dora/**"],
+      "depends_on": ["W3-01"],
+      "acceptance": [
+        "Deployment frequency, lead time and change-failure rate computed exactly per the docs/design/METRICS.md §1 M12 table, including releases fallback and prod-like environment filter; fixture org reproduces all three (FR-METRICS-12)",
+        "CFR uses the /\\b(revert|hotfix|rollback)\\b/i heuristic or GitHub revert linkage within 48h same-env; the counted commits are exposed for drill-down",
+        "Every payload carries its basis label; MTTR returns 'needs incident data', never a fabricated number (METRICS.md §1 M12 honesty caveats)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-10",
+      "title": "Nightly metric snapshots + statistically correct org rollups",
+      "phase": 3,
+      "module": "metrics",
+      "write_scope": ["packages/metrics/src/snapshots/**", "packages/metrics/src/rollups/**"],
+      "depends_on": ["W3-02", "W3-03", "W3-04", "W3-05", "W3-06", "W3-07", "W3-08", "W3-09"],
+      "acceptance": [
+        "Nightly metrics.snapshot job (jobId snap:{repoId}:{yyyymmdd} per docs/design/INGESTION.md §6) writes metric_snapshot rows per METRICS.md §2 for every metric × window with numerator/denominator for ratios; two nightly runs produce two rows (FR-METRICS-13)",
+        "Trend queries read snapshots only — test proves the trend path never triggers recomputation; retention >=400d honored in schema",
+        "Org rollups per METRICS.md §2 / FR-METRICS-14: percentile metrics pool raw samples (pooled p90 ≠ mean-of-repo-p90s test), ratio metrics sum numerators/denominators, rollups honor the active repo-set filter"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-11",
+      "title": "Health score + trend deltas + cross-repo hotspot ranking (insights)",
+      "phase": 3,
+      "module": "insights",
+      "write_scope": ["packages/insights/src/score/**", "packages/insights/src/trends/**", "packages/insights/src/hotspots/**"],
+      "depends_on": ["W3-10"],
+      "acceptance": [
+        "Health score per docs/design/METRICS.md §3: sub-scores activity/review-hygiene/CI-health/delivery from the documented ramp() inputs, weights from workspace config not code, renormalization when a sub-score is absent labeled 'Tier-1 only' (FR-INSIGHTS-2/3)",
+        "Full breakdown returned (input, raw value, ramp params, normalized, weight, contribution); METRICS.md §4 E3 ramp example reproduced: ramp(0.667, 0.9, 0.4) = 53.4; documented formula reproduces the score in test",
+        "Trend deltas vs previous equal-length window from metric_snapshot rows incl. missing-prior-window ⇒ null (FR-INSIGHTS-4)",
+        "Cross-repo hotspot ranking with score components, Tier-1 inputs only for MVP (FR-INSIGHTS-5); finding-density input deferred to W6"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W3-12",
+      "title": "Metrics read API: org summary, trends, hotspots, score, catalog",
+      "phase": 3,
+      "module": "api",
+      "write_scope": ["apps/api/src/routes/org/**", "apps/api/src/routes/metrics/**", "apps/api/src/routes/hotspots/**"],
+      "depends_on": ["W3-10", "W3-11"],
+      "acceptance": [
+        "Endpoints per docs/API_DESIGN.md §2 'metrics' + org summary/health-tiles/hotspots/attention: warehouse-only reads with a runtime nock guard proving zero forge calls in any handler (FR-API-2, C1)",
+        "Shared list semantics (cursor pagination, sort, window, repo-set filter) per FR-API-3; OpenAPI spec updated; responses match docs/API_DESIGN.md §4 canonical shapes",
+        "Catalog endpoint serves FR-METRICS-15 definitions (UI tooltips must consume it, never hardcoded strings)",
+        "p95 < 500ms against the seeded 50-repo dataset (NFR-3 k6 smoke in CI)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-01",
+      "title": "Drill-down + personal endpoints and user→forge identity mapping",
+      "phase": 4,
+      "module": "api",
+      "write_scope": ["apps/api/src/routes/repos/**", "apps/api/src/routes/prs/**", "apps/api/src/routes/files/**", "apps/api/src/routes/me/**", "packages/auth/src/identity/**"],
+      "depends_on": ["W1-04", "W3-12"],
+      "acceptance": [
+        "Drill-down chain per FR-API-5 and docs/API_DESIGN.md §2: org→repo detail→PR list/detail (stages, reviews, checks, files)→file detail (churn, owners, hotspot history); each level returns children links; integration test walks the whole chain",
+        "Identity mapping workspace user → forge author per FR-AUTH-6; /me endpoints (prs, review-queue, hotspots, stats) return the logged-in fixture user's ground truth (feeds FR-WEB-7)",
+        "Responses match docs/API_DESIGN.md §4 canonical shapes; tenancy route-walker (W1-07) stays green over all new routes"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-02",
+      "title": "Web shell, design tokens, global filters + core component kit (WidgetFrame/Grid, Chart, DataTable, SSE client)",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/__root.tsx", "apps/web/src/components/**", "apps/web/src/styles/**", "apps/web/src/api/**", "apps/web/src/sse/**", "packages/shared/src/urlState.ts"],
+      "depends_on": ["W3-12"],
+      "acceptance": [
+        "Shell per docs/UX_SPEC.md §3: left rail (240/64px collapsible), topbar with global window/repo/person filters serialized to URL (?window=&repos=&person=), sticky breadcrumb; dark-first theme + light toggle via Tailwind 4 @theme tokens per UX_SPEC §2.1",
+        "Component kit per UX_SPEC §2.2 + docs/design/DASHBOARD.md §4/§5/§7: WidgetFrame with loading/syncing/empty/error state machine, WidgetGrid + WidgetRegistry, Chart wrapper with theme-token bridge + view-as-table toggle + reduced-motion, DataTable with URL-synced sort/cursor and j/k/Enter/x keys, KpiTile/HealthBadge/TrendDelta/Sparkline/SeverityBadge/SyncStatusChip",
+        "Typed API client generated from the OpenAPI spec; TanStack Query with staleTime 30s, keepPreviousData stale-chart pattern (DASHBOARD.md §2/§3); zustand only for rail/palette/density/lastSeenAt",
+        "SSE client per DASHBOARD.md §6: one EventSource, debounced query invalidation, batched role=status toasts, reconnect with Last-Event-ID",
+        "URL params zod-validated per DASHBOARD.md §1 schema; pasting any URL restores the identical screen state (FR-WEB-2)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-03",
+      "title": "Org Overview screen",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/index.tsx", "apps/web/src/widgets/org/**"],
+      "depends_on": ["W4-02"],
+      "acceptance": [
+        "Screen per docs/UX_SPEC.md §4.a: 5 KPI tiles with sparkline + TrendDelta, repo health tile grid (click → repo), cross-repo hotspot leaderboard (click → file drill-down), attention feed computed vs last_seen_at, org sync banner",
+        "Playwright: landing renders tiles + sparklines from the fixture warehouse (FR-WEB-1 acceptance); every number click lands on its evidence (UX_SPEC §1.3)",
+        "States per UX_SPEC §4.a: first-run empty shows role-appropriate connect CTA; backfilling repos render syncing chips with %, never zeros (UX_SPEC §8)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-04",
+      "title": "Repo Detail screen (Pulse / Hotspots / PR Flow / CI tabs)",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/repos/index.tsx", "apps/web/src/routes/repos/$repoId/route.tsx", "apps/web/src/routes/repos/$repoId/index.tsx", "apps/web/src/routes/repos/$repoId/pulse.tsx", "apps/web/src/routes/repos/$repoId/hotspots.tsx", "apps/web/src/routes/repos/$repoId/pr-flow.tsx", "apps/web/src/routes/repos/$repoId/ci.tsx", "apps/web/src/routes/repos/$repoId/findings.tsx", "apps/web/src/widgets/repo/**"],
+      "depends_on": ["W4-02"],
+      "acceptance": [
+        "Tabbed screen per docs/UX_SPEC.md §4.b with each tab a routed URL per docs/design/DASHBOARD.md §1; Findings tab renders the pre-v1.x teaser",
+        "'why?' health-score popover shows the full formula breakdown + basis label from the score endpoint (FR-INSIGHTS-2/3, UX_SPEC §1.4)",
+        "Hotspot directory treemap (dir zoom, file click → drill-down) with side top-N list showing churn × recency components and bus-factor flags; PR Flow funnel + review-load matrix + XS–XL histogram; CI pass/duration trends + flaky ranking — all from fixtures, each chart with table toggle (NFR-5)",
+        "Playwright walks org→repo→tab by clicks AND by direct URL paste (FR-WEB-2)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-05",
+      "title": "PR list + PR Detail screen",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/prs/**", "apps/web/src/routes/repos/$repoId/prs/**", "apps/web/src/widgets/pr/**"],
+      "depends_on": ["W4-02", "W4-01"],
+      "acceptance": [
+        "PR Detail per docs/UX_SPEC.md §4.c: stage timeline with durations annotated vs repo median, size/risk badges (hotspot-touch / low bus factor), review activity feed, files list with per-file hotspot badges → file drill-down, checks summary, GitHub deep link",
+        "Org-wide (/pull-requests) and repo PR lists on DataTable with URL-synced sort/cursor and infinite scroll (FR-API-3 client side)",
+        "States per UX_SPEC §4.c: open PR shows elapsed-stage pulsing (static under reduced motion); no findings → 'no automated review yet' + tier policy line (FR-WEB-8)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-06",
+      "title": "File drill-down screen",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/repos/$repoId/files/**", "apps/web/src/widgets/file/**"],
+      "depends_on": ["W4-02", "W4-01"],
+      "acceptance": [
+        "Screen per docs/UX_SPEC.md §4.d: 52-week stacked churn bars (gross/net/rework), owners list with top-author-share >=80% flag, recent-PRs table → PR detail, hotspot-score history sparkline, file-scoped findings list placeholder",
+        "Deleted/renamed file shows banner with last-seen date + rename chain link (previousPath per docs/design/FORGE_PROVIDER.md §1); breadcrumb + deep link restore full state (FR-WEB-2)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-07",
+      "title": "My Focus screen (personalized widgets)",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/me.tsx", "apps/web/src/widgets/me/**"],
+      "depends_on": ["W4-02", "W4-01"],
+      "acceptance": [
+        "Screen per docs/UX_SPEC.md §4.f: my open PRs with cycle-stage chip + time-in-stage (stalled highlighted), review queue age-sorted with over-SLA amber, hotspots-I-own table, personal cycle-time/size vs repo distribution — no cross-person comparisons (NON_GOALS N-9)",
+        "Lists driven by the D6 identity mapping; fixture user's PRs/review load match ground truth (FR-WEB-7, FR-AUTH-6)",
+        "Identity-unlinked state shows 're-authorize GitHub' CTA; all-clear state shows the quiet text line (UX_SPEC §4.f states)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W4-08",
+      "title": "Admin screens: Connections, Sync (DLQ ops), Members",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/admin/**", "apps/web/src/widgets/admin/**", "apps/api/src/routes/admin/**"],
+      "depends_on": ["W4-02", "W2-05"],
+      "acceptance": [
+        "Tabs per docs/UX_SPEC.md §4.i: Connections (credential fingerprint/last-4, repo picker, pause/remove with purge option), Sync (per-repo phase/%/budget gauge/lag/last-webhook + DLQ list with replay button per NFR-11), Members (admin/member role assignment)",
+        "Admin API routes per docs/API_DESIGN.md §2 'admin' with role guard; member hitting /admin gets the 403 page with 'ask an admin' copy (FR-AUTH-4, DASHBOARD.md §1 admin/route.tsx)",
+        "Failing-webhook repo row flagged crit with remediation hint; forge budget gauge + sync lag surfaced so 'is ingest healthy' is answerable from this page (NFR-12)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-01",
+      "title": "Saved views CRUD API + sharing semantics",
+      "phase": 5,
+      "module": "api",
+      "write_scope": ["apps/api/src/routes/views/**"],
+      "depends_on": ["W1-02", "W1-04"],
+      "acceptance": [
+        "CRUD per FR-API-6 and docs/API_DESIGN.md §2 'views': a view stores the SavedView JSON (scope GlobalSearch + Widget[] layout per docs/design/DASHBOARD.md §4), private by default, share-with-workspace flag, per-user default/home",
+        "Ownership enforcement tests: non-owner mutation → 403; any workspace member reads a shared view; non-member → 403 (FR-WEB-5)",
+        "Tenancy walker green over new routes; OpenAPI updated"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-02",
+      "title": "Saved views UI (grid editor, templates, share links, set-as-home) + ⌘K command palette",
+      "phase": 5,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/views/**", "apps/web/src/views/**", "apps/web/src/components/palette/**"],
+      "depends_on": ["W5-01", "W4-02"],
+      "acceptance": [
+        "Views per docs/UX_SPEC.md §4.g: 'Save as view…' captures current URL filters + widgets; edit mode with categorized widget picker and 12-col drag-resize via the DASHBOARD.md §4 WidgetGrid; per-widget scope override; 'set as home' per-user default",
+        "Share E2E: second fixture workspace user opens /views/:id and sees the identical layout; view persists across reload (FR-WEB-4/5)",
+        "Empty views list shows the persona starter-template gallery per UX_SPEC §6",
+        "⌘K palette per UX_SPEC §3.3: fuzzy nav to repos/PRs/views/report types/admin + action verbs, recents first, fully keyboard operable; keyboard-only E2E ⌘K → type repo name → Enter lands on the repo page (FR-WEB-6)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-03",
+      "title": "Report assembler + Repo Health / Org Exec / Delivery-DORA report types",
+      "phase": 5,
+      "module": "reports",
+      "write_scope": ["packages/reports/src/assembler/**", "packages/reports/src/types/**", "packages/reports/fixtures/**"],
+      "depends_on": ["W3-10", "W3-11"],
+      "acceptance": [
+        "ReportAssembler, ReportParams, ReportData and ReportSection interfaces exactly per docs/design/REPORTS.md §2/§6; assembly reads only metric_snapshot rows with computed_at <= snapshotAt — identical ReportParams produce identical ReportData (determinism pin)",
+        "Repo Health, Org Executive Summary and Delivery/DORA section outlines per REPORTS.md §1, including no_data sections that never render blank (FR-REPORTS-2/3/5) and DORA heuristic-basis footnotes (FR-METRICS-12)",
+        "Audit-pack framing per REPORTS.md §5: cover page, basis box with per-repo sync-lag/partial-data flags, Appendix A metric definitions from the catalog at catalogVersion",
+        "Assembler snapshot tests per report type against the seeded fixture warehouse (same fixtures as METRICS.md §4 E1–E3)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-04",
+      "title": "Report generation pipeline (queue → print route → Playwright PDF → storage) + Report Center UI",
+      "phase": 5,
+      "module": "reports",
+      "write_scope": ["packages/reports/src/pipeline/**", "apps/api/src/routes/reports/**", "apps/web/src/routes/reports/**", "apps/web/src/routes/print/**"],
+      "depends_on": ["W5-03", "W4-02"],
+      "acceptance": [
+        "Pipeline per docs/design/REPORTS.md §3: BullMQ reports.generate (jobId rpt:{uuid}) → assembler → /print/reports/:reportId rendering stored ReportData only (no live queries, Date mocked to snapshotAt) → Playwright page.pdf A4 with header/footer/page numbers → artifacts under ${DATA_DIR}/reports/{workspaceId}/{id}/",
+        "Byte-stability test: re-rendering the same stored ReportData yields identical PDF bytes; generation <=30s, job timeout 60s → DLQ (FR-REPORTS-6)",
+        "Report Center per docs/UX_SPEC.md §4.h: generate dialog storing params (FR-REPORTS-7), history table with SSE status chips, inline immutable viewer, PDF download streamed through the API with session check (never a public static path, REPORTS.md §4), regenerate-with-same-scope",
+        "E2E per REPORTS.md §6: generate → poll ready → download → pdf-parse asserts section headings + footnote text present (FR-REPORTS-1/6)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W6-01",
+      "title": "Analysis gateway + Tier-2 LM Studio client + scheduling/policies",
+      "phase": 6,
+      "module": "analysis",
+      "write_scope": ["packages/analysis/src/gateway/**", "packages/analysis/src/t2/**", "packages/analysis/src/scheduling/**"],
+      "depends_on": ["W1-02", "W2-04"],
+      "acceptance": [
+        "AnalysisGateway interface per docs/design/ANALYSIS_TIERS.md §1; dispatcher routes by tier; T3 without repo opt-in is rejected, never silently downgraded (FR-ANALYSIS-1)",
+        "T2 wrapper per ANALYSIS_TIERS.md §2 T2Config: 45000 maxTokens on every call, warm-up ping when host cold/errored, crash-match retry ['model crashed','ECONNRESET','model_not_loaded'] with [5s,15s,60s] backoff; crash fixture triggers warm-up + retry then succeeds (FR-ANALYSIS-2, NFR-8, C2)",
+        "Scheduling per FR-ANALYSIS-8: repo policy auto|manual|off, webhook-triggered enqueue on queue analysis.review with idempotency key an:{repoId}:{pr}:{headSha}:{dimension}, per-host concurrency cap; policy matrix test (auto=off never enqueues; cap respected under burst)",
+        "NFR-7 degradation: unreachable LAN host parks jobs with backoff, Tier-1 dashboards unaffected, status feeds the 'Tier-2 analysis paused — host unreachable' banner",
+        "Lint rule ships forbidding direct HTTP to LM Studio hosts and @anthropic-ai/sdk imports outside packages/analysis (ANALYSIS_TIERS.md header rule, CLAUDE.md Law 8)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W6-02",
+      "title": "Diff chunker + four dimension checklists + finding JSON schema",
+      "phase": 6,
+      "module": "analysis",
+      "write_scope": ["packages/analysis/src/chunker/**", "packages/analysis/checklists/**", "packages/analysis/src/schema/**"],
+      "depends_on": ["W6-01", "W1-06"],
+      "acceptance": [
+        "Chunker per docs/design/ANALYSIS_TIERS.md §2 Chunking: per-file split, hunk-group split at hunk boundaries never mid-hunk, greedy packing of small files, skip patchTruncated/binary/generated recorded as skipped-with-reason; property test on the 5000-line fixture diff — every hunk in exactly one chunk (FR-ANALYSIS-3)",
+        "Token estimator tok(s)=ceil(bytes/3.4); projected output <=10k per chunk, prompt <=24k; map-reduce where the reduce call receives findings JSON only, never re-pasted diff",
+        "Dimension checklists code_health/security/performance/test_coverage as versioned assets checklists/{dim}.v{N}.md with the §4 diff-scoped focus items, ported from bpm-opencode-experts (FR-ANALYSIS-4); runs record checklist version",
+        "Finding zod schema exactly per ANALYSIS_TIERS.md §4 REQUIRED JSON including evidence_quote verbatim-substring validation; malformed model output retries once with the error appended, then dead-letters keeping the raw payload (FR-ANALYSIS-5)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W6-03",
+      "title": "Findings store: dedup, lifecycle/triage, re-review, insights integration",
+      "phase": 6,
+      "module": "insights",
+      "write_scope": ["packages/insights/src/findings/**"],
+      "depends_on": ["W6-02", "W3-11"],
+      "acceptance": [
+        "Dedup per docs/design/ANALYSIS_TIERS.md §5: dedup_key = sha256(dimension\\0file\\0normalize(evidence_quote)) + line-bucket tiebreak; re-run on unchanged PR yields 0 new rows and bumps last_seen/occurrence_count; a resolved finding whose key reappears reopens with an audit row (FR-ANALYSIS-6)",
+        "Lifecycle open → confirmed | dismissed(reason) → resolved | wont_fix with every transition audited in finding_status_history (FR-INSIGHTS-1); false_positive dismissals feed analysis_false_positive_rate{dimension,model,checklist_version}",
+        "Re-review on webhook synchronize: only changed/added files re-chunked; findings on files no longer in the diff auto-resolve with reason outdated_diff (§5)",
+        "Health score gains the security sub-score with weight renormalization per METRICS.md §3, and hotspot ranking gains open-finding density (FR-INSIGHTS-2/5 v1.x halves)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W6-04",
+      "title": "Findings API + Findings Explorer UI with triage",
+      "phase": 6,
+      "module": "web",
+      "write_scope": ["apps/api/src/routes/findings/**", "apps/web/src/routes/findings/**", "apps/web/src/widgets/findings/**"],
+      "depends_on": ["W6-03", "W4-02"],
+      "acceptance": [
+        "Endpoints per docs/API_DESIGN.md §2 'findings & analyses': cursor-paginated list with dimension/severity/confidence/status/repo filters, stats, PATCH status transition with required note (FR-API-3, FR-INSIGHTS-1)",
+        "Explorer per docs/UX_SPEC.md §4.e: virtualized DataTable with j/k nav, URL-synced filter bar, bulk select + bulk transitions, false-positive-rate widget, detail panel with EvidenceQuote + file/line GitHub anchor + status history; E2E filter → open → acknowledge (FR-WEB-9)",
+        "PR Detail findings accordion and file drill-down findings list light up (UX_SPEC §4.c/§4.d); analysis-paused banner state wired (NFR-7); Repo Detail Findings tab replaces its teaser"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W7-01",
+      "title": "Tier-3 Claude deep review: egress-minimized client, audit rows, T2→T3 escalation, admin Analysis tab",
+      "phase": 7,
+      "module": "analysis",
+      "write_scope": ["packages/analysis/src/t3/**", "packages/analysis/src/escalation/**", "apps/api/src/routes/admin/analysis/**", "apps/web/src/routes/admin/analysis.tsx"],
+      "depends_on": ["W6-02", "W6-03"],
+      "acceptance": [
+        "T3 client via @anthropic-ai/sdk inside the gateway only (model ids verified per CLAUDE.md Law 2); whole-PR context within model limits reusing the chunker with a larger budget; same Finding schema; cost_usd recorded per call (FR-ANALYSIS-7)",
+        "Egress minimization per docs/design/ANALYSIS_TIERS.md §3: diff hunks + PR title/description + checklist + <=40 lines of targeted getFileContent context, each such fetch itself logged; egress_audit row (bytes, tokens, content_sha256, initiator, checklist_version) written before the response is processed (NFR-9)",
+        "Escalation per ANALYSIS_TIERS.md §6 flowchart: severity>=4∧confidence<=3, security∧severity>=3, repo.critical; without opt-in the PR queues a 'needs-T3' badge — never silent egress; workspace monthly USD budget guard queues instead of calling when exceeded",
+        "Admin Analysis tab per docs/UX_SPEC.md §4.i: Tier-2 policy, per-repo T3 opt-in with per-PR override, egress audit log view + per-repo T3 cost rollup (NFR-12), admin-only"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W7-02",
+      "title": "GiteaProvider adapter passing the shared contract suite",
+      "phase": 7,
+      "module": "forge",
+      "write_scope": ["packages/forge/src/gitea/**", "packages/forge/fixtures/gitea/**"],
+      "depends_on": ["W1-06"],
+      "acceptance": [
+        "GiteaProvider per docs/design/FORGE_PROVIDER.md §5 with the exact capabilities object (no GraphQL/deployments/check-runs/stats/rate-limits; reportsTotalCounts true; maxPerPage 50); ForgeCursor encodes page numbers; x-total-count drives exact percentComplete (INGESTION.md §7)",
+        "The same recorded-fixture contract suite that covers GitHubProvider passes against Gitea fixtures (FR-FORGE-7 acceptance); X-Gitea-Signature webhook verification contract-tested against our Gitea 1.x instance and its semantics documented in docs/research/",
+        "Budgeter runs pass-through with a polite self-imposed req/s cap (hasRateLimits:false); DORA deployment frequency falls back to releases with basis label (FR-METRICS-12)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W7-03",
+      "title": "Security Posture report type",
+      "phase": 7,
+      "module": "reports",
+      "write_scope": ["packages/reports/src/assembler/security-posture.ts", "packages/reports/src/types/security-posture.ts", "packages/reports/fixtures/security/**"],
+      "depends_on": ["W7-01", "W5-03"],
+      "acceptance": [
+        "Sections per docs/design/REPORTS.md §1 Security Posture: open security-dimension findings by severity × repo × age, review-bypass exposure (M6 + unreviewed-merge list) rendering Tier-1-only, dependency/secret manifest-diff signals labeled heuristic, egress audit summary from egress_audit, finding lifecycle stats (FR-REPORTS-4)",
+        "Appendix B (egress audit table + finding schema/version notes) per REPORTS.md §5.5; audit-pack cover/basis-box framing intact",
+        "Renders with Tier-1-only data (review-bypass section) and enriches when findings exist; assembler snapshot test both ways"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W7-04",
+      "title": "Accessibility + performance pass (WCAG 2.2 AA, bundle/LCP/p95 budgets)",
+      "phase": 7,
+      "module": "web",
+      "write_scope": ["apps/web/src/**", "e2e/**", ".github/workflows/ci.yml"],
+      "depends_on": ["W4-03", "W4-04", "W4-05", "W5-02", "W6-04"],
+      "acceptance": [
+        "axe + Lighthouse green in CI on every route in BOTH themes; manual checklist from docs/UX_SPEC.md §7 (contrast ratios, color-never-sole-carrier, chart view-as-table fallbacks, focus management, reduced-motion, live regions, 24px targets) executed and recorded in the commit body (NFR-5)",
+        "Keyboard-only Playwright suite passes: ⌘K palette, treemap arrow-key traversal, DataTable j/k/Enter/x, g-shortcuts, focus moves to h1 on drill-down (UX_SPEC §5/§7)",
+        "Performance budgets per docs/design/DASHBOARD.md §9 CI-enforced: initial JS <=200KB gz via size-limit, LCP <1.5s on the seeded stack, route-level code splitting + lazy chart bundles verified; API p95 <500ms k6 run against seeded 50-repo dataset re-confirmed (NFR-3)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W7-05",
+      "title": "Production containers: quadlet/compose, secrets, TLS, migration job",
+      "phase": 7,
+      "module": "deploy",
+      "write_scope": ["deploy/**", "Containerfile.api", "Containerfile.web"],
+      "depends_on": ["W0-02"],
+      "acceptance": [
+        "Podman quadlet/compose units for api, web (static assets behind reverse proxy), workers, Postgres 16 and Redis with healthchecks; TLS terminated at the reverse proxy for repopulse.bpmforge.com (FOUNDING_BRIEF D1)",
+        "Secrets injected from env files outside git; no token or key in any image or unit file (CLAUDE.md Law 9, NFR-6); persistent volumes for pg data and ${DATA_DIR}/reports (REPORTS.md §3 storage)",
+        "Container images build in CI; Drizzle migrations run as a one-shot job on deploy before app start"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W7-06",
+      "title": "Prod deploy runbook execution + observability verification",
+      "phase": 7,
+      "module": "deploy",
+      "write_scope": ["docs/RUNBOOK.md", "deploy/**", "docs/STATUS.md"],
+      "depends_on": ["W7-05"],
+      "acceptance": [
+        "docs/RUNBOOK.md written and actually executed against bpmforge infra: deploy, migrate, rollback, backup/restore, and health checks; structured logs with request ids, queue metrics, forge budget gauge and sync-lag metric are scrape-able and answer 'is ingest healthy' without DB spelunking (NFR-12)",
+        "Prod smoke on https://repopulse.bpmforge.com: OAuth login, connect an org, backfill starts, Org Overview renders; result + date appended to docs/STATUS.md per PLAYBOOK §Status reporting"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    }
+  ]
+}
