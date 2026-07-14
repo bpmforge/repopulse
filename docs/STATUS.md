@@ -37,4 +37,14 @@
   shellcheck/sqlfluff/vale/gocyclo backlog; standalone-only sandbox admission), and
   per-language perf/correctness/framework semgrep packs (Opengrep-swappable engine
   contract). Tickets W9-07/08. Board: 86 tickets / 409 pts, validators green.
+- 2026-07-14 — Part 1 architecture completion pass: ARCHITECTURE.md updated for D9/D10/D11
+  (six queue families, security package row + matrix + graph, sequences 4f quality-loop /
+  4g plans / 4h CVE-funnel+VEX / 4i scanner-dispatch+shadow, ADR-8..12, 5 new failure
+  rows); lifecycle state diagrams added to CODE_HEALTH_SUITE §8.2 + IMPROVEMENT_PLANS §2.
+  NEW scripts/validate-traceability.mjs (dangling-ref hard fails + FR-coverage report) —
+  Ralph Wiggum loop run over the design package, converged iteration 3: 122/122 FR/NFR
+  cited by tickets, 0 dangling refs. Wave-gate coverage loop + challenger protocol
+  (maker≠verifier, "re-ran independently" evidence) codified in PLAYBOOK.md; traceability
+  validator added to W0-03 CI gate. All validators green. Part 2 = story/epic/ticket
+  refinement on this verified base.
 - Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.

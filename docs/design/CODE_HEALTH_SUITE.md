@@ -165,7 +165,15 @@ tuning metric the checklists already feed).
 
 ### 8.2 Lifecycle — shadow mode is the safety valve
 
-`proposed → candidate (SHADOW) → active → deprecated`
+```mermaid
+stateDiagram-v2
+    [*] --> proposed: intake (§8.3) — fixtures + license or it doesn't exist
+    proposed --> candidate: admin accepts to shadow
+    candidate --> active: promotion gate — ≥20 findings / ≥30d / FP<20% (admin action)
+    candidate --> deprecated: FP evidence bad / superseded
+    active --> deprecated: trailing FP>50% auto-flags → admin confirms
+    note right of candidate: SHADOW — runs on real scans;\nfindings experimental=true;\nEXCLUDED from scores, banners,\nplans, reports
+```
 
 - **proposed**: sits in the intake review queue (admin workbench); has fixtures + license
   provenance or it doesn't exist.

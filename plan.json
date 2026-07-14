@@ -42,7 +42,7 @@
       "write_scope": [".github/workflows/ci.yml", "eslint.config.js", "scripts/validate-arch.sh"],
       "depends_on": ["W0-01"],
       "acceptance": [
-        "CI workflow runs pnpm lint, pnpm typecheck, pnpm test, bash scripts/validate-arch.sh and node scripts/validate-plan.mjs on every push/PR; CI never contacts github.com APIs (PLAYBOOK §Testing tiers: recorded fixtures only)",
+        "CI workflow runs pnpm lint, pnpm typecheck, pnpm test, bash scripts/validate-arch.sh, node scripts/validate-plan.mjs and node scripts/validate-traceability.mjs on every push/PR; CI never contacts github.com APIs (PLAYBOOK §Testing tiers: recorded fixtures only)",
         "ESLint no-restricted-imports rules enforce the docs/ARCHITECTURE.md §3 allowed-dependency matrix: domain packages never import apps/api or apps/web; metrics/analysis/insights/reports never import packages/forge (CLAUDE.md Law 6)",
         "bash scripts/validate-arch.sh exits 0 with all five rules printing PASS on the scaffolded tree",
         "Supply-chain gates per SC-18/SC-19 (docs/SECURITY_CONTROLS.md): gitleaks scan job (history-inclusive on first run), .npmrc with ignore-scripts=true + pnpm.onlyBuiltDependencies allowlist, and pnpm audit --prod failing CI on high/critical"
@@ -566,7 +566,7 @@
       "acceptance": [
         "Tabbed screen per docs/UX_SPEC.md §4.b with each tab a routed URL per docs/design/DASHBOARD.md §1; Findings tab renders the pre-v1.x teaser",
         "'why?' health-score popover shows the full formula breakdown + basis label from the score endpoint (FR-INSIGHTS-2/3, UX_SPEC §1.4)",
-        "Hotspot directory treemap (dir zoom, file click → drill-down) with side top-N list showing churn × recency components and bus-factor flags; PR Flow funnel + review-load matrix + XS–XL histogram; CI pass/duration trends + flaky ranking — all from fixtures, each chart with table toggle (NFR-5)",
+        "Visualizations per FR-WEB-3: hotspot directory treemap (dir zoom, file click → drill-down) with side top-N list showing churn × recency components and bus-factor flags; PR Flow funnel + review-load matrix + XS–XL histogram; CI pass/duration trends + flaky ranking — all from fixtures, each chart with table toggle (NFR-5)",
         "Playwright walks org→repo→tab by clicks AND by direct URL paste (FR-WEB-2)"
       ],
       "points": 5,
@@ -628,7 +628,7 @@
       "write_scope": ["apps/web/src/routes/admin/**", "apps/web/src/widgets/admin/**", "apps/api/src/routes/admin/**"],
       "depends_on": ["W4-02", "W2-05"],
       "acceptance": [
-        "Tabs per docs/UX_SPEC.md §4.i: Connections (credential fingerprint/last-4, repo picker, pause/remove with purge option), Sync (per-repo phase/%/budget gauge/lag/last-webhook + DLQ list with replay button per NFR-11), Members (admin/member role assignment)",
+        "Tabs per docs/UX_SPEC.md §4.i: Connections (credential fingerprint/last-4, repo picker, pause/remove with optional purge per FR-INGEST-9), Sync (per-repo phase/%/budget gauge/lag/last-webhook + DLQ list with replay button per NFR-11), Members (admin/member role assignment)",
         "Admin API routes per docs/API_DESIGN.md §2 'admin' with role guard; member hitting /admin gets the 403 page with 'ask an admin' copy (FR-AUTH-4, DASHBOARD.md §1 admin/route.tsx)",
         "Failing-webhook repo row flagged crit with remediation hint; forge budget gauge + sync lag surfaced so 'is ingest healthy' is answerable from this page (NFR-12)"
       ],
@@ -1375,7 +1375,7 @@
       "write_scope": ["apps/web/src/routes/repos/$repoId/code-health.tsx", "apps/web/src/widgets/code-health/**", "apps/api/src/routes/code-health/**", "packages/reports/src/assembler/code-health.ts", "packages/reports/src/types/code-health.ts", "packages/insights/src/score/**", "packages/insights/src/plans/**"],
       "depends_on": ["W9-02", "W9-03", "W9-04", "W9-05", "W5-07"],
       "acceptance": [
-        "Repo Code Health tab per docs/UX_SPEC.md §4.b (W9 note) + CODE_HEALTH_SUITE.md §6: M13/M14 sparkline header, complexity worst-10 table with file:line drill-down, duplication trend from ch_* snapshots, slop density by rule, logging posture; per-scanner status chips with 'not enabled' states — never blank (NFR-15); org rollup tile drills in",
+        "Repo Code Health tab per FR-CH-6, docs/UX_SPEC.md §4.b (W9 note) + CODE_HEALTH_SUITE.md §6: M13/M14 sparkline header, complexity worst-10 table with file:line drill-down, duplication trend from ch_* snapshots, slop density by rule, logging posture; per-scanner status chips with 'not enabled' states — never blank (NFR-15); org rollup tile drills in",
         "Health score gains the code_health sub-score (duplication/complexity/slop-density/M13 ramps) with FR-INSIGHTS-2 renormalization + basis label; documented formula reproduces the value in test",
         "Code Health report type per FR-REPORTS-8: renders enriched with W9 scanner data AND degrades to debt-signals-only with basis labels; every section footnotes its threshold/heuristic basis (REPORTS.md §5); assembler snapshot tests both ways; PDF export inherits E5 semantics",
         "Plan catalog v2 entries (duplication-over-ceiling, complexity-worst-functions, slop-density-high, logging-hygiene-adoption) with verify criteria off ch_* snapshots; E2E: duplication item auto-verifies done when ch_duplication_pct crosses its target (FR-PLANS-3)",

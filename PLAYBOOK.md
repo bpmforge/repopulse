@@ -58,6 +58,31 @@ After each merged ticket append one line to `docs/STATUS.md`:
 write a short gate section (criteria → evidence). This file is how humans
 resume the project cold.
 
+## Wave-gate coverage loop (Ralph Wiggum, cap 3) + challenger
+
+Closing a wave is not a feeling — it's this loop (pattern: bpm-opencode-experts
+RALPH_WIGGUM_LOOP / CHALLENGER_PROTOCOL, productized for this board):
+
+1. **INVENTORY** — the wave's tickets + every FR/NFR id they cite.
+   `node scripts/validate-traceability.mjs` prints the map (122 ids at design time;
+   the count only grows).
+2. **VERIFY (objective, never vibes)** — run ALL validators: `validate-plan.mjs`,
+   `validate-arch.sh`, `validate-traceability.mjs`, plus the wave's ROADMAP exit
+   criteria and the TESTING.md §9 rule: every FR acceptance sketch in the wave maps
+   to a named test (grep FR ids in test titles).
+3. **GAP** — each uncovered row gets ONE focused `HANDOFF:` note in its ticket's
+   `notes` (what's missing, where the spec lives). Fix only flagged rows; never
+   re-run the whole wave.
+4. **Repeat, cap 3.** An identical gap set two iterations running = no progress —
+   halt and escalate to the user. Never loop past the cap.
+
+**CHALLENGER (before the STATUS.md gate entry is written):** a fresh session/agent —
+never one that implemented a ticket in this wave (maker ≠ verifier) — re-derives each
+exit criterion from the docs and tries to REFUTE the evidence. Every accepted criterion
+records `re-ran independently: <command, counts, exit code>`. CONTRADICTED evidence
+reopens the ticket; UNVERIFIABLE criteria are listed in the gate entry, not waived
+silently. Only then does the gate section land in docs/STATUS.md.
+
 ## Refusal conditions (stop and ask the user)
 
 - A ticket seems to require cloning a repo or bypassing the budgeted client.

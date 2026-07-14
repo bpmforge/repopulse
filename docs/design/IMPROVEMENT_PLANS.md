@@ -58,10 +58,21 @@ report generated | "Create plan" (Plans page)
     paragraphs + plan summary — input is the item list JSON, never raw data
 ```
 
-Lifecycle `proposed → accepted → in_progress → done | regressed | dismissed`; every
-transition audited (plan_item_events). Team-scoped only — items never name a person (N-9).
-Dismissed items don't regenerate while the same catalog id + scope stays dismissed
-(suppression mirror of FP memory R-B4).
+```mermaid
+stateDiagram-v2
+    [*] --> proposed: catalog condition true (generation)
+    proposed --> accepted: human accepts
+    proposed --> dismissed: human dismisses (suppressed for catalog id × scope)
+    accepted --> in_progress
+    accepted --> done: nightly plans.verify — criterion held for window
+    in_progress --> done: same (automatic)
+    done --> regressed: criterion broken later (automatic, attention feed + report)
+    regressed --> done: criterion holds again
+```
+
+Every transition audited (plan_item_events). Team-scoped only — items never name a
+person (N-9). Dismissed items don't regenerate while the same catalog id + scope stays
+dismissed (suppression mirror of FP memory R-B4). Sequence diagram: ARCHITECTURE.md §4g.
 
 ## 3. Auto-verification (FR-PLANS-3) — the differentiator
 

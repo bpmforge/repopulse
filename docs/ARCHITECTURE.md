@@ -29,7 +29,7 @@ graph TB
     subgraph monorepo["one pnpm monorepo, three deployed processes (Podman, D1)"]
       WEB[web — React 18 SPA<br/>Vite build, static assets]
       API[api — Fastify 5<br/>REST /api/v1, SSE, OAuth, webhook receiver]
-      WRK[worker — BullMQ consumers<br/>queues: ingest / metrics / analysis / reports]
+      WRK[worker — BullMQ consumers<br/>queues: ingest / metrics / analysis / reports / security.scan / plans]
     end
     WEB -->|/api/v1 JSON + SSE| API
     API -->|enqueue only| RD[(Redis 7)]
@@ -45,9 +45,11 @@ graph TB
 Separation rules:
 - **api** never calls a forge or LLM host (FR-API-2; the webhook receiver only verifies +
   enqueues). All egress lives in **worker**.
-- **worker** hosts four queue families: `ingest` (backfill, delta sync, reconciliation),
-  `metrics` (recompute, nightly snapshots), `analysis` (Tier-2/3, v1.x), `reports`
-  (HTML render + Playwright PDF). Independent concurrency per queue (NFR-11).
+- **worker** hosts six queue families: `ingest` (backfill, delta sync, reconciliation),
+  `metrics` (recompute, nightly snapshots), `analysis` (Tier-2/3 find/verify/challenge/
+  narrate passes, v1.x), `reports` (HTML render + Playwright PDF), `security.scan`
+  (W8/W9 scanners, own worker pool, priority below analysis — NFR-15), `plans`
+  (generation + nightly auto-verify, D9). Independent concurrency per queue (NFR-11).
 - web is a static bundle; api serves it (or a reverse proxy does). Scaling story: api and
   worker scale horizontally later; BullMQ + Postgres already tolerate N workers.
 
@@ -59,8 +61,9 @@ Separation rules:
 | ingest | packages/ingest | connect, backfill planner, webhook handlers, cursors, reconciliation | FR-INGEST-1..8 |
 | metrics | packages/metrics | Tier-1 metric computations, snapshot writer, metric catalog | FR-METRICS-1..15 |
 | analysis | packages/analysis | tiered LLM gateway, chunker, dimension checklists (v1.x) | FR-ANALYSIS-1..8 |
-| insights | packages/insights | findings store, health score, trend deltas, hotspot ranking | FR-INSIGHTS-1..5 |
-| reports | packages/reports | report definitions, HTML render, PDF export | FR-REPORTS-1..7 |
+| insights | packages/insights | findings store, health score, trend deltas, hotspot ranking, improvement plans + agreements + intents (D9), narrative assembly | FR-INSIGHTS-1..6, FR-PLANS-1..6 |
+| reports | packages/reports | report definitions, HTML render, PDF export, report diff | FR-REPORTS-1..8 |
+| security | packages/security | scanner framework + registry, snapshot service + sandbox, W8/W9 scanners, CVE validation + VEX, rulepacks + rule lifecycle, tool adapters | FR-SEC-1..15, FR-CH-1..10 |
 | shared | packages/shared | Drizzle schema, zod contracts, config, logger, errors | (all) |
 | auth | packages/auth (wired by apps/api) | GitHub OAuth, Redis sessions, RBAC, workspace scoping, identity map, credential vault | FR-AUTH-1..6 |
 | api / web | apps/* | HTTP surface / SPA | FR-API-*, FR-WEB-* |
@@ -87,9 +90,11 @@ route read-handlers must not (FR-API-2 static check).
 ³ forge imports only the credential vault's decrypt from auth so plaintext tokens exist
 solely in forge memory (SC-1); no other auth surface.
 No package ever imports `apps/api` or `apps/web` (Law 6). Everyone may import shared.
-W8 adds `packages/security` — the wave gate must extend this matrix + validate-arch.sh:
-security imports shared + forge types + the analysis gateway interface, nothing else
-(SECURITY_SUITE.md header rules).
+**security** (W8/W9 row, lands with its wave + validate-arch rule): imports shared ✅,
+forge ✅⁴, analysis ✅⁴, insights ✅ (findings helpers); nothing else.
+⁴ the snapshot service is the ONLY tarball caller (C1a lint gate); scanners receive repo
+bytes exclusively via `ScannerContext` (→ BudgetedClient) and reach LLMs exclusively via
+`AnalysisGateway` — never direct (Laws 7/8).
 
 ```mermaid
 graph BT
@@ -101,7 +106,8 @@ graph BT
     analysis[packages/analysis] --> forge & shared
     insights[packages/insights] --> metrics & shared
     reports[packages/reports] --> metrics & insights & shared
-    api[apps/api] --> auth & ingest & metrics & analysis & insights & reports & shared
+    security[packages/security] --> forge & analysis & insights & shared
+    api[apps/api] --> auth & ingest & metrics & analysis & insights & reports & security & shared
     web[apps/web] -.->|HTTP only| api
 ```
 
@@ -241,6 +247,101 @@ sequenceDiagram
     User->>API: GET /reports/{id}/pdf → stream
 ```
 
+### 4f. Finding quality loop: find → verify (maker≠verifier) → challenge (FR-ANALYSIS-9/10 — D9)
+
+```mermaid
+sequenceDiagram
+    participant W as worker(analysis)
+    participant LMA as LM host A (.48, finder)
+    participant LMB as LM host B (.114, verifier)
+    participant PG as Postgres
+    W->>LMA: find pass (checklist vN, chunked)
+    LMA-->>W: findings JSON (zod + substring validated)
+    W->>PG: upsert findings (verify_status=unverified, pass_kind=find)
+    loop each finding severity ≥3 (one verify call, hard cap)
+        W->>LMB: refute-first prompt (verifier host ≠ finder host)
+        LMB-->>W: CONFIRMED | CONTRADICTED | UNVERIFIABLE
+        alt CONTRADICTED
+            W->>PG: auto-dismiss reason=challenger_refuted (admin-visible, never silent)
+        else CONFIRMED
+            W->>PG: verify_status=confirmed (pass_kind=verify, parent_run_id chain)
+        end
+    end
+    Note over W: severity ≥4 confirmed / verified secret / chain
+    W->>LMB: challenge pass (one adversarial call, FR-ANALYSIS-10)
+    alt survives
+        W->>PG: banner-eligible (org banner / Security-tab top)
+    else refuted
+        W->>PG: demoted + flagged for admin
+    end
+```
+
+Loop discipline (ported from bpm-opencode-experts, quoted as law): hard caps (1 verify +
+1 challenge call per finding), no-progress halt, maker ≠ verifier, model output is data —
+never executed (SC-13).
+
+### 4g. Improvement plan: generate → accept → auto-verify (FR-PLANS-1..6 — D9)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as api
+    participant W as worker(plans)
+    participant PG as Postgres
+    participant LM as LM Studio (optional)
+    User->>API: POST /plans {scope | from_report_id}
+    API->>W: enqueue plans.generate
+    W->>PG: evaluate catalog vN over snapshots/facts (pure SQL — FR-PLANS-1)
+    W->>PG: plan_items (status=proposed, ranked, evidence links, verify_criterion)
+    opt T2 narration (pass_kind=plan)
+        W->>LM: order ties + "why now" — input = item list JSON, NEVER raw data
+        LM-->>W: narration (items unchanged — LLM never invents)
+    end
+    User->>API: accept item → status=accepted (audited)
+    Note over W: nightly, after metrics.snapshot
+    W->>PG: plans.verify — evaluate each verify_criterion off snapshots
+    alt criterion held for window
+        W->>PG: status=done (audit row, org tile delta)
+    else previously-done criterion broken
+        W->>PG: status=regressed (attention feed + next report)
+    end
+```
+
+### 4h. Dependency finding: validation funnel → VEX (FR-SEC-13/14/15 — D10)
+
+```mermaid
+flowchart TD
+    A[grype/OSV raw advisories] --> V0[V0 alias dedup<br/>one finding per vuln×package]
+    V0 --> V1[V1 scope: dev/prod, direct/transitive<br/>downgrades risk, NEVER auto-dismisses]
+    V1 --> V2[V2 import/usage scan<br/>never imported ⇒ PROPOSES not_affected]
+    V2 --> V3[V3 reachability<br/>govulncheck Go / generated semgrep symbol rules<br/>tier stamped on finding]
+    V3 --> V4[V4 EPSS + KEV ⇒ effective_risk]
+    V4 --> V5[V5 optional T2 adversarial verify<br/>proposes VEX justification + confidence]
+    V5 --> T{human triage}
+    T -->|affected| F1[confirmed → remediation / plan item]
+    T -->|not_affected + REQUIRED OpenVEX justification| F2[vex_statements row<br/>suppressed at same version]
+    F2 -->|version bump| R[reopened as under_investigation]
+    T -->|under_investigation| F3[open]
+    F1 & F2 & F3 --> UI[funnel UI: raw→deduped→scoped→affected<br/>raw count NEVER hidden]
+```
+
+### 4i. Scanner dispatch + rule shadow mode (FR-SEC-9, FR-CH-8 — D8/D11)
+
+```mermaid
+sequenceDiagram
+    participant GH as GitHub webhook / cron
+    participant Q as security.scan queue
+    participant SB as sandbox (--network=none)
+    participant PG as Postgres
+    GH->>Q: pr_synced | push | daily | weekly (trigger matrix × enabled scanners, idempotency keys)
+    Q->>SB: scanner run (snapshot ro,noexec | diff stream | manifests)
+    SB-->>Q: schema-valid findings JSON on stdout (only exit path)
+    Q->>PG: upsert via dedup_key; candidate-rule findings stamped experimental=true
+    Note over PG: experimental findings: Explorer facet only —<br/>EXCLUDED from scores, banners, plans, reports (FR-CH-8)
+    Q->>Q: completion job: attack_chainer + compound-risk (SQL)
+    Q->>PG: scan_run row (trigger, SHA, status, tool/rulepack versions)
+```
+
 ## 5. Architecture decision records
 
 **ADR-1 — Clone-free, API-only, with a persistent ETag cache layer.** (C1, FR-FORGE-4/6)
@@ -286,6 +387,36 @@ Nightly job writes `(workspace, repo|org, metric_key, window, dims, value, compu
 rows; trends/deltas read snapshots only, never recompute. Retained ≥400d. This is what
 makes trend charts O(rows-in-range) and keeps NFR-3.
 
+**ADR-8 — One findings store, registry-driven scanners.** (D8, FR-SEC-1/12) Every
+producer — T2/T3 review, five W8 scanners, W9 code-health scanners, chainer, compound
+detector — persists into the SAME findings table with the same dedup/lifecycle/triage
+rails; dispatch, budgets, facets, and report sections are registry-metadata-driven.
+Rejected: per-domain stores (would fragment triage, dedup, and the Explorer).
+
+**ADR-9 — Maker≠verifier quality loops.** (D9, FR-ANALYSIS-9/10) Ported from
+bpm-opencode-experts: findings sev≥3 are re-judged refute-first on the *other* LAN host;
+sev≥4 must additionally survive one challenge call before banner surfacing; contradicted
+findings auto-dismiss visibly. Bounded: 1 verify + 1 challenge per finding, no-progress
+halts. Rationale: RISKS R-4 — FP noise is the product's biggest trust risk; redundancy
+across models is the cheapest defense we own (two hosts already exist).
+
+**ADR-10 — Rules-first, LLM-second.** (D9/D11, FR-PLANS-1, FR-CH-8/9) Deterministic
+catalogs and rulepacks are the only sources of plan items and pack findings; LLM passes
+order, narrate, draft, and propose — never invent, activate, or dismiss. Consequence:
+every surface is fully functional on a Tier-1-only install; anti-hallucination is
+structural, not prompt-dependent.
+
+**ADR-11 — Validation funnel + VEX for dependency findings.** (D10, FR-SEC-13/14/15)
+Raw CVE lists are pipeline input, never a deliverable: tiers stamp honesty labels
+(reachability, scope, effective risk); suppression requires an OpenVEX justification,
+persists per (purl, vuln, version-range), and reopens on version bump; raw counts are
+never hidden. Rejected: severity-threshold filtering (hides the funnel, unauditable).
+
+**ADR-12 — Rule lifecycle with shadow mode.** (D11, FR-CH-8/9) New rules run
+`experimental` — visible for evaluation, excluded from scores/banners/plans — until
+measured FP rate earns promotion; imports are license-gated deny-by-default. Rejected:
+auto-activating synced packs (turns every upstream rule bug into user-facing noise).
+
 ## 6. Failure modes & degradation
 
 | Failure | Detection | Behavior | User-visible | FR/NFR |
@@ -301,6 +432,10 @@ makes trend charts O(rows-in-range) and keeps NFR-3.
 | Redis down | api/worker healthcheck | reads still served (sessions fail → re-login); ingestion halts | login required; sync paused | FR-AUTH-2 |
 | Malformed LLM output | zod parse fail | retry once → dead-letter with raw payload kept | finding absent; DLQ visible on ops page | FR-ANALYSIS-5, NFR-11 |
 | Stats endpoint 202/422 (10k+ commits) | status code | retry-after-202 loop; 422 → per-commit REST fallback queued low-priority | none (slower churn backfill) | research §3 |
+| Verifier/challenger host down | T2 health probe | verify/challenge jobs park + backoff; findings stay `unverified` (visible with badge), banner escalation deferred — never skipped | "verification paused" chip on affected findings | FR-ANALYSIS-9/10, NFR-7 |
+| Scanner crash / budget blown | scan_run status | partial findings kept + flagged; other scanners, ingest, Tier-1 unaffected (own queue/workers) | per-scanner error chip, never a broken page | NFR-15, SC-30 |
+| plans.verify job failure | job retry/DLQ | plan items keep last status; `stale_verify` flag after 48h without evaluation | staleness note on plan progress | FR-PLANS-3, NFR-11 |
+| db-sync (OSV/KEV/EPSS/rulepacks) failure | checksum/refresh monitor | previous read-only volume stays mounted; scan_runs stamp data-version so staleness is auditable | data-age note on Security tab | SC-28 |
 
 ## 7. SaaS-readiness (what flips for multi-tenant, D1)
 
