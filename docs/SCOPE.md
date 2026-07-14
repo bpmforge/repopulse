@@ -65,6 +65,8 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-54 | Checklist v2 bumps: performance checklist completes the 5 static scans (adds try/catch-in-hot-loop, hot-path allocations); code_health checklist cross-references slop rules; golden-prompt snapshots re-recorded. | D11 (FR-CH-5) |
 | S-55 | Code-health surfaces: repo Code Health tab, org tile, `code_health` health-score sub-score, **Code Health report type** (FR-REPORTS-8), D9 plan-catalog v2 entries (duplication ceiling, complexity worst-functions, slop density, logging adoption). | D11 (FR-CH-6) |
 | S-56 | Tier-1 debt signals (no scanner, warehouse-only): 14-day rework rate + revert rate per repo/file, snapshotted — the GitClear-style "mistake code" trend. | D11 (FR-CH-7) |
+| S-57 | Rule lifecycle + intake: HealthRule schema (provenance/license/fixtures mandatory), shadow mode (experimental findings excluded from scores/banners/plans), FP-rate promotion/demotion gates, admin workbench; intake via field-lesson proposals, LLM-drafted rules (never auto-activated), license-gated external pack sync. | D11 (FR-CH-8/9) |
+| S-58 | Tool adapter registry inside `code_health_tools`: standalone-only admission (no network/install), language auto-routing, per-tool license ledger; W9 adapters ruff (Python) + Biome (JS/TS); backlog roster (actionlint, hadolint, shellcheck, sqlfluff, vale, gocyclo). Per-language perf/correctness/framework semgrep packs (§9). | D11 (FR-CH-10) |
 
 ## Out of scope
 

@@ -133,3 +133,145 @@ in metric_snapshots; checklist runs mocked at the gateway with `initiator='scann
 Licensing: lizard MIT · jscpd MIT · semgrep engine LGPL-2.1 (subprocess, unchanged from
 W8) · rulepack is OURS (no Semgrep-registry rules — license gate per DESIGN_REVIEW G-18)
 · knip ISC / vulture MIT / staticcheck MIT reserved for the `dead_code` backlog entry.
+
+## 8. Rule lifecycle & intake (FR-CH-8/9) — 30 rules is the seed, not the cap
+
+The R-01..R-30 taxonomy is the launch corpus. Growth is governed, not ad hoc — an
+unvetted rule is a false-positive machine, and FP noise is the #1 trust killer (RISKS
+R-4 applies to rules exactly as it does to LLM findings).
+
+### 8.1 Rule schema (every rule, any layer)
+
+```ts
+interface HealthRule {
+  id: string;                        // '{domain}.{slug}' e.g. 'slop.empty-catch' (source R-xx recorded in provenance)
+  domain: 'slop'|'logging'|'perf'|'correctness'|'framework';
+  layer: 'pack'|'hybrid'|'llm';      // §1 legend
+  languages: string[] | ['*'];
+  severity: 1|2|3|4|5;
+  status: 'proposed'|'candidate'|'active'|'deprecated';
+  provenance: { source: 'experts:R-xx'|'field_lesson'|'external:{repo}'|'llm_draft';
+                license: string;     // REQUIRED — imports deny-by-default unless MIT/Apache-2.0/BSD/ours
+                author: string; date: string };
+  engineRule?: string;               // semgrep YAML path (pack/hybrid)
+  checklistItem?: string;            // checklist asset ref (llm/hybrid)
+  fixtures: { trigger: string[]; clean: string[] };  // BOTH required — a rule without fixtures cannot merge
+}
+```
+
+Workspace-level state lives in `rule_registry` (DATABASE.md D11 delta): per-rule status
+override + computed `fp_rate` (from `dismissed(false_positive)` dispositions — the same
+tuning metric the checklists already feed).
+
+### 8.2 Lifecycle — shadow mode is the safety valve
+
+`proposed → candidate (SHADOW) → active → deprecated`
+
+- **proposed**: sits in the intake review queue (admin workbench); has fixtures + license
+  provenance or it doesn't exist.
+- **candidate / shadow mode**: the rule RUNS on real scans but its findings are stamped
+  `experimental: true` — visible in a dedicated Explorer facet, **excluded from health
+  scores, org banners, plan generation, and reports**. Shadow findings accrue FP
+  dispositions like any finding.
+- **promotion gate** (admin action, data-informed): ≥20 findings over ≥30 days with
+  FP rate < 20% (workspace-tunable). The workbench shows the evidence; a human promotes.
+- **demotion**: any active rule whose trailing FP rate exceeds 50% is auto-flagged
+  `demotion_candidate` and surfaces on the workbench — admin confirms deprecation.
+  Deprecated rules keep their historical findings (audit) but never run again.
+
+### 8.3 Intake sources (FR-CH-9) — how the system finds new rules
+
+1. **Field-lesson intake** (the experts-repo B-2 pattern, productized): (a) a "propose
+   rule from this" action on any finding or dismissed-FP cluster; (b) a scheduled T2
+   pass that clusters FP dismissals and recurring judgment-findings per rule-shaped
+   pattern, and **drafts a semgrep rule + both fixtures** (`provenance.source =
+   'llm_draft'`). Drafts always land as `proposed` — the LLM never activates a rule.
+2. **External pack sync**: configured git repos of rules (reuses the FR-SEC-6 db-sync
+   mechanism verbatim — pinned ref, checksum, read-only volume). Import is
+   **license-gated deny-by-default**: each rule's license must be on the allowlist
+   (MIT / Apache-2.0 / BSD / ours); Semgrep-registry-licensed rules are refused
+   (G-18). Imports land as `proposed`, run shadow first — external packs get no trust
+   shortcut.
+3. **Research intake** (manual/human): new studies, advisories, or team lessons entered
+   via the workbench form; same schema, same gate. (An automated web-research agent is
+   deliberately NOT in scope — C6 egress discipline; if ever added it would be T3
+   opt-in + egress-audited like everything else.)
+
+## 9. Rulepack architecture — domains × languages (FR-CH-9)
+
+```
+packages/security/rulepacks/
+  code-health.v{N}/
+    slop/{generic,ts,py,go,java}/...yaml      # R-xx ports + growth
+    logging/{generic,ts,py,go}/...yaml         # §3 + per-framework logger idioms
+    perf/{ts,py,go,java,rb}/...yaml            # §9.1 — YES, semgrep does perf
+    correctness/{ts,py,go}/...yaml
+    framework/{react,fastify,drizzle,django,rails}/...yaml
+```
+
+Semgrep's engine covers 30+ languages with the same YAML format, taint mode included —
+one format, per-language variants of each rule where idioms differ. **Engine note:
+"semgrep-compatible" is the contract** — Opengrep (LGPL fork) runs the identical rule
+files, so the SaaS-flip engine swap (DESIGN_REVIEW G-18) is a binary swap, not a rule
+rewrite. The adapter (§10) names the binary; rules never do.
+
+### 9.1 Performance pack — pattern-shaped perf IS semgrep territory
+
+Cross-function algorithmic analysis stays LLM-tier, but the highest-yield perf defects
+are local patterns, per language:
+
+| Rule (per-language variants) | Pattern sketch |
+|---|---|
+| `perf.orm-call-in-loop` (N+1) | prisma/drizzle/knex/sqlalchemy/activerecord call inside for/map/forEach |
+| `perf.await-in-loop` | `await` in loop body without Promise.all/allSettled (R-04 port) |
+| `perf.sync-io-in-async` | `fs.*Sync`/`execSync`/blocking sleep inside async fn / route handler |
+| `perf.json-deep-clone` | `JSON.parse(JSON.stringify(x))` |
+| `perf.try-catch-in-loop` | R-02 port (5-20× JIT penalty) |
+| `perf.regex-compile-in-loop` | `new RegExp`/`re.compile` inside loop |
+| `perf.string-concat-in-loop` | `+=` string build in py/java loops |
+| `perf.unbounded-promise-all` | `Promise.all(bigArray.map(...))` with no chunking |
+
+Findings take dimension `performance` — same Explorer, triage, verify pass, and plan
+integration as everything else. This complements (not replaces) the `performance.v2`
+T2 checklist: patterns deterministic, algorithms/judgment LLM.
+
+## 10. Tool adapter registry (FR-CH-10) — what else we support
+
+One level below the Scanner registry, `code_health_tools` gets a **ToolAdapter**
+contract so adding a tool = one adapter + fixtures, zero scanner changes:
+
+```ts
+interface ToolAdapter {
+  key: string; version: string; license: string;    // pinned + checksummed in the sandbox image (SC-28)
+  detect(s: SnapshotHandle): boolean;                 // language/file auto-enable (extensions + SBOM)
+  command(ctx: ScannerContext): string[];             // MUST run standalone: no network, no dependency install
+  parse(stdout: string): ScannerFinding[];            // rule ids 'tool.{key}.{rule}'
+}
+```
+
+**The admission filter is the sandbox**: `--network=none`, no `npm install`/`pip
+install`. Tools must parse raw source standalone.
+
+| Tool | Target | Domain | License | Status |
+|---|---|---|---|---|
+| lizard | polyglot complexity | code_health | MIT | **W9** |
+| jscpd | polyglot duplication | code_health | MIT | **W9** |
+| semgrep/opengrep + our packs | 30+ languages | slop/logging/perf/correctness | LGPL-2.1 (subprocess) | **W8/W9** |
+| ruff | Python (800+ rules, standalone binary) | code_health/correctness | MIT | **W9 adapter** |
+| Biome | JS/TS lint (standalone, no node_modules) | code_health/correctness | MIT/Apache-2.0 | **W9 adapter** |
+| actionlint | GitHub Actions workflows | correctness/ci | MIT | backlog |
+| hadolint | Dockerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | backlog |
+| shellcheck | shell scripts | correctness | GPL-3.0 (subprocess-only¹) | backlog |
+| sqlfluff | SQL | code_health | MIT | backlog |
+| vale | prose/docs (R-29 companion) | slop (docs) | MIT | backlog |
+| gocyclo | Go complexity | code_health | BSD-3 | backlog |
+| staticcheck / knip / vulture | dead code | dead_code | MIT/ISC/MIT | backlog (needs deps-cache volume) |
+
+¹ GPL is triggered by *distribution*, not server-side subprocess execution — running
+hadolint/shellcheck in our sandbox is fine for internal AND SaaS as long as we never
+ship modified binaries; noted for the G-18 ledger.
+
+Adapter findings dedupe against pack rules covering the same defect (ruff/Biome overlap
+with our slop pack is expected — the dedup key wins, lowest-noise source is kept per
+rule mapping). Language routing: `detect()` runs on snapshot extensions + SBOM; a repo
+with no Python never runs ruff.

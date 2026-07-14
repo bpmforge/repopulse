@@ -30,4 +30,11 @@
   hallucinated pkgs), Apiiro (+322%). New: design/CODE_HEALTH_SUITE.md, SRS §2.12
   FR-CH-1..7 + FR-REPORTS-8, SCOPE S-50..56, E13, ROADMAP W9, plan W9-01..06 (validator
   now allows W9). Board: 84 tickets / 399 pts, validators green.
+- 2026-07-14 — D11 extended (Brad): rule lifecycle + shadow mode + intake (FR-CH-8/9 —
+  30 rules = seed not cap; experimental findings excluded from scores until FP-gated
+  promotion; field-lesson + LLM-drafted + license-gated external-pack intake, all land
+  proposed), tool adapter registry (FR-CH-10 — ruff/Biome W9; actionlint/hadolint/
+  shellcheck/sqlfluff/vale/gocyclo backlog; standalone-only sandbox admission), and
+  per-language perf/correctness/framework semgrep packs (Opengrep-swappable engine
+  contract). Tickets W9-07/08. Board: 86 tickets / 409 pts, validators green.
 - Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.

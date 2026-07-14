@@ -260,7 +260,14 @@ enum += `'compound'` (FR-INSIGHTS-6).
 **D11 delta (W9, FR-CH-*)** — `dimension` enum += `'slop' | 'logging'` (complexity/
 duplication findings reuse `code_health`, distinguished by `rule_id`); code-health
 posture metrics are plain `metric_snapshots` rows with `ch_*` metric keys (no new
-table); M13/M14 debt signals are ordinary catalog metrics.
+table); M13/M14 debt signals are ordinary catalog metrics. Findings gain
+`experimental bool default false` (shadow-mode rules, FR-CH-8 — excluded from
+scores/banners/plans by predicate). **rule_registry** — `workspace_id, rule_id text,
+domain, layer, status enum('proposed','candidate','active','deprecated'),
+provenance jsonb (source, license, author, date), fp_rate numeric null (computed from
+false_positive dispositions), shadow_findings int, promoted_by/at, updated_at`;
+PK `(workspace_id, rule_id)` — the intake workbench + lifecycle state (FR-CH-8/9);
+rule CONTENT stays in versioned rulepack assets, never in the DB.
 
 **improvement_plans** — `id, workspace_id, repo_ids bigint[], window, created_from_report_id
 null FK reports, catalog_version text, status enum('active','archived'), created_by,

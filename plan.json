@@ -1384,6 +1384,40 @@
       "points": 8,
       "status": "todo",
       "notes": []
+    },
+    {
+      "id": "W9-07",
+      "title": "Rule lifecycle + intake: HealthRule schema, shadow mode, FP gates, admin workbench, LLM-drafted proposals",
+      "phase": 9,
+      "module": "security",
+      "write_scope": ["packages/security/src/rules/**", "packages/shared/src/db/schema/security/**", "packages/shared/drizzle/**", "apps/api/src/routes/rules/**", "apps/web/src/routes/admin/rules.tsx", "apps/web/src/widgets/rules/**"],
+      "depends_on": ["W9-01", "W9-03"],
+      "acceptance": [
+        "HealthRule schema + rule_registry table per docs/design/CODE_HEALTH_SUITE.md §8.1 and docs/DATABASE.md D11: provenance (source, LICENSE, author, date) and trigger+clean fixtures REQUIRED — a rule without either fails the pack build (validator); rule content stays in versioned rulepack assets, never the DB (FR-CH-8)",
+        "Lifecycle proposed→candidate(shadow)→active→deprecated per §8.2: shadow findings stamped experimental=true, visible in a dedicated Explorer facet, EXCLUDED from health scores, org banners, plan generation and reports (predicate test); promotion gate = admin action shown evidence (>=20 findings/30d, FP<20%, workspace-tunable); trailing FP>50% auto-flags demotion_candidate; all transitions audited (SC-22)",
+        "Intake per §8.3 / FR-CH-9: 'propose rule from this finding/FP-cluster' action; scheduled T2 pass clusters false_positive dismissals and DRAFTS a semgrep rule + both fixtures (provenance.source='llm_draft', gateway-mocked in CI) — drafts land proposed, NEVER auto-activate; external pack sync via the FR-SEC-6 db-sync mechanism with license-gated DENY-BY-DEFAULT import (allowlist MIT/Apache-2.0/BSD/ours; refusal logged with reason)",
+        "Admin workbench (admin-only, FR-AUTH-4): proposal queue with provenance/fixtures/shadow stats, promote/demote/deprecate actions; per-rule fp_rate computed from dispositions; tenancy walker + axe green"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-08",
+      "title": "Tool adapter registry + ruff/Biome adapters + per-language perf semgrep pack",
+      "phase": 9,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/code-health/adapters/**", "packages/security/rulepacks/code-health/perf/**", "deploy/Containerfile.scan"],
+      "depends_on": ["W9-02"],
+      "acceptance": [
+        "ToolAdapter contract per docs/design/CODE_HEALTH_SUITE.md §10 inside code_health_tools: { key, version, license, detect(snapshot), command(ctx), parse(stdout) }; adding a fixture adapter touches zero scanner/framework files (FR-CH-10 acceptance); adapters MUST run standalone — no network, no dependency install (sandbox integration test)",
+        "ruff (Python, MIT) and Biome (JS/TS, MIT/Apache-2.0) adapters: pinned+checksummed in the sandbox image (SC-28), findings mapped to rule ids tool.{key}.{rule} with dimension code_health/correctness; language routing via detect() on extensions+SBOM — Python-only fixture repo runs ruff and never Biome (and vice versa)",
+        "Adapter findings dedupe against pack rules covering the same defect (ruff/Biome overlap fixture collapses via dedup key, lowest-noise source kept per mapping table)",
+        "Per-language perf pack per §9.1: orm-call-in-loop (prisma/drizzle/knex/sqlalchemy/activerecord variants), await-in-loop, sync-io-in-async, json-deep-clone, try-catch-in-loop, regex-compile-in-loop, string-concat-in-loop, unbounded-promise-all — each with trigger+clean fixtures per language; findings take dimension performance and ride the standard triage/verify/plan rails"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
     }
   ]
 }

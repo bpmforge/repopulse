@@ -205,7 +205,7 @@ Go fixture proven_unreachable via govulncheck in the sandbox; not_affected witho
 justification rejected; version-bump reopens; OpenVEX + CycloneDX export validate against
 their schemas; compound-risk golden test (3 dimensions, one module ⇒ severity max+1).
 
-## W9 — Code Health Suite (~34 pts: E13 + surfaces; decision D11)
+## W9 — Code Health Suite (~49 pts: E13 + surfaces; decision D11)
 
 **Goal:** the AI-slop era's code-cleanliness rails — deterministic rulepack + source
 tools + T2 judgment checklists, all on the W8 framework, surfaced with the same
@@ -215,7 +215,8 @@ Ticket themes: code-health rulepack (FR-CH-1); code_health_tools scanner — liz
 jscpd + posture snapshots (FR-CH-2); anti_slop scanner — pack + LDR + T2 checklist
 (FR-CH-3); logging_hygiene scanner (FR-CH-4); performance/code_health checklist v2
 (FR-CH-5); Code Health tab + report + score sub-score + plan catalog v2 (FR-CH-6,
-FR-REPORTS-8); M13/M14 debt signals (FR-CH-7).
+FR-REPORTS-8); M13/M14 debt signals (FR-CH-7); rule lifecycle/shadow mode + intake
+workbench (FR-CH-8/9); tool adapters ruff/Biome + per-language perf packs (FR-CH-10).
 
 **Exit criteria**
 - [ ] Fixture trees reproduce every PACK rule (trigger + non-trigger cases) and every threshold boundary (CC 10/11, cognitive 15/16, fn 50/51, LDR 0.29/0.31, jscpd edge); pack + tool versions stamped on scan_runs; zero Semgrep-registry rules in the pack (license grep gate).
@@ -223,3 +224,5 @@ FR-REPORTS-8); M13/M14 debt signals (FR-CH-7).
 - [ ] Scanner + T2 checklist findings on the same evidence dedupe to one row (FR-CH-5 key alignment).
 - [ ] Code Health tab renders all sections with scanners enabled AND degrades per-scanner to "not enabled" (never blank); org tile + code_health sub-score basis label live.
 - [ ] Code Health report snapshot-tested enriched and Tier-1-only; M13/M14 reproduce fixture vectors; a duplication plan item auto-verifies when ch_duplication_pct crosses its target.
+- [ ] Shadow-mode fixture rule produces `experimental` findings that move NO score/banner/plan; promotion requires the workbench evidence gate; a non-allowlisted-license rule import is refused with a logged reason; an LLM-drafted rule arrives `proposed` with valid YAML + passing fixtures.
+- [ ] Adapter routing test: Python-only fixture repo runs ruff and never Biome (and vice versa); ruff/Biome findings overlapping pack rules collapse via dedup key; tool versions + checksums stamped on scan_runs.

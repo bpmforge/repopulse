@@ -302,6 +302,14 @@ As P3, I want log-injection taint, secrets-in-logs, console.log-in-prod, and mis
 As P4, I want a Code Health tab, report type, and health-score sub-score — plus rework/revert debt signals from our own warehouse — so that code cleanliness has the same drill-down/report/plan rails as delivery and security.
 - Plan catalog v2 entries auto-verify off ch_* snapshots ("duplication back under 5% — done")
 
+### E13.5 Rule lifecycle + intake workbench — 5 pts — FR-CH-8/9
+As P3 (admin), I want new rules to enter through a workbench — field-lesson proposals, LLM-drafted candidates, license-gated external packs — and run in shadow mode until their measured FP rate earns promotion, so that the rule set grows without ever growing the noise.
+- Shadow findings never touch scores/banners/plans; promotion requires evidence (≥20 findings/30d, FP<20%); FP>50% auto-flags demotion; every rule carries license provenance (deny-by-default imports)
+
+### E13.6 Tool adapters + per-language packs — 5 pts — FR-CH-10
+As P1, I want language-appropriate tools auto-routed per repo (ruff for Python, Biome for JS/TS, per-language perf/framework semgrep packs) so that a polyglot org gets native-quality checks everywhere without config sprawl.
+- detect() routing from extensions+SBOM; adapter findings dedupe against pack rules; standalone-only tools (sandbox stays no-network); Opengrep-swappable engine contract
+
 ## Summary
 
 | Epic | Stories | Points | MVP points |
@@ -318,8 +326,8 @@ As P4, I want a Code Health tab, report type, and health-score sub-score — plu
 | E10 Security Suite (W8) | 9 | 45 | 0 |
 | E11 Improvement Plans + Quality Loops (D9) | 5 | 21 | 0 |
 | E12 CVE Validation & VEX (D10) | 3 | 16 | 0 |
-| E13 Code Health Suite (D11) | 4 | 23 | 0 |
-| **Total** | **63** | **273** | **117** |
+| E13 Code Health Suite (D11) | 6 | 33 | 0 |
+| **Total** | **65** | **283** | **117** |
 
 D9's journey-pack items (S-44: persona picker, onboarding checklist, badges, Weekly
 Pulse, triage queue, report diff/schedule/annotations) fold into E3/E5 surfaces as
