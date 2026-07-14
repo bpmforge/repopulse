@@ -62,39 +62,46 @@ Separation rules:
 | insights | packages/insights | findings store, health score, trend deltas, hotspot ranking | FR-INSIGHTS-1..5 |
 | reports | packages/reports | report definitions, HTML render, PDF export | FR-REPORTS-1..7 |
 | shared | packages/shared | Drizzle schema, zod contracts, config, logger, errors | (all) |
-| auth (in api) | apps/api/src/auth | GitHub OAuth, Redis sessions, RBAC, workspace scoping | FR-AUTH-1..6 |
+| auth | packages/auth (wired by apps/api) | GitHub OAuth, Redis sessions, RBAC, workspace scoping, identity map, credential vault | FR-AUTH-1..6 |
 | api / web | apps/* | HTTP surface / SPA | FR-API-*, FR-WEB-* |
 
 ### Allowed-dependency matrix (row imports column; ✅ allowed, blank forbidden — ESLint-enforced)
 
-| imports → | shared | forge | ingest | metrics | analysis | insights | reports |
-|---|---|---|---|---|---|---|---|
-| **forge** | ✅ | | | | | | |
-| **ingest** | ✅ | ✅ | | | | | |
-| **metrics** | ✅ | | | | | | |
-| **analysis** | ✅ | ✅¹ | | | | | |
-| **insights** | ✅ | | | ✅ | | | |
-| **reports** | ✅ | | | ✅ | | ✅ | |
-| **apps/api** | ✅ | ✅² | ✅² | ✅ | ✅ | ✅ | ✅ |
-| **apps/web** | (types only) | | | | | | |
+| imports → | shared | auth | forge | ingest | metrics | analysis | insights | reports |
+|---|---|---|---|---|---|---|---|---|
+| **auth** | ✅ | | | | | | | |
+| **forge** | ✅ | ✅³ | | | | | | |
+| **ingest** | ✅ | | ✅ | | | | | |
+| **metrics** | ✅ | | | | | | | |
+| **analysis** | ✅ | | ✅¹ | | | | | |
+| **insights** | ✅ | | | | ✅ | | | |
+| **reports** | ✅ | | | | ✅ | | ✅ | |
+| **apps/api** | ✅ | ✅ | ✅² | ✅² | ✅ | ✅ | ✅ | ✅ |
+| **apps/web** | (types only) | | | | | | | |
 
 ¹ analysis may call forge ONLY for on-demand `listPRFiles`/`getFileContents` through the
 budgeted client (diff text is not warehoused wholesale; research §6). No other domain
 package touches forge — metrics/insights/reports read the DB, never the forge (Law 6).
 ² api imports forge/ingest solely for webhook signature verification + job enqueueing;
 route read-handlers must not (FR-API-2 static check).
+³ forge imports only the credential vault's decrypt from auth so plaintext tokens exist
+solely in forge memory (SC-1); no other auth surface.
 No package ever imports `apps/api` or `apps/web` (Law 6). Everyone may import shared.
+W8 adds `packages/security` — the wave gate must extend this matrix + validate-arch.sh:
+security imports shared + forge types + the analysis gateway interface, nothing else
+(SECURITY_SUITE.md header rules).
 
 ```mermaid
 graph BT
     shared[packages/shared]
-    forge[packages/forge] --> shared
+    auth[packages/auth] --> shared
+    forge[packages/forge] --> shared & auth
     ingest[packages/ingest] --> forge & shared
     metrics[packages/metrics] --> shared
     analysis[packages/analysis] --> forge & shared
     insights[packages/insights] --> metrics & shared
     reports[packages/reports] --> metrics & insights & shared
-    api[apps/api] --> ingest & metrics & analysis & insights & reports & shared
+    api[apps/api] --> auth & ingest & metrics & analysis & insights & reports & shared
     web[apps/web] -.->|HTTP only| api
 ```
 
@@ -238,7 +245,7 @@ sequenceDiagram
 
 **ADR-1 — Clone-free, API-only, with a persistent ETag cache layer.** (C1, FR-FORGE-4/6)
 Decision: zero git clone/tarball code paths (lint + review gate); all ingestion via
-ForgeProvider; every GET goes through an ETag store (`api_cache` table) so repeat polls of
+ForgeProvider; every GET goes through an ETag store (`forge_etag` table) so repeat polls of
 unchanged resources cost 0 rate-limit points (304s are free — research §2). Consequence:
 churn facts come from commit-detail / GraphQL PR files / stats endpoints with the 10k-commit
 degradation fallback (research §3), never from local diffing.

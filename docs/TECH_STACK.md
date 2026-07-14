@@ -15,8 +15,9 @@ Context7 / node_modules before coding. Upgrades only per the policy at the botto
 ### Workspace layout (fixed — matches brief module boundaries)
 
 ```
-apps/api          Fastify HTTP server: routes, auth module (OAuth/sessions/RBAC), SSE, webhook receiver
+apps/api          Fastify HTTP server: routes, plugins, SSE, webhook receiver; BullMQ workers in src/workers/** (separate entrypoint)
 apps/web          React SPA (Vite build), consumes /api/v1 only (FR-API-1)
+packages/auth     OAuth flow, Redis-session helpers, RBAC, workspace scoping, identity map, credential vault (FR-AUTH-1..6) — wired into HTTP by apps/api
 packages/forge    ForgeProvider interface + GitHubProvider + budgeted client + ETag cache (FR-FORGE-1..6)
 packages/ingest   Backfill, webhook event handlers, cursors, reconciliation, queue producers (FR-INGEST-*)
 packages/metrics  Tier-1 computations + snapshot writer (FR-METRICS-1..15) — reads DB only
@@ -26,8 +27,14 @@ packages/reports  Report renderer (HTML) + PDF export (FR-REPORTS-*)
 packages/shared   Drizzle schema, zod schemas, config, logger, typed errors — the only package everyone may import
 ```
 
-The 9th module, **auth**, lives inside `apps/api` (it is inseparable from HTTP sessions/cookies);
-its data model lives in `packages/shared` schema. Dependency rules in ARCHITECTURE.md §3.
+The **auth** module lives in `packages/auth` (plan.json W1-03/W1-04/W2-01/W4-01 write there);
+`apps/api` holds only the thin Fastify wiring (routes/plugins). Its data model lives in
+`packages/shared` schema. auth imports `shared` only; `packages/forge` invokes the vault's
+decrypt at use time so plaintext credentials exist only in forge memory (SC-1).
+**Workers are not a separate workspace package**: BullMQ consumers live in
+`apps/api/src/workers/**` and start via a dedicated entrypoint
+(`pnpm --filter api start:worker`) — the `repopulse-worker` image (DEPLOYMENT §1) runs that
+entrypoint. Dependency rules in ARCHITECTURE.md §3.
 
 ## Backend
 
@@ -36,7 +43,7 @@ its data model lives in `packages/shared` schema. Dependency rules in ARCHITECTU
 | Fastify | **5.x** | Brief-fixed; schema-first routes → OpenAPI generation (FR-API-1), encapsulated plugins map 1:1 to route groups. |
 | PostgreSQL | **16** | Brief-fixed; single source of truth for UI reads (FR-API-2); RLS available for SaaS flip (D1). |
 | Drizzle ORM | **0.3x (latest 0.3x minor)** | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
-| Redis | **7.x** | Brief-fixed; BullMQ backing store + server-side session store (FR-AUTH-2). |
+| Redis | **7.2 (pinned image)** | Brief-fixed; BullMQ backing store + server-side session store (FR-AUTH-2). **License pin**: 7.2 is the last BSD-3 release — 7.4+/8 are RSALv2/SSPLv1/AGPL (DESIGN_REVIEW.md G-18); Valkey 8 (BSD-3) is the sanctioned swap after a BullMQ-compat check. |
 | BullMQ | **5.x** | Brief-fixed; per-queue concurrency, repeatable jobs (nightly snapshot/reconciliation), DLQ pattern for NFR-11. |
 | zod | **3.x** | One validation library everywhere: route bodies, LLM output (FR-ANALYSIS-5), config parsing. |
 

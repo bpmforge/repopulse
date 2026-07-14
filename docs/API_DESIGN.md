@@ -43,11 +43,21 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `POST /connections/{id}/repos` | `{repo_forge_ids[] \| all_with_auto_add}` → repos created `pending_backfill`, backfill enqueued | FR-INGEST-1/2 |
 | `GET /sync/status` | → org aggregate + per-repo `{state, backfill_pct, last_synced_at, last_error, budget:{remaining, reset_at}}` | FR-INGEST-8, NFR-12 |
 
+### org composites (dashboard landing; UX_SPEC §4.a)
+| Method+Path | Req → Res | FR |
+|---|---|---|
+| `GET /org/summary` | `?window&repo_ids` → 5 KPI tile values w/ deltas + sparkline series | FR-INSIGHTS-4, FR-METRICS-14 |
+| `GET /org/health-tiles` | → per-repo `{id, name, health:{score, basis, delta}, spark}` grid payload | FR-INSIGHTS-2/3/4 |
+| `GET /org/attention` | `?since=<iso>` → change items vs the client's last visit (score band changes, new stale PRs, CI regressions, unreviewed merges); `since` supplied by the client (persisted lastSeenAt) | UX §4.a |
+
 ### repos (FR-API-5 drill-down levels 1–2)
 | Method+Path | Req → Res | FR |
 |---|---|---|
 | `GET /repos` | filters + sort=score → list `{id, org, name, sync, health:{score, basis, delta}, key_metrics}` | FR-INSIGHTS-2/3/4 |
 | `GET /repos/{id}` | → detail: score breakdown (every input/weight/contribution), metric tiles w/ deltas, sync state | FR-INSIGHTS-2, FR-WEB-8 |
+| `GET /repos/{id}/trends` | `?window` → snapshot series bundle for the Pulse tab chart grid | FR-METRICS-13, FR-INSIGHTS-4 |
+| `GET /repos/{id}/pr-flow` | `?window` → stage funnel (median+p90/stage), reviewer×week load matrix, size histogram | FR-METRICS-4/5/6/7 |
+| `GET /repos/{id}/ci` | `?window` → pass-rate + duration trends, flaky-workflow ranking | FR-METRICS-9 |
 | `GET /repos/{id}/hotspots` | `?window` → ranked files `{path, hotspot_score, decomposition, finding_density, contributing_commit_ids}` | FR-METRICS-2, FR-INSIGHTS-5 |
 | `GET /repos/{id}/contributors` | → identities w/ churn share, bus factor per directory, single-owner flags | FR-METRICS-3 |
 | `GET /repos/{id}/files/{path}` | → file detail: churn series, owners, hotspot history, findings | FR-API-5 |
@@ -64,12 +74,15 @@ no live forge calls in any handler (FR-API-2, Law 4).
 |---|---|---|
 | `GET /repos/{id}/prs` | filters `state, stale=true, unreviewed=true, size_bucket, author=me` → list w/ cycle-time fields `{number, title, author, size_bucket, opened_at, first_review_at, first_approval_at, merged_at, stage_durations, review_covered}` | FR-METRICS-4/5/6/7/8, FR-WEB-7 |
 | `GET /repos/{id}/prs/{number}` | → detail: stages, reviews, checks, files (paths+churn), findings summary, analysis status | FR-API-5, FR-WEB-8 |
-| `GET /me/prs` · `GET /me/review-load` | personalized widgets via identity map | FR-AUTH-6, FR-WEB-7 |
+| `GET /me/prs` · `GET /me/review-queue` | personalized widgets via identity map (review queue age-sorted; a.k.a. review-load) | FR-AUTH-6, FR-WEB-7 |
+| `GET /me/hotspots` | hotspots ∩ files the user owns ≥ threshold (My Focus) | FR-METRICS-2/3, FR-WEB-7 |
+| `GET /me/stats` | personal cycle-time/size vs repo distribution (own data only, N-9) | FR-METRICS-4/7, FR-WEB-7 |
 
 ### findings & analyses (v1.x; FR-ANALYSIS-*, FR-INSIGHTS-1)
 | Method+Path | Req → Res | FR |
 |---|---|---|
 | `GET /findings` | filters `dimension, severity, status, repo_ids, pr` → list | FR-WEB-9 |
+| `GET /findings/stats` | disposition counts + false-positive rate (wont_fix÷dispositioned) trend for the Explorer header widget | FR-INSIGHTS-1, UX §4.e |
 | `GET /findings/{id}` | → detail: evidence, file/line, run/model/checklist version, status history | FR-INSIGHTS-1 |
 | `POST /findings/{id}/status` | `{to: acknowledged\|resolved\|wont_fix, reason}` → 200 + event row | FR-INSIGHTS-1 |
 | `POST /analyses` | `{repo_id, pr_number, tier:2\|3}` → 202 `{run_id}`; tier 3 without repo opt-in → 403 | FR-ANALYSIS-1/7 |

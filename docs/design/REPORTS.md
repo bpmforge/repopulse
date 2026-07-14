@@ -71,7 +71,7 @@ flowchart LR
   embedded fonts, `Date` mocked to `snapshotAt` in print route, no external assets ⇒ same
   stored report → same PDF bytes (FR-REPORTS-6 acceptance). Budget ≤30s; job timeout 60s → DLQ.
 - **Storage**: `report(workspace_id, id, type, params jsonb, status
-  queued|generating|ready|failed, html_uri, pdf_uri, json_uri, generated_by, generated_at,
+  queued|running|ready|failed, html_uri, pdf_uri, json_uri, generated_by, generated_at,
   error)`; artifacts on local volume `${DATA_DIR}/reports/{workspaceId}/{id}/` (D1 internal;
   URI scheme keeps S3 possible later). Retention: immutable, kept indefinitely (SRS A3).
 

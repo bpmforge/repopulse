@@ -27,7 +27,8 @@
       "depends_on": [],
       "acceptance": [
         "podman compose -f compose.dev.yaml up starts PostgreSQL 16 and Redis with healthchecks and persistent named volumes (docs/ARCHITECTURE.md §2 dev container set)",
-        ".env.example documents every required variable (DATABASE_URL, REDIS_URL, SESSION_SECRET, CREDENTIAL_KEY, DATA_DIR) with safe local defaults; nothing secret committed (CLAUDE.md Law 9)"
+        ".env.example documents every required variable (DATABASE_URL, REDIS_URL, SESSION_SECRET, CREDENTIAL_KEY, DATA_DIR) with safe local defaults; nothing secret committed (CLAUDE.md Law 9)",
+        "Redis image is BSD-licensed: pin redis:7.2 (or valkey:8 after verifying BullMQ compatibility) — never redis:7.4+/8 RSAL-SSPL images (docs/work/DESIGN_REVIEW.md G-18); the choice is recorded in docs/TECH_STACK.md in the same commit"
       ],
       "points": 2,
       "status": "todo",
@@ -43,7 +44,8 @@
       "acceptance": [
         "CI workflow runs pnpm lint, pnpm typecheck, pnpm test, bash scripts/validate-arch.sh and node scripts/validate-plan.mjs on every push/PR; CI never contacts github.com APIs (PLAYBOOK §Testing tiers: recorded fixtures only)",
         "ESLint no-restricted-imports rules enforce the docs/ARCHITECTURE.md §3 allowed-dependency matrix: domain packages never import apps/api or apps/web; metrics/analysis/insights/reports never import packages/forge (CLAUDE.md Law 6)",
-        "bash scripts/validate-arch.sh exits 0 with all five rules printing PASS on the scaffolded tree"
+        "bash scripts/validate-arch.sh exits 0 with all five rules printing PASS on the scaffolded tree",
+        "Supply-chain gates per SC-18/SC-19 (docs/SECURITY_CONTROLS.md): gitleaks scan job (history-inclusive on first run), .npmrc with ignore-scripts=true + pnpm.onlyBuiltDependencies allowlist, and pnpm audit --prod failing CI on high/critical"
       ],
       "points": 3,
       "status": "todo",
@@ -55,13 +57,30 @@
       "phase": 0,
       "module": "infra",
       "write_scope": ["tools/fixture-recorder/**", "packages/forge/fixtures/**"],
-      "depends_on": ["W0-01"],
+      "depends_on": ["W0-01", "W0-05"],
       "acceptance": [
         "tools/fixture-recorder captures real GitHub REST/GraphQL responses (status + headers incl. x-ratelimit-*, etag) into packages/forge/fixtures as sanitized JSON with all tokens scrubbed",
         "Fixture set covers the cases named in PLAYBOOK §Per-ticket loop: 304 conditional, 202 stats-warmup retry, truncated-diff (patchTruncated per docs/design/FORGE_PROVIDER.md §1 ForgeDiffFile), and rate-limit-header/secondary-403 cases",
-        "A replay helper serves fixtures to vitest contract tests with zero network; a guard test proves no live github.com call escapes in CI"
+        "A replay helper serves fixtures to vitest contract tests with zero network; a guard test proves no live github.com call escapes in CI",
+        "GraphQL introspection against the live schema confirms (or refutes) that PullRequestChangedFile has no patch field (docs/research/github-api.md §6 UNVERIFIED item); the result is recorded in docs/research/github-api.md in the same commit"
       ],
       "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W0-05",
+      "title": "Register GitHub App + dev OAuth app + scratch fixture repo (human-in-loop prerequisite)",
+      "phase": 0,
+      "module": "infra",
+      "write_scope": ["docs/research/github-app.md", ".env.example", "docs/STATUS.md"],
+      "depends_on": [],
+      "acceptance": [
+        "GitHub App registered per docs/CONSTRAINTS.md C5 and SC-25 (docs/SECURITY_CONTROLS.md): read-only permissions (contents, metadata, pull_requests, checks, deployments, issues) + webhook, callback https://repopulse.bpmforge.com/auth/callback; a second localhost dev OAuth app registered for local login — this ticket requires a human for the GitHub UI steps; the agent documents and verifies",
+        "docs/research/github-app.md records app ids/client ids (never secrets), granted permissions, webhook config and the installation id; .env.example variable names reconciled with docs/DEPLOYMENT.md §3",
+        "A scratch GitHub repo with seeded PRs/reviews/commits/checks exists and is named in docs/research/github-app.md so W0-04 can record its fixture set against it"
+      ],
+      "points": 2,
       "status": "todo",
       "notes": []
     },
@@ -173,6 +192,23 @@
       "acceptance": [
         "Two-workspace fixture; a route walker asserts every registered /api/v1 route returns zero cross-workspace rows (NFR-4, FR-AUTH-3); adding an unscoped route fails the walker",
         "Suite runs inside pnpm test and is part of the full gate from W1 on (MASTER_PROMPT §Hard rules: tenancy invariant)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W1-08",
+      "title": "API hardening plugins: helmet/CSP, rate limits, CSRF header, security audit log (SC-7/11/22/23)",
+      "phase": 1,
+      "module": "api",
+      "write_scope": ["apps/api/src/plugins/**", "packages/shared/src/logger/**", "apps/api/test/security/**"],
+      "depends_on": ["W1-04"],
+      "acceptance": [
+        "SC-23: @fastify/helmet with the docs/SECURITY_CONTROLS.md CSP string (no unsafe-inline; CORS disabled); integration test snapshots the headers; ESLint rule bans dangerouslySetInnerHTML in apps/web",
+        "SC-11: @fastify/rate-limit on login/OAuth (10/min/IP), webhook (100/min/connection), share-slug views (60/min/IP), SSE connections capped per session; integration tests hit each limit and assert 429 + headers",
+        "SC-7: all mutation routes require the X-Requested-With: repopulse header (webhook route exempt); mutation without header yields 403; CORS probe returns no ACAO header",
+        "SC-22: structured audit log stream via the shared logger for login success/failure, logout, session revocation, connection CRUD, role change (later event classes land with their waves); every entry carries actor/workspace/ip/ua/ts; SC-2 redaction layer test proves tokens never appear"
       ],
       "points": 3,
       "status": "todo",
@@ -454,6 +490,23 @@
       "notes": []
     },
     {
+      "id": "W4-00",
+      "title": "Playwright e2e harness: config, mocked-OAuth boundary, pnpm seed warehouse seeder, axe smoke",
+      "phase": 4,
+      "module": "infra",
+      "write_scope": ["e2e/**", "playwright.config.ts", "packages/shared/src/testing/seed/**", "package.json"],
+      "depends_on": ["W1-03", "W3-10"],
+      "acceptance": [
+        "Playwright config runs against the compose dev stack; OAuth mocked at the boundary (fake GitHub authorize/token endpoints) while the real session/cookie path is exercised (docs/TESTING.md §6); data-testid conventions per docs/design/DASHBOARD.md §10",
+        "pnpm seed populates the warehouse deterministically (seeded RNG) with a multi-repo org, two workspaces, identities incl. the fixture login, facts and metric_snapshot rows sufficient for every UX_SPEC §4 screen — reused by all W4/W5/W6 e2e suites",
+        "axe scan wired as a Playwright helper and passing on the shell route, ready for every subsequent screen ticket (ROADMAP W4 gate requires axe on all MVP routes)",
+        "Runtime nock/undici guard active in e2e: any egress to forge/LLM hosts fails the run (FR-API-2)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
       "id": "W4-01",
       "title": "Drill-down + personal endpoints and user→forge identity mapping",
       "phase": 4,
@@ -584,6 +637,23 @@
       "notes": []
     },
     {
+      "id": "W4-09",
+      "title": "Workspace settings API + admin Settings tab (score weights, bot list, stale-N, budget share)",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/api/src/routes/admin/workspace/**", "apps/web/src/routes/admin/settings.tsx", "apps/web/src/widgets/admin/settings/**"],
+      "depends_on": ["W4-08", "W3-11"],
+      "acceptance": [
+        "GET/PATCH /admin/workspace per docs/API_DESIGN.md §2 'admin': health-score weights (validated to sum semantics of METRICS.md §3), bot-login glob list, stale-PR N days, forge budget share/floor — zod-validated, admin-only 403 for members (FR-AUTH-4), every change audit-logged (SC-22)",
+        "Admin → Settings tab renders current values with the METRICS.md §3 defaults labeled; editing the bot list or stale-N is reflected in the next metric recompute/snapshot (integration test); weights change is reflected in the health-score breakdown endpoint",
+        "LLM-related settings (LM host list, concurrency cap, T3 monthly USD cap) render as disabled placeholders with 'lands with analysis wave' copy — schema columns exist from W1 (DATABASE.md workspaces.settings), UI activates in W6/W7",
+        "Tenancy walker + axe green over the new route"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
       "id": "W5-01",
       "title": "Saved views CRUD API + sharing semantics",
       "phase": 5,
@@ -647,6 +717,23 @@
         "E2E per REPORTS.md §6: generate → poll ready → download → pdf-parse asserts section headings + footnote text present (FR-REPORTS-1/6)"
       ],
       "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-05",
+      "title": "Identity admin UI: merge identities, flag bots, email-fallback resolution",
+      "phase": 5,
+      "module": "web",
+      "write_scope": ["apps/api/src/routes/admin/identities/**", "apps/web/src/routes/admin/identities.tsx", "apps/web/src/widgets/admin/identities/**"],
+      "depends_on": ["W4-08"],
+      "acceptance": [
+        "Admin → Identities tab lists workspace identities (login/email-fallback rows, linked user, is_bot, commit/PR counts); admin can merge one identity into another writing merged_into_id (non-destructive, reversible per docs/DATABASE.md identities) and toggle is_bot; both actions audit-logged (SC-22) and admin-only (FR-AUTH-4)",
+        "Merged identities resolve through COALESCE(merged_into_id, id) in ownership/churn/personal queries — a merge visibly reunifies a fixture author's churn attribution in test (FR-METRICS-3, FR-AUTH-6)",
+        "Email-only commits (authorLogin null per docs/design/FORGE_PROVIDER.md §1) appear as provider-scoped email:{addr} fallback identity rows (DATABASE.md identities note) and are mergeable like any other identity",
+        "Tenancy walker + axe green over the new route"
+      ],
+      "points": 3,
       "status": "todo",
       "notes": []
     },

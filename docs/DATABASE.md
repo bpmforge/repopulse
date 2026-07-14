@@ -38,7 +38,8 @@ erDiagram
     workspaces ||--o{ reports : generates
     users ||--o{ saved_views : owns
     workspaces ||--o{ egress_audit : audits
-    forge_connections ||--o{ api_cache : caches
+    forge_connections ||--o{ forge_etag : caches
+    forge_connections ||--o{ webhook_delivery : receives
     repos ||--o{ repo_scanner_config : configures
     repos ||--o{ scan_runs : scanned_by
     scan_runs ||--o{ findings : produces
@@ -74,8 +75,11 @@ status, created_by, created_at`. AES-256-GCM, key from env — plaintext never i
 user_id null FK users, is_bot bool default false, merged_into_id null self-FK`.
 Resolution strategy: (1) auto-link on OAuth login by forge_user_id; (2) auto-flag bots by
 `*[bot]` pattern + workspace bot list; (3) same-human-across-forges (v1.x Gitea) via admin
-merge UI writing `merged_into_id` — all fact tables FK the RAW identity, queries resolve
-through `COALESCE(merged_into_id, id)` so merges are non-destructive and reversible.
+merge UI (plan W5-05) writing `merged_into_id` — all fact tables FK the RAW identity, queries
+resolve through `COALESCE(merged_into_id, id)` so merges are non-destructive and reversible.
+(4) **Email-only commits** (`authorLogin: null`, FORGE_PROVIDER.md §1): ingest creates a
+provider-scoped fallback row with `forge_login = 'email:{address}'` so churn/ownership never
+silently drop them; these rows are mergeable like any other identity (W5-05).
 Unique `(workspace_id, provider, forge_login)`.
 
 ### Sync machinery
@@ -91,10 +95,21 @@ entity_type enum('commits','prs','reviews','pr_files','checks','issues','release
 'deployments','workflow_runs'), cursor_value text (updated_at watermark | page cursor |
 delivery id), backfill_done bool, updated_at`; PK `(repo_id, entity_type)`.
 
-**api_cache** — ETag store (FR-FORGE-4, ADR-1). `connection_id, endpoint_key text
+**forge_etag** — ETag store (FR-FORGE-4, ADR-1; canonical name per FORGE_PROVIDER.md §3 —
+early drafts said `api_cache`). `connection_id, installation_id text null, endpoint_key text
 (method+path+params hash), etag text, last_modified text null, last_status smallint,
-updated_at`; PK `(connection_id, endpoint_key)`. Not workspace-critical (derivable), but
-carries `workspace_id` anyway for uniform RLS. Prunable cache — safe to truncate.
+body_digest text, cached_body jsonb, fetched_at`; PK `(connection_id, endpoint_key)`.
+Not workspace-critical (derivable), but carries `workspace_id` anyway for uniform RLS.
+Prunable cache — safe to truncate.
+
+**webhook_delivery** — replay/dedup ledger (SC-4, FR-INGEST-5/6; INGESTION.md §4).
+`workspace_id, connection_id, delivery_id text unique, event, action text null,
+repo_full_name, received_at, payload_digest text`. Insert-or-ignore on `delivery_id`
+(duplicate ⇒ 202 no-op); prunable after 30 days.
+
+**job_failure** — DLQ ledger (NFR-11; INGESTION.md §6). `workspace_id, queue text,
+job_id text, payload jsonb, error text, failed_at, replayed_at timestamptz null`.
+Feeds the admin ops page's DLQ list + replay button.
 
 ### Facts (normalized ingest writes — ADR-2 write side)
 
@@ -165,17 +180,25 @@ cost_usd numeric null (T3), started_at, finished_at, error text` (FR-ANALYSIS-4/
 
 **findings** — `id, workspace_id, repo_id, analysis_run_id, pull_request_id null,
 dimension enum('code_health','security','performance','test_coverage'), severity
-enum('critical','high','medium','low','info'), confidence numeric(3,2), title, file text,
-line_start int, line_end int, evidence text, recommendation text, tier smallint,
-dedup_key text (dimension+file+normalized-title+line-bucket, FR-ANALYSIS-6), status
-enum('open','acknowledged','resolved','wont_fix') , status_changed_by, status_changed_at,
-first_seen_at, last_seen_at, occurrence_count int`. Unique `(workspace_id, repo_id,
-dedup_key)` — re-analysis upserts, resolved-that-reappear reopen (FR-INSIGHTS-1).
+smallint (1–5, 5=critical … 1=info — CANONICAL numeric scale per ANALYSIS_TIERS.md §4;
+the SRS labels critical/high/medium/low/info are the presentation mapping; W8 chain math
+max(member)+1 and KEV floors require numeric), confidence smallint (1–5, same source),
+title, file text, line_start int, line_end int, evidence text, recommendation text,
+tier smallint, dedup_key text — CANONICAL formula per ANALYSIS_TIERS.md §5:
+`sha256(dimension + '\0' + file + '\0' + normalize(evidence_quote))` + line-bucket tiebreak
+(supersedes the earlier normalized-title sketch in FR-ANALYSIS-6), status
+enum('open','confirmed','dismissed','resolved','wont_fix') — CANONICAL lifecycle per
+ANALYSIS_TIERS.md §5 (`open → confirmed | dismissed(reason) → resolved | wont_fix`;
+the UI "acknowledge" action and the SRS/UX 'acknowledged' state map to `confirmed`;
+semgrep REAL→confirmed, FP→dismissed(false_positive)), dismiss_reason text null,
+status_changed_by, status_changed_at, first_seen_at, last_seen_at, occurrence_count int`.
+Unique `(workspace_id, repo_id, dedup_key)` — re-analysis upserts, resolved-that-reappear
+reopen (FR-INSIGHTS-1).
 Status history in **finding_events** (`finding_id, from_status, to_status, actor, reason, at`).
 
 **reports** — immutable snapshots (FR-REPORTS-1/7). `id, workspace_id, type
 enum('repo_health','org_exec','security_posture','delivery_dora'), params jsonb
-(repo_ids[], window, pinned_at), status enum('queued','rendering','ready','failed'),
+(repo_ids[], window, pinned_at), status enum('queued','running','ready','failed'),
 html_uri text, pdf_uri text, generated_by, generated_at`. `*_uri` point at object/file
 storage (local volume v1); DB stores pointers, not blobs.
 
@@ -251,7 +274,7 @@ scan; correctness is preserved by storing numerator/denominator for pooled re-ag
   partitioning by month if it outgrows ~100M rows (defer until measured).
 - `metric_snapshots`: ≥400 days (FR-METRICS-13); nightly prune beyond policy.
 - `reports`: immutable, kept forever (FR-REPORTS-1); `egress_audit`: never deleted (NFR-9).
-- `api_cache`: prunable LRU, 90-day sweep.
+- `forge_etag`: prunable LRU, 90-day sweep; `webhook_delivery`: 30-day sweep.
 
 ## 5. Migration discipline (Drizzle)
 
