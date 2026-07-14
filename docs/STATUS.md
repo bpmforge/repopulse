@@ -8,4 +8,9 @@
   forge_etag naming, webhook_delivery/job_failure tables, findings severity/dedup/lifecycle
   canonicalized, report status, 9 missing API endpoints); Redis pinned 7.2 (licensing);
   board now 67 tickets / 305 pts, validators green.
+- 2026-07-14 — journey UX review + micro-agent/loop architecture port + improvement-plans
+  research (docs/work/UX_AGENTS_IMPROVEMENT_PLANS.md): 30+ recommendations (R-A/B/C/D),
+  Improvement Plans proposed as new pillar (needs D9 brief amendment), verify/challenger
+  passes for T2 (maker≠verifier across the two LAN hosts), agreements + artifact goals.
 - Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.
+  Decision pending from Brad: D9 Improvement Plans amendment (UX_AGENTS doc §C4/§E).
