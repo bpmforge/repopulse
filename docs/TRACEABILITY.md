@@ -7,14 +7,22 @@ each link lives; validators + PR discipline keep the links honest.
 ## The chain
 
 ```
-FOUNDING_BRIEF (D1-D7, C1-C3, P1-P4)
+FOUNDING_BRIEF (D1-D11, C1-C3, P1-P4)
   → SCOPE.md (S-x)  /  NON_GOALS.md (N-x)  /  RISKS.md (R-x)
     → SRS.md (FR-<MODULE>-n, NFR-n)          ← each FR cites its D/C origin
-      → USER_STORIES.md (E1-E10 stories)     ← each story lists FR/NFR IDs
-        → plan.json tickets (W0-W8)          ← acceptance cites design-doc sections
+      → USER_STORIES.md (E1-E13 stories)     ← each story lists FR/NFR IDs
+        → plan.json tickets (W0-W9)          ← acceptance cites FR ids + design-doc
+          |                                     sections; `stories: []` field links
+          |                                     each ticket to its E-x.y stories
           → docs/design/* + UX_SPEC.md       ← the spec the ticket implements
             → commits `feat(Wx-nn): ...`     ← ticket id in every commit message
 ```
+
+Machine-verified both directions by `scripts/validate-traceability.mjs` (CI gate,
+W0-03): dangling refs hard-fail (ticket→doc, ticket→FR, ticket→story, story→FR,
+SRS→S, SCOPE→D); coverage gaps (FR or story with zero tickets) report as GAP-step
+input for the PLAYBOOK wave-gate loop. As of 2026-07-14: 122/122 FR/NFR and 65/65
+stories ticket-covered, zero dangling references.
 
 ## Epic → wave → module map
 

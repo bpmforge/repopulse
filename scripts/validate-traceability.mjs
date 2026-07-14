@@ -8,9 +8,12 @@
 //   F2  an FR/NFR id cited by a ticket is not defined in docs/SRS.md
 //   F3  an S-x cited in docs/SRS.md is not defined in docs/SCOPE.md
 //   F4  a D-x cited in docs/SCOPE.md is not defined in the founding brief
-// COVERAGE REPORT (warnings, exit 0) — feeds the GAP step, fixed in part-2 reflow:
+//   F5  a ticket's stories[] entry is not a story defined in docs/USER_STORIES.md
+//   F6  a story header cites an FR/NFR id not defined in docs/SRS.md
+// COVERAGE REPORT (warnings, exit 0) — feeds the GAP step:
 //   W1  FR ids defined in the SRS but cited by zero plan.json tickets
 //   W2  design docs under docs/design/ never referenced by any ticket
+//   W3  stories covered by zero tickets (stories[] linkage)
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -70,13 +73,31 @@ for (const d of dCitedInScope) if (!dDefined.includes(d)) failures.push(`F4 SCOP
 const uncovered = frDefined.filter((id) => !frCited.includes(id));
 for (const id of uncovered) warnings.push(`W1 requirement defined but cited by no ticket: ${id}`);
 
+// F5/F6/W3 — story linkage (part-2 chain: story ↔ ticket).
+const storiesMd = read('docs/USER_STORIES.md');
+const storyHeaders = [...storiesMd.matchAll(/^### (E\d+\.\d+) .*?—.*?—\s*(.+)$/gm)];
+const storyIds = storyHeaders.map((m) => m[1]);
+for (const [id, frText] of storyHeaders.map((m) => [m[1], m[2]])) {
+  for (const fr of expandCitations(frText)) {
+    if (!frDefined.includes(fr)) failures.push(`F6 story ${id} cites undefined requirement: ${fr}`);
+  }
+}
+const storyCovered = new Set();
+for (const t of plan.tickets) {
+  for (const s of t.stories || []) {
+    if (!storyIds.includes(s)) failures.push(`F5 ticket ${t.id} cites undefined story: ${s}`);
+    storyCovered.add(s);
+  }
+}
+for (const s of storyIds) if (!storyCovered.has(s)) warnings.push(`W3 story covered by zero tickets: ${s}`);
+
 // W2 — orphan design docs.
 for (const f of readdirSync(path.join(ROOT, 'docs/design'))) {
   const rel = `docs/design/${f}`;
   if (!planText.includes(rel)) warnings.push(`W2 design doc never referenced by a ticket: ${rel}`);
 }
 
-console.log(`Inventory: ${frDefined.length} FR/NFR defined · ${frCited.length} cited by tickets · ${sDefined.length} S-items · ${dDefined.length} D-decisions · ${docRefs.length} doc refs`);
+console.log(`Inventory: ${frDefined.length} FR/NFR defined · ${frCited.length} cited by tickets · ${sDefined.length} S-items · ${dDefined.length} D-decisions · ${docRefs.length} doc refs · ${storyIds.length} stories (${storyCovered.size} ticket-covered)`);
 if (warnings.length) {
   console.log(`\nCoverage gaps (${warnings.length}) — GAP-step input, not failures:`);
   for (const w of warnings) console.log(`  - ${w}`);

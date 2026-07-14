@@ -16,7 +16,7 @@ const PLAN_PATH = path.join(ROOT, 'plan.json');
 const MODULES = ['infra', 'forge', 'ingest', 'metrics', 'analysis', 'insights', 'reports', 'auth', 'api', 'web', 'deploy', 'security'];
 const STATUSES = ['todo', 'in_progress', 'blocked', 'done'];
 const POINTS = [1, 2, 3, 5, 8];
-const TICKET_KEYS = ['id', 'title', 'phase', 'module', 'write_scope', 'depends_on', 'acceptance', 'points', 'status', 'notes'];
+const TICKET_KEYS = ['id', 'title', 'phase', 'module', 'stories', 'write_scope', 'depends_on', 'acceptance', 'points', 'status', 'notes'];
 // Documented gate exceptions for forward-wave depends_on entries: none yet.
 const FORWARD_DEP_EXCEPTIONS = new Set();
 
@@ -62,6 +62,9 @@ for (const t of plan.tickets) {
     err(`${t.id}: acceptance must be 2-5 non-empty criterion strings`);
   }
   if (!Array.isArray(t.depends_on) || t.depends_on.some((d) => typeof d !== 'string')) err(`${t.id}: depends_on must be an array of ticket ids`);
+  if (!Array.isArray(t.stories) || t.stories.some((s) => !/^E\d+\.\d+$/.test(s))) {
+    err(`${t.id}: stories must be an array of story ids matching E<n>.<n> (may be empty for infra/harness tickets)`);
+  }
   if (!Array.isArray(t.notes) || t.notes.some((n) => typeof n !== 'string')) err(`${t.id}: notes must be an array of strings`);
 }
 
