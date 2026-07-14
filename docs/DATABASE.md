@@ -245,6 +245,47 @@ updated_by, updated_at`; PK `(workspace_id, repo_id, scanner_key)`. Admin-only m
 Findings facet index gains scanner columns: `findings(workspace_id, repo_id, scanner_key,
 dimension, severity, status)` (W8 migration; supersedes nothing — additive).
 
+### D9/D10 additions (2026-07-14; design: docs/design/IMPROVEMENT_PLANS.md, SECURITY_SUITE.md §3.6)
+
+**analysis_runs delta (D9)** — `pass_kind enum('find','verify','challenge','synthesize',
+'narrate','plan') default 'find'`, `parent_run_id bigint null self-FK` — the auditable
+find→verify→challenge chain (FR-ANALYSIS-9/10).
+
+**findings delta (D9/D10)** — `verify_status enum('unverified','confirmed','contradicted')
+default 'unverified'` (FR-ANALYSIS-9); dependency findings additionally get
+`reachability text ('manifest_only'|'imported'|'symbol_reachable'|'proven_unreachable')`,
+`epss numeric(5,4) null`, `effective_risk numeric(6,2) null` (FR-SEC-13); `dimension`
+enum += `'compound'` (FR-INSIGHTS-6).
+
+**improvement_plans** — `id, workspace_id, repo_ids bigint[], window, created_from_report_id
+null FK reports, catalog_version text, status enum('active','archived'), created_by,
+created_at` (FR-PLANS-2).
+
+**plan_items** — `id, workspace_id, plan_id FK, rank int, catalog_id text (FR-PLANS-1 entry),
+source enum('metric','finding','chain','compound','agreement'), evidence jsonb (metric keys /
+finding ids / PR ids), recommendation text, effort enum('S','M','L'), status
+enum('proposed','accepted','in_progress','done','regressed','dismissed'), verify_criterion
+jsonb ({metric_key, op, target, window} | {finding_ids}), verified_at, status_changed_by,
+status_changed_at`. Transitions audited in **plan_item_events** (same shape as
+finding_events). Index `(workspace_id, plan_id, status, rank)`.
+
+**agreements** — `id, workspace_id, repo_ids bigint[], kind text (pr_size_max |
+review_within_hours | no_unreviewed_merge | stale_ceiling | ci_pass_floor), threshold jsonb,
+active bool, created_by, created_at` (FR-PLANS-4). Exceptions computed from facts at read
+time (14d window) — no exception rows stored.
+
+**file_intents** — `id, workspace_id, repo_id, path text, intent enum('refactor','supervise',
+'acknowledged'), note text, created_by, created_at, warn_after_months smallint default 3`;
+unique `(workspace_id, repo_id, path)` (FR-PLANS-5).
+
+**vex_statements** — `id, workspace_id, repo_id, package_purl text, vuln_id text (CVE/GHSA
+canonical), version_range text, vex_status enum('not_affected','affected','fixed',
+'under_investigation'), justification text null (OpenVEX enum — REQUIRED when not_affected),
+evidence jsonb (reachability tier, import scan refs, finding_id), author_user_id, created_at`;
+unique `(workspace_id, repo_id, package_purl, vuln_id, version_range)` (FR-SEC-14).
+Suppression joins on this at scan time; a version outside `version_range` reopens as
+`under_investigation`.
+
 ## 3. Hot-path indexes (NFR-3: p95 < 500ms on every dashboard endpoint)
 
 | Query (drill-down level) | Index |

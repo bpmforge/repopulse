@@ -42,6 +42,18 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-34 | Semgrep SAST (weekly snapshot fulls + diff-scoped PR runs, workspace rule packs, REAL/FP/UNVERIFIED triage) + OWASP Web/LLM Top-10 checklist scanners via the Tier-2/3 gateway + attack chainer composing yields→preconditions across all findings. | D8 (FR-SEC-6/7/8) |
 | S-35 | Security surfaces: Findings Explorer scanner/CVE/KEV/chain facets, per-repo Security tab, org security rollup tile, enriched Security Posture report sections; scanner backlog (IaC, cloud, anti-slop, container-image) lands as drop-in registry entries. | D8 (FR-SEC-9/10) |
 
+## In scope — 2026-07-14 additions (D9/D10; design: docs/design/IMPROVEMENT_PLANS.md, SECURITY_SUITE.md §3.6)
+
+| ID | Item | Brief trace |
+|----|------|-------------|
+| S-40 | Improvement Plans engine: versioned deterministic recommendation catalog (condition over warehouse → template + evidence query + verify criterion), plans/plan_items with lifecycle + audit, nightly auto-verify job (done/regressed), plan section in every report, org tile, Plans page. | D9 (FR-PLANS-1/2/3/6) |
+| S-41 | Working agreements: numeric thresholds over existing metrics + the actual exception list (offending PRs, 14d) + in-app digest card; violations feed plan items. No outbound channels (N-4). | D9 (FR-PLANS-4) |
+| S-42 | Artifact-bound goals: refactor/supervise/acknowledged intents on files/dirs with time-aware warnings from snapshots. | D9 (FR-PLANS-5) |
+| S-43 | Analysis quality loops: verify pass (maker≠verifier host affinity), challenger gate for severity≥4 pre-surfacing, FP-suppression memory, compound-risk detector. | D9 (FR-ANALYSIS-9/10, FR-INSIGHTS-6) |
+| S-44 | Journey pack: persona picker at first login, onboarding checklist, first-insight toast, rail badges, My-Focus deltas, Weekly Pulse narrative, triage queue mode, report diff/schedule/annotations, visual deltas (tabular-nums, bento heroes). | D9 (FR-WEB/REPORTS extensions) |
+| S-45 | CVE validation pipeline: alias dedup, dev/prod + direct/transitive scoping, import/usage detection, symbol reachability (govulncheck / generated semgrep rules), EPSS enrichment, effective-risk ranking, raw→affected funnel UI. | D10 (FR-SEC-13/15) |
+| S-46 | VEX: triage↔OpenVEX justification mapping (not_affected requires a justification), OpenVEX + CycloneDX-embedded export with the SBOM, per-(package, vuln, version) suppression persistence with version-bump reopen. | D10 (FR-SEC-14) |
+
 ## Out of scope
 
 Enumerated with rationale in `NON_GOALS.md` (N-1 … N-9). Binding summary: no `git clone`

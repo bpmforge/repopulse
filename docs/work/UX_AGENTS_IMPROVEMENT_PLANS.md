@@ -9,6 +9,15 @@ Sections B/C/D incorporate the experts-repo architecture mining and online resea
 (sources cited inline). Recommendations carry IDs (R-A/B/C/D-n) with effort tags
 (S/M/L) and wave placement; anything conflicting with a NON_GOAL says so explicitly.
 
+> **ADOPTED 2026-07-14 as brief amendments D9 + D10** (Improvement Plans + quality
+> loops; CVE validation & VEX — the latter added after Brad's SBOM-false-positive
+> concern). Threaded through SCOPE S-40..46, SRS (FR-PLANS-1..6, FR-ANALYSIS-9/10,
+> FR-INSIGHTS-6, FR-SEC-13/14/15), docs/design/IMPROVEMENT_PLANS.md,
+> SECURITY_SUITE.md §3.6, DATABASE.md D9/D10 delta, USER_STORIES E11/E12, ROADMAP
+> addendum, and plan.json tickets W4-10, W5-06..09, W6-05..07, W8-09(+), W8-13..15.
+> Still v2/backlog (NOT adopted): R-A6 Slack/email digests (N-4), R-B5 deep audit
+> loop (N-8 framing), chat-with-metrics, G-11 custom report windows.
+
 ---
 
 ## A. Process-level UX review (journeys, not screens)

@@ -178,3 +178,29 @@ rollup (FR-SEC-10); Security Posture report enrichment (FR-REPORTS-4); deploy de
 - [ ] Chain golden test: two seeded findings with matching yields→preconditions build one chain finding at severity max(member)+1 (cap 5); resolving a member auto-resolves the chain with an audit row.
 - [ ] Chaos: crash every scanner — ingestion lag and Tier-1 dashboards unaffected; UI shows per-scanner error state, never a broken page (NFR-15).
 - [ ] E2E: admin enables a scanner → manual "scan now" → finding faceted by scanner/CVE/KEV/chain in the Explorer → Security tab posture + chain graph → enriched Security Posture PDF; DB-dump grep proves no plaintext secret value at rest (SC-29).
+
+---
+
+## 2026-07-14 additions (D9/D10) — extra exit criteria per wave
+
+Tickets: W4-10 (journey pack), W5-06..09 (plans engine/surfaces, agreements, report
+consumption), W6-05..07 (quality loops, Weekly Pulse/triage, intents), W8-09 amendment +
+W8-13..15 (CVE validation, VEX, T2 CVE verify). Wave gates gain:
+
+**W4 +** persona picker routes each persona to its home; onboarding checklist renders per
+role; rail badges live; metric columns render tabular-nums (mono only for SHAs/paths).
+
+**W5 +** plan generated from a fixture report contains the expected catalog-v1 item set
+with working evidence links; nightly verify flips a fixture item done AND a crafted
+regression flips it back (audit rows both ways); agreement exception list reconciles to
+the PR; report diff view shows per-section deltas between two same-scope reports.
+
+**W6 +** verifier host ≠ finder host asserted on verify runs; contradicted fixture finding
+never surfaces; sev-4 fixture blocked from the org banner until its challenge passes;
+Weekly Pulse renders deterministically with T2 polish mocked (no live LLM in CI).
+
+**W8 +** CVE funnel on the seeded-vuln fixture: raw > deduped (alias fixture collapses) >
+scoped (dev-only downgraded, not dismissed) > affected; unused-dep proposes not_affected;
+Go fixture proven_unreachable via govulncheck in the sandbox; not_affected without a VEX
+justification rejected; version-bump reopens; OpenVEX + CycloneDX export validate against
+their schemas; compound-risk golden test (3 dimensions, one module ⇒ severity max+1).

@@ -654,6 +654,24 @@
       "notes": []
     },
     {
+      "id": "W4-10",
+      "title": "Journey pack: persona picker, onboarding checklist, first-insight toast, rail badges, visual deltas",
+      "phase": 4,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/**", "apps/web/src/components/**", "apps/web/src/widgets/onboarding/**", "apps/api/src/routes/me/**", "packages/shared/src/db/schema/core/**", "packages/shared/drizzle/**"],
+      "depends_on": ["W4-02", "W4-03"],
+      "acceptance": [
+        "Persona picker at first login per docs/UX_SPEC.md §6 (D9/R-A2): one question, stored users.persona (migration + rollback note), changeable in user menu; routes P1→Org Overview, P2→My Focus, P3→Findings, P4→Exec view (E2E per persona)",
+        "Onboarding checklist card on Org Overview until dismissed — admin variant (connect ✓ → bot list → roles → starter views → first report) and member variant (choose focus → guided drill-down); state persisted, no new tables beyond users.persona",
+        "First-insight toast: when a repo's 30d coverage completes (per-entity sync phase already tracked), SSE-driven toast 'last 30 days ready for {repo}' (docs/work/UX_AGENTS_IMPROVEMENT_PLANS.md R-A3)",
+        "Rail badge counts on Pull Requests (my review queue) and Findings (new since lastSeenAt) per UX_SPEC §3.1",
+        "Visual deltas R-D1/R-D2: tabular-nums Inter on all metric columns/KPIs, JetBrains Mono only for SHAs/paths/evidence (UX_SPEC §2.1 as amended); Org Overview supports 2x2 hero tiles on the existing WidgetGrid"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
       "id": "W5-01",
       "title": "Saved views CRUD API + sharing semantics",
       "phase": 5,
@@ -738,6 +756,73 @@
       "notes": []
     },
     {
+      "id": "W5-06",
+      "title": "Improvement Plans engine: recommendation catalog v1, plans/plan_items, nightly auto-verify",
+      "phase": 5,
+      "module": "insights",
+      "write_scope": ["packages/insights/src/plans/**", "packages/shared/src/db/schema/plans/**", "packages/shared/drizzle/**", "apps/api/src/routes/plans/**"],
+      "depends_on": ["W5-03"],
+      "acceptance": [
+        "Catalog v1 per docs/design/IMPROVEMENT_PLANS.md §1: all 12 seed entries as pure functions (condition, evidence query, verify criterion, effort, rankWeight), versioned + machine-readable like the metric catalog; fixture warehouse triggers the expected entry set (FR-PLANS-1); plan items exist ONLY with a catalog id — no free-form items",
+        "improvement_plans/plan_items/plan_item_events tables per docs/DATABASE.md D9 additions (workspace_id + indexes, Law 5); generation from a report or on demand produces ranked, evidence-linked items; lifecycle proposed→accepted→in_progress→done|regressed|dismissed fully audited; team-scoped, never person-scoped (FR-PLANS-2, N-9)",
+        "Nightly plans.verify job (after metrics.snapshot) per IMPROVEMENT_PLANS.md §3: verify criteria evaluated off snapshots/finding sets; fixture item flips done when its metric holds the target for the window AND a crafted regression flips it to regressed — audit rows both ways (FR-PLANS-3)",
+        "Dismissed (catalog id × scope) does not regenerate while dismissed; plans API per FR-PLANS-6 with tenancy walker green"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-07",
+      "title": "Plans surfaces: Plans page, report plan section, org tile",
+      "phase": 5,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/plans/**", "apps/web/src/widgets/plans/**", "packages/reports/src/assembler/**", "apps/web/src/widgets/org/**"],
+      "depends_on": ["W5-06", "W5-04"],
+      "acceptance": [
+        "Plans page per docs/UX_SPEC.md §4.h2: plan list with progress bars, ranked item cards (evidence links, effort chip, plain-language verify criterion, accept/dismiss/in-progress), regressed items warn-styled and pinned; no-plan state shows 'Generate from latest report' CTA",
+        "Every report closes with the scope's open plan items + movement since the previous same-scope report (computed from plan_item_events between snapshotAt pins) per IMPROVEMENT_PLANS.md §5 (FR-PLANS-6); no_data section when no plan exists — never blank",
+        "Org Overview tile: active plan progress + worst regression, drills to the Plans page",
+        "E2E: generate plan from fixture report → accept item → seeded improved snapshots → nightly verify flips done → regenerated report shows movement; axe + tenancy green"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-08",
+      "title": "Working agreements: config, exception lists, digest card, plan-item feed",
+      "phase": 5,
+      "module": "insights",
+      "write_scope": ["packages/insights/src/agreements/**", "packages/shared/src/db/schema/plans/**", "packages/shared/drizzle/**", "apps/api/src/routes/agreements/**", "apps/web/src/widgets/agreements/**", "apps/web/src/routes/admin/agreements.tsx"],
+      "depends_on": ["W5-06"],
+      "acceptance": [
+        "agreements table + admin-only config API per docs/DATABASE.md D9 (kinds: pr_size_max, review_within_hours, no_unreviewed_merge, stale_ceiling, ci_pass_floor); member mutation → 403 (FR-AUTH-4)",
+        "Each agreement renders threshold + trend chip + the ACTUAL exception list (offending PRs, trailing 14d, computed from facts at read time — no exception rows stored) with drill-down links; list reconciles to the metric to the PR (FR-PLANS-4)",
+        "Org Overview digest card summarizes active agreements + exception counts; in-app only — no outbound channel exists (NON_GOALS N-4)",
+        "Active agreement violations generate plan-item candidates (source='agreement') that dedupe against existing open items"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W5-09",
+      "title": "Report consumption pack: diff view, scheduled generation, annotations",
+      "phase": 5,
+      "module": "reports",
+      "write_scope": ["packages/reports/src/diff/**", "packages/reports/src/pipeline/**", "apps/api/src/routes/reports/**", "apps/web/src/routes/reports/**"],
+      "depends_on": ["W5-04"],
+      "acceptance": [
+        "Report diff view (R-A9): pick two same-type/same-scope reports → per-section value deltas computed from stored ReportData JSON (determinism pin makes this pure data diffing); E2E renders a diff with at least one metric delta from fixtures",
+        "Scheduled generation (R-A10): BullMQ repeatable per (type, scope, cadence monthly|quarterly) writing into the same immutable history — in-app only, no delivery channel (N-4); schedule config admin-only",
+        "Annotations (R-A11): optional context block captured at generation, stored in params, rendered on the PDF cover (REPORTS.md §5 cover framing); immutability preserved — annotations never edit an existing report"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
       "id": "W6-01",
       "title": "Analysis gateway + Tier-2 LM Studio client + scheduling/policies",
       "phase": 6,
@@ -802,6 +887,57 @@
         "PR Detail findings accordion and file drill-down findings list light up (UX_SPEC §4.c/§4.d); analysis-paused banner state wired (NFR-7); Repo Detail Findings tab replaces its teaser"
       ],
       "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W6-05",
+      "title": "Analysis quality loops: verify pass (maker≠verifier), challenger gate, FP-suppression memory",
+      "phase": 6,
+      "module": "analysis",
+      "write_scope": ["packages/analysis/src/passes/**", "packages/insights/src/findings/**", "packages/shared/src/db/schema/read/**", "packages/shared/drizzle/**"],
+      "depends_on": ["W6-03"],
+      "acceptance": [
+        "Schema delta per docs/DATABASE.md D9: analysis_runs.pass_kind ('find','verify','challenge','synthesize','narrate','plan') + parent_run_id; findings.verify_status ('unverified','confirmed','contradicted'); migration + rollback note",
+        "Verify pass per FR-ANALYSIS-9: findings severity>=3 re-judged with a refute-first prompt on a DIFFERENT T2 host (host affinity in T2Config; verifier host != finder host asserted in test); one verify call per finding (hard cap); contradicted ⇒ auto-dismiss reason challenger_refuted, hidden by default but admin-visible",
+        "Challenger gate per FR-ANALYSIS-10: severity>=4 finding, verified secret, or chain must survive ONE adversarial refute pass before org-banner/Security-tab-top surfacing; sev-4 fixture blocked from banner until challenge passes; loop discipline per docs/work/UX_AGENTS_IMPROVEMENT_PLANS.md §B2 (hard caps, no-progress halt)",
+        "FP-suppression memory (R-B4): a finding dismissed false_positive whose dedup_key evidence is unchanged never re-surfaces (occurrence bump only); property test over re-runs",
+        "Explorer gains verify_status facet + 'verified by second model' badge; all LLM calls mocked at the gateway in CI (docs/TESTING.md §8)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W6-06",
+      "title": "Weekly Pulse narrative + findings triage queue + My Focus deltas",
+      "phase": 6,
+      "module": "web",
+      "write_scope": ["packages/insights/src/narrative/**", "apps/web/src/widgets/pulse/**", "apps/web/src/routes/findings/**", "apps/web/src/routes/me.tsx", "packages/reports/src/assembler/**"],
+      "depends_on": ["W6-04", "W6-01"],
+      "acceptance": [
+        "Weekly Pulse per R-A7: deterministic 5-bullet weekly narrative per repo group from warehouse deltas (template first), optional T2 polish via pass_kind='narrate' with initiator='narrative' — LLM may reword, never invent numbers; rendered as pinned Org Overview card (quiet-accent AI card family with 'T2 · local' provenance chip per R-D3) and as every report's opening section",
+        "Triage queue mode per R-A8: full-screen stepper over new findings — j/k advance, one-key confirm/dismiss/escalate, evidence inline, exit summary with FP count; feeds the same analysis_false_positive_rate metric; fully keyboard operable (NFR-5)",
+        "My Focus since-last-visit strip per R-A5: new review requests, PRs advanced/stalled, findings on my PRs (lastSeenAt infra reused)",
+        "Deterministic narrative renders with T2 mocked in CI — zero live LLM calls (docs/TESTING.md §8); axe green on new surfaces"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W6-07",
+      "title": "Artifact intents: refactor/supervise/acknowledged on files with time-aware warnings",
+      "phase": 6,
+      "module": "insights",
+      "write_scope": ["packages/insights/src/intents/**", "packages/shared/src/db/schema/plans/**", "packages/shared/drizzle/**", "apps/api/src/routes/intents/**", "apps/web/src/widgets/file/**", "apps/web/src/widgets/repo/**"],
+      "depends_on": ["W6-05"],
+      "acceptance": [
+        "file_intents table per docs/DATABASE.md D9 (unique per workspace/repo/path); set/clear from file drill-down + hotspot list per docs/design/IMPROVEMENT_PLANS.md §4 (FR-PLANS-5)",
+        "refactor intent warns when the file's hotspot score has not improved in warn_after_months (snapshot query); supervise alerts on any hotspot/churn decline; warnings surface in the attention feed and the repo Hotspots tab",
+        "acknowledged suppresses the file from hotspot leaderboards but never from data — a suppression-count badge keeps the leaderboard honest; intents feed matching catalog items (hotspot-bus-factor)"
+      ],
+      "points": 3,
       "status": "todo",
       "notes": []
     },
@@ -1042,7 +1178,8 @@
       "acceptance": [
         "Post-scan pass per docs/design/SECURITY_SUITE.md §3.5: reads ALL open findings via priorFindings and matches yields→preconditions over the shared vocabulary into chain findings (dimension chain, chain_id, member ids in payload, severity = min(5, max(member)+1)); golden test: two seeded findings with matching vocab produce exactly the expected chain at elevated severity (FR-SEC-8)",
         "Chains auto-resolve with an audit row when any member finding resolves; chainer enqueued as completion job after each scan batch + weekly full recompute per §4",
-        "Chain graph payload (entry→step→…→impact, each node referencing its member finding) served for the dashboard renderer"
+        "Chain graph payload (entry→step→…→impact, each node referencing its member finding) served for the dashboard renderer",
+        "Compound-risk detector rides the same completion job (FR-INSIGHTS-6, D9): pure SQL — same file/module flagged by >=3 distinct dimensions/scanners ⇒ dimension 'compound' finding at severity min(5, max(member)+1), auto-resolving when a member resolves; golden test on a 3-dimension fixture module"
       ],
       "points": 5,
       "status": "todo",
@@ -1076,6 +1213,56 @@
         "Security Posture report gains one section per enabled scanner (posture counts, deltas vs prior run, top findings) + a chains appendix per docs/design/SECURITY_SUITE.md §5; disabled scanners render 'not enabled', never blank (FR-SEC-10, FR-REPORTS-4)",
         "Degrades to the existing Tier-1-only W7-03 sections when scanners are disabled; assembler snapshot tests cover both enriched and degraded renderings against the seeded-vuln fixture warehouse",
         "Determinism pin intact: assembly reads findings/scan_run/snapshot rows as of snapshotAt only; regenerating with identical params is byte-identical (FR-REPORTS-6)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-13",
+      "title": "CVE validation pipeline: alias dedup, dep scoping, usage detection, reachability tiers, EPSS + effective risk",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/dependency/**", "packages/security/src/validation/**", "packages/shared/src/db/schema/security/**", "packages/shared/drizzle/**"],
+      "depends_on": ["W8-06", "W8-03"],
+      "acceptance": [
+        "Tiers V0–V4 per docs/design/SECURITY_SUITE.md §3.6 run in order on every dependency finding: OSV-alias dedup (CVE+GHSA fixture collapses to ONE finding with aliases recorded); lockfile scoping dev/prod + direct/transitive — dev-only downgrades effective_risk and is NEVER auto-dismissed (FR-SEC-13)",
+        "V2 usage detection: import/require scan (snapshot tree when one exists for the SHA, else targeted source-root fetches); never-imported vulnerable dep lands reachability 'manifest_only' with a PROPOSED not_affected(vulnerable_code_not_in_execute_path) — proposal only, no auto-dismiss",
+        "V3 reachability: govulncheck source mode for Go inside the NFR-14 sandbox (Go fixture proves 'proven_unreachable' via call graph); JS/TS/Python get semgrep rules GENERATED from OSV affected-symbol data when present ('symbol_reachable' with file:line evidence); every dependency finding stamped with its reachability tier",
+        "V4: EPSS scores join the nightly db-sync (scan containers stay --network=none, SC-28 checksum rules); effective_risk = f(CVSS, KEV, EPSS, reachability, dep_scope) with workspace-tunable weights in the catalog; findings columns reachability/epss/effective_risk per docs/DATABASE.md D10; CI uses vendored mini EPSS/OSV data (docs/TESTING.md §10)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-14",
+      "title": "VEX: justification-gated triage, vex_statements, OpenVEX/CycloneDX export, funnel UI",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/vex/**", "packages/shared/src/db/schema/security/**", "packages/shared/drizzle/**", "apps/api/src/routes/security/**", "apps/web/src/widgets/security/**", "packages/reports/src/assembler/security-posture.ts"],
+      "depends_on": ["W8-13", "W8-10"],
+      "acceptance": [
+        "Triage on dependency findings maps to OpenVEX per FR-SEC-14: not_affected REQUIRES a justification from the OpenVEX enum (400 without one); vex_statements table per docs/DATABASE.md D10, keyed (repo, purl, vuln, version_range) with author + evidence link; every statement audit-logged (SC-22)",
+        "Suppression semantics: re-scan at a covered version creates 0 new rows; a version outside version_range reopens the finding as under_investigation (fixture: bump the dep version → reopened)",
+        "Exports: OpenVEX JSON and CycloneDX-embedded VEX served alongside the SBOM via session-authed endpoints; both validate against their published schemas in test; OSV/GHSA + EPSS attribution line in the report footer (DESIGN_REVIEW.md G-18 pattern)",
+        "Funnel UI per FR-SEC-15 on Security tab + Explorer + Security Posture report: raw→deduped→scoped→affected/not_affected/under_investigation with per-justification breakdown; counts reconcile to finding rows; default sort effective_risk; raw count never hidden"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W8-15",
+      "title": "T2 adversarial CVE verify (V5): evidence-grounded applicability check, proposes VEX justification",
+      "phase": 8,
+      "module": "security",
+      "write_scope": ["packages/security/src/validation/verify/**", "packages/security/checklists/**"],
+      "depends_on": ["W8-13", "W6-05"],
+      "acceptance": [
+        "V5 per docs/design/SECURITY_SUITE.md §3.6: for top-N findings by effective_risk (workspace config), a T2 verify pass (FR-ANALYSIS-9 machinery, maker≠verifier, pass_kind='verify', initiator='scanner:dependency') receives the advisory summary + V2/V3 evidence (imports, call sites) and returns applicability verdict + confidence + a proposed OpenVEX justification",
+        "Proposals NEVER auto-dismiss: they render as pre-filled triage suggestions a human confirms; proposal evidence quotes must reference V2/V3 output (zod-validated, substring rule per SC-13)",
+        "Gateway rules hold: mocked in CI, token budget from ScanBudget, one call per finding hard cap; runs recorded with parent_run_id chain"
       ],
       "points": 3,
       "status": "todo",

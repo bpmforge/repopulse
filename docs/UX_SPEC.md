@@ -33,10 +33,11 @@ Implementation counterpart: `docs/design/DASHBOARD.md`.
 - **Radius:** `--radius-sm` 6px (inputs, badges), `--radius-md` 10px (cards,
   widgets), `--radius-lg` 14px (modals, palette). Nothing fully rounded except
   avatars and status dots.
-- **Type:** Inter (UI) + JetBrains Mono (numbers, SHAs, paths, code evidence).
-  Scale: 12 (caption/axis), 13 (table body compact), 14 (body/table), 16
-  (section head), 20 (page title), 28 (KPI value, mono, `font-variant-numeric:
-  tabular-nums`). Line-height 1.5 body, 1.2 KPI.
+- **Type:** Inter (UI + ALL numerals, with `font-variant-numeric: tabular-nums`
+  on every metric column and KPI value) + JetBrains Mono (SHAs, paths, code
+  evidence ONLY — not numbers; D9/R-D1). Scale: 12 (caption/axis), 13 (table
+  body compact), 14 (body/table), 16 (section head), 20 (page title), 28
+  (KPI value). Line-height 1.5 body, 1.2 KPI.
 - **Semantic color roles** (each defined per theme, AA-checked ≥4.5:1 text,
   ≥3:1 large/graphic):
   - Surface: `bg`, `surface` (card), `surface-2` (nested), `border`, `border-strong`.
@@ -85,9 +86,10 @@ remember per-view density inside saved views.
 
 ### 3.1 Left rail (collapsible to icons, 240px/64px)
 
-Org Overview · Repos · Pull Requests · Findings · Reports · Views (saved views
-list + "New view") · Admin (admin role only). Bottom: sync-status chip, theme
-toggle, user menu. Active item = accent bar + tinted background.
+Org Overview · Repos · Pull Requests · Findings · **Plans (D9)** · Reports · Views
+(saved views list + "New view") · Admin (admin role only). Bottom: sync-status chip,
+theme toggle, user menu. Active item = accent bar + tinted background. Pull Requests
+and Findings carry per-user badge counts (review queue / new findings since lastSeenAt).
 
 ### 3.2 Drill-down spine (FR-WEB-2, E3.2)
 
@@ -295,6 +297,22 @@ id + retry button. Listed states below only note screen-specific copy.
   keeping params; Security Posture pre-v1.x → generates Tier-1-only sections
   with basis note (E5.6).
 
+### 4.h2 Plans (`/plans`) — D9, E11 (W5)
+
+- **List**: active plans with progress bars ("3/7 done · 1 regressed"), scope
+  (repos × window), catalog-version stamp, created-from-report link.
+- **Plan view**: ranked item cards — recommendation, effort chip (S/M/L),
+  evidence links (offender list / matrix / finding set), verify criterion shown
+  in plain language ("done when review coverage ≥80% for 30 days"), accept /
+  dismiss / mark-in-progress; regressed items styled `warn` and pinned.
+- **Generated content styling**: T2 narration renders in the quiet-accent AI
+  card family with a `T2 · local` provenance chip (R-D3) — no gradients, no
+  sparkle; deterministic content is visually indistinguishable from the rest of
+  the app (it IS the app).
+- **Data:** `/api/v1/plans` CRUD + `/plans/:id/items/:itemId/status`.
+- **States:** no active plan → "Generate from latest report" CTA; Tier-1-only
+  install → plans fully functional, narration section simply absent.
+
 ### 4.i Admin (`/admin`) — E1/E9, admin role only
 
 - **Tabs:** **Connections** (org credential fingerprint/last-4, repo picker,
@@ -326,9 +344,11 @@ id + retry button. Listed states below only note screen-specific copy.
 
 ## 6. Personalization per persona
 
-- **Default home by role/choice:** first login routes P1→Org Overview,
-  P2→My Focus, P3→Findings Explorer, P4→Exec Rollup view; any saved view can
-  be "set as home" and overrides.
+- **Persona picker (D9/R-A2):** first login asks one question — "What best
+  describes you?" (Lead / Developer / Security / Exec, changeable in the user
+  menu) — stored as `users.persona`. This is the mechanism behind role-routed
+  homes: P1→Org Overview, P2→My Focus, P3→Findings Explorer, P4→Exec Rollup
+  view; any saved view can be "set as home" and overrides.
 - **Starter saved views (seeded templates, map to persona top questions):**
   - P1: "My org rollup" (health tiles + attention feed), "Review flow"
     (stage funnel + reviewer-load matrix), "Hotspot map" (org treemap +

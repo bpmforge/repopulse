@@ -193,6 +193,46 @@ payload, `evidence_quote` = the path summary. **Chain severity = min(5, max(memb
 resolves (link broken, audit row). Dashboard renders the chain graph mermaid-style:
 `entry → step → … → impact`, each node linking to its member finding.
 
+### 3.6 CVE validation & VEX (D10, FR-SEC-13/14/15) — killing SBOM false-positive noise
+
+A raw grype/OSV list is not a deliverable: most hits are dev-only, never imported, or hit
+code paths the repo never calls — and unjustified suppression is how security tools lose
+dev trust. Every `dependency` finding therefore runs a validation funnel; every dismissal
+becomes an exportable, auditor-readable **VEX statement** — justified suppression, never
+silent ignoring.
+
+**Validation tiers (deterministic first — run in order, each stamps the finding):**
+
+| Tier | What | Mechanism | Output |
+|---|---|---|---|
+| V0 | Alias dedup | group by OSV `aliases` (CVE↔GHSA↔OSV ids) | one finding per vuln×package, aliases recorded |
+| V1 | Scope classification | lockfile graph: dev vs prod, direct vs transitive (+depth) | `dep_scope`; dev-only downgrades effective risk, NEVER auto-dismisses (build-time supply chain is still real) |
+| V2 | Usage detection | import/require scan — snapshot tree when one exists for the SHA, else targeted fetches of source roots | `imported: bool`; never-imported ⇒ **proposes** `not_affected(vulnerable_code_not_in_execute_path)` |
+| V3 | Symbol reachability | **Go**: govulncheck source mode inside the §2.2 sandbox (call-graph proof); **JS/TS/Python**: semgrep rules GENERATED from OSV affected-symbol data when the advisory carries it | `reachability: manifest_only \| imported \| symbol_reachable \| proven_unreachable` — tier honesty label rendered everywhere |
+| V4 | Exploitability context | EPSS (nightly db-sync alongside grype/KEV — scan containers stay `--network=none`) + KEV | `epss`, `effective_risk = f(CVSS, KEV, EPSS, reachability, dep_scope)` (formula in catalog, workspace-tunable weights) |
+| V5 | T2 adversarial verify (optional, top-N by effective risk) | FR-ANALYSIS-9 machinery: prompt = advisory summary + V2/V3 evidence (imports, call sites); maker≠verifier | proposed VEX justification + confidence — **proposes only; a human confirms** |
+
+**VEX (FR-SEC-14).** Triage on dependency findings maps to OpenVEX:
+`affected` (=confirmed) · `not_affected` — REQUIRES one justification:
+`component_not_present | vulnerable_code_not_present | vulnerable_code_not_in_execute_path |
+vulnerable_code_cannot_be_controlled_by_adversary | inline_mitigations_already_exist`
+("there's a mitigation" and "we never call it" are first-class, auditable answers) ·
+`fixed` · `under_investigation` (default for new findings). Statements persist in
+`vex_statements` (DATABASE.md) keyed (repo, purl, vuln, version-range); re-scans at the
+same version suppress silently (0 new rows); a version outside the range **reopens as
+under_investigation** — suppressions never outlive their evidence. Exports: OpenVEX JSON +
+CycloneDX-embedded VEX served alongside the SBOM (`GET /repos/{id}/sbom?vex=1`); the
+Security Posture report gains the funnel + per-justification breakdown.
+
+**Honesty rule (FR-SEC-15):** dependency surfaces always show the funnel
+`raw → deduped → scoped → affected / not_affected / under_investigation`; default sort is
+`effective_risk`; the raw count is never hidden. "47 raw advisories → 9 affected" is the
+credibility story, in both directions.
+
+Licensing/tooling notes: govulncheck BSD-3 (Go team) — runs as a sandbox tool like
+semgrep/syft; OpenVEX spec + CycloneDX Apache-2.0; EPSS data is freely published by
+FIRST.org (attribution line in the report footer — VERIFY exact terms at W8, Law 2).
+
 ## 4. Scheduling & triggers (FR-SEC-9)
 
 | Trigger | Scanners (enabled repos) | Queue / idempotency key |

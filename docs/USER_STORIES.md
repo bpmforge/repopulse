@@ -249,6 +249,42 @@ As P3 (with P4), I want the Security Posture report enriched with per-scanner se
 - One section per enabled scanner with posture counts + deltas vs prior run; disabled scanners state "not enabled", never blank
 - Immutable history + PDF export semantics inherited from E5
 
+## Epic E11 — Improvement Plans + Quality Loops (insights, analysis, web) [D9; W5–W6]
+
+### E11.1 Generate a plan from a report — 5 pts — FR-PLANS-1/2/6
+As P1, I want a ranked, evidence-linked improvement plan generated from any report so that the retro ends with actions, not vibes.
+- Items come only from the versioned catalog (LLM never invents); every item links its evidence (offender list, matrix, finding set)
+- Accept/dismiss per item; team-scoped, never per-person (N-9)
+
+### E11.2 Auto-verified progress — 3 pts — FR-PLANS-3
+As P4, I want plan items to mark themselves done or regressed from live data so that "3 of 7 done, cycle time −12%" appears in the next report without anyone updating a tracker.
+- Nightly job evaluates verify criteria off snapshots; regressions reopen with audit rows and surface in the attention feed
+
+### E11.3 Working agreements with exception lists — 5 pts — FR-PLANS-4
+As P1, I want team agreements (PR size, review-within-N-hours, no unreviewed merges) shown with the actual exception PRs so that we discuss artifacts, not argue about a score.
+- Threshold + trend + the offending PRs (14d) with drill-down; violations feed plan items; in-app digest card only (N-4)
+
+### E11.4 Artifact intents on hotspots — 3 pts — FR-PLANS-5
+As P2, I want to mark a hotspot refactor/supervise/acknowledged so that intent is tracked against the data and stagnation warns us.
+- refactor warns when hotspot score hasn't improved in N months; supervise alerts on decline; acknowledged suppresses from leaderboards, never from data
+
+### E11.5 Verified findings (maker≠verifier) — 5 pts — FR-ANALYSIS-9/10, FR-INSIGHTS-6
+As P3, I want severity≥3 findings re-judged by a second model and severity≥4 findings to survive an adversarial challenge before hitting the org banner so that the findings feed stays trustworthy (RISKS R-4).
+- Verify pass runs on the OTHER LAN host; contradicted findings auto-dismiss visibly, never silently; compound-risk (≥3 dimensions, same module) escalates
+
+## Epic E12 — CVE Validation & VEX (security) [D10; W8]
+
+### E12.1 Validation tiers + effective risk — 8 pts — FR-SEC-13/15
+As P3, I want every CVE deduped, scoped (dev/prod), checked for actual imports and symbol reachability, and ranked by effective risk (CVSS × KEV × EPSS × reachability) so that the team sees 9 real issues instead of 47 raw advisories.
+- Unused dep ⇒ proposed not_affected; Go call-graph proof via govulncheck; reachability tier labeled on every finding; raw count never hidden (funnel UI)
+
+### E12.2 VEX-justified suppression — 5 pts — FR-SEC-14
+As P3, I want every dismissal to require an OpenVEX justification (not present / not in execute path / mitigations exist / …) exported with the SBOM so that suppression is audit evidence, not silence.
+- Suppression persists per (package, vuln, version); version bump reopens as under_investigation; OpenVEX + CycloneDX export
+
+### E12.3 T2 adversarial CVE verify — 3 pts — FR-SEC-13 V5, FR-ANALYSIS-9
+As P3, I want the local LLM to argue whether a top-risk CVE actually applies here — with import/call-site evidence — and propose a justification for me to confirm so that triage is faster without ever auto-dismissing.
+
 ## Summary
 
 | Epic | Stories | Points | MVP points |
@@ -263,4 +299,10 @@ As P3 (with P4), I want the Security Posture report enriched with per-scanner se
 | E8 Gitea Adapter | 2 | 11 | 0 |
 | E9 Admin / Ops | 4 | 12 | 12 |
 | E10 Security Suite (W8) | 9 | 45 | 0 |
-| **Total** | **51** | **213** | **117** |
+| E11 Improvement Plans + Quality Loops (D9) | 5 | 21 | 0 |
+| E12 CVE Validation & VEX (D10) | 3 | 16 | 0 |
+| **Total** | **59** | **250** | **117** |
+
+D9's journey-pack items (S-44: persona picker, onboarding checklist, badges, Weekly
+Pulse, triage queue, report diff/schedule/annotations) fold into E3/E5 surfaces as
+plan.json tickets (W4-10, W5-09, W6-06) rather than standalone stories.
