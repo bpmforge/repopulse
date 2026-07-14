@@ -169,6 +169,10 @@ id + retry button. Listed states below only note screen-specific copy.
 - **Components:** Tabs (each tab = routed URL `/repos/:repo/pulse|hotspots|
   pr-flow|ci|findings`), "why?" score popover with full formula breakdown +
   basis label (FR-INSIGHTS-2/3), ECharts treemap/funnel/heatmap/histogram.
+  W8 adds a Security tab (FR-SEC-10); W9 adds a **Code Health tab** (FR-CH-6):
+  debt-signal header (rework/revert sparklines), complexity worst-10 table,
+  duplication trend, slop density by rule, logging posture — per-scanner
+  status chips, "not enabled" never blank.
 - **Data:** `/api/v1/repos/:id` (+ `/metrics`, `/hotspots`, `/pr-flow`,
   `/ci`, `/findings`), snapshot series via `/api/v1/repos/:id/trends`.
 - **States:** paused repo → banner "monitoring paused"; backfilling → per-tab

@@ -1,6 +1,6 @@
 # RepoPulse — Roadmap
 
-> **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W8 are v1.x.
+> **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W9 are v1.x.
 > Gate rule (PLAYBOOK.md): no wave-N+1 ticket starts until wave-N exit criteria pass
 > and are recorded in `docs/STATUS.md` (W0-* tickets always claimable).
 > Points are rough, apportioned from USER_STORIES.md epic totals (213 total / 117 MVP).
@@ -204,3 +204,22 @@ scoped (dev-only downgraded, not dismissed) > affected; unused-dep proposes not_
 Go fixture proven_unreachable via govulncheck in the sandbox; not_affected without a VEX
 justification rejected; version-bump reopens; OpenVEX + CycloneDX export validate against
 their schemas; compound-risk golden test (3 dimensions, one module ⇒ severity max+1).
+
+## W9 — Code Health Suite (~34 pts: E13 + surfaces; decision D11)
+
+**Goal:** the AI-slop era's code-cleanliness rails — deterministic rulepack + source
+tools + T2 judgment checklists, all on the W8 framework, surfaced with the same
+tab/report/plan machinery (docs/design/CODE_HEALTH_SUITE.md).
+
+Ticket themes: code-health rulepack (FR-CH-1); code_health_tools scanner — lizard +
+jscpd + posture snapshots (FR-CH-2); anti_slop scanner — pack + LDR + T2 checklist
+(FR-CH-3); logging_hygiene scanner (FR-CH-4); performance/code_health checklist v2
+(FR-CH-5); Code Health tab + report + score sub-score + plan catalog v2 (FR-CH-6,
+FR-REPORTS-8); M13/M14 debt signals (FR-CH-7).
+
+**Exit criteria**
+- [ ] Fixture trees reproduce every PACK rule (trigger + non-trigger cases) and every threshold boundary (CC 10/11, cognitive 15/16, fn 50/51, LDR 0.29/0.31, jscpd edge); pack + tool versions stamped on scan_runs; zero Semgrep-registry rules in the pack (license grep gate).
+- [ ] anti_slop judgment findings carry substring-validated evidence and only surface after the FR-ANALYSIS-9 verify pass; a verifier-refuted fixture finding never appears.
+- [ ] Scanner + T2 checklist findings on the same evidence dedupe to one row (FR-CH-5 key alignment).
+- [ ] Code Health tab renders all sections with scanners enabled AND degrades per-scanner to "not enabled" (never blank); org tile + code_health sub-score basis label live.
+- [ ] Code Health report snapshot-tested enriched and Tier-1-only; M13/M14 reproduce fixture vectors; a duplication plan item auto-verifies when ch_duplication_pct crosses its target.

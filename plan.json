@@ -1283,6 +1283,107 @@
       "points": 2,
       "status": "todo",
       "notes": []
+    },
+    {
+      "id": "W9-01",
+      "title": "Code-health rulepack: tool-checkable anti-slop rules + logging antipatterns (our pack, own license)",
+      "phase": 9,
+      "module": "security",
+      "write_scope": ["packages/security/rulepacks/code-health/**", "packages/security/fixtures/code-health/**"],
+      "depends_on": ["W8-07"],
+      "acceptance": [
+        "Versioned semgrep pack rulepacks/code-health.v1/ per docs/design/CODE_HEALTH_SUITE.md §1 PACK rows: empty/swallowing catch, try/catch-in-loop, silent fallback returns, what-comments, step-narration blocks, emoji comments, stub-as-feature, prose padding, phantom-import partial (FR-CH-1; rule ids carry the source R-xx)",
+        "Logging antipattern rules per §3 deterministic set: console.log/print in prod paths (test/script globs excluded), log-injection taint (user input into log call unencoded, CWE-117), secret/PII-shaped values in log arguments (field denylist mirrors SC-2), local log-and-rethrow",
+        "Every rule ships a triggering AND non-triggering fixture; golden finding-set snapshot per fixture tree; pack version stamped on scan_run.tool_versions",
+        "License gate: zero rules copied from the Semgrep registry (grep for registry rule ids + provenance note per rule — DESIGN_REVIEW.md G-18 discipline)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-02",
+      "title": "code_health_tools scanner: lizard + jscpd over snapshots, canon thresholds, posture metrics to snapshots",
+      "phase": 9,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/code-health/**", "deploy/Containerfile.scan"],
+      "depends_on": ["W8-03", "W8-01"],
+      "acceptance": [
+        "Scanner runs lizard (complexity) + jscpd (duplication) over FR-SEC-2 snapshots inside the NFR-14 sandbox — both are standalone source parsers, no dependency install, --network=none preserved; tools pinned with checksums in the sandbox image (SC-28)",
+        "Canon thresholds workspace-tunable with defaults per docs/design/CODE_HEALTH_SUITE.md §2: cognitive <=15, CC >10 warn / >20 critical, fn >50 lines, file >300, nesting >3, args >4, duplication >=5% gate (jscpd --min-lines 5 --min-tokens 50); findings dimension code_health with rule ids complexity.*/duplication.*; boundary fixtures (CC 10/11, cognitive 15/16, fn 50/51) prove every threshold edge (FR-CH-2)",
+        "Posture metrics written to metric_snapshots with ch_* keys (ch_duplication_pct, ch_complexity_p90, ch_worst_fn_count) so trends ride the existing series endpoint — trend query test reads snapshots only",
+        "Weekly schedule + manual trigger per the FR-SEC-9 matrix; NFR-15 isolation holds (crash test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-03",
+      "title": "anti_slop scanner: pack + LDR deterministic layer, T2 judgment checklist with verify pass",
+      "phase": 9,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/anti-slop/**", "packages/security/checklists/**"],
+      "depends_on": ["W9-01", "W6-05", "W8-08"],
+      "acceptance": [
+        "Deterministic layer per docs/design/CODE_HEALTH_SUITE.md §1: W9-01 pack + LDR computation (file logic/(logic+overhead) < 0.3 => structural-slop finding; doc/impl > 3x per exported symbol => docstring-inflation) with LDR boundary fixtures (0.29/0.31); hallucinated-package checks cross-link FR-SEC-5 slopsquat findings, never duplicate them (FR-CH-3)",
+        "T2 checklist anti_slop.v1 (versioned asset, §4 doctrine framing) for judgment rules: single-impl interfaces, delegation-only wrappers, single-use helpers, speculative generalization, cargo-cult patterns, unwired scaffolding, privilege escalation, LLM-output-without-validation — via the gateway with initiator='scanner:anti_slop', evidence quotes substring-validated (SC-13)",
+        "Judgment findings only surface after the FR-ANALYSIS-9 verify pass (maker!=verifier); verifier-refuted fixture finding never appears; dimension slop; diff mode on pr_synced never fetches a snapshot, weekly snapshot mode samples worst-LDR files",
+        "Dedupe alignment (FR-CH-5): scanner rule finding + code_health.v2 T2 finding on the same evidence collapse to one row (dedup-key test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-04",
+      "title": "logging_hygiene scanner: deterministic patterns + OWASP A09 checklist",
+      "phase": 9,
+      "module": "security",
+      "write_scope": ["packages/security/src/scanners/logging/**", "packages/security/checklists/**"],
+      "depends_on": ["W9-01", "W6-05"],
+      "acceptance": [
+        "Deterministic layer runs the W9-01 logging rules on diff (pr_synced) and snapshot (weekly) inputs; fixture with console.log in a handler, tainted log call, and bare-context catch produces the expected findings, dimension logging (FR-CH-4)",
+        "T2 checklist logging.v1 grounded in the OWASP Logging Cheat Sheet + Top-10 2025 A09, each item citing its OWASP id: level correctness, error-context adequacy, correlation-id propagation, security-event coverage, cross-layer double logging; findings ride the verify pass like all judgment findings",
+        "Test/script paths excluded via workspace globs (no noise from fixtures/specs); FP dismissals feed the standard tuning metric"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-05",
+      "title": "Checklist v2: performance 5-scan completion + code_health slop alignment; M13/M14 debt-signal metrics",
+      "phase": 9,
+      "module": "metrics",
+      "write_scope": ["packages/analysis/checklists/**", "packages/metrics/src/metrics/debt.ts", "packages/metrics/fixtures/debt/**", "packages/metrics/src/catalog.ts"],
+      "depends_on": ["W6-02", "W3-10"],
+      "acceptance": [
+        "performance.v2 checklist completes the 5 static scans per docs/design/CODE_HEALTH_SUITE.md: adds try/catch-in-hot-loop (5-20x JIT penalty note) and hot-path allocation chains to the existing N+1 / O(n^2) / blocking-in-async items; code_health.v2 cross-references slop rule ids so dedup keys align (FR-CH-5)",
+        "Golden-prompt snapshots re-recorded for both v2 checklists (version-bump discipline, docs/TESTING.md §8); runs record the new versions",
+        "M13 rework-14d (share of line changes touching lines authored <14d prior; M1's 21d definition unchanged) and M14 revert rate (is_revert_heuristic commits / non-merge commits) per repo/file/window, snapshotted nightly and registered in the FR-METRICS-15 catalog with heuristic notes (FR-CH-7); fixture history reproduces both to the line"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-06",
+      "title": "Code Health surfaces: repo tab, org tile, score sub-score, Code Health report, plan catalog v2",
+      "phase": 9,
+      "module": "web",
+      "write_scope": ["apps/web/src/routes/repos/$repoId/code-health.tsx", "apps/web/src/widgets/code-health/**", "apps/api/src/routes/code-health/**", "packages/reports/src/assembler/code-health.ts", "packages/reports/src/types/code-health.ts", "packages/insights/src/score/**", "packages/insights/src/plans/**"],
+      "depends_on": ["W9-02", "W9-03", "W9-04", "W9-05", "W5-07"],
+      "acceptance": [
+        "Repo Code Health tab per docs/UX_SPEC.md §4.b (W9 note) + CODE_HEALTH_SUITE.md §6: M13/M14 sparkline header, complexity worst-10 table with file:line drill-down, duplication trend from ch_* snapshots, slop density by rule, logging posture; per-scanner status chips with 'not enabled' states — never blank (NFR-15); org rollup tile drills in",
+        "Health score gains the code_health sub-score (duplication/complexity/slop-density/M13 ramps) with FR-INSIGHTS-2 renormalization + basis label; documented formula reproduces the value in test",
+        "Code Health report type per FR-REPORTS-8: renders enriched with W9 scanner data AND degrades to debt-signals-only with basis labels; every section footnotes its threshold/heuristic basis (REPORTS.md §5); assembler snapshot tests both ways; PDF export inherits E5 semantics",
+        "Plan catalog v2 entries (duplication-over-ceiling, complexity-worst-functions, slop-density-high, logging-hygiene-adoption) with verify criteria off ch_* snapshots; E2E: duplication item auto-verifies done when ch_duplication_pct crosses its target (FR-PLANS-3)",
+        "Tenancy walker + axe green over all new routes"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
     }
   ]
 }

@@ -257,6 +257,11 @@ default 'unverified'` (FR-ANALYSIS-9); dependency findings additionally get
 `epss numeric(5,4) null`, `effective_risk numeric(6,2) null` (FR-SEC-13); `dimension`
 enum += `'compound'` (FR-INSIGHTS-6).
 
+**D11 delta (W9, FR-CH-*)** — `dimension` enum += `'slop' | 'logging'` (complexity/
+duplication findings reuse `code_health`, distinguished by `rule_id`); code-health
+posture metrics are plain `metric_snapshots` rows with `ch_*` metric keys (no new
+table); M13/M14 debt signals are ordinary catalog metrics.
+
 **improvement_plans** — `id, workspace_id, repo_ids bigint[], window, created_from_report_id
 null FK reports, catalog_version text, status enum('active','archived'), created_by,
 created_at` (FR-PLANS-2).

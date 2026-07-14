@@ -54,6 +54,18 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-45 | CVE validation pipeline: alias dedup, dev/prod + direct/transitive scoping, import/usage detection, symbol reachability (govulncheck / generated semgrep rules), EPSS enrichment, effective-risk ranking, raw→affected funnel UI. | D10 (FR-SEC-13/15) |
 | S-46 | VEX: triage↔OpenVEX justification mapping (not_affected requires a justification), OpenVEX + CycloneDX-embedded export with the SBOM, per-(package, vuln, version) suppression persistence with version-bump reopen. | D10 (FR-SEC-14) |
 
+## In scope — wave W9: Code Health Suite (D11; design: docs/design/CODE_HEALTH_SUITE.md)
+
+| ID | Item | Brief trace |
+|----|------|-------------|
+| S-50 | Code-health rulepack: OUR versioned semgrep custom pack implementing the tool-checkable anti-slop rules (empty catch, try/catch-in-loop, silent fallbacks, what-comments, narration blocks, emoji comments, stub-as-feature, prose padding) + logging antipatterns (console.log in prod paths, log-injection taint, secret-shaped values in log calls, local log-and-rethrow) — own license, no Semgrep-registry dependency. | D11 (FR-CH-1) |
+| S-51 | `code_health_tools` scanner: lizard (complexity) + jscpd (duplication) over W8 snapshots in the sandbox with canon thresholds (workspace-tunable); findings + posture metrics written to metric_snapshots (`ch_*` keys) so trends ride the existing chart/report machinery. | D11 (FR-CH-2) |
+| S-52 | `anti_slop` scanner (promoted from the W8 backlog): deterministic layer (S-50 pack + LDR structural-slop measurement + hallucinated-package reuse of FR-SEC-5) + T2 checklist layer for judgment rules (shallow modules, speculative abstraction, unwired scaffolding, privilege escalation, unvalidated LLM output); diff mode on pr_synced, snapshot mode weekly. | D11 (FR-CH-3) |
+| S-53 | `logging_hygiene` scanner: deterministic patterns (S-50) + T2 checklist for level correctness, context adequacy, correlation-id propagation (OWASP Logging Cheat Sheet + Top-10 2025 A09 basis). | D11 (FR-CH-4) |
+| S-54 | Checklist v2 bumps: performance checklist completes the 5 static scans (adds try/catch-in-hot-loop, hot-path allocations); code_health checklist cross-references slop rules; golden-prompt snapshots re-recorded. | D11 (FR-CH-5) |
+| S-55 | Code-health surfaces: repo Code Health tab, org tile, `code_health` health-score sub-score, **Code Health report type** (FR-REPORTS-8), D9 plan-catalog v2 entries (duplication ceiling, complexity worst-functions, slop density, logging adoption). | D11 (FR-CH-6) |
+| S-56 | Tier-1 debt signals (no scanner, warehouse-only): 14-day rework rate + revert rate per repo/file, snapshotted — the GitClear-style "mistake code" trend. | D11 (FR-CH-7) |
+
 ## Out of scope
 
 Enumerated with rationale in `NON_GOALS.md` (N-1 … N-9). Binding summary: no `git clone`

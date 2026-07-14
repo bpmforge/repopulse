@@ -277,8 +277,9 @@ Future bpm-opencode-experts capabilities land as tickets against §1's interface
 |---|---|---|---|---|---|
 | `iac` | IaC Checker | snapshot | schedule, manual | checkov, KICS, trivy-config | backlog |
 | `cloud_security` | Cloud Security Checker (AWS/GCP anti-patterns) | snapshot | schedule, manual | checkov, semgrep cloud packs | backlog |
-| `anti_slop` | Anti-Slop Auditor (28 AI-slop rules) | diff + snapshot | pr_synced, schedule | semgrep custom pack + heuristics | backlog |
+| `anti_slop` | Anti-Slop Auditor (30 AI-slop rules) | diff + snapshot | pr_synced, schedule | semgrep custom pack + heuristics | **promoted → W9 (D11, FR-CH-3; docs/design/CODE_HEALTH_SUITE.md)** — with siblings `code_health_tools` (lizard/jscpd) and `logging_hygiene` |
 | `container_image` | Container Image Scan (Dockerfiles + built images) | snapshot | schedule, manual | trivy, grype | backlog |
+| `dead_code` | Dead Code Detector (unused exports/files/deps) | snapshot | schedule, manual | knip (ISC), vulture (MIT), staticcheck (MIT) | backlog — full analysis needs installed dependencies, which conflicts with `--network=none`; ships when a deps-cache volume design exists (same pattern as vuln-DB volumes, SC-28) |
 
 Each backlog scanner ships with: registry entry, rulepack asset, dimension mapping (`iac` uses
 the reserved `iac` dimension; others reuse `sast`/`dependency`), yields vocabulary additions,

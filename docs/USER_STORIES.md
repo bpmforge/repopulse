@@ -285,6 +285,23 @@ As P3, I want every dismissal to require an OpenVEX justification (not present /
 ### E12.3 T2 adversarial CVE verify — 3 pts — FR-SEC-13 V5, FR-ANALYSIS-9
 As P3, I want the local LLM to argue whether a top-risk CVE actually applies here — with import/call-site evidence — and propose a justification for me to confirm so that triage is faster without ever auto-dismissing.
 
+## Epic E13 — Code Health Suite (security, metrics, web, reports) [D11; W9]
+
+### E13.1 Complexity + duplication with canon thresholds — 5 pts — FR-CH-1/2
+As P1, I want lizard/jscpd runs over snapshots with research-canon thresholds (cognitive ≤15, dup ≥5% gate) so that "the codebase is getting worse" is a trend chart, not a feeling.
+- Findings at threshold boundaries fixture-proven; duplication % trends via ch_* snapshots (GitClear-style — trend over absolute)
+
+### E13.2 Anti-slop scanning (30-rule taxonomy) — 8 pts — FR-CH-3, FR-ANALYSIS-9
+As P2, I want AI-slop caught on my PRs — empty catches, silent fallbacks, stub-as-feature, narration comments deterministically; shallow wrappers, speculative abstraction, unwired scaffolding via the local LLM with a second-model verify — so that slop is flagged before review, with evidence, at near-zero false-positive cost.
+- Deterministic rules from OUR rulepack (no Semgrep-registry license exposure); LDR <0.3 flags structural slop; judgment findings must survive maker≠verifier
+
+### E13.3 Logging hygiene — 5 pts — FR-CH-4
+As P3, I want log-injection taint, secrets-in-logs, console.log-in-prod, and missing error context flagged (OWASP A09 basis) so that the 88%-fail-rate CWE-117 class is covered continuously.
+
+### E13.4 Code Health tab + report + plan integration — 5 pts — FR-CH-6/7, FR-REPORTS-8
+As P4, I want a Code Health tab, report type, and health-score sub-score — plus rework/revert debt signals from our own warehouse — so that code cleanliness has the same drill-down/report/plan rails as delivery and security.
+- Plan catalog v2 entries auto-verify off ch_* snapshots ("duplication back under 5% — done")
+
 ## Summary
 
 | Epic | Stories | Points | MVP points |
@@ -301,7 +318,8 @@ As P3, I want the local LLM to argue whether a top-risk CVE actually applies her
 | E10 Security Suite (W8) | 9 | 45 | 0 |
 | E11 Improvement Plans + Quality Loops (D9) | 5 | 21 | 0 |
 | E12 CVE Validation & VEX (D10) | 3 | 16 | 0 |
-| **Total** | **59** | **250** | **117** |
+| E13 Code Health Suite (D11) | 4 | 23 | 0 |
+| **Total** | **63** | **273** | **117** |
 
 D9's journey-pack items (S-44: persona picker, onboarding checklist, badges, Weekly
 Pulse, triage queue, report diff/schedule/annotations) fold into E3/E5 surfaces as

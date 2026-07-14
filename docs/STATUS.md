@@ -20,4 +20,14 @@
   FR-SEC-13..15 · design/IMPROVEMENT_PLANS.md · SECURITY_SUITE §3.6 · DATABASE D9/D10 ·
   USER_STORIES E11/E12 (total 250 pts) · ROADMAP addendum · plan.json W4-10, W5-06..09,
   W6-05..07, W8-09(+compound), W8-13..15. Board: 78 tickets / 360 pts, validators green.
+- 2026-07-14 — D11 ADOPTED (Brad): Code Health Suite, wave W9 on the W8 scanner framework.
+  30-rule anti-slop taxonomy mined from bpm-opencode-experts (≈12 deterministic → OUR
+  semgrep rulepack; rest T2 checklist behind the maker≠verifier verify pass), lizard/jscpd
+  with canon thresholds, LDR structural-slop measure, net-new logging-hygiene ruleset
+  (OWASP A09/CWE-117), M13/M14 debt signals (14d rework, revert rate), Code Health
+  tab/report/sub-score + plan-catalog v2. Evidence: GitClear 2026 (copy-paste 15.7%,
+  refactoring −70%), Veracode 2025 (45% fail; log injection 88%), USENIX 2025 (19.7%
+  hallucinated pkgs), Apiiro (+322%). New: design/CODE_HEALTH_SUITE.md, SRS §2.12
+  FR-CH-1..7 + FR-REPORTS-8, SCOPE S-50..56, E13, ROADMAP W9, plan W9-01..06 (validator
+  now allows W9). Board: 84 tickets / 399 pts, validators green.
 - Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.
