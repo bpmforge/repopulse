@@ -1,7 +1,13 @@
 # D13 proposal — Engineering Risk Registers (non-security risk sources)
 
-**Status: PROPOSED 2026-07-15 — awaiting Brad's adoption call. Nothing here is
-threaded into SRS/stories/plan.json yet.**
+**Status: ADOPTED 2026-07-15 (Brad: "adopt") — threaded as D13, wave W10 (SRS
+§2.13 FR-REG-1..7, S-62..66, Epic E15, tickets W10-01..05). Open-question
+resolutions: (1) all four v1 recommendations adopted; (2) Supply Chain gets its
+own axis (supply_chain sub-score mirrors the security-sub-score pattern);
+knowledge/architecture/test_gap roll into the Code Health axis for v1;
+(3) coverage ingestion PARKED — any revival starts with a forge-budget review;
+(4) license flags ship as findings with the default AGPL/SSPL/unknown-in-prod
+policy list — report-only by nature, RepoPulse never gates.**
 
 ## Framing
 

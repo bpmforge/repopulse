@@ -265,6 +265,15 @@ enum += `'compound'` (FR-INSIGHTS-6).
 Band transitions audit via existing **finding_events** (`reason='reprice'`). Risk-model
 constants are catalog rows (`risk_model.v1`), not columns.
 
+**D13 delta (W10, FR-REG-*)** — `findings.dimension` enum += `'knowledge' |
+'dependency_health' | 'architecture' | 'test_gap'`. Two nightly db-sync tables (same
+lane as KEV/EPSS — scan sandbox never talks to the network): **release_meta**
+(`ecosystem, package, latest_version, latest_release_at, deprecated bool, yanked bool,
+fetched_at` — libyear/abandonment inputs, FR-REG-2) and **eol_products** (`product,
+cycle, eol_date, support_until, latest_version, fetched_at` — endoflife.date snapshot,
+FR-REG-3). License policy = workspace-config jsonb (allow/warn lists, FR-REG-4), no new
+table. Register thresholds are catalog rows, not columns.
+
 **D11 delta (W9, FR-CH-*)** — `dimension` enum += `'slop' | 'logging'` (complexity/
 duplication findings reuse `code_health`, distinguished by `rule_id`); code-health
 posture metrics are plain `metric_snapshots` rows with `ch_*` metric keys (no new

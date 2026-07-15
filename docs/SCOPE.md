@@ -76,6 +76,16 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-60 | Action bands act/schedule/track (SSVC-style, thresholds in catalog, KEV/secret/chain/compound override to act) driving: plan-generation rank input (replaces raw severity; pins unchanged), Top Risks cards (repo + org), default `effective_risk` sorts across finding surfaces, decomposition popover; raw severity + raw counts never hidden. | D12 (FR-RISK-4/5) |
 | S-61 | Risk axes: existing health sub-scores rendered as A–E letters per risk type with per-axis top-contributor findings; "top risks + movement" opening section in repo_health / org_exec / security_posture reports. | D12 (FR-RISK-6) |
 
+## In scope — wave W10: Engineering Risk Registers (D13; proposal: docs/work/D13_ENGINEERING_RISK_REGISTERS_PROPOSAL.md)
+
+| ID | Item | Brief trace |
+|----|------|-------------|
+| S-62 | Knowledge-concentration register: module/dir-level bus-factor findings (active-maintainer count, top-contributor share, 180d window) weighted by hotspot percentile — warehouse SQL only, counts never names (N-9). | D13 (FR-REG-1) |
+| S-63 | Dependency-health register: libyear drift, abandonment, deprecated/yanked, major-version lag from SBOM + nightly release_meta db-sync (sandbox stays no-network); license posture flags per workspace policy list (findings only, never gating). | D13 (FR-REG-2/4) |
+| S-64 | Runtime/toolchain EOL register: endoflife.date db-sync (eol_products) checked against manifests, lockfiles, Dockerfile base images in the C1a snapshot; severity ramps on time past/until EOL. | D13 (FR-REG-3) |
+| S-65 | Architecture-drift register phase A (config-free): dependency cycles, god modules, orphan clusters via standalone import-graph adapters (dependency-cruiser, import-linter, go list) through the D11 ToolAdapter admission filter; declared-boundary phase B deferred. | D13 (FR-REG-5) |
+| S-66 | Test-gap register (warehouse-only): hot files whose changes never co-change with tests; coverage ingestion parked (separate decision, forge-budget review). Supply-chain sub-score + axis, D12 factor declarations, plan-catalog entries for all four registers. | D13 (FR-REG-6/7) |
+
 ## Out of scope
 
 Enumerated with rationale in `NON_GOALS.md` (N-1 … N-9). Binding summary: no `git clone`

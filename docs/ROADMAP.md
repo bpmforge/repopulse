@@ -1,6 +1,6 @@
 # RepoPulse — Roadmap
 
-> **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W9 are v1.x.
+> **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W10 are v1.x.
 > Gate rule (PLAYBOOK.md): no wave-N+1 ticket starts until wave-N exit criteria pass
 > and are recorded in `docs/STATUS.md` (W0-* tickets always claimable).
 > Points are rough, apportioned from USER_STORIES.md epic totals (213 total / 117 MVP).
@@ -233,3 +233,25 @@ surfaces (FR-RISK-5); risk axes + report top-risk sections (FR-RISK-6).
 - [ ] Adapter routing test: Python-only fixture repo runs ruff and never Biome (and vice versa); ruff/Biome findings overlapping pack rules collapse via dedup key; tool versions + checksums stamped on scan_runs.
 - [ ] Risk model: every open fixture finding (all dimensions) carries effective_risk + decomposition that reproduces the score; band fixtures incl. KEV/chain overrides and the cold-file floor; nightly reprice writes exactly one audited transition per band crossing and is idempotent.
 - [ ] Risk surfaces: explorer default-sorts by effective_risk with the popover arithmetic matching the API decomposition; plans fixture reorders on risk (not raw severity) with KEV/chain pins intact; Top Risks card movement reconciles to reprice audit rows; axis letters reproduce from sub-score fixtures (incl. Tier-1-only renorm); report top-risk section snapshot-tested.
+
+## W10 — Engineering Risk Registers (~24 pts: E15; decision D13)
+
+**Goal:** non-security risk sources through the same findings contract, priced by D12
+for free (docs/work/D13_ENGINEERING_RISK_REGISTERS_PROPOSAL.md, docs/design/RISK_MODEL.md §4):
+knowledge concentration (bus factor, warehouse SQL, N-9-safe), dependency health
+(libyear / abandonment / deprecation / license posture) + runtime EOL, architecture
+drift phase A (config-free: cycles, god modules, orphan clusters via D11 tool
+adapters), test-gap co-change signal. Coverage ingestion stays a parked decision
+(forge-budget review required before any design).
+
+Ticket themes: knowledge register (FR-REG-1); dependency-health + EOL + license
+registers with release_meta/eol_products db-sync (FR-REG-2/3/4); architecture
+import-graph adapters (FR-REG-5); test-gap warehouse signal (FR-REG-6); supply-chain
+sub-score + axis wiring + plan catalog entries (FR-REG-7).
+
+**Exit criteria**
+- [ ] Knowledge fixture: single-maintainer hot module produces a `knowledge` finding with counts only (payload grep proves no author names/logins — N-9); the same concentration on a cold module lands track band (D12 exposure floor test).
+- [ ] Dependency-health fixtures: libyear/abandonment/deprecation/major-lag each reproduce from a pinned release_meta fixture; EOL findings reproduce from an eol_products fixture (past-EOL prod ⇒ sev 4; ≤90d-ahead ⇒ sev 2); license flags follow the workspace policy list and never gate anything; scan sandbox stays `--network=none` (all registry/EOL data via nightly db-sync).
+- [ ] Architecture phase A: cycle + god-module + orphan-cluster fixtures reproduce per language adapter (JS/TS, Python, Go); adapters pass the D11 standalone-only admission filter; declared-boundary checking provably absent (phase B deferred).
+- [ ] Test-gap: hot-file-without-test-co-change fixture produces the finding; a repo with no test directory produces a repo-scoped basis-labeled finding, not per-file noise.
+- [ ] D12 integration: all four new dimensions carry effective_risk + decomposition; supply_chain sub-score reproduces from fixtures and renormalizes when absent (FR-INSIGHTS-3 pattern); Supply Chain axis letter + contributors render; new-dimension findings appear in Top Risks / plans / reports with zero surface-specific code.

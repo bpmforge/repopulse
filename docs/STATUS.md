@@ -69,4 +69,16 @@
   traceability (128/128 FR, 68/68 stories, 0 dangling). D13 (non-security risk
   registers: knowledge/bus-factor, dependency-health+EOL, architecture drift, test-gap)
   PROPOSED in docs/work/D13_ENGINEERING_RISK_REGISTERS_PROPOSAL.md — awaiting Brad.
+- 2026-07-15 — D13 Engineering Risk Registers ADOPTED and threaded (Brad: "adopt"):
+  four non-security risk sources through the findings contract, priced by D12 —
+  knowledge-concentration/bus-factor (warehouse SQL, N-9-safe), dependency-health
+  (libyear/abandonment/deprecation/license via release_meta db-sync) + runtime EOL
+  (eol_products/endoflife.date), architecture drift phase A (config-free cycles/
+  god-modules/orphans via D11 adapters), test-gap co-change signal (coverage
+  ingestion PARKED behind a forge-budget review). New: wave W10 (+5 tickets/24 pts,
+  validate-plan wave regex extended), SRS §2.13 FR-REG-1..7, S-62..66, Epic E15
+  (4 stories/24 pts), supply_chain sub-score + Supply Chain risk axis. Decisions:
+  Supply Chain own axis; knowledge/architecture/test_gap under Code Health axis;
+  license flags = findings only. Validators: plan OK (98 tickets / 455 pts),
+  traceability OK (135/135 FR, 72/72 stories, 0 dangling).
 - Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.

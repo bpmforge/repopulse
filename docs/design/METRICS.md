@@ -129,6 +129,7 @@ catalog, tunable in config).
 | CI health | 0.25 | M9 default-branch passRate ramp(0.95,0.6); top flakiness ramp(0,0.3) |
 | delivery | 0.25 | e2e cycle p50 ramp(24h,240h); M11 days-since-release ramp(14d,120d); (when present) M12 CFR ramp(0.05,0.4) |
 | security (v1.x) | +0.20 then renorm | open security findings weighted by severity, ramp(0, 10 sev-weighted) |
+| supply chain (W10, D13) | +0.10 then renorm | open `dependency_health` findings weighted by effective_risk, ramp(0, 10 risk-weighted) — same pattern as the security row |
 
 API returns full breakdown (input, raw value, ramp params, normalized, weight, contribution).
 **Risk-axis presentation (D12)**: each sub-score also renders as an A–E letter (catalog

@@ -36,7 +36,7 @@ the formula version is stamped into `risk_factors`.
 |---|---|---|
 | **H** hazard | how bad if it bites | `severity/5` (canonical 1–5, ANALYSIS_TIERS §4) |
 | **L** likelihood | will it bite | **dependency dim**: `max(EPSS, kev?1.0)`, floor 0.05 (D10 V4 inputs unchanged). **All other dims**: `confidence/5` × verify multiplier (`confirmed` 1.0 / `unverified` 0.7 / `contradicted` 0.15, FR-ANALYSIS-9) × rule precision prior `1 − fp_rate` from D11 lifecycle stats (floor 0.3; rules without stats → 0.7). **Overrides → 1.0**: KEV, verified secret, chain, compound. |
-| **X** exposure | does it sit where the code lives | **file-bound**: repo-relative hotspot percentile of the file (M2 decay score, latest snapshot), mapped to [0.25, 1.0] — floor 0.25 so cold-file criticals never disappear. **dependency**: dep_scope (prod-direct 1.0 / prod-transitive `0.8 − 0.05·(depth−1)`, floor 0.5 / dev 0.35) × reachability (`symbol_reachable` 1.0 / `imported` 0.85 / `manifest_only` 0.6 / `proven_unreachable` 0.2). **repo-scoped** (no file — e.g. missing-policy findings): 1.0. |
+| **X** exposure | does it sit where the code lives | **file-bound**: repo-relative hotspot percentile of the file (M2 decay score, latest snapshot), mapped to [0.25, 1.0] — floor 0.25 so cold-file criticals never disappear. **dependency**: dep_scope (prod-direct 1.0 / prod-transitive `0.8 − 0.05·(depth−1)`, floor 0.5 / dev 0.35) × reachability (`symbol_reachable` 1.0 / `imported` 0.85 / `manifest_only` 0.6 / `proven_unreachable` 0.2). **repo-scoped** (no file — e.g. missing-policy findings): 1.0. D13 registers declare their factors here: deterministic registers use L = 1.0 × rule-precision prior; `knowledge`/`architecture`/`test_gap` use the file/module hotspot mapping; `dependency_health` reuses the dep_scope factors. |
 
 D10 relationship: V4's `f(CVSS, KEV, EPSS, reachability, dep_scope)` is
 refactored, not replaced — CVSS→H (via the §3.1 severity mapping), EPSS/KEV→L,
@@ -77,8 +77,9 @@ a presentation layer (SonarQube-familiar letters):
 | Delivery | delivery + CI health | — (metric-driven) |
 | Review | review hygiene | — |
 | Activity | activity | — |
-| Security | security | `security`, `compound`, dependency findings |
-| Code Health | `code_health` (D11) | `code_health`, `slop`, `logging` |
+| Security | security | `security`, `compound`, dependency CVE findings |
+| Supply Chain (W10, D13) | `supply_chain` (FR-REG-7 — open dependency_health findings weighted by effective_risk, security-row ramp pattern) | `dependency_health` (libyear / abandonment / EOL / license) |
+| Code Health | `code_health` (D11) | `code_health`, `slop`, `logging`; + D13 structural dims `knowledge`, `architecture`, `test_gap` (contributors roll-up; dedicated Structure axis is a v-next call) |
 | Performance | *(v-next: appears when the D11 per-language perf packs produce findings; renorm rule FR-INSIGHTS-3 applies)* | `performance` |
 
 Letter bands (catalog defaults): A ≥ 85 · B ≥ 70 · C ≥ 50 · D ≥ 30 · E < 30.

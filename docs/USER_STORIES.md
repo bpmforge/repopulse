@@ -324,6 +324,24 @@ As P1, I want SSVC-style action bands (KEV/secret/chain always Act) feeding plan
 As P4, I want per-risk-type letter grades (Security, Code Health, Delivery…) from the existing sub-scores and every report opening with "top risks this window + movement", so that exec conversations start from typed risk, not a wall of findings.
 - Letters reproduce from sub-score fixtures incl. Tier-1-only renorm; absent sub-score shows basis label, never a fake grade
 
+## Epic E15 — Engineering Risk Registers (insights, security, web) [D13; W10]
+
+### E15.1 Knowledge-concentration risk — 5 pts — FR-REG-1
+As P1, I want modules with one active maintainer and high churn flagged as knowledge risk — counts and shares only, never names — so that bus-factor exposure becomes a ranked, evidence-linked finding instead of hallway folklore.
+- Warehouse SQL only; N-9 grep-proven (no identities in payloads); cold single-maintainer modules band track via the D12 exposure floor
+
+### E15.2 Dependency health, EOL, and license posture — 8 pts — FR-REG-2/3/4
+As P3, I want non-CVE dependency risk — libyear drift, abandoned packages, deprecations, past-EOL runtimes and base images, copyleft in prod scope — priced and banded alongside CVEs, so that "this package is a liability" no longer needs an advisory to get attention.
+- release_meta + eol_products nightly db-sync (sandbox stays no-network); license flags follow the workspace policy list and never gate; severity ramps catalog-documented
+
+### E15.3 Architecture drift, config-free — 5 pts — FR-REG-5
+As P2, I want dependency cycles, god modules, and orphan clusters flagged from import graphs without configuring anything, so that structural erosion shows up while it is still cheap to fix.
+- Standalone adapters (dependency-cruiser / import-linter / go list) through the D11 admission filter; declared-boundary checking explicitly deferred to phase B
+
+### E15.4 Test-gap signal + Supply Chain axis — 6 pts — FR-REG-6/7
+As P1, I want hot files that never see test co-changes flagged, and a Supply Chain risk axis with its own letter grade, so that the two questions execs actually ask — "is it tested?" and "are our dependencies healthy?" — have typed, ranked answers.
+- Warehouse-only co-change ratio (coverage ingestion parked behind a forge-budget review); supply_chain sub-score renormalizes when absent; new dims flow into Top Risks/plans/reports with zero surface-specific code
+
 ## Summary
 
 | Epic | Stories | Points | MVP points |
@@ -342,7 +360,8 @@ As P4, I want per-risk-type letter grades (Security, Code Health, Delivery…) f
 | E12 CVE Validation & VEX (D10) | 3 | 16 | 0 |
 | E13 Code Health Suite (D11) | 6 | 33 | 0 |
 | E14 Unified Risk Model (D12) | 3 | 13 | 0 |
-| **Total** | **68** | **296** | **117** |
+| E15 Engineering Risk Registers (D13) | 4 | 24 | 0 |
+| **Total** | **72** | **320** | **117** |
 
 D9's journey-pack items (S-44: persona picker, onboarding checklist, badges, Weekly
 Pulse, triage queue, report diff/schedule/annotations) fold into E3/E5 surfaces as

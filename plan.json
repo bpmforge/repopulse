@@ -2551,6 +2551,135 @@
       "points": 3,
       "status": "todo",
       "notes": []
+    },
+    {
+      "id": "W10-01",
+      "title": "Knowledge-concentration register: bus-factor findings from the warehouse (N-9-safe)",
+      "phase": 10,
+      "module": "insights",
+      "stories": [
+        "E15.1"
+      ],
+      "write_scope": [
+        "packages/insights/src/registers/knowledge/**"
+      ],
+      "depends_on": [
+        "W9-09"
+      ],
+      "acceptance": [
+        "Nightly register job (pure SQL over commits × files × authors, 180d window): module/dir findings (dimension 'knowledge') when active-maintainer count ≤ catalog threshold AND top-contributor share ≥ catalog threshold (FR-REG-1)",
+        "N-9 discipline grep-proven in tests: finding payloads carry counts/shares only — no login, name, or email anywhere in title/evidence/recommendation",
+        "D12 integration: exposure = module hotspot percentile; single-maintainer hot-module fixture bands schedule-or-higher, same concentration on a cold module bands track (floor test); decomposition served (FR-REG-7)",
+        "Plan-catalog entry (knowledge-cluster) generates a remediation item with verify criterion = maintainer count above threshold for 90d"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W10-02",
+      "title": "Dependency-health + EOL + license registers: release_meta/eol_products db-sync, libyear, abandonment, policy flags",
+      "phase": 10,
+      "module": "security",
+      "stories": [
+        "E15.2"
+      ],
+      "write_scope": [
+        "packages/security/src/registers/**",
+        "packages/security/src/sync/**",
+        "packages/shared/src/db/schema/security/**",
+        "packages/shared/drizzle/**"
+      ],
+      "depends_on": [
+        "W8-06",
+        "W9-09"
+      ],
+      "acceptance": [
+        "Nightly db-sync populates release_meta (ecosystem/package/latest_version/latest_release_at/deprecated/yanked) and eol_products (endoflife.date snapshot) per DATABASE.md D13 delta; scan sandbox network assertion unchanged (--network=none) (FR-REG-2/3)",
+        "dependency_health findings from SBOM × release_meta: per-dep libyear + repo aggregate, abandonment (last-release age), deprecated/yanked, major-version lag — each reproduces from a pinned fixture; severity ramps documented in catalog; exposure reuses dep_scope factors (FR-REG-2)",
+        "EOL findings: manifests/lockfiles/Dockerfile base images in the C1a snapshot vs eol_products — past-EOL prod ⇒ sev 4, ≤90d ahead ⇒ sev 2, unknown product ⇒ no finding; endoflife.date attribution in report footer verified per Law 2 (FR-REG-3)",
+        "License posture: SPDX per dep from the SBOM vs workspace policy jsonb (defaults flag AGPL/SSPL/unknown in prod scope; allow/warn tunable); AGPL prod-direct fixture flags, same dep dev-scoped stays silent; findings only — no gating surface exists (FR-REG-4)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W10-03",
+      "title": "Architecture-drift register phase A: cycles, god modules, orphan clusters via import-graph adapters",
+      "phase": 10,
+      "module": "security",
+      "stories": [
+        "E15.3"
+      ],
+      "write_scope": [
+        "packages/security/src/adapters/architecture/**",
+        "packages/security/rulepacks/architecture/**"
+      ],
+      "depends_on": [
+        "W9-08",
+        "W9-09"
+      ],
+      "acceptance": [
+        "Standalone import-graph adapters (dependency-cruiser JS/TS, import-linter Python, go list) registered through the D11 ToolAdapter admission filter (no network/install at scan time); tool versions + checksums stamped on scan_runs (FR-REG-5)",
+        "Config-free detections fixture-proven per language: dependency cycles, god modules (fan-in+fan-out outlier vs repo distribution), orphan clusters — dimension 'architecture', exposure = offending module hotspot percentile (FR-REG-5, FR-REG-7)",
+        "Declared-boundary checking (phase B) provably absent — no boundary-config schema, route, or UI ships in this ticket",
+        "Adapter findings dedupe against any overlapping pack rules via the canonical dedup key"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W10-04",
+      "title": "Test-gap register: hot files without test co-change (warehouse-only)",
+      "phase": 10,
+      "module": "insights",
+      "stories": [
+        "E15.4"
+      ],
+      "write_scope": [
+        "packages/insights/src/registers/test-gap/**"
+      ],
+      "depends_on": [
+        "W9-09"
+      ],
+      "acceptance": [
+        "Register job (pure SQL): top-quartile-hotspot files whose changes co-change with test files below catalog threshold over 90d ⇒ dimension 'test_gap' finding; test-file classification heuristics documented + fixture-proven per ecosystem (FR-REG-6)",
+        "Repo with no test tree produces exactly one repo-scoped basis-labeled finding, not per-file noise (FR-REG-6)",
+        "No coverage ingestion code exists (parked decision — grep gate in test); D12 pricing + decomposition on all fixture findings (FR-REG-7)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W10-05",
+      "title": "Supply Chain axis + register surface wiring: supply_chain sub-score, axis mapping, plan catalog, explorer facets",
+      "phase": 10,
+      "module": "insights",
+      "stories": [
+        "E15.4",
+        "E14.3"
+      ],
+      "write_scope": [
+        "packages/insights/src/score/**",
+        "apps/web/src/widgets/risk/**",
+        "packages/reports/src/assembler/risk.ts"
+      ],
+      "depends_on": [
+        "W10-02",
+        "W9-11"
+      ],
+      "acceptance": [
+        "supply_chain sub-score per METRICS.md §3 row (open dependency_health findings weighted by effective_risk, ramp(0,10), +0.10 weight renormed when absent per FR-INSIGHTS-3); Supply Chain axis letter + top contributors on repo header/org grid per RISK_MODEL.md §4 (FR-REG-7, FR-RISK-6)",
+        "knowledge/architecture/test_gap findings roll into Code Health axis contributors; all four new dimensions appear in Findings Explorer facets, Top Risks cards, plans, and report top-risk sections with zero surface-specific code (fixture E2E) (FR-REG-7)",
+        "Plan-catalog entries for dependency-health (libyear ceiling), EOL (no-past-EOL-runtimes), architecture (cycle count), test-gap (co-change floor) with machine-checkable verify criteria; catalog version bumped",
+        "Tenancy + axe green on changed surfaces"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
     }
   ]
 }
