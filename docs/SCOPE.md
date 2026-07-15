@@ -68,6 +68,14 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-57 | Rule lifecycle + intake: HealthRule schema (provenance/license/fixtures mandatory), shadow mode (experimental findings excluded from scores/banners/plans), FP-rate promotion/demotion gates, admin workbench; intake via field-lesson proposals, LLM-drafted rules (never auto-activated), license-gated external pack sync. | D11 (FR-CH-8/9) |
 | S-58 | Tool adapter registry inside `code_health_tools`: standalone-only admission (no network/install), language auto-routing, per-tool license ledger; W9 adapters ruff (Python) + Biome (JS/TS); backlog roster (actionlint, hadolint, shellcheck, sqlfluff, vale, gocyclo). Per-language perf/correctness/framework semgrep packs (§9). | D11 (FR-CH-10) |
 
+## In scope — wave W9: Unified Risk Model (D12; design: docs/design/RISK_MODEL.md)
+
+| ID | Item | Brief trace |
+|----|------|-------------|
+| S-59 | Risk pricing engine: `effective_risk = 100·H·L·X` for EVERY open finding (all dimensions), deterministic + catalog-versioned (`risk_model.v1`, workspace-tunable); likelihood from EPSS/KEV (deps) or confidence × verify-status × D11 rule-precision prior; exposure from M2 hotspot percentile / dep_scope × reachability; decomposition persisted (`risk_factors`) and served; nightly `risk.reprice` with audited band transitions. | D12 (FR-RISK-1/2/3/4) |
+| S-60 | Action bands act/schedule/track (SSVC-style, thresholds in catalog, KEV/secret/chain/compound override to act) driving: plan-generation rank input (replaces raw severity; pins unchanged), Top Risks cards (repo + org), default `effective_risk` sorts across finding surfaces, decomposition popover; raw severity + raw counts never hidden. | D12 (FR-RISK-4/5) |
+| S-61 | Risk axes: existing health sub-scores rendered as A–E letters per risk type with per-axis top-contributor findings; "top risks + movement" opening section in repo_health / org_exec / security_posture reports. | D12 (FR-RISK-6) |
+
 ## Out of scope
 
 Enumerated with rationale in `NON_GOALS.md` (N-1 … N-9). Binding summary: no `git clone`

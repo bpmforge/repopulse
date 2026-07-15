@@ -43,6 +43,7 @@ interface CatalogEntry {
 | release-stale | M11 days-since > 60 | Release-cadence review | days-since ≤ 30 |
 | sev-findings-cluster | ≥3 open sev≥4 findings in one module | Remediation item linking the finding set | finding set resolved |
 | kev-or-chain-open | any KEV / chain / compound finding open | Immediate remediation item (rank pinned #1) | finding(s) resolved |
+| act-band-cluster | ≥3 open `act`-band findings in one module (D12 sibling of sev-findings-cluster) | Remediation item linking the finding set, ranked by summed effective_risk | finding set resolved or repriced below act |
 
 Conditions marked with agreements (`unreviewed-merges`, `oversized-prs`, …) cross-link:
 an active agreement's violations feed the same item (`source='agreement'`).
@@ -52,7 +53,8 @@ an active agreement's violations feed the same item (`source='agreement'`).
 ```
 report generated | "Create plan" (Plans page)
   → evaluate catalog vN over scope (repo_ids × window)  [pure SQL/snapshots]
-  → rank: rankWeight × severity-of-condition-breach; KEV/chain pinned first
+  → rank: rankWeight × effective_risk of the breaching finding set (D12, RISK_MODEL.md;
+    metric-only conditions keep severity-of-condition-breach); KEV/chain pinned first
   → plan_items rows (status=proposed, evidence links resolved)
   → optional T2 narrate pass (pass_kind='plan'): orders ties, writes "why now"
     paragraphs + plan summary — input is the item list JSON, never raw data

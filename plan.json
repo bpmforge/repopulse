@@ -336,9 +336,17 @@
       "title": "Ops endpoints: /healthz liveness + Prometheus /metrics registry",
       "phase": 1,
       "module": "api",
-      "stories": ["E9.3"],
-      "write_scope": ["apps/api/src/routes/health/**", "apps/api/src/plugins/metrics/**", "packages/shared/src/metrics/**"],
-      "depends_on": ["W1-04"],
+      "stories": [
+        "E9.3"
+      ],
+      "write_scope": [
+        "apps/api/src/routes/health/**",
+        "apps/api/src/plugins/metrics/**",
+        "packages/shared/src/metrics/**"
+      ],
+      "depends_on": [
+        "W1-04"
+      ],
       "acceptance": [
         "GET /healthz per docs/API_DESIGN.md §5 + docs/DEPLOYMENT.md §7: unauthenticated liveness with Postgres + Redis dependency checks; the FR-API-4 route-walker exempts it (like /auth/*, /webhooks/*)",
         "GET /metrics in Prometheus format backed by a SHARED registry in packages/shared/src/metrics so later waves register without new plumbing: forge budgeter counters/gauges (W1-05, FORGE_PROVIDER.md §3 instrumentation names), queue depth/failed/DLQ (W2-02), HTTP p95 by route (NFR-12)",
@@ -799,8 +807,14 @@
       "phase": 3,
       "module": "metrics",
       "stories": [],
-      "write_scope": ["packages/metrics/src/retention/**", "packages/ingest/src/retention/**"],
-      "depends_on": ["W3-10", "W1-02"],
+      "write_scope": [
+        "packages/metrics/src/retention/**",
+        "packages/ingest/src/retention/**"
+      ],
+      "depends_on": [
+        "W3-10",
+        "W1-02"
+      ],
       "acceptance": [
         "Nightly BullMQ repeatable job per docs/DATABASE.md §4: prunes metric_snapshots beyond the >=400d policy (never inside it — FR-METRICS-13 retention honored), forge_etag on a 90-day LRU sweep, webhook_delivery after 30 days; batched ranged DELETEs, idempotent, DLQ on failure (NFR-11)",
         "Immutability guard: reports and egress_audit are NEVER touched by any sweep (SRS §5 A3, NFR-9) — asserted in test",
@@ -1581,9 +1595,16 @@
       "title": "T2 host-config hardening (SC-24): zod validation, credential-free requests, VLAN policy",
       "phase": 6,
       "module": "analysis",
-      "stories": ["E6.1"],
-      "write_scope": ["packages/analysis/src/config/**", "deploy/**"],
-      "depends_on": ["W6-01"],
+      "stories": [
+        "E6.1"
+      ],
+      "write_scope": [
+        "packages/analysis/src/config/**",
+        "deploy/**"
+      ],
+      "depends_on": [
+        "W6-01"
+      ],
       "acceptance": [
         "zod host-list validation per SC-24 (docs/SECURITY_CONTROLS.md): LM Studio base URLs must be private-range LAN addresses unless explicitly flagged — canonical evil-URL corpus test (public IP/hostname, metadata IP, localhost) rejected; host list is admin workspace config, never per-request input",
         "T2 requests carry zero credentials/secrets (client test asserts no auth headers/env values in outbound payloads); responses continue through the full SC-13 pipeline",
@@ -2421,6 +2442,113 @@
         "Per-language perf pack per §9.1: orm-call-in-loop (prisma/drizzle/knex/sqlalchemy/activerecord variants), await-in-loop, sync-io-in-async, json-deep-clone, try-catch-in-loop, regex-compile-in-loop, string-concat-in-loop, unbounded-promise-all — each with trigger+clean fixtures per language; findings take dimension performance and ride the standard triage/verify/plan rails"
       ],
       "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-09",
+      "title": "Risk pricing engine: unified effective_risk for all finding dimensions + risk_factors/risk_band migration + nightly reprice",
+      "phase": 9,
+      "module": "insights",
+      "stories": [
+        "E14.1",
+        "E14.2"
+      ],
+      "write_scope": [
+        "packages/insights/src/risk/**",
+        "packages/shared/src/db/schema/security/**",
+        "packages/shared/drizzle/**"
+      ],
+      "depends_on": [
+        "W8-13",
+        "W9-07"
+      ],
+      "acceptance": [
+        "effective_risk = 100·H·L·X computed for EVERY open finding on upsert per docs/design/RISK_MODEL.md §2 — pure function in packages/insights, catalog-versioned risk_model.v1 constants (workspace-tunable); decomposition {H,L,X,inputs,model_version} persisted in findings.risk_factors and served; recompute-from-served-factors reproduces the stored score; D10 parity — dependency fixture ordering consistent with pre-D12 V4 inputs, SECURITY_SUITE §3.6 funnel sort unchanged (FR-RISK-1)",
+        "Likelihood matrix fixture-proven (FR-RISK-2): deps max(EPSS, KEV→1.0) floor 0.05; other dims confidence/5 × verify multiplier (confirmed 1.0/unverified 0.7/contradicted 0.15) × rule-precision prior from W9-07 lifecycle stats (floor 0.3, no-stats 0.7); KEV/verified-secret/chain/compound override L=1.0",
+        "Exposure fixture-proven (FR-RISK-3): file-bound = M2 hotspot percentile mapped [0.25,1.0] (cold-file floor test); dependency = dep_scope × reachability multipliers; repo-scoped = 1.0; dev-scoped proven-unreachable CVE lands near bottom but never hidden",
+        "risk_band act/schedule/track stamped from catalog thresholds (55/25 defaults) with overrides→act; migration adds risk_factors jsonb + risk_band + index (workspace_id, repo_id, status, effective_risk desc) per DATABASE.md D12 delta (FR-RISK-4)",
+        "Nightly risk.reprice job (after metrics.snapshot) re-prices open findings for EPSS/hotspot/precision drift; band crossings write exactly one finding_events row (reason='reprice'); job idempotent (FR-RISK-4)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-10",
+      "title": "Plans rank swap to effective_risk + act-band-cluster catalog entry",
+      "phase": 9,
+      "module": "insights",
+      "stories": [
+        "E14.2",
+        "E11.2"
+      ],
+      "write_scope": [
+        "packages/insights/src/plans/**"
+      ],
+      "depends_on": [
+        "W9-09",
+        "W9-06"
+      ],
+      "acceptance": [
+        "Plan generation rank input = rankWeight × effective_risk of the breaching finding set per IMPROVEMENT_PLANS.md §2 (metric-only conditions keep severity-of-condition-breach); KEV/chain pins unchanged; fixture reorders when risk (not raw severity) changes (FR-RISK-5, FR-PLANS-2)",
+        "New catalog entry act-band-cluster (≥3 open act-band findings in one module) generates a remediation item ranked by summed effective_risk; verify criterion = set resolved or repriced below act (FR-RISK-4)",
+        "Suppression/dismissal behavior identical to sev-findings-cluster (catalog id × scope mirror); catalog version bumped and stamped"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-11",
+      "title": "Risk surfaces: Top Risks cards, effective_risk default sorts, decomposition popover, axis letters",
+      "phase": 9,
+      "module": "web",
+      "stories": [
+        "E14.2",
+        "E14.3",
+        "E3.1"
+      ],
+      "write_scope": [
+        "apps/web/src/widgets/risk/**",
+        "apps/web/src/components/risk/**",
+        "apps/api/src/routes/risk/**"
+      ],
+      "depends_on": [
+        "W9-09",
+        "W9-06"
+      ],
+      "acceptance": [
+        "Findings surfaces (explorer, Security tab, Code Health tab) default-sort effective_risk desc with severity sort retained; RiskBandChip + RiskDecompositionPopover shared primitives per DASHBOARD.md; popover arithmetic matches the API decomposition exactly (FR-RISK-5)",
+        "Top Risks card on repo Overview + Org Overview: top-5 open by effective_risk across all dimensions, band chips, movement vs previous window reconciling to reprice audit rows; raw severity + raw counts always visible ('N findings → M act' copy) (FR-RISK-5)",
+        "Risk axes: A–E letters from FR-INSIGHTS-2 sub-scores (catalog bands 85/70/50/30) on repo header + org grid with per-axis top-3 contributors by dimension mapping RISK_MODEL.md §4; Tier-1-only renorm shows basis label, never a fake grade (FR-RISK-6, FR-INSIGHTS-3)",
+        "API: findings endpoints gain risk_band filter + effective_risk sort; score endpoint gains axes[]; tenancy + axe green on all new surfaces (FR-RISK-5/6)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W9-12",
+      "title": "Report integration: top-risks opener + movement + axis letters",
+      "phase": 9,
+      "module": "reports",
+      "stories": [
+        "E14.3"
+      ],
+      "write_scope": [
+        "packages/reports/src/assembler/risk.ts",
+        "packages/reports/src/types/risk.ts"
+      ],
+      "depends_on": [
+        "W9-09"
+      ],
+      "acceptance": [
+        "repo_health, org_exec, security_posture open with 'Top risks this window + movement since previous same-scope report' (movement from reprice/finding_events between snapshotAt pins, same mechanism as the plans movement section); snapshot-tested enriched and Tier-1-only (FR-RISK-6)",
+        "Axis letter row rendered in the repo header block of repo_health and the org grid of org_exec; absent sub-score ⇒ axis absent + basis label (FR-RISK-6)",
+        "Section data resolved at snapshotAt (FR-REPORTS-1 determinism); band chips + raw severity both present in the PDF"
+      ],
+      "points": 3,
       "status": "todo",
       "notes": []
     }

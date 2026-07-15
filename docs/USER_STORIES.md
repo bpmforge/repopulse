@@ -310,6 +310,20 @@ As P3 (admin), I want new rules to enter through a workbench — field-lesson pr
 As P1, I want language-appropriate tools auto-routed per repo (ruff for Python, Biome for JS/TS, per-language perf/framework semgrep packs) so that a polyglot org gets native-quality checks everywhere without config sprawl.
 - detect() routing from extensions+SBOM; adapter findings dedupe against pack rules; standalone-only tools (sandbox stays no-network); Opengrep-swappable engine contract
 
+## Epic E14 — Unified Risk Model (insights, web, reports) [D12; W9]
+
+### E14.1 Every finding priced, transparently — 5 pts — FR-RISK-1/2/3
+As P2, I want every open finding — CVE, slop, logging, complexity, secret — priced by one deterministic hazard × likelihood × exposure formula with the arithmetic shown, so that "of my 200 findings, which 5 matter?" has one defensible answer instead of a per-tab severity sort.
+- Decomposition popover reproduces the stored score from served factors; cold-file floor and high-FP-rule depression fixture-proven; raw severity always rendered next to risk
+
+### E14.2 Act / Schedule / Track bands drive the work — 5 pts — FR-RISK-4/5
+As P1, I want SSVC-style action bands (KEV/secret/chain always Act) feeding plan generation, Top Risks cards on repo + org overviews, and risk-default sorts everywhere findings render, so that ranking turns into verbs my team acts on — with "N findings → M act" funnel honesty.
+- Nightly reprice audits band transitions ("climbed into Act overnight" is explainable); plans rank swaps to effective_risk with KEV/chain pins unchanged
+
+### E14.3 Risk axes + report top-risks — 3 pts — FR-RISK-6
+As P4, I want per-risk-type letter grades (Security, Code Health, Delivery…) from the existing sub-scores and every report opening with "top risks this window + movement", so that exec conversations start from typed risk, not a wall of findings.
+- Letters reproduce from sub-score fixtures incl. Tier-1-only renorm; absent sub-score shows basis label, never a fake grade
+
 ## Summary
 
 | Epic | Stories | Points | MVP points |
@@ -327,7 +341,8 @@ As P1, I want language-appropriate tools auto-routed per repo (ruff for Python, 
 | E11 Improvement Plans + Quality Loops (D9) | 5 | 21 | 0 |
 | E12 CVE Validation & VEX (D10) | 3 | 16 | 0 |
 | E13 Code Health Suite (D11) | 6 | 33 | 0 |
-| **Total** | **65** | **283** | **117** |
+| E14 Unified Risk Model (D12) | 3 | 13 | 0 |
+| **Total** | **68** | **296** | **117** |
 
 D9's journey-pack items (S-44: persona picker, onboarding checklist, badges, Weekly
 Pulse, triage queue, report diff/schedule/annotations) fold into E3/E5 surfaces as

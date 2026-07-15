@@ -209,7 +209,7 @@ silent ignoring.
 | V1 | Scope classification | lockfile graph: dev vs prod, direct vs transitive (+depth) | `dep_scope`; dev-only downgrades effective risk, NEVER auto-dismisses (build-time supply chain is still real) |
 | V2 | Usage detection | import/require scan — snapshot tree when one exists for the SHA, else targeted fetches of source roots | `imported: bool`; never-imported ⇒ **proposes** `not_affected(vulnerable_code_not_in_execute_path)` |
 | V3 | Symbol reachability | **Go**: govulncheck source mode inside the §2.2 sandbox (call-graph proof); **JS/TS/Python**: semgrep rules GENERATED from OSV affected-symbol data when the advisory carries it | `reachability: manifest_only \| imported \| symbol_reachable \| proven_unreachable` — tier honesty label rendered everywhere |
-| V4 | Exploitability context | EPSS (nightly db-sync alongside grype/KEV — scan containers stay `--network=none`) + KEV | `epss`, `effective_risk = f(CVSS, KEV, EPSS, reachability, dep_scope)` (formula in catalog, workspace-tunable weights) |
+| V4 | Exploitability context | EPSS (nightly db-sync alongside grype/KEV — scan containers stay `--network=none`) + KEV | `epss`, `effective_risk` — since D12 the factored unified formula (EPSS/KEV→likelihood, reachability/dep_scope→exposure; RISK_MODEL.md §2 — same inputs, same column, catalog-versioned + workspace-tunable) |
 | V5 | T2 adversarial verify (optional, top-N by effective risk) | FR-ANALYSIS-9 machinery: prompt = advisory summary + V2/V3 evidence (imports, call sites); maker≠verifier | proposed VEX justification + confidence — **proposes only; a human confirms** |
 
 **VEX (FR-SEC-14).** Triage on dependency findings maps to OpenVEX:

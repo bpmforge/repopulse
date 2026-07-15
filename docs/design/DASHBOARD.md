@@ -138,7 +138,11 @@ hotspots, report history). One `<DataTable>` component: column defs in,
 URL-synced sort/cursor (TableSearch), virtualized rows (row height 40/32 per
 density), j/k/Enter/x keyboard nav (UX §5), selection + sticky bulk bar,
 skeleton rows for loading, infinite scroll on cursor pagination. Cells render
-shared primitives (SeverityBadge, TrendDelta, Sparkline, SyncStatusChip).
+shared primitives (SeverityBadge, TrendDelta, Sparkline, SyncStatusChip; D12 adds
+RiskBandChip + RiskDecompositionPopover, and the Top Risks card — top-5 open findings by
+effective_risk with band chips + movement — on repo Overview and Org Overview; finding
+lists default-sort by effective_risk, severity sort retained; axis letter row per
+RISK_MODEL.md §4).
 
 ## 8. Print route + PDF
 

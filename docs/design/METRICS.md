@@ -131,6 +131,10 @@ catalog, tunable in config).
 | security (v1.x) | +0.20 then renorm | open security findings weighted by severity, ramp(0, 10 sev-weighted) |
 
 API returns full breakdown (input, raw value, ramp params, normalized, weight, contribution).
+**Risk-axis presentation (D12)**: each sub-score also renders as an A–E letter (catalog
+bands 85/70/50/30) on the repo header + org grid, with per-axis top contributing findings
+by effective_risk — pure presentation over these sub-scores, no new arithmetic
+(RISK_MODEL.md §4).
 **Presentation rule (Goodhart risk R-x)**: UI/report copy says "signals, not grades"; scores
 are trend/triage aids, never individual performance measures; person-grain data appears only
 in the developer's own view (D6), not in rankings.

@@ -58,4 +58,15 @@
   script, W7-06 executed restore drill). Re-ran independently: validate-plan (89 tickets
   / 415 pts, OK), validate-traceability (122/122 FR, 65/65 stories, 0 dangling, exit 0),
   validate-arch (PASS). Board is coding-ready.
+- 2026-07-15 — D12 Unified Risk Model ADOPTED and threaded (Brad approved): every open
+  finding priced `effective_risk = 100·H·L·X` (docs/design/RISK_MODEL.md — refactors
+  D10's dependency-only formula; likelihood from EPSS/KEV or confidence×verify×D11
+  rule-precision prior; exposure from M2 hotspot percentile or dep_scope×reachability),
+  SSVC-style act/schedule/track bands with audited nightly reprice, plans rank swap,
+  Top Risks cards, A–E risk axes over existing sub-scores, report top-risk openers.
+  New: SRS §2.5b FR-RISK-1..6, S-59..61, Epic E14 (3 stories/13 pts), tickets
+  W9-09..W9-12 (+16 pts). Validators re-run: plan (93 tickets / 431 pts, OK),
+  traceability (128/128 FR, 68/68 stories, 0 dangling). D13 (non-security risk
+  registers: knowledge/bus-factor, dependency-health+EOL, architecture drift, test-gap)
+  PROPOSED in docs/work/D13_ENGINEERING_RISK_REGISTERS_PROPOSAL.md — awaiting Brad.
 - Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.

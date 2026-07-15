@@ -257,6 +257,14 @@ default 'unverified'` (FR-ANALYSIS-9); dependency findings additionally get
 `epss numeric(5,4) null`, `effective_risk numeric(6,2) null` (FR-SEC-13); `dimension`
 enum += `'compound'` (FR-INSIGHTS-6).
 
+**D12 delta (W9, FR-RISK-*)** — `findings` += `risk_factors jsonb null` (decomposition
+`{H, L, X, inputs, model_version}` — FR-RISK-1), `risk_band text null check (risk_band in
+('act','schedule','track'))` (FR-RISK-4; accepted is derived from `status`/VEX, never stored);
+`effective_risk` (existing D10 column) becomes populated for ALL dimensions. Index
+`(workspace_id, repo_id, status, effective_risk desc)` for Top Risks / default sorts.
+Band transitions audit via existing **finding_events** (`reason='reprice'`). Risk-model
+constants are catalog rows (`risk_model.v1`), not columns.
+
 **D11 delta (W9, FR-CH-*)** — `dimension` enum += `'slop' | 'logging'` (complexity/
 duplication findings reuse `code_health`, distinguished by `rule_id`); code-health
 posture metrics are plain `metric_snapshots` rows with `ch_*` metric keys (no new

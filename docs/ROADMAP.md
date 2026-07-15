@@ -205,18 +205,23 @@ Go fixture proven_unreachable via govulncheck in the sandbox; not_affected witho
 justification rejected; version-bump reopens; OpenVEX + CycloneDX export validate against
 their schemas; compound-risk golden test (3 dimensions, one module ⇒ severity max+1).
 
-## W9 — Code Health Suite (~49 pts: E13 + surfaces; decision D11)
+## W9 — Code Health Suite + Unified Risk Model (~65 pts: E13 + E14 + surfaces; decisions D11, D12)
 
 **Goal:** the AI-slop era's code-cleanliness rails — deterministic rulepack + source
 tools + T2 judgment checklists, all on the W8 framework, surfaced with the same
-tab/report/plan machinery (docs/design/CODE_HEALTH_SUITE.md).
+tab/report/plan machinery (docs/design/CODE_HEALTH_SUITE.md) — then price EVERY open
+finding with the unified risk model (docs/design/RISK_MODEL.md): hazard × likelihood ×
+exposure, act/schedule/track bands, Top Risks surfaces, risk axes (D12 closes the wave
+because it consumes W8 findings, D10 funnel outputs, and D11 rule-precision stats).
 
 Ticket themes: code-health rulepack (FR-CH-1); code_health_tools scanner — lizard +
 jscpd + posture snapshots (FR-CH-2); anti_slop scanner — pack + LDR + T2 checklist
 (FR-CH-3); logging_hygiene scanner (FR-CH-4); performance/code_health checklist v2
 (FR-CH-5); Code Health tab + report + score sub-score + plan catalog v2 (FR-CH-6,
 FR-REPORTS-8); M13/M14 debt signals (FR-CH-7); rule lifecycle/shadow mode + intake
-workbench (FR-CH-8/9); tool adapters ruff/Biome + per-language perf packs (FR-CH-10).
+workbench (FR-CH-8/9); tool adapters ruff/Biome + per-language perf packs (FR-CH-10);
+risk pricing engine + reprice job (FR-RISK-1/2/3/4); band-driven plans rank + Top Risks
+surfaces (FR-RISK-5); risk axes + report top-risk sections (FR-RISK-6).
 
 **Exit criteria**
 - [ ] Fixture trees reproduce every PACK rule (trigger + non-trigger cases) and every threshold boundary (CC 10/11, cognitive 15/16, fn 50/51, LDR 0.29/0.31, jscpd edge); pack + tool versions stamped on scan_runs; zero Semgrep-registry rules in the pack (license grep gate).
@@ -226,3 +231,5 @@ workbench (FR-CH-8/9); tool adapters ruff/Biome + per-language perf packs (FR-CH
 - [ ] Code Health report snapshot-tested enriched and Tier-1-only; M13/M14 reproduce fixture vectors; a duplication plan item auto-verifies when ch_duplication_pct crosses its target.
 - [ ] Shadow-mode fixture rule produces `experimental` findings that move NO score/banner/plan; promotion requires the workbench evidence gate; a non-allowlisted-license rule import is refused with a logged reason; an LLM-drafted rule arrives `proposed` with valid YAML + passing fixtures.
 - [ ] Adapter routing test: Python-only fixture repo runs ruff and never Biome (and vice versa); ruff/Biome findings overlapping pack rules collapse via dedup key; tool versions + checksums stamped on scan_runs.
+- [ ] Risk model: every open fixture finding (all dimensions) carries effective_risk + decomposition that reproduces the score; band fixtures incl. KEV/chain overrides and the cold-file floor; nightly reprice writes exactly one audited transition per band crossing and is idempotent.
+- [ ] Risk surfaces: explorer default-sorts by effective_risk with the popover arithmetic matching the API decomposition; plans fixture reorders on risk (not raw severity) with KEV/chain pins intact; Top Risks card movement reconciles to reprice audit rows; axis letters reproduce from sub-score fixtures (incl. Tier-1-only renorm); report top-risk section snapshot-tested.
