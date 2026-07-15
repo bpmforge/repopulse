@@ -47,4 +47,15 @@
   (maker≠verifier, "re-ran independently" evidence) codified in PLAYBOOK.md; traceability
   validator added to W0-03 CI gate. All validators green. Part 2 = story/epic/ticket
   refinement on this verified base.
+- 2026-07-14 — Part 2 complete: story linkage (`stories: []` on all tickets, validated
+  F5/F6/W3) + CHALLENGER pass run per PLAYBOOK protocol (fresh agent, maker≠verifier).
+  Challenger verdict: features fully covered; 9 operational gaps confirmed — all closed:
+  3 new tickets (W1-09 healthz+/metrics registry, W3-13 retention sweeps, W6-08 SC-24
+  T2 host hardening) + 7 amendments (W0-01 frozen-lockfile/renovate, W0-02 SC-20 compose
+  baseline, W0-03 nightly e2e cron, W1-01 identities table, W1-02 egress_audit
+  INSERT-only grant, W2-02 worker healthz/queue metrics, W2-03 email-fallback identity
+  rows, W5-01 share-slug endpoints, W7-05 SC-20 prod hardening + backup timer/drill
+  script, W7-06 executed restore drill). Re-ran independently: validate-plan (89 tickets
+  / 415 pts, OK), validate-traceability (122/122 FR, 65/65 stories, 0 dangling, exit 0),
+  validate-arch (PASS). Board is coding-ready.
 - Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.

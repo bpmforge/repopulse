@@ -24,7 +24,8 @@
       "acceptance": [
         "pnpm install succeeds on Node 22; workspaces apps/api (Fastify stub), apps/web (Vite React stub) and packages/{shared,forge,ingest,metrics,analysis,insights,reports,auth} exist per CLAUDE.md §Build, each with a placeholder src/index.ts",
         "pnpm lint && pnpm typecheck && pnpm test all pass from the repo root (vitest, at least one placeholder test per workspace)",
-        "Dependency versions match docs/TECH_STACK.md; any deviation is recorded there in the same commit (CLAUDE.md Law 2)"
+        "Dependency versions match docs/TECH_STACK.md; any deviation is recorded there in the same commit (CLAUDE.md Law 2)",
+        "Lockfile discipline per SC-19: CI installs with --frozen-lockfile; renovate config committed with weekly schedule (never auto-merge)"
       ],
       "points": 5,
       "status": "todo",
@@ -46,7 +47,8 @@
       "acceptance": [
         "podman compose -f compose.dev.yaml up starts PostgreSQL 16 and Redis with healthchecks and persistent named volumes (docs/ARCHITECTURE.md §2 dev container set)",
         ".env.example documents every required variable (DATABASE_URL, REDIS_URL, SESSION_SECRET, CREDENTIAL_KEY, DATA_DIR) with safe local defaults; nothing secret committed (CLAUDE.md Law 9)",
-        "Redis image is BSD-licensed: pin redis:7.2 (or valkey:8 after verifying BullMQ compatibility) — never redis:7.4+/8 RSAL-SSPL images (docs/work/DESIGN_REVIEW.md G-18); the choice is recorded in docs/TECH_STACK.md in the same commit"
+        "Redis image is BSD-licensed: pin redis:7.2 (or valkey:8 after verifying BullMQ compatibility) — never redis:7.4+/8 RSAL-SSPL images (docs/work/DESIGN_REVIEW.md G-18); the choice is recorded in docs/TECH_STACK.md in the same commit",
+        "SC-20 baseline (docs/SECURITY_CONTROLS.md): compose sets non-root UIDs, cap-drop=ALL, no-new-privileges, Redis requirepass + Postgres scram-sha-256, data-tier services not published to host/LAN; a compose-file validator script asserts these flags are present"
       ],
       "points": 2,
       "status": "todo",
@@ -70,7 +72,8 @@
         "CI workflow runs pnpm lint, pnpm typecheck, pnpm test, bash scripts/validate-arch.sh, node scripts/validate-plan.mjs and node scripts/validate-traceability.mjs on every push/PR; CI never contacts github.com APIs (PLAYBOOK §Testing tiers: recorded fixtures only)",
         "ESLint no-restricted-imports rules enforce the docs/ARCHITECTURE.md §3 allowed-dependency matrix: domain packages never import apps/api or apps/web; metrics/analysis/insights/reports never import packages/forge (CLAUDE.md Law 6)",
         "bash scripts/validate-arch.sh exits 0 with all five rules printing PASS on the scaffolded tree",
-        "Supply-chain gates per SC-18/SC-19 (docs/SECURITY_CONTROLS.md): gitleaks scan job (history-inclusive on first run), .npmrc with ignore-scripts=true + pnpm.onlyBuiltDependencies allowlist, and pnpm audit --prod failing CI on high/critical"
+        "Supply-chain gates per SC-18/SC-19 (docs/SECURITY_CONTROLS.md): gitleaks scan job (history-inclusive on first run), .npmrc with ignore-scripts=true + pnpm.onlyBuiltDependencies allowlist, and pnpm audit --prod failing CI on high/critical",
+        "Nightly scheduled CI workflow runs the Playwright e2e suite against the seeded stack (docs/TESTING.md §1 tier table) — workflow ships now, activates when W4-00 lands the harness"
       ],
       "points": 3,
       "status": "todo",
@@ -138,7 +141,7 @@
         "W0-02"
       ],
       "acceptance": [
-        "Tables per docs/DATABASE.md §2 'Tenancy & identity' + 'Sync machinery': workspace, user, membership, connection, credential, repo, sync_cursor, webhook_delivery, forge_etag, job_failure with the documented columns and types",
+        "Tables per docs/DATABASE.md §2 'Tenancy & identity' + 'Sync machinery': workspace, user, membership, connection, credential, identities, repo, sync_cursor, webhook_delivery, forge_etag, job_failure with the documented columns and types",
         "Every tenant-scoped table has workspace_id NOT NULL and an index on it (CLAUDE.md Law 5); scripts/validate-arch.sh rule 5 passes",
         "drizzle-kit generates migration 0000 that applies cleanly against the compose Postgres and carries a rollback note (PLAYBOOK §Migration tickets); docs/DATABASE.md §5 discipline followed"
       ],
@@ -166,7 +169,8 @@
       "acceptance": [
         "Fact tables per docs/DATABASE.md §2 'Facts': commits, commit_file, pull_requests, pr_reviews, pr_comments, check/workflow runs, issues, releases, deployments — with natural-key unique indexes enabling idempotent upserts (FR-INGEST-6)",
         "Read-model tables per docs/DATABASE.md §2 'Read models & analysis': metric_snapshot (shape per docs/design/METRICS.md §2 / FR-METRICS-13), saved_view, report, finding, finding_status_history, egress_audit",
-        "Hot-path indexes per docs/DATABASE.md §3 created; migration applies + rollback note; workspace_id tenancy check green on all new tenant-scoped tables"
+        "Hot-path indexes per docs/DATABASE.md §3 created; migration applies + rollback note; workspace_id tenancy check green on all new tenant-scoped tables",
+        "egress_audit is append-only at the DB layer per SC-15: migration grants the app role INSERT-only (no UPDATE/DELETE); migration test asserts UPDATE and DELETE fail as the app role"
       ],
       "points": 5,
       "status": "todo",
@@ -328,6 +332,23 @@
       "notes": []
     },
     {
+      "id": "W1-09",
+      "title": "Ops endpoints: /healthz liveness + Prometheus /metrics registry",
+      "phase": 1,
+      "module": "api",
+      "stories": ["E9.3"],
+      "write_scope": ["apps/api/src/routes/health/**", "apps/api/src/plugins/metrics/**", "packages/shared/src/metrics/**"],
+      "depends_on": ["W1-04"],
+      "acceptance": [
+        "GET /healthz per docs/API_DESIGN.md §5 + docs/DEPLOYMENT.md §7: unauthenticated liveness with Postgres + Redis dependency checks; the FR-API-4 route-walker exempts it (like /auth/*, /webhooks/*)",
+        "GET /metrics in Prometheus format backed by a SHARED registry in packages/shared/src/metrics so later waves register without new plumbing: forge budgeter counters/gauges (W1-05, FORGE_PROVIDER.md §3 instrumentation names), queue depth/failed/DLQ (W2-02), HTTP p95 by route (NFR-12)",
+        "Internal-only exposure documented per DEPLOYMENT.md §7 (internal vhost — never on the public webhook vhost); integration tests assert both endpoints and the §3 metric names are present"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
       "id": "W2-01",
       "title": "Credential vault (encrypted at rest) + org connect flow + webhook registration",
       "phase": 2,
@@ -376,7 +397,8 @@
         "Queue topology exactly per docs/design/INGESTION.md §6: queue names, jobId idempotency keys, retry policies; exhausted jobs copy to ingest.dlq + job_failure row — poison-message test lands in DLQ (NFR-11)",
         "Backfill planner per INGESTION.md §3: window now-365d, repos ordered pushedAt desc, entity order PRs→commits→checks→issues→releases/deployments, recent-first within entity (FR-INGEST-4)",
         "Per-repo sync state machine per INGESTION.md §2: queued→history→enrichment→live with paused_budget and error transitions",
-        "Graceful shutdown per INGESTION.md §6: SIGTERM stops intake, drains in-flight page transactions <=30s, restart resumes from cursor"
+        "Graceful shutdown per INGESTION.md §6: SIGTERM stops intake, drains in-flight page transactions <=30s, restart resumes from cursor",
+        "Worker liveness per docs/DEPLOYMENT.md §7: worker /healthz (Postgres+Redis checks) and queue-depth/failed/DLQ gauges registered on the W1-09 Prometheus registry (NFR-12)"
       ],
       "points": 5,
       "status": "todo",
@@ -401,7 +423,8 @@
         "sync_cursor checkpoint written after every page in the same transaction as that page's upserts; kill-worker-mid-backfill test resumes with no duplicate rows and reaches completion (FR-INGEST-3, INGESTION.md §3)",
         "Upserts idempotent on natural keys (repo_id+sha / +pr_number / +external_id); backfilled fixture repo row counts match fixture ground truth for all entity types (FR-INGEST-2)",
         "Budget yielding: jobs process <=20 pages then re-enqueue with their cursor; on floor-hit re-enqueue with delay-to-reset and repo flips to paused_budget — no busy-waiting (FR-INGEST-4, NFR-1)",
-        "Enrichment phase fills commit_file churn via getCommitFiles with 202-stats retry-then-fallback in the low-priority lane (INGESTION.md §2/§8); 50-repo simulated org completes within budget math of INGESTION.md §3 (NFR-2, scaled CI benchmark)"
+        "Enrichment phase fills commit_file churn via getCommitFiles with 202-stats retry-then-fallback in the low-priority lane (INGESTION.md §2/§8); 50-repo simulated org completes within budget math of INGESTION.md §3 (NFR-2, scaled CI benchmark)",
+        "Identity attribution during upserts per docs/DATABASE.md §2 identities note (4): commits with authorLogin null create/reuse a provider-scoped email:{address} fallback identity row — churn/ownership never silently drop email-only commits (FR-METRICS-1/3 correctness)"
       ],
       "points": 5,
       "status": "todo",
@@ -771,6 +794,23 @@
       "notes": []
     },
     {
+      "id": "W3-13",
+      "title": "Retention sweep jobs: metric_snapshots, forge_etag, webhook_delivery",
+      "phase": 3,
+      "module": "metrics",
+      "stories": [],
+      "write_scope": ["packages/metrics/src/retention/**", "packages/ingest/src/retention/**"],
+      "depends_on": ["W3-10", "W1-02"],
+      "acceptance": [
+        "Nightly BullMQ repeatable job per docs/DATABASE.md §4: prunes metric_snapshots beyond the >=400d policy (never inside it — FR-METRICS-13 retention honored), forge_etag on a 90-day LRU sweep, webhook_delivery after 30 days; batched ranged DELETEs, idempotent, DLQ on failure (NFR-11)",
+        "Immutability guard: reports and egress_audit are NEVER touched by any sweep (SRS §5 A3, NFR-9) — asserted in test",
+        "Test: seeded out-of-policy rows are swept, in-policy rows untouched to the row count; two consecutive runs are idempotent"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    },
+    {
       "id": "W4-00",
       "title": "Playwright e2e harness: config, mocked-OAuth boundary, pnpm seed warehouse seeder, axe smoke",
       "phase": 4,
@@ -1098,6 +1138,7 @@
       ],
       "acceptance": [
         "CRUD per FR-API-6 and docs/API_DESIGN.md §2 'views': a view stores the SavedView JSON (scope GlobalSearch + Widget[] layout per docs/design/DASHBOARD.md §4), private by default, share-with-workspace flag, per-user default/home",
+        "Share-slug endpoints per docs/API_DESIGN.md §2 'views' + SC-17: POST /views/{id}/share mints a 128-bit crypto-random share_slug (revocable, listable per owner); GET /views/shared/{slug} resolves for workspace members; shared payloads pass the SC-17 serializer allowlist (no finding evidence); entropy/uniqueness unit test (FR-WEB-5)",
         "Ownership enforcement tests: non-owner mutation → 403; any workspace member reads a shared view; non-member → 403 (FR-WEB-5)",
         "Tenancy walker green over new routes; OpenAPI updated"
       ],
@@ -1536,6 +1577,23 @@
       "notes": []
     },
     {
+      "id": "W6-08",
+      "title": "T2 host-config hardening (SC-24): zod validation, credential-free requests, VLAN policy",
+      "phase": 6,
+      "module": "analysis",
+      "stories": ["E6.1"],
+      "write_scope": ["packages/analysis/src/config/**", "deploy/**"],
+      "depends_on": ["W6-01"],
+      "acceptance": [
+        "zod host-list validation per SC-24 (docs/SECURITY_CONTROLS.md): LM Studio base URLs must be private-range LAN addresses unless explicitly flagged — canonical evil-URL corpus test (public IP/hostname, metadata IP, localhost) rejected; host list is admin workspace config, never per-request input",
+        "T2 requests carry zero credentials/secrets (client test asserts no auth headers/env values in outbound payloads); responses continue through the full SC-13 pipeline",
+        "deploy compose/quadlet note: LLM VLAN reachable from the worker network only (pairs with the W7-05 SC-20 hardening); reachability check listed for the W7-06 runbook execution"
+      ],
+      "points": 1,
+      "status": "todo",
+      "notes": []
+    },
+    {
       "id": "W7-01",
       "title": "Tier-3 Claude deep review: egress-minimized client, audit rows, T2→T3 escalation, admin Analysis tab",
       "phase": 7,
@@ -1668,7 +1726,9 @@
       "acceptance": [
         "Podman quadlet/compose units for api, web (static assets behind reverse proxy), workers, Postgres 16 and Redis with healthchecks; TLS terminated at the reverse proxy for repopulse.bpmforge.com (FOUNDING_BRIEF D1)",
         "Secrets injected from env files outside git; no token or key in any image or unit file (CLAUDE.md Law 9, NFR-6); persistent volumes for pg data and ${DATA_DIR}/reports (REPORTS.md §3 storage)",
-        "Container images build in CI; Drizzle migrations run as a one-shot job on deploy before app start"
+        "Container images build in CI; Drizzle migrations run as a one-shot job on deploy before app start",
+        "SC-20 production hardening: non-root UIDs, --read-only rootfs + explicit tmpfs (worker Playwright dir), cap-drop=ALL, no-new-privileges, isolated data-tier network (Postgres/Redis unreachable from LAN — nmap item in the deploy checklist), Redis requirepass + Postgres scram; LLM VLAN reachable from worker only (SC-24 network half)",
+        "Backup machinery per docs/DEPLOYMENT.md §6 + SC-21: nightly pg_dump -Fc systemd timer to the bpmforge backup volume (14 daily/8 weekly, age/gpg-encrypted), TOKEN_ENC_KEY backup documented out-of-band, and deploy/restore-drill.sh (restore into scratch container → migrations → tenancy suite → smoke queries)"
       ],
       "points": 3,
       "status": "todo",
@@ -1692,7 +1752,8 @@
       ],
       "acceptance": [
         "docs/RUNBOOK.md written and actually executed against bpmforge infra: deploy, migrate, rollback, backup/restore, and health checks; structured logs with request ids, queue metrics, forge budget gauge and sync-lag metric are scrape-able and answer 'is ingest healthy' without DB spelunking (NFR-12)",
-        "Prod smoke on https://repopulse.bpmforge.com: OAuth login, connect an org, backfill starts, Org Overview renders; result + date appended to docs/STATUS.md per PLAYBOOK §Status reporting"
+        "Prod smoke on https://repopulse.bpmforge.com: OAuth login, connect an org, backfill starts, Org Overview renders; result + date appended to docs/STATUS.md per PLAYBOOK §Status reporting",
+        "Restore drill executed once for real via deploy/restore-drill.sh (SC-21): latest dump restored into a scratch container, migrations + tenancy suite green against the restore, result + date recorded in docs/STATUS.md — a backup that hasn't been restored is a rumor (DEPLOYMENT.md §6)"
       ],
       "points": 2,
       "status": "todo",
