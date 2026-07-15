@@ -12,9 +12,12 @@ decided; your job is executing tickets, not redesigning. Read in this order
 
 ## Session protocol
 
-1. **Claim**: choose the lowest-id claimable ticket in `plan.json` (all
-   `depends_on` done) unless the user names one. Set it `in_progress`,
-   commit that change first.
+1. **Claim**: run `node scripts/validate-plan.mjs` — it prints the current
+   claimable set (deps + wave gate already applied; never hand-derive it).
+   Choose the lowest-id ticket from that list unless the user names one. Set
+   it `in_progress`, commit that change first. Tickets titled
+   "human-in-loop" (e.g. W0-05) need Brad for UI steps: do the documentable
+   parts, then set `blocked` with a `notes` entry naming the human action.
 2. **Verify before writing** (non-negotiable): for every external package
    API you are about to use, check the real exports/signatures via Context7
    or `node_modules` — never training data. Known traps live in
