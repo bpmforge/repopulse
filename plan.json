@@ -385,7 +385,7 @@
         "SC-22: structured audit log stream via the shared logger for login success/failure, logout, session revocation, connection CRUD, role change (later event classes land with their waves); every entry carries actor/workspace/ip/ua/ts; SC-2 redaction layer test proves tokens never appear"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
