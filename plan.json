@@ -222,7 +222,7 @@
         "Endpoints match the docs/API_DESIGN.md §2 'auth' catalog"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
