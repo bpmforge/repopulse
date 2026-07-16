@@ -28,8 +28,12 @@ never deploy `:latest`.
 - `worker` scales by replica count (`podman-compose up --scale worker=2`); BullMQ +
   idempotent jobs (NFR-11) already tolerate N workers. api is stateless (sessions in
   Redis) and can scale the same way later.
-- **Dev parity**: `compose.dev.yml` (W0) uses the same Postgres 16/Redis 7 images and
-  env names; prod compose differs only in secrets sourcing, TLS, and restart policy.
+- **Dev parity**: `compose.dev.yaml` (W0-02) uses the same Postgres 16/Redis 7.2 images and
+  env names; prod compose differs in secrets sourcing, TLS, and restart policy, **plus**
+  network reachability: prod's data tier sits on the internal pod network only (`DATABASE_URL`/
+  `REDIS_URL` use the service hostnames, e.g. `postgres:5432`), while dev publishes both ports
+  to `127.0.0.1` only (never `0.0.0.0`/LAN) so host-run `pnpm dev` processes can reach them via
+  `localhost` — `.env.example` reflects the dev/loopback form.
 
 ## 3. Env / secret matrix (`.env.example`, committed; real `.env` never in git — Law 9)
 
@@ -45,6 +49,7 @@ never deploy `:latest`.
 | `LMSTUDIO_BASE_URLS` | worker | comma-separated LAN hosts (192.168.13.48 M5Max, .114 M2Max); Tier-2 only |
 | `ANTHROPIC_API_KEY` | worker | **optional** — absent means Tier-3 disabled; presence still requires per-repo opt-in (NFR-9) |
 | `PUBLIC_BASE_URL` | api, web | `https://repopulse.bpmforge.com` (OAuth callback, share links) |
+| `DATA_DIR` | worker | Local-disk root for report/PDF artifacts (docs/design/REPORTS.md §3: `${DATA_DIR}/reports/{workspaceId}/{id}/`) |
 | `LOG_LEVEL` / `NODE_ENV` | all | `info` / `production` |
 
 Secrets injected via Podman secrets or a root-owned env file (`chmod 600`), never

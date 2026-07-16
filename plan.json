@@ -54,10 +54,11 @@
         "SC-20 baseline (docs/SECURITY_CONTROLS.md): compose sets non-root UIDs, cap-drop=ALL, no-new-privileges, Redis requirepass + Postgres scram-sha-256, data-tier services not published to host/LAN; a compose-file validator script asserts these flags are present"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "HANDOFF: write_scope widened to include scripts/validate-compose.sh (the SC-20 compose-file validator acceptance #4 requires — unclaimed by any other ticket) and small doc fixes in docs/TECH_STACK.md (resolved image versions) + docs/DEPLOYMENT.md (compose.dev.yml -> .yaml typo, missing DATA_DIR row, dev-vs-prod hostname/port split).",
-        "Naming reconciliation: acceptance text says CREDENTIAL_KEY but docs/DEPLOYMENT.md §3 (the canonical env matrix) calls it TOKEN_ENC_KEY and no other doc/ticket uses CREDENTIAL_KEY — .env.example uses TOKEN_ENC_KEY to match the spec."
+        "Naming reconciliation: acceptance text says CREDENTIAL_KEY but docs/DEPLOYMENT.md §3 (the canonical env matrix) calls it TOKEN_ENC_KEY and no other doc/ticket uses CREDENTIAL_KEY — .env.example uses TOKEN_ENC_KEY to match the spec.",
+        "Closed 2026-07-16: podman compose up verified live (not just file inspection) — both healthchecks green, DATABASE_URL/REDIS_URL from .env.example confirmed to authenticate, data persists across down/up and is wiped by down --volumes, LAN interface confirmed connection-refused (nc from host's 192.168.x IP) while 127.0.0.1 accepts. validate-compose.sh tested against a deliberately-broken copy to confirm it isn't a rubber stamp."
       ]
     },
     {

@@ -1,0 +1,68 @@
+name: repopulse-dev
+
+networks:
+  data-tier:
+    driver: bridge
+
+volumes:
+  repopulse-pgdata:
+    name: repopulse-pgdata
+  repopulse-redis-data:
+    name: repopulse-redis-data
+
+services:
+  postgres:
+    image: docker.io/library/postgres:16
+    container_name: repopulse-postgres
+    restart: unless-stopped
+    user: postgres
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-repopulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-repopulse_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-repopulse}
+      # SC-20: explicit scram-sha-256 (PG16 default, pinned here so it's assertable
+      # rather than relying on an implicit default that could drift).
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    ports:
+      # SC-20: loopback only, never 0.0.0.0/LAN — host-run `pnpm dev` processes
+      # reach this via localhost; compose.prod.yaml (deploy wave) publishes nothing.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - repopulse-pgdata:/var/lib/postgresql/data
+    networks:
+      - data-tier
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-repopulse} -d ${POSTGRES_DB:-repopulse}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: docker.io/library/redis:7.2
+    container_name: repopulse-redis
+    restart: unless-stopped
+    user: redis
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-repopulse_dev_password}", "--dir", "/data"]
+    ports:
+      # SC-20: loopback only, never 0.0.0.0/LAN (see postgres note above).
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - repopulse-redis-data:/data
+    networks:
+      - data-tier
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-repopulse_dev_password} PING | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
