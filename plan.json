@@ -157,8 +157,13 @@
         "drizzle-kit generates migration 0000 that applies cleanly against the compose Postgres and carries a rollback note (PLAYBOOK §Migration tickets); docs/DATABASE.md §5 discipline followed"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "HANDOFF: write_scope widened to include root tsconfig.json (drizzle.config.ts wasn't covered by any workspace's typecheck script — a real gate gap, not cosmetic) and package.json (db:generate/db:migrate scripts + new devDependencies drizzle-kit/dotenv), plus doc updates in docs/TECH_STACK.md (driver + resolved-version notes) and docs/DATABASE.md (two spec-completion notes below).",
+        "Spec-completion decisions (docs/DATABASE.md updated in this PR): webhook_delivery and job_failure listed no `id` column unlike every other entity table in the section — added a surrogate bigint identity PK to both for consistency, kept delivery_id's documented uniqueness as a natural key. forge_connections.webhook_secret_ciphertext treated as nullable (not stated in the doc) since a connection can exist before its webhook is registered. repos.tier2_auto has no stated default (unlike tier3_opt_in's explicit `default false`) — left NOT NULL with no default rather than inventing one. identities/forge_connections.provider CHECK reuses the same ('github','gitea') domain since it's evidently the same concept.",
+        "'credential' in this ticket's acceptance #1 isn't a separate table — DATABASE.md has no such table; it refers to the credential_ciphertext/credential_iv/key_version/credential_fingerprint columns embedded in forge_connections. Ten real tables implemented, matching DATABASE.md's Tenancy & identity + Sync machinery sections exactly.",
+        "Closed 2026-07-16: full gate green (lint/typecheck/test — 11 test files/11 tests, including a new schema-shape sanity test). Migration 0000 generated then actually applied against the live compose Postgres (not just generated) — verified via psql: all 10 tables exist with correct types (bytea for credential columns, confirmed via \\d), CHECK constraints reject invalid values (tested workspace_members.role='superadmin' -> rejected), self-FK (identities.merged_into_id) resolves correctly, data persists across a volume wipe + re-migrate. `drizzle-kit check` reports no drift. validate-arch rule 5 now actively validates (10 real pgTable files) instead of skip-passing."
+      ]
     },
     {
       "id": "W1-02",

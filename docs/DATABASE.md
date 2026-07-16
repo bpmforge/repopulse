@@ -103,13 +103,16 @@ Not workspace-critical (derivable), but carries `workspace_id` anyway for unifor
 Prunable cache — safe to truncate.
 
 **webhook_delivery** — replay/dedup ledger (SC-4, FR-INGEST-5/6; INGESTION.md §4).
-`workspace_id, connection_id, delivery_id text unique, event, action text null,
+`id, workspace_id, connection_id, delivery_id text unique, event, action text null,
 repo_full_name, received_at, payload_digest text`. Insert-or-ignore on `delivery_id`
-(duplicate ⇒ 202 no-op); prunable after 30 days.
+(duplicate ⇒ 202 no-op); prunable after 30 days. (W1-01: added the surrogate `id`
+this table's column list previously omitted — every other entity table in this
+section has one; `delivery_id` keeps its documented uniqueness as a natural key.)
 
-**job_failure** — DLQ ledger (NFR-11; INGESTION.md §6). `workspace_id, queue text,
+**job_failure** — DLQ ledger (NFR-11; INGESTION.md §6). `id, workspace_id, queue text,
 job_id text, payload jsonb, error text, failed_at, replayed_at timestamptz null`.
-Feeds the admin ops page's DLQ list + replay button.
+Feeds the admin ops page's DLQ list + replay button. (W1-01: same surrogate-`id`
+addition as webhook_delivery above.)
 
 ### Facts (normalized ingest writes — ADR-2 write side)
 

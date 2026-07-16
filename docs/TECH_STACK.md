@@ -54,6 +54,7 @@ entrypoint. Dependency rules in ARCHITECTURE.md §3.
 | Fastify | **5.x** | Brief-fixed; schema-first routes → OpenAPI generation (FR-API-1), encapsulated plugins map 1:1 to route groups. |
 | PostgreSQL | **16** | Brief-fixed; single source of truth for UI reads (FR-API-2); RLS available for SaaS flip (D1). |
 | Drizzle ORM | **0.3x (latest 0.3x minor)** | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
+| postgres (postgres.js) | **3.x** | Not brief-fixed; added W1-01 as the Postgres driver paired with `drizzle-orm/postgres-js` — no driver was pinned in this doc previously. Standard/recommended Drizzle pairing for plain Postgres (vs. Neon/other serverless-specific adapters); reversible, additive choice. |
 | Redis | **7.2 (pinned image)** | Brief-fixed; BullMQ backing store + server-side session store (FR-AUTH-2). **License pin**: 7.2 is the last BSD-3 release — 7.4+/8 are RSALv2/SSPLv1/AGPL (DESIGN_REVIEW.md G-18); Valkey 8 (BSD-3) is the sanctioned swap after a BullMQ-compat check. |
 
 **W0-02 resolved images** (`compose.dev.yaml`, 2026-07-16): `docker.io/library/postgres:16`
@@ -68,6 +69,20 @@ gets connection-refused (verified with `nc` from the host's LAN IP). Postgres au
 explicit `scram-sha-256` (`POSTGRES_HOST_AUTH_METHOD` + `POSTGRES_INITDB_ARGS`) rather than
 relying on the implicit PG16 default; Redis sets `--requirepass`. `scripts/validate-compose.sh`
 asserts all of the above statically; `scripts/dev-up.sh` polls both healthchecks.
+
+**W1-01 resolved versions**: `drizzle-orm@0.39.3` + `drizzle-kit@0.31.10` + `postgres@3.4.9` —
+verified compatible by actually running `drizzle-kit generate` → `migrate` → `check` against
+the live compose Postgres (not just installed side by side). `drizzle.config.ts` needs
+`dotenv@17.4.2` (new root devDependency, `import 'dotenv/config'`) since neither drizzle-kit
+nor its `defineConfig` auto-loads `.env` — verified empirically (no such behavior in
+drizzle-kit's own dependency tree). DATABASE.md §5's "text + CHECK over pg enum for anything
+likely to grow" rule is followed uniformly for all of W1-01's ten core tables (`provider`,
+`auth_kind`, `role`, `sync_status`, `entity_type`) — none of that section's tables are in the
+`metric_key`/`dimension` pg-enum exception. No native `bytea` column exists in
+drizzle-orm's pg-core (verified: no `bytea.ts` under `pg-core/columns/`) — defined via
+`customType` in `packages/shared/src/db/schema/core/custom-types.ts`; confirmed it round-trips
+as a real `bytea` column against live Postgres (`\d forge_connections`), not just at the
+TypeScript level.
 | BullMQ | **5.x** | Brief-fixed; per-queue concurrency, repeatable jobs (nightly snapshot/reconciliation), DLQ pattern for NFR-11. |
 | zod | **3.x** | One validation library everywhere: route bodies, LLM output (FR-ANALYSIS-5), config parsing. |
 
