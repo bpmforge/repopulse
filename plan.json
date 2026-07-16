@@ -631,8 +631,14 @@
         "API-facing decomposition {gross, normChurn, daysSince, decay, score} + contributing commits exposed for drill-down (FR-METRICS-2); hotspot_v2 complexity proxy NOT implemented (v1.x flag)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (done on this stacked branch, PR #13 pending merge), unaffected by the W0-05/W2 blocker.",
+        "computeChurn/computeFileChurn/computePersonChurn operate at file-touch granularity (commit_file rows), filtered through W3-01's isEligibleForChurn shared rule at the commit level (a commit's touches share one author/parent-count). Rework uses rename-chain canonicalization (previousPath resolved backward with path compression, similar to union-find) so a renamed file's pre-rename history counts toward its 21-day rework lookback - verified with a fixture containing an explicit rename (old.ts -> new.ts) where querying either path name returns identical gross/net/rework.",
+        "computeHotspots reproduces METRICS.md §4 E1 exactly (api.ts=0.955, util.ts=0.100, correct rank order) - not approximately, to the precision the doc states. max-gross=0 guarded explicitly (returns empty result set, not NaN/Infinity) when every touch is excluded. hotspot_v2 (file-size/indent-depth complexity proxy) explicitly NOT implemented, matching the ticket's own acceptance criterion that it stay a v1.x-flagged extension.",
+        "Real tooling gap found and fixed (not scope creep): packages/metrics/tsconfig.json had rootDir:\"src\" left over from the W0-01 scaffold, which silently worked for W3-01 (its fixtures only import FROM src INTO fixtures, the reverse direction never triggers a rootDir check) but broke the instant a src/**/*.test.ts file (churn.test.ts) imported a fixture from packages/metrics/fixtures/** (this ticket's own declared write_scope) - a real TS6059 error, verified via tsc --listFiles that fixtures/harness/** was actually silently EXCLUDED from the compiled program entirely before this fix, meaning W3-01's fixtures were never actually type-checked by 'pnpm typecheck' at all (only picked up by vitest's own transform, which doesn't type-check). Fixed by removing the rootDir override (harmless since tsconfig.base.json sets noEmit:true globally - no output path is ever written, so rootDir was serving no purpose) and widening include to [\"src\",\"fixtures\"]. Flagging explicitly since a future engineer might otherwise wonder why this ticket touched tsconfig.json outside its declared write_scope - it was required to make the ticket's OWN acceptance criteria (fixtures under packages/metrics/fixtures/**) actually type-check.",
+        "Closed 2026-07-16: full gate green - lint/typecheck/test (47 test files/167 tests workspace-wide, up from 45/158 after W3-01), validate-arch/plan/traceability/compose/egress-audit all pass."
+      ]
     },
     {
       "id": "W3-03",
