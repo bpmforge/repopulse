@@ -660,8 +660,14 @@
         "Fixture with authors at 60/30/10 yields busFactor 1 and no single_owner flag (0.60 < 0.80); a 85/15 fixture flags single_owner (FR-METRICS-3)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (now merged to main), unaffected by the W0-05/W2 blocker.",
+        "computeOwnership uses a FIXED trailing 365d window (windowStart(asOf, 365)), deliberately distinct from METRICS.md §0's configurable W in {7,30,90,365} used by every other metric - a dedicated test seeds a touch >365 days old to prove it's excluded even though it would technically fall inside a hypothetically larger configurable window, confirming the fixed-365d requirement is actually enforced, not just documented in a comment.",
+        "Reproduces both of METRICS.md §1 M3's worked numbers exactly: 60/30/10 -> busFactor 1, topShare 0.60, no single_owner flag; 85/15 -> busFactor 1, topShare 0.85, single_owner flagged. An additional even-split (30/30/40) fixture proves busFactor correctly climbs to 2 when the single largest author's share alone doesn't reach the 50% coverage threshold - the doc's own examples happen to all resolve to busFactor 1, so this fixture was added specifically to exercise the multi-author accumulation path.",
+        "Directory grain (recursive sum of files) uses exact path-prefix matching with an explicit trailing-slash boundary (dirPath ends with '/' or one is appended) - a test fixture includes a 'src-other/c.ts' file specifically to prove a naive prefix match (without the slash boundary) would have incorrectly included it under a 'src' directory query.",
+        "Closed 2026-07-16: full gate green - lint/typecheck/test (48 test files/174 tests workspace-wide, up from 47/167 after W3-02), validate-arch/plan/traceability/compose/egress-audit all pass."
+      ]
     },
     {
       "id": "W3-04",

@@ -4,4 +4,5 @@ export * from './engine/index.js';
 export * from './catalog.js';
 export * from './metrics/churn.js';
 export * from './metrics/hotspots.js';
+export * from './metrics/ownership.js';
 export * from './metrics/cycle.js';
