@@ -200,10 +200,20 @@ importers:
         version: 5.9.3
 
   packages/metrics:
+    dependencies:
+      '@repopulse/shared':
+        specifier: workspace:*
+        version: link:../shared
+      drizzle-orm:
+        specifier: ^0.39.3
+        version: 0.39.3(@opentelemetry/api@1.9.1)(postgres@3.4.9)
     devDependencies:
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

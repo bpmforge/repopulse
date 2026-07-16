@@ -779,11 +779,50 @@
   the "basis label" the acceptance asks for.
   Gate: 56 test files/235 tests workspace-wide (up from 55/223 after
   W3-08), all validators pass.
+- 2026-07-16 W3-10 **partially done, closed as `blocked` not `done`**
+  (Brad, explicit scope-reduction instruction after W3-09): the full
+  ticket needs a real nightly BullMQ job (jobId `snap:{repoId}:{yyyymmdd}`
+  per docs/design/INGESTION.md §6), which needs W2-02's queue topology —
+  itself still blocked on W1-06/W0-05, so the job-scheduling half is not
+  bypassable the way W3-01..W3-09 were. Built the genuinely
+  job-independent half instead: `packages/metrics/src/rollups/**` (org
+  rollup math, FR-METRICS-14) and `packages/metrics/src/snapshots/**`
+  (the append-only row writer + snapshots-only trend reader). **Per
+  CLAUDE.md Law 3, a ticket without its own acceptance criteria fully
+  met does not close as `done`** — status set to `blocked` (on W2-02),
+  not `done`, so this doesn't silently read as complete.
+  `rollupPercentileMetric` pools raw samples across repos rather than
+  averaging each repo's own pre-computed percentile — proven with a
+  fixture specifically constructed so the two approaches diverge (pooled
+  p90 = 10 vs. naive mean-of-repo-p90s = 54.5), not just asserted.
+  `rollupRatioMetric` sums numerators/denominators before taking one
+  ratio, same divergence-proof pattern (naive average-of-ratios badly
+  misweights a low-volume repo against a high-volume one). Both honor an
+  `activeRepoIds` filter (FR-API-6).
+  `writeMetricSnapshot`/`readMetricTrend`: `metric_snapshots` lives under
+  packages/shared's `read` schema barrel, not `core` — a real, caught
+  mistake (first pass imported `core.metricSnapshots`, which doesn't
+  exist; fixed after `tsc` reported it, not guessed). The table is
+  append-only by the schema's own design (its header comment: "never
+  updated, never deleted inside retention"), so the writer is a plain
+  insert — "two nightly runs produce two rows" falls out for free,
+  verified against live Postgres. `readMetricTrend` imports nothing from
+  `../engine` or `../metrics`, structurally incapable of triggering
+  recomputation. Numeric column value/numerator/denominator round-trip
+  as fixed-scale strings (verified against real Postgres, e.g.
+  `"0.667000"`) — drizzle-orm 0.39.3's `numeric()` has no `mode: 'number'`
+  option in this version, confirmed from the installed type declarations
+  before writing the conversion code.
+  Gate: 59 test files/245 tests workspace-wide (up from 56/235 after
+  W3-09), all validators pass.
 - Next: W0-05 (human: GitHub App registration) is the only remaining
-  ticket that unblocks anything — every W3-01..W3-09 metric-engine
-  ticket is now done (W3-10 through W3-13, the snapshot/rollup/health-
-  score/retention tickets that consume these metric functions, still sit
-  behind the wave gate and haven't been bypassed). W2 (all five
-  tickets) and W1-06 stay substantively blocked on W0-05 regardless of
-  wave-gate bypasses — check validate-plan.mjs for the current set
-  (wave-gate-aware view will still show only W0-05).
+  ticket that unblocks the rest of the board on its own merits. W3-10's
+  nightly-job half (jobId scheduling, INGESTION.md §6 wiring) is the
+  natural next increment once W2-02 lands — its rollup/snapshot pieces
+  are already done and ready to be called from that job. W3-11
+  through W3-13 (health score, metrics read API, retention sweeps) all
+  sit behind either W3-10's remaining half or the wave gate and haven't
+  been attempted. W2 (all five tickets) and W1-06 stay substantively
+  blocked on W0-05 regardless of wave-gate bypasses — check
+  validate-plan.mjs for the current set (wave-gate-aware view will still
+  show only W0-05).
