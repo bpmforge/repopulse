@@ -525,12 +525,70 @@
   Gate: 38 test files/123 tests workspace-wide (up from 35/115 after
   W1-08), all validators (arch/plan/traceability/compose/egress-audit)
   pass.
-- Next: W0-05 (human: GitHub App registration) is now the ONLY open
-  ticket in W0 or W1 — every other W1 ticket is done or gate-clean with
-  a PR open awaiting merge instruction (W1-09 PR #12, stacked and
-  rebased clean here). W1-06 (GitHubProvider adapter) depends_on W1-05
-  (done) and W0-04, which itself depends_on W0-05 — still blocked
-  transitively on that human step; once W0-05 lands, W0-04 and W1-06
-  both become claimable and W1 finally completes, opening the W2 wave
-  gate. Until then, check validate-plan.mjs for the current set (expect
-  it to show only W0-05).
+  All three PRs merged (2026-07-16): W1-07 (#9), W1-08 (#11), W1-09
+  (#12). W1 wave is now complete except W0-05.
+- 2026-07-16 W3-01 done — Metrics engine core: shared rules, window
+  handling, metric catalog, fixture harness. **Deliberate wave-gate
+  bypass** (Brad, explicit instruction): with only W0-05 (human: GitHub
+  App registration) left in W0/W1, every W2 ticket is substantively (not
+  just formally) blocked — all five require W1-06 (GitHubProvider),
+  which requires W0-04's fixture recorder, which requires real GitHub
+  API access from W0-05; there is nothing real to build or test against
+  in W2 even with a gate bypass. W3-01 was chosen because it is the only
+  genuinely-unblocked candidate: depends only on W1-02 (done, merged
+  long ago), and `packages/metrics` reads the warehouse DB only, never
+  the forge — fully buildable and testable today with synthetic
+  fixtures. Confirmed `validate-plan.mjs` doesn't hard-fail on an
+  out-of-gate `in_progress`/`done` status before proceeding (the wave
+  gate only affects the printed "claimable" list). W0-05 remains
+  tracked as outstanding, unaffected by this detour.
+  `packages/metrics/src/engine/**`: the six METRICS.md §0 shared rules,
+  each a small pure function, unit-tested independently of any specific
+  metric (M1–M12 themselves are separate, still-`todo` tickets W3-02
+  onward) — `isBotLogin` (glob-matched against a workspace-configurable
+  list, default `*[bot]`/`dependabot*`/`renovate*`/`github-actions*`),
+  `isMergeCommit`/`isEligibleForChurn` (bot + merge-commit + superseded
+  exclusion, combined), `nearestRankPercentile` (nearest-rank, not
+  linear interpolation — pooled org rollups need this to stay correct
+  per FR-METRICS-14), `ratio` (retains numerator/denominator, `null`
+  never `0`/`100` on an empty denominator), and the `WINDOW_DAYS`
+  constants (`7/30/90/365`, default 30).
+  **Real schema gap surfaced, not silently patched**: METRICS.md §0
+  requires excluding commits "tombstoned (`superseded=true`)" by the
+  reconciliation sweep, but `packages/shared`'s `commits` table (W1-02)
+  has no `superseded` column at all — the sweep that would set it
+  (W2-05) doesn't exist yet either. `isEligibleForChurn`'s
+  `ChurnEligibility` input type accepts `superseded: boolean` as a plain
+  field (decoupled from the DB row shape), so the exclusion rule itself
+  is fully unit-tested and ready; the actual migration adding the column
+  is flagged here for whichever ticket (W2-05 or a dedicated migration)
+  ships the reconciliation sweep.
+  `packages/metrics/src/catalog.ts` (FR-METRICS-15): all 12 entries
+  (M1–M12) with id/name/formula/unit/direction/heuristicNotes, each
+  transcribed from METRICS.md §1's exact definitions (that doc is LAW —
+  the catalog must never drift from it); test asserts every
+  FR-METRICS-1..12 id is present exactly once.
+  `packages/metrics/fixtures/harness/**`: the three METRICS.md §4 worked
+  examples (E1 hotspot, E2 cycle-stages, E3 review-coverage) transcribed
+  as fixtures + their documented expected outputs, for W3-02/W3-04/W3-05
+  to consume directly rather than re-deriving the doc's example numbers
+  when those metrics are implemented. W3-01 itself doesn't compute
+  hotspot/cycle-stages/coverage (that's those tickets' job) — it proves
+  the fixtures load with the exact documented inputs, AND cross-checks
+  E1's `daysSince` and E3's M5/M6 using the shared `daysBetween`/`ratio`
+  engine utilities against the doc's exact expected values (2d/27d;
+  6/9 = 66.7%) as a real exercise of the shared rules, not just a data
+  fixture smoke test.
+  Gate: 45 test files/158 tests workspace-wide (up from 38/123 after
+  W1-09), all validators (arch/plan/traceability/compose/egress-audit)
+  pass — `validate-arch.sh` rule 2 (metrics/analysis/insights/reports
+  never import forge) confirmed green.
+- Next: W0-05 (human: GitHub App registration) remains the only ticket
+  that unblocks the *rest* of the board on its own merits — W2 (all
+  five tickets) and W1-06 stay substantively blocked on it regardless of
+  wave-gate bypasses, since none of them have anything real to build
+  against without it. W3-02 through W3-09 (the M1–M12 metric
+  implementations) are newly claimable now that W3-01 is done and each
+  only depends on it — check validate-plan.mjs for the current set
+  (wave-gate-aware view will still show only W0-05; the W3 tickets are
+  claimable in the substantive, bypassed sense this entry describes).
