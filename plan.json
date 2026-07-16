@@ -684,8 +684,10 @@
         "PRs merged with zero reviews contribute only to e2e; median + p90 per stage via nearest-rank on the pooled sample"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+      ]
     },
     {
       "id": "W3-05",
