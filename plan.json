@@ -780,8 +780,10 @@
         "flakiness(workflow) = fail→pass flips on same-head-SHA reruns ÷ rerun groups, ranked desc; flaky fixture workflow ranks first"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+      ]
     },
     {
       "id": "W3-08",
