@@ -583,12 +583,50 @@
   W1-09), all validators (arch/plan/traceability/compose/egress-audit)
   pass — `validate-arch.sh` rule 2 (metrics/analysis/insights/reports
   never import forge) confirmed green.
+- 2026-07-16 W3-02 done — M1 commit churn + M2 file hotspots. Continues
+  the W3-01 wave-gate bypass (unaffected by W0-05/W2's blocker).
+  `packages/metrics/src/metrics/churn.ts`: `computeChurn` (gross/net at
+  file-touch granularity, filtered through the W3-01 `isEligibleForChurn`
+  shared rule) + `computeFileChurn`/`computePersonChurn` (repo/file/person
+  grains per METRICS.md §1 M1). Rework (touches on the same file <21d
+  after a prior touch) is rename-chain-aware: a small union-find-style
+  `previousPath` resolver canonicalizes a renamed file's history so
+  `computeFileChurn('new.ts')` and `computeFileChurn('old.ts')` return
+  identical results for a file renamed mid-window — verified with a
+  hand-computed fixture (two independent touch chains, one with a
+  rename) reproducing gross/net/rework exactly, per the ticket's own
+  "to the line" acceptance wording.
+  `packages/metrics/src/metrics/hotspots.ts`: `computeHotspots`
+  (normChurn × 2^(−daysSince/30), max-gross-zero guarded against
+  divide-by-zero) reproduces METRICS.md §4 E1 **exactly** — api.ts
+  0.955, util.ts 0.100, in that rank order — plus a from-scratch
+  untouched-for-a-year case scoring <0.001 and an all-excluded case
+  returning zero hotspot entries (not zero-valued ones — an excluded
+  file was never eligible to have a score at all). hotspot_v2 (complexity
+  proxy) is explicitly NOT implemented, per the ticket's own acceptance
+  criterion.
+  **Real tooling gap found and fixed, not the ticket's own feature
+  work**: `packages/metrics/src/metrics/churn.test.ts` (living under
+  `src/`, `rootDir` was pinned to `"src"`) importing a fixture from
+  `packages/metrics/fixtures/churn/**` (declared write_scope, outside
+  `src/`) hit a real `tsc` `TS6059` rootDir violation — verified via
+  `--listFiles` that `fixtures/harness/**` (W3-01, which only imports
+  *from* fixtures *into* src, never the reverse) was silently excluded
+  from the program entirely, while this ticket's fixtures (imported *by*
+  a file under `src/`) got pulled in and immediately violated the
+  `rootDir` constraint. Since `noEmit: true` is set globally
+  (`tsconfig.base.json`) — no output path is ever written, so `rootDir`
+  was serving no purpose except to reject a legitimate cross-directory
+  import — removed the `rootDir: "src"` override and widened `include`
+  to `["src", "fixtures"]` in `packages/metrics/tsconfig.json`. This is
+  a real fix any future ticket writing `src/**/*.test.ts` importing
+  `fixtures/**/*.ts` in this package needs, not scope creep.
+  Gate: 47 test files/167 tests workspace-wide (up from 45/158 after
+  W3-01), all validators pass.
 - Next: W0-05 (human: GitHub App registration) remains the only ticket
   that unblocks the *rest* of the board on its own merits — W2 (all
   five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses, since none of them have anything real to build
-  against without it. W3-02 through W3-09 (the M1–M12 metric
-  implementations) are newly claimable now that W3-01 is done and each
-  only depends on it — check validate-plan.mjs for the current set
-  (wave-gate-aware view will still show only W0-05; the W3 tickets are
-  claimable in the substantive, bypassed sense this entry describes).
+  wave-gate bypasses. W3-03 through W3-09 (the remaining M3–M12 metric
+  implementations) are newly claimable in the same bypassed sense —
+  check validate-plan.mjs for the current set (wave-gate-aware view will
+  still show only W0-05).
