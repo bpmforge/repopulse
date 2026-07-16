@@ -89,6 +89,15 @@ GT = Gitea adapter (v1.x).
   `api.github.com`. Control + tests ship in W1 so the GT ticket inherits, not reinvents.
   *Lands:* W1 · packages/forge (activated fully in GT). *Verify:* unit tests with the
   canonical evil-URL corpus (metadata IP, decimal IP, `localhost`, rebinding stub).
+  **Rule-4 exception (W1-03):** `scripts/validate-arch.sh` rule 4 (no `api.github.com`
+  outside packages/forge) carves out `packages/auth/src/oauth/**` for the post-login
+  identity fetch (`GET /user` with the user's own OAuth token, FR-AUTH-1/D6). SC-12's
+  allowlist defends against an admin-supplied, attacker-controlled base URL — this call's
+  base URL is a fixed literal, not configurable input, so there is no SSRF surface to
+  allowlist. `packages/auth` cannot depend on `packages/forge` (dependency matrix runs the
+  other way), so routing this call through the budgeted client isn't structurally possible
+  without inverting that boundary; a narrow, grepped, documented exception was judged
+  lower-risk than that inversion.
 - **SC-13 LLM prompt-injection defenses** (T-18, T-19, T-20). Structural, per
   ANALYSIS_TIERS §4: (1) all analysis calls JSON-mode, zod `Finding` schema, malformed ⇒
   retry once ⇒ DLQ; (2) `evidence_quote` must be a verbatim substring of the supplied chunk —
