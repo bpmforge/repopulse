@@ -750,9 +750,13 @@
         "M8 stale = open PRs with last tracked activity (commit push, review, review-comment, issue-comment) > N days, default 7 workspace-configurable; any tracked activity resets the clock; drafts flagged in a separate stale_drafts series (FR-METRICS-8, METRICS.md §1 M8)"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker.",
+        "computePrSizeDistribution imports prSizeBucket from W3-05's review-coverage.ts rather than redefining the thresholds - deliberately does NOT re-export it from pr-size.ts, since two modules re-exporting the same named symbol through the package barrel (index.ts's export * pattern) would collide at compile time. Fixture seeds one PR at every M7 boundary value (9/10, 99/100, 499/500, 999/1000) plus 0 and a large XL value, asserting exactly 2 PRs land in each of the five buckets - the literal \"fixture-verified at every boundary\" acceptance wording.",
+        "computeStalePrs deliberately consumes lastActivityAt directly (already denormalized on the pull_requests table by W1-02, specifically so staleness queries are index scans not per-request aggregation) rather than recomputing \"any tracked activity resets the clock\" from raw commit/review/comment events - that recomputation is the ingest layer's responsibility (a later wave), not this ticket's, matching the schema's own design intent documented in pull-requests.ts's comments.",
+        "Threshold boundary is strictly greater-than N days, not >=: a fixture PR at exactly 7 days (the default threshold) is asserted NOT stale, proving the boundary condition is implemented correctly rather than assumed. Drafts land in a wholly separate staleDrafts series (never merged into stale); closed PRs are excluded entirely regardless of how old their last activity is.",
+        "Closed 2026-07-16: full gate green - lint/typecheck/test (52 test files/202 tests workspace-wide, up from 50/192 after W3-05), validate-arch/plan/traceability/compose/egress-audit all pass."
       ]
     },
     {
