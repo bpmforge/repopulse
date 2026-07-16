@@ -750,8 +750,10 @@
         "M8 stale = open PRs with last tracked activity (commit push, review, review-comment, issue-comment) > N days, default 7 workspace-configurable; any tracked activity resets the clock; drafts flagged in a separate stale_drafts series (FR-METRICS-8, METRICS.md §1 M8)"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+      ]
     },
     {
       "id": "W3-07",
