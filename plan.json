@@ -285,7 +285,7 @@
         "Retry policy per §3: secondary 403/429 honors retry-after, else x-ratelimit-reset, else >=60s exponential backoff; 5xx retried 3x jittered; instrumentation counters/gauges from §3 exposed (NFR-12)"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
