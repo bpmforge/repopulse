@@ -631,8 +631,10 @@
         "API-facing decomposition {gross, normChurn, daysSince, decay, score} + contributing commits exposed for drill-down (FR-METRICS-2); hotspot_v2 complexity proxy NOT implemented (v1.x flag)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (done on this stacked branch, PR #13 pending merge), unaffected by the W0-05/W2 blocker."
+      ]
     },
     {
       "id": "W3-03",
