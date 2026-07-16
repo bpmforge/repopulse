@@ -83,8 +83,12 @@
         "Nightly scheduled CI workflow runs the Playwright e2e suite against the seeded stack (docs/TESTING.md §1 tier table) — workflow ships now, activates when W4-00 lands the harness"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "HANDOFF: write_scope widened to include .gitleaks.toml (new, required for the SC-18 gate to pass on our own .env.example placeholder — unclaimed by any other ticket) and doc updates in docs/TECH_STACK.md + docs/SECURITY_CONTROLS.md (SC-19 tooling reference) — the latter is a security-control doc edit, done with Brad's explicit in-session approval, not unilaterally.",
+        "Acceptance #4 deviation (Brad-approved 2026-07-16): 'pnpm audit --prod' is broken upstream for our pinned pnpm 9.x (npm retired the legacy audit endpoint pnpm 9.x/10.x calls, HTTP 410; only fixed in pnpm 11, github.com/pnpm/pnpm#13033 — verified live, not just read about). Replaced with osv-scanner (2.4.0, pinned + checksum-verified download), which reads pnpm-lock.yaml directly. Known gaps vs. the literal ask: no --prod-only filter (scans full lockfile incl. devDependencies) and fails on any detected vulnerability via its own importance heuristic rather than a strict high/critical CVSS cutoff — both documented in TECH_STACK.md.",
+        "Closed 2026-07-16: full gate green (lint/typecheck/test, validate-arch, validate-compose, validate-plan, validate-traceability). eslint.config.js's new no-restricted-imports boundaries verified against the live ARCHITECTURE.md §3 matrix with real bad-import and good-import test files (not just config inspection) for: metrics->forge (blocked), forge->auth+shared (allowed), apps/web value-import of shared (blocked) vs type-only (allowed), apps/api->apps/web (blocked). Relative-path package-boundary escapes (e.g. apps/api importing ../../web/src/App.ts) are caught by tsc's rootDir check, not ESLint — verified empirically (TS6059), noted rather than duplicated. ci.yml validated with actionlint (0 errors) plus a live dry-run of every curl/checksum/detect shell command in the gitleaks and osv-scanner steps."
+      ]
     },
     {
       "id": "W0-04",
