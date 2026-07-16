@@ -1303,8 +1303,10 @@
         "Tenancy walker green over new routes; OpenAPI updated"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Claimed 2026-07-16 via explicit wave-gate bypass (same standing decision as W3-01..W3-10): the entire W1-06/W2-0x forge-ingest chain is blocked on W0-05 (human-in-loop GitHub App/OAuth registration, tracked as owed follow-up), so no wave-1/2 ticket is substantively startable. W5-01 (apps/api saved-views CRUD) has all its real deps (W1-02 schema, W1-04 workspace/RBAC/api-v1 skeleton) done and is fully verifiable now via live-Postgres route tests — same verifiability bar that justified the metrics-package bypass. W7-05 (prod containers/TLS/backup) was the other zero-blocker candidate but rejected: unverifiable without a real deploy target."
+      ]
     },
     {
       "id": "W5-02",
