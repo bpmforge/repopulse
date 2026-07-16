@@ -330,9 +330,57 @@
   Gate: 24 test files/71 tests workspace-wide (up from 16/26 after
   W1-03; +8 files/+45 tests from this ticket), all validators
   (arch/plan/traceability/compose/egress-audit) pass.
+- 2026-07-16 W1-07 done — tenancy isolation test suite (route walker,
+  two-workspace fixture). `packages/shared/src/testing/route-walker.ts`:
+  `trackRoutes(app)` attaches Fastify's `onRoute` hook (must be called
+  before `app.ready()` — verified empirically that `app.register()` only
+  queues plugins via avvio, so a hook attached after registering but
+  before `ready()` still sees every nested plugin's routes) and returns a
+  getter for every discovered `{method, url}`, skipping the auto-added
+  HEAD/OPTIONS pairs. `walkForTenancyLeakage(app, routes, probes)` takes
+  N tenant probes (auth context + a marker string unique to that tenant),
+  injects every parameter-free, non-exempt GET route once per probe, and
+  flags any response whose body contains a *different* probe's marker —
+  generic and route-shape-agnostic (string search, not schema-aware), so
+  it needs no per-route knowledge and will automatically cover future
+  feature routes as they're added.
+  **Real structural finding, not guessed**: v1 ships a single `default`
+  workspace (D1) and `ensureMembership` (W1-04) hardcodes that slug, so
+  there is no way today for two different *real login sessions* to
+  resolve to two different real workspaces — multi-tenant resolution
+  doesn't exist yet by design. Rather than fake this with a stubbed
+  `request.workspace` (which would test nothing about the real
+  preHandler), `apps/api/test/tenancy/route-walker.test.ts` uses one
+  real login (resolves to `default` via the real session -> workspace ->
+  role preHandler) plus a *second workspace row inserted directly as
+  data* (never resolved through any session) whose name is a unique
+  marker — proving the walker against the real DB/session/preHandler
+  stack rather than a synthetic harness. Two routes nested under the real
+  `apiV1` guard: `scoped-ok` (`WHERE id = request.workspace.id`) passes
+  with zero violations; `scoped-bad` (no filter, returns every workspace
+  row) is caught by name — this is the literal acceptance criterion
+  ("adding an unscoped route fails the walker"), demonstrated against
+  real infrastructure, not a mock.
+  Scope-completion widening: `packages/shared/src/testing/**` needs
+  Fastify's `FastifyInstance`/`InjectOptions` types, so `fastify` was
+  added to `packages/shared/package.json` as an *optional* peer +
+  dev dependency (matching packages/auth's precedent of taking a
+  framework peer dep without becoming a framework package) — packages
+  that never import the testing barrel (metrics/analysis/insights/
+  reports) aren't forced to install it. Also re-exported
+  `./testing/index.js` from `packages/shared/src/index.ts` alongside the
+  existing `./db/index.js` re-export, same barrel-completeness pattern
+  as the W1-01/W1-03 gaps found earlier.
+  Also has its own unit test (`packages/shared/src/testing/
+  route-walker.test.ts`) proving the walker mechanism generically with
+  zero DB/Fastify-app-under-test complexity — a fabricated scoped vs.
+  unscoped route pair, no live infra required, runs everywhere.
+  Gate: 29 test files/95 tests workspace-wide (up from 24/71 after
+  W1-05), all validators (arch/plan/traceability/compose/egress-audit)
+  pass.
 - Next: W0-05 (human: GitHub App registration) still the only open W0
-  ticket. W1-04 and W1-05 both merged. W1-06 (GitHubProvider adapter)
-  depends_on W1-05 (done) and W0-04, which itself depends_on W0-05 —
-  still blocked transitively on that human step, not yet claimable.
-  W1-07/08/09 claimable now — check validate-plan.mjs for the current
-  set.
+  ticket. W1-04 and W1-05 merged; W1-07 gate-clean with a PR open,
+  awaiting merge instruction. W1-06 (GitHubProvider adapter) depends_on
+  W1-05 (done) and W0-04, which itself depends_on W0-05 — still blocked
+  transitively on that human step, not yet claimable. W1-08/09 claimable
+  now — check validate-plan.mjs for the current set.
