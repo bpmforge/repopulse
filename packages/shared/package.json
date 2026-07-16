@@ -12,8 +12,17 @@
     "drizzle-orm": "^0.39.3",
     "postgres": "^3.4.9"
   },
+  "peerDependencies": {
+    "fastify": "^5.10.0"
+  },
+  "peerDependenciesMeta": {
+    "fastify": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "fastify": "^5.10.0",
     "typescript": "^5.9.3"
   }
 }

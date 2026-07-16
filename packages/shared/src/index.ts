@@ -1,3 +1,4 @@
 export const packageName = '@repopulse/shared';
 
 export * from './db/index.js';
+export * from './testing/index.js';

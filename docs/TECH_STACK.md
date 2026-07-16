@@ -59,6 +59,11 @@ entrypoint. Dependency rules in ARCHITECTURE.md §3.
 | ioredis | **5.11.1** | Not brief-fixed; added W1-03 as the Redis client for packages/auth's session store. Chosen over `redis`/`node-redis` because BullMQ (W2) mandates ioredis — one client library, not two. |
 | @fastify/session + @fastify/cookie | **11.1.2** | Not brief-fixed; added W1-03. Official Fastify-maintained session plugin (fastify.dev), `>=10.x` compatible with Fastify `^5.x` per its own compat table. Store is hand-written against the verified `SessionStore` interface (`set`/`get`/`destroy`, express-session-compatible) rather than a third-party Redis-store adapter package — small enough surface to verify directly, avoids an unverified extra dependency. |
 
+**W1-07**: `packages/shared/src/testing/**` (the NFR-4 route walker) takes an `optional` peer +
+dev dependency on `fastify` (`^5.10.0`, matching apps/api's pin) — the only place
+`packages/shared` touches a framework type, kept optional so packages/metrics/analysis/
+insights/reports (which never import the testing barrel) aren't forced to install it.
+
 **W0-02 resolved images** (`compose.dev.yaml`, 2026-07-16): `docker.io/library/postgres:16`
 resolved to PostgreSQL 16.14; `docker.io/library/redis:7.2` resolved to Redis 7.2.14 (both
 floating within-major tags, same reproducibility model as the npm `^` ranges above — re-pull
