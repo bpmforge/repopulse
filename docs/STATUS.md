@@ -159,6 +159,30 @@
   webhook_secret_ciphertext nullability inference. Gate: 11 test files/11
   tests (new schema-shape sanity test), validate-arch rule 5 now actively
   validates (was skip-passing) and passes.
+- 2026-07-16 W1-02 done — 16 more tables live (26 total): 9 fact tables
+  (commits, commit_files, pull_requests, pr_reviews, pr_files, check_runs,
+  deployments, releases, issues) + 7 read-model tables (metric_snapshots,
+  analysis_runs, findings, finding_events, reports, saved_views,
+  egress_audit — base shapes only, W8/D9-D13 delta columns explicitly
+  excluded as later-wave additive migrations). Two acceptance-text
+  reconciliations found and fixed: 'pr_comments' doesn't exist anywhere in
+  DATABASE.md (zero FR/ER-diagram references) — implemented the doc's real
+  9th fact table, pr_files, instead of inventing a comments table;
+  'finding_status_history' was a plan.json-only name, canonical is
+  finding_events (confirmed via SRS.md/RISK_MODEL.md). analysis_runs
+  implemented even though omitted from the read-model acceptance list —
+  it's a required NOT NULL FK target for findings and no other ticket
+  creates it. SC-15 egress_audit append-only: migration 0002 creates a
+  NOLOGIN repopulse_app role, grants SELECT/INSERT only on egress_audit
+  (never UPDATE/DELETE) — new scripts/validate-egress-audit.sh proves this
+  live (INSERT succeeds, UPDATE/DELETE denied), tested against a
+  deliberately-broken grant first to confirm it isn't a rubber stamp. All
+  3 migrations (0000/0001/0002) applied cleanly from a full volume wipe;
+  `drizzle-kit check` reports no drift. Gate: 13 test files/13 tests.
+  Small docs/design/METRICS.md fix: metric_snapshot/metric_id ->
+  metric_snapshots/metric_key to match DATABASE.md's self-consistent
+  naming.
 - Next: W0 tickets — W0-05 (human: GitHub App) still open, last W0 ticket
-  (doesn't block anything in W1+). W1-02 (fact + read-model tables),
-  W1-03, W1-05 now claimable (W1-01 unblocked them).
+  (doesn't block anything in W1+). W1-03, W1-05 claimable (W1-06 depends
+  on W1-02, now also claimable — check validate-plan.mjs for the current
+  set).

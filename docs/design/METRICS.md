@@ -107,8 +107,9 @@ publishedAt, days since last release.
 ## 2. Snapshots & rollups
 
 **FR-METRICS-13**: nightly `metrics.snapshot` job writes
-`metric_snapshot(workspace_id, repo_id, metric_id, window, value, numerator, denominator, dims jsonb, computed_at)`
-for every metric × window; retention ≥400d; trend endpoints (FR-INSIGHTS-4) read snapshots
+`metric_snapshots(workspace_id, repo_id, metric_key, window, value, numerator, denominator, dims jsonb, computed_at)`
+(table/column names reconciled with DATABASE.md §2/§3 — W1-02) for every metric × window;
+retention ≥400d; trend endpoints (FR-INSIGHTS-4) read snapshots
 only — never recompute. **FR-METRICS-14** org rollups pool correctly: percentile metrics pool
 raw samples across repos (pooled p90 ≠ mean of repo p90s — tested); ratio metrics sum
 numerators/denominators; hotspots/ownership rank globally. Rollups honor the active view's
