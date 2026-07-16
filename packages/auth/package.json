@@ -8,9 +8,20 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/session": "^11.1.2",
+    "@repopulse/shared": "workspace:*",
+    "drizzle-orm": "^0.39.3",
+    "fastify-plugin": "^6.0.0",
+    "ioredis": "^5.11.1"
+  },
+  "peerDependencies": {
+    "fastify": "^5.10.0"
+  },
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "fastify": "^5.10.0",
     "typescript": "^5.9.3"
   }
 }

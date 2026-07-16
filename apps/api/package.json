@@ -9,7 +9,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "fastify": "^5.10.0"
+    "@repopulse/auth": "workspace:*",
+    "@repopulse/shared": "workspace:*",
+    "fastify": "^5.10.0",
+    "fastify-plugin": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
