@@ -271,6 +271,68 @@
   env (fails fast on any missing required var) and adds `API_BASE_URL`
   usage for the OAuth redirect_uri (added to `.env.example` in W1-03).
   Gate: 19 test files/42 tests (up from 16/26), all validators pass.
-- Next: W0-05 (human: GitHub App registration) still open, last W0
-  ticket. W1-05 (packages/forge core) claimable now — check
-  validate-plan.mjs for the current set.
+- 2026-07-16 W1-05 done — packages/forge core: ForgeProvider interface +
+  BudgetedClient + ETag cache. Branched off `main` directly (not W1-04,
+  which is still an unmerged PR) since W1-05 only depends_on W1-01 and
+  touches disjoint files. `types.ts`/`provider.ts` are a verbatim port of
+  FORGE_PROVIDER.md §1-2 (FR-FORGE-1). `packages/forge/src/client/**`:
+  `BudgetedClient` is **transport-agnostic** — it takes an injected
+  `RequestExecutor` rather than depending on Octokit, so the same class
+  will serve both GitHubProvider (W1-06, Octokit-backed executor) and the
+  future Gitea adapter (W7-02, fetch-backed executor) against one shared
+  contract-test suite (FORGE_PROVIDER.md §5). Deliberately does NOT import
+  any `@octokit/*` package even though those are already pinned in
+  TECH_STACK.md — that wiring is W1-06's job.
+  Composition: `PrimaryBudget` (per-bucket rest/graphql, seeded only from
+  real `x-ratelimit-*` headers — never guessed, admits webhook/user down
+  to a reserve below the configurable floor while parking backfill/
+  reconcile), `RateBucket` (continuous-refill secondary per-endpoint-
+  family bucket, 900pts/min REST / 2000/min GraphQL, writes cost 5pts
+  serialized >=1s apart), `ConcurrencyQueue` (global <=100 semaphore,
+  lane-priority FIFO for whichever queued call gets the next free slot),
+  `EtagCache` (persists to `forge_etag`, `endpoint_key` = sha256 of
+  method+path+sorted-params so param key order never busts the cache),
+  `ForgeMetrics` (NFR-12 in-memory counters/gauges/histogram — no
+  prom-client is pinned anywhere in the repo, so this is exposed via
+  `metricsSnapshot()` for a future ops ticket, E9.3/`GET /metrics`, to
+  render; not an HTTP endpoint itself).
+  **SC-12 SSRF allowlist**: SECURITY_CONTROLS.md states this control
+  "ships in W1 ... so the GT ticket [W1-06] inherits, not reinvents" and
+  "Lands: W1 · packages/forge" — but it isn't in W1-05's own 4 acceptance
+  criteria, and W1-06's acceptance criteria don't mention it either.
+  Resolved as a scope split rather than skipping it or guessing it fully
+  in: built the string-level half here (`client/base-url.ts` —
+  https-only, exact-match hostname allowlist, reject bare IP literals
+  (v4/v6) and disguised decimal/octal/hex-encoded IPs, reject
+  `localhost`/`*.localhost`) with the canonical evil-URL corpus as unit
+  tests (metadata IP, decimal IP, octal/hex IP, localhost, rebinding-
+  suffix pattern). The other half — "resolve-then-pin the IP" (DNS
+  rebinding defense) — needs actual socket-level control that only a
+  concrete transport has, so it's left for whichever executor W1-06/
+  W7-02 construct; flagged there so it isn't silently dropped.
+  Acceptance-criteria verification: (1) types/provider compile exactly
+  per §1-2. (2) unit test seeds a 100-remaining response at floor=100 —
+  backfill/reconcile lane calls reject with `ForgeBudgetParkedError`
+  and the mock executor's call count never increments for them; webhook/
+  user still drain the reserve. (3) live-Postgres fixture syncs 10 repos
+  twice against a stateful mock (first sync: 10 real 200s, primary
+  remaining drops by 10; second sync: all 10 come back 304 from the
+  ETag cache, primary remaining drops by 0) — 100% rate-limit-point
+  savings on repeat sync, comfortably over the >=90% bar. (4) retry
+  tests assert exact sleep durations for retry-after-present and
+  x-ratelimit-reset-fallback secondary-limit cases, a 5xx path retried
+  exactly 3 times then giving up, and a `metricsSnapshot()` read showing
+  populated counters/points/queue-depth after traffic.
+  Also fixed a stale doc reference: TECH_STACK.md's Octokit section said
+  the budgeter "wraps Octokit" and persists ETags to an `api_cache`
+  table — neither was ever true (no such table exists; forge_etag is the
+  real one) — corrected to describe the transport-agnostic design above.
+  Gate: 24 test files/71 tests workspace-wide (up from 16/26 after
+  W1-03; +8 files/+45 tests from this ticket), all validators
+  (arch/plan/traceability/compose/egress-audit) pass.
+- Next: W0-05 (human: GitHub App registration) still the only open W0
+  ticket. W1-04 and W1-05 both merged. W1-06 (GitHubProvider adapter)
+  depends_on W1-05 (done) and W0-04, which itself depends_on W0-05 —
+  still blocked transitively on that human step, not yet claimable.
+  W1-07/08/09 claimable now — check validate-plan.mjs for the current
+  set.
