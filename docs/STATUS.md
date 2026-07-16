@@ -683,10 +683,32 @@
   distribution) reuses it rather than re-deriving the same thresholds.
   Gate: 50 test files/192 tests workspace-wide (up from 48/176 after
   W3-04), all validators pass.
+- 2026-07-16 W3-06 done — M7 PR size distribution + M8 stale PRs
+  (pair). Continues the W3-01 wave-gate bypass.
+  `packages/metrics/src/metrics/pr-size.ts`: `computePrSizeDistribution`
+  buckets a PR set via W3-05's `prSizeBucket` (imported, deliberately
+  not redefined — a barrel re-export of the same name from two modules
+  would collide, so it's imported and used internally only) — a fixture
+  seeds one PR at *every* boundary value (9/10, 99/100, 499/500,
+  999/1000) and asserts exactly 2 PRs land in each of the five buckets,
+  per the ticket's "fixture-verified at every boundary" wording.
+  `packages/metrics/src/metrics/stale-prs.ts`: `computeStalePrs`
+  consumes `lastActivityAt` directly rather than recomputing it from raw
+  activity events — that denormalization already exists on the
+  `pull_requests` table (W1-02) specifically so staleness is an index
+  scan, not per-request aggregation; "any tracked activity resets the
+  clock" is therefore the ingest layer's job (a later wave), not this
+  ticket's. Threshold is strictly `>` N days (default 7, workspace-
+  configurable) — a fixture PR at exactly 7 days proves the boundary
+  itself is NOT stale. Drafts land in a wholly separate `staleDrafts`
+  series, never mixed into `stale`; closed PRs are never candidates
+  regardless of activity age.
+  Gate: 52 test files/202 tests workspace-wide (up from 50/192 after
+  W3-05), all validators pass.
 - Next: W0-05 (human: GitHub App registration) remains the only ticket
   that unblocks the *rest* of the board on its own merits — W2 (all
   five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses. W3-06 through W3-09 (the remaining M7–M12 metric
+  wave-gate bypasses. W3-07 through W3-09 (the remaining M9–M12 metric
   implementations) are newly claimable in the same bypassed sense —
   check validate-plan.mjs for the current set (wave-gate-aware view will
   still show only W0-05).
