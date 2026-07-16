@@ -81,10 +81,17 @@ else
 fi
 
 # ---- Rule 4: no forge-host fetches (api.github.com) outside packages/forge --
+# Exception (SC-12/AC-4, W1-03): packages/auth/src/oauth/** may reference
+# api.github.com for the post-login identity fetch (GET /user with the
+# user's own OAuth token). SC-12's SSRF allowlist protects against an
+# admin-supplied, attacker-controlled forge base URL (Gitea adapter,
+# GitHubProvider's workspace-scoped budgeted client) — this call has no
+# variable base URL at all, so that control doesn't apply here. Everything
+# else outside packages/forge is still policed.
 if [ -n "$SRC_DIRS" ]; then
   # shellcheck disable=SC2086
-  R4_HITS="$(grep -RIn 'api\.github\.com' $SRC_DIRS 2>/dev/null || true)"
-  [ -z "$R4_HITS" ] && pass 4 "no api.github.com reference outside packages/forge" \
+  R4_HITS="$(grep -RIn 'api\.github\.com' $SRC_DIRS 2>/dev/null | grep -v '^packages/auth/src/oauth/' || true)"
+  [ -z "$R4_HITS" ] && pass 4 "no api.github.com reference outside packages/forge (packages/auth/src/oauth/** exempted, SC-12/AC-4)" \
                     || { fail 4 "api.github.com referenced outside packages/forge:"; printf '%s\n' "$R4_HITS" | sed 's/^/        /'; }
 else
   pass 4 "no src trees outside packages/forge yet (skipped)"

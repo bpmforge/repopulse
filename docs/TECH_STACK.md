@@ -56,6 +56,8 @@ entrypoint. Dependency rules in ARCHITECTURE.md §3.
 | Drizzle ORM | **0.3x (latest 0.3x minor)** | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
 | postgres (postgres.js) | **3.x** | Not brief-fixed; added W1-01 as the Postgres driver paired with `drizzle-orm/postgres-js` — no driver was pinned in this doc previously. Standard/recommended Drizzle pairing for plain Postgres (vs. Neon/other serverless-specific adapters); reversible, additive choice. |
 | Redis | **7.2 (pinned image)** | Brief-fixed; BullMQ backing store + server-side session store (FR-AUTH-2). **License pin**: 7.2 is the last BSD-3 release — 7.4+/8 are RSALv2/SSPLv1/AGPL (DESIGN_REVIEW.md G-18); Valkey 8 (BSD-3) is the sanctioned swap after a BullMQ-compat check. |
+| ioredis | **5.11.1** | Not brief-fixed; added W1-03 as the Redis client for packages/auth's session store. Chosen over `redis`/`node-redis` because BullMQ (W2) mandates ioredis — one client library, not two. |
+| @fastify/session + @fastify/cookie | **11.1.2** | Not brief-fixed; added W1-03. Official Fastify-maintained session plugin (fastify.dev), `>=10.x` compatible with Fastify `^5.x` per its own compat table. Store is hand-written against the verified `SessionStore` interface (`set`/`get`/`destroy`, express-session-compatible) rather than a third-party Redis-store adapter package — small enough surface to verify directly, avoids an unverified extra dependency. |
 
 **W0-02 resolved images** (`compose.dev.yaml`, 2026-07-16): `docker.io/library/postgres:16`
 resolved to PostgreSQL 16.14; `docker.io/library/redis:7.2` resolved to Redis 7.2.14 (both
