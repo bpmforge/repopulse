@@ -378,9 +378,96 @@
   Gate: 29 test files/95 tests workspace-wide (up from 24/71 after
   W1-05), all validators (arch/plan/traceability/compose/egress-audit)
   pass.
+- 2026-07-16 W1-08 done — API hardening: helmet/CSP, rate limits, CSRF
+  header, security audit log (SC-7/11/22/23). Branched off
+  feat/w1-07-tenancy-isolation rather than main (both PR #9 and this
+  ticket touch `packages/shared/package.json`/`src/index.ts` — pino vs.
+  fastify additions on the same files — stacking avoided a guaranteed
+  merge conflict; this PR will show W1-07's commit too until #9 merges,
+  then rebase clean). `apps/api/src/plugins/security-headers.ts`:
+  `@fastify/helmet` with `contentSecurityPolicy.useDefaults: false` (SC-23) —
+  verified empirically that the default `true` merges helmet's own extra
+  directives on top of ours, which would drift from
+  SECURITY_CONTROLS.md's exact CSP string. `apps/api/src/plugins/
+  rate-limits.ts`: `@fastify/rate-limit` registered with `global: false`
+  (verified: zero effect on any route until it opts in via
+  `config.rateLimit`) plus exported `AUTH_FLOW_RATE_LIMIT`/
+  `WEBHOOK_RATE_LIMIT`/`SHARE_SLUG_RATE_LIMIT` constants (SC-11) — only
+  `AUTH_FLOW_RATE_LIMIT` is wired to a real route today (`/auth/login`,
+  `/auth/callback` — the only routes that exist); the other two are
+  exported now so the webhook (ingest wave) and share-slug (reports
+  wave) route tickets apply them directly instead of re-deriving the
+  SC-11 numbers. SSE-connections-per-session has no `@fastify/rate-limit`
+  equivalent (not a request-rate limit) — left for whichever ticket adds
+  SSE routes to implement as a connection counter.
+  `apps/api/src/plugins/csrf-header.ts` (SC-7): global `onRequest` hook,
+  every non-safe-method request needs `X-Requested-With: repopulse`
+  except `/webhooks/*` (doesn't exist yet, prefix still declared so it's
+  exempt the moment it ships) — this is a literal reading of
+  SECURITY_CONTROLS.md's "all mutation routes... webhook route exempt"
+  (only one exemption named), so it also covers `POST /auth/logout`,
+  which is why that route now requires the header too. CORS needs no new
+  plugin at all: no `@fastify/cors` is registered anywhere, so no route
+  ever emits `Access-Control-Allow-Origin` — "no ACAO header" is the
+  absence of a plugin, not a configuration.
+  `packages/shared/src/logger/**` (SC-2/SC-22): `createLogger()` wraps
+  pino with a `hooks.streamWrite` redaction layer (`redact.ts`) — chosen
+  over pino's own `redact` path-option because that only catches values
+  at pre-declared paths, while `streamWrite` runs on the fully-serialized
+  line and catches denylisted-field values (token/credential/secret/
+  authorization/password/x-hub-signature*) AND bare GitHub-token/PEM-block
+  patterns wherever they appear, regardless of nesting depth or whether
+  they're in a named field at all. Fastify's `loggerInstance` option
+  (not `logger`) takes this pre-built pino instance; verified that pino
+  child loggers (which `request.log` is one of) inherit the parent's
+  `streamWrite` hook since it operates at the shared destination-stream
+  level, so no per-route logger plumbing was needed. `auditLog()` (SC-22)
+  emits actor/workspace/ip/ua/ts on every entry; wired into the ONLY real
+  event classes that exist today — `auth.login.success`,
+  `auth.login.failure` (with a `reason`: missing_code_or_state/
+  missing_state_cookie/state_mismatch/oauth_exchange_failed/
+  identity_fetch_failed), `auth.logout` — connection CRUD/role-change/
+  share/report-download/etc. are explicitly deferred per the ticket's own
+  acceptance text ("later event classes land with their waves"); no
+  routes for any of those exist yet.
+  ESLint rule (SC-23): plain `no-restricted-syntax` targeting
+  `JSXAttribute[name.name="dangerouslySetInnerHTML"]` scoped to
+  `apps/web/**/*.tsx` — no `eslint-plugin-react` dependency needed.
+  Verified it actually fires: wrote a deliberately-violating probe file,
+  confirmed `eslint` failed on it, deleted the probe (same
+  verify-before-trust pattern as W1-03's Rule-4 exception).
+  Type-checking snag (same root cause as W1-05/W1-07's `HTTPMethods`
+  issue): `auditLog`'s logger parameter can't be typed as pino's own
+  `Logger` - Fastify's `request.log` is `FastifyBaseLogger`, an
+  intentionally-looser interface (Fastify's `loggerInstance` docs say
+  any object conforming to a logger-shaped subset works, not literally
+  pino), so the full pino type rejected a real `request.log` at the type
+  level even though it's correct at runtime. Fixed by typing `auditLog`'s
+  parameter as a minimal structural `AuditLogger` interface (just the
+  `info(obj, msg)` shape actually used) instead of importing pino's type.
+  Scope-completion widenings beyond the declared write_scope
+  (`apps/api/src/plugins/**`, `packages/shared/src/logger/**`,
+  `apps/api/test/security/**`) — each narrow and necessary for the gate,
+  documented rather than silent: `apps/api/src/app.ts` (composition root
+  wiring the three new plugins + switching to `loggerInstance` +
+  `createLogger`, continuing the precedent W1-04 already set of this
+  file evolving with each wave); `apps/api/src/routes/auth/index.ts`
+  (added `config.rateLimit` to login/callback, `auditLog()` calls at
+  every login success/failure/logout decision point — instrumenting the
+  route handler directly was far more reliable than trying to infer
+  login-success-vs-failure generically from a cross-cutting hook, which
+  can't distinguish *why* a request failed from status code alone);
+  `eslint.config.js` (the dangerouslySetInnerHTML rule has nowhere else
+  to live); `packages/shared/package.json`/`apps/api/package.json` (pino
+  as a direct dependency in both, not just transitive via Fastify).
+  Gate: 35 test files/115 tests workspace-wide (up from 29/95 after
+  W1-07), all validators (arch/plan/traceability/compose/egress-audit)
+  pass.
 - Next: W0-05 (human: GitHub App registration) still the only open W0
   ticket. W1-04 and W1-05 merged; W1-07 gate-clean with a PR open,
-  awaiting merge instruction. W1-06 (GitHubProvider adapter) depends_on
-  W1-05 (done) and W0-04, which itself depends_on W0-05 — still blocked
-  transitively on that human step, not yet claimable. W1-08/09 claimable
-  now — check validate-plan.mjs for the current set.
+  awaiting merge instruction; W1-08 gate-clean with a PR open (stacked on
+  W1-07's branch — merge #9 first), awaiting merge instruction. W1-06
+  (GitHubProvider adapter) depends_on W1-05 (done) and W0-04, which
+  itself depends_on W0-05 — still blocked transitively on that human
+  step, not yet claimable. W1-09 claimable now — check validate-plan.mjs
+  for the current set.

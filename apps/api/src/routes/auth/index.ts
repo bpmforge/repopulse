@@ -1,8 +1,9 @@
 import fp from 'fastify-plugin';
-import type { FastifyInstance } from 'fastify';
-import type { Database } from '@repopulse/shared';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { auditLog, type Database } from '@repopulse/shared';
 import { oauth, session as sessionModule } from '@repopulse/auth';
 import { sendProblem } from './problem.js';
+import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
 
 export interface AuthRoutesOptions extends sessionModule.SessionPluginOptions {
   db: Database;
@@ -16,6 +17,13 @@ export interface AuthRoutesOptions extends sessionModule.SessionPluginOptions {
 const OAUTH_STATE_COOKIE = 'oauth_state';
 const OAUTH_STATE_MAX_AGE_SECONDS = 600;
 
+// SC-22: audit context is the same shape for every event this module emits.
+// workspaceId is always null here - workspace resolution happens later, in
+// apiV1's preHandler (W1-04), not in these auth routes.
+function auditContext(request: FastifyRequest) {
+  return { ip: request.ip, ua: request.headers['user-agent'] ?? null, workspaceId: null };
+}
+
 async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promise<void> {
   await app.register(sessionModule.sessionPlugin, {
     redisUrl: opts.redisUrl,
@@ -25,35 +33,58 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
     cookieSecure: opts.cookieSecure,
   });
 
-  app.get('/auth/login', async (request, reply) => {
-    const state = oauth.generateState();
-    reply.setCookie(OAUTH_STATE_COOKIE, state, {
-      signed: true,
-      httpOnly: true,
-      secure: opts.cookieSecure,
-      sameSite: 'lax',
-      path: '/auth/callback',
-      maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
-    });
-    const authorizeUrl = oauth.buildAuthorizeUrl(opts.githubOAuth, state, opts.githubEndpoints);
-    return reply.redirect(authorizeUrl);
-  });
+  app.get(
+    '/auth/login',
+    { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
+    async (request, reply) => {
+      const state = oauth.generateState();
+      reply.setCookie(OAUTH_STATE_COOKIE, state, {
+        signed: true,
+        httpOnly: true,
+        secure: opts.cookieSecure,
+        sameSite: 'lax',
+        path: '/auth/callback',
+        maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
+      });
+      const authorizeUrl = oauth.buildAuthorizeUrl(opts.githubOAuth, state, opts.githubEndpoints);
+      return reply.redirect(authorizeUrl);
+    },
+  );
 
   app.get<{ Querystring: { code?: string; state?: string } }>(
     '/auth/callback',
+    { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
     async (request, reply) => {
       const { code, state } = request.query;
       if (!code || !state) {
+        auditLog(request.log, {
+          event: 'auth.login.failure',
+          actorUserId: null,
+          reason: 'missing_code_or_state',
+          ...auditContext(request),
+        });
         return sendProblem(request, reply, 400, 'Missing code or state', undefined);
       }
 
       const cookieValue = request.cookies[OAUTH_STATE_COOKIE];
       reply.clearCookie(OAUTH_STATE_COOKIE, { path: '/auth/callback' });
       if (!cookieValue) {
+        auditLog(request.log, {
+          event: 'auth.login.failure',
+          actorUserId: null,
+          reason: 'missing_state_cookie',
+          ...auditContext(request),
+        });
         return sendProblem(request, reply, 400, 'Missing OAuth state cookie');
       }
       const unsigned = request.unsignCookie(cookieValue);
       if (!unsigned.valid || unsigned.value !== state) {
+        auditLog(request.log, {
+          event: 'auth.login.failure',
+          actorUserId: null,
+          reason: 'state_mismatch',
+          ...auditContext(request),
+        });
         return sendProblem(request, reply, 400, 'OAuth state mismatch');
       }
 
@@ -66,6 +97,12 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
         );
       } catch (err) {
         request.log.warn({ err }, 'GitHub OAuth token exchange failed');
+        auditLog(request.log, {
+          event: 'auth.login.failure',
+          actorUserId: null,
+          reason: 'oauth_exchange_failed',
+          ...auditContext(request),
+        });
         return sendProblem(request, reply, 502, 'GitHub OAuth token exchange failed');
       }
 
@@ -74,6 +111,12 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
         identity = await oauth.fetchGithubIdentity(accessToken, opts.githubEndpoints);
       } catch (err) {
         request.log.warn({ err }, 'GitHub identity fetch failed');
+        auditLog(request.log, {
+          event: 'auth.login.failure',
+          actorUserId: null,
+          reason: 'identity_fetch_failed',
+          ...auditContext(request),
+        });
         return sendProblem(request, reply, 502, 'GitHub identity fetch failed');
       }
 
@@ -83,13 +126,25 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
       request.session.set('createdAt', Date.now());
       await request.session.save();
 
+      auditLog(request.log, {
+        event: 'auth.login.success',
+        actorUserId: user.id,
+        ...auditContext(request),
+      });
+
       return reply.redirect(opts.loginRedirectUrl);
     },
   );
 
   app.post('/auth/logout', async (request, reply) => {
-    if (request.session.get('userId') !== undefined) {
+    const userId = request.session.get('userId');
+    if (userId !== undefined) {
       await request.session.destroy();
+      auditLog(request.log, {
+        event: 'auth.logout',
+        actorUserId: userId,
+        ...auditContext(request),
+      });
     }
     return reply.code(204).send();
   });
