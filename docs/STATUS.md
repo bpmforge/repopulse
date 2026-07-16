@@ -463,10 +463,74 @@
   Gate: 35 test files/115 tests workspace-wide (up from 29/95 after
   W1-07), all validators (arch/plan/traceability/compose/egress-audit)
   pass.
-- Next: W0-05 (human: GitHub App registration) still the only open W0
-  ticket. W1-04, W1-05, and W1-07 merged; W1-08 gate-clean with a PR
-  open (stacked on W1-07's now-merged branch, rebased clean here),
-  awaiting merge instruction. W1-06 (GitHubProvider adapter) depends_on
-  W1-05 (done) and W0-04, which itself depends_on W0-05 — still blocked
-  transitively on that human step, not yet claimable. W1-09 claimable
-  now — check validate-plan.mjs for the current set.
+- 2026-07-16 W1-09 done — ops endpoints: /healthz liveness + Prometheus
+  /metrics registry. Branched off feat/w1-08-api-hardening (stacked
+  again — `app.ts` is being actively evolved by each W1 ticket in
+  sequence; basing off `main` risked a real conflict in the import list
+  and `register()` call order, not just an append-only-file conflict
+  like W1-07→W1-08's). `packages/shared/src/metrics/registry.ts`: one
+  process-wide `prom-client` `Registry` singleton so every later wave
+  (queue depth/DLQ — W2-02, sync lag — ingest, Tier-2 host availability
+  — packages/analysis) registers onto it without new plumbing.
+  `forge-metrics.ts`: bridges W1-05's `BudgetedClient.metricsSnapshot()`
+  (a plain snapshot object, not a live prom-client instance — and
+  packages/shared may not depend on packages/forge, ARCHITECTURE.md §3
+  runs the other way) into the exact FORGE_PROVIDER.md §3 instrumentation
+  names via a metric's `collect()` callback (pull-based, runs immediately
+  before each scrape) that aggregates across however many
+  `ForgeMetricsSource`s (`() => ForgeMetricsSource[]`) are currently
+  active — zero, one, or many BudgetedClient instances, matching W1-05's
+  one-per-connection design, with no re-registration needed per
+  connection. `http-metrics.ts`: `http_request_duration_seconds`
+  histogram labeled by method/route-PATTERN/status_code (never the
+  concrete path — unbounded label cardinality) for NFR-12's "HTTP p95 by
+  route" — Prometheus computes the percentile from bucket data via
+  `histogram_quantile()` at query time, the app never computes it itself.
+  **Two real prom-client bugs found via testing, not assumed**: (1)
+  omitting `registers: []` on a metric constructor silently
+  auto-registers it onto prom-client's own implicit default global
+  registry too, in addition to wherever it's manually registered
+  afterward — every metric here passes `registers: []` explicitly and
+  is attached only to the shared registry via `registerMetric()`. (2)
+  `Registry.metrics()` serializes each registered metric in
+  *registration order*, calling only that metric's own `collect()`
+  first — a metric registered *before* the one carrying the shared
+  `collect()` side effect (here, `forge_budget_remaining`) gets
+  serialized from stale data, since the side-effecting `collect()`
+  hasn't run yet. Caught by a failing test (`forge_requests_total` and
+  `forge_points_spent` silently missing their sample lines even though
+  `.inc()` demonstrably ran), root-caused by an isolated 6-line
+  reproduction against the real installed `prom-client` package, fixed
+  by registering the `collect()`-carrying gauge first. A test-only
+  `resetForgeMetricsForTest()` export was added after discovering the
+  module-level delta-tracking state (needed for the "counters only
+  increment by the delta since the last scrape" behavior real Prometheus
+  counters require) persisted across test cases in the same file and
+  produced order-dependent, coincidentally-passing assertions otherwise.
+  `apps/api/src/routes/health/index.ts`: the existing W1-04 `/healthz`
+  handler extracted out of `app.ts` verbatim (same behavior, same URL —
+  W1-07's route-walker exemption for `/healthz` needed no change since
+  the URL didn't move). `apps/api/src/plugins/metrics/index.ts`: the
+  `onResponse` hook feeding the HTTP histogram, `GET /metrics` serving
+  `registry.metrics()`, and an eager `registerForgeMetrics(() => [])`
+  call — no real `BudgetedClient` exists in this process yet (W1-06 is
+  still blocked on W0-05), but this makes the §3 metric names present in
+  `/metrics` output at zero/empty values from day one (the ticket's own
+  acceptance text), ready for whichever ticket constructs the first real
+  forge connection to call `registerForgeMetrics()` again with the real
+  connection-pool getter. "Internal vhost only" exposure (DEPLOYMENT.md
+  §7) is a reverse-proxy/network-topology concern with no reverse proxy
+  built yet — documented, not enforced in-app, same treatment as
+  `/healthz`'s equivalent unauthenticated-by-design note.
+  Gate: 38 test files/123 tests workspace-wide (up from 35/115 after
+  W1-08), all validators (arch/plan/traceability/compose/egress-audit)
+  pass.
+- Next: W0-05 (human: GitHub App registration) is now the ONLY open
+  ticket in W0 or W1 — every other W1 ticket is done or gate-clean with
+  a PR open awaiting merge instruction (W1-09 PR #12, stacked and
+  rebased clean here). W1-06 (GitHubProvider adapter) depends_on W1-05
+  (done) and W0-04, which itself depends_on W0-05 — still blocked
+  transitively on that human step; once W0-05 lands, W0-04 and W1-06
+  both become claimable and W1 finally completes, opening the W2 wave
+  gate. Until then, check validate-plan.mjs for the current set (expect
+  it to show only W0-05).
