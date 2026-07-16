@@ -1954,7 +1954,7 @@
     },
     {
       "id": "W8-04",
-      "title": "Secrets scanner — stream mode riding ingestion (TruffleHog-compatible rulepack, verified-secret escalation)",
+      "title": "Secrets scanner — stream mode riding ingestion (gitleaks-compatible rulepack, verified-secret escalation)",
       "phase": 8,
       "module": "security",
       "stories": [
@@ -1970,7 +1970,7 @@
         "W2-04"
       ],
       "acceptance": [
-        "Stream mode per docs/design/SECURITY_SUITE.md §3.1: regex+entropy ruleset in TruffleHog-compatible format (versioned rulepacks/secrets.v{N}.yaml) runs on every ingested diff patch on pr_synced/push — no snapshot, no container; planted-secret fixture diff yields a finding ≤60s after webhook delivery (FR-SEC-3)",
+        "Stream mode per docs/design/SECURITY_SUITE.md §3.1: regex+entropy ruleset in gitleaks-compatible format (MIT; TruffleHog OSS is AGPL-3.0 and excluded; versioned rulepacks/secrets.v{N}.yaml) runs on every ingested diff patch on pr_synced/push — no snapshot, no container; planted-secret fixture diff yields a finding ≤60s after webhook delivery (FR-SEC-3)",
         "Verified-secret escalation: verifying detector ⇒ severity 5 / confidence 5 + org banner + top of Security tab; live verification config-gated, default OFF; rulepack version stamped on every finding and scan_run",
         "Findings store fingerprint hash + file/line only, never the secret value (SC-29); yields ['credential:{kind}'] populated for chaining"
       ],
@@ -2031,7 +2031,7 @@
     },
     {
       "id": "W8-07",
-      "title": "Semgrep scanner: weekly snapshot full runs + diff-scoped incremental, rulepack config, REAL/FP triage mapping",
+      "title": "Semgrep scanner (Opengrep engine, own bpm-rulepacks): weekly snapshot full runs + diff-scoped incremental, rulepack config, REAL/FP triage mapping",
       "phase": 8,
       "module": "security",
       "stories": [
@@ -2047,7 +2047,7 @@
         "W8-03"
       ],
       "acceptance": [
-        "Full mode per docs/design/SECURITY_SUITE.md §3.3: weekly/manual semgrep over a §2 snapshot inside the §2.2 sandbox with per-workspace rulepack config (community packs + custom pack repo fetched host-side by db-sync, mounted read-only); pack + tool versions stamped in scan_run.tool_versions; seeded-vuln fixture snapshot reproduces the expected findings (FR-SEC-6)",
+        "Full mode per docs/design/SECURITY_SUITE.md §3.3: weekly/manual Opengrep (LGPL, semgrep-rule-format compatible) over a §2 snapshot inside the §2.2 sandbox against our own in-house bpm-rulepacks (git URL + ref, fetched host-side by db-sync, mounted read-only) — never Semgrep's registry rules/packs (p/*, --config auto), which are license-barred for service use; pack + tool versions stamped in scan_run.tool_versions; seeded-vuln fixture snapshot reproduces the expected findings (FR-SEC-6)",
         "Incremental mode on pr_synced scans changed files only via targeted fetches (no tarball); regression planted between weekly fulls is caught by the PR run",
         "Triage mapping REAL→confirmed, FP→dismissed(false_positive), UNVERIFIED→open on the FR-INSIGHTS-1 lifecycle with audited transitions; FP dismissals feed the tuning metric; rule-declared yields recorded for chaining"
       ],

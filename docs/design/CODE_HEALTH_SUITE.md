@@ -54,7 +54,10 @@ computed deterministically in the anti_slop scanner; thresholds workspace-tunabl
 Backlog delta (SECURITY_SUITE.md §7): `anti_slop` **promoted** to W9; new backlog row
 `dead_code` (knip ISC / vulture MIT / staticcheck MIT — full unused-export analysis
 needs installed dependencies, which conflicts with the no-network sandbox; ships when a
-deps-cache volume design exists, same pattern as the vuln-DB volumes).
+deps-cache volume design exists, same pattern as the vuln-DB volumes). Interprocedural/deep
+taint beyond unused-export detection is a separate, selective deep tier — **Joern**
+(Apache-2.0), never CodeQL (barred on non-OSS commercial use) — see SECURITY_SUITE.md §7
+footnote.
 
 ### Thresholds (workspace defaults, `repo_scanner_config.config`; canon sources in §0/§4)
 
@@ -132,7 +135,9 @@ in metric_snapshots; checklist runs mocked at the gateway with `initiator='scann
 
 Licensing: lizard MIT · jscpd MIT · semgrep engine LGPL-2.1 (subprocess, unchanged from
 W8) · rulepack is OURS (no Semgrep-registry rules — license gate per DESIGN_REVIEW G-18)
-· knip ISC / vulture MIT / staticcheck MIT reserved for the `dead_code` backlog entry.
+· knip ISC / vulture MIT / staticcheck MIT reserved for the `dead_code` backlog entry
+(Joern Apache-2.0 reserved for its interprocedural-taint deep tier if promoted; CodeQL
+excluded — barred on non-OSS commercial use).
 
 ## 8. Rule lifecycle & intake (FR-CH-8/9) — 30 rules is the seed, not the cap
 
@@ -274,6 +279,7 @@ install`. Tools must parse raw source standalone.
 | vale | prose/docs (R-29 companion) | slop (docs) | MIT | backlog |
 | gocyclo | Go complexity | code_health | BSD-3 | backlog |
 | staticcheck / knip / vulture | dead code | dead_code | MIT/ISC/MIT | backlog (needs deps-cache volume) |
+| Joern | interprocedural/deep taint (selective, high-value targets) | dead_code (deep tier) | Apache-2.0 | backlog — per-engagement not per-run (RAM-hungry); CodeQL excluded (non-OSS commercial-use license bar) |
 
 ¹ GPL is triggered by *distribution*, not server-side subprocess execution — running
 hadolint/shellcheck in our sandbox is fine for internal AND SaaS as long as we never

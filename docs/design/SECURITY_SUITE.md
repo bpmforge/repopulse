@@ -123,9 +123,11 @@ leave the container as JSON on stdout; the host validates against the schema bef
 ### 3.1 `secrets` — inputs: diff (stream) / snapshot (history) — FR-SEC-3/4
 
 - **Stream mode** (default ON): runs on every ingested diff patch, riding W2 ingestion —
-  no snapshot, no container; regex + entropy ruleset in **TruffleHog-compatible rule format**
-  (versioned asset `rulepacks/secrets.v{N}.yaml`) so upstream/custom detectors drop in.
-  Triggers: `pr_synced`, `push`.
+  no snapshot, no container; regex + entropy ruleset in **gitleaks-compatible rule format**
+  (MIT; versioned asset `rulepacks/secrets.v{N}.yaml`) so upstream/custom detectors drop in.
+  TruffleHog OSS is AGPL-3.0 and is excluded from the corpus/format choice — its license
+  is incompatible with vendoring into a proprietary rulepack (CPU_FIRST_OFFLOAD 2026-07-16
+  §4). Triggers: `pr_synced`, `push`.
 - **History mode**: scheduled/manual pass over all backfilled patches in the warehouse (12-month
   window) — catches secrets committed then "removed"; still no snapshot needed (patches are
   already warehoused). Optional snapshot pass for current-tree files with no patch coverage.
@@ -158,10 +160,13 @@ manifest changes only. Yields: `yields: ['vuln-dependency:{cve}']`.
 
 ### 3.3 `semgrep` — inputs: snapshot (full) / diff (incremental) — FR-SEC-6
 
-- **Full mode**: weekly `schedule` / `manual` over a §2 snapshot; container runs semgrep with
-  the workspace's configured rule packs — community packs + a custom pack repo (git URL +
-  ref, fetched by db-sync host-side, mounted read-only). Rulepack config in
-  `repo_scanner_config.config`; pack versions stamped in `scan_run.tool_versions`.
+- **Full mode**: weekly `schedule` / `manual` over a §2 snapshot; container runs **Opengrep**
+  (LGPL fork, semgrep-rule-format compatible — same engine-swap contract as
+  CODE_HEALTH_SUITE.md §9) with the workspace's configured rule packs — our own in-house
+  **bpm-rulepacks** corpus (git URL + ref, fetched host-side by db-sync, mounted read-only).
+  Semgrep's own registry rules/packs (`p/*`, `--config auto`) are never used — that license is
+  barred for service use (CPU_FIRST_OFFLOAD 2026-07-16 §4/§6). Rulepack config in
+  `repo_scanner_config.config`; pack + tool versions stamped in `scan_run.tool_versions`.
 - **Incremental mode**: `pr_synced` cheap trigger — diff-scoped semgrep over changed files
   only (files targeted-fetched, not tarball) to catch regressions between weekly fulls.
 - **Triage**: findings land `UNVERIFIED` (`open`); reviewer marks REAL/FP per §1.3 mapping —
@@ -279,7 +284,13 @@ Future bpm-opencode-experts capabilities land as tickets against §1's interface
 | `cloud_security` | Cloud Security Checker (AWS/GCP anti-patterns) | snapshot | schedule, manual | checkov, semgrep cloud packs | backlog |
 | `anti_slop` | Anti-Slop Auditor (30 AI-slop rules) | diff + snapshot | pr_synced, schedule | semgrep custom pack + heuristics | **promoted → W9 (D11, FR-CH-3; docs/design/CODE_HEALTH_SUITE.md)** — with siblings `code_health_tools` (lizard/jscpd) and `logging_hygiene` |
 | `container_image` | Container Image Scan (Dockerfiles + built images) | snapshot | schedule, manual | trivy, grype | backlog |
-| `dead_code` | Dead Code Detector (unused exports/files/deps) | snapshot | schedule, manual | knip (ISC), vulture (MIT), staticcheck (MIT) | backlog — full analysis needs installed dependencies, which conflicts with `--network=none`; ships when a deps-cache volume design exists (same pattern as vuln-DB volumes, SC-28) |
+| `dead_code` | Dead Code Detector (unused exports/files/deps) | snapshot | schedule, manual | knip (ISC), vulture (MIT), staticcheck (MIT) | backlog — full analysis needs installed dependencies, which conflicts with `--network=none`; ships when a deps-cache volume design exists (same pattern as vuln-DB volumes, SC-28)¹ |
+
+¹ For interprocedural/deep taint beyond unused-export detection (JS/TS/Py/Java/C-C++
+call-graph taint), **Joern** (Apache-2.0) is the selective deep-tier option — RAM-hungry,
+run per-engagement not per-run (CPU_FIRST_OFFLOAD 2026-07-16 §2/§9). **CodeQL is excluded**:
+its license bars use on non-OSS/commercial code without a GitHub Advanced Security
+entitlement.
 
 Each backlog scanner ships with: registry entry, rulepack asset, dimension mapping (`iac` uses
 the reserved `iac` dimension; others reuse `sast`/`dependency`), yields vocabulary additions,

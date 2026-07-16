@@ -527,10 +527,10 @@
   pass.
 - Next: W0-05 (human: GitHub App registration) is now the ONLY open
   ticket in W0 or W1 — every other W1 ticket is done or gate-clean with
-  a PR open awaiting merge instruction (W1-07 PR #9, W1-08 PR #11, W1-09
-  pending). W1-06 (GitHubProvider adapter) depends_on W1-05 (done) and
-  W0-04, which itself depends_on W0-05 — still blocked transitively on
-  that human step; once W0-05 lands, W0-04 and W1-06 both become
-  claimable and W1 finally completes, opening the W2 wave gate. Until
-  then, check validate-plan.mjs for the current set (expect it to show
-  only W0-05).
+  a PR open awaiting merge instruction (W1-09 PR #12, stacked and
+  rebased clean here). W1-06 (GitHubProvider adapter) depends_on W1-05
+  (done) and W0-04, which itself depends_on W0-05 — still blocked
+  transitively on that human step; once W0-05 lands, W0-04 and W1-06
+  both become claimable and W1 finally completes, opening the W2 wave
+  gate. Until then, check validate-plan.mjs for the current set (expect
+  it to show only W0-05).
