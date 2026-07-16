@@ -840,8 +840,10 @@
         "Every payload carries its basis label; MTTR returns 'needs incident data', never a fabricated number (METRICS.md §1 M12 honesty caveats)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker. Last ticket in this bypassed metrics-engine sequence."
+      ]
     },
     {
       "id": "W3-10",
