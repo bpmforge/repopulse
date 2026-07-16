@@ -113,5 +113,31 @@
   anywhere else). Also: narrowed the local `block-env-write.sh` safety hook (Brad's
   own hook, edited with his explicit approval) to allow `.env.example`/`.env.sample`/
   `.env.template` by exact basename while still blocking real `.env*` files.
-- Next: W0 tickets — W0-05 (human: GitHub App) still open; W0-03 (CI pipeline) and
-  W1-01 now claimable (W0-01/W0-02 both done, no longer blocking anything).
+- 2026-07-16 W0-03 done — `.github/workflows/ci.yml`: gate job (lint/typecheck/test +
+  validate-arch/validate-compose/validate-plan/validate-traceability) on every
+  push/PR; supply-chain job (SC-18/SC-19); nightly-e2e job (cron, no-ops until
+  W4-00 lands the Playwright harness — checks for playwright.config.ts first).
+  eslint.config.js: data-driven `@typescript-eslint/no-restricted-imports`
+  boundaries enforcing the full docs/ARCHITECTURE.md §3 allowed-dependency
+  matrix per package (not just the metrics/analysis/insights/reports→forge
+  rule) — verified against real bad-import/good-import test files, not just
+  config inspection (metrics→forge blocked, forge→auth+shared allowed,
+  apps/web value-import of shared blocked vs. type-only allowed, apps/api→
+  apps/web blocked). Cross-package relative-path escapes are caught by tsc's
+  `rootDir` check instead (verified via TS6059), not duplicated in ESLint.
+  **Acceptance #4 deviation (Brad-approved)**: `pnpm audit --prod` is broken
+  upstream for our pinned pnpm 9.x — npm retired the legacy audit endpoint
+  it calls (HTTP 410, verified live), only fixed in pnpm 11
+  (github.com/pnpm/pnpm#13033); bumping pnpm was out of scope for a CI
+  ticket (brief-fixed pin). Replaced with **osv-scanner 2.4.0** (pinned,
+  checksum-verified download) — reads pnpm-lock.yaml directly, never touches
+  the retired endpoint; known gaps vs. the literal ask (no --prod-only
+  filter, importance-heuristic gate rather than a strict CVSS cutoff)
+  recorded in TECH_STACK.md and SECURITY_CONTROLS.md SC-19. New
+  `.gitleaks.toml` allowlists `.env.example` (gitleaks flagged the
+  TOKEN_ENC_KEY placeholder hex value as a generic-api-key finding — tested
+  locally, confirmed a real false positive, not hypothetical). ci.yml
+  validated with `actionlint` (0 errors) and every curl/checksum/detect
+  shell command dry-run locally before landing in CI.
+- Next: W0 tickets — W0-05 (human: GitHub App) still open, last W0 ticket.
+  W1-01 claimable (W0-01/W0-02/W0-03 all done).

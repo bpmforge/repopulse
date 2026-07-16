@@ -148,10 +148,13 @@ GT = Gitea adapter (v1.x).
   green; manual: rotate any secret ever printed by a failed run.
 - **SC-19 Dependency policy** (T-32). pnpm lockfile committed + `--frozen-lockfile` in CI;
   `pnpm config set ignore-scripts true` repo-wide (`.npmrc`) — lifecycle scripts individually
-  allowlisted via `pnpm.onlyBuiltDependencies` when unavoidable; `pnpm audit --prod`
-  CI gate (fail on high/critical); new deps verified against registry + docs before import
-  (CLAUDE.md Law 2 — anti-slopsquatting); renovate/dependabot weekly. *Lands:* W0 · repo
-  root + CI. *Verify:* CI job asserts `.npmrc` flags + runs audit; validator diffs
+  allowlisted via `pnpm.onlyBuiltDependencies` when unavoidable; dependency-vulnerability
+  CI gate (fail on detected vulnerabilities) via **osv-scanner**, not `pnpm audit` — `pnpm
+  audit` is broken against the current npm registry for the pnpm major this repo is pinned
+  to (retired legacy endpoint, only fixed in pnpm 11; docs/TECH_STACK.md has the full
+  writeup, Brad-approved 2026-07-16); new deps verified against registry + docs before
+  import (CLAUDE.md Law 2 — anti-slopsquatting); renovate/dependabot weekly. *Lands:* W0 ·
+  repo root + CI. *Verify:* CI job asserts `.npmrc` flags + runs osv-scanner; validator diffs
   package.json deps against an APPROVED_DEPS note in the ticket.
 - **SC-20 Container hardening** (T-25, T-27, T-34). Podman: non-root UID in all three
   images, `--read-only` rootfs + explicit tmpfs (worker gets a writable Playwright dir),

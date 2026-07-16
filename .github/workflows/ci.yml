@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Nightly Playwright e2e against the seeded stack (docs/TESTING.md §1).
+    # No-ops until the harness lands (W4-00) — see the nightly-e2e job.
+    - cron: '0 3 * * *'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: lint / typecheck / test / validators
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # CI never contacts github.com APIs (PLAYBOOK §Testing tiers) — every
+      # test that would touch the forge uses recorded fixtures only; this
+      # job's own network use (checkout/install) is unrelated to that rule.
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: lint
+        run: pnpm lint
+
+      - name: typecheck
+        run: pnpm typecheck
+
+      - name: test
+        run: pnpm test
+
+      - name: validate-arch (module boundary law)
+        run: bash scripts/validate-arch.sh
+
+      - name: validate-compose (SC-20 dev data-tier baseline)
+        run: bash scripts/validate-compose.sh
+
+      - name: validate-plan (ticket board schema/deps/gates)
+        run: node scripts/validate-plan.mjs
+
+      - name: validate-traceability (FR/story/doc linkage)
+        run: node scripts/validate-traceability.mjs
+
+  supply-chain:
+    name: supply chain (SC-18/SC-19)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # gitleaks scans full history, not just the diff (SC-18).
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: assert SC-19 .npmrc baseline
+        run: |
+          grep -qx 'ignore-scripts=true' .npmrc || { echo "::error::.npmrc missing ignore-scripts=true"; exit 1; }
+          node -e "const p=require('./package.json'); if (!p.pnpm || !Array.isArray(p.pnpm.onlyBuiltDependencies)) { console.error('package.json missing pnpm.onlyBuiltDependencies array'); process.exit(1); }"
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      # SC-19: dependency vulnerability gate. `pnpm audit` is broken against
+      # the current npm registry on the pnpm major this repo is pinned to
+      # (npm retired the legacy audit endpoints pnpm 9.x/10.x call, HTTP
+      # 410 — only fixed in pnpm 11, github.com/pnpm/pnpm issue #13033;
+      # this repo stays on the brief-fixed 9.x pin, CLAUDE.md). Brad
+      # approved osv-scanner as the replacement (docs/TECH_STACK.md) — it
+      # reads pnpm-lock.yaml directly and never touches the retired
+      # endpoint. Known deviation from the literal ask: osv-scanner has no
+      # --prod-only filter (scans the full lockfile incl. devDependencies)
+      # and fails on any detected vulnerability by default rather than a
+      # strict high/critical-only cut (its own importance heuristics
+      # already suppress "unimportant and uncalled" findings).
+      - name: dependency audit (SC-19) — osv-scanner
+        env:
+          OSV_SCANNER_VERSION: '2.4.0'
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" -o osv-scanner
+          curl -sSfL "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_SHA256SUMS" -o osv-scanner_SHA256SUMS
+          grep " osv-scanner_linux_amd64\$" osv-scanner_SHA256SUMS | sha256sum -c -
+          chmod +x osv-scanner
+          ./osv-scanner scan source --lockfile=pnpm-lock.yaml
+
+      - name: gitleaks (SC-18, history-inclusive)
+        env:
+          GITLEAKS_VERSION: '8.30.1'
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt" -o checksums.txt
+          grep "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" checksums.txt | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks detect --source . --log-opts="--all" --redact
+
+  nightly-e2e:
+    name: nightly Playwright e2e (seeded stack)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Ships now per W0-03 acceptance; activates when W4-00 lands the
+      # Playwright harness. Until then this is an intentional no-op, not a
+      # failure — there is nothing to run yet.
+      - name: check for e2e harness
+        id: harness
+        run: |
+          if [ -f "playwright.config.ts" ] || [ -f "apps/web/playwright.config.ts" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Playwright e2e harness not yet landed (W4-00) — skipping nightly run."
+          fi
+
+      - uses: pnpm/action-setup@v6
+        if: steps.harness.outputs.present == 'true'
+
+      - uses: actions/setup-node@v7
+        if: steps.harness.outputs.present == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: install
+        if: steps.harness.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: e2e
+        if: steps.harness.outputs.present == 'true'
+        run: pnpm e2e

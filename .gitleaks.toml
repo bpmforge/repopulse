@@ -1,0 +1,15 @@
+# SC-18 gitleaks config (docs/SECURITY_CONTROLS.md). Extends the default
+# ruleset; the only local addition is allowlisting .env.example, which is a
+# committed template of dev-only, clearly-labeled non-secret placeholder
+# values (CLAUDE.md Law 9 — the real .env is gitignored and never scanned
+# because it never exists in git history to begin with).
+title = "RepoPulse gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret dev-only placeholder file"
+paths = [
+  '''(?:^|/)\.env\.example$''',
+]
