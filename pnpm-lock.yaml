@@ -60,6 +60,12 @@ importers:
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
+      drizzle-orm:
+        specifier: ^0.39.3
+        version: 0.39.3(postgres@3.4.9)
       tsx:
         specifier: ^4.23.1
         version: 4.23.1
@@ -125,6 +131,9 @@ importers:
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       fastify:
         specifier: ^5.10.0
         version: 5.10.0

@@ -182,7 +182,51 @@
   Small docs/design/METRICS.md fix: metric_snapshot/metric_id ->
   metric_snapshots/metric_key to match DATABASE.md's self-consistent
   naming.
+- 2026-07-16 W1-03 done — GitHub OAuth login + Redis sessions.
+  packages/auth/src/oauth/**: authorize-URL builder (`read:user read:org`
+  scope per D6/C5 — forge ingestion permissions are a separate admin
+  connection, FR-AUTH-5, not this scope), code exchange, identity fetch,
+  findOrCreateUser upsert. packages/auth/src/session/**: @fastify/session
+  + @fastify/cookie wired to a hand-written ioredis Store (verified
+  against the installed library source, not guessed) — idle timeout comes
+  free from the library's `rolling: true` default (re-derives
+  `cookie.originalMaxAge` every request, store.set() persists it as the
+  Redis key's PX TTL); absolute lifetime has no library equivalent, so
+  it's enforced independently by stamping `createdAt` at login and
+  rejecting in `get()` once exceeded regardless of the Redis TTL still
+  being live. apps/api/src/routes/auth/**: the four API_DESIGN.md §2 auth
+  endpoints, RFC 7807 problem+json on no/expired session.
+  **Real architectural gap found and resolved** (surfaced to Brad before
+  building, not guessed): FR-AUTH-1's identity fetch needs
+  `api.github.com/user`, which trips scripts/validate-arch.sh rule 4 (no
+  api.github.com outside packages/forge) — but packages/auth can't depend
+  on packages/forge (boundary matrix runs the other way). Resolved with a
+  narrow, grepped rule-4 exception scoped to
+  `packages/auth/src/oauth/**` rather than inverting the dependency;
+  documented in SECURITY_CONTROLS.md (SC-12/AC-4: this call's base URL is
+  a fixed literal, not admin/attacker-supplied input, so the SSRF
+  allowlist's threat model doesn't apply). Verified the exception doesn't
+  weaken the rule elsewhere by deliberately violating it in an unrelated
+  file first and confirming the validator still failed.
+  Scope-completion widenings (same class as W1-01's tsconfig.json gap):
+  `packages/shared/src/index.ts` never actually re-exported the db module
+  W1-01 built (package "main" pointed at the placeholder barrel) — fixed,
+  since every future consumer needs it. `.env.example` gained
+  `API_BASE_URL` (apps/api's own origin for the OAuth redirect_uri —
+  `PUBLIC_BASE_URL` is the SPA, a different origin, and the doc had no var
+  for the API's own URL at all). `GET /me` ships the minimal `{user}`
+  shape only — `workspace/role/identity_id/default_view_id` need W1-04's
+  workspace/RBAC infra that doesn't exist yet; documented in plan.json.
+  authRoutes is `fastify-plugin`-wrapped so its session decorations reach
+  the whole app once W1-04 registers it in app.ts (W1-04 doesn't need to
+  separately register the session plugin — it's already composed in).
+  E2E against a mocked GitHub (real http server, not a fixture/nock) walks
+  login → callback → /me → logout → /me-401, plus state-mismatch and
+  missing-state-cookie rejection; separate live-Redis unit tests prove
+  the idle-timeout TTL renewal and absolute-lifetime rejection directly.
+  Gate: 16 test files/26 tests, all validators (arch/plan/traceability/
+  compose/egress-audit) pass.
 - Next: W0 tickets — W0-05 (human: GitHub App) still open, last W0 ticket
-  (doesn't block anything in W1+). W1-03, W1-05 claimable (W1-06 depends
-  on W1-02, now also claimable — check validate-plan.mjs for the current
-  set).
+  (doesn't block anything in W1+). W1-05 claimable now; W1-04 depends on
+  W1-03 (now done) and becomes claimable next — check validate-plan.mjs
+  for the current set.
