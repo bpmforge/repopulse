@@ -13,3 +13,4 @@ MASTER_PROMPT.md
 PLAYBOOK.md
 README.md
 **/*.gen.ts
+packages/shared/drizzle/

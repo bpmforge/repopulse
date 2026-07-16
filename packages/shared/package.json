@@ -8,7 +8,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {},
+  "dependencies": {
+    "drizzle-orm": "^0.39.3",
+    "postgres": "^3.4.9"
+  },
   "devDependencies": {
     "@types/node": "^22.20.1",
     "typescript": "^5.9.3"

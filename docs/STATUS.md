@@ -139,5 +139,26 @@
   locally, confirmed a real false positive, not hypothetical). ci.yml
   validated with `actionlint` (0 errors) and every curl/checksum/detect
   shell command dry-run locally before landing in CI.
-- Next: W0 tickets — W0-05 (human: GitHub App) still open, last W0 ticket.
-  W1-01 claimable (W0-01/W0-02/W0-03 all done).
+- 2026-07-16 W1-01 done — Drizzle core schema live: 10 tables per DATABASE.md
+  §2 Tenancy & identity + Sync machinery (workspaces, users, workspace_members,
+  forge_connections, identities, repos, sync_cursors, forge_etag,
+  webhook_delivery, job_failure). Text+CHECK for growable enum-shaped fields
+  (provider, auth_kind, role, sync_status, entity_type) per DATABASE.md §5;
+  custom `bytea` type for credential ciphertext/IV (no native drizzle-orm
+  bytea column); self-referencing FK on identities.merged_into_id.
+  `postgres` (postgres.js) added as the driver — not previously pinned,
+  recorded in TECH_STACK.md. Migration 0000 generated then **actually
+  applied** against the live compose Postgres: verified via psql that all
+  10 tables/types/constraints are correct, CHECK constraints reject invalid
+  values, the self-FK resolves, data survives a volume wipe + re-migrate,
+  `drizzle-kit check` reports no drift. Root `drizzle.config.ts` folded
+  into the typecheck gate (was previously uncovered by any workspace
+  script — closed that gap). Two DATABASE.md spec-completion notes: added
+  a surrogate `id` PK to webhook_delivery/job_failure (the doc's column
+  list omitted one, unlike every other entity table); documented the
+  webhook_secret_ciphertext nullability inference. Gate: 11 test files/11
+  tests (new schema-shape sanity test), validate-arch rule 5 now actively
+  validates (was skip-passing) and passes.
+- Next: W0 tickets — W0-05 (human: GitHub App) still open, last W0 ticket
+  (doesn't block anything in W1+). W1-02 (fact + read-model tables),
+  W1-03, W1-05 now claimable (W1-01 unblocked them).
