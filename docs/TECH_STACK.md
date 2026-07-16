@@ -98,9 +98,14 @@ TypeScript level.
 | @octokit/auth-app | **7.x** | App JWT → installation token (1h expiry, refresh ~50min per research §8); PAT fallback via `createTokenAuth`. |
 | @octokit/graphql | **8.x** | Backfill PR metadata at ~2 points/50 PRs (research §6); separate rate bucket from REST — budgeter tracks both. |
 
-Our token-bucket budgeter wraps Octokit; the throttling plugin is the last-line safety net,
-the budgeter (FR-FORGE-3, NFR-1) is the primary control. ETag store (FR-FORGE-4) is a
-custom fetch hook persisting to the `api_cache` table — 304s are free per research §2.
+`BudgetedClient` (W1-05, `packages/forge/src/client/`) is transport-agnostic: it takes an
+injected request-executor rather than depending on Octokit directly, so the same class
+serves both GitHubProvider (W1-06, Octokit-backed executor) and the future Gitea adapter
+(W7-02, fetch-backed executor) per the shared contract-test suite (FORGE_PROVIDER.md §5).
+Octokit's throttling plugin is the last-line safety net on top of whatever executor W1-06
+wires up; the budgeter (FR-FORGE-3, NFR-1) is the primary control. ETag store (FR-FORGE-4)
+persists to the `forge_etag` table (not `api_cache` — corrected stale reference) —
+304s are free per research §2.
 
 ## LLM tiers (packages/analysis only — Law 8)
 
