@@ -597,8 +597,10 @@
         "packages/metrics declares no dependency on packages/forge — validate-arch.sh rule 2 green (CLAUDE.md Law 6)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "DELIBERATE WAVE-GATE BYPASS (Brad, explicit instruction 2026-07-16): PLAYBOOK.md wave gating normally blocks any W3 ticket until every W0/W1 ticket is done; W0-05 (human: GitHub App registration) is the sole remaining W0/W1 blocker and is not something an agent can complete. Rather than idle, Brad explicitly authorized jumping ahead to a later-wave ticket, with the instruction to track W0-05 as still-owed follow-up work. W3-01 was chosen specifically because it is the only substantively (not just formally) unblocked candidate: every W2 ticket requires W1-06 (GitHubProvider), which requires W0-04 fixture recording, which requires REAL GitHub API access from W0-05 - so W2 cannot be meaningfully attempted even with a gate bypass (there is nothing real to build/test against). W3-01 depends only on W1-02 (done, merged) and packages/metrics reads the warehouse DB only, never the forge - it is genuinely buildable and testable today with synthetic fixtures. validate-plan.mjs does not hard-fail on this (the wave-gate check only affects the printed \"claimable\" list, not schema validation), confirmed before proceeding."
+      ]
     },
     {
       "id": "W3-02",
