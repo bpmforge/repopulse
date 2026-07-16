@@ -94,5 +94,24 @@
   validate-traceability: 135/135 FR, 0 dangling. HANDOFF note left on the ticket:
   write_scope widened to include repo-root `.npmrc`/`renovate.json` (unclaimed by any
   other ticket, required by this ticket's own acceptance #4).
-- Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-02; W0-02/W0-03
-  now claimable (W0-01 no longer blocks anything, it had no dependents).
+- 2026-07-16 W0-02 done — dev data tier live: `compose.dev.yaml` (Postgres 16.14 +
+  Redis 7.2.14, both BSD-licensed per G-18), `.env.example` (full DEPLOYMENT.md §3
+  matrix + DATA_DIR, dev-only placeholder secrets, localhost URLs matching the dev
+  compose ports), `scripts/dev-up.sh`/`dev-down.sh` (healthcheck polling, `--volumes`
+  wipe). SC-20 baseline: non-root `user:` on both services (verified via `podman top`
+  — official entrypoints support this directly, no root-then-drop-privileges step),
+  `cap_drop: [ALL]`, `no-new-privileges`, explicit `scram-sha-256` (Postgres) +
+  `requirepass` (Redis), ports bound `127.0.0.1` only. New `scripts/validate-compose.sh`
+  asserts all of this statically (tested against a deliberately-broken compose copy to
+  confirm it isn't a rubber stamp). Verified live, not just by file inspection: both
+  healthchecks green, DATABASE_URL/REDIS_URL from .env.example actually authenticate,
+  data persists across down/up and is wiped by `--volumes`, LAN interface confirmed
+  connection-refused via `nc` from the host's LAN IP while 127.0.0.1 accepts. Small
+  doc fixes: DEPLOYMENT.md `compose.dev.yml`→`.yaml` typo, missing DATA_DIR row added,
+  dev-vs-prod hostname/port split documented. Naming reconciliation: used DEPLOYMENT.md's
+  canonical `TOKEN_ENC_KEY` rather than the ticket text's `CREDENTIAL_KEY` (unused
+  anywhere else). Also: narrowed the local `block-env-write.sh` safety hook (Brad's
+  own hook, edited with his explicit approval) to allow `.env.example`/`.env.sample`/
+  `.env.template` by exact basename while still blocking real `.env*` files.
+- Next: W0 tickets — W0-05 (human: GitHub App) still open; W0-03 (CI pipeline) and
+  W1-01 now claimable (W0-01/W0-02 both done, no longer blocking anything).

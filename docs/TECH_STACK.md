@@ -55,6 +55,19 @@ entrypoint. Dependency rules in ARCHITECTURE.md §3.
 | PostgreSQL | **16** | Brief-fixed; single source of truth for UI reads (FR-API-2); RLS available for SaaS flip (D1). |
 | Drizzle ORM | **0.3x (latest 0.3x minor)** | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
 | Redis | **7.2 (pinned image)** | Brief-fixed; BullMQ backing store + server-side session store (FR-AUTH-2). **License pin**: 7.2 is the last BSD-3 release — 7.4+/8 are RSALv2/SSPLv1/AGPL (DESIGN_REVIEW.md G-18); Valkey 8 (BSD-3) is the sanctioned swap after a BullMQ-compat check. |
+
+**W0-02 resolved images** (`compose.dev.yaml`, 2026-07-16): `docker.io/library/postgres:16`
+resolved to PostgreSQL 16.14; `docker.io/library/redis:7.2` resolved to Redis 7.2.14 (both
+floating within-major tags, same reproducibility model as the npm `^` ranges above — re-pull
+to pick up patches). Both containers run their actual server process as an explicit non-root
+`user:` (verified via `podman top`/`podman exec id` — the official postgres/redis entrypoints
+support this directly, no root-then-drop-privileges step needed), `cap_drop: [ALL]`,
+`security_opt: no-new-privileges:true`, and publish ports bound to `127.0.0.1` only (never
+`0.0.0.0`/LAN) — host-run `pnpm dev` processes reach them via `localhost`, the LAN interface
+gets connection-refused (verified with `nc` from the host's LAN IP). Postgres auth is pinned
+explicit `scram-sha-256` (`POSTGRES_HOST_AUTH_METHOD` + `POSTGRES_INITDB_ARGS`) rather than
+relying on the implicit PG16 default; Redis sets `--requirepass`. `scripts/validate-compose.sh`
+asserts all of the above statically; `scripts/dev-up.sh` polls both healthchecks.
 | BullMQ | **5.x** | Brief-fixed; per-queue concurrency, repeatable jobs (nightly snapshot/reconciliation), DLQ pattern for NFR-11. |
 | zod | **3.x** | One validation library everywhere: route bodies, LLM output (FR-ANALYSIS-5), config parsing. |
 
