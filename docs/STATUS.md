@@ -226,7 +226,51 @@
   the idle-timeout TTL renewal and absolute-lifetime rejection directly.
   Gate: 16 test files/26 tests, all validators (arch/plan/traceability/
   compose/egress-audit) pass.
-- Next: W0 tickets — W0-05 (human: GitHub App) still open, last W0 ticket
-  (doesn't block anything in W1+). W1-05 claimable now; W1-04 depends on
-  W1-03 (now done) and becomes claimable next — check validate-plan.mjs
-  for the current set.
+- 2026-07-16 W1-04 done — Workspaces, roles, /api/v1 skeleton.
+  packages/auth/src/workspace/**: `ensureMembership(db, userId)` — finds
+  or creates the single `default` workspace (D1) and auto-creates a
+  membership row on first authenticated request if absent (FR-AUTH-3).
+  First-ever member of the workspace becomes `admin`, later members
+  `member` — undocumented in SRS/UX_SPEC but necessary for bootstrap (no
+  admin route is ever reachable otherwise) and consistent with UX_SPEC's
+  "Connect your org (admin) / Ask an admin" empty-state copy; a narrow
+  count-then-insert race between two concurrent first-ever logins is
+  accepted (worst case: two admins, not a privilege escalation).
+  apps/api: error-envelope plugin emits the RFC 7807 shape from
+  API_DESIGN.md §4 exactly (`{type,title,status,detail,instance,
+  request_id}`) — the ticket text's `{code,message,requestId}` and
+  DASHBOARD.md's copy of the same are the *frontend's* surface
+  representation after receiving this wire response, not a competing wire
+  format; zod validation failures get a 400 with a field-errors array via
+  fastify-type-provider-zod's `hasZodFastifySchemaValidationErrors` guard.
+  `/api/v1` is a guarded, non-fastify-plugin-wrapped encapsulated scope
+  (session → workspace → role preHandler, zod validator/serializer
+  compilers) so `/auth/*`, `/healthz`, and `/api/v1/openapi.json` stay
+  exempt by construction, not a special-case list. `requireAdmin` is the
+  reusable 👑-route gate.
+  **Real Fastify bug found and fixed via testing, not assumed**: an async
+  preHandler that calls `reply.send()` and then implicitly returns
+  `undefined` does not reliably short-circuit Fastify's remaining
+  preHandler chain when there's more than one preHandler in it (plugin-level
+  `addHook` + a route's own `preHandler` option) — manifested as a second,
+  overlapping `onSend`/session-save cycle and an unhandled
+  `ERR_HTTP_HEADERS_SENT` rejection, caught by the synthetic-route RBAC
+  test, not by inspection. Fix: explicitly `return reply` on every
+  early-exit preHandler path (both `requireAdmin` and apiV1's own guard).
+  No admin (👑) feature routes exist yet (all later-wave tickets), so the
+  "matrix test over all admin routes" acceptance criterion is proven
+  against a synthetic guarded route registered the same way a real
+  feature-route ticket would extend `/api/v1` (documented in api-v1.ts) —
+  real admin routes get the same coverage for free once they exist.
+  Scope-completion widenings: `vitest.config.ts` added with
+  `fileParallelism: false` — two test files now mutate the shared
+  `default` workspace's membership table (a genuine live-infra race,
+  not a hypothetical); `apps/api/src/app.ts` rewritten (`/health` →
+  `/healthz`, now checks live Postgres + Redis, unauthenticated) with a
+  new `BuildAppOptions` config surface; `apps/api/src/index.ts` reads
+  env (fails fast on any missing required var) and adds `API_BASE_URL`
+  usage for the OAuth redirect_uri (added to `.env.example` in W1-03).
+  Gate: 19 test files/42 tests (up from 16/26), all validators pass.
+- Next: W0-05 (human: GitHub App registration) still open, last W0
+  ticket. W1-05 (packages/forge core) claimable now — check
+  validate-plan.mjs for the current set.
