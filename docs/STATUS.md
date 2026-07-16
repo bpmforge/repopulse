@@ -464,10 +464,9 @@
   W1-07), all validators (arch/plan/traceability/compose/egress-audit)
   pass.
 - Next: W0-05 (human: GitHub App registration) still the only open W0
-  ticket. W1-04 and W1-05 merged; W1-07 gate-clean with a PR open,
-  awaiting merge instruction; W1-08 gate-clean with a PR open (stacked on
-  W1-07's branch — merge #9 first), awaiting merge instruction. W1-06
-  (GitHubProvider adapter) depends_on W1-05 (done) and W0-04, which
-  itself depends_on W0-05 — still blocked transitively on that human
-  step, not yet claimable. W1-09 claimable now — check validate-plan.mjs
-  for the current set.
+  ticket. W1-04, W1-05, and W1-07 merged; W1-08 gate-clean with a PR
+  open (stacked on W1-07's now-merged branch, rebased clean here),
+  awaiting merge instruction. W1-06 (GitHubProvider adapter) depends_on
+  W1-05 (done) and W0-04, which itself depends_on W0-05 — still blocked
+  transitively on that human step, not yet claimable. W1-09 claimable
+  now — check validate-plan.mjs for the current set.
