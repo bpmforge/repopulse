@@ -684,9 +684,13 @@
         "PRs merged with zero reviews contribute only to e2e; median + p90 per stage via nearest-rank on the pooled sample"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker.",
+        "computeCycleStages reproduces METRICS.md §4 E2 exactly (6h/27h/15h/e2e 48h) using the real re-request-aware algorithm (finds the last re-request event, then the first non-dismissed approval after it), not hardcoded to the example's numbers - verified via additional fixtures covering the no-re-request case, zero-review PRs, bot/unmerged exclusion, and self-authored-event exclusion.",
+        "Dismissal handling is a documented simplification, not a silently-guessed shortcut: an approval is voided once ANY 'dismissed' event exists for that same reviewer on the PR, since the flat CycleEvent list has no per-review identity linking a dismissal to one specific approval. Exact for the common one-approval-per-reviewer case (which is all METRICS.md's own worked example ever exercises); a reviewer who approves, gets dismissed, then re-approves would need richer event data than this ticket's fixture shape carries - flagged in code comments and here rather than building an unspecified richer state machine.",
+        "computeCycleStagePercentiles pools across PRs using W3-01's median/nearestRankPercentile engine utilities directly (not reimplemented), satisfying \"median + p90 per stage via nearest-rank on the pooled sample\" from the ticket's acceptance text.",
+        "Closed 2026-07-16: full gate green on this branch (48 test files/176 tests - cut from main before W3-03/ownership merged, so the running total differs slightly from the sequential board count; reconciles automatically once both branches merge). validate-arch/plan/traceability/compose/egress-audit all pass."
       ]
     },
     {

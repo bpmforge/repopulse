@@ -623,10 +623,34 @@
   `fixtures/**/*.ts` in this package needs, not scope creep.
   Gate: 47 test files/167 tests workspace-wide (up from 45/158 after
   W3-01), all validators pass.
+- 2026-07-16 W3-04 done — M4 PR cycle-time stages. Continues the W3-01
+  wave-gate bypass. `packages/metrics/src/metrics/cycle.ts`:
+  `computeCycleStages` (open→firstReview / firstReview→approved /
+  approved→merged / e2e, METRICS.md §1 M4) reproduces worked example E2
+  exactly (6h/27h/15h/e2e 48h). Bot-authored and unmerged PRs return
+  `null` (excluded entirely, not zeroed); merged PRs with zero reviews
+  return `null` for every stage except `e2e`, per the ticket's own
+  acceptance wording. `computeCycleStagePercentiles` pools stage
+  durations across PRs via the W3-01 `median`/`nearestRankPercentile`
+  engine utilities.
+  **Documented simplification** (not silently guessed): dismissal
+  handling voids ALL of a reviewer's approvals on a PR once any
+  `dismissed` event for that reviewer exists — the flat event-list shape
+  used here carries no per-review identity to link a specific dismissal
+  to one specific prior approval. Exact for the common case (one
+  approval per reviewer, which the doc's own worked example never even
+  exercises); a reviewer who approves, gets dismissed, then re-approves
+  would need richer event data than the ticket's fixture shape carries.
+  Flagged in the code and here rather than silently building a more
+  elaborate state machine the doc doesn't actually specify.
+  Gate: 48 test files/176 tests workspace-wide (up from 47/167 after
+  W3-01 — this branch was cut before W3-03/ownership merged, so its own
+  count differs slightly from the sequential total; reconciles on
+  merge).
 - Next: W0-05 (human: GitHub App registration) remains the only ticket
   that unblocks the *rest* of the board on its own merits — W2 (all
   five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses. W3-03 through W3-09 (the remaining M3–M12 metric
+  wave-gate bypasses. W3-05 through W3-09 (the remaining M5–M12 metric
   implementations) are newly claimable in the same bypassed sense —
   check validate-plan.mjs for the current set (wave-gate-aware view will
   still show only W0-05).
