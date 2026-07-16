@@ -719,8 +719,10 @@
         "M6 = 1 − M5 with drill-down list {pr, author, merger, sizeBucket, mergedAt} that reconciles with the rate to the PR (FR-METRICS-5/6)"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+      ]
     },
     {
       "id": "W3-06",
