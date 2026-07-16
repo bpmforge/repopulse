@@ -421,7 +421,7 @@
         "Internal-only exposure documented per DEPLOYMENT.md §7 (internal vhost — never on the public webhook vhost); integration tests assert both endpoints and the §3 metric names are present"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
