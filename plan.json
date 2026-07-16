@@ -881,8 +881,10 @@
         "Org rollups per METRICS.md §2 / FR-METRICS-14: percentile metrics pool raw samples (pooled p90 ≠ mean-of-repo-p90s test), ratio metrics sum numerators/denominators, rollups honor the active repo-set filter"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "SCOPE REDUCTION (Brad, explicit instruction): the full ticket needs a real BullMQ nightly job (INGESTION.md §6), which needs W2-02 queue topology - itself still blocked on W1-06/W0-05, so it is NOT bypassable the way W3-01..W3-09 were. Brad chose to have the PURE, job-independent parts built now instead of waiting: org rollup math (percentile pooling + ratio numerator/denominator summing, FR-METRICS-14) and the append-only snapshot row writer + snapshot-only trend reader. The actual nightly BullMQ job registration/scheduling (jobId snap:{repoId}:{yyyymmdd}) is explicitly deferred to whichever ticket builds W2-02 queue infra - this ticket does NOT close the full acceptance criteria, only the rollups/snapshots write_scope pieces that are genuinely self-contained."
+      ]
     },
     {
       "id": "W3-11",
