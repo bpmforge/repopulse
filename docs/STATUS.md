@@ -623,10 +623,29 @@
   `fixtures/**/*.ts` in this package needs, not scope creep.
   Gate: 47 test files/167 tests workspace-wide (up from 45/158 after
   W3-01), all validators pass.
+- 2026-07-16 W3-03 done — M3 ownership / bus factor. Continues the
+  W3-01 wave-gate bypass. `packages/metrics/src/metrics/ownership.ts`:
+  `computeOwnership` (fixed **trailing 365d** per METRICS.md §1 M3 —
+  deliberately not the configurable §0 window; a stale-touch test proves
+  a >365d-old touch is excluded even though it would fall inside a
+  hypothetically larger W) + `computeFileOwnership`/
+  `computeDirectoryOwnership` (directory = recursive sum of files, exact
+  path-prefix match with a trailing-slash boundary so `src-other/` never
+  matches a `src` query). `linesChanged(author)` = Σ(additions+deletions)
+  over eligible touches (same W3-01 `isEligibleForChurn` filter);
+  `topShare` via the shared `ratio` utility (`null` on zero eligible
+  activity, never `0`); `busFactor` = smallest author set summing to
+  ≥50% (sorted desc); `singleOwner` flags at `topShare >= 0.80`.
+  Reproduces METRICS.md's own two worked cases exactly: 60/30/10 ⇒
+  busFactor 1, no flag (0.60 < 0.80); 85/15 ⇒ busFactor 1, flagged
+  (0.85 ≥ 0.80) — plus an even-split (30/30/40) case proving busFactor
+  correctly reaches 2 when the top author alone doesn't cover 50%.
+  Gate: 48 test files/174 tests workspace-wide (up from 47/167 after
+  W3-02), all validators pass.
 - Next: W0-05 (human: GitHub App registration) remains the only ticket
   that unblocks the *rest* of the board on its own merits — W2 (all
   five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses. W3-03 through W3-09 (the remaining M3–M12 metric
+  wave-gate bypasses. W3-04 through W3-09 (the remaining M4–M12 metric
   implementations) are newly claimable in the same bypassed sense —
   check validate-plan.mjs for the current set (wave-gate-aware view will
   still show only W0-05).
