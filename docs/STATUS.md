@@ -705,10 +705,34 @@
   regardless of activity age.
   Gate: 52 test files/202 tests workspace-wide (up from 50/192 after
   W3-05), all validators pass.
+- 2026-07-16 W3-07 done — M9 CI pass rate, duration and flakiness.
+  Continues the W3-01 wave-gate bypass.
+  `packages/metrics/src/metrics/ci.ts` mirrors the real
+  `check_runs` schema (W1-02) exactly — `runAttempt` is that column's own
+  documented purpose ("Powers flakiness"), `pullRequestId` null/non-null
+  is the default-branch/PR split. `computeCiPassRate` = success ÷
+  (completed − cancelled − skipped); in-progress runs are filtered out
+  before cancelled/skipped are even considered, so they can't leak into
+  the denominator through any path. **A real fixture-driven correction
+  during testing, not silently patched**: an initial test assumed
+  `computeCiDuration` would exclude cancelled runs the same way
+  `computeCiPassRate` does, and failed — re-reading METRICS.md §1 M9
+  confirmed duration's definition carries no such exclusion (only
+  passRate's does), so the cancelled fixture run's real 1-minute
+  duration correctly enters the pooled median/p90 alongside the
+  10/20/30-minute runs; fixed the test's wrong assumption, not the
+  (correct) implementation. `computeCiFlakiness` groups by
+  (workflowName, headSha); a "rerun group" only exists once ≥2 attempts
+  share a head SHA — a workflow run exactly once never enters the
+  denominator at all, not even as a non-flaky data point. Fixture
+  exercises three distinct cases (flip fail→pass, rerun-but-no-flip,
+  rerun-both-succeeded) and asserts the flaky workflow ranks first.
+  Gate: 53 test files/212 tests workspace-wide (up from 52/202 after
+  W3-06), all validators pass.
 - Next: W0-05 (human: GitHub App registration) remains the only ticket
   that unblocks the *rest* of the board on its own merits — W2 (all
   five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses. W3-07 through W3-09 (the remaining M9–M12 metric
+  wave-gate bypasses. W3-08/W3-09 (the remaining M10–M12 metric
   implementations) are newly claimable in the same bypassed sense —
   check validate-plan.mjs for the current set (wave-gate-aware view will
   still show only W0-05).

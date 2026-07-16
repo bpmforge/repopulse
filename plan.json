@@ -780,8 +780,14 @@
         "flakiness(workflow) = fail→pass flips on same-head-SHA reruns ÷ rerun groups, ranked desc; flaky fixture workflow ranks first"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker.",
+        "CiRunInput mirrors the real check_runs schema (packages/shared/src/db/schema/facts/check-runs.ts, W1-02) field-for-field, not an invented shape - runAttempt is that column's own documented purpose (\"Powers flakiness (fail->pass same head SHA)\"), pullRequestId null/non-null is exactly how default-branch vs PR runs are distinguished.",
+        "Real fixture-driven correction caught during testing, not silently patched: an initial test assumed computeCiDuration excludes cancelled runs the same way computeCiPassRate does. It failed (expected value was for 3 runs, actual computation correctly used 4 - the cancelled run's real duration). Re-read METRICS.md §1 M9 to confirm: duration's definition (\"median+p90 of run_started_at->updated_at\") carries no cancelled/skipped exclusion - only passRate's denominator definition does. Fixed the WRONG TEST ASSUMPTION, not the correct implementation - verified against the doc's literal text rather than assuming symmetry between passRate and duration exclusion rules.",
+        "computeCiFlakiness groups by (workflowName, headSha); a \"rerun group\" only exists once >=2 attempts share a head SHA - a workflow run exactly once (no rerun at all) contributes to neither rerunGroups nor flippedGroups for that workflow, distinct from a rerun group that happened not to flip (0/1, still counted in the denominator). Fixture exercises three distinct workflows (flip fail->pass, rerun-no-flip fail->fail, rerun-no-flip success->success) and asserts the flaky workflow ranks first when sorted desc by flakinessRatio.",
+        "Closed 2026-07-16: full gate green - lint/typecheck/test (53 test files/212 tests workspace-wide, up from 52/202 after W3-06), validate-arch/plan/traceability/compose/egress-audit all pass."
+      ]
     },
     {
       "id": "W3-08",
