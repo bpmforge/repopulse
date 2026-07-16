@@ -810,9 +810,13 @@
         "M11 per METRICS.md §1 M11: published non-draft releases (prerelease inclusion configurable, default off), tags-as-releases fallback labeled basis=tags, releases per window + median gap + days-since-last (FR-METRICS-11)"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker.",
+        "Real schema gap surfaced, not silently worked around: the real issues table (packages/shared/src/db/schema/facts/issues.ts, W1-02) stores only the CURRENT closedAt plus a reopenedCount counter with no per-cycle timestamps - \"reopen+reclose = 2 closes\" (the literal acceptance wording) genuinely cannot be reconstructed from that single row. IssueThroughputInput.closeEvents is deliberately richer than what the current schema supplies (a full per-event history, each carrying its own openPeriodStartedAt) - whichever ticket ingests GitHub's Issue Events API (not built yet, a future ingest-wave concern) is what would actually populate this shape from real data. Flagged explicitly rather than building the computation against a schema that can't feed it.",
+        "computeIssueThroughput/computeOpenIssueAgeDistribution verified against a hand-computed fixture with real calendar-date arithmetic (not toy round numbers): opened=2, closed=2 (one issue's two close events, only the June one counted, proving out-of-window close events are correctly excluded even when the SAME issue has another qualifying one), medianTimeToCloseDays=14, single open issue aged exactly 20 days.",
+        "computeReleaseCadence's tags-fallback only activates when there are ZERO eligible releases at all (not e.g. when a repo merely has few) - tested both ways (with releases present -> basis=releases even though tags also exist in principle; zero releases -> basis=tags). Draft and prerelease exclusion (default off) verified against a 5-release fixture (3 eligible + 1 draft + 1 prerelease), plus a separate test proving includePrereleases=true widens eligibility correctly (4 of 5, draft still excluded).",
+        "Closed 2026-07-16: full gate green - lint/typecheck/test (55 test files/223 tests workspace-wide, up from 53/212 after W3-07), validate-arch/plan/traceability/compose/egress-audit all pass."
       ]
     },
     {

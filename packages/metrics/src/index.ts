@@ -10,3 +10,5 @@ export * from './metrics/review-coverage.js';
 export * from './metrics/pr-size.js';
 export * from './metrics/stale-prs.js';
 export * from './metrics/ci.js';
+export * from './metrics/issues.js';
+export * from './metrics/releases.js';
