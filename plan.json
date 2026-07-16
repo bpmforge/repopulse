@@ -28,9 +28,10 @@
         "Lockfile discipline per SC-19: CI installs with --frozen-lockfile; renovate config committed with weekly schedule (never auto-merge)"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "HANDOFF: write_scope widened to include .npmrc and renovate.json at repo root — not listed explicitly but required by this ticket's own acceptance #4 (SC-19) and unclaimed by any other ticket (W0-03 owns .github/workflows/ci.yml, the --frozen-lockfile CI enforcement)."
+        "HANDOFF: write_scope widened to include .npmrc and renovate.json at repo root — not listed explicitly but required by this ticket's own acceptance #4 (SC-19) and unclaimed by any other ticket (W0-03 owns .github/workflows/ci.yml, the --frozen-lockfile CI enforcement).",
+        "Closed 2026-07-15: gate green (lint/typecheck/test), validate-arch PASS, validate-traceability OK. Toolchain deviation recorded in docs/TECH_STACK.md (Node 22.23.1, pnpm 9.15.9 vs dev-machine defaults Node 24/pnpm 11)."
       ]
     },
     {

@@ -12,3 +12,6 @@ playwright-report/
 test-results/
 .code-search/
 docs/work/telemetry.jsonl
+*.tsbuildinfo
+.vite/
+tools/fixture-recorder/tmp/

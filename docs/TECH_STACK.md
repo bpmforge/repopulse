@@ -12,6 +12,17 @@ Context7 / node_modules before coding. Upgrades only per the policy at the botto
 | TypeScript | **5.x**, `strict: true` | Brief-fixed language; strict mode is the cheapest bug gate for cheap agents (C3). |
 | pnpm | **9.x** workspaces | Brief-fixed; content-addressed store, strict node_modules prevents phantom-dependency imports across package boundaries (Law 6). |
 
+**W0-01 resolved versions** (dev machine default toolchain is Node 24 / pnpm 11 via fnm+corepack —
+neither matches the pin above; recorded here per Law 2 rather than silently building against the
+wrong runtime):
+- Node **22.23.1** (`.nvmrc`; `fnm use 22` before any install/lint/test/typecheck).
+- pnpm **9.15.9** pinned via root `package.json` `"packageManager"` field + `corepack prepare
+  pnpm@9.15.9 --activate` (latest 9.x at scaffold time, 2026-07-15).
+- All other pins in this doc installed at the latest patch/minor within their pinned major as of
+  2026-07-15 (e.g. Fastify 5.10.0, Vite 6.4.3, React 18.3.1, TypeScript 5.9.3, ESLint 9.39.5,
+  vitest 3.2.7) — exact ranges live in each workspace's `package.json`, lockfile is the source of
+  truth for resolved versions.
+
 ### Workspace layout (fixed — matches brief module boundaries)
 
 ```
@@ -108,6 +119,7 @@ to cheap agents (C3).
 | ESLint | **9.x flat config** | Carries the law-enforcing rules: no `packages/forge` import outside ingest/api-webhook wiring, no raw fetch to forge/LM hosts (FR-FORGE-6, NFR-8). |
 | drizzle-kit | matching Drizzle | SQL migration generation; migrations committed, never edited after merge. |
 | k6 | latest | NFR-3 p95<500ms latency gate against seeded 50-repo dataset. |
+| prettier | **3.x** | Not brief-fixed; added W0-01 to back `.prettierrc.json`/`format`/`format:check` scripts. Not part of the Law-3 gate (`lint && typecheck && test`) — `pnpm format:check` is a separate, non-blocking script. |
 
 ## Known traps for cheap coding agents (read before touching each area)
 
@@ -140,6 +152,11 @@ to cheap agents (C3).
   ~10k tokens on qwen3.6-class models. Never size a chunk assuming 45k output.
 - **GitHub stats endpoints return 202 first** and degrade ≥10k commits (research §3) —
   always code the retry-after-202 loop AND the REST per-commit fallback path.
+- **vitest 3.x `defineWorkspace`/`vitest.workspace.ts` is deprecated** (removal flagged for the
+  next major, printed at every `vitest run` as of 3.2.7) in favor of a `test.projects` array in
+  the root vitest config. W0-01 keeps `vitest.workspace.ts` because it's the pin named in
+  plan.json's write_scope and still fully functional on vitest 3.x; migrate to `test.projects`
+  in the same ticket that bumps vitest to a 4.x major (Version upgrade policy below).
 
 ## Version upgrade policy
 
