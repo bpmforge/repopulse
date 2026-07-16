@@ -256,7 +256,7 @@
         "Role enforcement admin vs member per FR-AUTH-4: a member calling any admin (crown) route in docs/API_DESIGN.md §2 receives 403 — matrix test over all admin routes"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
