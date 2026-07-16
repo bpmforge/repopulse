@@ -99,6 +99,23 @@ const webBoundary = {
   },
 };
 
+// SC-23: forge-sourced strings and LLM evidence must render as text only.
+// Plain `no-restricted-syntax` (no eslint-plugin-react dependency needed) -
+// matches the JSXAttribute node by name regardless of which element it's on.
+const webNoDangerousHtml = {
+  files: ['apps/web/**/*.tsx'],
+  rules: {
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
+        message:
+          'dangerouslySetInnerHTML is banned (SC-23) — forge/LLM-sourced strings must render as text only.',
+      },
+    ],
+  },
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -136,4 +153,5 @@ export default tseslint.config(
   ...domainPackageBoundaries,
   apiBoundary,
   webBoundary,
+  webNoDangerousHtml,
 );

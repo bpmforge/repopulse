@@ -3,10 +3,13 @@ import { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
 import fastifySwagger from '@fastify/swagger';
 import { jsonSchemaTransform } from 'fastify-type-provider-zod';
-import type { Database } from '@repopulse/shared';
+import { createLogger, type Database, type Logger } from '@repopulse/shared';
 import { oauth } from '@repopulse/auth';
 import authRoutes from './routes/auth/index.js';
 import errorEnvelopePlugin from './plugins/error-envelope.js';
+import securityHeadersPlugin from './plugins/security-headers.js';
+import rateLimitsPlugin from './plugins/rate-limits.js';
+import csrfHeaderPlugin from './plugins/csrf-header.js';
 import apiV1 from './plugins/api-v1.js';
 import { sendProblem } from './lib/problem.js';
 
@@ -20,10 +23,19 @@ export interface BuildAppOptions {
   githubOAuth: oauth.GithubOAuthConfig;
   githubEndpoints?: oauth.GithubOAuthEndpoints;
   loginRedirectUrl: string;
+  /** Test-only override so security tests can capture audit/redaction output. */
+  loggerInstance?: Logger;
 }
 
 export function buildApp(opts: BuildAppOptions) {
-  const app = Fastify({ logger: true });
+  // SC-2: a custom pino instance (not `logger: true`) so every log line -
+  // including every `request.log`/child logger, since pino's streamWrite
+  // hook operates at the shared destination-stream level - passes through
+  // the no-log-material redaction layer (verified: `loggerInstance` is the
+  // Fastify 5.x option for a pre-built pino instance, not `logger`).
+  const app = Fastify({
+    loggerInstance: opts.loggerInstance ?? createLogger({ name: 'repopulse-api' }),
+  });
 
   // Own connection dedicated to /healthz — deliberately not the session
   // plugin's internal client (packages/auth doesn't expose it), and cheap
@@ -34,6 +46,9 @@ export function buildApp(opts: BuildAppOptions) {
   });
 
   app.register(errorEnvelopePlugin);
+  app.register(securityHeadersPlugin);
+  app.register(rateLimitsPlugin);
+  app.register(csrfHeaderPlugin);
 
   // Registered before the routes it documents — @fastify/swagger's onRoute
   // hook only catches routes added after this point.
