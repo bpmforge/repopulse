@@ -719,9 +719,14 @@
         "M6 = 1 − M5 with drill-down list {pr, author, merger, sizeBucket, mergedAt} that reconciles with the rate to the PR (FR-METRICS-5/6)"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker."
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (merged to main), unaffected by the W0-05/W2 blocker.",
+        "computeReviewCoverage reproduces METRICS.md §4 E3 exactly (bot PR excluded from the denominator entirely, self-approval uncovered, M5=6/9=66.7%, M6=33.3%) using the real qualifying-state/self-review-exclusion logic, not hardcoded numbers.",
+        "Judgment call, documented in code: DISMISSED reviews never count toward coverage. METRICS.md §1 M5 lists the qualifying states as \"APPROVED, CHANGES_REQUESTED, or COMMENTED with body/comments\" and doesn't explicitly mention DISMISSED either way - reasoned that a dismissed review's opinion no longer stands, so excluding it from \"completed non-author review\" is the more defensible reading. A direct test (a PR whose only review is DISMISSED) proves this exclusion is real, not incidental.",
+        "uncoveredDrillDown reconciles exactly with merged-covered - tested directly against both the count AND the specific PR-number membership (not just the M6 percentage), satisfying the acceptance criterion's literal \"reconciles with the rate to the PR\" wording.",
+        "prSizeBucket (METRICS.md §1 M7's XS/S/M/L/XL thresholds) is exported from this ticket's file since M6's drill-down needs a sizeBucket field before M7 (W3-06) exists yet - single-sourced here rather than each ticket re-deriving the same threshold numbers; W3-06 should import this rather than redefining it.",
+        "Closed 2026-07-16: full gate green - lint/typecheck/test (50 test files/192 tests workspace-wide, up from 48/176 after W3-04), validate-arch/plan/traceability/compose/egress-audit all pass."
       ]
     },
     {
