@@ -352,7 +352,7 @@
         "Suite runs inside pnpm test and is part of the full gate from W1 on (MASTER_PROMPT §Hard rules: tenancy invariant)"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
