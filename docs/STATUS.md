@@ -751,9 +751,39 @@
   gap 59d, 36d since last).
   Gate: 55 test files/223 tests workspace-wide (up from 53/212 after
   W3-07), all validators pass.
-- Next: W0-05 (human: GitHub App registration) remains the only ticket
-  that unblocks the *rest* of the board on its own merits — W2 (all
-  five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses. W3-09 (M12 DORA) is the last metric-implementation
-  ticket in this bypassed sequence — check validate-plan.mjs for the
-  current set (wave-gate-aware view will still show only W0-05).
+- 2026-07-16 W3-09 done — M12 DORA approximations with basis labels.
+  Continues (and closes out) the W3-01 wave-gate bypass sequence for
+  the metrics engine — every M1–M12 metric now has a real implementation.
+  `packages/metrics/src/metrics/dora.ts`: `computeDeploymentFrequency`
+  falls back to releases (`basis: 'releases'`) only when zero deployment
+  records exist at all (matching Gitea's real always-fallback case,
+  research §7) — a repo with deployment records that are merely all
+  failed/pending still reports `basis: 'deployments'` with a 0 count,
+  never silently switching sources. `computeLeadTimeForChanges` pools
+  every (deployment − commit) interval across *all* deployments into one
+  sample before taking median/p90 — a deliberate reading of the doc's
+  "per deployment D: median over commits C" wording, applying
+  FR-METRICS-14's own pooling principle (percentile metrics pool raw
+  samples, never average pre-computed per-group values) rather than
+  computing a median-of-medians; documented as an interpretation, not
+  guessed silently. Resolving which commits belong to which deployment
+  window needs the real git commit graph — the caller's (ingest) job,
+  not this pure function's; it receives already-attributed
+  `{deployedAt, changeTime}` pairs. `computeChangeFailureRate` matches
+  the doc's `/\b(revert|hotfix|rollback)\b/i` heuristic or a GitHub
+  revert-link flag, strictly *after* the deployment and within 48h,
+  same environment; failed deployment ids are exposed for drill-down.
+  `computeMttr` always returns `{status: 'needs_incident_data', value:
+  null}` — the literal honesty-caveat acceptance criterion. Every result
+  type carries the doc's own caveat text verbatim (not paraphrased) as
+  the "basis label" the acceptance asks for.
+  Gate: 56 test files/235 tests workspace-wide (up from 55/223 after
+  W3-08), all validators pass.
+- Next: W0-05 (human: GitHub App registration) is the only remaining
+  ticket that unblocks anything — every W3-01..W3-09 metric-engine
+  ticket is now done (W3-10 through W3-13, the snapshot/rollup/health-
+  score/retention tickets that consume these metric functions, still sit
+  behind the wave gate and haven't been bypassed). W2 (all five
+  tickets) and W1-06 stay substantively blocked on W0-05 regardless of
+  wave-gate bypasses — check validate-plan.mjs for the current set
+  (wave-gate-aware view will still show only W0-05).

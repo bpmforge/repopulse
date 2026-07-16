@@ -12,3 +12,4 @@ export * from './metrics/stale-prs.js';
 export * from './metrics/ci.js';
 export * from './metrics/issues.js';
 export * from './metrics/releases.js';
+export * from './metrics/dora.js';
