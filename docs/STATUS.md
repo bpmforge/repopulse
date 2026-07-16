@@ -664,10 +664,29 @@
   elaborate state machine the doc doesn't actually specify.
   Gate: 48 test files/176 tests workspace-wide (up from 48/174 after
   W3-03), all validators pass.
+- 2026-07-16 W3-05 done — M5 review coverage % + M6 merged-without-
+  review rate (pair). Continues the W3-01 wave-gate bypass.
+  `packages/metrics/src/metrics/review-coverage.ts`:
+  `computeReviewCoverage` reproduces METRICS.md §4 E3 exactly (bot PR
+  excluded from the denominator entirely, self-approval uncovered, M5 =
+  6/9 = 66.7%, M6 = 33.3%). Covered = ≥1 non-author review in
+  {APPROVED, CHANGES_REQUESTED, COMMENTED-with-content}; `DISMISSED`
+  never counts (a dismissed review's opinion no longer stands — not
+  explicitly excluded in the doc's state list, judgment call documented
+  in code); an empty/no-content `COMMENTED` review never counts either.
+  `uncoveredDrillDown` reconciles exactly with `merged − covered` — a
+  test asserts the list's length and PR-number membership directly
+  against the fixture, not just the M6 percentage.
+  Also exports `prSizeBucket` (METRICS.md §1 M7's XS/S/M/L/XL
+  thresholds) from this file — needed now for the drill-down's
+  `sizeBucket` field, single-sourced here so W3-06 (PR size
+  distribution) reuses it rather than re-deriving the same thresholds.
+  Gate: 50 test files/192 tests workspace-wide (up from 48/176 after
+  W3-04), all validators pass.
 - Next: W0-05 (human: GitHub App registration) remains the only ticket
   that unblocks the *rest* of the board on its own merits — W2 (all
   five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses. W3-05 through W3-09 (the remaining M5–M12 metric
+  wave-gate bypasses. W3-06 through W3-09 (the remaining M7–M12 metric
   implementations) are newly claimable in the same bypassed sense —
   check validate-plan.mjs for the current set (wave-gate-aware view will
   still show only W0-05).
