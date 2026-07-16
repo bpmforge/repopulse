@@ -86,7 +86,8 @@ drizzle-orm's pg-core (verified: no `bytea.ts` under `pg-core/columns/`) — def
 as a real `bytea` column against live Postgres (`\d forge_connections`), not just at the
 TypeScript level.
 | BullMQ | **5.x** | Brief-fixed; per-queue concurrency, repeatable jobs (nightly snapshot/reconciliation), DLQ pattern for NFR-11. |
-| zod | **3.x** | One validation library everywhere: route bodies, LLM output (FR-ANALYSIS-5), config parsing. |
+| zod | **3.x** (currently `^3.25.76`) | One validation library everywhere: route bodies, LLM output (FR-ANALYSIS-5), config parsing. **W1-04 note**: zod 4.x is current upstream, but 3.x is brief-fixed — not relitigated. `fastify-type-provider-zod@^4.0.2` (not the current v7, which requires zod ^4) is the zod-3-compatible major that wires zod schemas into Fastify's validator/serializer + OpenAPI generation (verified via installed `.d.ts`: `jsonSchemaTransform`/`validatorCompiler`/`serializerCompiler`). |
+| @fastify/swagger | **9.8.1** | Not brief-fixed; added W1-04 for OpenAPI generation from Fastify+zod route schemas (FR-API-1), served at `GET /api/v1/openapi.json` (no UI/`@fastify/swagger-ui` — not required by API_DESIGN.md §5). |
 
 ## GitHub access (packages/forge only — Law 7)
 
