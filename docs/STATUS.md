@@ -729,10 +729,31 @@
   rerun-both-succeeded) and asserts the flaky workflow ranks first.
   Gate: 53 test files/212 tests workspace-wide (up from 52/202 after
   W3-06), all validators pass.
+- 2026-07-16 W3-08 done — M10 issue throughput + M11 release cadence
+  (pair). Continues the W3-01 wave-gate bypass.
+  `packages/metrics/src/metrics/issues.ts`: **real schema gap surfaced,
+  not silently worked around** — the real `issues` table (W1-02) stores
+  only the CURRENT `closedAt` plus a `reopenedCount` counter with no
+  per-cycle timestamps, so "reopen+reclose = 2 closes" genuinely can't
+  be reconstructed from that row alone; `IssueThroughputInput.closeEvents`
+  is deliberately richer (a full per-event history with each event's own
+  `openPeriodStartedAt`) than what the current schema can supply —
+  whichever ticket ingests GitHub's Issue Events API (not built yet)
+  is what would actually populate it. `computeIssueThroughput`/
+  `computeOpenIssueAgeDistribution` reproduce the doc's rules exactly on
+  a hand-computed fixture (opened=2, closed=2 — one issue's two close
+  events, only one of which falls in the window — medianTimeToCloseDays
+  =14, single open issue aged 20d).
+  `packages/metrics/src/metrics/releases.ts`: `computeReleaseCadence`
+  excludes drafts and (by default) prereleases, falls back to pushed
+  tags (`basis: 'tags'`) only when there are zero eligible releases at
+  all, and matches a hand-computed 3-release fixture exactly (median
+  gap 59d, 36d since last).
+  Gate: 55 test files/223 tests workspace-wide (up from 53/212 after
+  W3-07), all validators pass.
 - Next: W0-05 (human: GitHub App registration) remains the only ticket
   that unblocks the *rest* of the board on its own merits — W2 (all
   five tickets) and W1-06 stay substantively blocked on it regardless of
-  wave-gate bypasses. W3-08/W3-09 (the remaining M10–M12 metric
-  implementations) are newly claimable in the same bypassed sense —
-  check validate-plan.mjs for the current set (wave-gate-aware view will
-  still show only W0-05).
+  wave-gate bypasses. W3-09 (M12 DORA) is the last metric-implementation
+  ticket in this bypassed sequence — check validate-plan.mjs for the
+  current set (wave-gate-aware view will still show only W0-05).
