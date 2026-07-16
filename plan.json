@@ -660,8 +660,10 @@
         "Fixture with authors at 60/30/10 yields busFactor 1 and no single_owner flag (0.60 < 0.80); a 85/15 fixture flags single_owner (FR-METRICS-3)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Continuation of the deliberate wave-gate bypass (see W3-01 note) - depends only on W3-01 (now merged to main), unaffected by the W0-05/W2 blocker."
+      ]
     },
     {
       "id": "W3-04",
