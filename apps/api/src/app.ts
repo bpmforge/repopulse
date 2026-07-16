@@ -1,17 +1,16 @@
 import Fastify from 'fastify';
-import { Redis } from 'ioredis';
-import { sql } from 'drizzle-orm';
 import fastifySwagger from '@fastify/swagger';
 import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 import { createLogger, type Database, type Logger } from '@repopulse/shared';
 import { oauth } from '@repopulse/auth';
 import authRoutes from './routes/auth/index.js';
+import healthRoutes from './routes/health/index.js';
 import errorEnvelopePlugin from './plugins/error-envelope.js';
 import securityHeadersPlugin from './plugins/security-headers.js';
 import rateLimitsPlugin from './plugins/rate-limits.js';
 import csrfHeaderPlugin from './plugins/csrf-header.js';
+import metricsPlugin from './plugins/metrics/index.js';
 import apiV1 from './plugins/api-v1.js';
-import { sendProblem } from './lib/problem.js';
 
 export interface BuildAppOptions {
   db: Database;
@@ -37,18 +36,11 @@ export function buildApp(opts: BuildAppOptions) {
     loggerInstance: opts.loggerInstance ?? createLogger({ name: 'repopulse-api' }),
   });
 
-  // Own connection dedicated to /healthz — deliberately not the session
-  // plugin's internal client (packages/auth doesn't expose it), and cheap
-  // enough that a second connection is simpler than plumbing one through.
-  const healthzRedis = new Redis(opts.redisUrl, { lazyConnect: true });
-  app.addHook('onClose', async () => {
-    await healthzRedis.quit().catch(() => {});
-  });
-
   app.register(errorEnvelopePlugin);
   app.register(securityHeadersPlugin);
   app.register(rateLimitsPlugin);
   app.register(csrfHeaderPlugin);
+  app.register(metricsPlugin);
 
   // Registered before the routes it documents — @fastify/swagger's onRoute
   // hook only catches routes added after this point.
@@ -73,24 +65,7 @@ export function buildApp(opts: BuildAppOptions) {
   });
 
   // Unauthenticated (API_DESIGN.md §1 exemption list + §5 liveness note).
-  app.get('/healthz', async (request, reply) => {
-    const [dbOk, redisOk] = await Promise.all([
-      opts.db
-        .execute(sql`select 1`)
-        .then(() => true)
-        .catch(() => false),
-      healthzRedis
-        .ping()
-        .then(() => true)
-        .catch(() => false),
-    ]);
-    if (!dbOk || !redisOk) {
-      return sendProblem(request, reply, 503, 'Service Unavailable', {
-        detail: `postgres=${dbOk ? 'ok' : 'down'} redis=${redisOk ? 'ok' : 'down'}`,
-      });
-    }
-    return reply.send({ status: 'ok' });
-  });
+  app.register(healthRoutes, { db: opts.db, redisUrl: opts.redisUrl });
 
   // Also unauthenticated: contract-testing tools (schemathesis, API_DESIGN.md
   // §5) need the spec before they can authenticate, and it carries no
