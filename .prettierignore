@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+coverage
+pnpm-lock.yaml
+pnpm-store
+docs/
+plan.json
+scripts/
+.claude/
+CLAUDE.md
+MASTER_PROMPT.md
+PLAYBOOK.md
+README.md
+**/*.gen.ts

@@ -81,4 +81,18 @@
   Supply Chain own axis; knowledge/architecture/test_gap under Code Health axis;
   license flags = findings only. Validators: plan OK (98 tickets / 455 pts),
   traceability OK (135/135 FR, 72/72 stories, 0 dangling).
-- Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-01/W0-02.
+- 2026-07-15 W0-01 done — monorepo scaffold live: pnpm workspaces (apps/api Fastify 5
+  stub, apps/web Vite 6/React 18 stub, packages/{shared,forge,ingest,metrics,analysis,
+  insights,reports,auth} placeholders), ESLint 9 flat config + typescript-eslint 8,
+  Prettier 3, strict TS 5.9 base config, vitest 3 workspace. Toolchain pinned Node
+  22.23.1 / pnpm 9.15.9 (dev machine defaults were Node 24/pnpm 11 — recorded in
+  TECH_STACK.md per Law 2, not silently used). `.npmrc` (ignore-scripts, engine-strict)
+  + renovate.json (weekly, automerge off) land SC-19; CI enforcement of
+  --frozen-lockfile is W0-03's write_scope, not this ticket's — noted in plan.json.
+  Gate: `pnpm lint && pnpm typecheck && pnpm test` — 10/10 workspaces typecheck clean,
+  0 lint errors, 10 test files / 10 tests passing. validate-arch: all 5 rules PASS.
+  validate-traceability: 135/135 FR, 0 dangling. HANDOFF note left on the ticket:
+  write_scope widened to include repo-root `.npmrc`/`renovate.json` (unclaimed by any
+  other ticket, required by this ticket's own acceptance #4).
+- Next: W0 tickets — W0-05 (human: GitHub App) can run parallel to W0-02; W0-02/W0-03
+  now claimable (W0-01 no longer blocks anything, it had no dependents).
