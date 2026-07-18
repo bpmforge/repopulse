@@ -116,7 +116,7 @@
     },
     {
       "id": "W0-05",
-      "title": "Register GitHub App + dev OAuth app + scratch fixture repo (human-in-loop prerequisite)",
+      "title": "Dev fixture-recording prerequisite: forge read token + scratch fixture repo",
       "phase": 0,
       "module": "infra",
       "stories": [],
@@ -127,14 +127,15 @@
       ],
       "depends_on": [],
       "acceptance": [
-        "GitHub App registered per docs/CONSTRAINTS.md C5 and SC-25 (docs/SECURITY_CONTROLS.md): read-only permissions (contents, metadata, pull_requests, checks, deployments, issues) + webhook, callback https://repopulse.bpmforge.com/auth/callback; a second localhost dev OAuth app registered for local login — this ticket requires a human for the GitHub UI steps; the agent documents and verifies",
-        "docs/research/github-app.md records app ids/client ids (never secrets), granted permissions, webhook config and the installation id; .env.example variable names reconciled with docs/DEPLOYMENT.md §3",
-        "A scratch GitHub repo with seeded PRs/reviews/commits/checks exists and is named in docs/research/github-app.md so W0-04 can record its fixture set against it"
+        "A GitHub read token usable for one-time fixture recording is available and documented in docs/research/github-app.md (name only, never the value): a fine-grained PAT (contents/metadata/pull_requests/checks/deployments/issues read) or the local gh CLI token — App-mode installation tokens are NOT required to record fixtures, since REST/GraphQL response bodies are identical across auth modes (FORGE_PROVIDER.md §5: PAT = dev fallback). All tokens are scrubbed from recorded fixtures by W0-04 regardless.",
+        "A scratch GitHub repo with seeded PRs/reviews/commits/checks/deployments exists and is named in docs/research/github-app.md, giving W2-03 reproducible ground-truth row counts; a larger existing repo is ALSO named there for the harder-to-seed fixtures (202 stats-warmup, truncated diff, rate-limit/secondary-403). W0-04 records against both.",
+        ".env.example variable names (GITHUB_PAT for dev; GITHUB_APP_* deferred to W7-07) reconciled with docs/DEPLOYMENT.md §3; the dev-vs-prod auth split documented in docs/research/github-app.md."
       ],
       "points": 2,
       "status": "in_progress",
       "notes": [
-        "2026-07-18: agent-side half done — docs/research/github-app.md written with the full Part A/B/C GitHub UI instructions (App registration + read-only permission list per C5/SC-25, dev OAuth app, scratch fixture repo), a pending registered-app-record table to fill in, .env.example reconciliation confirmed (already matches DEPLOYMENT.md §3, no rename needed), and a Scope section clarifying this registration is deployment-specific (bpmforge only), that GHE self-hosted GitHub is not supported in v1 (api.github.com hardcoded, verified against packages/forge/src/client/budgeted-client.ts + validate-arch.sh rule 4), and that multi-tenant SaaS-flip onboarding is unbuilt (single default workspace, ARCHITECTURE.md §7). Blocked on the human GitHub UI steps (app creation, secrets, fixture repo seeding) — cannot close as done per CLAUDE.md Law 3 until those are done and the registered-app-record table + .env are filled in."
+        "2026-07-18: agent-side half done — docs/research/github-app.md written with the full Part A/B/C GitHub UI instructions (App registration + read-only permission list per C5/SC-25, dev OAuth app, scratch fixture repo), a pending registered-app-record table to fill in, .env.example reconciliation confirmed (already matches DEPLOYMENT.md §3, no rename needed), and a Scope section clarifying this registration is deployment-specific (bpmforge only), that GHE self-hosted GitHub is not supported in v1 (api.github.com hardcoded, verified against packages/forge/src/client/budgeted-client.ts + validate-arch.sh rule 4), and that multi-tenant SaaS-flip onboarding is unbuilt (single default workspace, ARCHITECTURE.md §7). Blocked on the human GitHub UI steps (app creation, secrets, fixture repo seeding) — cannot close as done per CLAUDE.md Law 3 until those are done and the registered-app-record table + .env are filled in.",
+        "2026-07-18: W0-05 SPLIT per Brad's decision — the production GitHub App + webhook + prod OAuth registration moved to new ticket W7-07 (gated on the W7-05 deploy, since its callback/webhook need repopulse.bpmforge.com live). This W0-05 is narrowed to only the DEV fixture-recording prerequisite, which needs authenticated READ access, not the App: the whole forge/ingest chain is fixture-driven with zero live network in CI (W0-04/W1-06/W2-03 acceptance), so live access is needed once — to record — and a gh/PAT token records identical response bodies. Verified: gh CLI in this env is authenticated (bpmforge, repo+read:org scopes) and FORGE_PROVIDER.md §5 names PAT as the dev fallback. This unblocks W0-04 -> W1-06 -> W2-02 -> W2-03 without any GitHub App registration."
       ]
     },
     {
@@ -1926,7 +1927,8 @@
         "docs/STATUS.md"
       ],
       "depends_on": [
-        "W7-05"
+        "W7-05",
+        "W7-07"
       ],
       "acceptance": [
         "docs/RUNBOOK.md written and actually executed against bpmforge infra: deploy, migrate, rollback, backup/restore, and health checks; structured logs with request ids, queue metrics, forge budget gauge and sync-lag metric are scrape-able and answer 'is ingest healthy' without DB spelunking (NFR-12)",
@@ -1936,6 +1938,31 @@
       "points": 2,
       "status": "todo",
       "notes": []
+    },
+    {
+      "id": "W7-07",
+      "title": "Production GitHub App + webhook registration + prod OAuth app",
+      "phase": 7,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "docs/research/github-app.md",
+        ".env.example",
+        "docs/DEPLOYMENT.md"
+      ],
+      "depends_on": [
+        "W7-05"
+      ],
+      "acceptance": [
+        "GitHub App registered per docs/CONSTRAINTS.md C5 and SC-25 (docs/SECURITY_CONTROLS.md): read-only permissions (contents, metadata, pull_requests, checks, deployments, issues) + webhook, callback https://repopulse.bpmforge.com/auth/callback; a second localhost dev OAuth app registered for local login — human-in-loop GitHub UI steps; the agent documents and verifies. Gated on W7-05 because the callback + webhook URLs need repopulse.bpmforge.com live (TLS-terminated) to function.",
+        "docs/research/github-app.md registered-app-record table filled in with app id/client ids (never secrets), granted permissions, webhook config and the installation id; GITHUB_APP_* vars populated in the real (gitignored) .env and reconciled with docs/DEPLOYMENT.md §3.",
+        "Live end-to-end verification: OAuth login through the prod domain succeeds; a real webhook delivery is received and HMAC-verified (SC-3) by the deployed webhook route (W2-04). Until this ticket, dev/CI runs on the W0-05 gh/PAT token + recorded fixtures, and webhooks are covered by backfill + nightly reconciliation (FR-INGEST-7)."
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "Created 2026-07-18 as the production-side split-off of the original W0-05. Holds the parts that genuinely require a live deploy (prod OAuth callback + real webhook delivery at repopulse.bpmforge.com) — none of which gate any W1/W2 CODE ticket, all of which are fixture/synthetic-payload tested. This is a deploy-milestone human task, sequenced after W7-05 (containers/TLS) and naturally before/with W7-06 (prod deploy runbook execution)."
+      ]
     },
     {
       "id": "W8-01",
