@@ -885,3 +885,32 @@
   the wave gate and haven't been attempted. W2 (all five tickets) and
   W1-06 stay substantively blocked on W0-05 regardless of wave-gate
   bypasses.
+
+- W0-05 SPLIT + DONE (2026-07-18) — the "GitHub App blocker" was
+  dissolved, not cleared. Realization: the forge/ingest chain is
+  fixture-driven with zero live network in CI (W0-04/W1-06/W2-03), so
+  live GitHub access is needed exactly once — to *record* fixtures — and
+  a `gh`/PAT read token records identical response bodies
+  (FORGE_PROVIDER.md §5: "PAT = dev fallback"). None of the GitHub
+  App / webhook / prod-domain ceremony gates any W1/W2 *code* ticket.
+  So W0-05 was split: its dev half (read token + fixture repos) is now
+  done; its prod half (production App + webhook + prod OAuth, which need
+  `repopulse.bpmforge.com` live) became **W7-07**, gated on the W7-05
+  deploy, with W7-06 depending on it.
+  Concretely done: recording token = local `gh` token (bpmforge,
+  repo+read:org); scratch repo `bpmforge/repopulse-fixture` created
+  (private) and seeded with documented ground-truth counts — 3 PRs
+  (2 merged, incl. one merge-commit + one squash; 1 open), 1 review,
+  5 main commits (one a merge commit, for the §0 merge-exclusion
+  fixture), 6 check runs, 1 deployment, 1 release, 2 issues; larger real
+  repo = `bpmforge/repopulse` (25 PRs, 53 Actions runs with a real
+  2/51 success/failure mix, large PRs for truncated-diff cases). Both
+  named with the full count table in docs/research/github-app.md;
+  .env.example reconciled (GITHUB_PAT dev / GITHUB_APP_* prod-deferred).
+- Next: **W0-04 is now claimable** (fixture recorder + replay helper) —
+  it unblocks W1-06 → W2-02 → W2-03, the ingest-and-metrics engine, all
+  without any production GitHub App. That's the natural next ticket.
+  Webhooks remain a polling optimization (backfill + nightly
+  reconciliation cover correctness); live webhook delivery waits for a
+  smee.io tunnel or the W7 deploy. The dev OAuth app (localhost login)
+  is registerable any time but gates nothing.

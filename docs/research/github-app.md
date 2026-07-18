@@ -47,13 +47,32 @@ Either works — both produce identical response bodies for recording:
 Done in W0-04 (`tools/fixture-recorder`), using the 1a token against the 1b repos.
 No further registration required to reach a green W1-06 / W2-02 / W2-03.
 
-### Recorded values (fill in as 1a/1b are settled)
+### Recorded values (settled 2026-07-18)
 
 | Field | Value |
 |---|---|
-| Dev token type | _pending_ (gh CLI token · or fine-grained PAT named `___`) |
-| Scratch fixture repo | _pending_ (`owner/name`) |
-| Larger fixture repo | _pending_ (`owner/name`) |
+| Dev token (recording) | local `gh` CLI token, account `bpmforge`, scopes `repo` + `read:org` — records identical response bodies; W0-04 scrubs it. Committed dev-auth env var is `GITHUB_PAT` (fill the real `.env` when running the recorder/dev server). |
+| Scratch fixture repo | `bpmforge/repopulse-fixture` (private; seeded 2026-07-18; safe to delete + recreate) |
+| Larger fixture repo | `bpmforge/repopulse` (private; 25 PRs, 53 Actions runs incl. a 2-success/51-failure CI mix, large multi-file PRs for truncated-diff cases) |
+
+### Scratch repo ground-truth counts (`bpmforge/repopulse-fixture`)
+
+Reproducible entity counts for W2-03's backfill assertions ("row counts match
+fixture ground truth"):
+
+| Entity | Count | Detail |
+|---|---|---|
+| Pull requests | 3 | #1 `feat/alpha` merged via **merge-commit** (2 commits), #3 `fix/gamma` merged via **squash** (1 commit), #2 `feat/beta` **open** (1 commit) |
+| PR reviews | 1 | COMMENT-event review on #2 |
+| Commits on `main` | 5 | includes the #1 merge commit (exercises METRICS.md §0 merge-commit exclusion) |
+| Check runs | 6 | from the `ci.yml` workflow (all `failure` — provisioning-only, private-repo Actions minutes exhausted; present as a known-count checks entity, not a realistic pass/fail source — use `repopulse` for that) |
+| Deployments | 1 | environment `production`, one `success` status |
+| Releases | 1 | `v0.1.0` |
+| Issues (non-PR) | 2 | #4 open, #5 closed |
+
+Single commit-author (`bpmforge`) — ownership/churn fixtures are single-identity;
+multi-author attribution (DATABASE.md §2 identities) is exercised against `repopulse`,
+which has real multi-author history.
 
 ---
 
