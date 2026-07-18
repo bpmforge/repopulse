@@ -132,8 +132,10 @@
         "A scratch GitHub repo with seeded PRs/reviews/commits/checks exists and is named in docs/research/github-app.md so W0-04 can record its fixture set against it"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "2026-07-18: agent-side half done — docs/research/github-app.md written with the full Part A/B/C GitHub UI instructions (App registration + read-only permission list per C5/SC-25, dev OAuth app, scratch fixture repo), a pending registered-app-record table to fill in, .env.example reconciliation confirmed (already matches DEPLOYMENT.md §3, no rename needed), and a Scope section clarifying this registration is deployment-specific (bpmforge only), that GHE self-hosted GitHub is not supported in v1 (api.github.com hardcoded, verified against packages/forge/src/client/budgeted-client.ts + validate-arch.sh rule 4), and that multi-tenant SaaS-flip onboarding is unbuilt (single default workspace, ARCHITECTURE.md §7). Blocked on the human GitHub UI steps (app creation, secrets, fixture repo seeding) — cannot close as done per CLAUDE.md Law 3 until those are done and the registered-app-record table + .env are filled in."
+      ]
     },
     {
       "id": "W1-01",
