@@ -1,126 +1,139 @@
-# GitHub App + Dev OAuth Registration — W0-05
+# GitHub Auth: Dev Fixture Recording (W0-05) + Production App (W7-07)
 
-Human-in-the-loop prerequisite (CONSTRAINTS.md C5, SECURITY_CONTROLS.md SC-25): a
-GitHub App and a separate localhost OAuth app must be registered through GitHub's UI —
-an agent cannot do this part. This doc is the instruction set for the human step, and
-becomes the permanent record of what was registered (ids/permissions/webhook config —
-**never secrets**, those live only in `.env`, gitignored per CLAUDE.md Law 9).
+Two distinct concerns, deliberately split (was one ticket, W0-05, until 2026-07-18):
 
-Scoped to **this deployment** (`repopulse.bpmforge.com`) only — see "Scope: what this
-registration is and isn't" at the end before assuming it generalizes to another install.
+- **W0-05 (now, dev)** — the read token + scratch repo needed to *record fixtures*.
+  Needs authenticated **read** access only. No GitHub App, no webhook, no public
+  domain. This is what unblocks the ingest/metrics code (W0-04 → W1-06 → W2-02/03).
+- **W7-07 (later, prod)** — the production GitHub App + webhook + prod OAuth app,
+  whose callback/webhook URLs need `repopulse.bpmforge.com` **live** (TLS-terminated),
+  so it's gated on the W7-05 deploy. Only live end-to-end operation needs it.
 
-## Part A — GitHub App (production-shaped: OAuth login + installation-token ingest)
+The reason the split is safe: the entire forge/ingest chain is tested against
+**recorded fixtures with zero live network in CI** (W0-04, W1-06, W2-03 acceptance).
+Live GitHub access is needed exactly once — to record — and REST/GraphQL **response
+bodies are identical across auth modes**. `FORGE_PROVIDER.md §5` names PAT as the
+dev fallback; W0-04 scrubs every token out of the fixtures regardless of which one
+recorded them. Nothing secret in git (CLAUDE.md Law 9).
+
+---
+
+## Part 1 — W0-05: dev fixture-recording prerequisite (actionable now)
+
+### 1a. Read token
+
+Either works — both produce identical response bodies for recording:
+
+- **gh CLI token** (fastest): `gh auth token` if the CLI is already authenticated with
+  `repo` + `read:org` scopes. Zero new registration. For one-time recording only — not
+  the committed dev-auth pattern.
+- **Fine-grained PAT**: GitHub → Settings → Developer settings → Personal access tokens
+  → Fine-grained tokens → Generate. Repository read-only: Contents, Metadata, Pull
+  requests, Checks, Deployments, Issues. Put it in the local `.env` as `GITHUB_PAT`
+  (gitignored; `.env.example` documents the name only).
+
+### 1b. Fixture source repos (record against both — W2-03 wants reproducible counts)
+
+- **Scratch repo** — a small, controlled repo seeded with a known set of PRs (some
+  merged, some open, ≥1 with review comments), a few commits, and ≥1 PR with a CI check
+  run (a trivial GitHub Actions workflow that echoes something produces `check_runs`).
+  Gives W2-03 exact ground-truth row counts to assert against.
+- **Larger existing repo** — any real repo with rich history, for the fixtures that are
+  awkward to seed by hand: 202 stats-warmup, truncated diffs (`patchTruncated`),
+  rate-limit-header / secondary-403 cases.
+
+### 1c. Record
+
+Done in W0-04 (`tools/fixture-recorder`), using the 1a token against the 1b repos.
+No further registration required to reach a green W1-06 / W2-02 / W2-03.
+
+### Recorded values (fill in as 1a/1b are settled)
+
+| Field | Value |
+|---|---|
+| Dev token type | _pending_ (gh CLI token · or fine-grained PAT named `___`) |
+| Scratch fixture repo | _pending_ (`owner/name`) |
+| Larger fixture repo | _pending_ (`owner/name`) |
+
+---
+
+## Part 2 — W7-07: production GitHub App + webhook + prod OAuth (deferred, needs deploy)
+
+Do NOT attempt until W7-05 is done — the callback/webhook URLs below are unreachable
+until `repopulse.bpmforge.com` is deployed and TLS-terminated. Registering the App now
+would just mean GitHub failing every webhook delivery against a dead host.
+
+### 2a. GitHub App
 
 1. GitHub → **Settings → Developer settings → GitHub Apps → New GitHub App**.
 2. Fill in:
-   - **GitHub App name**: `RepoPulse` (globally unique — add a suffix if taken).
+   - **Name**: `RepoPulse` (globally unique — add a suffix if taken).
    - **Homepage URL**: `https://repopulse.bpmforge.com`
    - **Callback URL**: `https://repopulse.bpmforge.com/auth/callback`
    - **Webhook**: Active, URL `https://repopulse.bpmforge.com/webhooks/github`, generate
-     and save a **webhook secret** (goes in `.env` as `WEBHOOK_SECRET`, never committed).
-3. **Permissions** — repository, read-only only (C5 / SC-25 minimum scope):
-   - Contents: Read-only
-   - Metadata: Read-only (mandatory, auto-selected)
-   - Pull requests: Read-only
-   - Checks: Read-only
-   - Deployments: Read-only
-   - Issues: Read-only
+     and save a **webhook secret** (→ `.env` `WEBHOOK_SECRET`, never committed).
+3. **Permissions** — repository, read-only only (C5 / SC-25):
+   Contents · Metadata (mandatory) · Pull requests · Checks · Deployments · Issues.
 4. **Subscribe to webhook events**: Pull request, Push, Check run/suite, Issues, Deployment.
-5. **Where can this GitHub App be installed?**: Only on this account is fine for dev;
-   Any account if it needs installing elsewhere later.
-6. Create the app, then note/generate:
-   - **App ID** (shown on the app's page)
-   - **Client ID** + **Client secret** (OAuth section of the app settings)
-   - **Private key** (.pem download — signs installation token requests)
-7. **Install the app** onto the scratch fixture repo (Part C). Note the
-   **Installation ID** from the URL after installing (`.../settings/installations/<ID>`).
+5. Create, then note/generate: **App ID**, **Client ID** + **Client secret**,
+   **private key** (.pem).
+6. **Install** onto the real org/repos. Note the **Installation ID** from the URL
+   (`.../settings/installations/<ID>`).
 
-## Part B — Localhost dev OAuth app (local login only, separate registration)
+### 2b. Localhost dev OAuth app (local login; registerable independently, no prod domain)
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**.
 2. **Homepage URL**: `http://localhost:5173`
 3. **Authorization callback URL**: `http://localhost:3000/auth/callback` (matches
    `API_BASE_URL` in `.env.example`).
-4. Register, generate a **Client secret**. Note the **Client ID** and **Client secret**.
+4. Register, generate a **Client secret**. Note the **Client ID** + **Client secret**.
 
-## Part C — Scratch fixture repo
-
-1. Create a small GitHub repo (public or private) for the GitHub App to install onto —
-   e.g. `bpmforge/repopulse-fixture`.
-2. Seed real activity so ingest/metrics have something to compute against: a handful of
-   PRs (some merged, some open, at least one with review comments), a few regular
-   commits, and at least one PR with a CI check run (a trivial GitHub Actions workflow
-   that just echoes something is enough to produce `check_runs`).
-3. Install the GitHub App from Part A onto this repo if not already done in A.7.
-
-## What to hand back
-
-Non-secret (recorded below in this file):
-- GitHub App ID, Client ID, Installation ID
-- Dev OAuth app Client ID
-- Scratch repo `owner/name`
-
-Secret (goes directly into local `.env`, never into this file or git):
-- GitHub App Client secret, private key (.pem), webhook secret
-- Dev OAuth app Client secret
-
-## Registered app record
-
-_Filled in once the human steps above are complete — currently pending (W0-05 `todo`)._
+### Registered app record (W7-07 fills this in)
 
 | Field | Value |
 |---|---|
-| GitHub App name | _pending_ |
+| GitHub App name | _pending (W7-07)_ |
 | GitHub App ID | _pending_ |
 | GitHub App Client ID | _pending_ |
 | Installation ID | _pending_ |
-| Permissions granted | contents:read, metadata:read, pull_requests:read, checks:read, deployments:read, issues:read (per C5/SC-25 — verify actual grant matches this list, not a superset) |
+| Permissions granted | contents:read, metadata:read, pull_requests:read, checks:read, deployments:read, issues:read (verify the actual grant matches — not a superset) |
 | Webhook URL | `https://repopulse.bpmforge.com/webhooks/github` |
 | Webhook events | pull_request, push, check_run, check_suite, issues, deployment |
 | Dev OAuth app Client ID | _pending_ |
 | Dev OAuth app callback | `http://localhost:3000/auth/callback` |
-| Scratch fixture repo | _pending_ |
+
+Non-secret values (ids) go in the table above. Secrets (Client secrets, private key,
+webhook secret) go only into the gitignored `.env`, never here.
+
+---
 
 ## `.env.example` reconciliation
 
 `.env.example`'s `GITHUB_APP_*` / `GITHUB_PAT` var names already match
-`docs/DEPLOYMENT.md` §3's env/secret matrix — no rename needed. Once the human step
-above completes, the *local* `.env` (gitignored) gets the real values; `.env.example`
-itself only ever holds names/placeholders, never real secrets.
+`docs/DEPLOYMENT.md` §3. Dev (W0-05) uses `GITHUB_PAT`; prod (W7-07) populates the
+`GITHUB_APP_*` set. `.env.example` only ever holds names/placeholders — never real
+secrets.
 
 ## Scope: what this registration is and isn't
 
-This is **one GitHub App + one OAuth app for this specific deployment**
-(`repopulse.bpmforge.com`), not a reusable credential or a published integration.
-Concretely:
+One deployment (`repopulse.bpmforge.com`), not a reusable credential or a published
+integration:
 
-- **Another person self-hosting RepoPulse** (their own container/instance, their own
-  domain) needs their **own** GitHub App and OAuth app registration, with callback and
-  webhook URLs pointing at *their* domain, not bpmforge's. GitHub Apps are tied to their
-  registered callback/webhook URLs — ours will not work for someone else's install.
-  `.env.example` documents the variable *names* a self-hoster needs to fill in; it
-  carries no values that would let anyone else authenticate as this app.
-- **GitHub Enterprise Server (self-hosted/on-prem GitHub, "GHE")** is **not supported
-  in v1**. `packages/forge`'s GitHub client hardcodes `api.github.com` as the only
-  allowlisted host (verified: `packages/forge/src/client/budgeted-client.ts`'s
-  allowlist, enforced by `scripts/validate-arch.sh` rule 4 — no `api.github.com`
-  reference outside `packages/forge`). A GHE instance uses a different API base URL
-  (`https://<ghe-host>/api/v3` for REST) and its own App registration flow; wiring that
-  up is unscoped work, not a config flip of this registration. FOUNDING_BRIEF D3 scopes
-  v1 to "GitHub v1 behind a `ForgeProvider` interface; Gitea adapter is a v1.x ticket" —
-  GHE isn't listed even as a v1.x follow-on today.
-- **RepoPulse itself is single-tenant in v1** (FOUNDING_BRIEF D1): one Postgres
-  `workspace_id = 'default'` for everyone who logs into this instance, backed by this
-  one GitHub App. The schema is SaaS-ready (`workspace_id` on every tenant table, RLS
-  policies droppable in later per ARCHITECTURE.md §7) but the *multi-tenant onboarding
-  flow* — letting an unrelated org register their own workspace against this same
-  running instance with their own GitHub App/installation — is explicitly out of scope
-  until the "SaaS flip" (ARCHITECTURE.md §7: workspace creation/invite flows, RLS
-  enable, per-workspace budgets/LLM config). Today, everyone who authenticates via this
-  App's OAuth callback lands in the same single workspace.
-- **Enterprise-in-the-sense-of-Cloud** (GitHub Enterprise Cloud, i.e. an org on
-  github.com with an Enterprise plan) *is* supported today — it's still github.com's
-  `api.github.com`, just with higher rate-limit ceilings (see
-  `docs/research/github-api.md` §1, "GHEC" column). No extra registration steps beyond
-  this doc; the org just needs to approve/install the GitHub App like any other GitHub
-  org.
+- **Another person self-hosting RepoPulse** needs their **own** App + OAuth
+  registrations, callback/webhook pointing at *their* domain. GitHub Apps are tied to
+  their registered URLs — ours won't work for someone else's install. `.env.example`
+  documents the variable *names*; it carries no values that authenticate as this app.
+- **GitHub Enterprise Server (self-hosted GitHub, "GHE")** is **not supported in v1**.
+  `packages/forge` hardcodes `api.github.com` as the only allowlisted host (verified:
+  `budgeted-client.ts` allowlist, enforced by `validate-arch.sh` rule 4). GHE uses a
+  different API base (`https://<host>/api/v3`) and its own App flow — unscoped work,
+  not a config flip. FOUNDING_BRIEF D3 scopes v1 to GitHub-behind-`ForgeProvider`
+  (Gitea adapter is the only named v1.x forge follow-on).
+- **RepoPulse is single-tenant in v1** (D1): one `workspace_id = 'default'` for everyone
+  who logs into this instance. Schema is SaaS-ready (`workspace_id` everywhere, RLS
+  droppable in later, ARCHITECTURE.md §7) but the multi-tenant onboarding flow — an
+  unrelated org registering their own workspace + App against this running instance —
+  is out of scope until the "SaaS flip."
+- **GitHub Enterprise *Cloud*** (an Enterprise-plan org on github.com) *is* supported:
+  still `api.github.com`, just higher rate-limit ceilings (`github-api.md` §1, GHEC
+  column). The org just installs the App like any other.
