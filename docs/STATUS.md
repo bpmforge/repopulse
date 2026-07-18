@@ -815,14 +815,73 @@
   before writing the conversion code.
   Gate: 59 test files/245 tests workspace-wide (up from 56/235 after
   W3-09), all validators pass.
+- W5-01 (Saved views CRUD API + sharing semantics) done, 2026-07-18 —
+  another wave-gate bypass (same standing decision as W3-01..W3-10): the
+  W1-06/W2-0x forge-ingest chain is still blocked on W0-05, and the
+  metrics-package vein was mined out (W3-10 closed `blocked`, so
+  W3-11/12/13 stay genuinely dependency-blocked, not just wave-gated —
+  confirmed by walking `plan.json`'s full dependency closure, not
+  assumed). W5-01 was the next ticket with a fully-satisfied real
+  dependency chain (W1-02, W1-04 both `done`) and a verifiable-now
+  acceptance bar (live-Postgres route tests) — same bar that justified
+  the metrics bypass. W7-05 (prod containers/TLS/backup) was the other
+  zero-real-blocker candidate, rejected as unverifiable without a real
+  deploy target.
+  Built `apps/api/src/routes/views/**`: GET/POST/PATCH/DELETE `/views`
+  (cursor-paginated, scoped to the caller's own views — FR-WEB-4's
+  "switcher in nav" reads as personal; shared access is exclusively via
+  `GET /views/shared/{slug}` per FR-WEB-5, since the endpoint catalog
+  doesn't specify a workspace-wide "shared with me" list), `POST
+  /views/{id}/share` (mints a fresh 128-bit slug every call — also how
+  revocation works, since the catalog has no separate unshare endpoint:
+  the old slug simply stops being the one stored), `PATCH
+  {is_shared:false}` as the second revocation path (gates the resolve
+  query closed even though the row keeps the slug), and `PUT
+  /me/default-view` (owner-only, since `isDefaultForOwner` lives on the
+  view row itself, not a separate preference table).
+  SC-17: `serializeSharedView` is its own schema — not a `.pick()` of
+  the owner-facing shape — allowlisting exactly `{id,name,config}`;
+  `serializer.test.ts` snapshot-asserts that exact key set so a future
+  field added to the owner shape fails closed instead of leaking.
+  `GET /views/shared/{slug}` deliberately stayed inside the
+  session-guarded `/api/v1` scope rather than becoming a public link —
+  v1 shares are workspace-member-only, not unauthenticated.
+  Real bug found and fixed (verified empirically, not assumed): an
+  async route handler that calls `reply.send()` after a prior `await`
+  and then resolves with `undefined` made `@fastify/session`'s onSend
+  hook run a second time — a second `Session.save()`/`store.set()`
+  racing the first, throwing `ERR_HTTP_HEADERS_SENT` ~500ms later.
+  Reproduced outside vitest with a standalone `tsx` script first;
+  confirmed via temporary `redis-store.ts` instrumentation that
+  `store.set()` fired twice per request (instrumentation reverted after,
+  `git diff` clean). Same failure class as W1-04's documented
+  `requireAdmin`/`api-v1.ts` preHandler bug, but this time in a terminal
+  route handler rather than a chained preHandler — fixed with a local
+  `fail()` helper (`sendProblem` + explicit `return reply`) across all
+  17 early-return call sites.
+  Two small touches outside this ticket's strict write_scope, both
+  necessary and documented in `plan.json`: `api-v1.ts` gained a one-line
+  child registration (its own HANDOFF comment invites this); W1-07's
+  `apps/api/test/tenancy/route-walker.test.ts` gained a real walk of
+  `GET /views` — v1's single-workspace design means two real logins
+  can't land in two different *workspaces*, so this walk exercises
+  owner-scoping (the actual boundary `GET /views` enforces) using two
+  real sessions, the same substitution pattern that file's own existing
+  tests already use. Workspace-level (Law 5) foreign-tenant coverage
+  lives in `views/index.test.ts` itself, via a second workspace + view
+  seeded directly in the DB.
+  Gate: 63 test files/268 tests workspace-wide (up from 59/245 after
+  W3-10), all validators pass. No new dependencies.
 - Next: W0-05 (human: GitHub App registration) is the only remaining
-  ticket that unblocks the rest of the board on its own merits. W3-10's
-  nightly-job half (jobId scheduling, INGESTION.md §6 wiring) is the
-  natural next increment once W2-02 lands — its rollup/snapshot pieces
-  are already done and ready to be called from that job. W3-11
-  through W3-13 (health score, metrics read API, retention sweeps) all
-  sit behind either W3-10's remaining half or the wave gate and haven't
-  been attempted. W2 (all five tickets) and W1-06 stay substantively
-  blocked on W0-05 regardless of wave-gate bypasses — check
-  validate-plan.mjs for the current set (wave-gate-aware view will still
-  show only W0-05).
+  ticket that unblocks the rest of the board on its own merits. Within
+  W5, every other ticket depends on W5-01 only indirectly or not at all
+  per `plan.json` — check `validate-plan.mjs` for the current
+  wave-gate-aware claimable set (still just W0-05) before picking the
+  next bypass target. W3-10's nightly-job half (jobId scheduling,
+  INGESTION.md §6 wiring) is the natural next increment once W2-02
+  lands — its rollup/snapshot pieces are already done and ready to be
+  called from that job. W3-11 through W3-13 (health score, metrics read
+  API, retention sweeps) all sit behind either W3-10's remaining half or
+  the wave gate and haven't been attempted. W2 (all five tickets) and
+  W1-06 stay substantively blocked on W0-05 regardless of wave-gate
+  bypasses.

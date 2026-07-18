@@ -4,6 +4,7 @@ import type { Database } from '@repopulse/shared';
 import { workspace as workspaceModule } from '@repopulse/auth';
 import { sendProblem } from '../lib/problem.js';
 import '../lib/rbac.js';
+import viewsRoutes from '../routes/views/index.js';
 
 export interface ApiV1Options {
   db: Database;
@@ -45,4 +46,9 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     request.role = membership.role;
     return undefined;
   });
+
+  // W5-01: first real feature route registered as a child of this plugin,
+  // per the HANDOFF comment above — inherits the session/workspace/role
+  // preHandler and the zod validator/serializer compilers set on `app`.
+  await app.register(viewsRoutes, { db: opts.db });
 }

@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import {
   core,
   createDb,
+  read,
   trackRoutes,
   walkForTenancyLeakage,
   type DiscoveredRoute,
@@ -197,5 +198,76 @@ describeIfLiveInfra('route-walker tenancy isolation (NFR-4, W1-07)', () => {
       { requestContext: {}, marker: OTHER_WORKSPACE_MARKER },
     ]);
     expect(violations.every((v) => !v.url.startsWith('/auth'))).toBe(true);
+  });
+
+  // W5-01: GET /views (parameter-free, walkable per route-walker.ts's own
+  // limitation) walked for real, with two REAL sessions rather than the
+  // real-session/unauthenticated pattern above — v1's single-workspace
+  // design (FOUNDING_BRIEST D1) means two real logins can't land in two
+  // different *workspaces*, but they land as two different *owners* in the
+  // same one, which is exactly what GET /views scopes on.
+  it("GET /views never leaks another owner's view name", async () => {
+    const secondForgeUserId = 'w1-07-tenancy-second-owner';
+    const secondLoginRes = await app.inject({ method: 'GET', url: '/auth/login' });
+    const secondState = new URL(secondLoginRes.headers.location as string).searchParams.get(
+      'state',
+    );
+    const secondStateCookie = secondLoginRes.cookies.find((c) => c.name === 'oauth_state')!;
+    const secondCallbackRes = await app.inject({
+      method: 'GET',
+      url: '/auth/callback',
+      query: { code: secondForgeUserId, state: secondState as string },
+      cookies: { oauth_state: secondStateCookie.value },
+    });
+    const secondCookie = secondCallbackRes.cookies.find((c) => c.name === 'repopulse_sid');
+    if (!secondCookie) throw new Error(`login failed: ${secondCallbackRes.body}`);
+
+    const OWNER_A_MARKER = 'MARKER-VIEW-OWNER-A';
+    const OWNER_B_MARKER = 'MARKER-VIEW-OWNER-B';
+    const viewBody = { config: { repo_ids: [], window: '30d' as const, layout: [] } };
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/views',
+      cookies: { repopulse_sid: sessionCookie },
+      payload: { name: OWNER_A_MARKER, ...viewBody },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/views',
+      cookies: { repopulse_sid: secondCookie.value },
+      payload: { name: OWNER_B_MARKER, ...viewBody },
+    });
+
+    const routes = getRoutes().filter((r) => r.url === '/api/v1/views');
+    const violations = await walkForTenancyLeakage(app, routes, [
+      { requestContext: { cookies: { repopulse_sid: sessionCookie } }, marker: OWNER_A_MARKER },
+      {
+        requestContext: { cookies: { repopulse_sid: secondCookie.value } },
+        marker: OWNER_B_MARKER,
+      },
+    ]);
+    expect(violations).toEqual([]);
+
+    // Clean up both owners' views now — the outer afterAll deletes
+    // FORGE_USER_ID's user row without first clearing saved_views, which
+    // would otherwise hit the ownerUserId FK (no cascade).
+    const [firstUser] = await db
+      .select()
+      .from(core.users)
+      .where(eq(core.users.forgeUserId, FORGE_USER_ID))
+      .limit(1);
+    if (firstUser) {
+      await db.delete(read.savedViews).where(eq(read.savedViews.ownerUserId, firstUser.id));
+    }
+    const [secondUser] = await db
+      .select()
+      .from(core.users)
+      .where(eq(core.users.forgeUserId, secondForgeUserId))
+      .limit(1);
+    if (secondUser) {
+      await db.delete(read.savedViews).where(eq(read.savedViews.ownerUserId, secondUser.id));
+      await db.delete(core.workspaceMembers).where(eq(core.workspaceMembers.userId, secondUser.id));
+      await db.delete(core.users).where(eq(core.users.id, secondUser.id));
+    }
   });
 });
