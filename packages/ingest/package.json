@@ -8,7 +8,13 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@repopulse/forge": "workspace:^",
+    "@repopulse/shared": "workspace:^",
+    "bullmq": "^5",
+    "ioredis": "^5.11.1",
+    "prom-client": "^15"
+  },
   "devDependencies": {
     "@types/node": "^22.20.1",
     "typescript": "^5.9.3"
