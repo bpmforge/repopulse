@@ -80,7 +80,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
       async (instance) => {
         // apiV1 now mounts repos/prs/files/me itself (W4-02) — registering
         // them again here would double-declare the routes.
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
+        await apiV1(instance, { db });
       },
       { prefix: '/api/v1' },
     );

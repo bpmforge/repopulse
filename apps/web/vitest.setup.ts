@@ -8,3 +8,9 @@ import { cleanup } from '@testing-library/react';
 afterEach(() => {
   cleanup();
 });
+
+// jsdom doesn't implement scrollTo; TanStack Router's scroll restoration calls
+// it on navigation. No-op it so router tests don't spew "Not implemented".
+if (typeof window !== 'undefined' && typeof window.scrollTo !== 'function') {
+  window.scrollTo = () => {};
+}

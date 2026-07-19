@@ -1115,15 +1115,6 @@
           }
         }
       }
-    },
-    "/api/v1/events": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
     }
   }
 }

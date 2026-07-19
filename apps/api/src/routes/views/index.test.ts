@@ -91,7 +91,7 @@ describeIfLiveInfra('views routes (W5-01)', () => {
       absoluteLifetimeMs: 12 * 60 * 60 * 1000,
       cookieSecure: false,
     });
-    await app.register(apiV1, { db, redisUrl: redisUrl as string, prefix: '/api/v1' });
+    await app.register(apiV1, { db, prefix: '/api/v1' });
     await app.ready();
 
     const [defaultWorkspace] = await db

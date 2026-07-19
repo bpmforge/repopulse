@@ -79,7 +79,7 @@ describeIfLiveInfra('GET /sync/status (W2-05, FR-INGEST-8)', () => {
     });
     await app.register(
       async (instance) => {
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
+        await apiV1(instance, { db });
         await instance.register(syncRoutes, { db });
       },
       { prefix: '/api/v1' },

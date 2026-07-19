@@ -21,16 +21,16 @@ function toneFor(deltaPct: number, polarity: TrendPolarity): 'ok' | 'crit' | 'ne
 }
 
 const TONE_CLASS = {
-  ok: 'text-[--color-ok]',
-  crit: 'text-[--color-crit]',
-  neutral: 'text-[--color-fg-muted]',
+  ok: 'text-ok',
+  crit: 'text-crit',
+  neutral: 'text-fg-muted',
 } as const;
 
 export function TrendDelta({ deltaPct, polarity = 'up-good', className = '' }: TrendDeltaProps) {
   if (deltaPct === null) {
     return (
       <span
-        className={`tabular-nums text-[--color-fg-faint] ${className}`}
+        className={`tabular-nums text-fg-faint ${className}`}
         aria-label="no prior window to compare"
         data-testid="trend-delta"
         data-trend="none"
