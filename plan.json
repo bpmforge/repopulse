@@ -1026,7 +1026,7 @@
         "Runtime nock/undici guard active in e2e: any egress to forge/LLM hosts fails the run (FR-API-2)"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
