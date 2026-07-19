@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@repopulse/forge": "workspace:^",
     "@repopulse/shared": "workspace:^",
     "bullmq": "^5",
     "drizzle-orm": "^0.39.3",

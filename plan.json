@@ -524,8 +524,10 @@
         "Identity attribution during upserts per docs/DATABASE.md §2 identities note (4): commits with authorLogin null create/reuse a provider-scoped email:{address} fallback identity row — churn/ownership never silently drop email-only commits (FR-METRICS-1/3 correctness)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Claimed 2026-07-19. Building in packages/ingest/src/backfill/: identity resolution (email:{address} fallback for authorLogin-null commits, DATABASE §2 note 4), idempotent per-entity upserters on natural keys (commits repo+sha, PRs repo+number, reviews prId+forgeReviewId, checks repo+kind+runId+attempt, issues repo+number, releases/deployments repo+forgeId), per-page cursor checkpoint in the SAME txn as the page upserts (FR-INGEST-3 crash-resume), budget-yield (<=20 pages then re-enqueue; floor->delay-to-reset + repo paused_budget), enrichment (getCommitFiles 202-retry-then-fallback). Idempotency + identity + row-count-vs-fixture proven against live Postgres; kill-resume no-dupes test."
+      ]
     },
     {
       "id": "W2-04",
