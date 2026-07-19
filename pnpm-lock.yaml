@@ -207,6 +207,9 @@ importers:
 
   packages/ingest:
     dependencies:
+      '@repopulse/forge':
+        specifier: workspace:^
+        version: link:../forge
       '@repopulse/shared':
         specifier: workspace:^
         version: link:../shared

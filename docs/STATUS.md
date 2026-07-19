@@ -1008,3 +1008,29 @@
   then re-enqueue), the 202-stats-warmup→per-commit-REST fallback, and
   identity attribution. **W2-01** (credential vault + connect flow) is
   also claimable and independent. Together they are the live ingest path.
+
+- W2-03 done (2026-07-19) — backfill entity workers. Real repo data now
+  flows into the warehouse through `packages/ingest/src/backfill/`. Every
+  entity upserts idempotently on its documented natural key
+  (onConflictDoUpdate), so a re-run produces **zero duplicates**. The
+  per-page cursor checkpoint is written in the **same transaction** as
+  that page's upserts, so a killed job resumes from exactly the last
+  committed page — the live kill-resume test (ingest one page, stop,
+  resume from the cursor) reaches completion with no dupes or gaps
+  (FR-INGEST-3). Budget yielding: a job ingests ≤20 pages then re-enqueues
+  with its cursor; on the `ForgeBudgetParkedError` floor it writes nothing
+  that round, flips the repo to `paused_budget`, and re-enqueues with
+  delay-to-reset — never busy-waits (FR-INGEST-4). Email-only commits
+  (authorLogin null) get an `email:{address}` fallback identity so
+  churn/ownership never silently drop them (DATABASE §2 note 4).
+  Enrichment fills `commit_files` and rolls churn totals onto the commit
+  (`stats_source=detail`); the 202-stats fast path is provider-internal,
+  so enrichment uses the documented per-commit REST fallback. All proven
+  against **live Postgres** with a deterministic fake provider (exact
+  ground-truth row counts). Gate: lint/typecheck clean, **340/340 tests**
+  (77 files, +15), arch rules + all validators pass.
+- Next: **W2-01 (credential vault + org connect flow + webhook
+  registration)** is the last independent W2 ticket — AES-256-GCM
+  encryption at rest + the "connect your org" flow. Once it lands, W2-04
+  (webhook receiver, reuses these upserters as delta appliers) and W2-05
+  (nightly reconciliation) unblock, completing the ingest wave.
