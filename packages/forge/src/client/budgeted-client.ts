@@ -26,6 +26,11 @@ export type RequestExecutor = (req: {
   method: HttpMethod;
   url: string;
   headers: Record<string, string>;
+  /** Present for writes/GraphQL (POST/PATCH…); undefined for GETs. Additive
+   * (W1-06): the GitHubProvider's GraphQL backfill and registerWebhook carry a
+   * body that the executor forwards to the transport. Existing GET callers are
+   * unaffected — body stays undefined. */
+  body?: unknown;
 }) => Promise<ForgeHttpResponse>;
 
 export interface ForgeRequest {
@@ -36,6 +41,8 @@ export interface ForgeRequest {
   /** Points cost against the secondary family bucket; default 1, writes default writeCost. */
   cost?: number;
   getHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
+  /** Request body for writes/GraphQL — forwarded to the executor (W1-06). */
+  body?: unknown;
 }
 
 export interface ForgeResponse extends ForgeHttpResponse {
@@ -219,7 +226,12 @@ export class BudgetedClient {
         ...(cached?.lastModified ? { 'If-Modified-Since': cached.lastModified } : {}),
       };
       const start = this.now();
-      const res = await this.executor({ method: req.method, url: req.url, headers });
+      const res = await this.executor({
+        method: req.method,
+        url: req.url,
+        headers,
+        ...(req.body !== undefined ? { body: req.body } : {}),
+      });
       this.metrics.recordRequestSeconds((this.now() - start) / 1000);
       this.metrics.recordRequest(req.family, ctx.lane, res.status);
       this.metrics.recordPoints(
