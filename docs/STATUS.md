@@ -1034,3 +1034,31 @@
   encryption at rest + the "connect your org" flow. Once it lands, W2-04
   (webhook receiver, reuses these upserters as delta appliers) and W2-05
   (nightly reconciliation) unblock, completing the ingest wave.
+
+- W2-01 done (2026-07-19) — credential vault + org connect flow + webhook
+  registration. Three parts across the boundary: the **AES-256-GCM vault**
+  (`packages/auth/src/credentials/`) — random 12-byte IV per row, GCM auth
+  tag prepended to the ciphertext blob, 32-byte `TOKEN_ENC_KEY`,
+  key_version for rotation, `last4:sha` display fingerprint that never
+  carries plaintext; the **connect flow** (`packages/ingest/src/connect/`)
+  — dependency-injected so it never imports `auth` (ARCHITECTURE §3):
+  smoke-list → classify `bad_token`/`bad_scope`/`no_repos` into distinct
+  actionable errors → encrypt + persist → create `pending_backfill` repo
+  rows + per-connection webhook secret + enqueue a plan per repo; and the
+  **admin-only routes** (`apps/api/src/routes/connections/`) composing all
+  three, with the credential **never echoed** and the list exposing only
+  last4/fingerprint/repo_count. A status-aware discovery provider (thin
+  client that throws on 4xx) surfaces auth failures for classification;
+  real ingestion still goes through the BudgetedClient (Law 7). Gate:
+  lint/typecheck clean, **357/357 tests** (80 files, +17), arch rules +
+  all validators pass.
+  Two documented follow-ons: live registration into `apiV1`/`app.ts`
+  needs the `ingest.backfill` queue + `loadTokenKey` plumbed (deploy-wave
+  wiring; the plugin is proven standalone like the W1-04 admin gate), and
+  the `auto_add_new` flag needs a `forge_connections` column to persist
+  future-repo pickup (W2-04/05).
+- Next: **W2-04 (webhook receiver + typed delta jobs + push coalescing)**
+  is claimable — it verifies `X-Hub-Signature-256` (the `verifyWebhook`
+  built in W1-06), enqueues typed delta jobs that reuse the W2-03 upserters
+  as delta appliers, and coalesces push bursts. Once it lands, W2-05
+  (nightly reconciliation + sync status API/SSE) is the last ingest ticket.
