@@ -1191,3 +1191,15 @@ retention. Next: **W4 (web dashboard)** consumes the W3-12 read API.
   axe)** and **W4-02 (web shell + component kit)** are the remaining W4
   foundations — the actual frontend. W4-02 is the big React/Tailwind shell
   (8 pts) consuming the W3-12 + W4-01 read API.
+
+- W4-00 advanced, status BLOCKED (2026-07-19) — the **deterministic
+  warehouse seeder** is done + verified (`seedWarehouse`: multi-repo org +
+  second workspace + fixture identity + facts + M1–M12 snapshots, seeded-RNG,
+  idempotent; 3 live tests; `pnpm seed` works). The **Playwright harness** is
+  built + structurally verified (config parses, spec lists): mocked-OAuth
+  login helper, runtime egress guard (fail on forge/LLM host), axe helper,
+  global-setup=seed, shell smoke spec, `pnpm e2e`. **Gated on W4-02**: the
+  browser run + axe-on-a-rendered-shell needs the shell to serve + a
+  Playwright browser install — so W4-00 stays `blocked` (Law 3) until W4-02
+  lands, then the smoke spec runs green and every screen ticket reuses this
+  harness. Gate on committed work: **412/412 tests**, all validators pass.
