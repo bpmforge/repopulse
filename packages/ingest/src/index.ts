@@ -7,3 +7,4 @@ export * from './connect/index.js';
 export * from './webhooks/index.js';
 export * from './status/index.js';
 export * from './reconcile/index.js';
+export * from './retention/index.js';

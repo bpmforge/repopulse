@@ -996,8 +996,10 @@
         "Test: seeded out-of-policy rows are swept, in-policy rows untouched to the row count; two consecutive runs are idempotent"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Closed 2026-07-19: retention sweeps. packages/metrics/src/retention/snapshots.ts pruneMetricSnapshots prunes metric_snapshots OLDER than the >=400d policy (never inside it — FR-METRICS-13 honored), id-keyed batched deletes, idempotent. packages/ingest/src/retention/sweeps.ts pruneForgeEtag (90-day LRU by fetched_at) + pruneWebhookDelivery (30-day by received_at), batched, idempotent. IMMUTABILITY GUARD: no sweep touches reports or egress_audit (SRS §5 A3, NFR-9) — enforced by construction (SWEEPABLE_TABLES={metric_snapshots,forge_etag,webhook_delivery}, IMMUTABLE_TABLES={reports,egress_audit}, asserted in a unit test) AND proven live (a seeded reports row survives all sweeps); egress_audit DELETE is additionally denied at the DB grant level (validate-egress-audit.sh, SC-15). The metric_snapshots sweep test lives in the metrics package because ingest may NOT import metrics (ARCHITECTURE §3) — the etag/webhook sweep + constants + report-survival test lives in ingest. Live tests prove: out-of-policy rows swept, in-policy rows kept to the row count (the 399d snapshot survives the 400d boundary), reports untouched, two consecutive runs idempotent (0 deleted). SCOPE NOTE: the nightly BullMQ repeatable-job wrapper (a retention cron on ingest.reconcile-style scheduling with DLQ-on-failure via the W2-02 worker runtime) is deploy-wave wiring — the prune functions are the job bodies, proven standalone, same pattern as the reconcile/snapshot crons. Gate: lint/typecheck clean, test 405/405 (96 files, +5), arch rules + all validators pass. W3 (metrics wave) COMPLETE 13/13 — W4 (web dashboard) opens."
+      ]
     },
     {
       "id": "W4-00",
