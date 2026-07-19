@@ -1120,7 +1120,9 @@
       ],
       "points": 5,
       "status": "todo",
-      "notes": []
+      "notes": [
+        "ROUTING (from W4-02): the shell bootstraps CODE-BASED routing in apps/web/src/main.tsx (root route + placeholder index + not-found). DASHBOARD §1 + TECH_STACK specify FILE-BASED routes (@tanstack/router-plugin, routes/ dir, routeTree.gen.ts). First step of this ticket: decide — migrate to file-based (add the Vite router plugin + move HomePlaceholder to routes/index.tsx) OR keep code-based and add a line to DASHBOARD §1 blessing it. Do not diverge silently. createRootRouteWithContext (already used) is compatible with both."
+      ]
     },
     {
       "id": "W4-04",

@@ -1239,3 +1239,14 @@ retention. Next: **W4 (web dashboard)** consumes the W3-12 read API.
   - **Unblocks W4-00**: the shell now serves, so W4-00's browser e2e + axe run
     can proceed once a Playwright browser is installed (still `blocked` on that).
     W4-03..W4-08 now claimable.
+  - **Known / carried forward**: (a) routing is code-based in `main.tsx` while
+    DASHBOARD §1 + TECH_STACK specify file-based — flagged in the W4-03 ticket
+    note to reconcile before the first screen diverges further. (b) With
+    `/api/v1/events` unmounted, the SSE client reconnects with backoff against a
+    404, so the rail sync chip reads "Reconnecting…" in the running app until the
+    endpoint lands — honest (the stream genuinely isn't connected), not a bug.
+    (c) The metrics/connections live tests share the `default` workspace and
+    clean by `workspaceId`; they're sensitive to stale rows left by an
+    interrupted prior run (a `dev-down --volumes` reset clears it). Pre-existing
+    test-isolation fragility, not a W4-02 regression — CI on a fresh volume is
+    unaffected.

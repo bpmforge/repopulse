@@ -84,6 +84,9 @@ const webBoundary = {
         // can't express "restrict the barrel but allow one subpath" (gitignore
         // negation is shadowed by the excluded parent), so the exact `paths`
         // entry restricts only `@repopulse/shared` and lets the subpath through.
+        // NOTE: this makes shared's package.json `exports` map the sole gate on
+        // what web can value-import — adding a new subpath export re-opens the
+        // web boundary for it, so keep exports limited to pure, server-free modules.
         paths: [
           {
             name: '@repopulse/shared',
