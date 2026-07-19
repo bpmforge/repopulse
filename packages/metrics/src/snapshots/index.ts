@@ -1,2 +1,4 @@
 export * from './writer.js';
 export * from './reader.js';
+export * from './readers.js';
+export * from './compute.js';

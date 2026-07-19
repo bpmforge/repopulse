@@ -1,0 +1,1 @@
+ALTER TABLE "commits" ADD COLUMN "is_merge" boolean DEFAULT false NOT NULL;

@@ -52,6 +52,8 @@ export async function upsertCommits(
         committedAt: new Date(c.committedAt),
         messageHead: messageHead(c.message),
         isRevertHeuristic: REVERT_RE.test(c.message),
+        // >1 parent ⇒ merge commit (METRICS.md §0 excludes them, M1/M2/M3).
+        isMerge: c.parentShas.length > 1,
         additions: stats?.additions ?? null,
         deletions: stats?.deletions ?? null,
         filesCount: null,
@@ -59,7 +61,11 @@ export async function upsertCommits(
       })
       .onConflictDoUpdate({
         target: [facts.commits.repoId, facts.commits.sha],
-        set: { messageHead: messageHead(c.message), authoredAt: new Date(c.authoredAt) },
+        set: {
+          messageHead: messageHead(c.message),
+          authoredAt: new Date(c.authoredAt),
+          isMerge: c.parentShas.length > 1,
+        },
       });
   }
   return commits.length;
