@@ -1,0 +1,21 @@
+{
+  "scenario": "stats-contributors-202-warmup",
+  "provenance": "synthetic",
+  "note": "202 stats-warmup — GitHub returns 202 with an empty body while it computes repository statistics; the ingest client retries then falls back to per-commit REST. Authored (cannot be forced live on a warm cache).",
+  "request": {
+    "method": "GET",
+    "url": "https://api.github.com/repos/bpmforge/repopulse-fixture/stats/contributors"
+  },
+  "response": {
+    "status": 202,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4998",
+      "x-ratelimit-used": "2",
+      "x-ratelimit-reset": "1700000000",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {}
+  }
+}

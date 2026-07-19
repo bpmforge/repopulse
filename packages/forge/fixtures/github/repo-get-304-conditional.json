@@ -1,0 +1,24 @@
+{
+  "scenario": "repo-get-304-conditional",
+  "provenance": "recorded",
+  "note": "Conditional GET with the etag from repo-get-200-etag → 304, zero primary charge.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.github.com/repos/bpmforge/repopulse-fixture",
+    "etagMatch": "W/\"89498616922cdb3e7b8a5a2007e3384733c8110893ec2dfe3b70618696ad3a8a\""
+  },
+  "response": {
+    "status": 304,
+    "headers": {
+      "etag": "\"89498616922cdb3e7b8a5a2007e3384733c8110893ec2dfe3b70618696ad3a8a\"",
+      "last-modified": "Sat, 18 Jul 2026 23:37:28 GMT",
+      "x-github-request-id": "1108:2CAAF0:17C69F3:52DF589:6A5C2337",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4999",
+      "x-ratelimit-reset": "1784426823",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "1"
+    },
+    "body": ""
+  }
+}
