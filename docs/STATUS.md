@@ -1203,3 +1203,50 @@ retention. Next: **W4 (web dashboard)** consumes the W3-12 read API.
   Playwright browser install — so W4-00 stays `blocked` (Law 3) until W4-02
   lands, then the smoke spec runs green and every screen ticket reuses this
   harness. Gate on committed work: **412/412 tests**, all validators pass.
+
+- W4-02 done (2026-07-19) — **web shell + component kit + data/SSE layer**.
+  `apps/web` foundation: `__root` shell (collapsible rail, topbar with
+  URL-serialized window/repos/person filters, sticky breadcrumb, dark-first
+  Tailwind 4 `@theme` tokens + light toggle); kit (WidgetFrame state machine,
+  WidgetGrid + WidgetRegistry, ECharts Chart wrapper w/ theme-token bridge +
+  view-as-table + reduced-motion + dispose, DataTable w/ TanStack Table +
+  URL-synced sort/cursor + j/k/Enter/x, KpiTile/HealthBadge/TrendDelta/
+  Sparkline/SeverityBadge/SyncStatusChip); typed client generated from a
+  committed OpenAPI snapshot (openapi-typescript) + TanStack Query (30s
+  staleTime, keepPreviousData); zustand UI store; SSE client (one EventSource,
+  debounced invalidation, batched role=status toasts, reconnect + Last-Event-ID);
+  URL params zod-validated via `packages/shared/src/urlState.ts`. Gate: **462
+  tests / 106 files** (44 new web tests), lint + typecheck + validate-arch +
+  validate-plan green, `vite build` succeeds (shell ~102KB gz, echarts out of
+  the main chunk).
+  - **Read-API mounting fix (closes a W3-12/W4-01 omission)**: the metrics-read
+    + drill-down/personal route plugins were authored + contract-tested but
+    never registered in the production app — their tests mounted them into
+    throwaway apiV1 scopes, so the whole read API was unreachable and absent
+    from the OpenAPI doc. Now mounted in `api-v1.ts` (double-registration in the
+    affected tests removed).
+  - **web↔shared boundary**: `urlState.ts` published as the runtime-safe subpath
+    `@repopulse/shared/url-state` (barrel stays type-only) via a package.json
+    `exports` map + an eslint `paths` carve-out — web value-imports only that
+    pure-schema module (the boundary's real purpose, keeping DB/server code out
+    of the browser bundle, is preserved).
+  - **Deferred follow-ups** (documented in `api-v1.ts`): `GET /api/v1/events`
+    (SSE) NOT mounted — its socket hijack hangs the W1-07 tenancy route-walker
+    and it needs redisUrl threaded; the web SSE client is unit-tested against a
+    mock, so live wiring is a small follow-up. Admin connections/sync + webhooks
+    also stay unmounted (different auth surface). Routing is code-based for the
+    foundation; @dnd-kit edit mode + ECharts variants land with the screens.
+  - **Unblocks W4-00**: the shell now serves, so W4-00's browser e2e + axe run
+    can proceed once a Playwright browser is installed (still `blocked` on that).
+    W4-03..W4-08 now claimable.
+  - **Known / carried forward**: (a) routing is code-based in `main.tsx` while
+    DASHBOARD §1 + TECH_STACK specify file-based — flagged in the W4-03 ticket
+    note to reconcile before the first screen diverges further. (b) With
+    `/api/v1/events` unmounted, the SSE client reconnects with backoff against a
+    404, so the rail sync chip reads "Reconnecting…" in the running app until the
+    endpoint lands — honest (the stream genuinely isn't connected), not a bug.
+    (c) The metrics/connections live tests share the `default` workspace and
+    clean by `workspaceId`; they're sensitive to stale rows left by an
+    interrupted prior run (a `dev-down --volumes` reset clears it). Pre-existing
+    test-isolation fragility, not a W4-02 regression — CI on a fresh volume is
+    unaffected.

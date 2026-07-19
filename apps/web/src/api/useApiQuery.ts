@@ -1,0 +1,64 @@
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  type UseInfiniteQueryResult,
+  type UseQueryResult,
+} from '@tanstack/react-query';
+import { apiFetch, buildUrl, type PathParams, type QueryParams } from './client.js';
+
+// Descriptor → fetch + query key (DASHBOARD §3/§4). A widget declares WHAT it
+// needs (endpoint + params); this hook owns HOW (URL build, stable key, SWR).
+// keepPreviousData powers the 50%-opacity stale-chart pattern (UX §8): when the
+// window/repo filter changes, the prior data stays on screen (marked stale via
+// `isPlaceholderData`) instead of flashing a skeleton.
+
+export interface QueryDescriptor {
+  /** Route template, e.g. '/org/summary' or '/repos/{id}'. */
+  endpoint: string;
+  path?: PathParams;
+  query?: QueryParams;
+}
+
+/** Stable, serializable query key mirroring the endpoint (DASHBOARD §2). */
+export function queryKeyFor(d: QueryDescriptor): readonly unknown[] {
+  return [d.endpoint, d.path ?? {}, d.query ?? {}];
+}
+
+export function useApiQuery<T>(
+  descriptor: QueryDescriptor,
+  options: { enabled?: boolean } = {},
+): UseQueryResult<T, Error> {
+  return useQuery<T, Error>({
+    queryKey: queryKeyFor(descriptor),
+    queryFn: () => apiFetch<T>(buildUrl(descriptor.endpoint, descriptor)),
+    placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
+  });
+}
+
+/** A cursor-paginated list response (FR-API-3): `{ items, nextCursor }`. */
+export interface CursorPage<Item> {
+  items: Item[];
+  nextCursor: string | null;
+}
+
+export function useApiInfiniteQuery<Item>(
+  descriptor: QueryDescriptor,
+  options: { enabled?: boolean } = {},
+): UseInfiniteQueryResult<{ pages: CursorPage<Item>[]; pageParams: unknown[] }, Error> {
+  return useInfiniteQuery<CursorPage<Item>, Error>({
+    queryKey: [...queryKeyFor(descriptor), 'infinite'],
+    queryFn: ({ pageParam }) =>
+      apiFetch<CursorPage<Item>>(
+        buildUrl(descriptor.endpoint, {
+          path: descriptor.path,
+          query: { ...descriptor.query, cursor: (pageParam as string | undefined) ?? undefined },
+        }),
+      ),
+    initialPageParam: undefined,
+    getNextPageParam: (last) => last.nextCursor,
+    placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
+  });
+}

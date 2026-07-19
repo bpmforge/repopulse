@@ -12,8 +12,6 @@ import {
 } from '@repopulse/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../../src/routes/auth/index.js';
-import reposRoutes from '../../src/routes/repos/index.js';
-import meRoutes from '../../src/routes/me/index.js';
 import errorEnvelopePlugin from '../../src/plugins/error-envelope.js';
 import apiV1 from '../../src/plugins/api-v1.js';
 
@@ -105,13 +103,11 @@ describeIfLiveInfra('route-walker tenancy isolation (NFR-4, W1-07)', () => {
     });
     await app.register(
       async (instance) => {
+        // apiV1 now mounts the W4-01 drill-down/personal routes (GET /repos,
+        // /me/*) itself (W4-02) — the walker below proves the parameter-free
+        // ones leak no other tenant's data. No manual registration here or
+        // they'd double-declare.
         await apiV1(instance, { db });
-
-        // W4-01: the drill-down/personal routes are workspace-scoped; the
-        // walker below proves the parameter-free ones (GET /repos, /me/*) leak
-        // no other tenant's data.
-        await instance.register(reposRoutes, { db });
-        await instance.register(meRoutes, { db });
 
         // Correctly scoped: reads only the requester's own workspace row.
         instance.get('/api/v1/_tenancy_test/scoped-ok', async (request) => {
