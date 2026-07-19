@@ -1,6 +1,6 @@
-import type { Job, Queue } from 'bullmq';
+import type { Job, Queue, Worker } from 'bullmq';
 import { core, type Database } from '@repopulse/shared';
-import { QUEUE } from './topology.js';
+import { QUEUE, safeJobId } from './topology.js';
 
 // Dead-letter handling (NFR-11, INGESTION §6): when a job exhausts its
 // attempts, copy it + the last error to the `ingest.dlq` queue AND a
@@ -69,6 +69,36 @@ export async function deadLetter(
       payload: record.payload,
       error: record.error,
     },
-    { jobId: `dlq:${record.queue}:${record.jobId}`, removeOnComplete: false, removeOnFail: false },
+    {
+      jobId: safeJobId(`dlq-${record.queue}-${record.jobId}`),
+      removeOnComplete: false,
+      removeOnFail: false,
+    },
   );
+}
+
+/**
+ * Wire a worker's `failed` event to the DLQ: on the FINAL failed attempt, copy
+ * the poison job to the DLQ + job_failure ledger. Earlier attempts (still
+ * retrying) are ignored — only exhausted jobs dead-letter (INGESTION §6). A
+ * job with no resolvable workspaceId is skipped rather than crashing the
+ * listener.
+ */
+export function attachDeadLetter(
+  worker: Worker,
+  dlqQueue: Queue,
+  db: Database,
+  onError?: (err: unknown) => void,
+): void {
+  worker.on('failed', (job: Job | undefined, err: Error) => {
+    if (!job || !isExhausted(job.attemptsMade, job.opts.attempts)) return;
+    const workspaceId = workspaceIdOf(job.data);
+    if (workspaceId === null) {
+      onError?.(new Error(`DLQ skip: job ${job.id} has no workspaceId`));
+      return;
+    }
+    void deadLetter(db, dlqQueue, buildFailureRecord(worker.name, job, err, workspaceId)).catch(
+      (e: unknown) => onError?.(e),
+    );
+  });
 }

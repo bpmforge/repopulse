@@ -39,8 +39,8 @@ describe('backfill planner (INGESTION §3, FR-INGEST-2/3/4)', () => {
     const specs = planBackfill([{ repoId: 7, pushedAt: '2026-07-01T00:00:00Z' }], NOW);
     const expectedSince = new Date(NOW - BACKFILL_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
     expect(specs[0]?.since).toBe(expectedSince);
-    expect(specs[0]?.jobId).toBe('bf:7:prs');
-    expect(specs[1]?.jobId).toBe('bf:7:commits');
+    expect(specs[0]?.jobId).toBe('bf-7-prs');
+    expect(specs[1]?.jobId).toBe('bf-7-commits');
   });
 
   it('is deterministic for equal pushedAt (repoId tie-break)', () => {

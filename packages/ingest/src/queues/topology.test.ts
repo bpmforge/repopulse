@@ -2,13 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { defaultJobOptions, jobId, QUEUE, QUEUE_PRIORITY, RETRY } from './topology.js';
 
 describe('queue topology (INGESTION §6, NFR-11)', () => {
-  it('jobId builders match the §6 idempotency keys', () => {
-    expect(jobId.backfillEntity(7, 'prs')).toBe('bf:7:prs');
-    expect(jobId.delta('D1', 'commits')).toBe('dl:D1:commits');
-    expect(jobId.push(7)).toBe('push:7');
-    expect(jobId.enrich(7, 'abc')).toBe('en:7:abc');
-    expect(jobId.reconcile(7, '20260718')).toBe('rc:7:20260718');
-    expect(jobId.snapshot(7, '20260718')).toBe('snap:7:20260718');
+  it('jobId builders match the §6 idempotency keys (BullMQ-safe `-`, not `:`)', () => {
+    expect(jobId.backfillEntity(7, 'prs')).toBe('bf-7-prs');
+    expect(jobId.delta('D1', 'commits')).toBe('dl-D1-commits');
+    expect(jobId.push(7)).toBe('push-7');
+    expect(jobId.enrich(7, 'abc')).toBe('en-7-abc');
+    expect(jobId.reconcile(7, '20260718')).toBe('rc-7-20260718');
+    expect(jobId.snapshot(7, '20260718')).toBe('snap-7-20260718');
+    // BullMQ forbids ':' in custom ids — none of our keys may contain one.
+    for (const id of [
+      jobId.backfillEntity(7, 'prs'),
+      jobId.delta('D1', 'x'),
+      jobId.enrich(7, 'a'),
+    ]) {
+      expect(id).not.toContain(':');
+    }
   });
 
   it('retry policies match the §6 table', () => {

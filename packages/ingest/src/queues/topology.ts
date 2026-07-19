@@ -51,11 +51,22 @@ export function defaultJobOptions(queue: QueueName): JobsOptions {
 // jobId builders = the idempotency keys from the §6 table. Re-adding a job with
 // the same id is a no-op while it's queued/active, so a duplicate webhook
 // delivery or a re-plan never double-processes.
+//
+// NOTE: the §6 table renders these with `:` separators (bf:{repoId}:{entity}),
+// but BullMQ forbids `:` in custom job ids — it uses `:` internally as the Redis
+// key separator ("Custom Id cannot contain :", verified empirically by the DLQ
+// integration test). We use `-` instead; the idempotency semantics are
+// identical, only the separator differs from the doc's illustration.
 export const jobId = {
-  backfillEntity: (repoId: number, entityType: string): string => `bf:${repoId}:${entityType}`,
-  delta: (deliveryId: string, entityType: string): string => `dl:${deliveryId}:${entityType}`,
-  push: (repoId: number): string => `push:${repoId}`,
-  enrich: (repoId: number, sha: string): string => `en:${repoId}:${sha}`,
-  reconcile: (repoId: number, yyyymmdd: string): string => `rc:${repoId}:${yyyymmdd}`,
-  snapshot: (repoId: number, yyyymmdd: string): string => `snap:${repoId}:${yyyymmdd}`,
+  backfillEntity: (repoId: number, entityType: string): string => `bf-${repoId}-${entityType}`,
+  delta: (deliveryId: string, entityType: string): string => `dl-${deliveryId}-${entityType}`,
+  push: (repoId: number): string => `push-${repoId}`,
+  enrich: (repoId: number, sha: string): string => `en-${repoId}-${sha}`,
+  reconcile: (repoId: number, yyyymmdd: string): string => `rc-${repoId}-${yyyymmdd}`,
+  snapshot: (repoId: number, yyyymmdd: string): string => `snap-${repoId}-${yyyymmdd}`,
 } as const;
+
+/** BullMQ-safe id: strip the `:` BullMQ reserves (used for the DLQ mirror id). */
+export function safeJobId(raw: string): string {
+  return raw.replace(/:/g, '-');
+}
