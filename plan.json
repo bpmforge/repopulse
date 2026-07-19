@@ -111,8 +111,10 @@
         "GraphQL introspection against the live schema confirms (or refutes) that PullRequestChangedFile has no patch field (docs/research/github-api.md §6 UNVERIFIED item); the result is recorded in docs/research/github-api.md in the same commit"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Claimed 2026-07-18. Now unblocked (W0-05 done). Building: (1) tools/fixture-recorder/ — records live GitHub REST/GraphQL {status,headers,body} incl x-ratelimit-*/etag, scrubs secrets, writes packages/forge/fixtures/; (2) packages/forge/fixtures/replay.ts — a RequestExecutor that serves fixtures with zero network + throws on any unmatched request (the BudgetedClient RequestExecutor seam from W1-05 is exactly what W1-06 contract tests will inject); (3) fixture set for 304/202-warmup/truncated-diff/rate-limit/secondary-403; (4) GraphQL introspection resolving the PullRequestChangedFile.patch UNVERIFIED item in github-api.md §6. Recording against bpmforge/repopulse-fixture (seeded) + bpmforge/repopulse (real, for truncated diffs)."
+      ]
     },
     {
       "id": "W0-05",
