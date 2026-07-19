@@ -466,8 +466,10 @@
         "registerWebhook called per selected repo with a per-connection secret; bad-scope vs bad-token failures return distinct actionable errors (INGESTION.md §1 validation)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Claimed 2026-07-19. Three parts per write_scope: packages/auth/src/credentials (AES-256-GCM vault), packages/ingest/src/connect (connect-flow orchestration, dependency-injected so it never imports auth — ARCHITECTURE §3 forbids ingest->auth), apps/api/src/routes/connections (composes auth vault + forge provider + ingest connect). Vault stores authTag(16)||ciphertext in credential_ciphertext (schema has no separate tag column), random 12-byte IV per row, key from TOKEN_ENC_KEY env, key_version for rotation; fingerprint = last4:sha256[0:12] for display, never plaintext."
+      ]
     },
     {
       "id": "W2-02",
