@@ -590,8 +590,10 @@
         "SSE /api/v1/events emits sync.progress/sync.done/budget.warning per docs/API_DESIGN.md §3"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Claimed 2026-07-19. Four parts: packages/ingest/src/status (RepoSyncStatus computed from warehouse per §7), packages/ingest/src/reconcile (nightly sweep: conditional If-None-Match 304-free, walk-to-watermark upsert repairs gaps, tombstone absent rows, re-register webhooks, auto_add pickup, requeue error repos), apps/api/src/routes/sync (GET /sync/status org+per-repo), apps/api/src/routes/events (SSE /api/v1/events via Redis pub/sub)."
+      ]
     },
     {
       "id": "W3-01",
