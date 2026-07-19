@@ -257,7 +257,7 @@ export default async function connectionsRoutes(
       const repoIds = await activateRepos(
         {
           db,
-          encrypt: (pt) => credentials.encryptCredential(pt, tokenKey),
+          sealSecret: (pt) => credentials.sealSecret(pt, tokenKey),
           registerWebhook: (repoFullName, secret) =>
             forge.registerWebhook(CTX, repoFullName, opts.webhookUrl, secret, WEBHOOK_EVENTS),
           enqueuePlan: (repoId) =>

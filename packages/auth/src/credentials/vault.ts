@@ -73,3 +73,25 @@ export function decryptCredential(rec: StoredCredential, key: Buffer): string {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8');
 }
+
+// Self-contained seal for secrets stored in a SINGLE column (e.g. the per-
+// connection webhook secret — forge_connections has no second IV column). The
+// blob is `iv(12) ‖ authTag(16) ‖ ciphertext`, so each seal carries its own
+// random IV (never reuse the credential's IV — GCM nonce reuse under one key
+// is catastrophic).
+export function sealSecret(plaintext: string, key: Buffer): Buffer {
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv(ALGO, key, iv);
+  const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), enc]);
+}
+
+export function openSecret(blob: Buffer, key: Buffer): string {
+  if (blob.length < IV_BYTES + TAG_BYTES) throw new Error('sealed blob too short');
+  const iv = blob.subarray(0, IV_BYTES);
+  const tag = blob.subarray(IV_BYTES, IV_BYTES + TAG_BYTES);
+  const enc = blob.subarray(IV_BYTES + TAG_BYTES);
+  const decipher = createDecipheriv(ALGO, key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8');
+}

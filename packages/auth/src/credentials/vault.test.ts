@@ -6,6 +6,8 @@ import {
   encryptCredential,
   fingerprintLast4,
   loadTokenKey,
+  openSecret,
+  sealSecret,
 } from './vault.js';
 
 const key = randomBytes(32);
@@ -50,6 +52,23 @@ describe('credential vault (FR-AUTH-5, NFR-6, SC-1)', () => {
     const fp = credentialFingerprint(TOKEN);
     expect(fp.startsWith('ABCD:')).toBe(true);
     expect(fingerprintLast4(fp)).toBe('ABCD');
+  });
+
+  it('sealSecret carries its own IV (iv‖tag‖ct) and openSecret round-trips it', () => {
+    const secret = 'wh-per-connection-secret';
+    const blob = sealSecret(secret, key);
+    expect(openSecret(blob, key)).toBe(secret);
+    // self-contained: two seals of the same secret differ (fresh IV each)
+    expect(sealSecret(secret, key).equals(blob)).toBe(false);
+    expect(blob.toString('latin1')).not.toContain(secret);
+  });
+
+  it('openSecret rejects a tampered sealed blob and the wrong key', () => {
+    const blob = sealSecret('s', key);
+    const bad = Buffer.from(blob);
+    bad[bad.length - 1] = (bad[bad.length - 1] ?? 0) ^ 0xff;
+    expect(() => openSecret(bad, key)).toThrow();
+    expect(() => openSecret(blob, randomBytes(32))).toThrow();
   });
 
   it('loadTokenKey validates 32-byte hex', () => {
