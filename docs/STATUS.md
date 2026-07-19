@@ -1147,3 +1147,16 @@ PR review-event timeline / issue reopen history (M4/M10 exactness). Each
 reader documents its approximation inline. Not blocking — the current
 snapshots are correct within the documented bounds — but worth a schema
 pass before the metrics are treated as exact.
+
+- W3-12 done (2026-07-19) — metrics read API. Warehouse-only endpoints
+  over the W3-10 snapshots + W3-11 insights: `/metrics/{catalog,series,
+  current}`, `/org/{summary,health-tiles,attention}`, `/hotspots`. A
+  **runtime nock guard** (mock `fetch` → throw) proves every handler
+  completes with zero HTTP egress (C1, FR-API-2). Session-authed, zod-
+  schema'd (OpenAPI auto-generates). Gate: **400/400 tests**, all
+  validators pass. Health-tile deltas + the NFR-3 k6 p95 smoke +
+  live route registration are deploy-wave follow-ons.
+- Next: **W3-13 (retention sweep jobs)** is the last W3 ticket — nightly
+  retention of `metric_snapshots` / `forge_etag` / `webhook_delivery`.
+  Then W3 (metrics) is complete and W4 (web dashboard, which consumes the
+  W3-12 read API) opens.

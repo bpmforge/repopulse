@@ -62,6 +62,12 @@ importers:
       '@repopulse/ingest':
         specifier: workspace:^
         version: link:../../packages/ingest
+      '@repopulse/insights':
+        specifier: workspace:^
+        version: link:../../packages/insights
+      '@repopulse/metrics':
+        specifier: workspace:^
+        version: link:../../packages/metrics
       '@repopulse/shared':
         specifier: workspace:*
         version: link:../../packages/shared

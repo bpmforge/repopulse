@@ -971,8 +971,10 @@
         "p95 < 500ms against the seeded 50-repo dataset (NFR-3 k6 smoke in CI)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Closed 2026-07-19: metrics read API in apps/api/src/routes/{metrics,org,hotspots}/, all warehouse-only (FR-API-2, C1) — NO route imports @repopulse/forge (validate-arch + a runtime NOCK GUARD test that mocks global fetch to throw and asserts every handler still 200s + fetch never called). metrics/: GET /metrics/catalog (FR-METRICS-15, serves METRIC_CATALOG — UI reads it, never hardcodes strings), GET /metrics/series (snapshot time-series oldest-first per API_DESIGN §4 canonical shape, org-rollup when repo_id omitted via the repoId=null series), GET /metrics/current (latest + delta vs previous equal window, reuses W3-11 computeMetricTrend). hotspots/: GET /hotspots (cross-repo ranking via W3-11 rankHotspots over the workspace repos). org/: GET /org/summary (5 KPI tiles M5/M9/M4/M1/M10 with deltas), GET /org/health-tiles (per-repo health via a warehouse->HealthMetricInputs mapper feeding W3-11 computeHealthScore + A-E letter + Tier-1-only basis), GET /org/attention (health-band C/D/E repos — MVP; the full since-diff of new stale PRs / CI regressions / unreviewed merges enriches once those event streams exist, W4/W6). All session-authed (children of apiV1), zod-schema so OpenAPI auto-generates. apps/api gained metrics + insights deps. SCOPE NOTES: health-tile delta=null (needs a prior-health snapshot series, later enrichment); NFR-3 p95<500ms k6 smoke against the seeded 50-repo dataset is a CI/deploy artifact (needs k6 + the seeded stack), same deploy-wave pattern as the other CI benchmarks; live registration of these routes into apiV1/app.ts is deploy-wiring, proven standalone like connections/webhooks/sync. Gate: lint/typecheck clean, test 400/400 (94 files, +5), arch rules + all validators pass. Unblocks W4 (web dashboard) + W5-04."
+      ]
     },
     {
       "id": "W3-13",
