@@ -941,8 +941,10 @@
         "Cross-repo hotspot ranking with score components, Tier-1 inputs only for MVP (FR-INSIGHTS-5); finding-density input deferred to W6"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Closed 2026-07-19: three parts in packages/insights/. SCORE (score/): ramp(x,good,bad)=clamp((x-bad)/(good-bad),0,1)*100 — one formula for both higher-better (M5 good>bad) and lower-better (days-since-push good<bad); E3 reproduced exactly ramp(0.667,0.9,0.4)=53.4. computeHealthScore(SubScoreDef[]) = Σ weight×subScore where each sub = equal-weight mean of available inputs' ramps; a null input is excluded from the mean (not scored 0), a sub-score with zero available inputs is dropped and remaining weights RENORMALIZED to sum 1; full breakdown per input (raw/good/bad/normalized) + per sub (normalized/weight/contribution); tier1Only flag while security/supply_chain absent (v1). Weights from workspace config (DEFAULT_WEIGHTS activity.2/reviewHygiene.3/ciHealth.25/delivery.25 is only the fallback). buildHealthSubScores(HealthMetricInputs) wires the METRICS §3 catalog ramp params. scoreLetter A/B/C/D/E bands 85/70/50/30 (D12 presentation). TRENDS (trends/): computeMetricTrend reads metric_snapshots ONLY (FR-METRICS-13) — latest value minus the snapshot >=one window-length earlier in the nightly series; missing prior window => delta null (never fabricated 0). HOTSPOTS (hotspots/): rankHotspots reuses the M2 computeHotspots + readChurnTouches (from @repopulse/metrics — insights->metrics allowed by arch) per repo, ranks globally by score with drill-down components (gross/normChurn/daysSince/decay); Tier-1 inputs only (finding-density is W6). E1 reproduced: api.ts (0.955) ranks above util.ts cross-repo. Gate: lint/typecheck clean, test 395/395 (93 files, +11), arch rules + all validators pass. Unblocks W3-12 (metrics read API consumes score/trends/hotspots) + W5-03."
+      ]
     },
     {
       "id": "W3-12",
