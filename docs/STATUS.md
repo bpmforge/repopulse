@@ -978,3 +978,33 @@
   workers, unblocked once W2-02 lands) they are the ingest engine — the
   first point where real repo data flows into the warehouse. The 202-stats
   fallback orchestration lives in W2-03, not the provider.
+
+- W2-02 done (2026-07-18) — BullMQ queue topology + DLQ + graceful
+  shutdown + backfill planner/state machine. The ingest **harness** is up
+  (the entity processors that pull GitHub data are W2-03). `packages/
+  ingest/src/queues/`: 5-queue topology + DLQ with jobId idempotency keys,
+  per-queue retry policies + priorities (INGESTION §6); a
+  `ShutdownCoordinator` that on SIGTERM stops intake and drains workers
+  ≤30s then force-closes (jobs resume from cursor); queue-depth/active/
+  failed/DLQ Prometheus gauges on the W1-09 registry. `packages/ingest/
+  src/plan/`: the backfill planner (now−365d window, pushedAt-desc repos,
+  PRs→commits→checks→issues→releases→deployments) and the per-repo sync
+  state machine (legal-transition-only, mapped to `repos.sync_status`).
+  `apps/api/src/workers/`: `createWorkerRuntime` (builds queues, a worker
+  per injected processor, wires each to the DLQ, returns a ready
+  coordinator) + a worker `/healthz` + `/metrics` http server + the
+  entrypoint.
+  **A real bug the poison-message integration test caught**: BullMQ
+  forbids `:` in custom job ids, but INGESTION §6 renders the idempotency
+  keys with colons — switched the separator to `-` (same semantics),
+  documented the constraint. The live `describeIfLiveInfra` DLQ test
+  proves an exhausted job lands in *both* the DLQ queue and the
+  `job_failure` ledger and never blocks the queue (NFR-11).
+  Gate: lint/typecheck clean, **325/325 tests** (74 files, +25 incl. the
+  live DLQ integration test), arch rules + all validators pass.
+- Next: **W2-03 (backfill entity workers) is now claimable** — it plugs
+  real processors into this harness: per-page cursor checkpoints in the
+  same txn as the page's idempotent upserts, budget yielding (≤20 pages
+  then re-enqueue), the 202-stats-warmup→per-commit-REST fallback, and
+  identity attribution. **W2-01** (credential vault + connect flow) is
+  also claimable and independent. Together they are the live ingest path.

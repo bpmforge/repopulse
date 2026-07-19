@@ -8,9 +8,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@repopulse/shared": "workspace:^",
+    "bullmq": "^5",
+    "drizzle-orm": "^0.39.3",
+    "ioredis": "^5.11.1",
+    "prom-client": "^15"
+  },
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "dotenv": "^17.4.2",
     "typescript": "^5.9.3"
   }
 }
