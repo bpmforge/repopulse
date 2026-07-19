@@ -943,3 +943,38 @@
   App-installation-token auth mode (JWT→access_token exchange) is the one
   piece needing a hand-authored fixture (documented in the W0-05 split);
   everything else replays the recorded set.
+
+- W1-06 done (2026-07-18) — GitHubProvider adapter (REST + GraphQL, PAT +
+  App auth) with recorded-fixture contract tests. The whole ForgeProvider
+  interface is now implemented in `packages/forge/src/github/`: REST reads
+  for repos/commits/commit-files/PRs/PR-files/reviews/check-runs/releases/
+  deployments/issues/contents, GraphQL backfill for `listPullRequests`
+  (~2pt query, yields the additions/deletions/changedFiles the REST list
+  omits), `registerWebhook`, and `verifyWebhook`. **Both auth modes**: PAT
+  (static Bearer) and App (JWT→installation token via `@octokit/auth-app`,
+  cached with proactive re-mint ~50min, concurrent-mint coalescing,
+  `invalidate()` for 401 recovery). **Contract tests** inject an in-memory
+  `ForgeHttpClient` stub — zero Postgres, zero network — that THROWS on any
+  unrouted request (the CI-never-hits-github guard); 15 contract tests
+  cover every op, both auth modes end-to-end, `patchTruncated` via the
+  *real* W0-04 recorded fixture (repopulse PR #5), the GraphQL path, and
+  the webhook body seam. `verifyWebhook` is HMAC-SHA256 + timingSafeEqual
+  with legacy SHA-1 rejected (5 tests).
+  **One additive out-of-scope touch** (the real W1-05↔W1-06 gap, documented):
+  `RequestExecutor`/`ForgeRequest` gained an optional `body?` so GraphQL/
+  webhook POSTs carry a body — GET callers unaffected. The prod octokit
+  executor defers ALL retry to our budgeter (throttle callbacks return
+  false, retry disabled) and converts octokit's thrown HttpErrors back to
+  `{status,headers,body}` so the BudgetedClient stays the single source of
+  304/403/429/5xx handling (Law 7 intact). arch rules 3–4 green
+  (octokit + api.github.com confined to `packages/forge`; no tarball/
+  zipball/raw-diff/search paths). Gate: lint/typecheck clean, **301/301
+  tests** (67 files, +25), all 5 validators pass. octokit deps match
+  TECH_STACK majors.
+  **W1 wave is now complete (9/9 done).**
+- Next: **W2-01 and W2-02 are both claimable** — the credential vault +
+  org connect flow + webhook registration (W2-01) and the BullMQ queue
+  topology + backfill planner (W2-02). Together with W2-03 (backfill
+  workers, unblocked once W2-02 lands) they are the ingest engine — the
+  first point where real repo data flows into the warehouse. The 202-stats
+  fallback orchestration lives in W2-03, not the provider.
