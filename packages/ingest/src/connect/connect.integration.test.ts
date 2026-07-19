@@ -31,6 +31,14 @@ function encrypt(plaintext: string): EncryptedBlob {
   };
 }
 
+// Self-contained seal (iv‖tag‖ct) for the single-column webhook secret.
+function sealSecret(plaintext: string): Buffer {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', KEY, iv);
+  const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), enc]);
+}
+
 const REPOS: ForgeRepo[] = [
   {
     externalId: '101',
@@ -158,7 +166,7 @@ describeIfLiveInfra('connect flow (W2-01, FR-INGEST-1)', () => {
     const registerWebhook = vi.fn(async () => 'hook-1');
     const enqueuePlan = vi.fn(async () => {});
     const repoIds = await activateRepos(
-      { db, encrypt, registerWebhook, enqueuePlan, generateSecret: () => 'wh-secret' },
+      { db, sealSecret, registerWebhook, enqueuePlan, generateSecret: () => 'wh-secret' },
       {
         workspaceId,
         connectionId: created.connectionId,
@@ -196,7 +204,7 @@ describeIfLiveInfra('connect flow (W2-01, FR-INGEST-1)', () => {
     const repoIds = await activateRepos(
       {
         db,
-        encrypt,
+        sealSecret,
         registerWebhook: async () => 'h',
         enqueuePlan: async () => {},
         generateSecret: () => 's',

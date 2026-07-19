@@ -1062,3 +1062,26 @@
   built in W1-06), enqueues typed delta jobs that reuse the W2-03 upserters
   as delta appliers, and coalesces push bursts. Once it lands, W2-05
   (nightly reconciliation + sync status API/SSE) is the last ingest ticket.
+
+- W2-04 done (2026-07-19) — webhook receiver + typed delta jobs + push
+  coalescing. `POST /webhooks/github` (machine-facing, no session) captures
+  the RAW body before JSON parse (SC-3), verifies the `X-Hub-Signature-256`
+  HMAC (W1-06's `verifyWebhookSignature`) against the per-connection secret,
+  dedupes on `delivery_id` (`ON CONFLICT DO NOTHING` → redelivery is a 200
+  no-op, SC-4), and enqueues a typed delta job → 202. Tampered/absent/
+  untracked → 401, nothing enqueued. The delta processor **pulls by
+  watermark, not payload** (reuses W2-03's `ingestEntityPages`), so a replay
+  leaves byte-identical state (FR-INGEST-6); `push` events coalesce per repo
+  (`push:{repoId}` jobId + 30s debounce, NFR-10). All 10 §4 events routed.
+  **Fixed a real W2-01 bug found here**: the per-connection webhook secret
+  was stored without its IV (schema has one IV column, for the credential) —
+  undecryptable, and reusing the credential IV would be a GCM nonce reuse.
+  Added self-contained `sealSecret`/`openSecret` (iv‖tag‖ct, fresh IV per
+  seal) and switched the connect flow + route to it. Gate: lint/typecheck
+  clean, **371/371 tests** (83 files, +14), arch rules + all validators
+  pass, `ingest`→`auth` boundary clean.
+- Next: **W2-05 (nightly reconciliation sweep + sync status model/API/SSE)**
+  is the last ingest ticket — a scheduled sweep that repairs any missed
+  webhook via cursors + ETag, plus the `/sync/status` org+per-repo view.
+  Once it lands, the entire ingest wave (W2) is complete and the warehouse
+  stays fresh via three paths: backfill, webhooks, and the nightly sweep.

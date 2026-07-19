@@ -135,7 +135,10 @@ export interface RepoSelection {
 
 export interface ActivateReposDeps {
   db: Database;
-  encrypt: EncryptFn;
+  /** Self-contained seal (iv‖tag‖ct) for the webhook secret — it lives in a
+   * SINGLE column (webhook_secret_ciphertext) with no second IV column, so it
+   * must carry its own IV (never reuse the credential IV — GCM nonce reuse). */
+  sealSecret: (plaintext: string) => Buffer;
   /** registerWebhook(repoFullName, secret) → hook id. */
   registerWebhook: (repoFullName: string, secret: string) => Promise<string>;
   /** enqueue backfill.plan for a repo (BullMQ, W2-02). */
@@ -192,11 +195,12 @@ export async function activateRepos(
     repoIds.push(repo.id);
   }
 
-  // Store the per-connection webhook secret encrypted at rest (FR-AUTH-5).
-  const encSecret = deps.encrypt(secret);
+  // Store the per-connection webhook secret sealed (iv‖tag‖ct) at rest
+  // (FR-AUTH-5) so the webhook receiver (W2-04) can decrypt it to verify
+  // signatures.
   await deps.db
     .update(core.forgeConnections)
-    .set({ webhookSecretCiphertext: encSecret.ciphertext })
+    .set({ webhookSecretCiphertext: deps.sealSecret(secret) })
     .where(
       and(
         eq(core.forgeConnections.id, params.connectionId),
