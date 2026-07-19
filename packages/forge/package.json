@@ -9,6 +9,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@octokit/auth-app": "^7",
+    "@octokit/core": "^6",
+    "@octokit/graphql": "^8",
+    "@octokit/plugin-retry": "^7",
+    "@octokit/plugin-throttling": "^9",
     "@repopulse/shared": "workspace:*",
     "drizzle-orm": "^0.39.3"
   },
