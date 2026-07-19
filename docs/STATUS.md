@@ -1160,3 +1160,20 @@ pass before the metrics are treated as exact.
   retention of `metric_snapshots` / `forge_etag` / `webhook_delivery`.
   Then W3 (metrics) is complete and W4 (web dashboard, which consumes the
   W3-12 read API) opens.
+
+- W3-13 done (2026-07-19) — retention sweeps. `pruneMetricSnapshots`
+  (metrics pkg, >400d, batched), `pruneForgeEtag` (90d LRU) +
+  `pruneWebhookDelivery` (30d) (ingest pkg). **Immutability guard**: no
+  sweep touches `reports`/`egress_audit` (enforced by construction +
+  asserted + a seeded report survives; egress_audit DELETE also denied at
+  the DB grant level). Live: out-of-policy swept, in-policy kept,
+  idempotent. Split across packages because `ingest` can't import
+  `metrics` (ARCHITECTURE §3). Gate: **405/405 tests**, all validators.
+  Cron wrapper is deploy-wave.
+
+## W3 (metrics wave) COMPLETE — 13/13 (2026-07-19)
+
+W0, W1, W2, W3 all done. The pipeline is whole: connect → ingest
+(backfill/webhooks/reconciliation) → nightly metric snapshots (M1–M12) →
+health score / trends / cross-repo hotspots → warehouse-only read API →
+retention. Next: **W4 (web dashboard)** consumes the W3-12 read API.

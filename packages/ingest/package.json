@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@repopulse/forge": "workspace:^",
+    "@repopulse/metrics": "workspace:^",
     "@repopulse/shared": "workspace:^",
     "bullmq": "^5",
     "drizzle-orm": "^0.39.3",
