@@ -914,3 +914,32 @@
   reconciliation cover correctness); live webhook delivery waits for a
   smee.io tunnel or the W7 deploy. The dev OAuth app (localhost login)
   is registerable any time but gates nothing.
+
+- W0-04 done (2026-07-18) — GitHub fixture recorder + replay helper. The
+  ingest chain's zero-live-network foundation is now real. `tools/
+  fixture-recorder/` records live GitHub REST/GraphQL into
+  `packages/forge/fixtures/github/` as sanitized JSON; `packages/forge/
+  fixtures/replay.ts` serves them through a `RequestExecutor`-shaped
+  function (the W1-05 BudgetedClient seam) and THROWS `ReplayMissError`
+  on any unmatched request — the guard proving nothing escapes to
+  github.com. 7 fixtures: 5 recorded live via the `gh` token (200+etag,
+  304 conditional, /rate_limit, PR files with patches, and a *real*
+  truncated diff — a patch-less file found in `repopulse` PR #5) + 2
+  synthetic (202 stats-warmup, secondary-403 — authored because forcing
+  them live is impossible/abusive, marked `provenance: synthetic`).
+  Sanitizer allowlists response headers (etag, x-ratelimit-*, link,
+  retry-after) and deep-scrubs token-shaped strings; a test re-asserts no
+  secret material survives. GraphQL introspection **VERIFIED** the
+  github-api.md §6 UNVERIFIED item: `PullRequestChangedFile` has no
+  `patch` field — ingest plan stands (diffs stay REST). One documented
+  out-of-scope touch (precedent: metrics W3-06): forge tsconfig include
+  widened to `[src,fixtures]`. Gate: lint/typecheck clean, 276/276 tests
+  (64 files, +8), all 5 validators pass.
+  W0 wave is now **complete (5/5 done)**.
+- Next: **W1-06 is claimable** — the GitHubProvider adapter (REST +
+  GraphQL, PAT + App auth) with recorded-fixture contract tests. It
+  consumes these fixtures via the replay helper and, once done, unblocks
+  W2-02 (queue topology) → W2-03 (backfill) — the ingest engine. The
+  App-installation-token auth mode (JWT→access_token exchange) is the one
+  piece needing a hand-authored fixture (documented in the W0-05 split);
+  everything else replays the recorded set.

@@ -1,0 +1,25 @@
+{
+  "scenario": "secondary-rate-limit-403",
+  "provenance": "synthetic",
+  "note": "Secondary (abuse-detection) 403 with retry-after — cannot be produced without abusing the API. The BudgetedClient honors retry-after (FORGE_PROVIDER §3). Authored from github-api.md §1.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.github.com/repos/bpmforge/repopulse/commits"
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "retry-after": "60",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4873",
+      "x-ratelimit-used": "127",
+      "x-ratelimit-reset": "1700000000",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "You have exceeded a secondary rate limit. Please wait a few minutes before you try again.",
+      "documentation_url": "https://docs.github.com/rest/using-the-rest-api/rate-limits-for-the-rest-api"
+    }
+  }
+}

@@ -101,7 +101,7 @@ dev-mode fallback.
 ## 6. GraphQL vs REST for backfill
 
 - **GraphQL wins for PR metadata history**: one query = `repository.pullRequests(first:50, states:[MERGED,CLOSED,OPEN])` with nested `reviews(first:50)`, `timelineItems`, `commits(first:1)`, `files(first:100){ path additions deletions changeType }`. Cost ≈ (1 + 50 + 50 + 50)/100 ≈ **2 points** for what would be ~150+ REST calls. 500 PRs ≈ 10 pages ≈ ~20 points total.
-- **REST is mandatory for patch text**: the GraphQL `PullRequestChangedFile` object has path/additions/deletions/changeType but **no `patch` field** (`UNVERIFIED` against live schema — confirm by introspection in W0; if wrong, simplify the ingest plan). Tier-2/3 LLM review therefore pulls diffs via REST `GET /pulls/{n}/files` on demand.
+- **REST is mandatory for patch text**: the GraphQL `PullRequestChangedFile` object has path/additions/deletions/changeType but **no `patch` field** (`VERIFIED` 2026-07-18 via live introspection in W0-04 — `tools/fixture-recorder/introspect.ts`; the type's full field set is `additions, changeType, deletions, path, viewerViewedState`, no patch). Tier-2/3 LLM review therefore pulls diffs via REST `GET /pulls/{n}/files` on demand; the ingest plan stands (no simplification).
 - REST is simpler for commits-with-churn (GraphQL commit history also lacks per-file patches) and for Actions runs (not fully exposed in GraphQL).
 - Recommended split: **GraphQL for backfill + nightly reconciliation of PR/review/issue metadata; REST for diffs, contents, checks/runs, stats; webhooks for steady-state.**
 
