@@ -1,4 +1,4 @@
-import type { BudgetedClient, ForgeResponse } from '../client/budgeted-client.js';
+import type { ForgeRequest, ForgeResponse } from '../client/budgeted-client.js';
 import type { ForgeProvider } from '../provider.js';
 import type {
   CallCtx,
@@ -58,8 +58,17 @@ export const GITHUB_CAPABILITIES: ForgeCapabilities = {
   maxPerPage: 100,
 };
 
+// The provider depends only on "something that runs a budgeted forge request"
+// — BudgetedClient satisfies this structurally. Decoupling from the concrete
+// class lets contract tests inject an in-memory client (no Postgres, no
+// network) while prod passes a real BudgetedClient (Law 7 still holds — prod
+// always uses the budgeter).
+export interface ForgeHttpClient {
+  request(ctx: CallCtx, req: ForgeRequest): Promise<ForgeResponse>;
+}
+
 export interface GitHubProviderOptions {
-  client: BudgetedClient;
+  client: ForgeHttpClient;
   auth: AuthHeaderProvider;
   /** Override for tests / GHE-later; defaults to public GitHub. */
   baseUrl?: string;
@@ -75,7 +84,7 @@ export class GitHubProvider implements ForgeProvider {
   readonly kind = 'github' as const;
   readonly capabilities = GITHUB_CAPABILITIES;
 
-  private readonly client: BudgetedClient;
+  private readonly client: ForgeHttpClient;
   private readonly auth: AuthHeaderProvider;
   private readonly base: string;
 
