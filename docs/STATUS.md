@@ -1085,3 +1085,33 @@
   webhook via cursors + ETag, plus the `/sync/status` org+per-repo view.
   Once it lands, the entire ingest wave (W2) is complete and the warehouse
   stays fresh via three paths: backfill, webhooks, and the nightly sweep.
+
+- W2-05 done (2026-07-19) — nightly reconciliation sweep + sync status
+  model + `/sync/status` + SSE. **This completes the W2 ingest wave
+  (5/5).** The reconcile sweep re-lists each entity from its high-watermark
+  and upserts, so a **missed-webhook gap is repaired** (proven live) and
+  re-running is idempotent; unchanged repos hit the BudgetedClient's ETag
+  304-free path (~0 budget). `requeueErrorRepos` un-sticks error repos. The
+  sync status model computes phase / 365-day time-coverage percentComplete
+  / entities / lagSeconds **from the warehouse only** (FR-API-2);
+  `GET /sync/status` serves the org aggregate + per-repo, and the SSE
+  `GET /api/v1/events` relays a per-workspace Redis channel (SSE is the
+  optimization, the GET read is the source of truth). Gate: lint/typecheck
+  clean, **381/381 tests** (88 files, +10), arch rules + all validators
+  pass, `ingest`→`auth` boundary clean.
+  Documented follow-ons (deploy/schema wave): tombstoning needs a
+  `superseded` column (METRICS §0 cites it, W1-02 lacks it); `auto_add_new`
+  pickup needs its column; `RepoSyncStatus.budget` is a runtime gauge
+  (served as zeros until a budget-snapshot table); and the live wiring of
+  the reconcile cron + sync/events routes + worker `publishSyncEvent` calls
+  is the same standalone-proven deploy wiring as connections/webhooks.
+
+## Wave status (2026-07-19)
+
+**W0, W1, W2 all complete.** The ingest engine works end-to-end: connect an
+org (encrypted credentials) → backfill → webhooks (verified, deduped,
+delta) → nightly reconciliation, with sync status + SSE surfacing progress.
+The warehouse has three freshness paths. Next up is **W3 (metrics
+compute)** — but note W3-10 closed `blocked` (scoped) earlier, so
+W3-11/12/13 sit behind it; check `validate-plan.mjs` for the current
+claimable set before picking up W3.
