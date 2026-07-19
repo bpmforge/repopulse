@@ -12,6 +12,8 @@ import {
 } from '@repopulse/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../../src/routes/auth/index.js';
+import reposRoutes from '../../src/routes/repos/index.js';
+import meRoutes from '../../src/routes/me/index.js';
 import errorEnvelopePlugin from '../../src/plugins/error-envelope.js';
 import apiV1 from '../../src/plugins/api-v1.js';
 
@@ -104,6 +106,12 @@ describeIfLiveInfra('route-walker tenancy isolation (NFR-4, W1-07)', () => {
     await app.register(
       async (instance) => {
         await apiV1(instance, { db });
+
+        // W4-01: the drill-down/personal routes are workspace-scoped; the
+        // walker below proves the parameter-free ones (GET /repos, /me/*) leak
+        // no other tenant's data.
+        await instance.register(reposRoutes, { db });
+        await instance.register(meRoutes, { db });
 
         // Correctly scoped: reads only the requester's own workspace row.
         instance.get('/api/v1/_tenancy_test/scoped-ok', async (request) => {
@@ -198,6 +206,21 @@ describeIfLiveInfra('route-walker tenancy isolation (NFR-4, W1-07)', () => {
       { requestContext: {}, marker: OTHER_WORKSPACE_MARKER },
     ]);
     expect(violations.every((v) => !v.url.startsWith('/auth'))).toBe(true);
+  });
+
+  it('W4-01 parameter-free drill-down/personal routes leak no other tenant data', async () => {
+    // GET /repos, /me/prs, /me/review-queue, /me/hotspots, /me/stats — an
+    // unauthenticated probe 401s (apiV1 guard), so the OTHER_WORKSPACE_MARKER
+    // never appears; the real session sees only its own workspace.
+    // This harness registers the child at prefix '' (the synthetic routes
+    // hardcode /api/v1/…), so these land at /repos and /me/* here.
+    const w401 = getRoutes().filter((r) => r.url === '/repos' || r.url.startsWith('/me/'));
+    expect(w401.length).toBeGreaterThan(0);
+    const violations = await walkForTenancyLeakage(app, w401, [
+      { requestContext: { cookies: { repopulse_sid: sessionCookie } }, marker: '__self__' },
+      { requestContext: {}, marker: OTHER_WORKSPACE_MARKER },
+    ]);
+    expect(violations).toEqual([]);
   });
 
   // W5-01: GET /views (parameter-free, walkable per route-walker.ts's own
