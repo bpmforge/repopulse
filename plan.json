@@ -1026,8 +1026,10 @@
         "Runtime nock/undici guard active in e2e: any egress to forge/LLM hosts fails the run (FR-API-2)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "blocked",
+      "notes": [
+        "Advanced 2026-07-19, status BLOCKED (per CLAUDE.md Law 3 — the browser e2e RUN incl. axe-passing on a rendered shell route needs W4-02s shell + a Playwright browser install, neither present yet). DONE + VERIFIED: the deterministic warehouse seeder (packages/shared/src/testing/seed/) — seedWarehouse populates a multi-repo org (3 repos) + a second workspace, identities incl. the fixture login (auto-linked to its user for /me), facts (24 commits incl. a merge, 15 PRs w/ reviews/checks, issues/releases/deployments) + 48 M1-M12 metric_snapshot rows, all seeded-RNG (mulberry32) so e2e can assert exact values; idempotent (wipe-then-reseed), proven by 3 live tests (determinism, fixture-link, second-workspace isolation). pnpm seed CLI runner works against the dev stack (seeded {repos:3,commits:24,prs:15,snapshots:48}). ALSO BUILT + structurally verified (config parses, `playwright test --list` shows the spec, all lint/typecheck clean): playwright.config.ts (compose-stack webServer, globalSetup=seed, chromium, serialized), e2e/global-setup.ts (seeds before the run), e2e/helpers/auth.ts (mocked-OAuth-boundary login helper — real session/cookie path), e2e/helpers/egress-guard.ts (runtime nock guard: aborts + fails on any forge/LLM host egress, FR-API-2), e2e/helpers/axe.ts (WCAG 2a/2aa scan helper), e2e/shell.spec.ts (smoke: render + axe + egress-guard), pnpm e2e script. Added devDeps tsx + @playwright/test + @axe-core/playwright. GATED on W4-02: the smoke/axe run needs a served shell route + `pnpm exec playwright install` (browser download) + the e2e API server configured with the mocked GitHub endpoints. Every W4 screen ticket then reuses this harness (its axe + egress-guard + seeded-data pattern) and runs the 6 core journeys (TESTING.md §6). Flip W4-00 to done once the shell serves and the smoke spec runs green. Gate on the committed work: lint/typecheck clean, test 412/412 (98 files, +3 seeder tests), arch rules + all validators pass."
+      ]
     },
     {
       "id": "W4-01",
