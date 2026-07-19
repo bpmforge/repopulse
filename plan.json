@@ -1056,8 +1056,10 @@
         "Responses match docs/API_DESIGN.md §4 canonical shapes; tenancy route-walker (W1-07) stays green over all new routes"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Closed 2026-07-19: drill-down + personal API + identity mapping, warehouse-only. IDENTITY MAP (packages/auth/src/identity/resolve.ts, FR-AUTH-6): resolveUserIdentity links a workspace user to their forge author identity by forge_user_id (memoized on identities.user_id on first personalized request); returns the RAW identity id (facts FK raw; merges resolve via COALESCE elsewhere) or null when the user has no ingested authorship yet. DRILL-DOWN CHAIN (apps/api/src/routes/{repos,prs,files}/, FR-API-5): GET /repos (list + health via the W3-12 repoHealth helper) -> GET /repos/{id} (detail + full score breakdown) -> GET /repos/{id}/prs (list with cycle-time fields + size_bucket + review_covered) -> GET /repos/{id}/prs/{number} (stages/reviews/checks/files) -> GET /repos/{id}/files/* (wildcard path -> churn series + owners). Every level returns children `links` so a client walks without hardcoding paths; an integration test WALKS the whole chain via those links. Plus GET /repos/{id}/hotspots (rankHotspots for one repo) + /contributors (churn share, merge-excluded via is_merge). PERSONAL (apps/api/src/routes/me/): /me/prs (authored by me), /me/review-queue (open PRs I did not author, age-sorted), /me/hotspots (files I touched), /me/stats (my merged count + median size, own data only per N-9) — all resolve my identity and return the fixture user ground truth (proven: /me/prs returns exactly the seeded PR). Tenancy route-walker (W1-07) extended to register + walk the new parameter-free routes (GET /repos, /me/*) — an unauthenticated probe 401s so no other-tenant marker leaks; green. Foreign repo id -> 404 (Law 5) proven. SCOPE NOTE: the auxiliary repo endpoints (/repos/{id}/trends, /pr-flow, /ci) are thin re-exposures of metrics/insights already built (series/cycle/ci functions) and are a fast follow-on; the core drill-down chain + contributors + hotspots + the four /me widgets are done. Live registration into apiV1/app.ts is deploy-wiring, proven standalone. Gate: lint/typecheck clean, test 409/409 (97 files, +4), arch rules + all validators pass. Feeds FR-WEB-7/8 (the W4-02 dashboard + personal widgets consume these)."
+      ]
     },
     {
       "id": "W4-02",

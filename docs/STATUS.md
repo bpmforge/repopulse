@@ -1177,3 +1177,17 @@ W0, W1, W2, W3 all done. The pipeline is whole: connect → ingest
 (backfill/webhooks/reconciliation) → nightly metric snapshots (M1–M12) →
 health score / trends / cross-repo hotspots → warehouse-only read API →
 retention. Next: **W4 (web dashboard)** consumes the W3-12 read API.
+
+- W4-01 done (2026-07-19) — drill-down + personal API + identity mapping.
+  The full chain (`/repos` → `/repos/{id}` → `/repos/{id}/prs` →
+  `/prs/{number}` → `/files/*`) with children `links` at each level (an
+  integration test walks it), plus per-repo hotspots/contributors. Identity
+  mapping (`resolveUserIdentity`) links a workspace user → forge author so
+  `/me/{prs,review-queue,hotspots,stats}` return their ground truth
+  (FR-AUTH-6). Tenancy route-walker extended over the new routes. Gate:
+  **409/409 tests**, all validators pass. Auxiliary repo endpoints
+  (trends/pr-flow/ci) are a thin follow-on over existing metrics.
+- Next: **W4-00 (Playwright e2e harness + deterministic warehouse seeder +
+  axe)** and **W4-02 (web shell + component kit)** are the remaining W4
+  foundations — the actual frontend. W4-02 is the big React/Tailwind shell
+  (8 pts) consuming the W3-12 + W4-01 read API.
