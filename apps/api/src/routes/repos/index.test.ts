@@ -7,10 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
-import reposRoutes from './index.js';
-import prsRoutes from '../prs/index.js';
-import filesRoutes from '../files/index.js';
-import meRoutes from '../me/index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -82,11 +78,9 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     });
     await app.register(
       async (instance) => {
-        await apiV1(instance, { db });
-        await instance.register(reposRoutes, { db });
-        await instance.register(prsRoutes, { db });
-        await instance.register(filesRoutes, { db });
-        await instance.register(meRoutes, { db });
+        // apiV1 now mounts repos/prs/files/me itself (W4-02) — registering
+        // them again here would double-declare the routes.
+        await apiV1(instance, { db, redisUrl: redisUrl as string });
       },
       { prefix: '/api/v1' },
     );

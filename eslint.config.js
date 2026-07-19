@@ -75,14 +75,24 @@ const webBoundary = {
     '@typescript-eslint/no-restricted-imports': [
       'error',
       {
-        patterns: [
+        // `paths` (exact-match) for the shared barrel, not a `patterns` glob:
+        // the barrel is type-only (keeps DB/server code out of the browser
+        // bundle, ARCHITECTURE §3), but the pure-schema `@repopulse/shared/
+        // url-state` subpath — the only other specifier shared's package.json
+        // `exports` map publishes — must be value-importable at runtime for URL
+        // view-state validation (DASHBOARD §1, FR-WEB-2). A `patterns` group
+        // can't express "restrict the barrel but allow one subpath" (gitignore
+        // negation is shadowed by the excluded parent), so the exact `paths`
+        // entry restricts only `@repopulse/shared` and lets the subpath through.
+        paths: [
           {
-            ...restrictedGroup(
-              'shared',
-              'apps/web may only import @repopulse/shared as a type-only import (docs/ARCHITECTURE.md §3) — it must talk to the rest of the system through /api/v1.',
-            ),
+            name: '@repopulse/shared',
             allowTypeImports: true,
+            message:
+              'apps/web may only import @repopulse/shared as a type-only import (docs/ARCHITECTURE.md §3) — it must talk to the rest of the system through /api/v1. (Exception: the runtime-safe `@repopulse/shared/url-state` subpath.)',
           },
+        ],
+        patterns: [
           ...DOMAIN_PACKAGES.filter((p) => p !== 'shared').map((p) =>
             restrictedGroup(
               p,

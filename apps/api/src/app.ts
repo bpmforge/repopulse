@@ -73,7 +73,7 @@ export function buildApp(opts: BuildAppOptions) {
   // documented in plan.json W1-04 notes.
   app.get('/api/v1/openapi.json', async () => app.swagger());
 
-  app.register(apiV1, { db: opts.db, prefix: '/api/v1' });
+  app.register(apiV1, { db: opts.db, redisUrl: opts.redisUrl, prefix: '/api/v1' });
 
   return app;
 }

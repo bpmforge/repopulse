@@ -7,9 +7,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
-import metricsRoutes from './index.js';
-import orgRoutes from '../org/index.js';
-import hotspotsRoutes from '../hotspots/index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -82,10 +79,9 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
     });
     await app.register(
       async (instance) => {
-        await apiV1(instance, { db });
-        await instance.register(metricsRoutes, { db });
-        await instance.register(orgRoutes, { db });
-        await instance.register(hotspotsRoutes, { db });
+        // apiV1 now mounts the read routes itself (W4-02) — no manual
+        // metrics/org/hotspots registration here or they'd double-declare.
+        await apiV1(instance, { db, redisUrl: redisUrl as string });
       },
       { prefix: '/api/v1' },
     );
