@@ -556,8 +556,10 @@
         "All events from INGESTION.md §4 subscribed list are routed to handlers"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "Claimed 2026-07-19. packages/ingest/src/webhooks/: event routing (10 §4 events → delta kinds), push coalescing (jobId push:{repoId} + 30s debounce), dedupe (INSERT ON CONFLICT delivery_id DO NOTHING → isNew), delta processor (reuses W2-03 ingestEntityPages, pulls by watermark not payload → replay byte-identical). apps/api/src/routes/webhooks/: raw-body capture + verifyWebhook (W1-06) → 401, dedupe → 200 no-op, enqueue typed delta → 202."
+      ]
     },
     {
       "id": "W2-05",
