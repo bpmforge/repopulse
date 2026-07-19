@@ -1115,3 +1115,35 @@ The warehouse has three freshness paths. Next up is **W3 (metrics
 compute)** — but note W3-10 closed `blocked` (scoped) earlier, so
 W3-11/12/13 sit behind it; check `validate-plan.mjs` for the current
 claimable set before picking up W3.
+
+- W3-10 COMPLETED (2026-07-19) — was `blocked` since 2026-07-16 pending
+  W2-02; now that the ingest wave is done, the **nightly metrics.snapshot
+  compute job** is built and W3 is unblocked. `computeRepoSnapshots` reads
+  the warehouse and computes **M1–M12 for every window**, writing one
+  snapshot row per metric × window (numerator/denominator for the ratio
+  metrics), two runs → two rows (append-only). ~9 warehouse readers adapt
+  the fact tables to the pure W3-02…W3-09 metric-function inputs. Proven
+  live incl. **merge exclusion** (M1 = 15 from the non-merge commit, not
+  215) — the correctness fix that was the real blocker.
+  **Cross-scope schema fix (user-approved):** the metric functions were
+  built against inputs the W1-02 schema didn't fully provide — merge
+  detection needs the commit parent count, which W2-03 backfill computed
+  and dropped for lack of a column. Added `commits.is_merge` (migration
+  0003) + set it in the backfill. Two documented conservative reads
+  (correct today): `superseded=false` (nothing tombstoned yet) and review
+  `hasContent=true` (body not warehoused). Gate: **384/384 tests**, all
+  validators pass.
+
+### Systemic finding (2026-07-19): metric-function ↔ schema fidelity gap
+
+The W3-02…W3-09 metric functions were specified against **richer inputs
+than the W1-02 warehouse schema stores**. W3-10 surfaced this while
+building the warehouse→input readers. Handled so far: `is_merge` added
+(migration); `superseded`/`hasContent`/issue-reopen-history read with
+documented conservative defaults. **Future metric-fidelity work may need
+more columns** — e.g. a `superseded` flag (when tombstoning lands, W2-05
+follow-on), review-body content (for rubber-stamp detection, M5/M6), and a
+PR review-event timeline / issue reopen history (M4/M10 exactness). Each
+reader documents its approximation inline. Not blocking — the current
+snapshots are correct within the documented bounds — but worth a schema
+pass before the metrics are treated as exact.

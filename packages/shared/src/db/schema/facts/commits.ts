@@ -35,6 +35,12 @@ export const commits = pgTable(
     committedAt: timestamp('committed_at', { withTimezone: true }).notNull(),
     messageHead: text('message_head').notNull(),
     isRevertHeuristic: boolean('is_revert_heuristic').notNull(),
+    // >1 parent ⇒ merge commit. Set at ingest from the forge parent list
+    // (W2-03 upsert); METRICS.md §0 excludes merges from churn/hotspots/
+    // ownership (M1/M2/M3). Added W3-10: the metric functions need it and the
+    // backfill already computed the parent count — it was only dropped for lack
+    // of a column. Default false so existing rows are non-merge.
+    isMerge: boolean('is_merge').notNull().default(false),
     // Nullable: filled by the churn path chosen per research §8
     // (stats-first, per-commit fallback).
     additions: integer('additions'),
