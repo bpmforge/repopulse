@@ -56,6 +56,9 @@ importers:
       '@repopulse/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@repopulse/forge':
+        specifier: workspace:^
+        version: link:../../packages/forge
       '@repopulse/ingest':
         specifier: workspace:^
         version: link:../../packages/ingest
