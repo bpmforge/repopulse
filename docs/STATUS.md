@@ -1250,3 +1250,62 @@ retention. Next: **W4 (web dashboard)** consumes the W3-12 read API.
     interrupted prior run (a `dev-down --volumes` reset clears it). Pre-existing
     test-isolation fragility, not a W4-02 regression — CI on a fresh volume is
     unaffected.
+
+---
+
+## 2026-08-12 — Launch path assessment (what stands between here and running)
+
+**The backlog is not the launch path.** 65 tickets / 314 points are open, but
+ROADMAP decision D5 defines **MVP = W0–W4**, and W0–W3 are complete (32/32).
+The path to a running system is **~52 points**:
+
+| Lane | Tickets | Points | Why it is on the path |
+|------|---------|--------|-----------------------|
+| W4 remainder | 10 | 40 | The MVP gate itself (W4 exit demo) |
+| W7-05/06/07 | 3 | 7 | The ONLY production-deployment tickets on the board |
+| W7-04 | 1 | 5 | Standing a11y/perf CI gate; W4-12 is its prerequisite |
+
+W5, W6, W8, W9 and W10 — **246 points** — are post-launch by the ROADMAP's own
+definition. Nothing in them is required to deploy and run the MVP.
+
+**Recommended departure from wave order:** pull W7-05 (containers/TLS/secrets),
+W7-06 (runbook execution + prod smoke) and W7-07 (prod GitHub App + webhooks +
+OAuth) forward, ahead of W5/W6. Every production-deploy ticket currently sits
+four waves past the MVP gate, so as sequenced the project reaches "MVP demo
+passed" long before it can reach "running". This is deliberate re-sequencing,
+recorded here rather than done silently.
+
+**Ticket order inside W4** — W4-13 first, and this ordering is load-bearing:
+the fixture blocks W4-03 *and* every later screen ticket's e2e. W4-04/05/06/07
+all assert against the same seeded warehouse and will each hit the single-point
+series and the 30d-only window bucket. Fixing it once is the first domino;
+fixing it after four more screens have worked around it is four reworks.
+Then W4-12, then the screens (W4-04..W4-07), then W4-08/09/10.
+
+**W4-12 is on the critical path, not polish.** W4's own exit criteria include
+"axe passes on all MVP routes". W4-12 is a measured WCAG AA contrast failure in
+shared primitives that render on those routes, so the badge-token decision gates
+the MVP demo. It should not be triaged as cosmetic a11y cleanup.
+
+**Open risks with no owning ticket:**
+- **The connect flow has never run against real GitHub.** Every connect and
+  webhook test mocks the forge, and `forge_connections` has never held a real
+  row. W4's exit criteria require connecting the real bpmforge org through that
+  flow. This is the highest-variance unknown on the launch path and deserves an
+  early spike rather than discovery at the gate.
+- **`GET /api/v1/events` (SSE) is still unmounted** (carried forward from
+  W4-02). Until it lands, the Org Overview sync banner and per-repo progress
+  chips cannot populate live — and "watch progressive backfill … tiles populate
+  as data lands" is an explicit W4 exit criterion.
+- **Caller role is not exposed to the SPA.** `api-v1.ts` sets `request.role`
+  server-side and never returns it. Nearest owner is W4-08 (admin guard +
+  Members tab), but exposing the *caller's own* role is not in its acceptance —
+  confirm when scoping it. Blocks W4-03 acceptance 3.
+
+**Founder-only actions (not buildable, and historically where this portfolio
+stalls):** register the production GitHub App under the bpmforge org with C5 /
+SC-25 scopes; provision `repopulse.bpmforge.com` + TLS + prod host access;
+and decide the launch target — the ROADMAP's definition is an internal prod
+smoke on bpmforge infra (W7-06), which is NOT the same as the customer-hostable
+product framing (packaging, install docs, licensing, tenant onboarding). That
+delta is a separate, currently unscoped lane.
