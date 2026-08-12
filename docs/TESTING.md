@@ -84,8 +84,21 @@ requests emitted, not just response shape.
 
 ## 6. Playwright e2e (seeded stack)
 
-- **Login mocked** at the OAuth boundary (fake GitHub authorize/token endpoints);
-  session/cookie path itself is real.
+- **Login mocked** at the OAuth boundary (`e2e/helpers/fake-github.ts` — authorize,
+  token, `/user`); session/cookie path itself is real. `e2e/server.ts` composes the
+  production `buildApp` and overrides exactly one option, `githubEndpoints`; the
+  shipping entrypoint has no env hook for it on purpose. The fake returns the
+  seeder's `FIXTURE_LOGIN` as `id` — a **string**, since `fetchGithubIdentity` maps
+  `String(body.id)` onto `forge_user_id`. If that drifts, login still succeeds
+  against an orphan user and `/me/*` answers `{items: []}` with HTTP 200, so
+  assert on **contents**, never on status alone.
+- **Running it**: `pnpm e2e`. The dev stack must be up
+  (`podman compose -f compose.dev.yaml up -d postgres redis`) — `globalSetup` seeds
+  the warehouse and now throws rather than silently skipping if `DATABASE_URL` is
+  unset. Port 3000 busy? `E2E_API_PORT=<n> pnpm e2e` moves the whole stack:
+  Playwright derives the web dev server's `API_PROXY_TARGET` from it (W4-11).
+  Never run `pnpm test` and `pnpm e2e` concurrently — they share one database and
+  `globalSetup` wipes-and-reseeds it.
 - Runs against the compose stack seeded by the synthetic generator (§7) — real API,
   real DB, no component mocks.
 - **The 6 core journeys** (UX_SPEC §4, W4 gate):

@@ -30,7 +30,12 @@ export default defineConfig({
         {
           command: 'pnpm --filter @repopulse/web dev',
           url: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
-          reuseExistingServer: true,
+          // W4-11: point the dev proxy at whatever port the e2e API bound, so
+          // one env var moves the whole stack. Without this the run only works
+          // where 3000 is free, and W4-00 could only be verified through an
+          // uncommitted edit — which is not a verification.
+          env: { API_PROXY_TARGET: `http://localhost:${process.env.E2E_API_PORT ?? 3000}` },
+          reuseExistingServer: false,
           timeout: 60_000,
         },
       ],
