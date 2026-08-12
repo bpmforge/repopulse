@@ -17,6 +17,9 @@ importers:
       '@playwright/test':
         specifier: ^1
         version: 1.61.1
+      '@repopulse/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1

@@ -23,6 +23,7 @@
     "@axe-core/playwright": "^4",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1",
+    "@repopulse/shared": "workspace:*",
     "@types/node": "^22.20.1",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
