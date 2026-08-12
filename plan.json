@@ -2990,6 +2990,126 @@
       "points": 3,
       "status": "todo",
       "notes": []
+    },
+    {
+      "id": "W11-01",
+      "title": "Portable container images + generic compose artifact",
+      "wave": "W11",
+      "status": "todo",
+      "points": 5,
+      "depends_on": [
+        "W7-05"
+      ],
+      "write_scope": [
+        "Dockerfile*",
+        "deploy/**",
+        ".github/workflows/**",
+        "docs/INSTALL.md"
+      ],
+      "acceptance": [
+        "Multi-arch (amd64+arm64) images for api, web and workers build in CI and publish to a public registry with immutable version tags plus a digest — never :latest only",
+        "A single deploy/compose.yaml brings up api+web+workers+Postgres 16+Redis on a clean machine with ONLY a filled .env, no bpmforge-specific units, hostnames or volumes anywhere in it",
+        "Migrations run as a one-shot job before app start; a second compose up on an existing install is a no-op, not a re-migrate",
+        "Verified on a machine that has never built the repo: pull images, fill .env, up, reach the login page — recorded in docs/INSTALL.md with the exact commands run"
+      ],
+      "notes": [
+        "W7-05 builds bpmforge quadlet units against bpmforge infra and is NOT this ticket. D1a makes the customer the deployment target, so the artifact has to be portable: no quadlet, no repopulse.bpmforge.com, no assumptions about the host. Keep W7-05 for our own dogfood install."
+      ]
+    },
+    {
+      "id": "W11-02",
+      "title": "Customer forge-App setup flow + config reference",
+      "wave": "W11",
+      "status": "todo",
+      "points": 5,
+      "depends_on": [
+        "W7-07"
+      ],
+      "write_scope": [
+        "docs/INSTALL.md",
+        "docs/CONFIG.md",
+        "apps/web/src/routes/setup/**",
+        "apps/api/src/routes/setup/**"
+      ],
+      "acceptance": [
+        "Documented walkthrough for a customer registering their OWN GitHub App against their OWN org: exact permission set (contents, metadata, pull_requests, checks — read-only per C5/SC-25), webhook URL/secret, callback URL, and the private-key handling step",
+        "Same walkthrough for Gitea (token + webhook secret), gated on W7-02 shipping the adapter",
+        "docs/CONFIG.md documents EVERY env var the app reads: purpose, required/optional, default, and what breaks if it is wrong — generated from or checked against the actual requireEnv call sites so it cannot silently drift",
+        "Wrong/missing config fails at startup with a message naming the variable, never a stack trace or a half-booted app"
+      ],
+      "notes": [
+        "The connect flow has never run against real GitHub (see docs/STATUS.md 2026-08-12) — that risk lands HERE for a customer, on their infra, where we cannot debug it. This ticket is why that spike should happen early."
+      ]
+    },
+    {
+      "id": "W11-03",
+      "title": "Upgrade, backup and restore path for a customer install",
+      "wave": "W11",
+      "status": "todo",
+      "points": 3,
+      "depends_on": [
+        "W11-01"
+      ],
+      "write_scope": [
+        "docs/RUNBOOK.md",
+        "deploy/**",
+        "scripts/**"
+      ],
+      "acceptance": [
+        "Documented and EXECUTED upgrade from version N to N+1 on a populated install: images pulled, migrations applied, no data loss, downtime stated",
+        "Backup and restore documented and executed for real against a customer-shaped install (Postgres dump + restore into a scratch container, migrations + tenancy suite green afterwards)",
+        "A documented rollback for a failed upgrade, executed once",
+        "Every step runnable by a customer admin with no repo checkout and no bpmforge access"
+      ],
+      "notes": [
+        "SC-21 restore drill exists for OUR install (W7-06). This is the customer-facing equivalent: they cannot ssh to bpmforge infra or read plan.json."
+      ]
+    },
+    {
+      "id": "W11-04",
+      "title": "Licensing, distribution and support decision — FOUNDER",
+      "wave": "W11",
+      "status": "todo",
+      "points": 1,
+      "depends_on": [],
+      "write_scope": [
+        "docs/work/FOUNDING_BRIEF.md",
+        "LICENSE",
+        "docs/INSTALL.md"
+      ],
+      "acceptance": [
+        "License chosen and applied (a LICENSE file plus package.json fields), with the reasoning recorded in the brief — note Lodestone is deliberately private/UNLICENSED, so if RepoPulse ever consumes it the license interaction must be resolved BEFORE distribution, not after",
+        "Distribution decided: public registry vs licensed/gated pull, and what a customer is permitted to do with the images",
+        "Support and version-support expectations written down: what a customer gets, and which versions receive fixes"
+      ],
+      "notes": [
+        "FOUNDER DECISION, not buildable. Blocks W11-01 publishing images to anywhere public — do not publish before this is answered."
+      ]
+    },
+    {
+      "id": "W11-05",
+      "title": "Self-host smoke: full customer journey on a clean host",
+      "wave": "W11",
+      "status": "todo",
+      "points": 3,
+      "depends_on": [
+        "W11-01",
+        "W11-02",
+        "W11-03"
+      ],
+      "write_scope": [
+        "e2e/**",
+        "docs/INSTALL.md",
+        "docs/STATUS.md"
+      ],
+      "acceptance": [
+        "On a machine with no repo checkout: install per docs/INSTALL.md, register a forge App, connect a real org, watch backfill complete, and read a generated report — end to end, by a person following only the docs",
+        "Tier-2 pointed at a customer-supplied LM Studio endpoint completes at least one diff review; with NO LLM configured the whole Tier-1 product still works and says so clearly rather than erroring",
+        "Result, date, host shape and every doc gap found are appended to docs/STATUS.md"
+      ],
+      "notes": [
+        "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference — that is its job."
+      ]
     }
   ]
 }

@@ -1309,3 +1309,40 @@ and decide the launch target — the ROADMAP's definition is an internal prod
 smoke on bpmforge infra (W7-06), which is NOT the same as the customer-hostable
 product framing (packaging, install docs, licensing, tenant onboarding). That
 delta is a separate, currently unscoped lane.
+
+### 2026-08-12 (same day) — launch path RE-COSTED against the real goal
+
+The ~52-point figure above was measured against the ROADMAP's definition of
+launch (D5 MVP + a prod smoke on bpmforge infra). Founder confirmed the actual
+goal is different in two ways, both now recorded in the brief:
+
+- **D1a**: the delivery model is **customer-hosted** — a customer runs RepoPulse
+  in their own environment, against their own forge, with their own LLM.
+  bpmforge's install becomes the first dogfood install, not the product.
+- **D9a**: "fixes" means **recommend and verify**, not write. Ranked,
+  evidence-linked plan items with machine-checkable verify criteria and a
+  nightly done/regressed job. N-3 is NOT graduated; C5/SC-25 read-only App
+  scopes stand. RepoPulse never opens a branch, patch or PR comment.
+
+**Re-costed launch path: 21 tickets / 82 points** (of 70 open / 331 total):
+
+| Lane | Tix | Pts | Why it is on the path |
+|------|-----|-----|-----------------------|
+| W4 remainder | 10 | 40 | The MVP gate |
+| **W5-06/07 Improvement Plans** | 2 | 13 | This is "fixes" per D9a — moved ONTO the path |
+| W7-04/05/06/07 | 4 | 12 | Deploy + the standing a11y/perf gate |
+| **W11 self-host (new)** | 5 | 17 | Packaging, config, upgrade/restore, licensing, clean-host smoke |
+
+W5-06/W5-07 moved from post-launch to launch-critical: under D9a they ARE the
+fix half of "reports and fixes". W6 (Tier-2 LLM), W8 (security suite), W9 (code
+health), W10 (risk registers) and the rest of W5 stay post-launch — 249 points.
+
+**Sequencing** — W4-13 → W4-12 → W4 screens → W7-05/06/07 → W5-06/07 → W11.
+W11-04 (licensing/distribution) is a founder decision that BLOCKS publishing any
+image publicly, so answer it before W11-01 ships. W11-05 (clean-host smoke) is
+the real acceptance test for D1a: not that we can deploy it, but that someone
+else can from the docs alone.
+
+**Unchanged and still the biggest risk:** the connect flow has never run against
+real GitHub. Under D1a that failure would now land on a customer's infra, where
+we cannot debug it. The early spike matters more, not less.
