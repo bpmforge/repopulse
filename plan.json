@@ -1558,6 +1558,36 @@
       ]
     },
     {
+      "id": "W4-19",
+      "title": "Mount connections, sync and the webhook receiver \u2014 the connect flow was unreachable",
+      "status": "done",
+      "points": 3,
+      "depends_on": [
+        "W2-01",
+        "W2-04",
+        "W4-18"
+      ],
+      "write_scope": [
+        "apps/api/src/app.ts",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/api/src/index.ts",
+        "apps/api/**/*.test.ts",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "POST/GET /api/v1/connections and GET /api/v1/sync/status are served by the production app",
+        "POST /api/v1/webhooks/github is served as an UNAUTHENTICATED sibling and verifies its HMAC signature",
+        "The API owns real BullMQ producers, so connecting an org actually enqueues a backfill plan",
+        "Tests exercise the real mount rather than registering a rival copy of each route"
+      ],
+      "notes": [
+        "DONE 2026-08-13. Three route modules existed and were fully tested since W2 but were never registered in the production server, so docs/INSTALL.md instructed operators to open Admin -> Connections \u2014 a screen backed by routes the API did not serve. The app could not connect a repository at all.",
+        "Wired the real dependencies rather than stubbing them: the API now builds its own BullMQ producer connection and backfill/delta queues, so connecting an org genuinely enqueues a plan job and a webhook delivery genuinely enqueues a delta (jobId preserved, since it is the per-repo debounce key that collapses a push burst into one job). Queues close on Fastify onClose. Built INSIDE buildApp rather than passed as options on purpose: an option a test can omit is precisely how these routes stayed unmounted and unnoticed, which is the same failure as W4-18.",
+        "TWO THINGS CAUGHT WHILE DOING IT. (1) My bulk patch inserted TEST values into the production entrypoint \u2014 an all-7s AES key and a localhost webhook URL. Caught before commit; apps/api/src/index.ts now calls credentials.loadTokenKey(), which throws unless TOKEN_ENC_KEY is 32 bytes of hex, so a misconfigured install fails at boot instead of silently writing credentials it can never decrypt. (2) The connections and sync suites had been registering their own copy of each route beside apiV1; once apiV1 mounted them for real, Fastify rejected the duplicate. Those suites now drive the real mount, with the route's existing buildProvider seam forwarded through ApiV1Options \u2014 the duplicate registration was exactly how they passed while production served nothing.",
+        "Verified served: GET /api/v1/connections 200, GET /api/v1/sync/status 200, POST /api/v1/webhooks/github 403 on an unsigned body (mounted and verifying, SC-3). Gate: lint clean, typecheck clean, test 463/463, e2e 25/25. STILL MISSING for the connect flow: the Admin UI itself (W4-08) \u2014 the API is now reachable, but nothing in the SPA calls it yet."
+      ]
+    },
+    {
       "id": "W5-01",
       "title": "Saved views CRUD API + sharing semantics",
       "phase": 5,

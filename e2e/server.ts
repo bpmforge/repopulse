@@ -28,6 +28,8 @@ const webBaseUrl = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 const github = await startFakeGithub(Number(process.env.E2E_FAKE_GITHUB_PORT ?? 0));
 
 const app = buildApp({
+  tokenKey: Buffer.from(requireEnv('TOKEN_ENC_KEY'), 'hex'),
+  webhookUrl: `${apiBaseUrl}/api/v1/webhooks/github`,
   db: createDb(requireEnv('DATABASE_URL')),
   redisUrl: requireEnv('REDIS_URL'),
   sessionSecret: requireEnv('SESSION_SECRET'),

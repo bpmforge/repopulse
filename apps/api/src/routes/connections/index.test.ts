@@ -9,7 +9,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
-import connectionsRoutes from './index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -122,9 +121,9 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     });
     await app.register(
       async (instance) => {
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
-        await instance.register(connectionsRoutes, {
+        await apiV1(instance, {
           db,
+          redisUrl: redisUrl as string,
           tokenKey,
           webhookUrl: 'https://repopulse.example/webhooks/github',
           enqueueBackfillPlan,

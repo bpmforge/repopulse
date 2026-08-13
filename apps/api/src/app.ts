@@ -3,6 +3,7 @@ import fastifySwagger from '@fastify/swagger';
 import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 import { createLogger, type Database, type Logger } from '@repopulse/shared';
 import { oauth } from '@repopulse/auth';
+import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
 import authRoutes from './routes/auth/index.js';
 import healthRoutes from './routes/health/index.js';
 import errorEnvelopePlugin from './plugins/error-envelope.js';
@@ -11,6 +12,7 @@ import rateLimitsPlugin from './plugins/rate-limits.js';
 import csrfHeaderPlugin from './plugins/csrf-header.js';
 import metricsPlugin from './plugins/metrics/index.js';
 import apiV1 from './plugins/api-v1.js';
+import webhookRoutes from './routes/webhooks/index.js';
 
 export interface BuildAppOptions {
   db: Database;
@@ -21,6 +23,10 @@ export interface BuildAppOptions {
   cookieSecure: boolean;
   githubOAuth: oauth.GithubOAuthConfig;
   githubEndpoints?: oauth.GithubOAuthEndpoints;
+  /** AES key for forge credentials at rest (FR-AUTH-5) — auth.loadTokenKey(). */
+  tokenKey: Buffer;
+  /** Absolute URL GitHub should POST deliveries to; shown when creating a connection. */
+  webhookUrl: string;
   loginRedirectUrl: string;
   /** Test-only override so security tests can capture audit/redaction output. */
   loggerInstance?: Logger;
@@ -73,7 +79,48 @@ export function buildApp(opts: BuildAppOptions) {
   // documented in plan.json W1-04 notes.
   app.get('/api/v1/openapi.json', async () => app.swagger());
 
-  app.register(apiV1, { db: opts.db, redisUrl: opts.redisUrl, prefix: '/api/v1' });
+  // Ingest producers. The API enqueues; the worker process consumes. These are
+  // built HERE rather than passed in as options so that tests and production
+  // mount the identical app — the connections/webhooks routes existed and were
+  // tested for two waves while never being registered in the real server, and
+  // an option a test could omit is exactly how that stayed invisible (same
+  // failure as the SSE route in W4-18).
+  const queueConnection = createRedisConnection(opts.redisUrl);
+  const backfillQueue = createQueue(QUEUE.backfill, queueConnection);
+  const deltaQueue = createQueue(QUEUE.delta, queueConnection);
+  app.addHook('onClose', async () => {
+    await backfillQueue.close();
+    await deltaQueue.close();
+    queueConnection.disconnect();
+  });
+
+  app.register(apiV1, {
+    db: opts.db,
+    redisUrl: opts.redisUrl,
+    tokenKey: opts.tokenKey,
+    webhookUrl: opts.webhookUrl,
+    enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
+      await backfillQueue.add('plan', { workspaceId, repoId });
+    },
+    prefix: '/api/v1',
+  });
+
+  // Webhook receiver: an UNAUTHENTICATED sibling of /api/v1, deliberately. It
+  // authenticates by HMAC signature (SC-3), not by session, so mounting it
+  // inside the guarded scope would 401 every legitimate GitHub delivery.
+  app.register(webhookRoutes, {
+    db: opts.db,
+    tokenKey: opts.tokenKey,
+    enqueueDelta: async (spec) => {
+      // jobId is the debounce key (push bursts coalesce per repo, INGESTION §6),
+      // so it must reach BullMQ or every push becomes its own job.
+      await deltaQueue.add(spec.data.kind, spec.data, {
+        jobId: spec.opts.jobId,
+        ...(spec.opts.delayMs === undefined ? {} : { delay: spec.opts.delayMs }),
+      });
+    },
+    prefix: '/api/v1',
+  });
 
   return app;
 }

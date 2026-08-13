@@ -11,6 +11,8 @@ describeIfLiveInfra('api app skeleton (W1-04)', () => {
   const db = createDb(databaseUrl as string);
   const baseOptions: BuildAppOptions = {
     db,
+    tokenKey: Buffer.alloc(32, 7),
+    webhookUrl: 'http://localhost/api/v1/webhooks/github',
     redisUrl: redisUrl as string,
     sessionSecret: 'test-session-secret-at-least-32-characters-long',
     idleTimeoutMs: 15 * 60 * 1000,

@@ -80,7 +80,13 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
       async (instance) => {
         // apiV1 now mounts repos/prs/files/me itself (W4-02) — registering
         // them again here would double-declare the routes.
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
+        await apiV1(instance, {
+          db,
+          redisUrl: redisUrl as string,
+          tokenKey: Buffer.alloc(32, 7),
+          webhookUrl: 'http://localhost/api/v1/webhooks/github',
+          enqueueBackfillPlan: async () => {},
+        });
       },
       { prefix: '/api/v1' },
     );

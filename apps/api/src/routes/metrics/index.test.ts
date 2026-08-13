@@ -81,7 +81,13 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
       async (instance) => {
         // apiV1 now mounts the read routes itself (W4-02) — no manual
         // metrics/org/hotspots registration here or they'd double-declare.
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
+        await apiV1(instance, {
+          db,
+          redisUrl: redisUrl as string,
+          tokenKey: Buffer.alloc(32, 7),
+          webhookUrl: 'http://localhost/api/v1/webhooks/github',
+          enqueueBackfillPlan: async () => {},
+        });
       },
       { prefix: '/api/v1' },
     );
