@@ -1460,3 +1460,60 @@ next session: product definition and the D1a/D3a/D9a MVP, current branch and
 board state, what genuinely works versus what has never run, the exact W12-03
 symptom with a two-minute reproduction, the six environment traps, and the
 founder-only list. Start there rather than re-deriving any of it.
+
+### 2026-08-13 — the engine is switched on: ingestion writes real rows
+
+**RepoPulse ingested data for the first time.** `fixture-org/alpha-service`:
+3 commits (REST) and 2 PRs (GraphQL), `sync_status` off `pending_backfill`, all
+five `sync_cursors` at `backfill_done`, backfill queue completed 6 / failed 0 /
+delayed 0, and the metric snapshot computed over those rows rather than over
+nothing (M7 = 24.0, dims `{S: 2}` — the two ingested PRs).
+
+**The blocker was SC-12, not the queue.** The handoff's diagnosis — five entity
+jobs stuck unexecuted in BullMQ's `delayed` set — was wrong. They ran, threw,
+and went to `delayed` awaiting exponential-backoff retry: `attemptsMade=1` with
+`delay=30000` exactly matching `RETRY[ingest.backfill]`, and `failed=0` only
+because attempts weren't exhausted. Every job died on `ForgeSsrfError: scheme
+must be https, got http:` — the base-URL guard correctly rejecting the
+`http://127.0.0.1` fake forge. One `HGETALL` of the job hash would have replaced
+a session of theory; the guidance now recorded in the handoff is to read
+`failedReason`/`stacktrace`/`atm` before reasoning about queue state.
+
+Resolved with an operator-only, loopback-only escape hatch (off by default,
+allowlist still enforced). It is defensible precisely because the forge base URL
+is **not user input anywhere** — it comes from the operator's `FORGE_BASE_URL`
+at the composition root and no route or UI accepts one. A LAN forge over plain
+`http` stays rejected; that remains a founder posture decision.
+
+**Two production bugs surfaced alongside, neither test-related.** The SC-12
+allowlist entry was derived from `URL.host` (with port) but matched against
+`URL.hostname` (without), so **any self-hosted forge on a non-default port —
+`https://git.corp.com:8443` — could never match its own allowlist entry.**
+Invisible on `api.github.com`, where 443 leaves `host` port-less, and squarely
+in D1a MVP scope. The same mismatch appeared again with bracketed IPv6 hosts.
+
+**A fifth built-but-never-called defect.** `plan/state-machine.ts` defines the
+entire `queued → history → enrichment → live` lifecycle, is fully unit-tested,
+and had no production caller: `setRepoStatus` was only ever invoked for
+`paused_budget`, so **no repo had ever left `pending_backfill`.** Related, and
+worse: the metrics snapshot was enqueued immediately after the plan fan-out, so
+it ran *before* any entity job wrote a row and every metric persisted as
+`0.000000` over an empty warehouse. That is the concrete mechanism behind "the
+dashboard has always looked healthy."
+
+**Verification is now automated, which is the whole point.** The worker runs as
+a Playwright `webServer` using the shipping entrypoint, so the assertion runs on
+every `pnpm e2e` instead of only when someone starts a worker by hand;
+`globalSetup` flushes `bull:*` first, because BullMQ's jobId idempotency would
+otherwise let a run inherit an earlier success and report green while ingesting
+nothing. Negative control performed — flipping the SSRF opt-in off makes the new
+test fail with `commits 0`.
+
+Gate: lint 0, typecheck 0, **487 unit tests** (was 465), **40 e2e** (was 39),
+all exit 0.
+
+**W12-03 stays `in_progress`, deliberately.** Its acceptance requires all six
+queues registered and `KNOWN_INERT` shrunk to `[]`; enrich, reconcile and dlq
+are still inert. The core loop — the consequential part — is done and proven.
+Recommend splitting the remaining three queues into their own ticket so the
+proven loop can close; that is a founder call, not one to make silently.

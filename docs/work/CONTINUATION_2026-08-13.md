@@ -4,6 +4,28 @@ Read this first in a fresh session. It is written to be sufficient on its own:
 what the product is, what state it is in, the traps that will waste your time,
 and the exact next task.
 
+> **SUPERSEDED IN PART — resolved 2026-08-13, later the same day.**
+>
+> **Ingestion now works.** `fixture-org/alpha-service` ingests 3 commits and
+> 2 PRs, leaves `pending_backfill`, and the metric snapshot computes over real
+> rows. The e2e suite starts the worker itself and asserts it on every run.
+>
+> **The diagnosis in "THE NEXT TASK" below was wrong**, and is kept verbatim
+> because the way it was wrong is the lesson. The five entity jobs were not
+> sitting unexecuted in BullMQ's `delayed` set — they **ran, threw, and went to
+> `delayed` awaiting exponential-backoff retry**. `attemptsMade=1` and
+> `delay=30000` exactly matching `RETRY[ingest.backfill].backoff.delay` is the
+> signature; `failed=0` only because attempts (5) were not exhausted. No delay
+> was ever coming from the call site, which is why searching there found none.
+>
+> The real error, on every job: `ForgeSsrfError: scheme must be https, got
+> http:` — the SC-12 guard rejecting the `http://127.0.0.1` fake forge.
+>
+> **Read the job hash in Redis (`failedReason`, `stacktrace`, `atm`) before
+> reasoning about queue state.** One `HGETALL` would have replaced the whole
+> theory. See `plan.json` W12-03 for the full account and what remains
+> (enrich/reconcile/dlq are still inert).
+
 ## The product
 
 **RepoPulse** — `~/Code/repopulse`. Clone-free repository health, code-quality
