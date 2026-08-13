@@ -19,6 +19,9 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Org Overview', icon: '◈' },
   { to: '/repos', label: 'Repos', icon: '▤' },
   { to: '/pull-requests', label: 'Pull Requests', icon: '⇄' },
+  // W4-07: the rail had no My Focus entry, so the screen was reachable only by
+  // typing the URL — while __root.tsx already carried its breadcrumb label.
+  { to: '/me', label: 'My Focus', icon: '◎' },
   { to: '/findings', label: 'Findings', icon: '⚑' },
   { to: '/plans', label: 'Plans', icon: '◷' },
   { to: '/reports', label: 'Reports', icon: '▦' },

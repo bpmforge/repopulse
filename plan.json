@@ -1261,7 +1261,9 @@
       ],
       "write_scope": [
         "apps/web/src/routes/me.tsx",
-        "apps/web/src/widgets/me/**"
+        "apps/web/src/widgets/me/**",
+        "apps/web/src/components/shell/Rail.tsx",
+        "e2e/**"
       ],
       "depends_on": [
         "W4-02",
@@ -1273,8 +1275,12 @@
         "Identity-unlinked state shows 're-authorize GitHub' CTA; all-clear state shows the quiet text line (UX_SPEC \u00a74.f states)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-13. My Focus at /me: personal stat tiles, my open PRs with time-in-stage (stalled past the SLA highlighted), an age-sorted review queue with over-SLA rows flagged amber, and hotspots-I-own. The SLA threshold reuses M8's default stale-PR window rather than inventing a second definition of -too long-, so the screen and the metric agree. Identity-unlinked is treated as a DISTINCT state from -nothing to do-: both render empty lists, but only one is fixable by the user, and telling someone they have no work when we simply cannot find them is the worse failure.",
+        "SCOPE WIDENED to include Rail.tsx: the rail had NO My Focus entry, so the screen would have been reachable only by typing the URL \u2014 while __root.tsx already carried its breadcrumb label. A screen nobody can navigate to is not delivered, so the rail link is part of the ticket rather than a follow-up.",
+        "A TEST DEFECT THAT LOOKED LIKE A DATA-ISOLATION BUG. My first review-queue spec compared the RENDERED row text of my PRs against the queue and found an overlap. The API was correct: the seeder gives every repo identical PR titles, so -#4 feature 4- exists in all three repos and a text comparison reports a false collision. Checked the actual identities before touching any code \u2014 zero overlap by repo_id + number. The spec now compares identities, and was RED-checked by removing the author filter from the query, which makes it fail for the real reason. Gate on exit codes: lint 0, typecheck 0, test 0 (463/463), e2e 0 (34/34)."
+      ]
     },
     {
       "id": "W4-08",
