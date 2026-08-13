@@ -1,0 +1,50 @@
+# Serves the built SPA and routes API traffic to the api service.
+#
+# The proxy is what lets ONE web image work at any customer hostname: the SPA
+# only ever calls /api/v1 on its own origin (Law 4), so nothing about the
+# deployment URL is baked into the bundle at build time.
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+
+  # Never cache the entry document — a stale index.html points at asset hashes
+  # that no longer exist after an upgrade, which looks like a broken deploy.
+  location = /index.html {
+    add_header Cache-Control "no-store";
+    try_files $uri =404;
+  }
+
+  # Vite emits content-hashed asset filenames, so these are safe to cache hard.
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
+
+  location /api/ {
+    proxy_pass ${API_UPSTREAM};
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    # SSE (/api/v1/events) must stream, not buffer.
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+  }
+
+  location /auth/ {
+    proxy_pass ${API_UPSTREAM};
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /healthz {
+    proxy_pass ${API_UPSTREAM}/healthz;
+  }
+
+  # SPA history fallback — every client route resolves to index.html so a pasted
+  # deep link (FR-WEB-2) loads instead of 404ing.
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
