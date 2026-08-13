@@ -17,6 +17,20 @@ import {
 // this flat paginator.
 export type PaginatedEntity = 'prs' | 'commits' | 'issues' | 'releases' | 'deployments';
 
+// The same five as a value, so the planner's fan-out and the "is this repo's
+// history complete?" check are driven by ONE list. sync_cursors also permits
+// reviews/pr_files/checks/workflow_runs, which the enrichment phase writes —
+// a completion check that asked "are all cursors done?" would start returning
+// false the moment enrich lands, which is the sort of regression that stays
+// invisible for weeks.
+export const PAGINATED_ENTITIES: readonly PaginatedEntity[] = [
+  'prs',
+  'commits',
+  'issues',
+  'releases',
+  'deployments',
+];
+
 const DEFAULT_MAX_PAGES = 20;
 
 interface FetchedPage {

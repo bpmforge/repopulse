@@ -2,9 +2,14 @@ import type { Job, Queue } from 'bullmq';
 import { and, eq } from 'drizzle-orm';
 import { core } from '@repopulse/shared';
 import {
+  isHistoryBackfillComplete,
+  jobId,
+  nextPhase,
   planBackfill,
   processBackfillJob,
   processDeltaJob,
+  syncPhaseToRepoStatus,
+  PAGINATED_ENTITIES,
   type BackfillJobData,
   type DeltaJobData,
 } from '@repopulse/ingest';
@@ -44,10 +49,9 @@ async function processPlan(deps: ProcessorDeps, data: { workspaceId: number; rep
   // fetched per-PR through the enrich lane, not walked page-by-page at repo
   // scope — processBackfillJob only accepts PaginatedEntity. Route the paginated
   // ones here and leave checks to the enrich processor (still unwired, W12-03).
-  const PAGINATED = ['prs', 'commits', 'issues', 'releases', 'deployments'] as const;
   const paginated = specs.filter(
-    (spec): spec is typeof spec & { entityType: (typeof PAGINATED)[number] } =>
-      (PAGINATED as readonly string[]).includes(spec.entityType),
+    (spec): spec is typeof spec & { entityType: (typeof PAGINATED_ENTITIES)[number] } =>
+      (PAGINATED_ENTITIES as readonly string[]).includes(spec.entityType),
   );
 
   for (const spec of paginated) {
@@ -65,10 +69,43 @@ async function processPlan(deps: ProcessorDeps, data: { workspaceId: number; rep
       { jobId: spec.jobId },
     );
   }
-  // Metrics are computed from what ingestion just wrote, so the snapshot is
-  // queued behind the plan rather than run on a timer that might fire first.
-  await deps.snapshotQueue.add('compute', { workspaceId: data.workspaceId, repoId: data.repoId });
+  // queued --plan_ran--> history, which stores as 'backfilling'. Guarded on the
+  // current value rather than written blindly: a re-planned repo that is
+  // already backfilling (or paused_budget) must not be dragged backwards, and
+  // 0 rows affected is a normal outcome, not an error. The target comes from
+  // the state machine (plan/state-machine.ts) instead of a literal — that
+  // module defined the whole lifecycle and had no production caller at all.
+  await deps.db
+    .update(core.repos)
+    .set({ syncStatus: syncPhaseToRepoStatus(nextPhase('queued', 'plan_ran')) })
+    .where(and(eq(core.repos.id, data.repoId), eq(core.repos.syncStatus, 'pending_backfill')));
+
   return { planned: paginated.length, deferredToEnrich: specs.length - paginated.length };
+}
+
+/**
+ * Called when an entity job finishes: if that was the LAST outstanding entity,
+ * compute metrics over what ingestion actually wrote.
+ *
+ * The snapshot used to be enqueued by processPlan, immediately after the
+ * fan-out — so it ran BEFORE any entity job had written a row and every metric
+ * landed as 0.000000 over an empty warehouse. That is the real reason the
+ * dashboard has always rendered without ever showing ingested data.
+ *
+ * No lock is needed: the five entity jobs can finish concurrently and all
+ * observe "complete", but they all derive the SAME snapshot jobId, and BullMQ
+ * treats a re-add with an existing custom jobId as a no-op. The idempotency key
+ * from the §6 topology table is the election.
+ */
+async function maybeSnapshot(deps: ProcessorDeps, data: BackfillJobData): Promise<boolean> {
+  if (!(await isHistoryBackfillComplete(deps.db, data.repoId))) return false;
+  const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  await deps.snapshotQueue.add(
+    'compute',
+    { workspaceId: data.workspaceId, repoId: data.repoId },
+    { jobId: jobId.snapshot(data.repoId, yyyymmdd) },
+  );
+  return true;
 }
 
 /** The backfill queue carries both the `plan` fan-out and the entity pages. */
@@ -83,7 +120,7 @@ export function backfillProcessor(deps: ProcessorDeps) {
     // job quietly rather than failing it into the DLQ forever.
     if (!resolved) return { skipped: 'no active connection' };
 
-    return processBackfillJob(
+    const result = await processBackfillJob(
       {
         db: deps.db,
         provider: resolved.provider,
@@ -101,6 +138,12 @@ export function backfillProcessor(deps: ProcessorDeps) {
       },
       data,
     );
+
+    // Only a finished entity can complete the repo. A continuation (more pages)
+    // or a budget park is explicitly not done, and asking on every page would
+    // be a needless query per page.
+    const snapshotQueued = result.done === true ? await maybeSnapshot(deps, data) : false;
+    return { ...result, ...(snapshotQueued ? { snapshotQueued: true } : {}) };
   };
 }
 

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { chromium } from '@playwright/test';
+import { createRedisConnection } from '@repopulse/ingest';
 import { createDb, seedWarehouse } from '@repopulse/shared';
 
 export const STORAGE_STATE = 'e2e/.auth/state.json';
@@ -27,6 +28,22 @@ export default async function globalSetup(): Promise<void> {
   const db = createDb(url);
   await seedWarehouse(db);
   await db.$client.end();
+
+  // Drop every BullMQ key before the run. The seeder recreates repo rows with
+  // fresh ids, but jobs keyed by the PREVIOUS run's ids survive in Redis, and
+  // BullMQ treats an add with an existing custom jobId as a no-op — so a run
+  // could inherit a completed job from an earlier run and report success while
+  // ingesting nothing. Leftover `delayed` retries from a failed run also fire
+  // mid-suite against a torn-down fake forge. Cheap to do, and it makes the
+  // ingestion assertions mean what they say.
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    throw new Error('e2e globalSetup: REDIS_URL is not set — the ingestion worker needs it.');
+  }
+  const redis = createRedisConnection(redisUrl);
+  const keys = await redis.keys('bull:*');
+  if (keys.length > 0) await redis.del(...keys);
+  await redis.quit();
 
   // One login for the whole run. SC-11 caps the auth flow at 10 requests per
   // minute per IP, and a login per spec exhausts it the moment the suite grows
