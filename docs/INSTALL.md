@@ -94,10 +94,18 @@ progress while it runs and fills in as history lands.
 
 ```bash
 git pull                                          # or pull new image tags
+podman compose -f deploy/compose.yaml down
 podman compose -f deploy/compose.yaml up -d --build
 ```
 
 Migrations run as a one-shot job before the API restarts.
+
+> **`up -d --build` alone is not enough.** Verified on Podman: it rebuilds the
+> images and re-runs migrations, but leaves the already-running containers
+> untouched — so the upgrade *appears* to succeed while every service keeps
+> executing the old code. `down` first (or pass `--force-recreate`). Confirm
+> afterwards with `podman ps`: the containers should show an uptime of seconds,
+> not the age of your previous deployment.
 
 ## Backing up
 
