@@ -1452,3 +1452,11 @@ two-directional — landing a processor without removing its entry also fails �
 the debt cannot be re-accrued behind a stale allowlist. RED-checked both ways.
 Every one of the four defects would have been caught by this on the day it
 landed.
+
+### 2026-08-13 — continuation handoff written
+
+`docs/work/CONTINUATION_2026-08-13.md` is the clean-slate entry point for the
+next session: product definition and the D1a/D3a/D9a MVP, current branch and
+board state, what genuinely works versus what has never run, the exact W12-03
+symptom with a two-minute reproduction, the six environment traps, and the
+founder-only list. Start there rather than re-deriving any of it.
