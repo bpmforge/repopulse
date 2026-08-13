@@ -142,6 +142,51 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
       return;
     }
 
+    // PR backfill goes over GraphQL, not REST: listPullRequests needs the
+    // additions/deletions/changedFiles the REST list omits (graphql.ts). The
+    // REST /pulls handler above is therefore NOT the path ingestion takes —
+    // without this, POST /graphql fell through to the 404 below, `payload.data`
+    // came back undefined and the job died on an unreadable
+    // "Cannot read properties of undefined (reading 'repository')".
+    if (url.pathname === '/graphql' && req.method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+        json(200, {
+          data: {
+            repository: {
+              pullRequests: {
+                // One page: FAKE_PRS is smaller than the query's first:50, so
+                // hasNextPage is false and the cursor loop terminates.
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: FAKE_PRS.map((pr, i) => ({
+                  number: pr.number,
+                  id: `gql-pr-${pr.number}`,
+                  title: pr.title,
+                  body: null,
+                  isDraft: false,
+                  state: 'MERGED',
+                  createdAt: day(i + 3),
+                  updatedAt: day(i + 1),
+                  mergedAt: day(i + 1),
+                  closedAt: day(i + 1),
+                  author: { login: 'fixture-dev', __typename: 'User' },
+                  mergedBy: { login: 'fixture-dev' },
+                  baseRefName: 'main',
+                  headRefOid: `head-${pr.number}`,
+                  additions: 20,
+                  deletions: 4,
+                  changedFiles: 2,
+                })),
+              },
+            },
+          },
+        });
+      });
+      return;
+    }
+
     // Webhook registration during connect.
     if (url.pathname.endsWith('/hooks') && req.method === 'POST') {
       req.resume();
