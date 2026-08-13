@@ -50,9 +50,28 @@ export interface WalkOptions {
   exemptPrefixes?: string[];
   /** Only these HTTP methods are walked (default: GET only - side-effect-free to repeat per probe). */
   methods?: string[];
+  /**
+   * Routes that never end a response (SSE / streaming). `app.inject` waits for a
+   * response that never comes, so walking one HANGS the entire suite — which is
+   * why /api/v1/events stayed unmounted rather than being exempted blindly.
+   *
+   * Listing a route here removes it from the tenancy sweep, so it MUST carry its
+   * own isolation test in exchange. See apps/api/src/routes/events/index.test.ts,
+   * which proves a subscriber on one workspace's channel never receives another
+   * workspace's events. Do not add a prefix here without that replacement.
+   */
+  streamingPrefixes?: string[];
 }
 
 const DEFAULT_EXEMPT_PREFIXES = ['/auth', '/healthz', '/api/v1/openapi.json'];
+/**
+ * SSE hijacks the socket and never responds; inject() would hang forever.
+ *
+ * Both forms are listed because test harnesses register the api-v1 child at
+ * prefix '' — the route is /api/v1/events in the real app and /events under a
+ * harness, and matching only the first still hung the suite.
+ */
+const DEFAULT_STREAMING_PREFIXES = ['/api/v1/events', '/events'];
 
 function isExempt(url: string, exemptPrefixes: string[]): boolean {
   return exemptPrefixes.some((p) => url === p || url.startsWith(`${p}/`));
@@ -74,11 +93,16 @@ export async function walkForTenancyLeakage(
   opts: WalkOptions = {},
 ): Promise<LeakageViolation[]> {
   const exemptPrefixes = opts.exemptPrefixes ?? DEFAULT_EXEMPT_PREFIXES;
+  const streamingPrefixes = opts.streamingPrefixes ?? DEFAULT_STREAMING_PREFIXES;
   const methods = new Set(opts.methods ?? ['GET']);
   const violations: LeakageViolation[] = [];
 
   const testable = routes.filter(
-    (r) => methods.has(r.method) && !r.url.includes(':') && !isExempt(r.url, exemptPrefixes),
+    (r) =>
+      methods.has(r.method) &&
+      !r.url.includes(':') &&
+      !isExempt(r.url, exemptPrefixes) &&
+      !isExempt(r.url, streamingPrefixes),
   );
 
   for (const route of testable) {
