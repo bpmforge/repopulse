@@ -3,6 +3,8 @@ import fastifySwagger from '@fastify/swagger';
 import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 import { createLogger, type Database, type Logger } from '@repopulse/shared';
 import { oauth } from '@repopulse/auth';
+import type { Queue } from 'bullmq';
+import type { Redis } from 'ioredis';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
 import authRoutes from './routes/auth/index.js';
 import healthRoutes from './routes/health/index.js';
@@ -85,13 +87,23 @@ export function buildApp(opts: BuildAppOptions) {
   // tested for two waves while never being registered in the real server, and
   // an option a test could omit is exactly how that stayed invisible (same
   // failure as the SSE route in W4-18).
-  const queueConnection = createRedisConnection(opts.redisUrl);
-  const backfillQueue = createQueue(QUEUE.backfill, queueConnection);
-  const deltaQueue = createQueue(QUEUE.delta, queueConnection);
+  // Created on FIRST ENQUEUE, not at boot. Connecting eagerly opened a Redis
+  // socket for every app instance — including the many test apps that never
+  // enqueue and never call close() — which surfaced as ten unhandled EPIPE
+  // errors and a non-zero exit while all 463 tests still reported passing.
+  // Lazy construction also means a running API holds no idle producer socket
+  // until it has something to publish.
+  let queueConnection: Redis | undefined;
+  let backfillQueue: Queue | undefined;
+  let deltaQueue: Queue | undefined;
+  const connection = () => (queueConnection ??= createRedisConnection(opts.redisUrl));
+  const backfill = () => (backfillQueue ??= createQueue(QUEUE.backfill, connection()));
+  const delta = () => (deltaQueue ??= createQueue(QUEUE.delta, connection()));
+
   app.addHook('onClose', async () => {
-    await backfillQueue.close();
-    await deltaQueue.close();
-    queueConnection.disconnect();
+    await backfillQueue?.close();
+    await deltaQueue?.close();
+    queueConnection?.disconnect();
   });
 
   app.register(apiV1, {
@@ -100,7 +112,7 @@ export function buildApp(opts: BuildAppOptions) {
     tokenKey: opts.tokenKey,
     webhookUrl: opts.webhookUrl,
     enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
-      await backfillQueue.add('plan', { workspaceId, repoId });
+      await backfill().add('plan', { workspaceId, repoId });
     },
     prefix: '/api/v1',
   });
@@ -114,7 +126,7 @@ export function buildApp(opts: BuildAppOptions) {
     enqueueDelta: async (spec) => {
       // jobId is the debounce key (push bursts coalesce per repo, INGESTION §6),
       // so it must reach BullMQ or every push becomes its own job.
-      await deltaQueue.add(spec.data.kind, spec.data, {
+      await delta().add(spec.data.kind, spec.data, {
         jobId: spec.opts.jobId,
         ...(spec.opts.delayMs === undefined ? {} : { delay: spec.opts.delayMs }),
       });
