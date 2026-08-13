@@ -66,7 +66,7 @@ export function KpiRow({ window }: Props) {
             <KpiTile
               key={tile.key}
               label={tile.label}
-              value={formatKpi(row?.value ?? null)}
+              value={formatKpi(row?.value ?? null, tile.unit)}
               {...(tile.unit ? { unit: tile.unit } : {})}
               deltaPct={row?.delta ?? null}
               polarity={tile.polarity}

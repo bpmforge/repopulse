@@ -5,27 +5,40 @@ import { installEgressGuard } from './helpers/egress-guard.js';
 // W4-03 acceptance 2: the landing screen renders tiles + sparklines from the
 // fixture warehouse, and every number is a door to its evidence (UX_SPEC §1.3).
 //
-// Every spec pins window=90d rather than using the default. The seeder writes
-// ABSOLUTE dates (2026-06-01..06-24), so the default 30d window is empty on any
-// run after early July — see W4-13, which fixes the anchoring. Asserting at 90d
-// is honest for "renders from the warehouse" but deliberately leaves the default
-// path untested; W4-13 owns that assertion.
+// Specs use the DEFAULT window deliberately. W4-13 anchored the fixture to run
+// time and gave every metric a weekly series across all four window presets, so
+// the default path is the one that must work — pinning a wider window was the
+// workaround W4-03 needed before that landed.
 
 test('renders the org overview widgets against the seeded warehouse', async ({ page }) => {
   const guard = await installEgressGuard(page);
   await loginAsFixture(page);
-  await page.goto('/?window=90d');
+  await page.goto('/');
 
   await expect(page.getByTestId('org-overview')).toBeVisible();
 
-  // NOTE: no assertion on KPI VALUES here. The fixture has a single snapshot per
-  // metric in one window bucket, so the tiles legitimately render em dashes and
-  // no sparkline — see W4-13, which owns both the fixture fix and the value
-  // assertion. An earlier version of this spec asserted the row's innerText was
-  // non-empty; it passed against five all-em-dash tiles because the LABELS are
-  // innerText too. Removed rather than weakened: a test that cannot fail is
-  // worse than no test.
+  // KPI VALUES, not just presence. KpiTile renders an em dash for null, so five
+  // tiles appear whether or not the query worked — reading the value spans is
+  // what makes this bite. An earlier version asserted the row's innerText was
+  // non-empty and passed against five all-em-dash tiles, because the LABELS are
+  // innerText too.
   await expect(page.getByTestId('kpi-row')).toBeVisible();
+  const values = await page
+    .getByTestId('kpi-tile')
+    .locator('div.items-baseline > span')
+    .first()
+    .allInnerTexts();
+  expect(
+    values.join(''),
+    'first KPI tile should carry a real value at the default window',
+  ).not.toBe('—');
+
+  // A sparkline needs >=2 points, so this fails if the fixture regresses to a
+  // single snapshot per metric — the exact defect W4-13 fixed.
+  expect(
+    await page.getByTestId('kpi-row').locator('svg').count(),
+    'KPI sparklines should render',
+  ).toBeGreaterThan(0);
 
   // seed.ts seeds a 3-repo org in the default workspace; a different count means
   // either the seeder drifted or the second workspace leaked (tenancy, NFR-4).
@@ -38,6 +51,8 @@ test('renders the org overview widgets against the seeded warehouse', async ({ p
 
 test('a health tile is a door to its repo, carrying the filters', async ({ page }) => {
   await loginAsFixture(page);
+  // Non-default window on purpose: serializeGlobalSearch omits defaults, so the
+  // default window cannot prove a filter survived the hop.
   await page.goto('/?window=90d');
 
   const firstTile = page.getByTestId('health-tile-grid').locator('a').first();

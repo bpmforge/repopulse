@@ -62,7 +62,12 @@ export const KPI_TILES: {
 ];
 
 /** Preformatted tile value — null renders an em dash, never a misleading 0 (UX §8). */
-export function formatKpi(value: number | null): string | null {
+export function formatKpi(value: number | null, unit?: string): string | null {
   if (value === null) return null;
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  // Ratio metrics (M5/M6/M9) are stored 0..1 by METRICS.md — rendering the raw
+  // value beside a '%' unit produced "0.9 %" for 90% review coverage, which is
+  // not merely ugly: it reads as catastrophically bad rather than good, and
+  // "1 %" for a perfect CI pass rate reads as an outage.
+  const scaled = unit === '%' ? value * 100 : value;
+  return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1);
 }

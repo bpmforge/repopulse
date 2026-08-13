@@ -14,8 +14,28 @@ export const FIXTURE_LOGIN = 'fixture-dev';
 const CONTRIBUTORS = ['alice', 'bob', 'carol', FIXTURE_LOGIN] as const;
 const BOT = 'renovate[bot]';
 const REPO_NAMES = ['payments', 'web-app', 'infra'] as const;
-const BASE = Date.parse('2026-06-01T00:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
+
+/** The fixture's activity spans this many days, ending at the anchor. */
+const SPAN_DAYS = 40;
+/** Weekly snapshot points per (scope × metric × window) — >=2 so a sparkline renders. */
+const SERIES_POINTS = 8;
+/** Every window preset the UI offers; the API filters snapshots by this exact string. */
+const WINDOWS = ['7d', '30d', '90d', '365d'] as const;
+
+/**
+ * Anchor the fixture RELATIVE to run time, quantised to UTC midnight.
+ *
+ * Absolute dates were the original bug: the fixture was pinned to June 2026, so
+ * from July onwards the default 30d window contained no fixture data at all and
+ * every screen e2e silently degraded to asserting empty states. Quantising to
+ * midnight keeps determinism where it matters — two seeds on the same UTC day
+ * produce identical timestamps — while `opts.now` lets a test pin it outright.
+ */
+function anchorFor(now: number): number {
+  const midnightUtc = Math.floor(now / DAY) * DAY;
+  return midnightUtc - SPAN_DAYS * DAY;
+}
 
 export interface SeedResult {
   workspaceId: number;
@@ -45,9 +65,12 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
 
 export async function seedWarehouse(
   db: Database,
-  opts: { seed?: number } = {},
+  opts: { seed?: number; now?: number } = {},
 ): Promise<SeedResult> {
   const rng = makeRng(opts.seed ?? 42);
+  // Day 0 of the fixture. Everything below is an offset from here, so the whole
+  // warehouse slides forward with the calendar (W4-13).
+  const BASE = anchorFor(opts.now ?? Date.now());
 
   // --- workspaces ---
   const [ws] = await db
@@ -141,7 +164,7 @@ export async function seedWarehouse(
     // commits + commit_files (one merge commit)
     for (let c = 0; c < 8; c++) {
       const authorId = rng.pick(humanIds);
-      const at = new Date(BASE + (c * 3 + rng.int(0, 2)) * DAY);
+      const at = new Date(BASE + (c * 5 + rng.int(0, 2)) * DAY);
       const isMerge = c === 7;
       const [commit] = await db
         .insert(facts.commits)
@@ -180,7 +203,7 @@ export async function seedWarehouse(
     for (let p = 1; p <= 5; p++) {
       const merged = p <= 3;
       const authorId = rng.pick(humanIds);
-      const created = new Date(BASE + p * 4 * DAY);
+      const created = new Date(BASE + p * 7 * DAY);
       const firstReview = merged
         ? new Date(created.getTime() + rng.int(2, 40) * 3600 * 1000)
         : null;
@@ -226,109 +249,118 @@ export async function seedWarehouse(
         .onConflictDoNothing();
       if (merged) {
         const reviewerId = rng.pick(humanIds.filter((id) => id !== authorId));
-        await db
-          .insert(facts.prReviews)
-          .values({
-            workspaceId,
-            repoId,
-            pullRequestId: pr!.id,
-            forgeReviewId: `${name}-rv${p}`,
-            reviewerIdentityId: reviewerId,
-            state: 'APPROVED',
-            submittedAt: firstReview!,
-          });
+        await db.insert(facts.prReviews).values({
+          workspaceId,
+          repoId,
+          pullRequestId: pr!.id,
+          forgeReviewId: `${name}-rv${p}`,
+          reviewerIdentityId: reviewerId,
+          state: 'APPROVED',
+          submittedAt: firstReview!,
+        });
       }
       // a check run per PR (mix pass/fail)
       const started = new Date(created.getTime() + 3600 * 1000);
-      await db
-        .insert(facts.checkRuns)
-        .values({
-          workspaceId,
-          repoId,
-          forgeRunId: `${name}-run${p}`,
-          kind: 'check_run',
-          workflowName: 'ci',
-          headSha,
-          status: 'completed',
-          conclusion: p % 4 === 0 ? 'failure' : 'success',
-          runAttempt: 1,
-          startedAt: started,
-          completedAt: new Date(started.getTime() + rng.int(2, 20) * 60000),
-        });
+      await db.insert(facts.checkRuns).values({
+        workspaceId,
+        repoId,
+        forgeRunId: `${name}-run${p}`,
+        kind: 'check_run',
+        workflowName: 'ci',
+        headSha,
+        status: 'completed',
+        conclusion: p % 4 === 0 ? 'failure' : 'success',
+        runAttempt: 1,
+        startedAt: started,
+        completedAt: new Date(started.getTime() + rng.int(2, 20) * 60000),
+      });
     }
 
     // issues, release, deployment
     for (let i = 4; i <= 6; i++) {
       const closed = i === 4;
-      await db
-        .insert(facts.issues)
-        .values({
-          workspaceId,
-          repoId,
-          number: i + 10,
-          authorIdentityId: rng.pick(humanIds),
-          state: closed ? 'closed' : 'open',
-          createdAt: new Date(BASE + i * DAY),
-          closedAt: closed ? new Date(BASE + (i + 3) * DAY) : null,
-          isPullRequest: false,
-        });
+      await db.insert(facts.issues).values({
+        workspaceId,
+        repoId,
+        number: i + 10,
+        authorIdentityId: rng.pick(humanIds),
+        state: closed ? 'closed' : 'open',
+        createdAt: new Date(BASE + i * DAY),
+        closedAt: closed ? new Date(BASE + (i + 3) * DAY) : null,
+        isPullRequest: false,
+      });
     }
-    await db
-      .insert(facts.releases)
-      .values({
-        workspaceId,
-        repoId,
-        forgeReleaseId: `${name}-rel1`,
-        tag: 'v1.0.0',
-        name: 'v1.0.0',
-        isDraft: false,
-        isPrerelease: false,
-        publishedAt: new Date(BASE + 35 * DAY),
-      });
-    await db
-      .insert(facts.deployments)
-      .values({
-        workspaceId,
-        repoId,
-        forgeDeploymentId: `${name}-dep1`,
-        environment: 'production',
-        sha: `${name}-c6`,
-        createdAt: new Date(BASE + 36 * DAY),
-        latestStatus: 'success',
-        statusUpdatedAt: new Date(BASE + 36 * DAY),
-      });
+    await db.insert(facts.releases).values({
+      workspaceId,
+      repoId,
+      forgeReleaseId: `${name}-rel1`,
+      tag: 'v1.0.0',
+      name: 'v1.0.0',
+      isDraft: false,
+      isPrerelease: false,
+      publishedAt: new Date(BASE + 35 * DAY),
+    });
+    await db.insert(facts.deployments).values({
+      workspaceId,
+      repoId,
+      forgeDeploymentId: `${name}-dep1`,
+      environment: 'production',
+      sha: `${name}-c6`,
+      createdAt: new Date(BASE + 36 * DAY),
+      latestStatus: 'success',
+      statusUpdatedAt: new Date(BASE + 36 * DAY),
+    });
     await db
       .insert(core.syncCursors)
       .values({ workspaceId, repoId, entityType: 'prs', cursorValue: null, backfillDone: true })
       .onConflictDoNothing();
   }
 
-  // --- metric_snapshots: M1..M12 for '30d' per repo + org rollup (null repo) ---
+  // --- metric_snapshots: M1..M12 × every window × per repo + org rollup ---
+  //
+  // A SERIES, not a single point. The original seeder wrote one row per
+  // (scope × metric) in the '30d' bucket only, which produced three separate
+  // failures downstream: a sparkline needs >=2 points so it never rendered; a
+  // trend delta needs a prior window so every tile showed no change; and any
+  // request for 7d/90d/365d matched nothing, so all five KPI tiles rendered em
+  // dashes. Points run weekly backwards from the anchor.
   const METRICS = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12'];
   const RATIOS = new Set(['M5', 'M6', 'M9']);
-  let snapshotCount = 0;
-  const computedAt = new Date(BASE + 40 * DAY);
+  const snapshotRows: (typeof read.metricSnapshots.$inferInsert)[] = [];
   for (const repoId of [...repoIds, null]) {
     for (const mk of METRICS) {
-      const num = RATIOS.has(mk) ? String(rng.int(3, 9)) : null;
-      const den = RATIOS.has(mk) ? '10' : null;
-      const value = RATIOS.has(mk) ? (Number(num) / 10).toFixed(6) : String(rng.int(1, 200));
-      await db
-        .insert(read.metricSnapshots)
-        .values({
-          workspaceId,
-          repoId,
-          metricKey: mk,
-          window: '30d',
-          value,
-          numerator: num,
-          denominator: den,
-          dims: {},
-          computedAt,
-        });
-      snapshotCount++;
+      for (const window of WINDOWS) {
+        // One walk per (scope, metric, window) so each series drifts on its own
+        // rather than every tile moving in lockstep.
+        let ratioTenths = rng.int(3, 9);
+        let level = rng.int(20, 180);
+        for (let i = SERIES_POINTS - 1; i >= 0; i--) {
+          // Random walk, clamped, so deltas are non-zero but values stay sane.
+          ratioTenths = Math.min(10, Math.max(1, ratioTenths + rng.int(-1, 1)));
+          level = Math.min(400, Math.max(1, level + rng.int(-15, 15)));
+          const isRatio = RATIOS.has(mk);
+          snapshotRows.push({
+            workspaceId,
+            repoId,
+            metricKey: mk,
+            window,
+            value: isRatio ? (ratioTenths / 10).toFixed(6) : String(level),
+            numerator: isRatio ? String(ratioTenths) : null,
+            denominator: isRatio ? '10' : null,
+            dims: {},
+            // i = 0 is the newest point and lands on the anchor end (today).
+            computedAt: new Date(BASE + SPAN_DAYS * DAY - i * 7 * DAY),
+          });
+        }
+      }
     }
   }
+  // One batched insert: ~1.5k rows one-at-a-time made seeding the slowest step
+  // in every e2e run.
+  for (let i = 0; i < snapshotRows.length; i += 500) {
+    await db.insert(read.metricSnapshots).values(snapshotRows.slice(i, i + 500));
+  }
+  const snapshotCount = snapshotRows.length;
 
   return {
     workspaceId,

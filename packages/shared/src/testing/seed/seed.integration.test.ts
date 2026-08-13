@@ -19,7 +19,7 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
   it('seeds a multi-repo org + a second workspace, and re-seeding is deterministic + idempotent', async () => {
     const a = await seedWarehouse(db, { seed: 42 });
     expect(a.counts.repos).toBe(3);
-    expect(a.counts.snapshots).toBe(12 * 4); // 12 metrics × (3 repos + org rollup)
+    expect(a.counts.snapshots).toBe(12 * 4 * 4 * 8); // 12 metrics × (3 repos + org) × 4 windows × 8 points
     expect(a.repoIds).toHaveLength(3);
 
     // Re-seed with the same seed → same generated content (counts stable; the
