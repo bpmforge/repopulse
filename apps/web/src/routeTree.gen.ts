@@ -10,7 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as PullRequestsRouteImport } from './routes/pull-requests'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminMembersRouteImport } from './routes/admin/members'
+import { Route as AdminSyncRouteImport } from './routes/admin/sync'
 import { Route as ReposIndexRouteImport } from './routes/repos/index'
 import { Route as ReposRepoIdRouteRouteImport } from './routes/repos/$repoId/route'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
@@ -27,10 +31,30 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRouteRoute = AdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PullRequestsRoute = PullRequestsRouteImport.update({
   id: '/pull-requests',
   path: '/pull-requests',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminMembersRoute = AdminMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminSyncRoute = AdminSyncRouteImport.update({
+  id: '/sync',
+  path: '/sync',
+  getParentRoute: () => AdminRouteRoute,
 } as any)
 const ReposIndexRoute = ReposIndexRouteImport.update({
   id: '/repos/',
@@ -85,8 +109,12 @@ const ReposRepoIdPrsNumberRoute = ReposRepoIdPrsNumberRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/pull-requests': typeof PullRequestsRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
+  '/admin/members': typeof AdminMembersRoute
+  '/admin/sync': typeof AdminSyncRoute
+  '/admin/': typeof AdminIndexRoute
   '/repos/': typeof ReposIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
@@ -100,6 +128,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pull-requests': typeof PullRequestsRoute
+  '/admin/members': typeof AdminMembersRoute
+  '/admin/sync': typeof AdminSyncRoute
+  '/admin': typeof AdminIndexRoute
   '/repos': typeof ReposIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
@@ -113,8 +144,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/pull-requests': typeof PullRequestsRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
+  '/admin/members': typeof AdminMembersRoute
+  '/admin/sync': typeof AdminSyncRoute
+  '/admin/': typeof AdminIndexRoute
   '/repos/': typeof ReposIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
@@ -129,8 +164,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/pull-requests'
     | '/repos/$repoId'
+    | '/admin/members'
+    | '/admin/sync'
+    | '/admin/'
     | '/repos/'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
@@ -144,6 +183,9 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/pull-requests'
+    | '/admin/members'
+    | '/admin/sync'
+    | '/admin'
     | '/repos'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
@@ -156,8 +198,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/pull-requests'
     | '/repos/$repoId'
+    | '/admin/members'
+    | '/admin/sync'
+    | '/admin/'
     | '/repos/'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
@@ -171,6 +217,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
   PullRequestsRoute: typeof PullRequestsRoute
   ReposRepoIdRouteRoute: typeof ReposRepoIdRouteRouteWithChildren
   ReposIndexRoute: typeof ReposIndexRoute
@@ -185,12 +232,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pull-requests': {
       id: '/pull-requests'
       path: '/pull-requests'
       fullPath: '/pull-requests'
       preLoaderRoute: typeof PullRequestsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/members': {
+      id: '/admin/members'
+      path: '/members'
+      fullPath: '/admin/members'
+      preLoaderRoute: typeof AdminMembersRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/sync': {
+      id: '/admin/sync'
+      path: '/sync'
+      fullPath: '/admin/sync'
+      preLoaderRoute: typeof AdminSyncRouteImport
+      parentRoute: typeof AdminRouteRoute
     }
     '/repos/': {
       id: '/repos/'
@@ -265,6 +340,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteRouteChildren {
+  AdminMembersRoute: typeof AdminMembersRoute
+  AdminSyncRoute: typeof AdminSyncRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminMembersRoute: AdminMembersRoute,
+  AdminSyncRoute: AdminSyncRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
+
 interface ReposRepoIdRouteRouteChildren {
   ReposRepoIdCiRoute: typeof ReposRepoIdCiRoute
   ReposRepoIdFindingsRoute: typeof ReposRepoIdFindingsRoute
@@ -292,6 +383,7 @@ const ReposRepoIdRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
   PullRequestsRoute: PullRequestsRoute,
   ReposRepoIdRouteRoute: ReposRepoIdRouteRouteWithChildren,
   ReposIndexRoute: ReposIndexRoute,

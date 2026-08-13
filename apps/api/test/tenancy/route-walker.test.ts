@@ -107,7 +107,13 @@ describeIfLiveInfra('route-walker tenancy isolation (NFR-4, W1-07)', () => {
         // /me/*) itself (W4-02) — the walker below proves the parameter-free
         // ones leak no other tenant's data. No manual registration here or
         // they'd double-declare.
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
+        await apiV1(instance, {
+          db,
+          redisUrl: redisUrl as string,
+          tokenKey: Buffer.alloc(32, 7),
+          webhookUrl: 'http://localhost/api/v1/webhooks/github',
+          enqueueBackfillPlan: async () => {},
+        });
 
         // Correctly scoped: reads only the requester's own workspace row.
         instance.get('/api/v1/_tenancy_test/scoped-ok', async (request) => {

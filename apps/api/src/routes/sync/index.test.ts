@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
-import syncRoutes from './index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -79,8 +78,13 @@ describeIfLiveInfra('GET /sync/status (W2-05, FR-INGEST-8)', () => {
     });
     await app.register(
       async (instance) => {
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
-        await instance.register(syncRoutes, { db });
+        await apiV1(instance, {
+          db,
+          redisUrl: redisUrl as string,
+          tokenKey: Buffer.alloc(32, 7),
+          webhookUrl: 'http://localhost/api/v1/webhooks/github',
+          enqueueBackfillPlan: async () => {},
+        });
       },
       { prefix: '/api/v1' },
     );

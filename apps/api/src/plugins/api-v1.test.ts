@@ -103,7 +103,13 @@ describeIfLiveInfra('api-v1 guard: session -> workspace -> role (W1-04)', () => 
     // ticket is meant to extend it (see api-v1.ts's HANDOFF comment).
     await app.register(
       async (instance) => {
-        await apiV1(instance, { db, redisUrl: redisUrl as string });
+        await apiV1(instance, {
+          db,
+          redisUrl: redisUrl as string,
+          tokenKey: Buffer.alloc(32, 7),
+          webhookUrl: 'http://localhost/api/v1/webhooks/github',
+          enqueueBackfillPlan: async () => {},
+        });
         instance.get('/api/v1/_test/whoami', async (request) => ({
           workspace: request.workspace,
           role: request.role,

@@ -1290,7 +1290,9 @@
       "write_scope": [
         "apps/web/src/routes/admin/**",
         "apps/web/src/widgets/admin/**",
-        "apps/api/src/routes/admin/**"
+        "apps/api/src/routes/admin/**",
+        "apps/web/src/api/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W4-02",
@@ -1302,8 +1304,13 @@
         "Failing-webhook repo row flagged crit with remediation hint; forge budget gauge + sync lag surfaced so 'is ingest healthy' is answerable from this page (NFR-12)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-13. Admin is a tabbed route set like the repo screen: /admin (Connections), /admin/sync, /admin/members. Connections is the screen docs/INSTALL.md sends operators to and the only way to connect an organisation \u2014 a create form plus the connection list showing provider, auth kind, credential last-4, status and repo count. Sync shows the org aggregate plus a per-repo table with phase, progress, rate-limit budget remaining, lag and last error; budget is on screen because Law 7 makes it law and an operator needs to see it BEFORE a repo goes paused_budget, not after. The role gate on the layout is presentation only \u2014 the API enforces admin independently with a 403 (FR-AUTH-4).",
+        "FOUND BEFORE WRITING ANY UI: the API requires x-requested-with: repopulse on every mutating verb (SC-7 CSRF) and the web client never sent it, so every write from the SPA would have returned 403 with no hint \u2014 a Connect button that looks inert. Added the header to apiFetch (a simple header, so no CORS preflight) plus a useApiMutation hook that invalidates the query keys a caller names.",
+        "A TEST THAT COULD NOT FAIL, caught and fixed in the same sitting. The credential spec asserted only that AN error appeared after submitting \u2014 but a CSRF 403 and a rejected-credential 400 both render an error, so the spec passed with the client header DELETED. That is exactly how a silently-403ing Connect button ships. The assertion now requires the error to be about the CREDENTIAL, proving the write reached the handler; RED-checked by deleting the header again, which now fails with \"Missing or invalid X-Requested-With header\".",
+        "Also corrected my own over-strict assertion rather than the code: I first asserted the credential never appears in the DOM at all, which failed because a FAILED connect deliberately keeps the value so the operator can fix a typo \u2014 it is a password input. Probing showed the credential appears in exactly one place, its own input, and nowhere else: not echoed by the API, not in the error envelope, not in the list. The spec now states that property precisely. Gate (checked on exit codes, not summary lines): lint 0, typecheck 0, test 0 with 463/463, e2e 0 with 30/30."
+      ]
     },
     {
       "id": "W4-09",
@@ -1555,6 +1562,60 @@
         "DONE 2026-08-13. The route existed and was unit-tested since W4-02 but was never MOUNTED, so the running dashboard retried a 404 with backoff and the rail chip read \"Reconnecting\u2026\" permanently \u2014 the honest rendering of a missing endpoint, and therefore invisible as a bug. Watching progressive backfill is an explicit W4 exit criterion, so the MVP demo could not have passed with this open.",
         "The real blocker was never \"thread redisUrl\" as the code comment claimed: app.inject() waits for a response that never comes, so ANY socket-hijacking route hangs walkForTenancyLeakage. Fixed with an explicit streamingPrefixes option rather than adding /events to the generic exempt list \u2014 exempting a workspace-scoped stream from the tenancy sweep with no replacement would be a silent hole in NFR-4. The option is documented to require a replacement isolation test, and that test was written: a subscriber on one workspace channel receives only its own events. RED-checked by collapsing syncEventsChannel to a shared constant \u2014 the new test catches the foreign event, and the PRE-EXISTING events test still passed, which is what proves the new one covers something the old one did not.",
         "Two mounting-shape details: harnesses register the api-v1 child at prefix \"\" so the route is /events there and /api/v1/events in production, and matching only the production form still hung the suite. Every harness calling apiV1(instance, {db}) now passes redisUrl \u2014 making it optional would let tests mount a DIFFERENT app than production, which is how this route stayed unmounted and unnoticed for two waves. Verified live: chip reads \"Live\"; a plain GET to /api/v1/events times out rather than returning, correct for an endless stream. Gate: lint clean, typecheck clean, test 463/463, e2e 25/25."
+      ]
+    },
+    {
+      "id": "W4-19",
+      "title": "Mount connections, sync and the webhook receiver \u2014 the connect flow was unreachable",
+      "status": "done",
+      "points": 3,
+      "depends_on": [
+        "W2-01",
+        "W2-04",
+        "W4-18"
+      ],
+      "write_scope": [
+        "apps/api/src/app.ts",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/api/src/index.ts",
+        "apps/api/**/*.test.ts",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "POST/GET /api/v1/connections and GET /api/v1/sync/status are served by the production app",
+        "POST /api/v1/webhooks/github is served as an UNAUTHENTICATED sibling and verifies its HMAC signature",
+        "The API owns real BullMQ producers, so connecting an org actually enqueues a backfill plan",
+        "Tests exercise the real mount rather than registering a rival copy of each route"
+      ],
+      "notes": [
+        "DONE 2026-08-13. Three route modules existed and were fully tested since W2 but were never registered in the production server, so docs/INSTALL.md instructed operators to open Admin -> Connections \u2014 a screen backed by routes the API did not serve. The app could not connect a repository at all.",
+        "Wired the real dependencies rather than stubbing them: the API now builds its own BullMQ producer connection and backfill/delta queues, so connecting an org genuinely enqueues a plan job and a webhook delivery genuinely enqueues a delta (jobId preserved, since it is the per-repo debounce key that collapses a push burst into one job). Queues close on Fastify onClose. Built INSIDE buildApp rather than passed as options on purpose: an option a test can omit is precisely how these routes stayed unmounted and unnoticed, which is the same failure as W4-18.",
+        "TWO THINGS CAUGHT WHILE DOING IT. (1) My bulk patch inserted TEST values into the production entrypoint \u2014 an all-7s AES key and a localhost webhook URL. Caught before commit; apps/api/src/index.ts now calls credentials.loadTokenKey(), which throws unless TOKEN_ENC_KEY is 32 bytes of hex, so a misconfigured install fails at boot instead of silently writing credentials it can never decrypt. (2) The connections and sync suites had been registering their own copy of each route beside apiV1; once apiV1 mounted them for real, Fastify rejected the duplicate. Those suites now drive the real mount, with the route's existing buildProvider seam forwarded through ApiV1Options \u2014 the duplicate registration was exactly how they passed while production served nothing.",
+        "Verified served: GET /api/v1/connections 200, GET /api/v1/sync/status 200, POST /api/v1/webhooks/github 403 on an unsigned body (mounted and verifying, SC-3). Gate: lint clean, typecheck clean, test 463/463, e2e 25/25. STILL MISSING for the connect flow: the Admin UI itself (W4-08) \u2014 the API is now reachable, but nothing in the SPA calls it yet.",
+        "FOLLOW-UP FIX, same day: the eager queue construction I added leaked a Redis socket per app instance. Every test that builds an app but never calls close() left one open, which surfaced as TEN unhandled EPIPE errors and a NON-ZERO EXIT while vitest still reported 'Test Files 106 passed / Tests 463 passed' \u2014 a green summary over a failing run, caught only by the stop hook's exit code. Queues and their connection are now created on FIRST ENQUEUE: a test that never enqueues never opens a socket, and a running API holds no idle producer connection until it has something to publish. Verified three consecutive runs at exit 0 with zero errors, and confirmed the enqueue path still works (unsigned webhook 403, connections 200, e2e 25/25)."
+      ]
+    },
+    {
+      "id": "W4-20",
+      "title": "Admin endpoints still missing: workspace members + DLQ inspect/replay",
+      "status": "todo",
+      "points": 3,
+      "depends_on": [
+        "W2-02",
+        "W4-19"
+      ],
+      "write_scope": [
+        "apps/api/src/routes/admin/**",
+        "apps/web/src/widgets/admin/**",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "An admin endpoint lists workspace members with their roles and allows an admin to change one (FR-AUTH-4)",
+        "An admin endpoint lists dead-letter jobs and replays a selected one (NFR-11)",
+        "The Members tab and the Sync DLQ panel replace their explanatory empty states with the real controls"
+      ],
+      "notes": [
+        "Filed 2026-08-13 from W4-08. /me/context returns the CALLER role only; nothing lists members or changes one, and no endpoint exposes the DLQ. Both surfaces ship as named empty states pointing here rather than being quietly absent from a page an operator was told to use."
       ]
     },
     {

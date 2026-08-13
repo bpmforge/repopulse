@@ -13,11 +13,25 @@ import prsRoutes from '../routes/prs/index.js';
 import filesRoutes from '../routes/files/index.js';
 import meRoutes from '../routes/me/index.js';
 import eventsRoutes from '../routes/events/index.js';
+import connectionsRoutes, { type ConnectionsRoutesOptions } from '../routes/connections/index.js';
+import syncRoutes from '../routes/sync/index.js';
 
 export interface ApiV1Options {
   db: Database;
   /** Threaded through for the SSE relay's dedicated Redis subscriber. */
   redisUrl: string;
+  /** AES key for forge credentials at rest (FR-AUTH-5). */
+  tokenKey: Buffer;
+  /** Absolute webhook URL surfaced when a connection is created. */
+  webhookUrl: string;
+  enqueueBackfillPlan: (params: { workspaceId: number; repoId: number }) => Promise<void>;
+  /**
+   * Forwarded to the connections route, which already documents it as an
+   * injectable seam. Exposed here so tests exercise the REAL mount rather than
+   * registering a second copy of the route beside it — the duplicate was how
+   * these suites passed while production served nothing.
+   */
+  buildProvider?: ConnectionsRoutesOptions['buildProvider'];
 }
 
 // The guarded /api/v1 scope (API_DESIGN.md §1/§2): session required,
@@ -85,4 +99,16 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // workspace this plugin's guard already resolved, so a client cannot ask for
   // another tenant's stream.
   await app.register(eventsRoutes, { redisUrl: opts.redisUrl });
+  // Admin surface: connecting an org and watching sync. Both existed and were
+  // tested since W2 but were never mounted, so docs/INSTALL.md told operators to
+  // visit a screen backed by routes the server did not serve.
+  await app.register(connectionsRoutes, {
+    db: opts.db,
+    tokenKey: opts.tokenKey,
+    webhookUrl: opts.webhookUrl,
+    enqueueBackfillPlan: opts.enqueueBackfillPlan,
+    ...(process.env.GITHUB_APP_ID ? { appId: process.env.GITHUB_APP_ID } : {}),
+    ...(opts.buildProvider ? { buildProvider: opts.buildProvider } : {}),
+  });
+  await app.register(syncRoutes, { db: opts.db });
 }
