@@ -3376,7 +3376,35 @@
         "Filed 2026-08-13. The connect+backfill path has never run end to end: every test mocks below it and the warehouse is populated by the seeder instead. This is the buildable half of that gap and it needs no credential from anyone. The other half \u2014 a real token against a real forge \u2014 stays a founder action, but afterwards it is a CONFIRMATION rather than the first-ever execution of the most important path in the product.",
         "PARTIAL 2026-08-13 \u2014 connect half DONE, ingestion half open. e2e/helpers/fake-forge.ts serves the forge DATA plane (repo discovery, webhook registration) the way fake-github.ts serves the OAuth plane, and the API reaches it through a new forgeBaseUrl option. That option is a REAL deployment feature, not a test seam: GitHub Enterprise Server lives at a customer's own host, which a self-hosted product (D1a) has to support, so it is threaded FORGE_BASE_URL -> index.ts -> buildApp -> api-v1 -> connections and e2e simply uses the same door.",
         "PROVEN, through the real Admin UI with a PERSONAL ACCESS TOKEN and no GitHub App anywhere: connecting creates a connection and the list grows; a bad token surfaces a credential error rather than being swallowed (the fake CHECKS Authorization, so this exercises real 401 handling instead of a fake that accepts anything); and the API describes the connection by fingerprint with the token absent from the response body (SC-2). The egress guard passes throughout \u2014 nothing reached a real forge host. RED-checked by removing forgeBaseUrl from the e2e server: the connect then fails, so the fake is load-bearing rather than decorative.",
-        "STILL OPEN for this ticket: backfill CONSUMPTION. The connect enqueues a plan job, but e2e runs no worker, so nothing drains the queue and the org overview still renders seeder data rather than ingested data. That is the remaining half and it needs the worker process in the e2e stack. Also fixed a self-inflicted flake: the row-count assertion used before+1, which races the other specs connecting against the same seeded workspace; it now polls for greater-than, because what the test owns is that ITS connect added a row, not the total. Gate on exit codes: lint 0, typecheck 0, test 0 (463/463), e2e 0 (37/37)."
+        "STILL OPEN for this ticket: backfill CONSUMPTION. The connect enqueues a plan job, but e2e runs no worker, so nothing drains the queue and the org overview still renders seeder data rather than ingested data. That is the remaining half and it needs the worker process in the e2e stack. Also fixed a self-inflicted flake: the row-count assertion used before+1, which races the other specs connecting against the same seeded workspace; it now polls for greater-than, because what the test owns is that ITS connect added a row, not the total. Gate on exit codes: lint 0, typecheck 0, test 0 (463/463), e2e 0 (37/37).",
+        "BLOCKED for its second half by W12-03, discovered while attempting it: the worker cannot consume the backfill because it registers no processors at all. The connect half stands on its own and is proven; the ingestion half cannot be demonstrated until the processors are wired, which is a bigger and more security-sensitive job than a test-harness change."
+      ]
+    },
+    {
+      "id": "W12-03",
+      "title": "Wire the worker processors \u2014 ingestion has never run outside its own tests",
+      "status": "todo",
+      "points": 8,
+      "depends_on": [
+        "W2-03",
+        "W12-02"
+      ],
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/ingest/src/**",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "The worker registers a 'plan' processor (load repo -> planBackfill -> enqueue per-entity jobs) and a backfill processor calling processBackfillJob",
+        "The worker builds a ForgeProvider per workspace from the CONNECTION credential: decrypt via the vault, wrapped in the BudgetedClient so Law 7 holds for real ingestion",
+        "Honours FORGE_BASE_URL as the API does, so a self-hosted forge or a fake is reachable from the worker too",
+        "e2e: connect through the UI against the fake forge, the worker drains the queue, and the org overview renders data that arrived through INGESTION rather than the seeder",
+        "The kill-worker-mid-backfill resume guarantee W2-03 proved in isolation still holds when driven through the real queue"
+      ],
+      "notes": [
+        "Filed 2026-08-13. apps/api/src/workers/index.ts constructs the runtime with processors: {} and the comment 'Empty until W2-03 supplies the real entity processors' \u2014 but W2-03 is DONE, and processBackfillJob exists and is fully tested in packages/ingest. The processors were built and never registered, so THE WORKER CONSUMES NOTHING IN PRODUCTION. A customer connects, the API enqueues a plan job, and nothing ever drains it: no error, no data, just a dashboard that stays empty.",
+        "This is the FOURTH built-but-never-mounted defect found this week (SSE events W4-18, connections/sync/webhooks W4-19, now the processors) and the most consequential. The others made a feature unreachable; this one makes the core loop inert. Same cause each time: the unit tests mount the thing themselves into a throwaway scope, so the production wiring is exercised by nothing. Worth a standing check that every route plugin and every queue processor appears in the production entrypoint, not only in a test.",
+        "Deliberately NOT attempted at the end of a long session: the wiring requires decrypting stored forge credentials inside the worker and constructing a budgeted provider per workspace. That is security-sensitive integration, not mechanical plumbing, and starting it with little context left is how credential-handling mistakes ship."
       ]
     }
   ]
