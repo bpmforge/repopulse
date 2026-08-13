@@ -6,7 +6,7 @@ import { KpiRow } from './KpiRow.js';
 import { HealthTileGrid } from './HealthTileGrid.js';
 import { HotspotLeaderboard } from './HotspotLeaderboard.js';
 import { AttentionFeed } from './AttentionFeed.js';
-import type { HealthTiles } from './contracts.js';
+import type { HealthTiles, MeContext } from './contracts.js';
 
 // Org Overview (UX_SPEC §4.a) — the landing screen. Composition only: each
 // widget owns its own query, loading skeleton and error state, so one failing
@@ -39,20 +39,24 @@ export function OrgOverview({ search }: Props) {
     query: { window },
   });
   const firstRun = isSuccess && (tiles?.items.length ?? 0) === 0;
+  const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
 
   if (firstRun) {
+    // Role-appropriate CTA (UX_SPEC §4.a). W4-14 exposed the caller's role, so
+    // this no longer ships the member-safe copy to everyone: an admin can act,
+    // a member is told who can. While role is still loading it falls to the
+    // member wording — briefly under-promising beats offering an action the
+    // viewer may not be permitted to take.
+    const isAdmin = me?.role === 'admin';
     return (
       <WidgetFrame
         title="Welcome to RepoPulse"
         state="empty"
-        // ROLE GAP (W4-03): UX_SPEC §4.a wants admin ("Connect your org") vs
-        // member ("Ask an admin") copy, but no endpoint exposes the caller's
-        // role — api-v1.ts sets request.role server-side and never returns it,
-        // and /me is the minimal {user} shape. Defaulting to the member-safe
-        // wording: showing admin copy to a member is a dead end for someone who
-        // cannot act on it, while the reverse is merely less direct. Filed as a
-        // follow-up rather than narrowed here.
-        emptyMessage="No repositories are connected yet. An admin can connect your organization from Admin → Connections."
+        emptyMessage={
+          isAdmin
+            ? 'No repositories are connected yet. Connect your organization to start ingesting history.'
+            : 'No repositories are connected yet. Ask an admin to connect your organization.'
+        }
       />
     );
   }

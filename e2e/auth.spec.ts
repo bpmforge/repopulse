@@ -37,3 +37,29 @@ test('the authenticated session reads the seeded fixture warehouse', async ({ pa
     'fixture user should author seeded PRs — an empty list means the OAuth identity did not resolve to the seeded user',
   ).toBeGreaterThan(0);
 });
+
+test('/me carries workspace, role and identity for the session (W4-14)', async ({ page }) => {
+  await loginAsFixture(page);
+  const res = await page.request.get('/api/v1/me/context');
+  expect(res.status()).toBe(200);
+  const me = (await res.json()) as {
+    workspace: { slug: string };
+    role: string;
+    identity_id: number | null;
+  };
+  // The seeder makes the fixture user an admin of the default workspace, so
+  // these are exact values, not shape checks — a shape check would pass on a
+  // stubbed-out response and this endpoint exists precisely so the UI can
+  // branch on the value.
+  expect(me.workspace.slug).toBe('default');
+  expect(me.role).toBe('admin');
+  // Linked to a forge identity by the seeder — null here would mean the login
+  // resolved to an orphan user and every /me/* widget would read empty.
+  expect(me.identity_id).not.toBeNull();
+});
+
+test('unauthenticated /me leaks no role', async ({ page }) => {
+  const res = await page.request.get('/api/v1/me/context');
+  expect(res.status()).toBe(401);
+  expect(await res.text()).not.toContain('admin');
+});

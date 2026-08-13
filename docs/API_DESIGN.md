@@ -32,7 +32,8 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `GET /auth/login` | redirect to GitHub authorize (state in signed cookie) | FR-AUTH-1 |
 | `GET /auth/callback` | `?code&state` → create/link user, set session cookie, redirect `/` | FR-AUTH-1/6 |
 | `POST /auth/logout` | revoke session server-side, clear cookie → 204 | FR-AUTH-2 |
-| `GET /me` | → `{user, workspace, role, identity_id, default_view_id}` | FR-AUTH-3/4/6 |
+| `GET /me` | → `{user}` — the auth-surface identity check, outside `/api/v1` | FR-AUTH-3 |
+| `GET /api/v1/me/context` | → `{workspace, role, identity_id, default_view_id}` — the SPA-facing projection (W4-14). Split from `/me` because the web client only builds `/api/v1` URLs (Law 4) and a second `/me` collides with the auth route; inside `api-v1` the guard has already resolved workspace+role, so this cannot disagree with what the guard enforces | FR-AUTH-3/4/6 |
 
 ### connections 👑 (FR-INGEST-1, FR-FORGE-5)
 | Method+Path | Req → Res | FR |

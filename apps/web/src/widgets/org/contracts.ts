@@ -71,3 +71,11 @@ export function formatKpi(value: number | null, unit?: string): string | null {
   const scaled = unit === '%' ? value * 100 : value;
   return Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1);
 }
+
+/** GET /api/v1/me/context — identity + role for the caller (W4-14). */
+export interface MeContext {
+  workspace: { id: number; slug: string; name: string };
+  role: 'admin' | 'member';
+  identity_id: number | null;
+  default_view_id: number | null;
+}
