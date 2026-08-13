@@ -1,5 +1,8 @@
 import {
   keepPreviousData,
+  useMutation,
+  useQueryClient,
+  type UseMutationResult,
   useInfiniteQuery,
   useQuery,
   type UseInfiniteQueryResult,
@@ -60,5 +63,29 @@ export function useApiInfiniteQuery<Item>(
     getNextPageParam: (last) => last.nextCursor,
     placeholderData: keepPreviousData,
     enabled: options.enabled ?? true,
+  });
+}
+
+/**
+ * A write against the API (DASHBOARD §3). On success it invalidates the query
+ * keys the caller names, so a screen that creates a connection re-reads the
+ * list without hand-rolling cache surgery at every call site.
+ */
+export function useApiMutation<TBody, TResult>(
+  descriptor: QueryDescriptor & { method?: 'POST' | 'PUT' | 'DELETE' },
+  options: { invalidate?: readonly (readonly unknown[])[] } = {},
+): UseMutationResult<TResult, Error, TBody> {
+  const queryClient = useQueryClient();
+  return useMutation<TResult, Error, TBody>({
+    mutationFn: (body: TBody) =>
+      apiFetch<TResult>(buildUrl(descriptor.endpoint, descriptor), {
+        method: descriptor.method ?? 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: async () => {
+      for (const key of options.invalidate ?? []) {
+        await queryClient.invalidateQueries({ queryKey: key });
+      }
+    },
   });
 }

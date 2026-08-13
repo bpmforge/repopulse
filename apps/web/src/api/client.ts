@@ -71,6 +71,10 @@ export async function apiFetch<T>(url: string, init: RequestInit = {}): Promise<
     credentials: 'include',
     headers: {
       accept: 'application/json',
+      // SC-7 CSRF: the API rejects any mutating verb without this header. It is
+      // a simple header so it triggers no CORS preflight, and sending it on
+      // reads too costs nothing — omitting it made every write 403.
+      'x-requested-with': 'repopulse',
       ...(init.body ? { 'content-type': 'application/json' } : {}),
       ...init.headers,
     },
