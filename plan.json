@@ -3327,6 +3327,54 @@
       "notes": [
         "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference \u2014 that is its job."
       ]
+    },
+    {
+      "id": "W12-01",
+      "title": "GitLabProvider adapter passing the shared contract suite",
+      "status": "todo",
+      "points": 8,
+      "depends_on": [
+        "W7-02"
+      ],
+      "write_scope": [
+        "packages/forge/src/gitlab/**",
+        "packages/forge/src/provider.ts",
+        "packages/forge/src/types.ts",
+        "packages/forge/fixtures/**",
+        "apps/api/src/routes/connections/**",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "ForgeProvider.kind widens to include 'gitlab' and GitLabProvider implements the full interface with an explicit ForgeCapabilities object",
+        "The SAME recorded-fixture contract suite that covers GitHub and Gitea passes against GitLab fixtures (FR-FORGE-7)",
+        "Metrics branch on capability flags only, never on provider name \u2014 the existing grep gate must still pass",
+        "A customer can pick GitLab in Admin -> Connections and connect with a personal access token",
+        "The webhook receiver verifies GitLab deliveries (GitLab uses X-Gitlab-Token, a different scheme from the GitHub HMAC and the Gitea signature)"
+      ],
+      "notes": [
+        "Filed 2026-08-13 under D3a. N-6 forbade this until the founder redefined the MVP as a customer self-hosting and pointing at their own repos on GitHub, GitLab OR Gitea. Sized at 8 rather than W7-02 5 because GitLab needs its own fixture recordings, a different webhook auth scheme, and capability mapping for features it names differently (merge requests vs pull requests, pipelines vs check runs). The ForgeProvider interface itself does not change \u2014 that is the whole point of having built it."
+      ]
+    },
+    {
+      "id": "W12-02",
+      "title": "Fake forge server for e2e: prove connect + backfill with no real credentials",
+      "status": "todo",
+      "points": 5,
+      "depends_on": [
+        "W4-08"
+      ],
+      "write_scope": [
+        "e2e/**"
+      ],
+      "acceptance": [
+        "A local fake forge serves the ForgeProvider surface (repos, commits, PRs, reviews, checks) from fixtures, as e2e/helpers/fake-github.ts already does for OAuth",
+        "An e2e drives the REAL connect flow through Admin -> Connections with a PAT against that fake, and a backfill job is enqueued and consumed",
+        "The org overview then renders data that arrived through INGESTION rather than through the seeder",
+        "The egress guard still passes \u2014 nothing reaches a real forge host"
+      ],
+      "notes": [
+        "Filed 2026-08-13. The connect+backfill path has never run end to end: every test mocks below it and the warehouse is populated by the seeder instead. This is the buildable half of that gap and it needs no credential from anyone. The other half \u2014 a real token against a real forge \u2014 stays a founder action, but afterwards it is a CONFIRMATION rather than the first-ever execution of the most important path in the product."
+      ]
     }
   ]
 }
