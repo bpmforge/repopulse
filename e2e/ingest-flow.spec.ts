@@ -66,12 +66,17 @@ test('backfill actually ingests: the repo leaves pending_backfill with real rows
   await page.getByTestId('connection-submit').click();
   await expect(page.getByTestId('connection-result')).toBeVisible();
 
-  const first = FAKE_REPOS[0]!;
-  await page.getByTestId(`repo-option-${first.id}`).first().check();
+  // Deliberately the SECOND fixture repo. The two tests above both select
+  // FAKE_REPOS[0], and globalSetup seeds once for the whole suite — so asserting
+  // on alpha-service here would pass on ingestion THIS test did not cause, and
+  // would keep passing if this test's own path broke. Owning a repo no other
+  // spec touches is what makes the assertion mean something in a full run.
+  const mine = FAKE_REPOS[1]!;
+  await page.getByTestId(`repo-option-${mine.id}`).first().check();
   await page.getByTestId('repo-select-submit').first().click();
   await expect(page.getByTestId('repo-select-result').first()).toBeVisible();
 
-  const [org, name] = first.full_name.split('/') as [string, string];
+  const [org, name] = mine.full_name.split('/') as [string, string];
   const ingested = await waitForIngestedRepo(org, name);
 
   // Counts are exact, not >0: the fake forge serves a fixed fixture, so a
