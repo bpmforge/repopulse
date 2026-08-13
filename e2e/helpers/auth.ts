@@ -8,14 +8,16 @@ import { FIXTURE_LOGIN } from '@repopulse/shared';
 // path: /auth/login sets the real signed state cookie, the callback verifies
 // it, exchanges the code over HTTP, and saves a real Redis session.
 export async function loginAsFixture(page: Page): Promise<void> {
-  // Follows: /auth/login → 302 fake authorize → 302 /auth/callback?code&state
-  // → 302 loginRedirectUrl. Landing back on the SPA means the whole chain
-  // returned 3xx; any 4xx/5xx in the middle leaves us on an error response.
-  await page.goto('/auth/login');
-  await page.waitForURL((url) => !url.pathname.startsWith('/auth/'), { timeout: 10_000 });
+  // The session normally arrives via storageState (globalSetup logs in once —
+  // SC-11 caps the auth flow at 10/min, so a login per spec exhausts it as soon
+  // as the suite grows). Verify it rather than re-running the round trip, and
+  // only log in when a spec deliberately uses a fresh context.
+  const existing = await page.request.get('/api/v1/me/context');
+  if (existing.status() !== 200) {
+    await page.goto('/auth/login');
+    await page.waitForURL((url) => !url.pathname.startsWith('/auth/'), { timeout: 10_000 });
+  }
 
-  // The session is what we actually care about — assert the server agrees
-  // someone is logged in, rather than trusting the redirect chain alone.
   const res = await page.request.get('/api/v1/me/prs');
   expect(
     res.status(),

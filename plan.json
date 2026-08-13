@@ -1165,7 +1165,10 @@
         "apps/web/src/routes/repos/$repoId/pr-flow.tsx",
         "apps/web/src/routes/repos/$repoId/ci.tsx",
         "apps/web/src/routes/repos/$repoId/findings.tsx",
-        "apps/web/src/widgets/repo/**"
+        "apps/web/src/widgets/repo/**",
+        "apps/web/src/components/chart/echarts.ts",
+        "e2e/**",
+        "playwright.config.ts"
       ],
       "depends_on": [
         "W4-02"
@@ -1177,8 +1180,13 @@
         "Playwright walks org→repo→tab by clicks AND by direct URL paste (FR-WEB-2)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-12. Tabs are ROUTES, not local state (DASHBOARD 1): /repos/$repoId/{,hotspots,pr-flow,ci,findings} plus a /repos list so a pasted /repos URL is not a dead end. Shipped: Pulse (4 repo-scoped trend charts), Hotspots (ECharts treemap with native directory zoom + top-N table linking to W4-06 file drill-down), PR Flow (opened→reviewed→merged funnel + XS-XL histogram in METRICS M7 order, never alphabetical), CI (M9 pass-rate trend scaled to percent), Findings teaser, and the health \"why?\" popover showing basis label + per-axis normalized x weight = contribution so the arithmetic is checkable rather than asserted. Every chart carries tableData — NFR-5 treats a chart with no text equivalent as inaccessible, not merely unpolished.",
+        "THREE BUGS, each found by looking rather than by a green test. (1) ECHARTS SERIES NOT REGISTERED: echarts.ts registers only Line and Bar, and its comment claimed \"line + bar cover trend/histogram/funnel\" — they do not. An unregistered series type fails at RUNTIME with a console error and draws NOTHING, so the Hotspots and PR Flow tabs rendered empty boxes that still passed a toBeVisible assertion. Registered Treemap + Funnel and corrected the comment. (2) RELATIVE TAB LINKS COMPOUNDED: to=\"hotspots\" resolves against the CURRENT route, so once on /hotspots the link became /repos/N/hotspots/hotspots. Caught by the deep-link spec — a click-through walk would have kept passing. Switched to absolute /repos/$repoId/... paths. (3) BREAKDOWN CONTRACT WRONG: I typed health.breakdown as Record<string,number>; it is an ARRAY of {key, normalized, weight, contribution}. Would have rendered a silently blank popover.",
+        "TEST-QUALITY NOTE. My first specs asserted panel testids were visible — but those testids sit on ALWAYS-rendered containers, so they passed while a probe showed the screen still loading and every chart empty. Same vacuous shape as the W4-03 KPI assertion. Strengthened to assert resolved content: repo-name contains \"/\" (only true after /repos/{id} returns), Pulse draws exactly 4 canvases, each tab draws at least one, the treemap is visible, and the popover has real <dt> rows. RED-checked by removing TreemapChart — the hotspots canvas assertion fails, which is what proves it bites. ALSO fixed a harness limit surfaced by the suite growing to 15 specs: SC-11 caps the auth flow at 10 requests/minute, so a login per spec exhausted it and surfaced as an unrelated-looking waitForURL timeout rather than a 429. globalSetup now logs in ONCE and saves storageState; the anonymous specs opt out explicitly and one spec still drives the full OAuth chain. Suite went 25.2s → 5.3s, three consecutive clean runs. Gate: lint clean, typecheck clean, test 462/462, e2e 15/15.",
+        "NOT BUILT, filed as W4-15: the PR Flow review-load matrix and the CI duration/flaky ranking. None are reachable from the current API — the PR list has no per-reviewer counts and metric_snapshots stores one scalar per metric, so M9 arrives as pass-rate only. The CI tab carries an explicit empty state naming W4-15 instead of a proxy chart: a review-load matrix built from author data would look plausible and answer a different question, on a screen whose entire job is evidence."
+      ]
     },
     {
       "id": "W4-05",
@@ -1438,6 +1446,30 @@
         "Filed 2026-08-12. NOT a founder decision — I mis-framed it as one twice. API_DESIGN.md line 35 already specifies the full shape; W1-03 shipped {user} only, with an in-code comment saying workspace/role/identity_id needed RBAC infra that was W1-04 scope. W1-04 landed and api-v1.ts:53 now sets request.role on every request, so the contract has simply been sitting unfinished with no ticket owning it. Blocks W4-03 acceptance 3 (role-appropriate first-run CTA, currently shipped as the member-safe single variant) and is needed by W4-08 admin screens.",
         "DONE 2026-08-12. Landed as GET /api/v1/me/context, NOT as an extension of top-level /me — two real bugs forced that and both are worth recording. (1) ROUTE COLLISION: authRoutes already declares top-level /me, and the api-v1 and route-walker test harnesses register meRoutes at that same level, so a second /me is a duplicate GET declaration and three suites failed at setup with FastifyError. Production boots fine (there the prefix applies), which is exactly why it was only visible in tests. (2) FK VIOLATION: my first attempt had top-level /me call ensureMembership to get the role — a GET that WRITES a workspace_members row. That broke auth/index.test.ts teardown (delete users violated the FK). A read endpoint creating rows was the actual design error; the api-v1 guard already ensures membership on any /api/v1 call, so the context route needs no write at all.",
         "The final shape is better than the one I first wrote: inside api-v1 the guard has ALREADY resolved workspace and role onto the request, so /me/context returns exactly what the guard enforces with zero extra queries. Divergence between the role the UI renders and the role the guard applies is impossible by construction — a second lookup could not make that claim. RED-checked twice (before and after the rename) by hardcoding role to member: the spec fails with Expected admin / Received member. Also asserts the unauthenticated call 401s and leaks no role string. docs/API_DESIGN.md updated: /me is now documented as {user} (auth surface) and /api/v1/me/context as the SPA-facing projection, with the reason for the split. W4-03 acceptance 3 is now genuinely met — admin sees the connect CTA, member sees ask-an-admin, and role-still-loading falls to the member wording since briefly under-promising beats offering an action the viewer may not be permitted to take. Gate: lint clean, typecheck clean, test 462/462, e2e 11/11."
+      ]
+    },
+    {
+      "id": "W4-15",
+      "title": "API gaps behind the Repo Detail tabs: review-load matrix + CI duration/flakiness",
+      "status": "todo",
+      "points": 3,
+      "depends_on": [
+        "W3-12"
+      ],
+      "write_scope": [
+        "apps/api/src/routes/repos/**",
+        "apps/api/src/routes/metrics/**",
+        "apps/web/src/widgets/repo/**",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "An endpoint returns per-reviewer review counts for a repo and window so the PR Flow review-load matrix can be built from reviewer data, not author data",
+        "M9's duration and flakiness components are retrievable, not just its pass-rate value — the snapshot row carries one `value` today",
+        "A flaky-run ranking endpoint exists (fail→pass reruns of the same head SHA, per METRICS.md M9)",
+        "The Repo Detail CI tab replaces its explanatory empty state with the real charts, and PR Flow gains the review-load matrix"
+      ],
+      "notes": [
+        "Filed 2026-08-12 from W4-04. UX_SPEC 4.b asks the PR Flow tab for a review-load matrix and the CI tab for duration trends plus a flaky ranking. None of the three are reachable from the current API: the PR list exposes author and review_covered but no per-reviewer counts, and metric_snapshots stores a single scalar per metric so M9 arrives as pass-rate only. W4-04 shipped the funnel, the size histogram and the pass-rate trend, which ARE reachable, and left the CI tab carrying an explicit empty state naming this ticket rather than a proxy chart. That choice is the point: a review-load matrix built from author data would look plausible and answer a different question, on a screen whose entire job is evidence."
       ]
     },
     {

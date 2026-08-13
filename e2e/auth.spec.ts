@@ -4,23 +4,41 @@ import { installEgressGuard } from './helpers/egress-guard.js';
 
 // OAuth round trip (W4-00 acceptance criterion 1): the REAL session/cookie path
 // against a GitHub faked at the boundary. This is the criterion the harness was
-// missing — every W4 screen spec logs in through loginAsFixture, so if this
+// missing — every W4 screen spec relies on being authenticated, so if this
 // breaks, none of them are testing an authenticated app.
 
-test('unauthenticated personal endpoints are refused', async ({ page }) => {
-  // The negative case is what proves the positive case below means anything: if
-  // /me/prs answered 200 to everyone, asserting 200 after login would be a test
-  // that cannot fail.
-  const res = await page.request.get('/api/v1/me/prs');
-  expect(res.status(), 'no session should not reach personal data').toBe(401);
-});
+test.describe('anonymous', () => {
+  // A genuinely session-free context. Every other spec inherits the session
+  // established once in globalSetup (SC-11 caps the auth flow at 10 requests a
+  // minute, and a login per spec exhausts it), so without this override these
+  // two would arrive already logged in and assert nothing.
+  test.use({ storageState: { cookies: [], origins: [] } });
 
-test('completes the OAuth round trip and lands an authenticated session', async ({ page }) => {
-  const guard = await installEgressGuard(page);
-  await loginAsFixture(page);
-  // Login must never touch a real forge host — the fake is local, so the guard
-  // staying clean across a full OAuth chain is a real assertion, not a no-op.
-  guard.assertNoForbidden();
+  test('unauthenticated personal endpoints are refused', async ({ page }) => {
+    // The negative case is what proves the positive cases below mean anything:
+    // if /me/prs answered 200 to everyone, asserting 200 after login could not
+    // fail.
+    const res = await page.request.get('/api/v1/me/prs');
+    expect(res.status(), 'no session should not reach personal data').toBe(401);
+  });
+
+  test('unauthenticated /me/context leaks no role', async ({ page }) => {
+    const res = await page.request.get('/api/v1/me/context');
+    expect(res.status()).toBe(401);
+    expect(await res.text()).not.toContain('admin');
+  });
+
+  test('completes the OAuth round trip and lands an authenticated session', async ({ page }) => {
+    // Deliberately in the anonymous block: this is the ONE spec that still
+    // drives the full /auth/login → fake authorize → callback chain, so the
+    // real cookie path stays covered even though everything else reuses a
+    // saved session.
+    const guard = await installEgressGuard(page);
+    await loginAsFixture(page);
+    // Login must never touch a real forge host — the fake is local, so the
+    // guard staying clean across a full OAuth chain is a real assertion.
+    guard.assertNoForbidden();
+  });
 });
 
 test('the authenticated session reads the seeded fixture warehouse', async ({ page }) => {
@@ -38,7 +56,9 @@ test('the authenticated session reads the seeded fixture warehouse', async ({ pa
   ).toBeGreaterThan(0);
 });
 
-test('/me carries workspace, role and identity for the session (W4-14)', async ({ page }) => {
+test('/me/context carries workspace, role and identity for the session (W4-14)', async ({
+  page,
+}) => {
   await loginAsFixture(page);
   const res = await page.request.get('/api/v1/me/context');
   expect(res.status()).toBe(200);
@@ -49,17 +69,11 @@ test('/me carries workspace, role and identity for the session (W4-14)', async (
   };
   // The seeder makes the fixture user an admin of the default workspace, so
   // these are exact values, not shape checks — a shape check would pass on a
-  // stubbed-out response and this endpoint exists precisely so the UI can
-  // branch on the value.
+  // stubbed response, and this endpoint exists precisely so the UI can branch
+  // on the value.
   expect(me.workspace.slug).toBe('default');
   expect(me.role).toBe('admin');
   // Linked to a forge identity by the seeder — null here would mean the login
   // resolved to an orphan user and every /me/* widget would read empty.
   expect(me.identity_id).not.toBeNull();
-});
-
-test('unauthenticated /me leaks no role', async ({ page }) => {
-  const res = await page.request.get('/api/v1/me/context');
-  expect(res.status()).toBe(401);
-  expect(await res.text()).not.toContain('admin');
 });

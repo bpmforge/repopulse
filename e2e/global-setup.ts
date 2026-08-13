@@ -1,8 +1,14 @@
 import 'dotenv/config';
+import { mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { chromium } from '@playwright/test';
 import { createDb, seedWarehouse } from '@repopulse/shared';
 
+export const STORAGE_STATE = 'e2e/.auth/state.json';
+
 // Seeds the compose dev warehouse deterministically before the e2e run so every
-// suite (W4/W5/W6) shares the same fixture data (docs/TESTING.md §6).
+// suite (W4/W5/W6) shares the same fixture data (docs/TESTING.md §6), then logs
+// in ONCE and saves the session for every spec to reuse.
 //
 // Fails loudly on a missing DATABASE_URL rather than returning early. The
 // earlier no-op existed to keep `playwright test --list` working, but --list
@@ -21,4 +27,20 @@ export default async function globalSetup(): Promise<void> {
   const db = createDb(url);
   await seedWarehouse(db);
   await db.$client.end();
+
+  // One login for the whole run. SC-11 caps the auth flow at 10 requests per
+  // minute per IP, and a login per spec exhausts it the moment the suite grows
+  // past a handful of files — which surfaced as an unrelated-looking
+  // waitForURL timeout, not as a 429. Reusing the session is also simply
+  // faster; the OAuth round trip itself is still covered, by the one spec in
+  // auth.spec.ts that deliberately logs in with a fresh context.
+  const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
+  const browser = await chromium.launch();
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  await page.goto('/auth/login');
+  await page.waitForURL((u) => !u.pathname.startsWith('/auth/'), { timeout: 15_000 });
+  await mkdir(dirname(STORAGE_STATE), { recursive: true });
+  await context.storageState({ path: STORAGE_STATE });
+  await browser.close();
 }
