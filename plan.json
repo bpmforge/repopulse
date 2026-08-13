@@ -1231,7 +1231,8 @@
       ],
       "write_scope": [
         "apps/web/src/routes/repos/$repoId/files/**",
-        "apps/web/src/widgets/file/**"
+        "apps/web/src/widgets/file/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W4-02",
@@ -1242,8 +1243,12 @@
         "Deleted/renamed file shows banner with last-seen date + rename chain link (previousPath per docs/design/FORGE_PROVIDER.md §1); breadcrumb + deep link restore full state (FR-WEB-2)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-12. Splat route /repos/$repoId/files/$ so a file path keeps its slashes in the URL instead of being flattened into one segment (FR-WEB-2). Shipped: 52-week churn bars (gross + net) aggregated client-side from the per-commit series, owners table, and the M3 single-owner flag at top-author-share >=0.80. The hotspot-leaderboard link has existed since W4-03 but pointed at a route that did not exist until now — the click-through is the acceptance path and is asserted.",
+        "DESIGN DECISION, verified rather than assumed: EVERY week in the 52-week window is emitted, including empty ones. Measured the alternative — filtering empty buckets renders this fixture file in 5 bars instead of 52, drawing a file touched in a few bursts as if it were touched steadily. The quiet periods are the signal, so the spec now asserts toHaveCount(52) on the table fallback. Commits older than the window are dropped rather than clamped into the first bucket, which would invent a spike that never happened.",
+        "NOT BUILT, filed as W4-17 and named in a visible empty state rather than omitted: rework component, hotspot-score history, per-file PR list, and the deleted/renamed banner with its rename chain. None are in the endpoint payload. Drawing gross churn labelled \"rework\" would misstate a defined metric (M1 scopes rework to a prior non-bot touch <21d earlier); a flat line labelled \"hotspot history\" would invent a trend from one current value. Gate: lint clean, typecheck clean, test 462/462, e2e 24/24."
+      ]
     },
     {
       "id": "W4-07",
@@ -1499,6 +1504,29 @@
       ],
       "notes": [
         "Filed 2026-08-12 from W4-05. API_DESIGN and UX_SPEC 4.c both describe an org-wide PR list, but the API only exposes /repos/{id}/prs and /me/prs. W4-05 deliberately did NOT fan out one request per repo from the browser: that is an N+1 against the NFR-3 p95 <500ms budget and degrades silently as repo count grows, which is exactly the failure mode a dashboard hides until a customer has 50 repos. The /pull-requests screen therefore lists repos and routes into each repo PR list — a real screen that does not pretend to be the org-wide one."
+      ]
+    },
+    {
+      "id": "W4-17",
+      "title": "File drill-down API gaps: rework, hotspot history, per-file PRs, rename chain",
+      "status": "todo",
+      "points": 3,
+      "depends_on": [
+        "W3-02"
+      ],
+      "write_scope": [
+        "apps/api/src/routes/files/**",
+        "apps/web/src/widgets/file/**",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "GET /repos/{id}/files/* returns M1's rework component per week (a touch with a prior non-bot touch <21d earlier), so the 52-week bars can stack gross/net/rework as UX_SPEC 4.d specifies",
+        "The response carries hotspot-score history, not just the current score, so the file screen can show its sparkline",
+        "The response carries the PRs that touched the file, linking to PR detail",
+        "Deleted/renamed files carry a last-seen date and previousPath rename chain (FORGE_PROVIDER 1) so the banner in UX_SPEC 4.d can render"
+      ],
+      "notes": [
+        "Filed 2026-08-12 from W4-06. The file endpoint returns path, per-commit churn_series, and owners — enough for weekly gross/net bars and the M3 single-owner flag, and nothing else UX_SPEC 4.d asks for. W4-06 shipped what is reachable and named the rest in a visible empty state rather than faking it: drawing gross churn labelled \"rework\" would misstate a defined metric (M1 scopes rework to a prior non-bot touch <21d earlier), and a flat line labelled \"hotspot history\" would invent a trend from a single current value."
       ]
     },
     {
