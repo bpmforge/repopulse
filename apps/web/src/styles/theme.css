@@ -16,7 +16,17 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
 
-  /* Dark-first semantic roles (Primer-derived, AA-checked ≥4.5:1 text). */
+  /* Dark-first semantic roles (Primer-derived).
+   *
+   * AA claim, stated precisely because the original one was not (W4-12): body
+   * text roles are ≥4.5:1 against --color-bg. The sev-* and health-* roles are
+   * ≥4.5:1 against the background they are ACTUALLY rendered on — a /15 tint of
+   * themselves over --color-surface AND over --color-surface-2, which is the
+   * worst case for SeverityBadge/HealthBadge. Checking against --color-bg alone
+   * is what hid a failure in every light-theme badge and two dark ones: tinting
+   * the background with the same hue as the text eats the contrast, and jsdom
+   * component tests cannot compute contrast so the suite stayed green.
+   * Re-measure against the tint, not the page background, before changing these. */
   --color-bg: #0d1117;
   --color-surface: #161b22;
   --color-surface-2: #1c2129;
@@ -36,15 +46,15 @@
   --color-info: #58a6ff;
   --color-neutral: #8b949e;
 
-  --color-sev-critical: #f85149;
-  --color-sev-high: #db6d28;
+  --color-sev-critical: #ff7b72;
+  --color-sev-high: #f0883e;
   --color-sev-medium: #d29922;
   --color-sev-low: #58a6ff;
-  --color-sev-info: #8b949e;
+  --color-sev-info: #b1bac4;
 
   --color-health-good: #3fb950;
   --color-health-watch: #d29922;
-  --color-health-attend: #f85149;
+  --color-health-attend: #ff7b72;
 }
 
 /* Light theme: override the same custom properties. */
@@ -68,15 +78,15 @@
   --color-info: #0969da;
   --color-neutral: #656d76;
 
-  --color-sev-critical: #cf222e;
-  --color-sev-high: #bc4c00;
-  --color-sev-medium: #9a6700;
-  --color-sev-low: #0969da;
-  --color-sev-info: #656d76;
+  --color-sev-critical: #a40e26;
+  --color-sev-high: #953800;
+  --color-sev-medium: #7d4e00;
+  --color-sev-low: #0550ae;
+  --color-sev-info: #424a53;
 
-  --color-health-good: #1a7f37;
-  --color-health-watch: #9a6700;
-  --color-health-attend: #cf222e;
+  --color-health-good: #116329;
+  --color-health-watch: #7d4e00;
+  --color-health-attend: #a40e26;
 }
 
 html,

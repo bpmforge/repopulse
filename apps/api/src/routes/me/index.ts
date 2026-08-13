@@ -37,6 +37,33 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     return { workspaceId, identityId };
   }
 
+  // GET /api/v1/me/context — who am I, where, and with what role (W4-14).
+  //
+  // The documented contract also lives at top-level /me (API_DESIGN.md §2), but
+  // the SPA cannot reach it: client.ts only ever builds /api/v1 URLs (Law 4) and
+  // the dev proxy forwards /api and /auth, not /me. So the app-facing copy lives
+  // here, where it is strictly MORE correct — inside api-v1 the guard has
+  // already resolved workspace and role onto the request, so this returns the
+  // exact values the guard enforces without re-querying. Divergence between the
+  // role the UI renders and the role the guard applies is impossible here by
+  // construction, which is not a claim a second lookup could make.
+  app.get('/me/context', async (request, reply) => {
+    const ctx = await myIdentity(request);
+    if (!ctx || request.workspace === undefined || request.role === undefined) {
+      return fail(request, reply, 401, 'No active session');
+    }
+    return reply.send({
+      workspace: {
+        id: request.workspace.id,
+        slug: request.workspace.slug,
+        name: request.workspace.name,
+      },
+      role: request.role,
+      identity_id: ctx.identityId,
+      default_view_id: null, // W5-02 owns saved views.
+    });
+  });
+
   // GET /me/prs — PRs I authored.
   app.get('/me/prs', async (request, reply) => {
     const ctx = await myIdentity(request);

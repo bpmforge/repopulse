@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4",
-    "@tanstack/router-plugin": "^1",
+    "@tanstack/router-plugin": "^1.168.23",
     "@testing-library/jest-dom": "^6",
     "@testing-library/react": "^16",
     "@testing-library/user-event": "^14",

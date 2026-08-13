@@ -158,7 +158,7 @@ importers:
         specifier: ^4
         version: 4.3.3(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.1)(yaml@2.9.0))
       '@tanstack/router-plugin':
-        specifier: ^1
+        specifier: ^1.168.23
         version: 1.168.23(@tanstack/react-router@1.170.18(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(esbuild@0.28.1)(rollup@4.62.2)(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.1)(yaml@2.9.0))
       '@testing-library/jest-dom':
         specifier: ^6

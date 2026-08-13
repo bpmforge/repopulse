@@ -12,6 +12,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
+    // Session established once in globalSetup — see the SC-11 note there.
+    storageState: 'e2e/.auth/state.json',
     trace: 'on-first-retry',
   },
   // Two servers: the e2e API (production buildApp + fake-GitHub boundary, see
