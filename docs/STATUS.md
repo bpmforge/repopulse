@@ -1346,3 +1346,37 @@ else can from the docs alone.
 **Unchanged and still the biggest risk:** the connect flow has never run against
 real GitHub. Under D1a that failure would now land on a customer's infra, where
 we cannot debug it. The early spike matters more, not less.
+
+### 2026-08-12 — secret hygiene audit (Law 9)
+
+Swept tracked files and history for credentials and internal infrastructure.
+Two real findings, both fixed:
+
+- **`.env.example` shipped the live `TOKEN_ENC_KEY`** — the committed value was
+  byte-identical to the one in the working `.env`. That key decrypts every stored
+  forge credential (FR-AUTH-5), so a committed key is a published key, and
+  CLAUDE.md Law 9 says nothing secret goes in git. The template now ships the
+  variable EMPTY with `openssl rand -hex 32` as the instruction. The live key was
+  **rotated**, which is free today and expensive later: `forge_connections` holds
+  zero rows with real ciphertext, so nothing had to be re-encrypted. The old key
+  remains in git history permanently and must never be reused.
+- **LAN addresses committed** — `LMSTUDIO_BASE_URLS` in `.env.example` and a line
+  in `docs/DEPLOYMENT.md` named two internal hosts by IP. Removed: they are
+  operator-specific, and under D1a (customer-hosted) a customer's install has no
+  relationship to them. Both now describe the variable instead of prefilling it.
+
+Verified clean: `.env` has never been committed (0 hits across all history) and
+stays gitignored; no private-range IPs remain in any tracked file; every
+`ghp_`/`sk-ant-` shaped string in the tree is a synthetic test fixture
+(`ghp_example`, `'z'.repeat(36)`); remotes address Gitea by domain, not IP.
+Recorded forge fixtures reference `bpmforge/repopulse-fixture`, a purpose-made
+public fixture repo — no private repo content.
+
+**Method note:** the first pass used a broad `git grep` for private IP ranges and
+returned nothing. A direct `grep` on `.env.example` found two. The broad sweep
+gave a false all-clear, so both findings above came from reading the files rather
+than trusting the scan.
+
+**Still open (not a leak, but the IP question):** the repo has no `LICENSE` and
+`package.json` carries `private: true` with no `license` field. That is W11-04,
+and it blocks publishing any image or artifact publicly.

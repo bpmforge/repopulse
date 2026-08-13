@@ -46,7 +46,7 @@ never deploy `:latest`.
 | `WEBHOOK_SECRET` | api | HMAC for `X-Hub-Signature-256` (FR-INGEST-5) |
 | `SESSION_SECRET` | api | cookie signing; rotate = re-login |
 | `TOKEN_ENC_KEY` | api, worker | AES-256-GCM key for forge credentials at rest (FR-AUTH-5); loss = re-enter credentials, so back it up separately from pg_dump |
-| `LMSTUDIO_BASE_URLS` | worker | comma-separated LAN hosts (192.168.13.48 M5Max, .114 M2Max); Tier-2 only |
+| `LMSTUDIO_BASE_URLS` | worker | comma-separated LM Studio hosts on the operator LAN; Tier-2 only. Blank disables Tier-2 — Tier-1 metrics need no LLM |
 | `ANTHROPIC_API_KEY` | worker | **optional** — absent means Tier-3 disabled; presence still requires per-repo opt-in (NFR-9) |
 | `PUBLIC_BASE_URL` | api, web | `https://repopulse.bpmforge.com` (OAuth callback, share links) |
 | `DATA_DIR` | worker | Local-disk root for report/PDF artifacts (docs/design/REPORTS.md §3: `${DATA_DIR}/reports/{workspaceId}/{id}/`) |
