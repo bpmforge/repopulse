@@ -29,6 +29,8 @@ export interface BuildAppOptions {
   tokenKey: Buffer;
   /** Absolute URL GitHub should POST deliveries to; shown when creating a connection. */
   webhookUrl: string;
+  /** Forge API base URL. Unset = api.github.com; set for GHES or a self-hosted forge. */
+  forgeBaseUrl?: string;
   loginRedirectUrl: string;
   /** Test-only override so security tests can capture audit/redaction output. */
   loggerInstance?: Logger;
@@ -111,6 +113,7 @@ export function buildApp(opts: BuildAppOptions) {
     redisUrl: opts.redisUrl,
     tokenKey: opts.tokenKey,
     webhookUrl: opts.webhookUrl,
+    ...(opts.forgeBaseUrl ? { forgeBaseUrl: opts.forgeBaseUrl } : {}),
     enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
       await backfill().add('plan', { workspaceId, repoId });
     },

@@ -32,6 +32,8 @@ export interface ApiV1Options {
    * these suites passed while production served nothing.
    */
   buildProvider?: ConnectionsRoutesOptions['buildProvider'];
+  /** Forge API base URL (GHES / self-hosted forge, or a fake in e2e). */
+  forgeBaseUrl?: string;
 }
 
 // The guarded /api/v1 scope (API_DESIGN.md §1/§2): session required,
@@ -109,6 +111,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     enqueueBackfillPlan: opts.enqueueBackfillPlan,
     ...(process.env.GITHUB_APP_ID ? { appId: process.env.GITHUB_APP_ID } : {}),
     ...(opts.buildProvider ? { buildProvider: opts.buildProvider } : {}),
+    ...(opts.forgeBaseUrl ? { forgeBaseUrl: opts.forgeBaseUrl } : {}),
   });
   await app.register(syncRoutes, { db: opts.db });
 }

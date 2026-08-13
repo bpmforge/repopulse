@@ -5,6 +5,7 @@ import { createDb } from '@repopulse/shared';
 // is e2e/** for exactly this reason.
 import { buildApp } from '../apps/api/src/app.js';
 import { startFakeGithub } from './helpers/fake-github.js';
+import { startFakeForge } from './helpers/fake-forge.js';
 
 // e2e API server (W4-00, docs/TESTING.md §6).
 //
@@ -26,10 +27,14 @@ const apiBaseUrl = process.env.E2E_API_BASE_URL ?? `http://localhost:${port}`;
 const webBaseUrl = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 
 const github = await startFakeGithub(Number(process.env.E2E_FAKE_GITHUB_PORT ?? 0));
+// Data-plane fake: the connect flow and ingestion talk to this instead of
+// api.github.com, so the real path runs with no credential and no network.
+const forge = await startFakeForge(Number(process.env.E2E_FAKE_FORGE_PORT ?? 0));
 
 const app = buildApp({
   tokenKey: Buffer.from(requireEnv('TOKEN_ENC_KEY'), 'hex'),
   webhookUrl: `${apiBaseUrl}/api/v1/webhooks/github`,
+  forgeBaseUrl: forge.baseUrl,
   db: createDb(requireEnv('DATABASE_URL')),
   redisUrl: requireEnv('REDIS_URL'),
   sessionSecret: requireEnv('SESSION_SECRET'),
@@ -51,7 +56,10 @@ const app = buildApp({
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
-    void app.close().then(() => github.close());
+    void app
+      .close()
+      .then(() => github.close())
+      .then(() => forge.close());
   });
 }
 

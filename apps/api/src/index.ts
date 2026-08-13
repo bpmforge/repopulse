@@ -23,6 +23,7 @@ const app = buildApp({
   // silently writing credentials it can never decrypt.
   tokenKey: credentials.loadTokenKey(),
   webhookUrl: `${publicBaseUrl}/api/v1/webhooks/github`,
+  ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
   db: createDb(databaseUrl),
   redisUrl,
   sessionSecret,

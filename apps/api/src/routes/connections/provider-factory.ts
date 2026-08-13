@@ -35,9 +35,13 @@ function statusAwareClient(executor: ReturnType<typeof createGithubExecutor>): F
   };
 }
 
-export function buildDiscoveryProvider(auth: GitHubAuth): ForgeProvider {
+export function buildDiscoveryProvider(auth: GitHubAuth, baseUrl?: string): ForgeProvider {
+  // baseUrl is a real deployment option, not a test seam: GitHub Enterprise
+  // Server lives at a customer's own host, which a self-hosted product (D1a)
+  // has to support. e2e uses the same door to point at a fake forge.
   return new GitHubProvider({
     client: statusAwareClient(createGithubExecutor()),
     auth: createAuthHeaderProvider(auth),
+    ...(baseUrl ? { baseUrl } : {}),
   });
 }
