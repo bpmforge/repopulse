@@ -22,23 +22,22 @@ test('renders the org overview widgets against the seeded warehouse', async ({ p
   // what makes this bite. An earlier version asserted the row's innerText was
   // non-empty and passed against five all-em-dash tiles, because the LABELS are
   // innerText too.
+  // Retrying assertions throughout, not `.count()` / `.allInnerTexts()`: each
+  // sparkline is its own /metrics/series query that resolves AFTER the KPI row
+  // paints, so a one-shot read races the data and fails about 1 run in 3.
   await expect(page.getByTestId('kpi-row')).toBeVisible();
-  const values = await page
-    .getByTestId('kpi-tile')
-    .locator('div.items-baseline > span')
-    .first()
-    .allInnerTexts();
-  expect(
-    values.join(''),
+  await expect(
+    page.getByTestId('kpi-tile').first().locator('div.items-baseline > span').first(),
     'first KPI tile should carry a real value at the default window',
-  ).not.toBe('—');
+  ).not.toHaveText('—');
 
-  // A sparkline needs >=2 points, so this fails if the fixture regresses to a
-  // single snapshot per metric — the exact defect W4-13 fixed.
-  expect(
-    await page.getByTestId('kpi-row').locator('svg').count(),
-    'KPI sparklines should render',
-  ).toBeGreaterThan(0);
+  // One sparkline per tile. A sparkline needs >=2 points, so this fails if the
+  // fixture regresses to a single snapshot per metric — the W4-13 defect — and
+  // the exact count also catches a tile silently losing its series.
+  await expect(
+    page.getByTestId('kpi-row').locator('svg'),
+    'every KPI tile should render a sparkline',
+  ).toHaveCount(5);
 
   // seed.ts seeds a 3-repo org in the default workspace; a different count means
   // either the seeder drifted or the second workspace leaked (tenancy, NFR-4).
