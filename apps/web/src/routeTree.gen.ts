@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PullRequestsRouteImport } from './routes/pull-requests'
 import { Route as ReposIndexRouteImport } from './routes/repos/index'
 import { Route as ReposRepoIdRouteRouteImport } from './routes/repos/$repoId/route'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
@@ -17,10 +18,17 @@ import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
 import { Route as ReposRepoIdFindingsRouteImport } from './routes/repos/$repoId/findings'
 import { Route as ReposRepoIdHotspotsRouteImport } from './routes/repos/$repoId/hotspots'
 import { Route as ReposRepoIdPrFlowRouteImport } from './routes/repos/$repoId/pr-flow'
+import { Route as ReposRepoIdPrsIndexRouteImport } from './routes/repos/$repoId/prs/index'
+import { Route as ReposRepoIdPrsNumberRouteImport } from './routes/repos/$repoId/prs/$number'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PullRequestsRoute = PullRequestsRouteImport.update({
+  id: '/pull-requests',
+  path: '/pull-requests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReposIndexRoute = ReposIndexRouteImport.update({
@@ -58,9 +66,20 @@ const ReposRepoIdPrFlowRoute = ReposRepoIdPrFlowRouteImport.update({
   path: '/pr-flow',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
+const ReposRepoIdPrsIndexRoute = ReposRepoIdPrsIndexRouteImport.update({
+  id: '/prs/',
+  path: '/prs/',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
+const ReposRepoIdPrsNumberRoute = ReposRepoIdPrsNumberRouteImport.update({
+  id: '/prs/$number',
+  path: '/prs/$number',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/pull-requests': typeof PullRequestsRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/repos/': typeof ReposIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
@@ -68,19 +87,25 @@ export interface FileRoutesByFullPath {
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
+  '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
+  '/repos/$repoId/prs/': typeof ReposRepoIdPrsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/pull-requests': typeof PullRequestsRoute
   '/repos': typeof ReposIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId': typeof ReposRepoIdIndexRoute
+  '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
+  '/repos/$repoId/prs': typeof ReposRepoIdPrsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/pull-requests': typeof PullRequestsRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/repos/': typeof ReposIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
@@ -88,11 +113,14 @@ export interface FileRoutesById {
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
+  '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
+  '/repos/$repoId/prs/': typeof ReposRepoIdPrsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/pull-requests'
     | '/repos/$repoId'
     | '/repos/'
     | '/repos/$repoId/ci'
@@ -100,18 +128,24 @@ export interface FileRouteTypes {
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/'
+    | '/repos/$repoId/prs/$number'
+    | '/repos/$repoId/prs/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/pull-requests'
     | '/repos'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId'
+    | '/repos/$repoId/prs/$number'
+    | '/repos/$repoId/prs'
   id:
     | '__root__'
     | '/'
+    | '/pull-requests'
     | '/repos/$repoId'
     | '/repos/'
     | '/repos/$repoId/ci'
@@ -119,10 +153,13 @@ export interface FileRouteTypes {
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/'
+    | '/repos/$repoId/prs/$number'
+    | '/repos/$repoId/prs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PullRequestsRoute: typeof PullRequestsRoute
   ReposRepoIdRouteRoute: typeof ReposRepoIdRouteRouteWithChildren
   ReposIndexRoute: typeof ReposIndexRoute
 }
@@ -134,6 +171,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pull-requests': {
+      id: '/pull-requests'
+      path: '/pull-requests'
+      fullPath: '/pull-requests'
+      preLoaderRoute: typeof PullRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/repos/': {
@@ -185,6 +229,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReposRepoIdPrFlowRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
+    '/repos/$repoId/prs/': {
+      id: '/repos/$repoId/prs/'
+      path: '/prs'
+      fullPath: '/repos/$repoId/prs/'
+      preLoaderRoute: typeof ReposRepoIdPrsIndexRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
+    '/repos/$repoId/prs/$number': {
+      id: '/repos/$repoId/prs/$number'
+      path: '/prs/$number'
+      fullPath: '/repos/$repoId/prs/$number'
+      preLoaderRoute: typeof ReposRepoIdPrsNumberRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
   }
 }
 
@@ -194,6 +252,8 @@ interface ReposRepoIdRouteRouteChildren {
   ReposRepoIdHotspotsRoute: typeof ReposRepoIdHotspotsRoute
   ReposRepoIdPrFlowRoute: typeof ReposRepoIdPrFlowRoute
   ReposRepoIdIndexRoute: typeof ReposRepoIdIndexRoute
+  ReposRepoIdPrsNumberRoute: typeof ReposRepoIdPrsNumberRoute
+  ReposRepoIdPrsIndexRoute: typeof ReposRepoIdPrsIndexRoute
 }
 
 const ReposRepoIdRouteRouteChildren: ReposRepoIdRouteRouteChildren = {
@@ -202,6 +262,8 @@ const ReposRepoIdRouteRouteChildren: ReposRepoIdRouteRouteChildren = {
   ReposRepoIdHotspotsRoute: ReposRepoIdHotspotsRoute,
   ReposRepoIdPrFlowRoute: ReposRepoIdPrFlowRoute,
   ReposRepoIdIndexRoute: ReposRepoIdIndexRoute,
+  ReposRepoIdPrsNumberRoute: ReposRepoIdPrsNumberRoute,
+  ReposRepoIdPrsIndexRoute: ReposRepoIdPrsIndexRoute,
 }
 
 const ReposRepoIdRouteRouteWithChildren =
@@ -209,6 +271,7 @@ const ReposRepoIdRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PullRequestsRoute: PullRequestsRoute,
   ReposRepoIdRouteRoute: ReposRepoIdRouteRouteWithChildren,
   ReposIndexRoute: ReposIndexRoute,
 }

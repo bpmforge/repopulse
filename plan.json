@@ -1199,7 +1199,9 @@
       "write_scope": [
         "apps/web/src/routes/prs/**",
         "apps/web/src/routes/repos/$repoId/prs/**",
-        "apps/web/src/widgets/pr/**"
+        "apps/web/src/widgets/pr/**",
+        "apps/web/src/routes/pull-requests.tsx",
+        "e2e/**"
       ],
       "depends_on": [
         "W4-02",
@@ -1211,8 +1213,13 @@
         "States per UX_SPEC §4.c: open PR shows elapsed-stage pulsing (static under reduced motion); no findings → 'no automated review yet' + tier policy line (FR-WEB-8)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-12. Repo PR list (/repos/$repoId/prs) with the state filter in the URL rather than component state, so a filtered list is linkable and restores on a cold paste (FR-WEB-2); PR Detail (/repos/$repoId/prs/$number) with stage timeline, review feed, checks, files linking into the W4-06 drill-down, and the FR-WEB-8 \"no automated review yet\" panel that states the tier policy rather than showing a bare empty box — an empty panel with no policy line reads as \"nothing found\", the opposite of \"not yet analysed\".",
+        "TIMELINE DESIGN DETAIL worth keeping: a missing milestone renders as an em dash, never 0h. A PR merged with no review has an ABSENT review stage, and \"0h to first review\" would read as an instantaneous review rather than none at all — the opposite conclusion from the same data. Open PRs get a running \"Open for\" stage that pulses under motion-safe only; UX_SPEC 4.c requires the static rendering to carry the same information, which the duration value already does.",
+        "BOTH load-bearing assertions RED-checked, not assumed. Dropping `state` from the query (filter rides the URL but never reaches the API) turns the filter spec red with Expected 3 / Received 5. Forcing toStages down the merged branch turns the open-PR spec red with Expected 1 / Received 0 — and the merged-PR spec asserts the elapsed stage is ABSENT, so the pair proves the function branches on merged_at rather than always producing one shape. Row counts everywhere instead of container visibility, after that trap bit twice in W4-03 and W4-04.",
+        "NOT BUILT, filed as W4-16: the org-wide PR list. Only /repos/{id}/prs and /me/prs exist. Fanning out one request per repo from the browser would be an N+1 against the NFR-3 p95 budget that degrades silently as repo count grows, so /pull-requests lists repos and routes into each repo list instead. Gate: lint clean, typecheck clean, test 462/462, e2e 20/20 (two consecutive clean runs)."
+      ]
     },
     {
       "id": "W4-06",
@@ -1470,6 +1477,28 @@
       ],
       "notes": [
         "Filed 2026-08-12 from W4-04. UX_SPEC 4.b asks the PR Flow tab for a review-load matrix and the CI tab for duration trends plus a flaky ranking. None of the three are reachable from the current API: the PR list exposes author and review_covered but no per-reviewer counts, and metric_snapshots stores a single scalar per metric so M9 arrives as pass-rate only. W4-04 shipped the funnel, the size histogram and the pass-rate trend, which ARE reachable, and left the CI tab carrying an explicit empty state naming this ticket rather than a proxy chart. That choice is the point: a review-load matrix built from author data would look plausible and answer a different question, on a screen whose entire job is evidence."
+      ]
+    },
+    {
+      "id": "W4-16",
+      "title": "Org-wide PR list endpoint (UX_SPEC §4.c) — only repo-scoped lists exist",
+      "status": "todo",
+      "points": 3,
+      "depends_on": [
+        "W4-01"
+      ],
+      "write_scope": [
+        "apps/api/src/routes/prs/**",
+        "apps/web/src/routes/pull-requests.tsx",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "A workspace-scoped PR list endpoint returns PRs across all repos with the §4.c filters (state, stale, unreviewed, size_bucket, author) and FR-API-3 cursor pagination",
+        "Tenancy: the route is workspace-filtered and passes the W1-07 route walker like every other list",
+        "The /pull-requests screen renders that list directly instead of routing through a repo picker"
+      ],
+      "notes": [
+        "Filed 2026-08-12 from W4-05. API_DESIGN and UX_SPEC 4.c both describe an org-wide PR list, but the API only exposes /repos/{id}/prs and /me/prs. W4-05 deliberately did NOT fan out one request per repo from the browser: that is an N+1 against the NFR-3 p95 <500ms budget and degrades silently as repo count grows, which is exactly the failure mode a dashboard hides until a customer has 50 repos. The /pull-requests screen therefore lists repos and routes into each repo PR list — a real screen that does not pretend to be the org-wide one."
       ]
     },
     {
