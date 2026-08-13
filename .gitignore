@@ -16,3 +16,4 @@ docs/work/telemetry.jsonl
 .vite/
 tools/fixture-recorder/tmp/
 e2e/.auth/
+deploy/.env

@@ -1,0 +1,125 @@
+# RepoPulse — customer-hostable stack (W11-01, D1a).
+#
+# Nothing bpmforge-specific: no quadlet units, no fixed hostname, no operator
+# volumes. Fill deploy/.env, run `podman compose -f deploy/compose.yaml up -d`
+# (or docker compose), open the published port.
+#
+# Postgres and Redis are NOT published to the host. They are reachable only on
+# the internal network, so the only externally-listening surface is the web
+# container — which is what you put your own TLS terminator in front of.
+
+name: repopulse
+
+services:
+  postgres:
+    image: docker.io/library/postgres:16
+    restart: unless-stopped
+    user: postgres
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-repopulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-repopulse}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-repopulse} -d ${POSTGRES_DB:-repopulse}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    restart: unless-stopped
+    # Run AS redis rather than letting the entrypoint drop privileges: with
+    # cap_drop ALL it cannot setresuid, and the container exits 127 with only
+    # a setpriv error to explain itself.
+    user: redis
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      # The healthcheck needs the password too. Substituting it only into
+      # `command` leaves redis-cli unauthenticated, so the container runs fine
+      # but reports unhealthy forever — and everything with a
+      # depends_on: service_healthy then never starts at all.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in deploy/.env}", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Runs to completion BEFORE api and worker start. Drizzle records applied
+  # migrations, so re-running `up` on an existing install is a no-op.
+  migrate:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: migrate
+    image: ${REPOPULSE_IMAGE_PREFIX:-repopulse}/migrate:${REPOPULSE_VERSION:-dev}
+    env_file: [.env]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+    image: ${REPOPULSE_IMAGE_PREFIX:-repopulse}/api:${REPOPULSE_VERSION:-dev}
+    env_file: [.env]
+    environment:
+      PORT: 3000
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+    image: ${REPOPULSE_IMAGE_PREFIX:-repopulse}/worker:${REPOPULSE_VERSION:-dev}
+    env_file: [.env]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: web
+    image: ${REPOPULSE_IMAGE_PREFIX:-repopulse}/web:${REPOPULSE_VERSION:-dev}
+    environment:
+      # nginx resolves proxy_pass upstreams at STARTUP and exits if the name is
+      # unknown, so the API host is templated rather than baked in — one image
+      # works whether the API is a sibling container or an external address.
+      API_UPSTREAM: ${API_UPSTREAM:-http://api:3000}
+    depends_on: [api]
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    ports:
+      # Bind to loopback by default. Put your own TLS terminator in front;
+      # publishing 0.0.0.0 by default would ship an unencrypted public listener
+      # to anyone who runs `up` without reading further.
+      - "${REPOPULSE_BIND:-127.0.0.1}:${REPOPULSE_PORT:-8080}:8080"
+
+volumes:
+  pgdata:
+  redisdata:

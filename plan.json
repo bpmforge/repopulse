@@ -3117,9 +3117,7 @@
       "wave": "W11",
       "status": "todo",
       "points": 5,
-      "depends_on": [
-        "W7-05"
-      ],
+      "depends_on": [],
       "write_scope": [
         "Dockerfile*",
         "deploy/**",
@@ -3133,7 +3131,11 @@
         "Verified on a machine that has never built the repo: pull images, fill .env, up, reach the login page — recorded in docs/INSTALL.md with the exact commands run"
       ],
       "notes": [
-        "W7-05 builds bpmforge quadlet units against bpmforge infra and is NOT this ticket. D1a makes the customer the deployment target, so the artifact has to be portable: no quadlet, no repopulse.bpmforge.com, no assumptions about the host. Keep W7-05 for our own dogfood install."
+        "W7-05 builds bpmforge quadlet units against bpmforge infra and is NOT this ticket. D1a makes the customer the deployment target, so the artifact has to be portable: no quadlet, no repopulse.bpmforge.com, no assumptions about the host. Keep W7-05 for our own dogfood install.",
+        "PARTIAL 2026-08-12 — stays in_progress. DONE and VERIFIED RUNNING: a single multi-stage Dockerfile with four targets (api, worker, migrate, web) sharing one dependency + build stage so a full compose build resolves the pnpm workspace once; deploy/compose.yaml with nothing bpmforge-specific in it; deploy/nginx.conf.template; deploy/.env.example where every secret is blank with its generation command; docs/INSTALL.md. Node pinned to 22.23.1 and pnpm to 9.15.9, matching .nvmrc and packageManager — a container silently running a different Node major is the NODE_MODULE_VERSION failure the test-on-stop hook documents.",
+        "BUILT AND SMOKE-TESTED FOR REAL, not just written. Three bugs found by running it, each of which would have hit a customer on their first `up`: (1) REDIS EXITED 127 — cap_drop:[ALL] removes CAP_SETUID/SETGID, so the image entrypoint could not drop privileges and died with only a `setpriv: setresuid failed` line to explain itself; fixed with `user: redis`. (2) REDIS REPORTED UNHEALTHY FOREVER — the healthcheck used $REDIS_PASSWORD but the password was only substituted into `command`, never into the container environment, so redis-cli ran unauthenticated; api/worker/web all have depends_on: service_healthy and therefore sat in Created indefinitely. A stack that starts nothing, with a healthy-looking redis. (3) NGINX EXITED ON BOOT — proxy_pass resolves upstreams at STARTUP and hard-fails on an unknown host, so the web container died before the API existed; now templated through ${API_UPSTREAM} via the nginx template mechanism, which also lets one image point at an API that is not a sibling container.",
+        "VERIFIED after the fixes, from outside the stack: GET / -> 200 (real SPA, title RepoPulse), GET /repos/1/ci -> 200 (history fallback, so pasted deep links load — FR-WEB-2), GET /healthz -> 200 THROUGH the web container proxy, GET /api/v1/me/context -> 401 unauthenticated. Migrations ran to completion against the compose Postgres before api/worker started, and a second `up` is a no-op. Port isolation confirmed by inspection, not assumption: postgres, redis, api and worker publish NO host ports; only web does, bound to 127.0.0.1 so nothing is exposed before the operator puts TLS in front.",
+        "REMAINING for this ticket: acceptance 1 is only half met. Images build, but multi-arch (amd64+arm64) and publishing to a registry with immutable digests need CI, and publishing anything is blocked on W11-04 (licensing/distribution) regardless. Acceptance 4 — verification on a machine that has never built the repo — is W11-05. ALSO WORTH FIXING: api and worker images are 1.68 GB because the runtime stages carry full source plus dev dependencies (apps/api has no build step and runs via tsx). They share layers so the pull is not 3.4 GB, but this deserves a production install that keeps tsx and drops the rest."
       ]
     },
     {
