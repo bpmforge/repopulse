@@ -9,6 +9,7 @@ import {
 } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import type { ConnectionList, ConnectionSummary } from './contracts.js';
+import { RepoPicker } from './RepoPicker.js';
 
 // Admin → Connections (UX_SPEC §4.i). This is the screen docs/INSTALL.md sends
 // operators to, and the only way to connect an organisation.
@@ -118,6 +119,10 @@ export function Connections() {
           </div>
         </form>
       </WidgetFrame>
+
+      {items.map((c) => (
+        <RepoPicker key={c.id} connectionId={c.id} connectionsKey={queryKeyFor(LIST)} />
+      ))}
 
       <WidgetFrame
         title="Connections"
