@@ -1419,3 +1419,36 @@ render path can be proven end to end with no credential from anyone. That is the
 buildable half of the biggest open risk; a real token afterwards becomes a
 confirmation rather than the first-ever execution of the product's most
 important path.
+
+### 2026-08-13 — wiring audit: the async tier has never run
+
+Stepped back after the fourth built-but-never-mounted defect in a week and ran
+the systematic check instead of finding a fifth by accident. Results:
+
+- **Routes: 14/14 mounted.** That class is closed — the three gaps (SSE events,
+  connections/sync, webhooks) were fixed this week.
+- **Queues: 6 declared, 0 processors.** Not just backfill. `delta`, `enrich`,
+  `reconcile`, `snapshot` and `dlq` are inert too. Accepted webhook deliveries
+  are never applied; metric snapshots are never computed.
+- `@repopulse/analysis` and `@repopulse/reports` are imported by no app — but
+  those belong to W6 and W5, which have not started. Not a defect.
+
+**What this means for the board.** W2 (ingestion, 5/5 done, 25 pts) and W3
+(metrics, 13/13 done, 45 pts) are code-complete and fully unit-tested, and none
+of that code executes in production. Today's dashboard is a view over a
+warehouse the **seeder** fabricates — which is precisely why it has looked
+healthy through every demo and every screen ticket. 70 points of "done" work is
+real code that has never run outside its own tests.
+
+The MVP count is unaffected in points (W12-03 was already on the path, re-sized
+8 → 13) but the *character* of the remaining work is different from what the
+"48 done" headline suggests: the screens are genuinely finished, and the engine
+behind them has never been switched on.
+
+**Prevention, not just repair:** `apps/api/test/wiring.test.ts` now fails the
+build when a route module is unregistered, or when a queue is declared without a
+processor and is not on an explicit `KNOWN_INERT` list. The list is
+two-directional — landing a processor without removing its entry also fails — so
+the debt cannot be re-accrued behind a stale allowlist. RED-checked both ways.
+Every one of the four defects would have been caught by this on the day it
+landed.

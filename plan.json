@@ -3382,9 +3382,9 @@
     },
     {
       "id": "W12-03",
-      "title": "Wire the worker processors \u2014 ingestion has never run outside its own tests",
+      "title": "Wire the worker processors \u2014 ALL SIX queues are inert, not just backfill",
       "status": "todo",
-      "points": 8,
+      "points": 13,
       "depends_on": [
         "W2-03",
         "W12-02"
@@ -3395,16 +3395,35 @@
         "e2e/**"
       ],
       "acceptance": [
-        "The worker registers a 'plan' processor (load repo -> planBackfill -> enqueue per-entity jobs) and a backfill processor calling processBackfillJob",
+        "Every queue in QUEUE has a registered processor: backfill (plan + entity pages), delta (webhook deltas), enrich, reconcile, snapshot (metric compute), dlq",
         "The worker builds a ForgeProvider per workspace from the CONNECTION credential: decrypt via the vault, wrapped in the BudgetedClient so Law 7 holds for real ingestion",
         "Honours FORGE_BASE_URL as the API does, so a self-hosted forge or a fake is reachable from the worker too",
         "e2e: connect through the UI against the fake forge, the worker drains the queue, and the org overview renders data that arrived through INGESTION rather than the seeder",
-        "The kill-worker-mid-backfill resume guarantee W2-03 proved in isolation still holds when driven through the real queue"
+        "apps/api/test/wiring.test.ts KNOWN_INERT shrinks to [] \u2014 the gate fails if a queue is left behind"
       ],
       "notes": [
         "Filed 2026-08-13. apps/api/src/workers/index.ts constructs the runtime with processors: {} and the comment 'Empty until W2-03 supplies the real entity processors' \u2014 but W2-03 is DONE, and processBackfillJob exists and is fully tested in packages/ingest. The processors were built and never registered, so THE WORKER CONSUMES NOTHING IN PRODUCTION. A customer connects, the API enqueues a plan job, and nothing ever drains it: no error, no data, just a dashboard that stays empty.",
         "This is the FOURTH built-but-never-mounted defect found this week (SSE events W4-18, connections/sync/webhooks W4-19, now the processors) and the most consequential. The others made a feature unreachable; this one makes the core loop inert. Same cause each time: the unit tests mount the thing themselves into a throwaway scope, so the production wiring is exercised by nothing. Worth a standing check that every route plugin and every queue processor appears in the production entrypoint, not only in a test.",
-        "Deliberately NOT attempted at the end of a long session: the wiring requires decrypting stored forge credentials inside the worker and constructing a budgeted provider per workspace. That is security-sensitive integration, not mechanical plumbing, and starting it with little context left is how credential-handling mistakes ship."
+        "Deliberately NOT attempted at the end of a long session: the wiring requires decrypting stored forge credentials inside the worker and constructing a budgeted provider per workspace. That is security-sensitive integration, not mechanical plumbing, and starting it with little context left is how credential-handling mistakes ship.",
+        "SCOPE CORRECTED 2026-08-13 after a systematic audit rather than another accidental discovery. It is not just the backfill queue: the worker registers NO processors at all, so all six declared queues are inert \u2014 delta (so accepted webhook deliveries are never applied), enrich, reconcile, snapshot (so metric snapshots are never computed) and dlq as well as backfill. Re-sized 8 -> 13. The practical consequence is that waves W2 (ingestion, 5/5 done, 25 pts) and W3 (metrics, 13/13 done, 45 pts) are code-complete and fully unit-tested but NONE of that code executes in production: today's dashboard is a view over a warehouse the SEEDER fabricates, which is exactly why it looks healthy."
+      ]
+    },
+    {
+      "id": "W12-04",
+      "title": "Wiring gate: fail the build when built code is not registered in production",
+      "status": "done",
+      "points": 1,
+      "depends_on": [],
+      "write_scope": [
+        "apps/api/test/wiring.test.ts"
+      ],
+      "acceptance": [
+        "Every route module under apps/api/src/routes is registered in app.ts or api-v1.ts, asserted by a test",
+        "Every declared queue either has a processor or appears on an explicit KNOWN_INERT list that can only shrink",
+        "Both directions RED-checked: unmounting a route fails, and registering a processor without removing it from the list also fails"
+      ],
+      "notes": [
+        "DONE 2026-08-13. Written after the fourth built-but-never-mounted defect in a week (W4-18 SSE, W4-19 connections/sync/webhooks, W12-03 processors). Every one was found BY ACCIDENT while building something adjacent, and the suite was green throughout, because unit tests mount the subject into a throwaway scope and nothing ever exercises the production entrypoint. Finding them by luck is not a process. The KNOWN_INERT allowlist is deliberately two-directional: a new inert queue fails the gate, AND landing a processor without removing its entry fails too, so the debt cannot be quietly re-accrued behind a stale list. RED-checked both ways \u2014 unmounting the sync route reports ['sync'], registering a backfill processor reports ['backfill']."
       ]
     }
   ]
