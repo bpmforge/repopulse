@@ -122,7 +122,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     });
     await app.register(
       async (instance) => {
-        await apiV1(instance, { db });
+        await apiV1(instance, { db, redisUrl: redisUrl as string });
         await instance.register(connectionsRoutes, {
           db,
           tokenKey,

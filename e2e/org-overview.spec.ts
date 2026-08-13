@@ -76,3 +76,15 @@ test('a hotspot row is a door to its file drill-down', async ({ page }) => {
   expect(href).toMatch(/^\/repos\/\d+\/files\//);
   expect(href).toContain('window=90d');
 });
+
+test('the sync stream connects — /api/v1/events is mounted', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/');
+  await expect(page.getByTestId('org-overview')).toBeVisible();
+
+  // Before the SSE route was mounted this chip read "Reconnecting…" forever,
+  // because the client retried against a 404 with backoff. That is the honest
+  // rendering of a missing endpoint, which is exactly why it needs an assertion:
+  // a dashboard that can never show backfill progress still looks fine.
+  await expect(page.locator('[role="status"]').first()).toHaveText(/live/i, { timeout: 10_000 });
+});
