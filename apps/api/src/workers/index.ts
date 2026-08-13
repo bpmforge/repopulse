@@ -34,6 +34,10 @@ async function main(): Promise<void> {
     backfillQueue,
     snapshotQueue,
     ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
+    // SC-12 escape hatch, off unless the operator sets it. Lets the e2e fake
+    // forge (http://127.0.0.1:PORT) drive the real ingestion path; still
+    // loopback-only and still allowlisted. See ValidateBaseUrlOptions.
+    ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1' ? { allowInsecureLoopback: true } : {}),
   };
 
   const runtime = createWorkerRuntime({

@@ -28,10 +28,18 @@ export interface WorkerProviderDeps {
   tokenKey: Buffer;
   /** GHES / self-hosted forge / e2e fake. Unset = api.github.com. */
   forgeBaseUrl?: string | undefined;
+  /** Operator opt-in for an http loopback forge (the e2e fake). SC-12. */
+  allowInsecureLoopback?: boolean | undefined;
 }
 
+// `hostname`, NOT `host`: validateBaseUrl matches the allowlist against
+// URL.hostname, which excludes the port. Deriving the entry from `host` put a
+// port in it, so a self-hosted forge on a non-default port
+// (https://git.corp.com:8443) could never match its own allowlist entry and was
+// rejected outright — invisible on api.github.com, where 443 leaves `host`
+// port-less. D1a puts self-hosted forges in the MVP, so this is a real path.
 function hostOf(url: string): string {
-  return new URL(url).host;
+  return new URL(url).hostname;
 }
 
 /**
@@ -87,6 +95,7 @@ export async function providerForRepo(
     // self-hosted forge is permitted without widening the allowlist to a
     // wildcard.
     allowlist: [hostOf(base)],
+    ...(deps.allowInsecureLoopback ? { allowInsecureLoopback: true } : {}),
     ...(conn.appInstallationId ? { installationId: conn.appInstallationId } : {}),
   });
 

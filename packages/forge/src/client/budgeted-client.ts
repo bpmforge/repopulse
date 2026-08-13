@@ -56,6 +56,8 @@ export interface BudgetedClientOptions {
   executor: RequestExecutor;
   /** Exact hostname allowlist (SC-12) - e.g. ['api.github.com']. */
   allowlist: readonly string[];
+  /** Operator-set loopback escape hatch (SC-12) - see ValidateBaseUrlOptions. */
+  allowInsecureLoopback?: boolean;
   installationId?: string | undefined;
   /** Gitea self-hosted has no rate limits (ForgeCapabilities.hasRateLimits) -> pass-through. */
   hasRateLimits?: boolean;
@@ -91,6 +93,7 @@ export class BudgetedClient {
   private readonly connectionId: number;
   private readonly workspaceId: number;
   private readonly allowlist: readonly string[];
+  private readonly allowInsecureLoopback: boolean;
   private readonly executor: RequestExecutor;
   private readonly hasRateLimits: boolean;
   private readonly floor: number;
@@ -120,6 +123,7 @@ export class BudgetedClient {
     this.workspaceId = opts.workspaceId;
     this.executor = opts.executor;
     this.allowlist = opts.allowlist;
+    this.allowInsecureLoopback = opts.allowInsecureLoopback ?? false;
     this.hasRateLimits = opts.hasRateLimits ?? true;
     this.floor = opts.floor ?? DEFAULT_FLOOR;
     this.writeCost = opts.writeCost ?? DEFAULT_WRITE_COST;
@@ -166,7 +170,10 @@ export class BudgetedClient {
   }
 
   async request(ctx: CallCtx, req: ForgeRequest): Promise<ForgeResponse> {
-    validateBaseUrl(req.url, { allowlist: this.allowlist });
+    validateBaseUrl(req.url, {
+      allowlist: this.allowlist,
+      allowInsecureLoopback: this.allowInsecureLoopback,
+    });
     const url = new URL(req.url);
     const endpointKey = computeEndpointKey(req.method, url.pathname + url.search, req.params);
     const cached = await this.etagCache.lookup(endpointKey);
