@@ -1,7 +1,10 @@
 import 'dotenv/config';
 import { createDb, metricsRegistry } from '@repopulse/shared';
+import { credentials } from '@repopulse/auth';
+import { QUEUE, createQueue } from '@repopulse/ingest';
 import { createRedisConnection } from '@repopulse/ingest';
 import { createWorkerRuntime } from './runtime.js';
+import { backfillProcessor, deltaProcessor, snapshotProcessor } from './processors.js';
 import { startWorkerHealthServer } from './health.js';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
@@ -20,11 +23,31 @@ async function main(): Promise<void> {
   const connection = createRedisConnection(redisUrl);
   const healthRedis = createRedisConnection(redisUrl);
 
+  // Producer handles for continuations and the metrics hand-off. Separate from
+  // the runtime's consumer workers: a processor re-enqueueing onto its own queue
+  // needs a Queue, not the Worker.
+  const backfillQueue = createQueue(QUEUE.backfill, connection);
+  const snapshotQueue = createQueue(QUEUE.snapshot, connection);
+  const processorDeps = {
+    db,
+    tokenKey: credentials.loadTokenKey(),
+    backfillQueue,
+    snapshotQueue,
+    ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
+  };
+
   const runtime = createWorkerRuntime({
     db,
     connection,
-    // Empty until W2-03 supplies the real entity processors.
-    processors: {},
+    // W12-03: these were built and unit-tested in W2/W3 and never registered,
+    // so the worker consumed nothing and the warehouse was only ever populated
+    // by the seeder. enrich and reconcile remain unwired — see the KNOWN_INERT
+    // list in apps/api/test/wiring.test.ts, which fails if that list grows.
+    processors: {
+      [QUEUE.backfill]: backfillProcessor(processorDeps),
+      [QUEUE.delta]: deltaProcessor(processorDeps),
+      [QUEUE.snapshot]: snapshotProcessor(processorDeps),
+    },
     onError: (err) => console.error('[worker] DLQ/error:', err),
   });
 

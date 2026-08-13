@@ -47,7 +47,7 @@ describe('production wiring (regression gate)', () => {
     // performs, webhook deliveries are accepted and never applied, and metric
     // snapshots are never computed — the dashboard is populated by the seeder
     // alone, which is precisely why it looks healthy.
-    const KNOWN_INERT = ['backfill', 'delta', 'enrich', 'reconcile', 'snapshot', 'dlq'] as const;
+    const KNOWN_INERT = ['enrich', 'reconcile', 'dlq'] as const;
 
     const worker = readIfPresent(join(API_SRC, 'workers/index.ts'));
     const block = /processors:\s*\{([\s\S]*?)\}/.exec(worker)?.[1] ?? '';
