@@ -1,0 +1,235 @@
+import { Link } from '@tanstack/react-router';
+import {
+  DataTable,
+  KpiTile,
+  SeverityBadge,
+  WidgetFrame,
+  frameState,
+  type DataTableColumn,
+} from '../../components/index.js';
+import { useApiQuery } from '../../api/useApiQuery.js';
+import type { MeContext } from '../org/contracts.js';
+import {
+  REVIEW_SLA_DAYS,
+  formatAge,
+  isOverSla,
+  type MyHotspot,
+  type MyHotspots,
+  type MyPr,
+  type MyPrs,
+  type MyStats,
+  type ReviewQueue,
+  type ReviewQueueItem,
+} from './contracts.js';
+
+// My Focus (UX_SPEC §4.f, FR-WEB-7). Everything here is the caller's OWN data:
+// N-9 forbids cross-person comparison, so there are no leaderboards and no
+// "you vs the team" framing anywhere on this screen.
+
+interface Props {
+  search: Record<string, string>;
+}
+
+export function MyFocus({ search }: Props) {
+  const now = Date.now();
+  const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
+  const prs = useApiQuery<MyPrs>({ endpoint: '/me/prs' });
+  const queue = useApiQuery<ReviewQueue>({ endpoint: '/me/review-queue' });
+  const hotspots = useApiQuery<MyHotspots>({ endpoint: '/me/hotspots' });
+  const stats = useApiQuery<MyStats>({ endpoint: '/me/stats' });
+
+  // Identity-unlinked is a DISTINCT state from "nothing to do" (UX_SPEC §4.f).
+  // Both render empty lists, but only one is fixable by the user, and telling
+  // someone they have no work when we simply cannot find them is the worse
+  // failure of the two.
+  if (me && me.identity_id === null) {
+    return (
+      <WidgetFrame
+        title="My Focus"
+        state="empty"
+        emptyMessage="We could not match your login to a commit author in this workspace, so your PRs and review load cannot be shown. Re-authorize GitHub, or ask an admin to check the identity mapping."
+        data-testid="identity-unlinked"
+      />
+    );
+  }
+
+  const prColumns: DataTableColumn<MyPr>[] = [
+    {
+      id: 'pr',
+      header: 'Pull request',
+      cell: (row) => (
+        <Link
+          to="/repos/$repoId/prs/$number"
+          params={{ repoId: String(row.repo_id), number: String(row.number) }}
+          search={search as never}
+          className="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          #{row.number} {row.title}
+        </Link>
+      ),
+    },
+    { id: 'state', header: 'State', cell: (row) => row.state },
+    { id: 'size', header: 'Size', cell: (row) => row.size_bucket },
+    {
+      id: 'age',
+      header: 'Open for',
+      align: 'right',
+      cell: (row) => {
+        // An open PR that has sat past the SLA is the actionable one, so it is
+        // marked. A merged PR is history and never highlighted.
+        const stalled = row.merged_at === null && isOverSla(row.opened_at, now);
+        return (
+          <span className={`tabular-nums ${stalled ? 'text-warn' : ''}`}>
+            {row.merged_at === null ? formatAge(row.opened_at, now) : '—'}
+          </span>
+        );
+      },
+    },
+  ];
+
+  const queueColumns: DataTableColumn<ReviewQueueItem>[] = [
+    {
+      id: 'pr',
+      header: 'Awaiting my review',
+      cell: (row) => (
+        <Link
+          to="/repos/$repoId/prs/$number"
+          params={{ repoId: String(row.repo_id), number: String(row.number) }}
+          search={search as never}
+          className="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          #{row.number} {row.title}
+        </Link>
+      ),
+    },
+    { id: 'author', header: 'Author', cell: (row) => row.author },
+    {
+      id: 'age',
+      header: 'Waiting',
+      align: 'right',
+      cell: (row) => {
+        const over = isOverSla(row.opened_at, now);
+        return (
+          <span
+            className={`flex items-center justify-end gap-1.5 tabular-nums ${over ? 'text-warn' : ''}`}
+            {...(over ? { 'data-testid': 'over-sla' } : {})}
+          >
+            {over && <SeverityBadge severity="medium" />}
+            {formatAge(row.opened_at, now)}
+          </span>
+        );
+      },
+    },
+  ];
+
+  const hotspotColumns: DataTableColumn<MyHotspot>[] = [
+    {
+      id: 'path',
+      header: 'File',
+      cell: (row) => (
+        <Link
+          to="/repos/$repoId/files/$"
+          params={{ repoId: String(row.repo_id), _splat: row.path } as never}
+          search={search as never}
+          className="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {row.path}
+        </Link>
+      ),
+    },
+    {
+      id: 'lines',
+      header: 'My lines',
+      align: 'right',
+      sortable: true,
+      cell: (row) => <span className="tabular-nums">{row.my_lines}</span>,
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="my-focus">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="my-stats">
+        <KpiTile
+          label="PRs merged"
+          value={String(stats.data?.merged_prs ?? 0)}
+          polarity="neutral"
+        />
+        <KpiTile
+          label="Median PR size"
+          value={stats.data?.median_size === null ? null : String(stats.data?.median_size ?? null)}
+          unit="lines"
+          polarity="neutral"
+        />
+        <KpiTile label="Open PRs" value={String(prs.data?.items.length ?? 0)} polarity="neutral" />
+        <KpiTile
+          label="To review"
+          value={String(queue.data?.items.length ?? 0)}
+          polarity="neutral"
+        />
+      </div>
+
+      <WidgetFrame
+        title="My pull requests"
+        state={frameState({
+          isLoading: prs.isLoading,
+          isError: prs.isError,
+          isEmpty: prs.data !== undefined && prs.data.items.length === 0,
+        })}
+        {...(prs.error ? { errorMessage: prs.error.message } : {})}
+        onRetry={() => void prs.refetch()}
+        emptyMessage="Nothing open — you have no pull requests in flight."
+      >
+        <div data-testid="my-prs">
+          <DataTable
+            name="my-prs"
+            columns={prColumns}
+            data={prs.data?.items ?? []}
+            getRowId={(row) => `${row.repo_id}:${row.number}`}
+          />
+        </div>
+      </WidgetFrame>
+
+      <WidgetFrame
+        title={`Review queue (over ${REVIEW_SLA_DAYS}d flagged)`}
+        state={frameState({
+          isLoading: queue.isLoading,
+          isError: queue.isError,
+          isEmpty: queue.data !== undefined && queue.data.items.length === 0,
+        })}
+        {...(queue.error ? { errorMessage: queue.error.message } : {})}
+        onRetry={() => void queue.refetch()}
+        emptyMessage="Your review queue is clear."
+      >
+        <div data-testid="review-queue">
+          <DataTable
+            name="review-queue"
+            columns={queueColumns}
+            data={queue.data?.items ?? []}
+            getRowId={(row) => `${row.repo_id}:${row.number}`}
+          />
+        </div>
+      </WidgetFrame>
+
+      <WidgetFrame
+        title="Hotspots I own"
+        state={frameState({
+          isLoading: hotspots.isLoading,
+          isError: hotspots.isError,
+          isEmpty: hotspots.data !== undefined && hotspots.data.items.length === 0,
+        })}
+        {...(hotspots.error ? { errorMessage: hotspots.error.message } : {})}
+        onRetry={() => void hotspots.refetch()}
+        emptyMessage="No files with your authorship are currently hot."
+      >
+        <div data-testid="my-hotspots">
+          <DataTable
+            name="my-hotspots"
+            columns={hotspotColumns}
+            data={hotspots.data?.items ?? []}
+            getRowId={(row) => `${row.repo_id}:${row.path}`}
+          />
+        </div>
+      </WidgetFrame>
+    </div>
+  );
+}

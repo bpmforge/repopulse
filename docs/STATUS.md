@@ -1380,3 +1380,42 @@ than trusting the scan.
 **Still open (not a leak, but the IP question):** the repo has no `LICENSE` and
 `package.json` carries `private: true` with no `license` field. That is W11-04,
 and it blocks publishing any image or artifact publicly.
+
+### 2026-08-13 — MVP redefined (D3a): self-hosted AND multi-forge
+
+Founder correction, recorded as brief amendments rather than left in a
+conversation. **The MVP is: a customer runs RepoPulse in their own container
+system and points it at their own repositories — GitHub, GitLab or Gitea.**
+
+Three consequences, and one of them is a correction to this file's own advice:
+
+- **A GitHub App is NOT required to connect, and never was.** The connections
+  API accepts `auth_kind: 'pat'` and the Admin → Connections form already sends
+  it: `authFor('pat', credential)` → `{kind: 'pat', token}`. Earlier entries
+  here framed "register a production GitHub App" as the launch blocker. It is
+  not — it is the richer path (org-scale webhooks, higher rate limits), while a
+  personal access token is the ordinary self-host path and works today. The
+  "never authenticated against a real forge" risk is unchanged and still real;
+  what changed is that clearing it needs a token, not an App registration.
+- **W11 self-host packaging moved from post-launch to the MVP itself**, and
+  bpmforge's own production deploy (W7-05/06/07, 7 pts) moved OFF the path. If
+  the product is customer-hosted, our own prod install is dogfood, not a gate.
+- **N-6 is graduated for GitLab** (Bitbucket stays a non-goal). Gitea (W7-02)
+  becomes MVP scope, and GitLab gets W12-01. The `ForgeProvider` interface and
+  its capability flags do not change — this is adapter work plus the existing
+  contract suite, which is exactly what that interface was built for.
+
+**Corrected MVP: 15 tickets / 60 points** (of 324 open):
+
+| Lane | Tix | Pts |
+|------|-----|-----|
+| W4 screens + the four API gaps | 6 | 20 |
+| W11 self-host packaging | 5 | 17 |
+| Forge: Gitea + GitLab + fake-forge e2e | 3 | 18 |
+| W7-04 a11y/perf gate | 1 | 5 |
+
+Also filed **W12-02**: a fake forge server for e2e, so the connect → backfill →
+render path can be proven end to end with no credential from anyone. That is the
+buildable half of the biggest open risk; a real token afterwards becomes a
+confirmation rather than the first-ever execution of the product's most
+important path.
