@@ -37,6 +37,8 @@ export interface ConnectionsRoutesOptions {
   appId?: string | number;
   /** Injectable so tests supply a deterministic provider (default: real forge). */
   buildProvider?: (auth: GitHubAuth) => ForgeProvider;
+  /** Forge API base URL — GitHub Enterprise Server, or a fake in e2e. */
+  forgeBaseUrl?: string;
 }
 
 function ctxOf(request: FastifyRequest): { userId: number; workspaceId: number } | undefined {
@@ -64,7 +66,8 @@ export default async function connectionsRoutes(
   opts: ConnectionsRoutesOptions,
 ): Promise<void> {
   const { db, tokenKey } = opts;
-  const buildProvider = opts.buildProvider ?? buildDiscoveryProvider;
+  const buildProvider =
+    opts.buildProvider ?? ((auth: GitHubAuth) => buildDiscoveryProvider(auth, opts.forgeBaseUrl));
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   function authFor(kind: 'pat' | 'app', credential: string, installationId?: string): GitHubAuth {

@@ -3358,7 +3358,7 @@
     {
       "id": "W12-02",
       "title": "Fake forge server for e2e: prove connect + backfill with no real credentials",
-      "status": "todo",
+      "status": "in_progress",
       "points": 5,
       "depends_on": [
         "W4-08"
@@ -3373,7 +3373,10 @@
         "The egress guard still passes \u2014 nothing reaches a real forge host"
       ],
       "notes": [
-        "Filed 2026-08-13. The connect+backfill path has never run end to end: every test mocks below it and the warehouse is populated by the seeder instead. This is the buildable half of that gap and it needs no credential from anyone. The other half \u2014 a real token against a real forge \u2014 stays a founder action, but afterwards it is a CONFIRMATION rather than the first-ever execution of the most important path in the product."
+        "Filed 2026-08-13. The connect+backfill path has never run end to end: every test mocks below it and the warehouse is populated by the seeder instead. This is the buildable half of that gap and it needs no credential from anyone. The other half \u2014 a real token against a real forge \u2014 stays a founder action, but afterwards it is a CONFIRMATION rather than the first-ever execution of the most important path in the product.",
+        "PARTIAL 2026-08-13 \u2014 connect half DONE, ingestion half open. e2e/helpers/fake-forge.ts serves the forge DATA plane (repo discovery, webhook registration) the way fake-github.ts serves the OAuth plane, and the API reaches it through a new forgeBaseUrl option. That option is a REAL deployment feature, not a test seam: GitHub Enterprise Server lives at a customer's own host, which a self-hosted product (D1a) has to support, so it is threaded FORGE_BASE_URL -> index.ts -> buildApp -> api-v1 -> connections and e2e simply uses the same door.",
+        "PROVEN, through the real Admin UI with a PERSONAL ACCESS TOKEN and no GitHub App anywhere: connecting creates a connection and the list grows; a bad token surfaces a credential error rather than being swallowed (the fake CHECKS Authorization, so this exercises real 401 handling instead of a fake that accepts anything); and the API describes the connection by fingerprint with the token absent from the response body (SC-2). The egress guard passes throughout \u2014 nothing reached a real forge host. RED-checked by removing forgeBaseUrl from the e2e server: the connect then fails, so the fake is load-bearing rather than decorative.",
+        "STILL OPEN for this ticket: backfill CONSUMPTION. The connect enqueues a plan job, but e2e runs no worker, so nothing drains the queue and the org overview still renders seeder data rather than ingested data. That is the remaining half and it needs the worker process in the e2e stack. Also fixed a self-inflicted flake: the row-count assertion used before+1, which races the other specs connecting against the same seeded workspace; it now polls for greater-than, because what the test owns is that ITS connect added a row, not the total. Gate on exit codes: lint 0, typecheck 0, test 0 (463/463), e2e 0 (37/37)."
       ]
     }
   ]
