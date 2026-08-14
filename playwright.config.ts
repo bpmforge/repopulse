@@ -14,6 +14,17 @@ import { defineConfig, devices } from '@playwright/test';
 // worker is a separate process and needs a URL up front. One constant feeds
 // both.
 const FAKE_FORGE_PORT = process.env.E2E_FAKE_FORGE_PORT ?? '9099';
+// SMOKE_REAL_FORGE=1 points the API and the worker at api.github.com instead of
+// the fake. The SC-12 loopback hatch is deliberately NOT set in that mode: it
+// exists only so a loopback fake is reachable, and it must never be active
+// while talking to a real host.
+const REAL_FORGE = process.env.SMOKE_REAL_FORGE === '1';
+const workerForgeEnv = REAL_FORGE
+  ? {}
+  : {
+      FORGE_BASE_URL: `http://127.0.0.1:${FAKE_FORGE_PORT}`,
+      FORGE_ALLOW_INSECURE_LOOPBACK: '1',
+    };
 const WORKER_HEALTH_PORT = process.env.E2E_WORKER_HEALTH_PORT ?? '3098';
 
 export default defineConfig({
@@ -40,7 +51,11 @@ export default defineConfig({
           url: `http://localhost:${process.env.E2E_API_PORT ?? 3000}/healthz`,
           // Spread process.env: Playwright REPLACES the environment rather than
           // extending it, so an `env` block silently drops DATABASE_URL et al.
-          env: { ...process.env, E2E_FAKE_FORGE_PORT: FAKE_FORGE_PORT },
+          env: {
+            ...process.env,
+            E2E_FAKE_FORGE_PORT: FAKE_FORGE_PORT,
+            ...(REAL_FORGE ? { SMOKE_FORGE_BASE_URL: 'https://api.github.com' } : {}),
+          },
           reuseExistingServer: false,
           timeout: 60_000,
         },
@@ -54,13 +69,7 @@ export default defineConfig({
           url: `http://localhost:${WORKER_HEALTH_PORT}/healthz`,
           // Spread process.env — see the note above; and `pnpm --filter` runs
           // with cwd=apps/api, where dotenv finds no .env to fall back on.
-          env: {
-            ...process.env,
-            WORKER_HEALTH_PORT,
-            FORGE_BASE_URL: `http://127.0.0.1:${FAKE_FORGE_PORT}`,
-            // SC-12: loopback-only, operator-set. See ValidateBaseUrlOptions.
-            FORGE_ALLOW_INSECURE_LOOPBACK: '1',
-          },
+          env: { ...process.env, WORKER_HEALTH_PORT, ...workerForgeEnv },
           reuseExistingServer: false,
           timeout: 60_000,
         },
