@@ -190,7 +190,34 @@ export async function activateRepos(
       })
       .returning();
     if (!repo) throw new Error('repo upsert returned no row');
-    await deps.registerWebhook(`${c.org}/${c.name}`, secret);
+
+    // Webhook registration is NON-FATAL, and the ordering here is the reason.
+    // The repo row is already inserted and enqueuePlan comes after, so an
+    // unguarded throw left the repo parked in pending_backfill with no work
+    // ever queued — stuck silently and forever, with no error surfaced.
+    //
+    // It also fails legitimately in two supported cases, neither of them a
+    // problem with the connection:
+    //   - a PUBLIC repo the operator does not administer (hook creation needs
+    //     admin on the repo, which reading it does not imply);
+    //   - a SELF-HOSTED install with no publicly reachable URL (D1a), where
+    //     GitHub could never deliver to us anyway.
+    // Webhooks are a latency optimisation: backfill loads the history and the
+    // nightly reconcile sweep repairs anything a missed delivery would have
+    // carried. Losing them costs freshness, not correctness — so it must not
+    // cost the operator the whole connection.
+    try {
+      await deps.registerWebhook(`${c.org}/${c.name}`, secret);
+    } catch (err) {
+      // Recorded, not swallowed: silently degrading to polling would leave an
+      // operator wondering why updates lag.
+      const message = err instanceof Error ? err.message : String(err);
+      await deps.db
+        .update(core.repos)
+        .set({ lastError: `live updates unavailable — webhook registration failed: ${message}` })
+        .where(eq(core.repos.id, repo.id));
+    }
+
     await deps.enqueuePlan(repo.id);
     repoIds.push(repo.id);
   }

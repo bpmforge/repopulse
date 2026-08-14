@@ -4,7 +4,10 @@ import { core } from '@repopulse/shared';
 import {
   commitsNeedingChurn,
   enrichCommitChurn,
+  enrichPullRequest,
   isEnrichmentDrained,
+  isPrEnrichmentDrained,
+  prsNeedingEnrichment,
   isHistoryBackfillComplete,
   jobId,
   nextPhase,
@@ -122,14 +125,21 @@ async function maybeSnapshot(deps: ProcessorDeps, data: BackfillJobData): Promis
   return true;
 }
 
-/** Enqueue one churn job per commit still lacking file-level detail. */
+/**
+ * Fan out the enrichment phase: per-commit file churn AND per-PR reviews/checks.
+ *
+ * Enrichment covers every per-parent detail fetch (founder decision,
+ * 2026-08-13), not just churn. All three are nested fetches keyed on a row the
+ * history phase already ingested, which is what separates them from the
+ * paginated entities walked at repo scope.
+ */
 async function fanOutEnrichment(
   deps: ProcessorDeps,
   workspaceId: number,
   repoId: number,
-): Promise<number> {
-  const pending = await commitsNeedingChurn(deps.db, repoId);
-  for (const commit of pending) {
+): Promise<{ commits: number; prs: number }> {
+  const commits = await commitsNeedingChurn(deps.db, repoId);
+  for (const commit of commits) {
     // jobId.enrich is the §6 idempotency key: re-planning a repo, or two entity
     // jobs both completing the history, collapse onto the same jobs instead of
     // re-fetching every commit's files.
@@ -139,7 +149,31 @@ async function fanOutEnrichment(
       { jobId: jobId.enrich(repoId, commit.sha) },
     );
   }
-  return pending.length;
+
+  const prs = await prsNeedingEnrichment(deps.db, repoId);
+  for (const pr of prs) {
+    // Keyed on the PR number rather than a SHA so it stays distinct from the
+    // churn job for the same head commit.
+    await deps.enrichQueue.add(
+      'prDetail',
+      { workspaceId, repoId, prNumber: pr.number, headSha: pr.headSha },
+      { jobId: `${jobId.enrich(repoId, String(pr.number))}-pr` },
+    );
+  }
+
+  return { commits: commits.length, prs: prs.length };
+}
+
+/**
+ * Both halves of enrichment must be drained before `live` (§2). Checking only
+ * churn would flip the repo live with reviews and checks still missing — the
+ * screens would render an empty reviews section on a repo reporting itself
+ * fully synced.
+ */
+async function isFullyEnriched(deps: ProcessorDeps, repoId: number): Promise<boolean> {
+  return (
+    (await isEnrichmentDrained(deps.db, repoId)) && (await isPrEnrichmentDrained(deps.db, repoId))
+  );
 }
 
 /** The backfill queue carries both the `plan` fan-out and the entity pages. */
@@ -202,26 +236,46 @@ export function deltaProcessor(deps: ProcessorDeps) {
  */
 export function enrichProcessor(deps: ProcessorDeps) {
   return async (job: Job) => {
-    const data = job.data as { workspaceId: number; repoId: number; sha: string };
+    const data = job.data as {
+      workspaceId: number;
+      repoId: number;
+      sha?: string;
+      prNumber?: number;
+      headSha?: string;
+    };
     const resolved = await providerForRepo(deps, data.workspaceId, data.repoId);
     if (!resolved) return { skipped: 'no active connection' };
 
-    const files = await enrichCommitChurn(
-      { db: deps.db, provider: resolved.provider },
-      {
-        workspaceId: data.workspaceId,
-        repoId: data.repoId,
-        repo: resolved.repoFullName,
-        sha: data.sha,
-      },
-    );
+    const outcome =
+      job.name === 'prDetail'
+        ? await enrichPullRequest(
+            { db: deps.db, provider: resolved.provider },
+            {
+              workspaceId: data.workspaceId,
+              repoId: data.repoId,
+              repo: resolved.repoFullName,
+              prNumber: data.prNumber!,
+              headSha: data.headSha!,
+            },
+          )
+        : {
+            files: await enrichCommitChurn(
+              { db: deps.db, provider: resolved.provider },
+              {
+                workspaceId: data.workspaceId,
+                repoId: data.repoId,
+                repo: resolved.repoFullName,
+                sha: data.sha!,
+              },
+            ),
+          };
 
     // enrichment --> live (§2: "enrichment queue drained"). Guarded on the
     // current value for the same reason processPlan is: many churn jobs finish
     // concurrently and all observe drained, so the losers must no-op rather
     // than throw an illegal transition into the DLQ.
     let becameLive = false;
-    if (await isEnrichmentDrained(deps.db, data.repoId)) {
+    if (await isFullyEnriched(deps, data.repoId)) {
       const live = syncPhaseToRepoStatus(nextPhase('enrichment', 'enrichment_complete'));
       const updated = await deps.db
         .update(core.repos)
@@ -240,7 +294,7 @@ export function enrichProcessor(deps: ProcessorDeps) {
         );
       }
     }
-    return { files, ...(becameLive ? { becameLive: true } : {}) };
+    return { ...outcome, ...(becameLive ? { becameLive: true } : {}) };
   };
 }
 

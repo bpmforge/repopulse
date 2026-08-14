@@ -1,0 +1,1 @@
+ALTER TABLE "pull_requests" ADD COLUMN "enriched_at" timestamp with time zone;

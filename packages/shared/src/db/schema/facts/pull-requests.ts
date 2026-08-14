@@ -42,6 +42,15 @@ export const pullRequests = pgTable(
     ),
     baseRef: text('base_ref').notNull(),
     headSha: text('head_sha').notNull(),
+    // Set once the enrichment lane has fetched this PR's reviews and check
+    // runs. A per-PR marker rather than a repo-level high-watermark: enrich
+    // jobs run concurrently and complete out of order, so a watermark could
+    // advance past PRs that never ran and report enrichment drained — which
+    // would flip the repo to `live` with reviews missing. NULL = not yet
+    // enriched, which is also the honest answer for a PR that genuinely has
+    // zero reviews and zero checks (counting child rows cannot tell those
+    // apart, and would leave such a repo backfilling forever).
+    enrichedAt: timestamp('enriched_at', { withTimezone: true }),
     additions: integer('additions').notNull(),
     deletions: integer('deletions').notNull(),
     changedFiles: integer('changed_files').notNull(),

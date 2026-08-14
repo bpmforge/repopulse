@@ -13,6 +13,9 @@ export interface IngestedCounts {
   pullRequests: number;
   /** Written by the ENRICHMENT phase; what churn/hotspot metrics read. */
   commitFiles: number;
+  /** Per-PR enrichment: reviews and check runs. */
+  reviews: number;
+  checkRuns: number;
 }
 
 /**
@@ -41,6 +44,8 @@ export async function waitForIngestedRepo(
     commits: 0,
     pullRequests: 0,
     commitFiles: 0,
+    reviews: 0,
+    checkRuns: 0,
   };
 
   try {
@@ -53,7 +58,12 @@ export async function waitForIngestedRepo(
 
       if (repo) {
         const count = async (
-          table: typeof facts.commits | typeof facts.pullRequests | typeof facts.commitFiles,
+          table:
+            | typeof facts.commits
+            | typeof facts.pullRequests
+            | typeof facts.commitFiles
+            | typeof facts.prReviews
+            | typeof facts.checkRuns,
         ) => {
           const [row] = await db
             .select({ n: sql<number>`count(*)::int` })
@@ -67,6 +77,8 @@ export async function waitForIngestedRepo(
           commits: await count(facts.commits),
           pullRequests: await count(facts.pullRequests),
           commitFiles: await count(facts.commitFiles),
+          reviews: await count(facts.prReviews),
+          checkRuns: await count(facts.checkRuns),
         };
         if (last.syncStatus === 'live' && last.commits > 0 && last.pullRequests > 0) {
           return last;
