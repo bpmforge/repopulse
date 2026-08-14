@@ -21,7 +21,7 @@ import type {
 } from './types.js';
 
 export interface ForgeProvider {
-  readonly kind: 'github' | 'gitea';
+  readonly kind: 'github' | 'gitea' | 'gitlab';
   readonly capabilities: ForgeCapabilities;
 
   listRepos(ctx: CallCtx, cursor?: ForgeCursor): Promise<Page<ForgeRepo>>;

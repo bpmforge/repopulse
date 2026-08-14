@@ -20,6 +20,10 @@ type Row = ConnectionSummary;
 
 export function Connections() {
   const [credential, setCredential] = useState('');
+  // D1a: the customer points RepoPulse at THEIR forge, which may not be GitHub.
+  // The provider was hardcoded here, so GitLab and Gitea were unreachable from
+  // the UI no matter what the API accepted.
+  const [provider, setProvider] = useState<'github' | 'gitlab' | 'gitea'>('github');
   const [submitted, setSubmitted] = useState<string | null>(null);
   const pushToasts = useUiStore((s) => s.pushToasts);
 
@@ -69,7 +73,7 @@ export function Connections() {
             e.preventDefault();
             if (!credential.trim()) return;
             create.mutate(
-              { provider: 'github', auth_kind: 'pat', credential: credential.trim() },
+              { provider, auth_kind: 'pat', credential: credential.trim() },
               {
                 onSuccess: (res) => {
                   // Clear immediately: a token left in a form field survives in
@@ -84,8 +88,26 @@ export function Connections() {
             );
           }}
         >
+          <label className="text-xs text-fg-muted" htmlFor="connection-provider">
+            Forge
+          </label>
+          <select
+            id="connection-provider"
+            data-testid="connection-provider"
+            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            value={provider}
+            onChange={(e) => setProvider(e.target.value as 'github' | 'gitlab' | 'gitea')}
+          >
+            <option value="github">GitHub</option>
+            <option value="gitlab">GitLab</option>
+            <option value="gitea">Gitea</option>
+          </select>
           <label className="text-xs text-fg-muted" htmlFor="connection-credential">
-            GitHub token or installation credential
+            {provider === 'github'
+              ? 'GitHub token or installation credential'
+              : provider === 'gitlab'
+                ? 'GitLab personal access token (read_api)'
+                : 'Gitea access token (read:repository)'}
           </label>
           <input
             id="connection-credential"

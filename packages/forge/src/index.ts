@@ -7,3 +7,4 @@ export * from './github/index.js';
 // Named exports only: both adapters define normalize*/verifyWebhookSignature,
 // so a flat re-export would collide.
 export * from './gitea/index.js';
+export * from './gitlab/index.js';

@@ -1757,3 +1757,48 @@ blocked on **W11-04 (licensing) — a founder decision** — and acceptance 4 is
 W11-05.
 
 Gate: lint 0, typecheck 0, **517 unit tests**, 40 e2e + 1 skipped, all exit 0.
+
+### 2026-08-14 — W12-01: GitLab lands, multi-forge is complete
+
+GitHub, Gitea and GitLab. All three adapters pass the same contract suite.
+
+**Verified against a live instance** (`gitlab.com/api/v4`) rather than the docs —
+the third time this week that check earned its keep. GitLab diverges further
+from GitHub than Gitea does: project ids must be **URL-encoded** into the path
+or requests 404 in a way that reads as a permissions problem; commits use `id`
+not `sha` and carry **no user object at all**; `visibility` is a string where
+`internal` is not public; merge requests use **`iid`** (project-scoped) as the
+number while `id` is global — using `id` would have made every PR link in the
+product wrong; `merged` is a first-class state; releases have **no id**, so the
+tag is the identity; and `changes_count` is a string that becomes `"32+"` past a
+display cap.
+
+**Churn is counted, not guessed.** GitLab returns no per-file counts either, but
+it *does* return the raw unified diff — so we count `+`/`-` lines for exact
+numbers. Gitea returns neither and must record zero. File-level hotspot ranking
+therefore works on GitHub and GitLab, but not on Gitea.
+
+**A third webhook scheme.** GitHub signs with HMAC-SHA256, Gitea sends a bare hex
+digest, GitLab sends `X-Gitlab-Token` — the secret itself, in plaintext, with no
+signature over the body. Compared in constant time regardless, since a naive
+`===` leaks a secret a byte at a time. Recorded as a property in the contract
+test: a GitLab delivery proves the *sender* knew the secret but says nothing
+about body integrity.
+
+**Two things the ticket assumed existed and didn't.** Acceptance 3 cited a "grep
+gate" that had never been written — now `capability-gate.test.ts`, which fails
+the build if anything above the port branches on provider *name*, and asserts all
+three adapters declare identical capability *keys* (a missing key is `undefined`,
+which is falsy, so a forgotten flag silently disables a feature). It caught my
+own change immediately; rather than weaken it, exactly one construction site is
+allowlisted.
+
+And acceptance 4 required a UI fix nobody had noticed: `Connections.tsx`
+**hardcoded `provider: 'github'`**, so with the API and all three adapters in
+place a customer could still only create a GitHub connection. The DB CHECK
+constraint would also have rejected the insert. The e2e asserts the **request
+body** carries the chosen forge, not merely that a dropdown renders.
+
+Still unverified, same gap as Gitea: no real GitLab instance has been ingested.
+
+Gate: lint 0, typecheck 0, **536 unit tests**, 41 e2e + 1 skipped, all exit 0.
