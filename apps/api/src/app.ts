@@ -31,6 +31,8 @@ export interface BuildAppOptions {
   webhookUrl: string;
   /** Forge API base URL. Unset = api.github.com; set for GHES or a self-hosted forge. */
   forgeBaseUrl?: string;
+  /** Injectable queue lookup for DLQ replay (W4-20) — tests replay without Redis. */
+  adminQueueFor?: (queue: string) => import('bullmq').Queue | undefined;
   loginRedirectUrl: string;
   /** Test-only override so security tests can capture audit/redaction output. */
   loggerInstance?: Logger;
@@ -114,6 +116,7 @@ export function buildApp(opts: BuildAppOptions) {
     tokenKey: opts.tokenKey,
     webhookUrl: opts.webhookUrl,
     ...(opts.forgeBaseUrl ? { forgeBaseUrl: opts.forgeBaseUrl } : {}),
+    ...(opts.adminQueueFor ? { adminQueueFor: opts.adminQueueFor } : {}),
     enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
       await backfill().add('plan', { workspaceId, repoId });
     },

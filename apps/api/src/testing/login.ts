@@ -1,5 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 
+// Structural, not nominal: buildApp returns a Fastify instance decorated with
+// plugins and type providers, which is not assignable to a bare
+// FastifyInstance. Only `inject` is used here, so that is all this asks for.
+type Injectable = Pick<FastifyInstance, 'inject'>;
+
 // Shared test login (W12-07).
 //
 // Two problems with the copy of this helper that lived in five test files.
@@ -22,7 +27,7 @@ import type { FastifyInstance } from 'fastify';
 // same user cost nothing. Tests that specifically exercise the auth flow or the
 // limiter should call the app directly rather than use this.
 
-const sessions = new WeakMap<FastifyInstance, Map<string, string>>();
+const sessions = new WeakMap<Injectable, Map<string, string>>();
 
 function fail(step: string, status: number, body: string): never {
   throw new Error(
@@ -36,7 +41,7 @@ function fail(step: string, status: number, body: string): never {
  * Log in through the real OAuth round trip and return the session cookie,
  * reusing a cached session for the same app + user.
  */
-export async function loginAs(app: FastifyInstance, forgeUserId: string): Promise<string> {
+export async function loginAs(app: Injectable, forgeUserId: string): Promise<string> {
   let perApp = sessions.get(app);
   if (!perApp) {
     perApp = new Map();
@@ -74,6 +79,6 @@ export async function loginAs(app: FastifyInstance, forgeUserId: string): Promis
 }
 
 /** Drop cached sessions for an app — for tests that assert on logout/expiry. */
-export function clearLoginCache(app: FastifyInstance): void {
+export function clearLoginCache(app: Injectable): void {
   sessions.delete(app);
 }

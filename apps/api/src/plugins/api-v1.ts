@@ -15,6 +15,7 @@ import meRoutes from '../routes/me/index.js';
 import eventsRoutes from '../routes/events/index.js';
 import connectionsRoutes, { type ConnectionsRoutesOptions } from '../routes/connections/index.js';
 import syncRoutes from '../routes/sync/index.js';
+import adminRoutes from '../routes/admin/index.js';
 
 export interface ApiV1Options {
   db: Database;
@@ -34,6 +35,7 @@ export interface ApiV1Options {
   buildProvider?: ConnectionsRoutesOptions['buildProvider'];
   /** Forge API base URL (GHES / self-hosted forge, or a fake in e2e). */
   forgeBaseUrl?: string;
+  adminQueueFor?: (queue: string) => import('bullmq').Queue | undefined;
 }
 
 // The guarded /api/v1 scope (API_DESIGN.md §1/§2): session required,
@@ -114,4 +116,12 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     ...(opts.forgeBaseUrl ? { forgeBaseUrl: opts.forgeBaseUrl } : {}),
   });
   await app.register(syncRoutes, { db: opts.db });
+  // Members + DLQ inspect/replay (W4-20). The DLQ half matters most: W12-05
+  // made the dead-letter queue a deliberate SINK so a human could inspect and
+  // replay, and until this was mounted there was no way to do the inspecting.
+  await app.register(adminRoutes, {
+    db: opts.db,
+    ...(opts.redisUrl ? { redisUrl: opts.redisUrl } : {}),
+    ...(opts.adminQueueFor ? { queueFor: opts.adminQueueFor } : {}),
+  });
 }
