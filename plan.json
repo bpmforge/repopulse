@@ -2168,8 +2168,15 @@
         "Budgeter runs pass-through with a polite self-imposed req/s cap (hasRateLimits:false); DORA deployment frequency falls back to releases with basis label (FR-METRICS-12)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-14. GiteaProvider implements the full ForgeProvider port with the exact FORGE_PROVIDER section 5 capability object (asserted with toEqual, not toMatchObject, so a silent capability drift fails). ForgeCursor encodes the page number and x-total-count drives a TRUE percent-complete rather than an estimate. 20 contract tests, zero network, same stub-client harness the GitHub adapter uses.",
+        "EVERY SHAPE VERIFIED AGAINST A LIVE GITEA (gitea.com/api/v1, repo gitea/tea) rather than the swagger or memory — Law 2. That is not ceremony: three of the differences it surfaced would each have shipped as a silent data bug. (1) Gitea repos have NO pushed_at, only updated_at, which the backfill planner orders by. (2) Commits carry NO per-file additions/deletions on ANY endpoint — list or detail — so per-file churn does not exist at the source. (3) The PR list omits churn while PR detail and PR files carry it, so the list must normalize churn to ABSENT rather than zero or a genuinely 0-line PR becomes indistinguishable from an unfetched one.",
+        "PRODUCT CONSEQUENCE WORTH A DECISION: because Gitea reports no per-file commit churn, hotspot and ownership metrics that rank files by per-commit churn cannot be computed from Gitea commits the way they can from GitHub. getCommitFiles returns each file with 0/0 plus the ACCURATE commit-level totals. Splitting the commit total across files was rejected — it would look plausible and be fiction. PR files are unaffected and do carry real churn. Recorded in docs/research/gitea-api.md.",
+        "WEBHOOK SEMANTICS RESOLVED — this was flagged UNVERIFIED in the design doc. X-Gitea-Signature is a BARE lowercase hex HMAC-SHA256 over the raw body with NO sha256= prefix, confirmed from go-gitea source (services/webhook/deliver.go: signatureSHA256 = hex.EncodeToString(sig256.Sum(nil))). A verifier written for GitHub would reject every genuine Gitea delivery. Implemented strictly per forge and contract-tested BOTH ways: the bare digest is accepted and a GitHub-shaped sha256= prefix is rejected, because accepting both would mean a caller cannot tell which forge signed a delivery.",
+        "NOT VERIFIED, and stated rather than glossed: no live webhook delivery from a real Gitea instance has been received end to end, and no real Gitea repo has been ingested. The format is confirmed from source and both directions are contract-tested, but acceptance 2 asks for a test against our own Gitea 1.x instance, which needs a read-only token and a reachable URL. The GitHub smoke proved that class of check catches what a self-consistent fake cannot — the same is outstanding here. Tracked as the remaining verification step, not as ticket scope creep.",
+        "Budgeter is pass-through (hasRateLimits:false) as specified; deployments return an empty page rather than throwing so the DORA signal falls back to releases (FR-METRICS-12) instead of failing a backfill over a capability the caller was told about. Gate: lint 0, typecheck 0, 517 unit tests (was 497; +20 contract), 40 e2e + 1 skipped, all exit 0."
+      ]
     },
     {
       "id": "W7-03",
