@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
+import { loginAs } from '../../testing/login.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -20,18 +21,6 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
   const db: Database = createDb(databaseUrl as string);
   let repoId: number;
 
-  async function loginAs(forgeUserId: string): Promise<string> {
-    const loginRes = await app.inject({ method: 'GET', url: '/auth/login' });
-    const state = new URL(loginRes.headers.location as string).searchParams.get('state');
-    const stateCookie = loginRes.cookies.find((c) => c.name === 'oauth_state')!;
-    const cb = await app.inject({
-      method: 'GET',
-      url: '/auth/callback',
-      query: { code: forgeUserId, state: state as string },
-      cookies: { oauth_state: stateCookie.value },
-    });
-    return cb.cookies.find((c) => c.name === 'repopulse_sid')!.value;
-  }
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -219,7 +208,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
   });
 
   it('walks the drill-down chain via children links: /repos → detail → prs → pr detail → file', async () => {
-    const cookie = await loginAs(FIXTURE);
+    const cookie = await loginAs(app, FIXTURE);
     const g = (url: string) =>
       app.inject({ method: 'GET', url, cookies: { repopulse_sid: cookie } });
 
@@ -249,7 +238,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
   });
 
   it("/me/prs returns the logged-in fixture user's ground truth (identity map, FR-AUTH-6)", async () => {
-    const cookie = await loginAs(FIXTURE);
+    const cookie = await loginAs(app, FIXTURE);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/me/prs',
@@ -276,7 +265,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
   });
 
   it('a foreign repo id → 404 (tenancy, Law 5)', async () => {
-    const cookie = await loginAs(FIXTURE);
+    const cookie = await loginAs(app, FIXTURE);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/repos/999999999',

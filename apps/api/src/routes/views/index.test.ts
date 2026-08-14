@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
+import { loginAs } from '../../testing/login.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -29,21 +30,6 @@ describeIfLiveInfra('views routes (W5-01)', () => {
   let foreignViewId: number;
   let foreignShareSlug: string;
 
-  async function loginAs(forgeUserId: string): Promise<string> {
-    const loginRes = await app.inject({ method: 'GET', url: '/auth/login' });
-    const state = new URL(loginRes.headers.location as string).searchParams.get('state');
-    const stateCookie = loginRes.cookies.find((c) => c.name === 'oauth_state')!;
-
-    const callbackRes = await app.inject({
-      method: 'GET',
-      url: '/auth/callback',
-      query: { code: forgeUserId, state: state as string },
-      cookies: { oauth_state: stateCookie.value },
-    });
-    const sessionCookie = callbackRes.cookies.find((c) => c.name === 'repopulse_sid');
-    if (!sessionCookie) throw new Error(`login failed for ${forgeUserId}: ${callbackRes.body}`);
-    return sessionCookie.value;
-  }
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -192,8 +178,8 @@ describeIfLiveInfra('views routes (W5-01)', () => {
     let viewId: number;
 
     beforeAll(async () => {
-      ownerCookie = await loginAs(OWNER_FORGE_USER_ID);
-      otherCookie = await loginAs(OTHER_FORGE_USER_ID);
+      ownerCookie = await loginAs(app, OWNER_FORGE_USER_ID);
+      otherCookie = await loginAs(app, OTHER_FORGE_USER_ID);
     });
 
     it('POST /views creates a view owned by the caller', async () => {

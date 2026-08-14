@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
+import { loginAs } from '../../testing/login.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -61,18 +62,6 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   const tokenKey = randomBytes(32);
   const enqueueBackfillPlan = vi.fn(async () => {});
 
-  async function loginAs(forgeUserId: string): Promise<string> {
-    const loginRes = await app.inject({ method: 'GET', url: '/auth/login' });
-    const state = new URL(loginRes.headers.location as string).searchParams.get('state');
-    const stateCookie = loginRes.cookies.find((c) => c.name === 'oauth_state')!;
-    const cbRes = await app.inject({
-      method: 'GET',
-      url: '/auth/callback',
-      query: { code: forgeUserId, state: state as string },
-      cookies: { oauth_state: stateCookie.value },
-    });
-    return cbRes.cookies.find((c) => c.name === 'repopulse_sid')!.value;
-  }
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -180,7 +169,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   });
 
   it('a member cannot create a connection (👑 admin only → 403)', async () => {
-    const cookie = await loginAs(MEMBER);
+    const cookie = await loginAs(app, MEMBER);
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/connections',
@@ -192,7 +181,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
 
   it('admin creates a connection: 201, credential NOT echoed, stored encrypted', async () => {
     smokeBehavior = () => Promise.resolve(REPOS);
-    const cookie = await loginAs(ADMIN);
+    const cookie = await loginAs(app, ADMIN);
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/connections',
@@ -213,7 +202,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
 
   it('a bad token → 400 with the bad_token kind (distinct actionable error)', async () => {
     smokeBehavior = () => Promise.reject({ status: 401 });
-    const cookie = await loginAs(ADMIN);
+    const cookie = await loginAs(app, ADMIN);
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/connections',
@@ -226,7 +215,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   });
 
   it('selecting repos creates pending_backfill rows, registers webhooks, enqueues plans', async () => {
-    const cookie = await loginAs(ADMIN);
+    const cookie = await loginAs(app, ADMIN);
     const created = await app.inject({
       method: 'POST',
       url: '/api/v1/connections',
@@ -254,7 +243,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   });
 
   it('GET /connections lists last4 + fingerprint + repo_count, never ciphertext', async () => {
-    const cookie = await loginAs(ADMIN);
+    const cookie = await loginAs(app, ADMIN);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/connections',

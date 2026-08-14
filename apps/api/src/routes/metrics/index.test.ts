@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
+import { loginAs } from '../../testing/login.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -19,18 +20,6 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
   const db: Database = createDb(databaseUrl as string);
   let repoId: number;
 
-  async function loginAs(forgeUserId: string): Promise<string> {
-    const loginRes = await app.inject({ method: 'GET', url: '/auth/login' });
-    const state = new URL(loginRes.headers.location as string).searchParams.get('state');
-    const stateCookie = loginRes.cookies.find((c) => c.name === 'oauth_state')!;
-    const cb = await app.inject({
-      method: 'GET',
-      url: '/auth/callback',
-      query: { code: forgeUserId, state: state as string },
-      cookies: { oauth_state: stateCookie.value },
-    });
-    return cb.cookies.find((c) => c.name === 'repopulse_sid')!.value;
-  }
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -183,7 +172,7 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
   });
 
   it('catalog serves the FR-METRICS-15 definitions (12 metrics)', async () => {
-    const cookie = await loginAs(MEMBER);
+    const cookie = await loginAs(app, MEMBER);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/metrics/catalog',
@@ -196,7 +185,7 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
   });
 
   it('series returns the snapshot time-series oldest-first (§4 shape)', async () => {
-    const cookie = await loginAs(MEMBER);
+    const cookie = await loginAs(app, MEMBER);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/metrics/series?metric_key=M5&window=30d',
@@ -211,7 +200,7 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
   });
 
   it('current returns latest + delta vs previous window', async () => {
-    const cookie = await loginAs(MEMBER);
+    const cookie = await loginAs(app, MEMBER);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/metrics/current?metric_key=M5&window=30d',
@@ -223,7 +212,7 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
   });
 
   it('org/summary + health-tiles + hotspots read the warehouse for a member', async () => {
-    const cookie = await loginAs(MEMBER);
+    const cookie = await loginAs(app, MEMBER);
     const summary = await app.inject({
       method: 'GET',
       url: '/api/v1/org/summary',
@@ -250,7 +239,7 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
   });
 
   it('NOCK GUARD: no handler makes an HTTP egress call (C1, FR-API-2)', async () => {
-    const cookie = await loginAs(MEMBER);
+    const cookie = await loginAs(app, MEMBER);
     // Any fetch/HTTP egress from a handler would throw here → the request 500s.
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('forbidden egress'));
     try {

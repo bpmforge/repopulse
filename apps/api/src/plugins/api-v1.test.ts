@@ -8,6 +8,7 @@ import authRoutes from '../routes/auth/index.js';
 import errorEnvelopePlugin from './error-envelope.js';
 import apiV1 from './api-v1.js';
 import { requireAdmin } from '../lib/rbac.js';
+import { loginAs } from '../testing/login.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -27,21 +28,6 @@ describeIfLiveInfra('api-v1 guard: session -> workspace -> role (W1-04)', () => 
   let app: FastifyInstance;
   const db = createDb(databaseUrl as string);
 
-  async function loginAs(forgeUserId: string): Promise<string> {
-    const loginRes = await app.inject({ method: 'GET', url: '/auth/login' });
-    const state = new URL(loginRes.headers.location as string).searchParams.get('state');
-    const stateCookie = loginRes.cookies.find((c) => c.name === 'oauth_state')!;
-
-    const callbackRes = await app.inject({
-      method: 'GET',
-      url: '/auth/callback',
-      query: { code: forgeUserId, state: state as string }, // code doubles as the mock identity selector
-      cookies: { oauth_state: stateCookie.value },
-    });
-    const sessionCookie = callbackRes.cookies.find((c) => c.name === 'repopulse_sid');
-    if (!sessionCookie) throw new Error(`login failed for ${forgeUserId}: ${callbackRes.body}`);
-    return sessionCookie.value;
-  }
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -180,7 +166,7 @@ describeIfLiveInfra('api-v1 guard: session -> workspace -> role (W1-04)', () => 
   });
 
   it('resolves workspace + role onto the request for a member', async () => {
-    const cookie = await loginAs(MEMBER_FORGE_USER_ID);
+    const cookie = await loginAs(app, MEMBER_FORGE_USER_ID);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/_test/whoami',
@@ -191,7 +177,7 @@ describeIfLiveInfra('api-v1 guard: session -> workspace -> role (W1-04)', () => 
   });
 
   it('resolves workspace + role onto the request for an admin', async () => {
-    const cookie = await loginAs(ADMIN_FORGE_USER_ID);
+    const cookie = await loginAs(app, ADMIN_FORGE_USER_ID);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/_test/whoami',
@@ -202,7 +188,7 @@ describeIfLiveInfra('api-v1 guard: session -> workspace -> role (W1-04)', () => 
   });
 
   it('member calling an admin route -> 403 problem+json', async () => {
-    const cookie = await loginAs(MEMBER_FORGE_USER_ID);
+    const cookie = await loginAs(app, MEMBER_FORGE_USER_ID);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/_test/admin-only',
@@ -213,7 +199,7 @@ describeIfLiveInfra('api-v1 guard: session -> workspace -> role (W1-04)', () => 
   });
 
   it('admin calling an admin route -> 200', async () => {
-    const cookie = await loginAs(ADMIN_FORGE_USER_ID);
+    const cookie = await loginAs(app, ADMIN_FORGE_USER_ID);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/_test/admin-only',
