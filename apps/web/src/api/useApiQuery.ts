@@ -72,7 +72,7 @@ export function useApiInfiniteQuery<Item>(
  * list without hand-rolling cache surgery at every call site.
  */
 export function useApiMutation<TBody, TResult>(
-  descriptor: QueryDescriptor & { method?: 'POST' | 'PUT' | 'DELETE' },
+  descriptor: QueryDescriptor & { method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE' },
   options: { invalidate?: readonly (readonly unknown[])[] } = {},
 ): UseMutationResult<TResult, Error, TBody> {
   const queryClient = useQueryClient();

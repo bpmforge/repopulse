@@ -5,6 +5,7 @@ import {
   frameState,
   type DataTableColumn,
 } from '../../components/index.js';
+import { DlqPanel } from './DlqPanel.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { formatLag, phaseSeverity, type OrgSyncStatus, type RepoSyncStatus } from './contracts.js';
 
@@ -120,15 +121,8 @@ export function SyncOps() {
         </div>
       </WidgetFrame>
 
-      <WidgetFrame
-        title="Dead-letter queue"
-        state="empty"
-        // Named rather than omitted: the DLQ list and its replay button need an
-        // admin endpoint that does not exist yet (NFR-11). A page that silently
-        // lacks the ops control an operator was told to use is worse than one
-        // that says so.
-        emptyMessage="DLQ inspection and replay need an admin queue endpoint that is not built yet — tracked as W4-20. Failed jobs are retained; nothing is lost in the meantime."
-      />
+      {/* W4-20: the endpoint exists now, so this is the real control. */}
+      <DlqPanel />
     </div>
   );
 }
