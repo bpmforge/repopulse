@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { installEgressGuard } from './helpers/egress-guard.js';
-import { FAKE_COMMITS, FAKE_PRS, FAKE_REPOS, FAKE_TOKEN } from './helpers/fake-forge.js';
+import {
+  FAKE_COMMITS,
+  FAKE_COMMIT_FILES,
+  FAKE_PRS,
+  FAKE_REPOS,
+  FAKE_TOKEN,
+} from './helpers/fake-forge.js';
 import { waitForIngestedRepo } from './helpers/warehouse.js';
 
 // The operator's real path: connect a credential, then CHOOSE repositories.
@@ -56,10 +62,10 @@ test('selecting a repo enqueues backfill work rather than silently succeeding', 
 // warehouse was populated by the seeder, so the dashboard looked healthy by
 // construction. This is the one test that fails if the core loop stops
 // working, and it reads Postgres directly rather than trusting a screen.
-test('backfill actually ingests: the repo leaves pending_backfill with real rows', async ({
+test('the full pipeline runs: history backfilled, enrichment drained, repo live', async ({
   page,
 }) => {
-  test.setTimeout(60_000); // asynchronous: plan → 5 entity jobs → snapshot
+  test.setTimeout(90_000); // async: plan → 5 entity jobs → enrich fan-out → snapshot
 
   // W12-02 acceptance 4. This is the one flow that genuinely talks to a forge,
   // so it is the one where "nothing reached a real forge host" is worth
@@ -89,8 +95,22 @@ test('backfill actually ingests: the repo leaves pending_backfill with real rows
   // than pass on a loose lower bound.
   expect(ingested.commits).toBe(FAKE_COMMITS.length);
   expect(ingested.pullRequests).toBe(FAKE_PRS.length);
-  // PRs arrive over GraphQL and commits over REST — both paths proven at once.
-  expect(ingested.syncStatus).not.toBe('pending_backfill');
+
+  // ENRICHMENT (W12-05): per-commit file churn. This is the phase that was
+  // missing entirely — no producer and no consumer — and its absence is why the
+  // first ingested repo showed M1/M2 as 0.000000. The count is exact because
+  // the fixture is.
+  const expectedFiles = FAKE_COMMIT_FILES.slice(0, FAKE_COMMITS.length).reduce(
+    (n, files) => n + files.length,
+    0,
+  );
+  expect(ingested.commitFiles).toBe(expectedFiles);
+
+  // `live` is only reachable once enrichment has DRAINED (INGESTION §2:
+  // queued → history → enrichment → live). Asserting it proves the whole state
+  // machine ran, not just that some rows landed — a repo that backfilled but
+  // never enriched stalls at `backfilling` and fails here.
+  expect(ingested.syncStatus).toBe('live');
 
   // W12-02 acceptance 3: the SCREENS render data that arrived through
   // ingestion rather than through the seeder. Everything above proves rows

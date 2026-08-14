@@ -2,12 +2,17 @@ import type { Job, Queue } from 'bullmq';
 import { and, eq } from 'drizzle-orm';
 import { core } from '@repopulse/shared';
 import {
+  commitsNeedingChurn,
+  enrichCommitChurn,
+  isEnrichmentDrained,
   isHistoryBackfillComplete,
   jobId,
   nextPhase,
   planBackfill,
   processBackfillJob,
   processDeltaJob,
+  reconcileRepo,
+  requeueErrorRepos,
   syncPhaseToRepoStatus,
   PAGINATED_ENTITIES,
   type BackfillJobData,
@@ -27,6 +32,10 @@ export interface ProcessorDeps extends WorkerProviderDeps {
   /** Re-enqueue onto the backfill queue (continuations and planned entities). */
   backfillQueue: Queue;
   snapshotQueue: Queue;
+  /** Per-commit churn fan-out (W12-05). */
+  enrichQueue: Queue;
+  /** Nightly sweep fan-out (W12-05). */
+  reconcileQueue: Queue;
 }
 
 /** `plan` job: fan a connected repo out into one backfill job per entity type. */
@@ -105,7 +114,32 @@ async function maybeSnapshot(deps: ProcessorDeps, data: BackfillJobData): Promis
     { workspaceId: data.workspaceId, repoId: data.repoId },
     { jobId: jobId.snapshot(data.repoId, yyyymmdd) },
   );
+  // History is done, so the enrichment phase can start: fan out per-commit
+  // churn. Nothing enqueued enrich work before this, which is why the queue had
+  // no consumer AND no producer — registering a processor alone would have
+  // been a consumer for a queue nothing feeds.
+  await fanOutEnrichment(deps, data.workspaceId, data.repoId);
   return true;
+}
+
+/** Enqueue one churn job per commit still lacking file-level detail. */
+async function fanOutEnrichment(
+  deps: ProcessorDeps,
+  workspaceId: number,
+  repoId: number,
+): Promise<number> {
+  const pending = await commitsNeedingChurn(deps.db, repoId);
+  for (const commit of pending) {
+    // jobId.enrich is the §6 idempotency key: re-planning a repo, or two entity
+    // jobs both completing the history, collapse onto the same jobs instead of
+    // re-fetching every commit's files.
+    await deps.enrichQueue.add(
+      'commitFiles',
+      { workspaceId, repoId, sha: commit.sha },
+      { jobId: jobId.enrich(repoId, commit.sha) },
+    );
+  }
+  return pending.length;
 }
 
 /** The backfill queue carries both the `plan` fan-out and the entity pages. */
@@ -155,6 +189,118 @@ export function deltaProcessor(deps: ProcessorDeps) {
     if (!resolved) return { skipped: 'no active connection' };
     return processDeltaJob({ db: deps.db, provider: resolved.provider }, data);
   };
+}
+
+/**
+ * Enrichment (W12-05): per-commit file churn, the §6 `commitFiles {repoId, sha}`
+ * payload. This is what hotspot/ownership/churn metrics read — M1 and M2 stay
+ * at zero without it, which is exactly how the first ingested repo presented.
+ *
+ * Scope note: enrichment is file churn and nothing else. §2 defines it that
+ * way and §6's payload says so; checks are a HISTORY-phase entity (§3) and
+ * reviews have no lane in the design at all (open question, W12-05 notes).
+ */
+export function enrichProcessor(deps: ProcessorDeps) {
+  return async (job: Job) => {
+    const data = job.data as { workspaceId: number; repoId: number; sha: string };
+    const resolved = await providerForRepo(deps, data.workspaceId, data.repoId);
+    if (!resolved) return { skipped: 'no active connection' };
+
+    const files = await enrichCommitChurn(
+      { db: deps.db, provider: resolved.provider },
+      {
+        workspaceId: data.workspaceId,
+        repoId: data.repoId,
+        repo: resolved.repoFullName,
+        sha: data.sha,
+      },
+    );
+
+    // enrichment --> live (§2: "enrichment queue drained"). Guarded on the
+    // current value for the same reason processPlan is: many churn jobs finish
+    // concurrently and all observe drained, so the losers must no-op rather
+    // than throw an illegal transition into the DLQ.
+    let becameLive = false;
+    if (await isEnrichmentDrained(deps.db, data.repoId)) {
+      const live = syncPhaseToRepoStatus(nextPhase('enrichment', 'enrichment_complete'));
+      const updated = await deps.db
+        .update(core.repos)
+        .set({ syncStatus: live })
+        .where(and(eq(core.repos.id, data.repoId), eq(core.repos.syncStatus, 'backfilling')))
+        .returning({ id: core.repos.id });
+      becameLive = updated.length > 0;
+      if (becameLive) {
+        // Recompute now that churn exists: the snapshot taken when history
+        // finished could not see any file-level data yet.
+        const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        await deps.snapshotQueue.add(
+          'compute',
+          { workspaceId: data.workspaceId, repoId: data.repoId },
+          { jobId: `${jobId.snapshot(data.repoId, yyyymmdd)}-enriched` },
+        );
+      }
+    }
+    return { files, ...(becameLive ? { becameLive: true } : {}) };
+  };
+}
+
+/**
+ * Reconcile (W12-05): the nightly sweep. Two job kinds, mirroring the backfill
+ * queue's plan/entity split — a `sweep` that decides the work and per-repo jobs
+ * that do it. §6 specifies a nightly cron keyed rc:{repoId}:{yyyymmdd}.
+ */
+export function reconcileProcessor(deps: ProcessorDeps) {
+  return async (job: Job) => {
+    if (job.name === 'sweep') return processReconcileSweep(deps);
+
+    const data = job.data as { workspaceId: number; repoId: number };
+    const resolved = await providerForRepo(deps, data.workspaceId, data.repoId);
+    if (!resolved) return { skipped: 'no active connection' };
+    const counts = await reconcileRepo(
+      { db: deps.db, provider: resolved.provider },
+      { workspaceId: data.workspaceId, repoId: data.repoId, repo: resolved.repoFullName },
+    );
+    return { counts };
+  };
+}
+
+/** The nightly fan-out: rescue stuck repos, then sweep the live ones. */
+async function processReconcileSweep(deps: ProcessorDeps) {
+  const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const workspaces = await deps.db.select({ id: core.workspaces.id }).from(core.workspaces);
+
+  let requeued = 0;
+  let swept = 0;
+  for (const ws of workspaces) {
+    // Repos stuck in `error` get a fresh plan (§5). requeueErrorRepos was
+    // implemented in W2 and had no caller until now.
+    const ids = await requeueErrorRepos(
+      {
+        db: deps.db,
+        enqueuePlan: async ({ workspaceId, repoId }) => {
+          await deps.backfillQueue.add('plan', { workspaceId, repoId });
+        },
+      },
+      ws.id,
+    );
+    requeued += ids.length;
+
+    // Then sweep everything already serving data, repairing gaps a missed
+    // webhook left behind.
+    const live = await deps.db
+      .select({ id: core.repos.id })
+      .from(core.repos)
+      .where(and(eq(core.repos.workspaceId, ws.id), eq(core.repos.syncStatus, 'live')));
+    for (const repo of live) {
+      await deps.reconcileQueue.add(
+        'repo',
+        { workspaceId: ws.id, repoId: repo.id },
+        { jobId: jobId.reconcile(repo.id, yyyymmdd) },
+      );
+      swept++;
+    }
+  }
+  return { requeued, swept };
 }
 
 /** Metric snapshots — the numbers every screen reads. */

@@ -11,23 +11,37 @@ export interface IngestedCounts {
   syncStatus: string;
   commits: number;
   pullRequests: number;
+  /** Written by the ENRICHMENT phase; what churn/hotspot metrics read. */
+  commitFiles: number;
 }
 
 /**
- * Poll until `repo` has left pending_backfill and has rows, or time out.
- * Ingestion is asynchronous — the API returns as soon as the plan is enqueued,
- * so a single immediate read races the worker and would flake.
+ * Poll until `repo` has run the WHOLE pipeline — history backfilled, enrichment
+ * drained, status `live` — or time out. Ingestion is asynchronous: the API
+ * returns as soon as the plan is enqueued, so a single immediate read races the
+ * worker and would flake.
+ *
+ * Waiting for `live` rather than merely "not pending_backfill" is deliberate.
+ * `live` is only reachable once enrichment has drained (INGESTION §2), so it is
+ * the single condition that proves every phase ran, and a regression in any one
+ * of them stalls the repo at an earlier status instead of passing quietly.
  */
 export async function waitForIngestedRepo(
   org: string,
   name: string,
-  timeoutMs = 25_000,
+  timeoutMs = 40_000,
 ): Promise<IngestedCounts> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('waitForIngestedRepo: DATABASE_URL is not set');
   const db = createDb(url);
   const deadline = Date.now() + timeoutMs;
-  let last: IngestedCounts = { repoId: 0, syncStatus: 'never-read', commits: 0, pullRequests: 0 };
+  let last: IngestedCounts = {
+    repoId: 0,
+    syncStatus: 'never-read',
+    commits: 0,
+    pullRequests: 0,
+    commitFiles: 0,
+  };
 
   try {
     for (;;) {
@@ -38,7 +52,9 @@ export async function waitForIngestedRepo(
         .limit(1);
 
       if (repo) {
-        const count = async (table: typeof facts.commits | typeof facts.pullRequests) => {
+        const count = async (
+          table: typeof facts.commits | typeof facts.pullRequests | typeof facts.commitFiles,
+        ) => {
           const [row] = await db
             .select({ n: sql<number>`count(*)::int` })
             .from(table)
@@ -50,8 +66,9 @@ export async function waitForIngestedRepo(
           syncStatus: repo.syncStatus,
           commits: await count(facts.commits),
           pullRequests: await count(facts.pullRequests),
+          commitFiles: await count(facts.commitFiles),
         };
-        if (last.syncStatus !== 'pending_backfill' && last.commits > 0 && last.pullRequests > 0) {
+        if (last.syncStatus === 'live' && last.commits > 0 && last.pullRequests > 0) {
           return last;
         }
       }

@@ -1551,3 +1551,56 @@ their literal acceptance text. Re-scoping acceptance is a founder call; the
 recommendation is recorded in each ticket.
 
 Gate: lint 0, typecheck 0, 487 unit, 40 e2e, all exit 0.
+
+### 2026-08-13 — W12-05: enrichment, reconciliation, and the DLQ-is-a-sink correction
+
+Every queue now either has a consumer or is an asserted sink. `KNOWN_INERT` is
+`[]` for the first time.
+
+**The acceptance criteria were wrong and were corrected before any code.** They
+had been written without reading INGESTION §2/§3/§6 and contradicted the design
+three ways: enrichment is per-commit **file churn** (§6 payload
+`commitFiles {repoId, sha}`), not reviews/checks; **checks are a history-phase
+entity** (§3), not an enrichment one; and the **DLQ must not have a processor**
+at all — `attachDeadLetter` feeds it and the ops page reads it, so a consumer
+would drain the very failures it exists to preserve. That last point also made
+`KNOWN_INERT == []` unreachable *by design* for W12-03, so `wiring.test.ts` now
+distinguishes "inert because unwired" from "intentionally a sink" and asserts
+both halves of the DLQ contract.
+
+**enrich had neither a producer nor a consumer.** Registering a processor alone
+would have been a consumer for a queue nothing feeds. `fanOutEnrichment` now
+emits one churn job per commit from the history-complete hook, and the same
+predicate that builds that work-list defines "enrichment drained" for the
+`enrichment → live` transition — one definition, so the producer and the state
+machine cannot disagree.
+
+**A bug this nearly shipped with.** The predicate was first written as
+`additions IS NULL`. That is wrong: the history backfill already populates
+additions from the list payload and stamps `stats_source='graphql'`, so the
+producer would have found no work, declared enrichment drained immediately, and
+flipped repos to `live` with churn metrics still at zero — a silent, plausible
+failure. The correct marker is `stats_source IS DISTINCT FROM 'detail'`, since
+only `upsertCommitFiles` writes `'detail'`.
+
+**Measured.** `fixture-org/beta-web` reaches `live` with 4 `commit_files` rows,
+and the churn metrics that read `0.000000` for the first ingested repo now read
+**M1 = 94.0** (`{net: 62, rework: 68}`) and **M2 = 0.954842**. Negative controls
+run against the full path: unregistering the enrich processor fails the e2e with
+`commit_files 0` and the repo stalls at `backfilling`.
+
+**reconcile ships with its schedule**, not just a processor — a nightly
+repeatable job whose own jobId keeps N worker replicas to one schedule. Its sweep
+rescues errored repos (`requeueErrorRepos` had no caller since W2), sweeps live
+ones under the §6 idempotency key, and deliberately leaves in-flight backfills
+alone rather than fighting their cursors.
+
+**Open, and genuinely a design question rather than missing work:** reviews have
+no lane. `upsertReviews` and `listReviews` are fully built and called by nothing;
+reviews appear in no entity order and no queue payload, yet `sync_cursors`
+permits the type. PR detail renders an empty reviews section for ingested repos.
+`checks` is related but distinct — it *is* in the history entity order but needs
+a non-paginated path, since checks are fetched per head-SHA. Neither was resolved
+by picking a lane.
+
+Gate: lint 0, typecheck 0, **494 unit tests** (was 487), 40 e2e, all exit 0.
