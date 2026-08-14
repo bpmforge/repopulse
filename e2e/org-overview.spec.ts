@@ -39,9 +39,21 @@ test('renders the org overview widgets against the seeded warehouse', async ({ p
     'every KPI tile should render a sparkline',
   ).toHaveCount(5);
 
-  // seed.ts seeds a 3-repo org in the default workspace; a different count means
-  // either the seeder drifted or the second workspace leaked (tenancy, NFR-4).
-  await expect(page.getByTestId('health-tile-grid').locator('li')).toHaveCount(3);
+  // At LEAST the seeder's 3 repos. Not exactly 3: the ingest specs connect a
+  // fake forge and legitimately add repos to this same workspace, so an exact
+  // count couples this spec to whichever ran first — it failed intermittently
+  // once those landed.
+  //
+  // The tenancy meaning is preserved by the assertion below instead: the
+  // second seeded workspace's repo must never appear here (NFR-4), which is
+  // what an exact count was really standing in for.
+  await expect
+    .poll(() => page.getByTestId('health-tile-grid').locator('li').count())
+    .toBeGreaterThanOrEqual(3);
+  await expect(
+    page.getByTestId('health-tile-grid'),
+    'no repo from the second workspace may appear (NFR-4)',
+  ).not.toContainText('second-tenant');
 
   await expect(page.getByTestId('hotspot-leaderboard')).toBeVisible();
 

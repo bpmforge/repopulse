@@ -89,7 +89,19 @@ export async function listPullRequestsGraphql(
     owner,
     name,
     cursor: cursor ?? null,
-  })) as ListPullRequestsData;
+  })) as ListPullRequestsData | undefined;
+
+  // A runner that yields no `data` at all means the endpoint did not answer as
+  // GraphQL (a 404, an HTML error page, a proxy). That is a broken endpoint,
+  // not an empty repo, so it must throw rather than read as "no PRs" — but it
+  // used to throw a bare TypeError on `data.repository`, which said nothing
+  // about the cause. `repository: null` is different and stays an empty page:
+  // GraphQL returns that for a repo the token genuinely cannot see.
+  if (!data || typeof data !== 'object' || !('repository' in data)) {
+    throw new Error(
+      `graphql: response had no 'data.repository' — endpoint did not answer as GraphQL (${owner}/${name})`,
+    );
+  }
 
   const conn = data.repository?.pullRequests;
   if (!conn) return { items: [] };

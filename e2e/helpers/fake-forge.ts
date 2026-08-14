@@ -19,6 +19,16 @@ export const FAKE_REPOS = [
   { id: 9002, name: 'beta-web', full_name: 'fixture-org/beta-web' },
 ];
 
+export const FAKE_COMMITS = [
+  { sha: 'fake0000000000000000000000000000000000a1', message: 'init' },
+  { sha: 'fake0000000000000000000000000000000000b2', message: 'add service' },
+  { sha: 'fake0000000000000000000000000000000000c3', message: 'fix bug' },
+];
+export const FAKE_PRS = [
+  { number: 11, title: 'Add the service' },
+  { number: 12, title: 'Fix the bug' },
+];
+
 export interface FakeForge {
   baseUrl: string;
   /** Every path the connect flow touched — asserted so the fake cannot silently go unused. */
@@ -43,7 +53,20 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
     }
 
     const json = (status: number, body: unknown) => {
-      res.writeHead(status, { 'content-type': 'application/json' });
+      res.writeHead(status, {
+        'content-type': 'application/json',
+        // GitHub sends these on every response and the BudgetedClient reads
+        // them (Law 7). Omitting them made the budgeter treat remaining as
+        // unknown and defer every entity job to the rate-limit reset — the
+        // jobs completed or sat delayed and nothing was ever ingested, with no
+        // error anywhere. A fake that omits headers the real forge always sends
+        // does not imitate it.
+        'x-ratelimit-limit': '5000',
+        'x-ratelimit-remaining': '4999',
+        'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 3600),
+        'x-ratelimit-used': '1',
+        'x-ratelimit-resource': 'core',
+      });
       res.end(JSON.stringify(body));
     };
 
@@ -63,6 +86,104 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
           owner: { login: 'fixture-org' },
         })),
       );
+      return;
+    }
+
+    // Entity pages. Shapes match GitHub's REST responses because
+    // packages/forge/src/github/normalize.ts is what parses them — emitting a
+    // convenient shape instead would test the fake, not the adapter.
+    const entity = /^\/repos\/[^/]+\/[^/]+\/(commits|pulls|issues|releases|deployments)$/.exec(
+      url.pathname,
+    );
+    if (entity && req.method === 'GET') {
+      const kind = entity[1];
+      const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+      if (kind === 'commits') {
+        json(
+          200,
+          FAKE_COMMITS.map((c, i) => ({
+            sha: c.sha,
+            commit: {
+              author: { name: 'Fixture Dev', email: 'dev@fixture.test', date: day(i + 1) },
+              committer: { date: day(i + 1) },
+              message: c.message,
+            },
+            author: { login: 'fixture-dev', id: 4242 },
+            parents: i === 0 ? [] : [{ sha: FAKE_COMMITS[i - 1]!.sha }],
+            stats: { additions: 10 + i, deletions: i },
+          })),
+        );
+        return;
+      }
+      if (kind === 'pulls') {
+        json(
+          200,
+          FAKE_PRS.map((pr, i) => ({
+            number: pr.number,
+            title: pr.title,
+            state: 'closed',
+            draft: false,
+            user: { login: 'fixture-dev', id: 4242 },
+            created_at: day(i + 3),
+            updated_at: day(i + 1),
+            merged_at: day(i + 1),
+            closed_at: day(i + 1),
+            additions: 20,
+            deletions: 4,
+            head: { sha: `head-${pr.number}` },
+            base: { ref: 'main' },
+          })),
+        );
+        return;
+      }
+      // Releases/issues/deployments exist so the planner's other lanes resolve
+      // rather than 404 — empty is a legitimate answer for a young repo.
+      json(200, []);
+      return;
+    }
+
+    // PR backfill goes over GraphQL, not REST: listPullRequests needs the
+    // additions/deletions/changedFiles the REST list omits (graphql.ts). The
+    // REST /pulls handler above is therefore NOT the path ingestion takes —
+    // without this, POST /graphql fell through to the 404 below, `payload.data`
+    // came back undefined and the job died on an unreadable
+    // "Cannot read properties of undefined (reading 'repository')".
+    if (url.pathname === '/graphql' && req.method === 'POST') {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+        json(200, {
+          data: {
+            repository: {
+              pullRequests: {
+                // One page: FAKE_PRS is smaller than the query's first:50, so
+                // hasNextPage is false and the cursor loop terminates.
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: FAKE_PRS.map((pr, i) => ({
+                  number: pr.number,
+                  id: `gql-pr-${pr.number}`,
+                  title: pr.title,
+                  body: null,
+                  isDraft: false,
+                  state: 'MERGED',
+                  createdAt: day(i + 3),
+                  updatedAt: day(i + 1),
+                  mergedAt: day(i + 1),
+                  closedAt: day(i + 1),
+                  author: { login: 'fixture-dev', __typename: 'User' },
+                  mergedBy: { login: 'fixture-dev' },
+                  baseRefName: 'main',
+                  headRefOid: `head-${pr.number}`,
+                  additions: 20,
+                  deletions: 4,
+                  changedFiles: 2,
+                })),
+              },
+            },
+          },
+        });
+      });
       return;
     }
 
