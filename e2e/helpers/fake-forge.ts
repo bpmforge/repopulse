@@ -29,6 +29,23 @@ export const FAKE_PRS = [
   { number: 12, title: 'Fix the bug' },
 ];
 
+// Per-commit file churn, one entry per FAKE_COMMITS index. Enrichment writes
+// these into commit_files, which is what the churn/hotspot metrics read — so
+// these numbers are what makes M1/M2 nonzero rather than a fixture detail.
+export const FAKE_COMMIT_FILES: {
+  path: string;
+  additions: number;
+  deletions: number;
+  status: string;
+}[][] = [
+  [{ path: 'src/index.ts', additions: 40, deletions: 0, status: 'added' }],
+  [
+    { path: 'src/service.ts', additions: 25, deletions: 3, status: 'modified' },
+    { path: 'src/index.ts', additions: 5, deletions: 1, status: 'modified' },
+  ],
+  [{ path: 'src/service.ts', additions: 8, deletions: 12, status: 'modified' }],
+];
+
 export interface FakeForge {
   baseUrl: string;
   /** Every path the connect flow touched — asserted so the fake cannot silently go unused. */
@@ -139,6 +156,35 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
       // Releases/issues/deployments exist so the planner's other lanes resolve
       // rather than 404 — empty is a legitimate answer for a young repo.
       json(200, []);
+      return;
+    }
+
+    // Per-commit file churn — the enrichment phase (W12-05). getCommitFiles
+    // fetches the SINGLE-commit endpoint (/repos/o/r/commits/{sha}), which is
+    // a different path from the commit LIST above and returns files + stats.
+    // Without it enrichment has nothing to fetch, and M1/M2 stay at zero
+    // because churn metrics read commit_files.
+    const commitDetail = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-z]+)$/.exec(url.pathname);
+    if (commitDetail && req.method === 'GET') {
+      const sha = commitDetail[1]!;
+      // Deterministic per-SHA so the churn totals are stable across runs and an
+      // assertion can name a number rather than "greater than zero".
+      const idx = FAKE_COMMITS.findIndex((c) => c.sha === sha);
+      const files = FAKE_COMMIT_FILES[idx] ?? FAKE_COMMIT_FILES[0]!;
+      json(200, {
+        sha,
+        files: files.map((f) => ({
+          filename: f.path,
+          additions: f.additions,
+          deletions: f.deletions,
+          changes: f.additions + f.deletions,
+          status: f.status,
+        })),
+        stats: {
+          additions: files.reduce((s, f) => s + f.additions, 0),
+          deletions: files.reduce((s, f) => s + f.deletions, 0),
+        },
+      });
       return;
     }
 

@@ -38,25 +38,37 @@ describe('production wiring (regression gate)', () => {
     ).toEqual([]);
   });
 
-  it('every declared queue has a processor, or is explicitly listed as known-inert', () => {
-    // Queues whose processors are built but NOT yet registered, tracked by
-    // W12-03. This list may only ever SHRINK: adding a queue without a
-    // processor, or a new inert queue, fails here.
-    //
-    // Consequence of this debt today: connect enqueues work that nothing
-    // performs, webhook deliveries are accepted and never applied, and metric
-    // snapshots are never computed — the dashboard is populated by the seeder
-    // alone, which is precisely why it looks healthy.
-    const KNOWN_INERT = ['enrich', 'reconcile', 'dlq'] as const;
+  // A queue with no consumer is not automatically a defect — one of them is
+  // supposed to have none. Conflating the two cases made "KNOWN_INERT == []"
+  // an acceptance criterion on two tickets that NOTHING could ever satisfy.
+  //
+  // SINK: exhausted jobs are copied here by attachDeadLetter and held for the
+  // admin ops page to inspect and replay (INGESTION §6). A processor would
+  // consume them — i.e. delete the evidence — so "no consumer" is the
+  // requirement here, not the debt.
+  const SINK_QUEUES = ['dlq'] as const;
 
+  // Queues whose processors are built but NOT registered. This list may only
+  // ever SHRINK. It is now empty: W12-05 wired enrich and reconcile, and dlq
+  // moved to SINK_QUEUES because it was never a processor's job.
+  const KNOWN_INERT: readonly string[] = [];
+
+  function registeredProcessors(): string[] {
     const worker = readIfPresent(join(API_SRC, 'workers/index.ts'));
-    const block = /processors:\s*\{([\s\S]*?)\}/.exec(worker)?.[1] ?? '';
-    const registered = Object.keys(QUEUE).filter((name) => block.includes(name));
-    const inert = Object.keys(QUEUE).filter((name) => !registered.includes(name));
+    const block = /processors:\s*\{([\s\S]*?)\n\s{4}\}/.exec(worker)?.[1] ?? '';
+    return Object.keys(QUEUE).filter((name) => block.includes(name));
+  }
+
+  it('every declared queue has a processor, or is an asserted sink', () => {
+    const registered = registeredProcessors();
+    const unconsumed = Object.keys(QUEUE).filter((q) => !registered.includes(q));
+    const unexplained = unconsumed.filter(
+      (q) => !KNOWN_INERT.includes(q) && !SINK_QUEUES.includes(q as (typeof SINK_QUEUES)[number]),
+    );
 
     expect(
-      inert.filter((q) => !KNOWN_INERT.includes(q as (typeof KNOWN_INERT)[number])),
-      'a queue is declared with no processor and is not on the tracked W12-03 list',
+      unexplained,
+      'this queue is declared, has no processor, and is neither tracked as inert nor declared a sink — work enqueued onto it is performed by nothing',
     ).toEqual([]);
 
     // The other direction: once a processor lands, its queue must leave the
@@ -64,6 +76,24 @@ describe('production wiring (regression gate)', () => {
     expect(
       KNOWN_INERT.filter((q) => registered.includes(q)),
       'this queue now HAS a processor — remove it from KNOWN_INERT',
+    ).toEqual([]);
+  });
+
+  it('the DLQ is a sink: fed by attachDeadLetter and consumed by nobody', () => {
+    // Both halves matter. Losing attachDeadLetter means exhausted jobs vanish
+    // silently; gaining a processor means they are consumed before anyone can
+    // inspect or replay them. Either way the ops page shows an empty DLQ and
+    // reads as "nothing has failed".
+    const runtime = readIfPresent(join(API_SRC, 'workers/runtime.ts'));
+    expect(
+      runtime.includes('attachDeadLetter'),
+      'nothing routes exhausted jobs to the DLQ — failures disappear instead of being recorded',
+    ).toBe(true);
+
+    const registered = registeredProcessors();
+    expect(
+      SINK_QUEUES.filter((q) => registered.includes(q)),
+      'a sink queue has been given a processor — it would drain the failures the ops page exists to show',
     ).toEqual([]);
   });
 });

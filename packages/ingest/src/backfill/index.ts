@@ -4,5 +4,6 @@ export * from './writers.js';
 export * from './cursor.js';
 export * from './backfill.js';
 export * from './completion.js';
+export * from './enrich-queue.js';
 export * from './enrich.js';
 export * from './processor.js';

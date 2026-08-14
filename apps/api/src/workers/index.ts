@@ -4,7 +4,13 @@ import { credentials } from '@repopulse/auth';
 import { QUEUE, createQueue } from '@repopulse/ingest';
 import { createRedisConnection } from '@repopulse/ingest';
 import { createWorkerRuntime } from './runtime.js';
-import { backfillProcessor, deltaProcessor, snapshotProcessor } from './processors.js';
+import {
+  backfillProcessor,
+  deltaProcessor,
+  enrichProcessor,
+  reconcileProcessor,
+  snapshotProcessor,
+} from './processors.js';
 import { startWorkerHealthServer } from './health.js';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
@@ -28,11 +34,15 @@ async function main(): Promise<void> {
   // needs a Queue, not the Worker.
   const backfillQueue = createQueue(QUEUE.backfill, connection);
   const snapshotQueue = createQueue(QUEUE.snapshot, connection);
+  const enrichQueue = createQueue(QUEUE.enrich, connection);
+  const reconcileQueue = createQueue(QUEUE.reconcile, connection);
   const processorDeps = {
     db,
     tokenKey: credentials.loadTokenKey(),
     backfillQueue,
     snapshotQueue,
+    enrichQueue,
+    reconcileQueue,
     ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
     // SC-12 escape hatch, off unless the operator sets it. Lets the e2e fake
     // forge (http://127.0.0.1:PORT) drive the real ingestion path; still
@@ -43,17 +53,36 @@ async function main(): Promise<void> {
   const runtime = createWorkerRuntime({
     db,
     connection,
-    // W12-03: these were built and unit-tested in W2/W3 and never registered,
-    // so the worker consumed nothing and the warehouse was only ever populated
-    // by the seeder. enrich and reconcile remain unwired — see the KNOWN_INERT
-    // list in apps/api/test/wiring.test.ts, which fails if that list grows.
+    // Every queue that should have a consumer now has one (W12-03 wired
+    // backfill/delta/snapshot, W12-05 enrich/reconcile). `dlq` is deliberately
+    // absent: it is a SINK, fed by attachDeadLetter and read by the admin ops
+    // page — giving it a processor would consume the failures it exists to
+    // preserve. apps/api/test/wiring.test.ts asserts both halves of that.
     processors: {
       [QUEUE.backfill]: backfillProcessor(processorDeps),
       [QUEUE.delta]: deltaProcessor(processorDeps),
       [QUEUE.snapshot]: snapshotProcessor(processorDeps),
+      [QUEUE.enrich]: enrichProcessor(processorDeps),
+      [QUEUE.reconcile]: reconcileProcessor(processorDeps),
     },
     onError: (err) => console.error('[worker] DLQ/error:', err),
   });
+
+  // The nightly sweep (INGESTION §6: reconcile is a cron, not an on-demand
+  // queue). A registered processor with nothing feeding it is inert under a
+  // different name — the exact defect this wave exists to close — so the
+  // schedule ships with the consumer.
+  //
+  // A repeatable job carries its own dedupe key, so every worker replica
+  // registering it on boot yields ONE schedule, not one per replica.
+  await reconcileQueue.add(
+    'sweep',
+    {},
+    {
+      repeat: { pattern: process.env.RECONCILE_CRON ?? '17 3 * * *' },
+      jobId: 'reconcile-nightly-sweep',
+    },
+  );
 
   const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
   const healthServer = startWorkerHealthServer({
