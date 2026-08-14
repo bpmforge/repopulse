@@ -1517,3 +1517,37 @@ queues registered and `KNOWN_INERT` shrunk to `[]`; enrich, reconcile and dlq
 are still inert. The core loop — the consequential part — is done and proven.
 Recommend splitting the remaining three queues into their own ticket so the
 proven loop can close; that is a founder call, not one to make silently.
+
+### 2026-08-13 — the loop is closed end to end: forge → warehouse → screen
+
+Merged to `main` (both remotes). The core loop now runs from a PAT typed into
+the Admin UI all the way to rendered pixels, and every segment of it is asserted
+on each `pnpm e2e` run.
+
+**W12-02 acceptance 3 and 4 are met.** Two assertions of deliberately different
+strength: the org overview renders a health tile for the ingested repo, and the
+PR list shows PRs #11/#12. The second is the one that bites — a repo *row* comes
+from repo **selection**, so a tile alone would still appear if the backfill wrote
+nothing, whereas those PR rows exist only because the GraphQL backfill wrote
+them. Negative control run: pointing the locator at never-ingested PR numbers
+fails rather than passing vacuously. The egress guard now runs on this spec too —
+it is the one flow that genuinely talks to a forge.
+
+**What is deliberately NOT done.** The fake forge still does not serve reviews or
+checks. Those are enrich-lane fetches and the enrich processor is unwired, so
+fixtures for them would be unverifiable — which is precisely the pattern this
+codebase keeps finding. They move to the enrich ticket, where they can be
+asserted the same way PRs now are.
+
+**W12-03 split into W12-05** (enrich, reconcile, dlq — 8 pts). The consequential
+part of W12-03 is finished and proven; holding the ticket open for three unwired
+lanes obscures that. W12-05 also unblocks the `live` phase — `enrichment_complete`
+can only be raised by the enrich processor, so a fully backfilled repo today
+correctly stops at `backfilling`, and shortcutting `history_complete` straight to
+`live` would contradict INGESTION §2.
+
+Both W12-02 and W12-03 are left `in_progress` rather than marked done against
+their literal acceptance text. Re-scoping acceptance is a founder call; the
+recommendation is recorded in each ticket.
+
+Gate: lint 0, typecheck 0, 487 unit, 40 e2e, all exit 0.
