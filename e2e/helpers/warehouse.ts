@@ -6,6 +6,8 @@ import { core, facts, createDb } from '@repopulse/shared';
 // green for months against seeder-fabricated rows; only the tables settle it.
 
 export interface IngestedCounts {
+  /** Our warehouse id — the org overview keys its health tiles on it. */
+  repoId: number;
   syncStatus: string;
   commits: number;
   pullRequests: number;
@@ -25,7 +27,7 @@ export async function waitForIngestedRepo(
   if (!url) throw new Error('waitForIngestedRepo: DATABASE_URL is not set');
   const db = createDb(url);
   const deadline = Date.now() + timeoutMs;
-  let last: IngestedCounts = { syncStatus: 'never-read', commits: 0, pullRequests: 0 };
+  let last: IngestedCounts = { repoId: 0, syncStatus: 'never-read', commits: 0, pullRequests: 0 };
 
   try {
     for (;;) {
@@ -44,6 +46,7 @@ export async function waitForIngestedRepo(
           return row?.n ?? 0;
         };
         last = {
+          repoId: repo.id,
           syncStatus: repo.syncStatus,
           commits: await count(facts.commits),
           pullRequests: await count(facts.pullRequests),

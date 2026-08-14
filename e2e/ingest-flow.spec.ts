@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
+import { installEgressGuard } from './helpers/egress-guard.js';
 import { FAKE_COMMITS, FAKE_PRS, FAKE_REPOS, FAKE_TOKEN } from './helpers/fake-forge.js';
 import { waitForIngestedRepo } from './helpers/warehouse.js';
 
@@ -60,6 +61,10 @@ test('backfill actually ingests: the repo leaves pending_backfill with real rows
 }) => {
   test.setTimeout(60_000); // asynchronous: plan → 5 entity jobs → snapshot
 
+  // W12-02 acceptance 4. This is the one flow that genuinely talks to a forge,
+  // so it is the one where "nothing reached a real forge host" is worth
+  // asserting rather than assuming.
+  const guard = await installEgressGuard(page);
   await loginAsFixture(page);
   await page.goto('/admin');
   await page.getByTestId('connection-credential').fill(FAKE_TOKEN);
@@ -86,4 +91,30 @@ test('backfill actually ingests: the repo leaves pending_backfill with real rows
   expect(ingested.pullRequests).toBe(FAKE_PRS.length);
   // PRs arrive over GraphQL and commits over REST — both paths proven at once.
   expect(ingested.syncStatus).not.toBe('pending_backfill');
+
+  // W12-02 acceptance 3: the SCREENS render data that arrived through
+  // ingestion rather than through the seeder. Everything above proves rows
+  // reached Postgres; this proves the product shows them.
+  //
+  // The org overview first — beta-web appears in no fixture, so its tile can
+  // only exist because the connect flow created the repo.
+  await page.goto('/');
+  await expect(page.getByTestId('org-overview')).toBeVisible();
+  const tile = page.getByTestId(`health-tile-${ingested.repoId}`);
+  await expect(tile).toBeVisible();
+  await expect(tile).toContainText(name);
+
+  // Then the drill-down, which is the assertion that actually bites. A repo
+  // ROW is created by repo selection, so a tile alone would still appear if
+  // the backfill wrote nothing — these PR rows exist ONLY because the GraphQL
+  // backfill ingested them, so they cannot pass on repo-selection alone.
+  await page.goto(`/repos/${ingested.repoId}/prs?window=90d`);
+  for (const pr of FAKE_PRS) {
+    await expect(
+      page.getByTestId(`pr-link-${pr.number}`),
+      `PR #${pr.number} was ingested over GraphQL and must appear on the PR list`,
+    ).toBeVisible();
+  }
+
+  guard.assertNoForbidden();
 });
