@@ -65,3 +65,35 @@ stages (open → first review → approval → merge) · review coverage % ·
 merged-without-review rate · PR size distribution · stale PRs · CI pass rate + duration
 trends · issue throughput · release cadence · DORA approximations (deployment frequency,
 lead time, change-failure rate via revert/hotfix heuristic).
+
+## D10 — Licensing and distribution (founder, 2026-08-14)
+
+**Proprietary, all rights reserved. Nothing goes public until a clean
+self-hosted install is proven working end to end.**
+
+- **License applied:** `LICENSE` (proprietary) plus `"license": "UNLICENSED"`
+  on the root and every workspace manifest, so a package extracted from the
+  workspace does not lose the licence with the repo root.
+- **Distribution:** none. No public registry, no public image, no open-source
+  grant. The gate to reconsider is a **clean self-hosted working option** —
+  concretely W11-05: pull, fill `.env`, `up`, reach the login page on a
+  machine that has never built the repo.
+- **Support commitment:** none while undistributed. Stated explicitly in the
+  LICENSE rather than left silent, because "no commitment" and "unstated
+  commitment" are different things to a customer.
+
+**Why proprietary, and why now.** The choice is deliberately the REVERSIBLE
+one. Proprietary today can become any open-source license later; an open-source
+grant, once published, cannot be withdrawn from the copies it created. Picking
+an OSS license before the product is even distributable would be making an
+irreversible decision to save writing one file.
+
+**Checked, not assumed:** the W11-04 ticket warned that Lodestone is
+deliberately private/UNLICENSED and that any consumption of it must be resolved
+BEFORE distribution. RepoPulse does not depend on it — every dependency is
+public npm or `workspace:*`, with no `file:`, `git:` or `link:`
+specifiers anywhere. That risk is not present today; re-check if it is ever
+added.
+
+This is a decision recorded by its author, not legal advice. A lawyer should
+review before the first actual distribution, whichever direction it goes.

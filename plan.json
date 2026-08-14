@@ -3245,7 +3245,8 @@
         "THREE BUGS FOUND BY RUNNING THE IMAGES rather than by reading them, each of which would have hit a customer on first start. (1) pnpm isolated layout does not put a root-installed tsx on a workspace package bin path, so the api container died with \"Command tsx not found\". (2) Invoking pnpm at runtime made corepack attempt to DOWNLOAD pnpm from the network on every container start — an install that silently requires internet at boot. (3) The migrate image could not run drizzle-kit at all: installing it into a --prod pnpm workspace left /app/node_modules/.bin EMPTY, confirmed by inspecting the built image.",
         "MIGRATIONS NO LONGER NEED drizzle-kit. apps/api/src/migrate.ts uses drizzle-orm own postgres-js migrator, already a PRODUCTION dependency, against the same generated SQL and the same __drizzle_migrations bookkeeping table the CLI uses — so the two are interchangeable and a second up remains a no-op. It obtains the client through createDb from @repopulse/shared rather than importing the postgres driver directly: that driver is a dependency of shared, not of apps/api, and a direct import fails to resolve under a --prod install. Found by running it, again.",
         "VERIFIED END TO END with the slim images, not inferred from a successful build: migrate exits 0 twice in a row reporting \"up to date\" (26 tables, 5 applied migrations); the full deploy stack comes up with migrate exiting 0 BEFORE api and worker start; and through the only published port, GET / returns 200 with title RepoPulse, GET /repos/1/ci returns 200 (SPA history fallback, FR-WEB-2), GET /healthz returns 200 through the web proxy, and GET /api/v1/me/context returns 401 unauthenticated. Worker healthz 200 and it honours RECONCILE_CRON=off.",
-        "STILL BLOCKED, unchanged: acceptance 1 needs multi-arch (amd64+arm64) CI builds published to a registry with immutable digests, and publishing anything at all is blocked on W11-04 (licensing/distribution), a founder decision. Acceptance 4 — verification on a machine that has never built the repo — is W11-05. The ticket therefore stays TODO rather than being marked done on the strength of the part that was doable."
+        "STILL BLOCKED, unchanged: acceptance 1 needs multi-arch (amd64+arm64) CI builds published to a registry with immutable digests, and publishing anything at all is blocked on W11-04 (licensing/distribution), a founder decision. Acceptance 4 — verification on a machine that has never built the repo — is W11-05. The ticket therefore stays TODO rather than being marked done on the strength of the part that was doable.",
+        "UNBLOCKED-BUT-DELIBERATELY-NOT-DOING 2026-08-14: W11-04 is answered, and the answer is DO NOT PUBLISH. Acceptance 1 (multi-arch images published to a public registry with immutable digests) is therefore not merely blocked, it is now contrary to the founder decision — publishing anything publicly is out of scope until a clean self-hosted install is proven (W11-05). The CI workflow that would publish should NOT be written speculatively: an unused publish pipeline pointed at a public registry is exactly the sort of thing that gets enabled by accident. Revisit acceptance 1 after W11-05 passes."
       ]
     },
     {
@@ -3301,7 +3302,7 @@
       "id": "W11-04",
       "title": "Licensing, distribution and support decision — FOUNDER",
       "wave": "W11",
-      "status": "todo",
+      "status": "done",
       "points": 1,
       "depends_on": [],
       "write_scope": [
@@ -3315,7 +3316,11 @@
         "Support and version-support expectations written down: what a customer gets, and which versions receive fixes"
       ],
       "notes": [
-        "FOUNDER DECISION, not buildable. Blocks W11-01 publishing images to anywhere public — do not publish before this is answered."
+        "FOUNDER DECISION, not buildable. Blocks W11-01 publishing images to anywhere public — do not publish before this is answered.",
+        "DECIDED 2026-08-14 (founder). PROPRIETARY, all rights reserved, and NOTHING goes public until a clean self-hosted install is proven working. All three acceptance criteria met: (1) LICENSE file written and \"license\": \"UNLICENSED\" applied to the root and every workspace manifest — per-package, so a package extracted from the workspace does not lose the licence with the repo root; reasoning recorded as D10 in FOUNDING_BRIEF.md. (2) Distribution: none — no public registry, no public image, no OSS grant; the gate to reconsider is a clean self-hosted install (W11-05). (3) Support: no commitment while undistributed, stated explicitly in the LICENSE rather than left silent, because \"no commitment\" and \"unstated commitment\" are different things to a customer.",
+        "PROPRIETARY IS THE REVERSIBLE CHOICE, which is why it is right now rather than merely convenient: proprietary today can become any open-source license later, but an OSS grant cannot be withdrawn from the copies it creates. Choosing an OSS license before the product is distributable would be making an irreversible decision to save writing one file.",
+        "THE LODESTONE RISK THIS TICKET FLAGGED IS NOT PRESENT — checked rather than assumed. RepoPulse has no dependency on Lodestone or any other private package: every dependency resolves to public npm or workspace:*, with no file:, git: or link: specifiers in any manifest. Re-check if one is ever added, since the ticket was right that it must be resolved BEFORE distribution rather than after.",
+        "NOT LEGAL ADVICE. A lawyer should review before the first actual distribution, whichever direction it goes."
       ]
     },
     {

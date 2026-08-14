@@ -1,0 +1,69 @@
+RepoPulse — Proprietary Software License
+Copyright (c) 2026 Bradford Matthews. All rights reserved.
+
+STATUS: NOT PUBLICLY DISTRIBUTED
+
+This software is proprietary and confidential. No public release, no public
+container image, and no open-source grant has been made. It is not published to
+any public registry and is not offered to the public in any form.
+
+1. RESERVATION OF RIGHTS
+
+   All rights in this software, its source code, container images,
+   documentation and associated materials are reserved by the copyright holder.
+   No license, express or implied, is granted by publication, by access to a
+   repository, or by any statement in this repository, except by a separate
+   written agreement signed by the copyright holder.
+
+2. NO PERMISSION IS GRANTED
+
+   Without prior written permission you may not use, copy, modify, merge,
+   publish, distribute, sublicense, sell, host as a service, or create
+   derivative works of this software, in whole or in part.
+
+3. AUTHORIZED ACCESS
+
+   Access to this repository or to a build of this software does not grant any
+   of the rights in section 2. Anyone granted access for evaluation,
+   development or operation is permitted only the use expressly agreed in
+   writing, and must not redistribute the software or its images.
+
+4. THIRD-PARTY COMPONENTS
+
+   This software depends on third-party open-source components, each governed
+   by its own license. Those licenses apply to those components only and grant
+   no rights in this software. Their terms are preserved and must be honoured
+   in any distribution of a build that includes them.
+
+5. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+   IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+6. NO SUPPORT COMMITMENT
+
+   No support, maintenance, security-fix or version-support commitment is made
+   while the software remains undistributed. Any such commitment will be set
+   out in a separate written agreement at the point of distribution.
+
+---
+
+WHY PROPRIETARY, AND WHY NOW (recorded 2026-08-14, founder decision W11-04)
+
+RepoPulse is not going public until a clean self-hosted install is proven
+working end to end. This license states that position rather than leaving it
+implied by the absence of a file.
+
+The choice is deliberately the REVERSIBLE one. Proprietary today can become any
+open-source license later; an open-source grant, once published, cannot be
+withdrawn from the copies it created. Choosing an OSS license before the product
+is distributable would be making an irreversible decision to save writing one
+file.
+
+This is a business decision recorded by its author, not legal advice. Have a
+lawyer review before the first actual distribution, whichever direction it goes.

@@ -1802,3 +1802,35 @@ body** carries the chosen forge, not merely that a dropdown renders.
 Still unverified, same gap as Gitea: no real GitLab instance has been ingested.
 
 Gate: lint 0, typecheck 0, **536 unit tests**, 41 e2e + 1 skipped, all exit 0.
+
+### 2026-08-14 — W11-04: licensing decided (founder)
+
+**Proprietary, all rights reserved. Nothing goes public until a clean
+self-hosted install is proven working end to end.**
+
+`LICENSE` written, `"license": "UNLICENSED"` applied to the root **and every
+workspace manifest** — per-package, so a package extracted from the workspace
+does not lose the licence along with the repo root. Reasoning recorded as **D10**
+in `FOUNDING_BRIEF.md`.
+
+Proprietary is the **reversible** choice, which is why it is right rather than
+merely convenient: proprietary today can become any open-source license later,
+but an OSS grant cannot be withdrawn from the copies it creates. Picking an OSS
+license before the product is even distributable would be an irreversible
+decision made to save writing one file.
+
+Support: **no commitment while undistributed**, stated explicitly in the LICENSE
+rather than left silent — "no commitment" and "unstated commitment" are
+different things to a customer.
+
+**The Lodestone risk the ticket flagged is not present** — checked, not assumed.
+Every dependency resolves to public npm or `workspace:*`; there are no `file:`,
+`git:` or `link:` specifiers in any manifest.
+
+**Consequence for W11-01:** its acceptance 1 (publish multi-arch images to a
+public registry) is no longer merely blocked — it is now *contrary* to the
+decision. I deliberately did not write the publishing CI workflow: an unused
+publish pipeline aimed at a public registry is exactly the kind of thing that
+gets enabled by accident. Revisit after **W11-05** proves a clean install.
+
+Not legal advice; a lawyer should review before any first distribution.
