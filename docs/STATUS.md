@@ -1699,3 +1699,61 @@ security control.
 
 Gate: lint 0, typecheck 0, **497 unit**, 40 e2e + 1 skipped (real-forge smoke),
 all exit 0.
+
+### 2026-08-14 — Gitea adapter, a reliable gate, and images a customer can actually pull
+
+Three tickets, sequenced rather than parallelised because W7-02 → W12-01 is a
+hard dependency chain.
+
+**W12-07 — the gate is trustworthy again.** The flake was not primarily a rate
+limit: five test files each carried their own `loginAs` built on `!`
+assertions, so any unexpected auth response surfaced as
+`Cannot read properties of undefined (reading 'value')` **from a repo-route
+test**. The evidence was being destroyed at the point of failure. One shared
+helper now reports the real status, and caches sessions per app+user — each
+login costs two requests against a 10/min cap and two suites sat exactly on it.
+SC-11 is untouched: still 10/min/IP, still exercised directly. 11 consecutive
+clean runs.
+
+**W7-02 — GiteaProvider, verified against a live instance.** Every shape was
+checked against `gitea.com/api/v1` rather than the swagger, and three of the
+differences it surfaced would each have shipped as a silent data bug: Gitea has
+no `pushed_at` (only `updated_at`, which the planner orders by); commits carry
+**no per-file churn on any endpoint**; and the PR list omits churn while detail
+carries it, so the list must normalize to *absent* rather than zero.
+
+The webhook semantics the design doc flagged UNVERIFIED are resolved from
+go-gitea source: `X-Gitea-Signature` is a **bare lowercase hex** HMAC-SHA256, no
+`sha256=` prefix. A verifier written for GitHub would reject every genuine Gitea
+delivery. Contract-tested both ways. Unblocks W12-01.
+
+> **Product consequence worth a decision:** hotspot and ownership metrics that
+> rank files by per-commit churn cannot be computed from Gitea commits. We
+> record 0/0 per file plus the accurate commit totals; splitting the total
+> across files would look plausible and be fiction.
+
+**W11-01 — images cut 73%.** api and worker were **1.68 GB**, migrate 1.27 GB,
+because every runtime stage inherited the full source stage and shipped vitest,
+playwright, eslint, typescript and drizzle-kit to customers. Now **465 MB /
+465 MB / 330 MB**.
+
+Three bugs were found by *running* the images, each of which would have hit a
+customer on first start: pnpm's isolated layout does not put a root-installed
+`tsx` on a workspace package's bin path; invoking pnpm at runtime made corepack
+try to **download itself over the network on every container start**; and the
+migrate image could not run `drizzle-kit` at all — installing it into a `--prod`
+workspace left `/app/node_modules/.bin` empty. Migrations now use drizzle-orm's
+own migrator, already a production dependency, against the same SQL and the same
+bookkeeping table.
+
+Verified end to end, not inferred from a green build: migrate exits 0 twice
+("up to date", 26 tables, 5 applied), the full stack comes up with migrate
+finishing before api/worker, and through the only published port `/` serves the
+SPA, `/repos/1/ci` deep-links, `/healthz` proxies 200 and `/api/v1/me/context`
+returns 401.
+
+W11-01 stays **todo**: acceptance 1 needs multi-arch CI publishing, which is
+blocked on **W11-04 (licensing) — a founder decision** — and acceptance 4 is
+W11-05.
+
+Gate: lint 0, typecheck 0, **517 unit tests**, 40 e2e + 1 skipped, all exit 0.
