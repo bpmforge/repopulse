@@ -3430,7 +3430,7 @@
     {
       "id": "W12-05",
       "title": "Wire the remaining three queues — enrich, reconcile, dlq",
-      "status": "todo",
+      "status": "in_progress",
       "points": 8,
       "depends_on": [
         "W12-03"
