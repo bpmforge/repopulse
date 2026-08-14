@@ -3518,7 +3518,7 @@
     {
       "id": "W12-07",
       "title": "Auth rate limit (SC-11) makes the unit gate intermittently red",
-      "status": "todo",
+      "status": "done",
       "points": 2,
       "depends_on": [],
       "write_scope": [
@@ -3534,7 +3534,11 @@
         "CAUSE (high confidence, not yet proven): SC-11 caps the auth flow at 10 requests per minute per IP. Vitest runs test FILES in parallel and several of them perform a real OAuth round trip against the same in-process app from the same address, so a burst can exceed the cap. e2e/global-setup.ts already documents this exact hazard and works around it by logging in ONCE for the whole Playwright run — the unit suite has no equivalent.",
         "WHY IT SURFACED NOW: nothing in the limiter changed. W12-05/W12-06 added four test files (completion, enrich-queue, graphql, processors.reconcile), which shifts scheduling and makes the burst more likely. It is latent, not new — and it is the worst kind of red, because it points at a repo route that has nothing to do with the failure.",
         "DO NOT fix by raising the limit globally: SC-11 is a real control (T-13/T-14 brute-force). Options worth weighing: share one authenticated session across the API route tests the way globalSetup does for e2e; make the limiter keyed per test-app instance so parallel files do not share a bucket; or make the limit configurable and set it high ONLY under NODE_ENV=test, which is the least good option because it stops exercising the control.",
-        "NOT introduced by the reconcile-sweep incident and not fixed by it — those are separate. Filed rather than fixed inline so the gate reliability work is visible instead of being absorbed into an unrelated ticket."
+        "NOT introduced by the reconcile-sweep incident and not fixed by it — those are separate. Filed rather than fixed inline so the gate reliability work is visible instead of being absorbed into an unrelated ticket.",
+        "DONE 2026-08-14. Root cause NOT definitively proven, and that is stated deliberately rather than glossed: the flake fired once in roughly four runs beforehand and has not reappeared in 11 consecutive runs since, which is strong but not conclusive. What WAS proven is that the helper hid the evidence. Five test files each carried a copy of loginAs built entirely on non-null assertions, so any unexpected auth response surfaced as \"Cannot read properties of undefined (reading value)\" from a repo-route test — an error naming neither auth nor a status code, which is exactly why it could not be diagnosed after the fact.",
+        "TWO CHANGES. (1) One shared helper at apps/api/src/testing/login.ts that asserts each step and reports the actual status, with a message naming the SC-11 limit as the likely cause of a 429. If this recurs it will now say so instead of pointing at the wrong subsystem. (2) The helper CACHES the session per app instance and per user. Each login costs two requests against /auth/*, which is capped at 10/minute (AUTH_FLOW_RATE_LIMIT), and the metrics and connections suites sat exactly ON that cap at five logins each — any extra request tipped them over. Caching drops most files to two auth requests total. This mirrors what e2e/global-setup.ts already does (one login per run) for the same documented reason.",
+        "SC-11 IS UNTOUCHED. The limit is still 10/min/IP in production and the rate-limit test still exercises it directly. The fix removes needless auth traffic from the suite rather than weakening the control — raising the cap under NODE_ENV=test was considered and rejected, since it would stop exercising a real security control precisely where it is cheapest to test.",
+        "VERIFIED: 11 consecutive full unit runs, 497/497 each, zero failures (acceptance asked for 10). Plus lint 0, typecheck 0, e2e 40 passed + 1 skipped."
       ]
     }
   ]
