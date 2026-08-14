@@ -28,7 +28,7 @@ stateDiagram-v2
   [*] --> queued
   queued --> history: backfill.plan ran
   history --> enrichment: all entity cursors reached window start (now−365d)
-  enrichment --> live: enrichment queue drained
+  enrichment --> live: enrichment drained (no commit awaiting churn, no PR awaiting reviews/checks)
   history --> paused_budget: budget floor hit
   enrichment --> paused_budget
   paused_budget --> history: budget reset
@@ -36,16 +36,25 @@ stateDiagram-v2
   error --> live: manual retry / next sweep
 ```
 
-- **history** = metadata backfill (PR/commit/issue/check/release/deployment lists — cheap,
-  GraphQL where `supportsGraphQLBackfill`). **enrichment** = per-commit file churn (research §8
-  option A) and stats-endpoint fallbacks — low-priority, drained by leftover budget.
+- **history** = metadata backfill (PR/commit/issue/release/deployment lists — cheap, GraphQL
+  where `supportsGraphQLBackfill`). **enrichment** = every PER-PARENT DETAIL FETCH: per-commit
+  file churn (research §8 option A) and stats-endpoint fallbacks, per-PR reviews, and
+  per-head-SHA check runs — low-priority, drained by leftover budget.
+  > **Amended 2026-08-13 (founder).** Enrichment was originally "per-commit file churn" alone,
+  > and `checks` was listed in the history entity order below. That was inconsistent: history
+  > entities are walked page-by-page at repo scope, but check runs are keyed on a head SHA and
+  > reviews on a PR number, so neither can go through the paginated walk — `processBackfillJob`
+  > accepts only `PaginatedEntity` for exactly that reason. All three nested fetches now share
+  > the enrichment lane, which already had the right priority and retry policy. Reviews had no
+  > home in the design at all before this, which is why `upsertReviews` shipped with no caller.
 - Dashboard is usable from `enrichment` onward; Tier-1 metrics that need file churn label
   themselves partial until enrichment completes (FR-WEB-8).
 
 ## 3. Backfill planner (FR-INGEST-2/3/4, NFR-2)
 
 - **Window**: now−365d. **Repo order**: `pushedAt` desc (recently-active first). **Entity
-  order per repo**: PRs → commits → checks → issues → releases/deployments (FR-INGEST-4).
+  order per repo**: PRs → commits → issues → releases/deployments (FR-INGEST-4). `checks` moved
+  to the enrichment lane on 2026-08-13 (see §2) — it is fetched per head SHA, not walked.
 - **Recent-first within entity**: list `sort=updated desc` and walk backwards in time, so the
   dashboard's default 30d window fills first and % complete is honest for what users see.
 - **Cursors** (FR-INGEST-3/6): table
@@ -99,7 +108,7 @@ against warehouse counts as the cheap check instead of ETags.
 |---|---|---|---|
 | `ingest.backfill` | `plan {repoId}`, `entity {repoId, entityType, cursor}` | `bf:{repoId}:{entityType}` | 5×, expo 30s→30m |
 | `ingest.delta` | `{repoId, entityType, deliveryId}` | `dl:{deliveryId}:{entityType}` / `push:{repoId}` | 3×, expo 10s |
-| `ingest.enrich` | `commitFiles {repoId, sha}` | `en:{repoId}:{sha}` | 3×, expo 1m |
+| `ingest.enrich` | `commitFiles {repoId, sha}`, `prDetail {repoId, prNumber, headSha}` | `en:{repoId}:{sha}` / `en:{repoId}:{prNumber}:pr` | 3×, expo 1m |
 | `ingest.reconcile` | `{repoId}` nightly cron | `rc:{repoId}:{yyyymmdd}` | 2× |
 | `metrics.snapshot` | nightly, see METRICS.md §4 | `snap:{repoId}:{yyyymmdd}` | 3× |
 

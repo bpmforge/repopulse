@@ -3360,7 +3360,7 @@
     {
       "id": "W12-02",
       "title": "Fake forge server for e2e: prove connect + backfill with no real credentials",
-      "status": "in_progress",
+      "status": "done",
       "points": 5,
       "depends_on": [
         "W4-08"
@@ -3381,13 +3381,14 @@
         "STILL OPEN for this ticket: backfill CONSUMPTION. The connect enqueues a plan job, but e2e runs no worker, so nothing drains the queue and the org overview still renders seeder data rather than ingested data. That is the remaining half and it needs the worker process in the e2e stack. Also fixed a self-inflicted flake: the row-count assertion used before+1, which races the other specs connecting against the same seeded workspace; it now polls for greater-than, because what the test owns is that ITS connect added a row, not the total. Gate on exit codes: lint 0, typecheck 0, test 0 (463/463), e2e 0 (37/37).",
         "BLOCKED for its second half by W12-03, discovered while attempting it: the worker cannot consume the backfill because it registers no processors at all. The connect half stands on its own and is proven; the ingestion half cannot be demonstrated until the processors are wired, which is a bigger and more security-sensitive job than a test-harness change.",
         "ACCEPTANCE 2, 3 and 4 MET 2026-08-13. (2) The real connect flow runs through Admin with a PAT against the fake forge and a backfill job is enqueued AND consumed - the worker now runs as a Playwright webServer on the shipping entrypoint, so this is exercised on every e2e run rather than by hand. (3) The screens render ingested data: the org overview shows a health tile for the ingested repo, and the PR list shows PRs #11/#12, which exist only because the GraphQL backfill wrote them (a repo row alone comes from repo SELECTION, so the tile by itself would not prove ingestion - the PR assertion is the one that bites). Negative control done: pointing the locator at never-ingested PR numbers fails rather than passing vacuously. (4) The egress guard is installed on this spec and asserts nothing reached a real forge host.",
-        "ACCEPTANCE 1 PARTIALLY MET, and the remainder is deliberately deferred rather than faked. The fake serves repos, commits and PRs - every endpoint the ingestion path actually calls - plus POST /graphql, which is how PRs are really fetched. It does NOT serve reviews or checks, because those are enrich-lane fetches and the enrich processor is still unwired (see the W12-03 split ticket). Serving fixtures for endpoints nothing calls would create exactly the pattern this project keeps finding: something built, unverifiable, and wired to nothing. RECOMMEND moving the reviews/checks fixtures into the enrich ticket, where they can be asserted the same way PRs now are, and closing W12-02. That is a founder call on re-scoping acceptance, so the ticket is left in_progress rather than marked done against its literal text."
+        "ACCEPTANCE 1 PARTIALLY MET, and the remainder is deliberately deferred rather than faked. The fake serves repos, commits and PRs - every endpoint the ingestion path actually calls - plus POST /graphql, which is how PRs are really fetched. It does NOT serve reviews or checks, because those are enrich-lane fetches and the enrich processor is still unwired (see the W12-03 split ticket). Serving fixtures for endpoints nothing calls would create exactly the pattern this project keeps finding: something built, unverifiable, and wired to nothing. RECOMMEND moving the reviews/checks fixtures into the enrich ticket, where they can be asserted the same way PRs now are, and closing W12-02. That is a founder call on re-scoping acceptance, so the ticket is left in_progress rather than marked done against its literal text.",
+        "DONE 2026-08-13. Acceptance 1 is now fully met: the fake forge serves repos, commits, PRs (over POST /graphql, which is how PRs are really fetched), per-commit files, per-PR reviews and per-head-SHA check runs. The reviews/checks half was unblocked by the founder decision to broaden enrichment to per-parent detail fetches — they were deliberately NOT added earlier, because fixtures for endpoints nothing consumes are unverifiable and would have been the same built-and-inert pattern this wave exists to close. Acceptance 2/3/4 were met previously. Brad agreed to close on 2026-08-13."
       ]
     },
     {
       "id": "W12-03",
       "title": "Wire the worker processors — ALL SIX queues are inert, not just backfill",
-      "status": "in_progress",
+      "status": "done",
       "points": 13,
       "depends_on": [
         "W2-03",
@@ -3425,7 +3426,8 @@
         "STILL IN_PROGRESS, deliberately, and it is a small well-understood remainder. Acceptance requires ALL SIX queues registered and KNOWN_INERT shrunk to []; enrich, reconcile and dlq are still inert, so KNOWN_INERT is [enrich, reconcile, dlq] and the two-directional wiring gate still guards it. The core loop - the consequential part - is done and proven. The live phase is deliberately unreachable until the enrich processor lands, because enrichment_complete requires it and wiring history_complete straight to live would contradict INGESTION section 2. RECOMMEND splitting the remaining three queues into their own ticket so the proven core loop can close - that is a founder call, not one to make silently.",
         "CARRIED FORWARD, unresolved: a 404 from the forge still produces a COMPLETED job with no error and no cursor - defensible for a genuinely empty repo, indistinguishable from a broken endpoint. Partially mitigated for the GraphQL path only (listPullRequestsGraphql now throws a diagnosable error when the endpoint returns no data at all, rather than a bare TypeError, and deliberately does not optional-chain into an empty page). The REST paths still complete silently on 404.",
         "SPLIT PROPOSED 2026-08-13 and filed as W12-05 (enrich, reconcile and dlq processors). W12-03 as written demands all six queues and KNOWN_INERT == []; the core loop - backfill plan + entity pages, delta, snapshot - is wired, proven end to end and now guarded by an e2e that runs on every suite. Holding the ticket open for three unwired lanes hides that the consequential part is finished. If the split is accepted, W12-03 closes at 13 points with backfill/delta/snapshot done and W12-05 carries the rest; if not, W12-03 stays open until W12-05 lands. Not marked done unilaterally - re-scoping acceptance criteria is a founder call.",
-        "UNBLOCKED 2026-08-13 by W12-05. The \"KNOWN_INERT shrinks to []\" criterion is now satisfied - the list is empty, with dlq moved to SINK_QUEUES and asserted as a sink (fed by attachDeadLetter, consumed by nobody). The remaining literal mismatch is criterion 1, which lists `dlq` among the queues that must have a registered processor; that clause is incorrect by design, since a DLQ consumer would drain the failures the admin ops page exists to display (§6). RECOMMEND closing W12-03 with that clause noted as superseded by the sink assertion. Left in_progress rather than closed unilaterally, on the same principle as before: correcting acceptance is a founder call."
+        "UNBLOCKED 2026-08-13 by W12-05. The \"KNOWN_INERT shrinks to []\" criterion is now satisfied - the list is empty, with dlq moved to SINK_QUEUES and asserted as a sink (fed by attachDeadLetter, consumed by nobody). The remaining literal mismatch is criterion 1, which lists `dlq` among the queues that must have a registered processor; that clause is incorrect by design, since a DLQ consumer would drain the failures the admin ops page exists to display (§6). RECOMMEND closing W12-03 with that clause noted as superseded by the sink assertion. Left in_progress rather than closed unilaterally, on the same principle as before: correcting acceptance is a founder call.",
+        "DONE 2026-08-13, founder agreement. Every criterion is met except the clause in acceptance 1 listing `dlq` among the queues requiring a registered processor, which is incorrect by design: attachDeadLetter feeds the DLQ and the admin ops page reads it (INGESTION §6), so a consumer would drain the failures it exists to preserve. That clause is superseded by the SINK_QUEUES assertion in apps/api/test/wiring.test.ts, which enforces the real contract in both directions — attachDeadLetter stays wired, and the sink stays unconsumed. KNOWN_INERT is []."
       ]
     },
     {
@@ -3463,6 +3465,36 @@
         "MEASURED END TO END, and this is the strongest evidence the phase works: fixture-org/beta-web reaches sync_status `live` with 4 commit_files rows, and the churn metrics that were 0.000000 for the first ingested repo now read M1 = 94.0 (dims {net: 62, rework: 68}) and M2 = 0.954842. M7 stays 24.0. Two snapshots per repo is correct, not duplication: one when history completes and one after enrichment drains - metric_snapshots is an append-only time series read newest-first, and the early partial snapshot is what FR-WEB-8 describes (dashboard usable from enrichment onward, churn-dependent metrics labelled partial until it finishes).",
         "NEGATIVE CONTROLS, both against the full path rather than a filtered run: unregistering the enrich processor fails the e2e with commit_files 0 (Expected 4, Received 0) and the repo stalls at `backfilling` instead of reaching `live`. The reconcile sweep has its own test asserting an errored repo is re-planned, a live repo is swept under the §6 idempotency key, and a repo still backfilling is deliberately NOT swept (reconciliation repairs data meant to be complete; racing an in-flight backfill would fight its cursors).",
         "STILL OPEN AND STILL FOR BRAD - reviews have no lane in the design. upsertReviews and provider.listReviews are both fully built and called by nothing; reviews appear in no ENTITY_ORDER and no §6 payload, yet sync_cursors permits the entity_type. PR detail therefore renders an empty pr-reviews section for ingested repos. `checks` is a related but distinct gap: it IS in ENTITY_ORDER (history phase, §3) but processBackfillJob only accepts PaginatedEntity because checks are fetched per head-SHA rather than walked at repo scope, so it needs a non-paginated history path. Neither was resolved here - picking a lane for either is design work, and inventing one is how the code stops matching the doc."
+      ]
+    },
+    {
+      "id": "W12-06",
+      "title": "Broaden enrichment to per-parent detail fetches; survive un-hookable repos",
+      "status": "done",
+      "points": 5,
+      "depends_on": [
+        "W12-05"
+      ],
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/ingest/src/**",
+        "packages/shared/src/db/**",
+        "e2e/**"
+      ],
+      "acceptance": [
+        "Enrichment covers per-PR reviews and per-head-SHA check runs alongside per-commit churn, per the founder decision of 2026-08-13",
+        "sync_status `live` requires BOTH halves of enrichment drained, not just churn",
+        "The fake forge serves reviews and check runs, closing W12-02 acceptance 1",
+        "PR detail renders pr-reviews and pr-checks for an ingested repo, asserted in e2e",
+        "Webhook registration failure is non-fatal, so a public repo the operator does not administer still backfills"
+      ],
+      "notes": [
+        "FOUNDER DECISION 2026-08-13: broaden enrichment from \"per-commit file churn\" to \"per-parent detail fetches\". Reviews (per PR number) and check runs (per head SHA) are nested fetches keyed on a row the history phase already ingested — structurally identical to commit churn and unlike every paginated history entity, which is walked page-by-page at repo scope. This resolves the inconsistency where INGESTION §3 listed `checks` in the HISTORY entity order even though processBackfillJob only accepts PaginatedEntity precisely because checks cannot be walked that way. No new queue: ingest.enrich already carries the right priority and retry policy, so this adds job kinds (commitFiles, prDetail).",
+        "upsertReviews and upsertCheckRuns were both fully built, fully tested and called by NOTHING until this ticket — the sixth instance of that pattern here. The visible symptom was PR detail rendering an empty reviews section for every ingested repo.",
+        "SCHEMA: added pull_requests.enriched_at (migration 0004, one additive nullable column). A per-PR marker, NOT a repo-level high-watermark: enrich jobs run concurrently and complete out of order, so a watermark could advance past PRs that never ran and report enrichment drained — flipping the repo to `live` with reviews missing. Counting child rows cannot work either, because a PR with genuinely zero reviews AND zero checks would look permanently pending and hold the repo at `backfilling` forever.",
+        "WEBHOOK REGISTRATION IS NOW NON-FATAL, and this was a real bug rather than test convenience. The repo row is inserted BEFORE registerWebhook and enqueuePlan comes AFTER, so an unguarded throw left the repo parked in pending_backfill with no work ever queued — stuck silently and permanently. It fails legitimately in two supported cases: a PUBLIC repo the operator does not administer (hook creation needs admin, which reading does not imply — exactly the founder smoke test), and a SELF-HOSTED install with no publicly reachable URL (D1a), where deliveries could never arrive anyway. Webhooks are a freshness optimisation; backfill loads the history and the nightly reconcile sweep repairs what a missed delivery would have carried. The failure is recorded on repos.last_error (\"live updates unavailable — …\") rather than swallowed, so a lagging repo is explainable.",
+        "FIXTURE BUG CAUGHT BY AN EXACT COUNT: check runs were given per-PR ids restarting at 1, and check_runs upserts on (repo_id, kind, forge_run_id, run_attempt) — so PR 12's \"build\" silently overwrote PR 11's and only 2 of 3 rows landed. A >0 assertion would have passed. Ids are globally unique now.",
+        "Measured: fixture-org/beta-web reaches `live` with 3 reviews, 3 check runs, 4 commit_files, 3 commits and 2 PRs; both PRs carry enriched_at. Gate: lint 0, typecheck 0, 495 unit, 40 e2e, all exit 0."
       ]
     },
     {

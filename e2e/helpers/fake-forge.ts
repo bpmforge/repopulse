@@ -32,6 +32,25 @@ export const FAKE_PRS = [
 // Per-commit file churn, one entry per FAKE_COMMITS index. Enrichment writes
 // these into commit_files, which is what the churn/hotspot metrics read — so
 // these numbers are what makes M1/M2 nonzero rather than a fixture detail.
+// Per-PR reviews and check runs — the enrichment lane's other half (W12-02
+// acceptance 1, unblocked once enrichment was broadened to per-parent detail
+// fetches). Keyed by index into FAKE_PRS.
+export const FAKE_REVIEWS: { state: string; login: string }[][] = [
+  [
+    { state: 'APPROVED', login: 'fixture-reviewer' },
+    { state: 'COMMENTED', login: 'fixture-dev' },
+  ],
+  [{ state: 'APPROVED', login: 'fixture-reviewer' }],
+];
+
+export const FAKE_CHECKS: { name: string; conclusion: string }[][] = [
+  [
+    { name: 'build', conclusion: 'success' },
+    { name: 'test', conclusion: 'success' },
+  ],
+  [{ name: 'build', conclusion: 'failure' }],
+];
+
 export const FAKE_COMMIT_FILES: {
   path: string;
   additions: number;
@@ -156,6 +175,56 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
       // Releases/issues/deployments exist so the planner's other lanes resolve
       // rather than 404 — empty is a legitimate answer for a young repo.
       json(200, []);
+      return;
+    }
+
+    // Per-PR reviews (enrichment). Fetched per PR number, not paginated at
+    // repo scope — which is exactly why reviews belong to enrichment rather
+    // than the history entity walk.
+    const reviewsPath = /^\/repos\/[^/]+\/[^/]+\/pulls\/(\d+)\/reviews$/.exec(url.pathname);
+    if (reviewsPath && req.method === 'GET') {
+      const prNumber = Number(reviewsPath[1]);
+      const idx = FAKE_PRS.findIndex((p) => p.number === prNumber);
+      const reviews = FAKE_REVIEWS[idx] ?? [];
+      json(
+        200,
+        reviews.map((r, i) => ({
+          id: prNumber * 100 + i,
+          state: r.state,
+          user: { login: r.login, id: 4242 },
+          submitted_at: new Date(Date.now() - (i + 1) * 3_600_000).toISOString(),
+          body: '',
+        })),
+      );
+      return;
+    }
+
+    // Check runs, keyed on the HEAD COMMIT rather than the PR — the reason
+    // `checks` could never go through the paginated repo-scope walk that
+    // INGESTION §3's entity order implied.
+    const checksPath = /^\/repos\/[^/]+\/[^/]+\/commits\/([^/]+)\/check-runs$/.exec(
+      url.pathname,
+    );
+    if (checksPath && req.method === 'GET') {
+      const ref = checksPath[1]!;
+      const idx = FAKE_PRS.findIndex((p) => `head-${p.number}` === ref);
+      const checks = idx >= 0 ? (FAKE_CHECKS[idx] ?? []) : [];
+      json(200, {
+        total_count: checks.length,
+        check_runs: checks.map((c, i) => ({
+          // Globally unique, NOT per-PR: check_runs upserts on
+          // (repo, kind, forge_run_id, run_attempt), so ids restarting at 1 for
+          // each PR made PR 12's "build" overwrite PR 11's — the fixture
+          // silently lost a row and the count came back 2 instead of 3.
+          id: (idx + 1) * 100 + i,
+          name: c.name,
+          status: 'completed',
+          conclusion: c.conclusion,
+          head_sha: ref,
+          started_at: new Date(Date.now() - 7_200_000).toISOString(),
+          completed_at: new Date(Date.now() - 7_000_000).toISOString(),
+        })),
+      });
       return;
     }
 

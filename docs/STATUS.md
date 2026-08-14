@@ -1604,3 +1604,52 @@ a non-paginated path, since checks are fetched per head-SHA. Neither was resolve
 by picking a lane.
 
 Gate: lint 0, typecheck 0, **494 unit tests** (was 487), 40 e2e, all exit 0.
+
+### 2026-08-13 — W12-06: enrichment broadened, and un-hookable repos survive connect
+
+Founder decisions taken on all four open questions. W12-02 and W12-03 close;
+**zero tickets in progress, 53 done.**
+
+**Enrichment now covers every per-parent detail fetch** — commit churn, PR
+reviews, and check runs — instead of churn alone. Reviews are keyed on a PR
+number and checks on a head SHA, so neither can go through the paginated
+repo-scope walk that history uses; `processBackfillJob` accepts only
+`PaginatedEntity` for exactly that reason. This resolves the inconsistency where
+INGESTION §3 listed `checks` in the *history* entity order. No new queue —
+`ingest.enrich` already had the right priority and retry policy, so it gained
+job kinds. **INGESTION §2/§3/§6 amended to match**, because a doc that disagrees
+with the code is how the next session re-derives the same problem.
+
+`upsertReviews` and `upsertCheckRuns` were both fully built, fully tested, and
+called by nothing — the sixth instance of that pattern. The visible symptom was
+PR detail rendering an empty reviews section for every ingested repo.
+
+**Schema:** added `pull_requests.enriched_at` (migration 0004, one additive
+nullable column). A **per-PR** marker, not a repo-level high-watermark: enrich
+jobs run concurrently and finish out of order, so a watermark could advance past
+PRs that never ran and report enrichment drained — flipping the repo to `live`
+with reviews missing. Counting child rows fails differently: a PR with genuinely
+zero reviews and zero checks would look permanently pending and hold the repo at
+`backfilling` forever.
+
+**Webhook registration is now non-fatal, and that was a real bug.** The repo row
+is inserted *before* `registerWebhook` and `enqueuePlan` comes *after*, so an
+unguarded throw left the repo parked in `pending_backfill` with no work ever
+queued — stuck silently and permanently. It fails legitimately in two supported
+cases: a **public repo the operator does not administer** (hook creation needs
+admin; reading does not imply it) and a **self-hosted install with no publicly
+reachable URL** (D1a), where deliveries could never arrive anyway. Webhooks are a
+freshness optimisation; backfill loads the history and the nightly reconcile
+sweep repairs what a missed delivery would have carried. The failure is recorded
+on `repos.last_error` rather than swallowed.
+
+**A fixture bug an exact count caught:** check runs were given per-PR ids
+restarting at 1, and `check_runs` upserts on
+`(repo_id, kind, forge_run_id, run_attempt)` — so PR 12's `build` silently
+overwrote PR 11's and 2 of 3 rows landed. A `>0` assertion would have passed.
+
+Measured: `fixture-org/beta-web` reaches `live` with 3 reviews, 3 check runs,
+4 `commit_files`, 3 commits, 2 PRs, both PRs carrying `enriched_at`; PR detail
+renders both sections.
+
+Gate: lint 0, typecheck 0, **495 unit tests**, 40 e2e, all exit 0.

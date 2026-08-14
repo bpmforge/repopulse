@@ -2,10 +2,12 @@ import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { installEgressGuard } from './helpers/egress-guard.js';
 import {
+  FAKE_CHECKS,
   FAKE_COMMITS,
   FAKE_COMMIT_FILES,
   FAKE_PRS,
   FAKE_REPOS,
+  FAKE_REVIEWS,
   FAKE_TOKEN,
 } from './helpers/fake-forge.js';
 import { waitForIngestedRepo } from './helpers/warehouse.js';
@@ -106,6 +108,16 @@ test('the full pipeline runs: history backfilled, enrichment drained, repo live'
   );
   expect(ingested.commitFiles).toBe(expectedFiles);
 
+  // Per-PR enrichment: reviews and check runs. upsertReviews and
+  // upsertCheckRuns were both fully built and called by NOTHING until
+  // enrichment was broadened to cover per-parent detail fetches.
+  const flat = <T>(xs: T[][]) => xs.slice(0, FAKE_PRS.length).reduce((n, x) => n + x.length, 0);
+  expect(ingested.reviews).toBe(flat(FAKE_REVIEWS));
+  // Exact, and it caught a real fixture bug: check runs upsert on
+  // (repo, kind, forge_run_id, run_attempt), so per-PR ids restarting at 1 made
+  // one PR's check silently overwrite another's.
+  expect(ingested.checkRuns).toBe(flat(FAKE_CHECKS));
+
   // `live` is only reachable once enrichment has DRAINED (INGESTION §2:
   // queued → history → enrichment → live). Asserting it proves the whole state
   // machine ran, not just that some rows landed — a repo that backfilled but
@@ -135,6 +147,15 @@ test('the full pipeline runs: history backfilled, enrichment drained, repo live'
       `PR #${pr.number} was ingested over GraphQL and must appear on the PR list`,
     ).toBeVisible();
   }
+
+  // PR detail renders the enriched data. These sections were empty for every
+  // ingested repo until reviews/checks had a lane — the visible symptom of the
+  // gap, and the reason asserting the warehouse alone would not have been
+  // enough.
+  await page.goto(`/repos/${ingested.repoId}/prs/${FAKE_PRS[0]!.number}?window=90d`);
+  await expect(page.getByTestId('pr-detail')).toBeVisible();
+  await expect(page.getByTestId('pr-reviews')).toBeVisible();
+  await expect(page.getByTestId('pr-checks')).toBeVisible();
 
   guard.assertNoForbidden();
 });

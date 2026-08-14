@@ -195,6 +195,49 @@ describeIfLiveInfra('connect flow (W2-01, FR-INGEST-1)', () => {
     expect(conn!.webhookSecretCiphertext!.toString('latin1')).not.toContain('wh-secret');
   });
 
+  it('a repo whose webhook cannot be registered STILL gets backfilled', async () => {
+    // The case that made this non-fatal: a PUBLIC repo the operator does not
+    // administer (hook creation needs admin; reading does not imply it), and a
+    // SELF-HOSTED install with no publicly reachable URL (D1a). Previously the
+    // throw escaped after the repo row was inserted but BEFORE enqueuePlan, so
+    // the repo sat in pending_backfill with no work queued — stuck silently and
+    // forever. Webhooks are a freshness optimisation; backfill plus the nightly
+    // reconcile sweep still produce correct data without them.
+    const created = await createConnection(
+      { db, encrypt, smokeListRepos: () => Promise.resolve(REPOS) },
+      { workspaceId, provider: 'github', authKind: 'pat', credential: TOKEN, createdBy },
+    );
+    connectionIds.push(created.connectionId);
+
+    const registerWebhook = vi.fn(async () => {
+      throw new Error('forge responded 403');
+    });
+    const enqueuePlan = vi.fn(async () => {});
+    const repoIds = await activateRepos(
+      { db, sealSecret, registerWebhook, enqueuePlan, generateSecret: () => 'wh-secret' },
+      {
+        workspaceId,
+        connectionId: created.connectionId,
+        candidates: created.candidates,
+        selection: { forgeRepoIds: ['101', '102'] },
+      },
+    );
+
+    // Both repos are activated and BOTH have backfill work queued — the point.
+    expect(repoIds).toHaveLength(2);
+    expect(enqueuePlan).toHaveBeenCalledTimes(2);
+
+    const rows = await db
+      .select()
+      .from(core.repos)
+      .where(eq(core.repos.connectionId, created.connectionId));
+    expect(rows.every((r) => r.syncStatus === 'pending_backfill')).toBe(true);
+    // Degraded, but VISIBLY so: silently falling back to polling would leave an
+    // operator wondering why updates lag.
+    expect(rows.every((r) => (r.lastError ?? '').includes('live updates unavailable'))).toBe(true);
+    expect(rows[0]!.lastError).toContain('403');
+  });
+
   it('"all + auto-add" selects every candidate', async () => {
     const created = await createConnection(
       { db, encrypt, smokeListRepos: () => Promise.resolve(REPOS) },
