@@ -1,12 +1,25 @@
 import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { expectNoA11yViolations } from './helpers/axe.js';
+import { SEED_REPO_NAMES } from '@repopulse/shared';
 
 // W4-05: repo PR list → PR detail, with the list filter living in the URL.
 
-async function firstRepoId(page: import('@playwright/test').Page): Promise<string> {
+// A SEEDED repo, located by name rather than by position. Every assertion below
+// depends on seeder shape (5 PRs, reviews, checks), but the ingest specs add
+// real ingested repos to this same workspace — and since those now reach `live`
+// they can render ahead of the seeded ones. Taking the first tile silently
+// pointed this spec at a 2-PR ingested repo and failed on counts that were
+// never about it.
+async function seededRepoId(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/?window=90d');
-  const href = await page.getByTestId('health-tile-grid').locator('a').first().getAttribute('href');
+  const tile = page
+    .getByTestId('health-tile-grid')
+    .locator('a')
+    .filter({ hasText: SEED_REPO_NAMES[0] });
+  await expect(tile.first(), `seeded repo "${SEED_REPO_NAMES[0]}" should be on the org overview`)
+    .toBeVisible();
+  const href = await tile.first().getAttribute('href');
   const id = href?.match(/\/repos\/(\d+)/)?.[1];
   if (!id) throw new Error('no repo link on the org overview');
   return id;
@@ -14,7 +27,7 @@ async function firstRepoId(page: import('@playwright/test').Page): Promise<strin
 
 test('the PR list renders seeded PRs and drills into detail', async ({ page }) => {
   await loginAsFixture(page);
-  const repoId = await firstRepoId(page);
+  const repoId = await seededRepoId(page);
   await page.goto(`/repos/${repoId}/prs?window=90d`);
 
   // Row count, not mere visibility: the seeder writes 5 PRs per repo, and the
@@ -31,7 +44,7 @@ test('the PR list renders seeded PRs and drills into detail', async ({ page }) =
 
 test('the state filter is URL state, not component state', async ({ page }) => {
   await loginAsFixture(page);
-  const repoId = await firstRepoId(page);
+  const repoId = await seededRepoId(page);
   await page.goto(`/repos/${repoId}/prs?window=90d`);
 
   await page.getByTestId('pr-state-filter').selectOption('merged');
@@ -52,7 +65,7 @@ test('the state filter is URL state, not component state', async ({ page }) => {
 
 test('PR detail shows the stage timeline, reviews, checks and files', async ({ page }) => {
   await loginAsFixture(page);
-  const repoId = await firstRepoId(page);
+  const repoId = await seededRepoId(page);
   await page.goto(`/repos/${repoId}/prs?window=90d&state=merged`);
   await page.getByTestId('pr-list').locator('tbody a').first().click();
 
@@ -66,7 +79,7 @@ test('PR detail shows the stage timeline, reviews, checks and files', async ({ p
 
 test('an open PR shows a running stage', async ({ page }) => {
   await loginAsFixture(page);
-  const repoId = await firstRepoId(page);
+  const repoId = await seededRepoId(page);
   await page.goto(`/repos/${repoId}/prs?window=90d&state=open`);
   await page.getByTestId('pr-list').locator('tbody a').first().click();
   // The counterpart to the assertion above: an open PR's clock IS running, so
@@ -77,7 +90,7 @@ test('an open PR shows a running stage', async ({ page }) => {
 
 test('PR screens pass axe with real data', async ({ page }) => {
   await loginAsFixture(page);
-  const repoId = await firstRepoId(page);
+  const repoId = await seededRepoId(page);
   await page.goto(`/repos/${repoId}/prs?window=90d`);
   await expect(page.getByTestId('pr-list').locator('tbody tr').first()).toBeVisible();
   await expectNoA11yViolations(page);

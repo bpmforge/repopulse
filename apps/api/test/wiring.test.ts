@@ -79,6 +79,20 @@ describe('production wiring (regression gate)', () => {
     ).toEqual([]);
   });
 
+  it('the e2e harness disables the nightly reconcile sweep', () => {
+    // The sweep is the one thing this worker does on a WALL CLOCK rather than
+    // on demand: it re-lists five entities for every `live` repo. The seeder
+    // creates `live` repos, so when the cron fired mid-suite it flooded the
+    // worker with work no test asked for — the e2e run went from 9 seconds to
+    // 33 minutes with 17 failures whose messages (page.goto timeouts, missing
+    // locators) pointed nowhere near the cause. Costly enough to pin.
+    const config = readIfPresent(new URL('../../../playwright.config.ts', import.meta.url).pathname);
+    expect(
+      /RECONCILE_CRON:\s*'off'/.test(config),
+      'playwright.config.ts must set RECONCILE_CRON=off for the worker, or the nightly sweep can fire mid-suite',
+    ).toBe(true);
+  });
+
   it('the DLQ is a sink: fed by attachDeadLetter and consumed by nobody', () => {
     // Both halves matter. Losing attachDeadLetter means exhausted jobs vanish
     // silently; gaining a processor means they are consumed before anyone can

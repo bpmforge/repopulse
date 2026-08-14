@@ -13,7 +13,11 @@ export const SEED_SECOND_SLUG = 'seed-second-tenant';
 export const FIXTURE_LOGIN = 'fixture-dev';
 const CONTRIBUTORS = ['alice', 'bob', 'carol', FIXTURE_LOGIN] as const;
 const BOT = 'renovate[bot]';
-const REPO_NAMES = ['payments', 'web-app', 'infra'] as const;
+// Exported so specs can target a SEEDED repo by name instead of "whichever
+// tile renders first" — the ingest specs legitimately add repos to this same
+// workspace, so position is not identity.
+export const SEED_REPO_NAMES = ['payments', 'web-app', 'infra'] as const;
+const REPO_NAMES = SEED_REPO_NAMES;
 const DAY = 24 * 60 * 60 * 1000;
 
 /** The fixture's activity spans this many days, ending at the anchor. */
