@@ -1653,3 +1653,49 @@ Measured: `fixture-org/beta-web` reaches `live` with 3 reviews, 3 check runs,
 renders both sections.
 
 Gate: lint 0, typecheck 0, **495 unit tests**, 40 e2e, all exit 0.
+
+### 2026-08-14 — the nightly sweep I shipped yesterday broke the test suite
+
+The e2e suite went from **9 seconds green to 33 minutes with 17 failures**, and
+the failures pointed nowhere near the cause: `page.goto` timeouts, missing
+locators, page-setup timeouts, spread across nearly every spec.
+
+**Cause: the reconcile cron I added in W12-05 fired mid-run.** It is set to
+`17 3 * * *`, the runs happened at ~03:17, and the sweep does the one thing this
+worker does on a wall clock rather than on demand — re-list five entities for
+every `live` repo. The seeder creates `live` repos, so the sweep flooded the
+worker with work no test asked for, against the same database the suite was
+asserting on.
+
+Proven by the fix rather than argued: `RECONCILE_CRON=off` in the harness
+returned the suite to **40 passed in 9.6s**, and the unit suite from timing out
+at 10 minutes to **31 seconds**.
+
+`RECONCILE_CRON=off` is now a supported operator switch, not a test hack — an
+operator scheduling reconciliation externally needs exactly the same thing.
+`apps/api/test/wiring.test.ts` pins the harness setting, with a negative control.
+
+**Two other latent order-dependencies fixed on the way**, both the same shape:
+`pr-screens` and `repo-detail` took "the first health tile" and assumed seeder
+content (5 PRs, four metric charts). The ingest specs add real repos to the same
+workspace, and since those now reach `live` they can render ahead of the seeded
+ones. Both now target a seeded repo **by name** — `SEED_REPO_NAMES` is exported
+for that. Position is not identity.
+
+And a bug in my own e2e helper: `waitForIngestedRepo` required
+`pullRequests > 0`, so a real repo with no PRs (`bpmforge/quarry`) could never
+satisfy it and the poll ran to its deadline on a repo that had finished
+perfectly. `live` alone is the completion signal — it already implies history
+complete and both halves of enrichment drained. Row counts are the caller's
+assertion, not the wait condition.
+
+**Also filed, not fixed: W12-07.** The unit suite failed 3 auth-dependent tests
+once and passed 497/497 on an immediate re-run with no change. The error is a
+missing `oauth_state` cookie — the shape of a 429 from SC-11's 10/min/IP auth
+limit, which parallel test files can trip. `e2e/global-setup.ts` documents the
+same hazard and logs in once for the whole run; the unit suite has no
+equivalent. Latent, not new, and deliberately not "fixed" by weakening a real
+security control.
+
+Gate: lint 0, typecheck 0, **497 unit**, 40 e2e + 1 skipped (real-forge smoke),
+all exit 0.

@@ -75,13 +75,24 @@ async function main(): Promise<void> {
   //
   // A repeatable job carries its own dedupe key, so every worker replica
   // registering it on boot yields ONE schedule, not one per replica.
-  await reconcileQueue.add(
-    'sweep',
-    {},
-    {
-      repeat: { pattern: process.env.RECONCILE_CRON ?? '17 3 * * *' },
-      jobId: 'reconcile-nightly-sweep',
-    },
+  //
+  // RECONCILE_CRON=off disables it. That exists because a sweep is the one
+  // piece of this worker that starts work NOBODY ASKED FOR, at a wall-clock
+  // time: it re-lists five entities for every `live` repo. That is correct
+  // nightly behaviour in production and pure interference anywhere a test
+  // suite seeds `live` repos and expects a quiet worker — the e2e harness sets
+  // it off for exactly that reason. An operator who wants to schedule
+  // reconciliation externally gets the same switch.
+  const reconcileCron = process.env.RECONCILE_CRON ?? '17 3 * * *';
+  if (reconcileCron !== 'off') {
+    await reconcileQueue.add(
+      'sweep',
+      {},
+      { repeat: { pattern: reconcileCron }, jobId: 'reconcile-nightly-sweep' },
+    );
+  }
+  console.log(
+    `[worker] nightly reconcile: ${reconcileCron === 'off' ? 'disabled' : reconcileCron}`,
   );
 
   const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3001);

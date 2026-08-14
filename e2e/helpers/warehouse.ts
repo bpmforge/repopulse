@@ -80,9 +80,14 @@ export async function waitForIngestedRepo(
           reviews: await count(facts.prReviews),
           checkRuns: await count(facts.checkRuns),
         };
-        if (last.syncStatus === 'live' && last.commits > 0 && last.pullRequests > 0) {
-          return last;
-        }
+        // `live` ALONE is the completion signal: it is only reachable once
+        // history finished and both halves of enrichment drained (INGESTION
+        // §2). Also requiring commits/PRs > 0 was wrong — a real repo with no
+        // pull requests (bpmforge/quarry has none) can never satisfy it, so the
+        // poll ran to its deadline on a repo that had in fact finished
+        // perfectly. Row counts are the CALLER's assertion, not the wait
+        // condition; conflating them made the helper repo-shape-dependent.
+        if (last.syncStatus === 'live') return last;
       }
 
       if (Date.now() > deadline) return last;

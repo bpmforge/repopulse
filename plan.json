@@ -3514,6 +3514,28 @@
       "notes": [
         "DONE 2026-08-13. Written after the fourth built-but-never-mounted defect in a week (W4-18 SSE, W4-19 connections/sync/webhooks, W12-03 processors). Every one was found BY ACCIDENT while building something adjacent, and the suite was green throughout, because unit tests mount the subject into a throwaway scope and nothing ever exercises the production entrypoint. Finding them by luck is not a process. The KNOWN_INERT allowlist is deliberately two-directional: a new inert queue fails the gate, AND landing a processor without removing its entry fails too, so the debt cannot be quietly re-accrued behind a stale list. RED-checked both ways — unmounting the sync route reports ['sync'], registering a backfill processor reports ['backfill']."
       ]
+    },
+    {
+      "id": "W12-07",
+      "title": "Auth rate limit (SC-11) makes the unit gate intermittently red",
+      "status": "todo",
+      "points": 2,
+      "depends_on": [],
+      "write_scope": [
+        "apps/api/src/**",
+        "apps/api/test/**"
+      ],
+      "acceptance": [
+        "The full unit suite passes repeatedly (10 consecutive runs) with no auth-related failures",
+        "The fix does not weaken SC-11 in production — the limit stays 10/min/IP where it matters"
+      ],
+      "notes": [
+        "OBSERVED 2026-08-14. `pnpm test` failed 3 tests in apps/api/src/routes/repos/index.test.ts with \"Cannot read properties of undefined (reading 'value')\", then passed 497/497 on an immediate re-run with no code change. The error is at the LOGIN step, not on data: the helper reads the oauth_state cookie off the authorize response and gets undefined, which is what a 429 looks like from that call site.",
+        "CAUSE (high confidence, not yet proven): SC-11 caps the auth flow at 10 requests per minute per IP. Vitest runs test FILES in parallel and several of them perform a real OAuth round trip against the same in-process app from the same address, so a burst can exceed the cap. e2e/global-setup.ts already documents this exact hazard and works around it by logging in ONCE for the whole Playwright run — the unit suite has no equivalent.",
+        "WHY IT SURFACED NOW: nothing in the limiter changed. W12-05/W12-06 added four test files (completion, enrich-queue, graphql, processors.reconcile), which shifts scheduling and makes the burst more likely. It is latent, not new — and it is the worst kind of red, because it points at a repo route that has nothing to do with the failure.",
+        "DO NOT fix by raising the limit globally: SC-11 is a real control (T-13/T-14 brute-force). Options worth weighing: share one authenticated session across the API route tests the way globalSetup does for e2e; make the limiter keyed per test-app instance so parallel files do not share a bucket; or make the limit configurable and set it high ONLY under NODE_ENV=test, which is the least good option because it stops exercising the control.",
+        "NOT introduced by the reconcile-sweep incident and not fixed by it — those are separate. Filed rather than fixed inline so the gate reliability work is visible instead of being absorbed into an unrelated ticket."
+      ]
     }
   ]
 }

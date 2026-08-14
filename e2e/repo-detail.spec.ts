@@ -1,16 +1,24 @@
 import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { expectNoA11yViolations } from './helpers/axe.js';
+import { SEED_REPO_NAMES } from '@repopulse/shared';
 
 // W4-04 acceptance 4: org → repo → tab by CLICKS and by DIRECT URL PASTE
 // (FR-WEB-2). Both paths matter and they fail differently — clicking exercises
 // the link wiring, pasting exercises route parsing and search validation on a
 // cold load with no in-memory router state to fall back on.
 
+// A SEEDED repo, by name. Every assertion here depends on fixture shape (four
+// metric charts, a chart on every tab), and the ingest specs add real ingested
+// repos to this same workspace which — now that they reach `live` — can render
+// ahead of the seeded ones. Position is not identity.
+function seededTile(page: import('@playwright/test').Page) {
+  return page.getByTestId('health-tile-grid').locator('a').filter({ hasText: SEED_REPO_NAMES[0] }).first();
+}
+
 async function firstRepoHref(page: import('@playwright/test').Page): Promise<string> {
-  const tile = page.getByTestId('health-tile-grid').locator('a').first();
-  const href = await tile.getAttribute('href');
-  if (!href) throw new Error('no repo link on the org overview');
+  const href = await seededTile(page).getAttribute('href');
+  if (!href) throw new Error('no seeded repo link on the org overview');
   return href;
 }
 
@@ -18,7 +26,7 @@ test('drills org → repo → each tab by clicking, breadcrumb intact', async ({
   await loginAsFixture(page);
   await page.goto('/?window=90d');
 
-  await page.getByTestId('health-tile-grid').locator('a').first().click();
+  await seededTile(page).click();
   await expect(page).toHaveURL(/\/repos\/\d+/);
   await expect(page.getByTestId('repo-detail')).toBeVisible();
   // The panel testids sit on ALWAYS-rendered containers, so visibility alone

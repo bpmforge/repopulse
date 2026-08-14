@@ -19,12 +19,22 @@ import { waitForIngestedRepo } from './helpers/warehouse.js';
 
 const PAT = process.env.SMOKE_FORGE_PAT;
 
-// Public repos, chosen for shape rather than convenience: `quarry` is tiny (9
-// commits, 0 PRs) so a break shows up in seconds, and `attest-claude` has real
-// PR and review history so the enrichment lane is genuinely exercised.
+// Public repos, chosen for shape rather than convenience.
+//
+// `quarry` alone by default: 9 commits exercises every code path this test
+// covers — connect, discovery, plan, all five history entities, enrichment
+// fan-out, the state machine through to `live` — for ~15 real API calls.
+// Enrichment issues ONE call per commit, so bigger repos cost proportionally
+// more rate-limit budget while proving nothing additional about the seam.
+//
+// SMOKE_FULL=1 adds `attest-claude` (325 commits, ~350 calls), which has real
+// PR and review history. Worth it when PR/review ingestion is specifically
+// what changed; wasteful as a routine check.
 const TARGETS = [
   { full: 'bpmforge/quarry', minCommits: 5 },
-  { full: 'bpmforge/attest-claude', minCommits: 50 },
+  ...(process.env.SMOKE_FULL === '1'
+    ? [{ full: 'bpmforge/attest-claude', minCommits: 50 }]
+    : []),
 ];
 
 test.describe('real forge', () => {
@@ -32,7 +42,7 @@ test.describe('real forge', () => {
 
   test('ingests real repositories from api.github.com', async ({ page }) => {
     // Minutes, not seconds: one enrich job per commit against a live API under
-    // the rate-limit budget.
+    // the rate-limit budget. Generous enough for the SMOKE_FULL target too.
     test.setTimeout(15 * 60_000);
 
     await loginAsFixture(page);

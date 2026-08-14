@@ -69,7 +69,16 @@ export default defineConfig({
           url: `http://localhost:${WORKER_HEALTH_PORT}/healthz`,
           // Spread process.env — see the note above; and `pnpm --filter` runs
           // with cwd=apps/api, where dotenv finds no .env to fall back on.
-          env: { ...process.env, WORKER_HEALTH_PORT, ...workerForgeEnv },
+          env: {
+            ...process.env,
+            WORKER_HEALTH_PORT,
+            // No nightly sweep during tests. The seeder creates `live` repos,
+            // so a firing sweep re-lists every entity for every one of them
+            // mid-run — work no test asked for, against a fake forge, on the
+            // same database the suite is asserting against.
+            RECONCILE_CRON: 'off',
+            ...workerForgeEnv,
+          },
           reuseExistingServer: false,
           timeout: 60_000,
         },
