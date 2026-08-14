@@ -36,6 +36,40 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS source
 COPY . .
 
+# ---------- prod-deps ----------
+# The runtime stages must NOT inherit `source`: that carries the full dev
+# toolchain (vitest, playwright, eslint, typescript, drizzle-kit) and made the
+# api and worker images 1.68 GB, all of it pulled by every customer on install.
+#
+# A plain --prod install is not sufficient, because this workspace ships
+# TypeScript: every package's `exports` points at ./src/*.ts and nothing is
+# compiled, so `tsx` is a genuine RUNTIME dependency rather than a build tool.
+# It is pinned to the same version the repo uses; drizzle-kit is added only in
+# the migrate stage, which is the one place it actually runs.
+FROM base AS prod-deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/analysis/package.json packages/analysis/
+COPY packages/auth/package.json packages/auth/
+COPY packages/forge/package.json packages/forge/
+COPY packages/ingest/package.json packages/ingest/
+COPY packages/insights/package.json packages/insights/
+COPY packages/metrics/package.json packages/metrics/
+COPY packages/reports/package.json packages/reports/
+COPY packages/shared/package.json packages/shared/
+RUN pnpm install --frozen-lockfile --prod \
+ && pnpm store prune || true
+
+# Runtime source: the TypeScript the workspace actually executes, without the
+# test suites, fixtures, e2e harness or web app that the api and worker never
+# load. .dockerignore already excludes node_modules and build output.
+FROM base AS runtime-src
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/
+COPY apps/api/src apps/api/src
+COPY packages packages
+
 # ---------- web build ----------
 FROM source AS web-build
 # The SPA talks only to /api/v1 on its own origin (Law 4), so there is no API
@@ -44,29 +78,49 @@ FROM source AS web-build
 RUN pnpm --filter @repopulse/web exec vite build
 
 # ---------- runtime: api ----------
-FROM source AS api
+FROM base AS api
 ENV NODE_ENV=production
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=runtime-src /app ./
+# tsx globally, and the process is started with it DIRECTLY rather than through
+# `pnpm --filter ... exec`. Two reasons, both found by running the image:
+# pnpm's isolated layout does not put a root-installed tsx on a workspace
+# package's bin path, and invoking pnpm at runtime makes corepack try to fetch
+# itself from the network on every container start.
+RUN npm install -g tsx@4.23.1 && npm cache clean --force
 RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
 USER app
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["pnpm", "--filter", "@repopulse/api", "exec", "tsx", "src/index.ts"]
+CMD ["tsx", "apps/api/src/index.ts"]
 
 # ---------- runtime: worker ----------
-FROM source AS worker
+FROM base AS worker
 ENV NODE_ENV=production
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=runtime-src /app ./
+RUN npm install -g tsx@4.23.1 && npm cache clean --force
 RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
 USER app
-CMD ["pnpm", "--filter", "@repopulse/api", "exec", "tsx", "src/workers/index.ts"]
+CMD ["tsx", "apps/api/src/workers/index.ts"]
 
 # ---------- one-shot: migrate ----------
 # Runs to completion before api/worker start. Drizzle records applied
 # migrations, so a second `up` on an existing install is a no-op, not a
 # re-migrate.
-FROM source AS migrate
+FROM base AS migrate
 ENV NODE_ENV=production
-CMD ["pnpm", "exec", "drizzle-kit", "migrate"]
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=runtime-src /app ./
+# The generated SQL and drizzle's bookkeeping table — the same ones drizzle-kit
+# writes, so the two are interchangeable.
+COPY packages/shared/drizzle packages/shared/drizzle
+RUN npm install -g tsx@4.23.1 && npm cache clean --force
+CMD ["tsx", "apps/api/src/migrate.ts"]
 
 # ---------- runtime: web ----------
 FROM nginx:1.27-alpine AS web
