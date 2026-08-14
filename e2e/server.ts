@@ -31,10 +31,16 @@ const github = await startFakeGithub(Number(process.env.E2E_FAKE_GITHUB_PORT ?? 
 // api.github.com, so the real path runs with no credential and no network.
 const forge = await startFakeForge(Number(process.env.E2E_FAKE_FORGE_PORT ?? 0));
 
+// Real-forge smoke mode: point the SAME production buildApp at api.github.com
+// instead of the fake, so a run exercises the genuine forge seam while the
+// login boundary stays faked (registering an OAuth app is unrelated friction
+// for what this proves). Unset in every normal run.
+const forgeBaseUrl = process.env.SMOKE_FORGE_BASE_URL ?? forge.baseUrl;
+
 const app = buildApp({
   tokenKey: Buffer.from(requireEnv('TOKEN_ENC_KEY'), 'hex'),
   webhookUrl: `${apiBaseUrl}/api/v1/webhooks/github`,
-  forgeBaseUrl: forge.baseUrl,
+  forgeBaseUrl,
   db: createDb(requireEnv('DATABASE_URL')),
   redisUrl: requireEnv('REDIS_URL'),
   sessionSecret: requireEnv('SESSION_SECRET'),
