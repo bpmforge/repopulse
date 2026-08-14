@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { core, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
@@ -9,12 +9,17 @@ import { sendProblem } from '../../lib/problem.js';
 // Admin endpoints (W4-20): workspace members (FR-AUTH-4) and the dead-letter
 // queue (NFR-11).
 //
-// Both surfaces already existed in the UI as named empty states pointing at
-// this ticket, which is the honest way to ship a gap — but the DLQ one is the
-// consequential half. W12-05 made the DLQ a deliberate SINK: exhausted jobs are
-// copied there and nothing consumes them, precisely so a human can inspect and
-// replay. Until now there was no endpoint to do the inspecting, so a job that
-// exhausted its retries landed somewhere nobody could see.
+// The DLQ half is the consequential one. W12-05 made the dead-letter queue a
+// deliberate SINK — exhausted jobs are copied there and nothing consumes them,
+// precisely so a human can inspect and replay. Until these routes existed there
+// was no way to do the inspecting, so a job that exhausted its retries landed
+// somewhere nobody could see.
+//
+// ERROR RETURNS: `problem()` below sends AND returns the reply. Never write
+// `return sendProblem(...)` — it returns void after already sending, so Fastify
+// serialises `undefined` and sends a second time (ERR_HTTP_HEADERS_SENT on
+// every problem response). api-v1.ts carries the same warning for its
+// preHandler; it applies to handlers just as much.
 
 export interface AdminRoutesOptions {
   db: Database;
@@ -26,6 +31,18 @@ export interface AdminRoutesOptions {
 
 const ROLES = ['admin', 'member'] as const;
 type Role = (typeof ROLES)[number];
+
+/** Send a problem response and hand Fastify the reply, in one expression. */
+function problem(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  status: number,
+  title: string,
+  detail?: string,
+): FastifyReply {
+  sendProblem(request, reply, status, title, detail === undefined ? {} : { detail });
+  return reply;
+}
 
 export default async function adminRoutes(
   app: FastifyInstance,
@@ -41,8 +58,8 @@ export default async function adminRoutes(
     if (!opts.redisUrl) return undefined;
     // Only queues we declare — a job_failure row naming an unknown queue must
     // not cause us to create one.
-    if (!Object.values(QUEUE).includes(name as (typeof QUEUE)[keyof typeof QUEUE]))
-      return undefined;
+    const known = Object.values(QUEUE) as string[];
+    if (!known.includes(name)) return undefined;
     let q = queues.get(name);
     if (!q) {
       connection ??= createRedisConnection(opts.redisUrl);
@@ -53,14 +70,14 @@ export default async function adminRoutes(
   }
 
   app.addHook('onClose', async () => {
-    await Promise.all([...queues.values()].map((q) => q.close().catch(() => {})));
-    await connection?.quit().catch(() => {});
+    await Promise.all([...queues.values()].map((q) => q.close().catch(() => undefined)));
+    if (connection) await connection.quit().catch(() => undefined);
   });
 
-  /** GET /admin/members — who is in this workspace and what they can do. */
+  /** GET /admin/members — who is in this workspace, and what they can do. */
   app.get('/admin/members', { preHandler: requireAdmin }, async (request, reply) => {
     const workspaceId = request.workspace?.id;
-    if (workspaceId === undefined) return sendProblem(request, reply, 401, 'No active session');
+    if (workspaceId === undefined) return problem(request, reply, 401, 'No active session');
 
     const rows = await opts.db
       .select({
@@ -92,23 +109,28 @@ export default async function adminRoutes(
       const workspaceId = request.workspace?.id;
       const callerId = request.session.get('userId');
       if (workspaceId === undefined || callerId === undefined) {
-        return sendProblem(request, reply, 401, 'No active session');
+        return problem(request, reply, 401, 'No active session');
       }
 
       const userId = Number(request.params.userId);
+      if (!Number.isFinite(userId)) return problem(request, reply, 400, 'Invalid user id');
+
       const role = request.body?.role;
-      if (!Number.isFinite(userId)) {
-        return sendProblem(request, reply, 400, 'Invalid user id');
-      }
       if (!role || !ROLES.includes(role as Role)) {
-        return sendProblem(request, reply, 400, 'Invalid role', {
-          detail: `role must be one of ${ROLES.join(', ')}`,
-        });
+        // The DB CHECK would reject an unknown role too, but a 500 from a
+        // constraint is not an answer an operator can act on.
+        return problem(
+          request,
+          reply,
+          400,
+          'Invalid role',
+          `role must be one of ${ROLES.join(', ')}`,
+        );
       }
 
       // An admin demoting themselves while they are the LAST admin locks the
-      // workspace out of every admin surface with no way back in — including
-      // this endpoint. Refused rather than "fixed" by a support process.
+      // workspace out of every admin surface, including this endpoint, with no
+      // way back in. Refused rather than "fixed" later by a support process.
       if (userId === callerId && role !== 'admin') {
         const admins = await opts.db
           .select({ userId: core.workspaceMembers.userId })
@@ -120,10 +142,14 @@ export default async function adminRoutes(
             ),
           );
         if (admins.length <= 1) {
-          return sendProblem(request, reply, 409, 'Cannot remove the last admin', {
-            detail:
-              'Promote another member to admin first, or the workspace would have no one who can administer it.',
-          });
+          // 409, not 400: the request is well-formed, the STATE forbids it.
+          return problem(
+            request,
+            reply,
+            409,
+            'Cannot remove the last admin',
+            'Promote another member to admin first, or the workspace would have nobody who can administer it.',
+          );
         }
       }
 
@@ -139,8 +165,8 @@ export default async function adminRoutes(
         .returning({ userId: core.workspaceMembers.userId, role: core.workspaceMembers.role });
 
       // Tenancy (Law 5): a user in ANOTHER workspace is a 404 here, not a 403 —
-      // a 403 would confirm the id exists.
-      if (updated.length === 0) return sendProblem(request, reply, 404, 'Member not found');
+      // a 403 would confirm the id exists somewhere.
+      if (updated.length === 0) return problem(request, reply, 404, 'Member not found');
       return reply.send({ user_id: updated[0]!.userId, role: updated[0]!.role });
     },
   );
@@ -151,17 +177,17 @@ export default async function adminRoutes(
     { preHandler: requireAdmin },
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
-      if (workspaceId === undefined) return sendProblem(request, reply, 401, 'No active session');
+      if (workspaceId === undefined) return problem(request, reply, 401, 'No active session');
 
       const includeReplayed = request.query.include_replayed === 'true';
-      const where = includeReplayed
-        ? eq(core.jobFailure.workspaceId, workspaceId)
-        : and(eq(core.jobFailure.workspaceId, workspaceId), isNull(core.jobFailure.replayedAt));
-
       const rows = await opts.db
         .select()
         .from(core.jobFailure)
-        .where(where)
+        .where(
+          includeReplayed
+            ? eq(core.jobFailure.workspaceId, workspaceId)
+            : and(eq(core.jobFailure.workspaceId, workspaceId), isNull(core.jobFailure.replayedAt)),
+        )
         .orderBy(desc(core.jobFailure.failedAt))
         .limit(200);
 
@@ -170,8 +196,8 @@ export default async function adminRoutes(
           id: r.id,
           queue: r.queue,
           job_id: r.jobId,
-          // The error is the whole point of the screen — a DLQ that shows a
-          // count and no reason tells an operator nothing actionable.
+          // The error is the whole point of this screen — a DLQ showing a count
+          // and no reason tells an operator nothing they can act on.
           error: r.error,
           failed_at: r.failedAt,
           replayed_at: r.replayedAt,
@@ -186,33 +212,37 @@ export default async function adminRoutes(
     { preHandler: requireAdmin },
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
-      if (workspaceId === undefined) return sendProblem(request, reply, 401, 'No active session');
+      if (workspaceId === undefined) return problem(request, reply, 401, 'No active session');
 
       const id = Number(request.params.id);
-      if (!Number.isFinite(id)) return sendProblem(request, reply, 400, 'Invalid id');
+      if (!Number.isFinite(id)) return problem(request, reply, 400, 'Invalid id');
 
       const [row] = await opts.db
         .select()
         .from(core.jobFailure)
         .where(and(eq(core.jobFailure.id, id), eq(core.jobFailure.workspaceId, workspaceId)))
         .limit(1);
-      if (!row) return sendProblem(request, reply, 404, 'Dead-letter job not found');
+      if (!row) return problem(request, reply, 404, 'Dead-letter job not found');
 
       const queue = queueFor(row.queue);
       if (!queue) {
-        return sendProblem(request, reply, 503, 'Replay unavailable', {
-          detail: `No queue handle for "${row.queue}" — the API needs REDIS_URL to re-enqueue.`,
-        });
+        return problem(
+          request,
+          reply,
+          503,
+          'Replay unavailable',
+          `No queue handle for "${row.queue}" — the API needs REDIS_URL to re-enqueue.`,
+        );
       }
 
       // No jobId is set on the replay. The original id is the §6 idempotency
-      // key, and reusing it would make BullMQ treat the replay as a duplicate
-      // of the job that already failed — the button would appear to work and
-      // do nothing.
+      // key, so reusing it would make BullMQ treat the replay as a duplicate of
+      // the job that already failed: the button would appear to work and do
+      // nothing.
       await queue.add(row.jobId, row.payload);
 
       // Stamped only AFTER a successful enqueue, so a failed replay stays
-      // visible in the list rather than disappearing as if it had worked.
+      // visible in the list rather than disappearing as though it had worked.
       await opts.db
         .update(core.jobFailure)
         .set({ replayedAt: new Date() })

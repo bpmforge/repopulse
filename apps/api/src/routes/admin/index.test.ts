@@ -7,6 +7,11 @@ import type { Job, Queue } from 'bullmq';
 import { buildApp } from '../../app.js';
 import { loginAs } from '../../testing/login.js';
 
+// SC-7: every non-safe method needs this header or an onRequest hook 403s the
+// request before any route logic runs — which presents as "the admin guard
+// rejected me" rather than "you forgot a header".
+const CSRF = { 'x-requested-with': 'repopulse' };
+
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
 
@@ -182,6 +187,7 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
       method: 'PATCH',
       url: `/api/v1/admin/members/${memberUserId}`,
       cookies: { repopulse_sid: cookie },
+      headers: CSRF,
       payload: { role: 'admin' },
     });
     expect(res.statusCode).toBe(200);
@@ -194,6 +200,7 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
       method: 'PATCH',
       url: `/api/v1/admin/members/${memberUserId}`,
       cookies: { repopulse_sid: cookie },
+      headers: CSRF,
       payload: { role: 'superuser' },
     });
     // The DB CHECK would also reject it, but a 500 from a constraint is not an
@@ -218,6 +225,7 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
       method: 'PATCH',
       url: `/api/v1/admin/members/${adminUserId}`,
       cookies: { repopulse_sid: cookie },
+      headers: CSRF,
       payload: { role: 'member' },
     });
     // 409, not 400: the request is well-formed, the STATE forbids it.
@@ -273,6 +281,7 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
       method: 'POST',
       url: `/api/v1/admin/dlq/${failure!.id}/replay`,
       cookies: { repopulse_sid: cookie },
+      headers: CSRF,
     });
     expect(replay.statusCode).toBe(200);
     expect(added, 'replay must actually re-enqueue, not just mark the row').toHaveLength(1);
@@ -302,6 +311,7 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
       method: 'POST',
       url: `/api/v1/admin/dlq/${otherFailureId}/replay`,
       cookies: { repopulse_sid: cookie },
+      headers: CSRF,
     });
     // A 403 would confirm the id exists in some other tenant.
     expect(res.statusCode).toBe(404);
