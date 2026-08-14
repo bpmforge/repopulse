@@ -46,7 +46,22 @@ export interface SeedResult {
   counts: { repos: number; commits: number; prs: number; snapshots: number };
 }
 
+// Delete order is FK order, and every table referencing repos or
+// forge_connections must appear BEFORE them. This is not hypothetical
+// bookkeeping: the seeder ran fine for months and then failed the moment
+// RepoPulse first ingested from real GitHub, because api.github.com sends
+// ETags (our fake forge does not), the BudgetedClient cached them, and 351
+// forge_etag rows suddenly referenced the connections this function deletes.
+//
+// Anything writing a new repo- or connection-scoped table has to be added
+// here, or reseeding breaks only for whoever has exercised that code path —
+// the worst kind of failure to debug, because it reproduces for one person.
 async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
+  // Analysis/audit rows reference repos.
+  await db.delete(read.findingEvents).where(eq(read.findingEvents.workspaceId, workspaceId));
+  await db.delete(read.findings).where(eq(read.findings.workspaceId, workspaceId));
+  await db.delete(read.analysisRuns).where(eq(read.analysisRuns.workspaceId, workspaceId));
+  await db.delete(read.egressAudit).where(eq(read.egressAudit.workspaceId, workspaceId));
   await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.workspaceId, workspaceId));
   await db.delete(facts.commitFiles).where(eq(facts.commitFiles.workspaceId, workspaceId));
   await db.delete(facts.prReviews).where(eq(facts.prReviews.workspaceId, workspaceId));
@@ -60,6 +75,11 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   await db.delete(core.syncCursors).where(eq(core.syncCursors.workspaceId, workspaceId));
   await db.delete(core.identities).where(eq(core.identities.workspaceId, workspaceId));
   await db.delete(core.repos).where(eq(core.repos.workspaceId, workspaceId));
+  // Both reference forge_connections and must go before it. forge_etag is the
+  // one that actually broke: it is written only when a forge returns an ETag,
+  // so it stayed empty until the first real-GitHub run.
+  await db.delete(core.forgeEtag).where(eq(core.forgeEtag.workspaceId, workspaceId));
+  await db.delete(core.webhookDelivery).where(eq(core.webhookDelivery.workspaceId, workspaceId));
   await db.delete(core.forgeConnections).where(eq(core.forgeConnections.workspaceId, workspaceId));
 }
 

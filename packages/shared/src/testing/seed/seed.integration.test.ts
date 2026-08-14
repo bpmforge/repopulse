@@ -16,6 +16,34 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
     await db.$client.end();
   });
 
+  it('re-seeds after REAL ingestion, when forge_etag rows reference the connections', async () => {
+    // The seeder ran fine for months and then broke the first time RepoPulse
+    // ingested from real GitHub: api.github.com sends ETags (our fake forge
+    // does not), the BudgetedClient cached them, and forge_etag rows suddenly
+    // referenced the forge_connections wipeWorkspace deletes — so seeding died
+    // on a FK violation for anyone who had run against a real forge, and for
+    // nobody else. This pins the delete ORDER, not just that seeding works.
+    const seeded = await seedWarehouse(db, { seed: 7 });
+
+    const [conn] = await db
+      .select({ id: core.forgeConnections.id, workspaceId: core.forgeConnections.workspaceId })
+      .from(core.forgeConnections)
+      .limit(1);
+    expect(conn, 'seeder should create a connection to hang an etag off').toBeTruthy();
+
+    await db.insert(core.forgeEtag).values({
+      workspaceId: conn!.workspaceId,
+      connectionId: conn!.id,
+      endpointKey: 'GET /repos/acme/etag-fixture/commits',
+      etag: 'W/"seed-regression"',
+      cachedBody: {},
+    });
+
+    // The assertion IS that this does not throw.
+    const again = await seedWarehouse(db, { seed: 7 });
+    expect(again.counts).toEqual(seeded.counts);
+  });
+
   it('seeds a multi-repo org + a second workspace, and re-seeding is deterministic + idempotent', async () => {
     const a = await seedWarehouse(db, { seed: 42 });
     expect(a.counts.repos).toBe(3);
