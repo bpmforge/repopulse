@@ -1606,7 +1606,7 @@
     {
       "id": "W4-20",
       "title": "Admin endpoints still missing: workspace members + DLQ inspect/replay",
-      "status": "in_progress",
+      "status": "done",
       "points": 3,
       "depends_on": [
         "W2-02",
@@ -1630,7 +1630,10 @@
         "THE LAST-ADMIN GUARD is the piece worth keeping: an admin demoting themselves while they are the only admin would lock the workspace out of every admin surface, including the endpoint needed to undo it. Refused with a 409 (the request is well-formed; the STATE forbids it) rather than left to be repaired by a support process.",
         "REPLAY DELIBERATELY DOES NOT REUSE THE ORIGINAL jobId. That id is the section 6 idempotency key, so re-adding under it would make BullMQ treat the replay as a duplicate of the job that already failed — the button would appear to work and do nothing. replayed_at is stamped only AFTER a successful enqueue, so a failed replay stays visible in the list instead of vanishing as though it had worked.",
         "THREE BUGS FOUND BY THE TESTS, all mine, all real. (1)  returns VOID after already sending, so Fastify serialised undefined and sent again — ERR_HTTP_HEADERS_SENT on EVERY problem response. The suite reported 7 passed with exit code 1, which is precisely the trap the project docs warn about: read the exit code, not the summary line. Fixed with a problem() helper that sends and returns the reply in one expression. (2) The 403s that looked like a broken admin guard were SC-7: every non-safe method needs X-Requested-With: repopulse, enforced in an onRequest hook — hence 403 in 0.15ms, before any DB work. (3) The OAuth test mock must echo the CODE back as the access token (the exchange POSTs a JSON body, not a query string) or every login resolves to the same user.",
-        "STILL OPEN — acceptance 3: the Members tab and Sync DLQ panel still show their explanatory empty states. The endpoints they need now exist and are tested, so this is UI work against a settled contract. W4-20 stays in_progress until those panels render the real controls."
+        "STILL OPEN — acceptance 3: the Members tab and Sync DLQ panel still show their explanatory empty states. The endpoints they need now exist and are tested, so this is UI work against a settled contract. W4-20 stays in_progress until those panels render the real controls.",
+        "DONE 2026-08-14. Acceptance 3 met: the Members tab and the Sync DLQ panel now render the real controls, replacing the empty states that pointed at this ticket. Members lists everyone with their role and a promote/demote button; the DLQ lists queue, job, the ERROR that caused the failure, and a Replay button. Both were built as per-row components because useApiMutation fixes its URL when the hook is created, so one shared mutation cannot carry a per-row id — the same shape RepoPicker already uses for the same reason.",
+        "THE ERROR COLUMN IS THE POINT of the DLQ panel. A dead-letter screen that shows how many jobs failed but not WHY tells an operator nothing they can act on, so the reason is a first-class column (truncated with the full text on hover) rather than something behind a click. An empty DLQ reads as good news rather than as a screen that failed to load.",
+        "The e2e asserts the CONTROLS rather than the panels: a panel that renders while its endpoint 404s would still look fine, so it checks a role button exists and that the old \"tracked as W4-20\" copy is gone. useApiMutation was widened to allow PATCH, which it did not previously permit."
       ]
     },
     {

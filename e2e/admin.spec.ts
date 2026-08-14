@@ -101,3 +101,23 @@ test('admin passes axe with real data', async ({ page }) => {
   await expect(page.getByTestId('admin-sync')).toBeVisible();
   await expectNoA11yViolations(page);
 });
+
+test('the Members tab and DLQ panel show real controls, not empty states (W4-20)', async ({
+  page,
+}) => {
+  // Both surfaces previously shipped as named empty states pointing at this
+  // ticket — honest, but unusable. This asserts the CONTROLS, because a panel
+  // that renders while its endpoint 404s would still look fine.
+  await loginAsFixture(page);
+
+  await page.goto('/admin/members');
+  await expect(page.getByTestId('members-table')).toBeVisible();
+  // The fixture user is this workspace's admin, so a role control must exist.
+  await expect(page.locator('[data-testid^="member-role-"]').first()).toBeVisible();
+
+  await page.goto('/admin/sync');
+  // An EMPTY dead-letter queue is good news; what matters is that the panel is
+  // reading the endpoint rather than telling the operator it does not exist.
+  await expect(page.getByText(/tracked as W4-20/i)).toHaveCount(0);
+  await expect(page.getByText(/Dead-letter queue/i).first()).toBeVisible();
+});
