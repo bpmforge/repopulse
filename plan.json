@@ -1606,7 +1606,7 @@
     {
       "id": "W4-20",
       "title": "Admin endpoints still missing: workspace members + DLQ inspect/replay",
-      "status": "todo",
+      "status": "in_progress",
       "points": 3,
       "depends_on": [
         "W2-02",
@@ -1623,7 +1623,10 @@
         "The Members tab and the Sync DLQ panel replace their explanatory empty states with the real controls"
       ],
       "notes": [
-        "Filed 2026-08-13 from W4-08. /me/context returns the CALLER role only; nothing lists members or changes one, and no endpoint exposes the DLQ. Both surfaces ship as named empty states pointing here rather than being quietly absent from a page an operator was told to use."
+        "Filed 2026-08-13 from W4-08. /me/context returns the CALLER role only; nothing lists members or changes one, and no endpoint exposes the DLQ. Both surfaces ship as named empty states pointing here rather than being quietly absent from a page an operator was told to use.",
+        "IN PROGRESS 2026-08-14, NOT merged — the gate is RED on this branch and it stays off main. Endpoints are written and registered (GET /admin/members, PATCH /admin/members/:userId, GET /admin/dlq, POST /admin/dlq/:id/replay) and the wiring gate passes. 2 of 7 route tests pass; 5 fail with 403.",
+        "DIAGNOSIS SO FAR, so the next session does not restart it: the 403s come back in ~0.15ms, far too fast to have run the DB-backed preHandler, which means request.role is UNDEFINED rather than wrong. GET /api/v1/me/context returns 200 on the SAME cached session immediately before a 403, so the session and the membership row are both fine — the role simply is not attached for these routes. The first admin request of the run succeeds (req-3, 4.3ms) and every later one fails fast, which points at hook ordering rather than at data. api-v1.ts and rbac.ts both carry comments about the plugin-level preHandler not being reliable relative to a route-level one; routes/connections uses typedApp (withTypeProvider) for its requireAdmin routes while this module uses plain app, which is the most obvious untested difference and where to look first.",
+        "NOT a fixture problem — that was ruled out on the way: the OAuth mock must echo the CODE back as the access token (it POSTs a JSON body, not a query string) or every login resolves to the same user, and the admin membership must be UPSERTED rather than UPDATED because whether the user is already a member depends on whether the workspace already had one. Both are fixed; the 403s survive them."
       ]
     },
     {
