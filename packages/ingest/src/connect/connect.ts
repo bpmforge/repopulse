@@ -76,7 +76,7 @@ export interface CreateConnectionDeps {
 
 export interface CreateConnectionParams {
   workspaceId: number;
-  provider: 'github' | 'gitea';
+  provider: 'github' | 'gitea' | 'gitlab';
   authKind: 'pat' | 'app';
   credential: string;
   createdBy: number;

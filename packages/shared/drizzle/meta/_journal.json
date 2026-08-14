@@ -36,6 +36,13 @@
       "when": 1786668697516,
       "tag": "0004_shiny_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786733223446,
+      "tag": "0005_funny_romulus",
+      "breakpoints": true
     }
   ]
 }

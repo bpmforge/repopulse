@@ -1,0 +1,2 @@
+ALTER TABLE "forge_connections" DROP CONSTRAINT "forge_connections_provider_check";--> statement-breakpoint
+ALTER TABLE "forge_connections" ADD CONSTRAINT "forge_connections_provider_check" CHECK ("forge_connections"."provider" in ('github', 'gitea', 'gitlab'));

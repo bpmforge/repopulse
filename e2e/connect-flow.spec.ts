@@ -74,3 +74,29 @@ test('the connection stores a fingerprint, never the token', async ({ page }) =>
   expect(json.items.length).toBeGreaterThan(0);
   expect(json.items[0]?.fingerprint, 'a connection must carry a fingerprint').toBeTruthy();
 });
+
+test('the operator can choose a forge — GitLab is reachable from the UI (W12-01)', async ({
+  page,
+}) => {
+  // Acceptance 4. The provider was hardcoded to 'github' in the form, so even
+  // once the API and adapters supported three forges, a customer could only
+  // ever create a GitHub connection. A picker that exists but is not wired
+  // would fail here too, because the request body is what is asserted.
+  await loginAsFixture(page);
+  await page.goto('/admin');
+
+  const picker = page.getByTestId('connection-provider');
+  await expect(picker).toBeVisible();
+  await expect(picker.locator('option')).toHaveCount(3);
+
+  await picker.selectOption('gitlab');
+  await expect(page.getByLabel(/GitLab personal access token/i)).toBeVisible();
+
+  const sent = page.waitForRequest(
+    (r) => r.url().includes('/connections') && r.method() === 'POST',
+  );
+  await page.getByTestId('connection-credential').fill('glpat-not-a-real-token');
+  await page.getByTestId('connection-submit').click();
+  const body = JSON.parse((await sent).postData() ?? '{}') as { provider?: string };
+  expect(body.provider, 'the chosen forge must reach the API').toBe('gitlab');
+});

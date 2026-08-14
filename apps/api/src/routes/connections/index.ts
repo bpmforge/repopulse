@@ -36,7 +36,7 @@ export interface ConnectionsRoutesOptions {
   /** App-mode app id (env); only needed for auth_kind='app'. */
   appId?: string | number;
   /** Injectable so tests supply a deterministic provider (default: real forge). */
-  buildProvider?: (auth: GitHubAuth) => ForgeProvider;
+  buildProvider?: (auth: GitHubAuth, kind?: 'github' | 'gitea' | 'gitlab') => ForgeProvider;
   /** Forge API base URL — GitHub Enterprise Server, or a fake in e2e. */
   forgeBaseUrl?: string;
 }
@@ -67,7 +67,9 @@ export default async function connectionsRoutes(
 ): Promise<void> {
   const { db, tokenKey } = opts;
   const buildProvider =
-    opts.buildProvider ?? ((auth: GitHubAuth) => buildDiscoveryProvider(auth, opts.forgeBaseUrl));
+    opts.buildProvider ??
+    ((auth: GitHubAuth, kind?: 'github' | 'gitea' | 'gitlab') =>
+      buildDiscoveryProvider(auth, opts.forgeBaseUrl, kind ?? 'github'));
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   function authFor(kind: 'pat' | 'app', credential: string, installationId?: string): GitHubAuth {
@@ -115,7 +117,7 @@ export default async function connectionsRoutes(
       } catch (err) {
         return fail(request, reply, 400, 'Invalid credential', (err as Error).message);
       }
-      const forge = buildProvider(auth);
+      const forge = buildProvider(auth, provider);
 
       try {
         const result = await createConnection(

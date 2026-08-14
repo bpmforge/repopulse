@@ -4,7 +4,7 @@ import { z } from 'zod';
 // back (FR-AUTH-5) — responses carry only fingerprint/last4/status.
 
 export const createConnectionBodySchema = z.object({
-  provider: z.enum(['github', 'gitea']).default('github'),
+  provider: z.enum(['github', 'gitea', 'gitlab']).default('github'),
   auth_kind: z.enum(['pat', 'app']),
   credential: z.string().min(1),
   installation_id: z.string().optional(),

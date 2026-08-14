@@ -2,10 +2,15 @@ import {
   createAuthHeaderProvider,
   createGithubExecutor,
   GitHubProvider,
+  GiteaProvider,
+  GitLabProvider,
   type ForgeHttpClient,
   type ForgeProvider,
   type GitHubAuth,
 } from '@repopulse/forge';
+
+/** Which forge a connection speaks to. Mirrors the connections schema enum. */
+export type ForgeKind = 'github' | 'gitea' | 'gitlab';
 
 // Builds a ForgeProvider for connect-time discovery/validation calls. These are
 // one-shot (listRepos smoke, registerWebhook) — NOT part of steady-state
@@ -35,13 +40,28 @@ function statusAwareClient(executor: ReturnType<typeof createGithubExecutor>): F
   };
 }
 
-export function buildDiscoveryProvider(auth: GitHubAuth, baseUrl?: string): ForgeProvider {
+export function buildDiscoveryProvider(
+  auth: GitHubAuth,
+  baseUrl?: string,
+  kind: ForgeKind = 'github',
+): ForgeProvider {
   // baseUrl is a real deployment option, not a test seam: GitHub Enterprise
   // Server lives at a customer's own host, which a self-hosted product (D1a)
   // has to support. e2e uses the same door to point at a fake forge.
-  return new GitHubProvider({
-    client: statusAwareClient(createGithubExecutor()),
-    auth: createAuthHeaderProvider(auth),
-    ...(baseUrl ? { baseUrl } : {}),
-  });
+  const client = statusAwareClient(createGithubExecutor());
+  const authProvider = createAuthHeaderProvider(auth);
+
+  // Selected by the connection's declared forge, never sniffed from the URL:
+  // a self-managed GitLab and a self-hosted Gitea can sit on indistinguishable
+  // hostnames, and guessing wrong produces 404s that read as bad credentials.
+  if (kind === 'gitlab') {
+    return new GitLabProvider({ client, auth: authProvider, ...(baseUrl ? { baseUrl } : {}) });
+  }
+  if (kind === 'gitea') {
+    if (!baseUrl) {
+      throw new Error('Gitea is self-hosted: FORGE_BASE_URL must point at the instance');
+    }
+    return new GiteaProvider({ client, auth: authProvider, baseUrl });
+  }
+  return new GitHubProvider({ client, auth: authProvider, ...(baseUrl ? { baseUrl } : {}) });
 }

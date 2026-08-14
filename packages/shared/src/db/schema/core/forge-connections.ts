@@ -35,7 +35,7 @@ export const forgeConnections = pgTable(
   },
   (t) => [
     index('forge_connections_workspace_id_idx').on(t.workspaceId),
-    check('forge_connections_provider_check', sql`${t.provider} in ('github', 'gitea')`),
+    check('forge_connections_provider_check', sql`${t.provider} in ('github', 'gitea', 'gitlab')`),
     check('forge_connections_auth_kind_check', sql`${t.authKind} in ('pat', 'app')`),
   ],
 );
