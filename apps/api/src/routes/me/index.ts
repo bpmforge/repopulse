@@ -14,6 +14,20 @@ export interface MeRoutesOptions {
   db: Database;
 }
 
+// UX_SPEC §6 personas and the home each one routes to (D9/R-A2). The mapping
+// lives here, not in the browser: "which screen is this persona's home" is a
+// product decision the API already owns via default_view_id, and duplicating it
+// client-side is how the two drift.
+export const PERSONAS = ['lead', 'developer', 'security', 'exec'] as const;
+export type Persona = (typeof PERSONAS)[number];
+
+export const PERSONA_HOME: Record<Persona, string> = {
+  lead: '/', // P1 → Org Overview
+  developer: '/me', // P2 → My Focus
+  security: '/findings', // P3 → Findings Explorer
+  exec: '/reports', // P4 → Exec rollup lives under Reports until W5's views
+};
+
 function fail(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -37,6 +51,19 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     return { workspaceId, identityId };
   }
 
+  async function readUser(
+    request: FastifyRequest,
+  ): Promise<{ persona: string | null; prefs: Record<string, unknown> } | null> {
+    const userId = request.session.get('userId');
+    if (userId === undefined) return null;
+    const [row] = await db
+      .select({ persona: core.users.persona, prefs: core.users.prefs })
+      .from(core.users)
+      .where(eq(core.users.id, userId))
+      .limit(1);
+    return row ?? null;
+  }
+
   // GET /api/v1/me/context — who am I, where, and with what role (W4-14).
   //
   // The documented contract also lives at top-level /me (API_DESIGN.md §2), but
@@ -52,6 +79,7 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     if (!ctx || request.workspace === undefined || request.role === undefined) {
       return fail(request, reply, 401, 'No active session');
     }
+    const me = await readUser(request);
     return reply.send({
       workspace: {
         id: request.workspace.id,
@@ -61,7 +89,54 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       role: request.role,
       identity_id: ctx.identityId,
       default_view_id: null, // W5-02 owns saved views.
+      // W4-10 (UX_SPEC §6). NULL persona = never asked, which is what opens the
+      // picker. Sent as part of the context the shell already fetches rather
+      // than as its own request: a separate call would make the picker race the
+      // first paint and flash the wrong home.
+      persona: me?.persona ?? null,
+      prefs: me?.prefs ?? {},
     });
+  });
+
+  /** PATCH /me/persona — set or change it (first login, or the user menu). */
+  app.patch<{ Body: { persona?: unknown } }>('/me/persona', async (request, reply) => {
+    const userId = request.session.get('userId');
+    if (userId === undefined) return fail(request, reply, 401, 'No active session');
+    const persona = request.body?.persona;
+    if (typeof persona !== 'string' || !PERSONAS.includes(persona as Persona)) {
+      return fail(request, reply, 400, `persona must be one of ${PERSONAS.join(', ')}`);
+    }
+    const [row] = await db
+      .update(core.users)
+      .set({ persona })
+      .where(eq(core.users.id, userId))
+      .returning({ persona: core.users.persona });
+    if (!row) return fail(request, reply, 404, 'User not found');
+    return reply.send({ persona: row.persona, home: PERSONA_HOME[persona as Persona] });
+  });
+
+  /** PATCH /me/prefs — merge per-user UI state (onboarding dismissal). */
+  app.patch<{ Body: Record<string, unknown> }>('/me/prefs', async (request, reply) => {
+    const userId = request.session.get('userId');
+    if (userId === undefined) return fail(request, reply, 401, 'No active session');
+    const patch = request.body;
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      return fail(request, reply, 400, 'prefs must be an object');
+    }
+    // MERGE, like workspace settings: this column will hold more than one
+    // preference, and a replace would drop whatever the caller did not send.
+    const [existing] = await db
+      .select({ prefs: core.users.prefs })
+      .from(core.users)
+      .where(eq(core.users.id, userId))
+      .limit(1);
+    if (!existing) return fail(request, reply, 404, 'User not found');
+    const [row] = await db
+      .update(core.users)
+      .set({ prefs: { ...existing.prefs, ...patch } })
+      .where(eq(core.users.id, userId))
+      .returning({ prefs: core.users.prefs });
+    return reply.send({ prefs: row!.prefs });
   });
 
   // GET /me/prs — PRs I authored.

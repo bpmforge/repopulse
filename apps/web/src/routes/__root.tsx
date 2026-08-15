@@ -12,6 +12,8 @@ import { Breadcrumb, type Crumb } from '../components/shell/Breadcrumb.js';
 import { Toaster } from '../components/shell/Toaster.js';
 import { useUiStore } from '../components/store/uiStore.js';
 import { useSyncStream } from '../sse/useSyncStream.js';
+import { useApiQuery } from '../api/useApiQuery.js';
+import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
 import { mergeGlobalSearch, validateGlobalSearch, type GlobalSearch } from '../api/urlState.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 
@@ -66,6 +68,19 @@ function RootShell() {
   // The single app-wide sync stream (SSE) — cache-bust + chip + toasts.
   useSyncStream();
 
+  // Rail badge counts (UX_SPEC §3.1, R-A4). The review queue reuses the exact
+  // query My Focus makes, so react-query serves both from one request rather
+  // than adding a count endpoint that could disagree with the list.
+  //
+  // The Findings badge is deliberately ABSENT rather than 0: there are no
+  // findings rows and no lastSeenAt until W6, and a badge stuck at 0 is
+  // indistinguishable from a working one. Tracked in W4-21.
+  const { data: reviewQueue } = useApiQuery<{ items: unknown[] }>({
+    endpoint: '/me/review-queue',
+  });
+  const railBadges =
+    reviewQueue === undefined ? {} : { '/pull-requests': reviewQueue.items.length };
+
   const onFilterChange = (patch: {
     window?: string;
     repos?: string | null;
@@ -80,7 +95,7 @@ function RootShell() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-fg">
-      <Rail search={preservedSearch} />
+      <Rail search={preservedSearch} badges={railBadges} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar value={search} onChange={onFilterChange} />
         <Breadcrumb crumbs={deriveCrumbs(pathname)} search={preservedSearch} />
@@ -89,6 +104,9 @@ function RootShell() {
         </main>
       </div>
       <Toaster />
+      {/* First-login persona question (UX_SPEC §6). Rendered at the shell so it
+          appears wherever the user lands, and renders nothing once answered. */}
+      <PersonaPicker />
     </div>
   );
 }

@@ -97,3 +97,39 @@ export async function waitForIngestedRepo(
     await db.$client.end();
   }
 }
+
+/**
+ * Clear the fixture user's persona so the next page load is a genuine FIRST
+ * login (W4-10). The seeder gives the fixture a persona precisely so the picker
+ * does not cover every other spec's screen; a spec that wants to test the
+ * picker has to undo that rather than mock it — a modal asserted against a
+ * faked store write proves the component renders, not that a null column opens
+ * it.
+ *
+ * Returns a restore function; call it so the suite's other specs are unaffected
+ * regardless of assertion outcome.
+ */
+export async function withNullPersona(login: string): Promise<() => Promise<void>> {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('withNullPersona: DATABASE_URL is not set');
+  const db = createDb(url);
+  const [before] = await db
+    .select({ persona: core.users.persona })
+    .from(core.users)
+    .where(eq(core.users.forgeUserId, login))
+    .limit(1);
+  await db
+    .update(core.users)
+    .set({ persona: null, prefs: {} })
+    .where(eq(core.users.forgeUserId, login));
+  await db.$client.end();
+
+  return async () => {
+    const restoreDb = createDb(url);
+    await restoreDb
+      .update(core.users)
+      .set({ persona: before?.persona ?? 'lead' })
+      .where(eq(core.users.forgeUserId, login));
+    await restoreDb.$client.end();
+  };
+}

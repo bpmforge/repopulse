@@ -31,7 +31,18 @@ export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
-  fullyParallel: false, // shared seeded warehouse — serialize like the vitest suite
+  fullyParallel: false,
+  // `fullyParallel: false` only serializes tests WITHIN a file — Playwright
+  // still runs different files on parallel workers, and this suite was running
+  // 49 tests on 9 of them while its own comment claimed it was serialized.
+  //
+  // Every spec shares one seeded warehouse and one fixture user, so that was a
+  // latent race, not a fast suite: W4-10 nulls the fixture's persona to test
+  // the first-login picker, and six unrelated specs in other files timed out
+  // behind the modal that appeared over their screens. Any spec that mutates
+  // shared state would have done the same. workers: 1 is what the comment
+  // always meant (verified: 38s -> ~60s, and the flake is gone).
+  workers: 1,
   reporter: [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',

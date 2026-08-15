@@ -43,6 +43,13 @@
       "when": 1786733223446,
       "tag": "0005_funny_romulus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786832239286,
+      "tag": "0006_rare_agent_brand",
+      "breakpoints": true
     }
   ]
 }
