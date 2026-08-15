@@ -16,7 +16,14 @@ export interface AuditLogger {
 // finding.bulk_export, identity.merged, role.changed (docs/SECURITY_CONTROLS.md
 // SC-22) - each new event class is additive, this union grows per wave.
 export type AuditEvent =
-  'auth.login.success' | 'auth.login.failure' | 'auth.logout' | 'auth.session.revoked';
+  | 'auth.login.success'
+  | 'auth.login.failure'
+  | 'auth.logout'
+  | 'auth.session.revoked'
+  // W4-09. Workspace settings decide what every metric counts (bot list,
+  // stale-N) and how the health score is weighted, so a changed number can
+  // move every screen at once with nothing else in the system to show why.
+  | 'workspace.settings.updated';
 
 export interface AuditEntry {
   event: AuditEvent;

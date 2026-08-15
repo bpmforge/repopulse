@@ -18,6 +18,7 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/admin/', label: 'Connections', exact: true },
   { to: '/admin/sync', label: 'Sync' },
   { to: '/admin/members', label: 'Members' },
+  { to: '/admin/settings', label: 'Settings' },
 ];
 
 function AdminLayout() {

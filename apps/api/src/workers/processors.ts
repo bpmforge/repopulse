@@ -1,6 +1,7 @@
 import type { Job, Queue } from 'bullmq';
 import { and, eq } from 'drizzle-orm';
 import { core } from '@repopulse/shared';
+import { readWorkspaceSettings } from '../lib/workspace-settings.js';
 import {
   commitsNeedingChurn,
   enrichCommitChurn,
@@ -361,11 +362,19 @@ async function processReconcileSweep(deps: ProcessorDeps) {
 export function snapshotProcessor(deps: ProcessorDeps) {
   return async (job: Job) => {
     const data = job.data as { workspaceId: number; repoId: number };
+    // W4-09. This used to pass a literal `botGlobs: []`, which is NOT "use the
+    // defaults": isBotLogin does `globs.some(...)`, so an empty list means
+    // nothing is a bot and METRICS.md §0's shared exclusion rule had never held
+    // for a single number computed from real ingestion. The settings reader
+    // returns DEFAULT_BOT_LOGIN_GLOBS when an admin has not chosen a list, and
+    // an empty array only when one deliberately did.
+    const { effective } = await readWorkspaceSettings(deps.db, data.workspaceId);
     const written = await computeRepoSnapshots(deps.db, {
       workspaceId: data.workspaceId,
       repoId: data.repoId,
       asOf: new Date(),
-      botGlobs: [],
+      botGlobs: effective.botLoginGlobs,
+      staleThresholdDays: effective.stalePrDays,
     });
     return { written };
   };

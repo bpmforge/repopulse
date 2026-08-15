@@ -7,6 +7,7 @@ import {
   type HealthScore,
 } from '@repopulse/insights';
 import type { Database } from '@repopulse/shared';
+import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // Repo health from the warehouse (FR-INSIGHTS-2/3): read each health-input
 // metric's latest snapshot and feed the W3-11 score. Inputs the current
@@ -64,6 +65,10 @@ export async function repoHealth(
     m12Cfr: null,
   };
 
-  const score = computeHealthScore(buildHealthSubScores(inputs));
+  // W4-09: weights come from workspace config, not code (METRICS.md §3).
+  // buildHealthSubScores falls back to DEFAULT_WEIGHTS per key, so an unset
+  // workspace scores exactly as before.
+  const { effective } = await readWorkspaceSettings(db, workspaceId);
+  const score = computeHealthScore(buildHealthSubScores(inputs, effective.healthWeights));
   return { ...score, letter: scoreLetter(score.score) };
 }
