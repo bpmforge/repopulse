@@ -90,7 +90,14 @@ fi
 # else outside packages/forge is still policed.
 if [ -n "$SRC_DIRS" ]; then
   # shellcheck disable=SC2086
-  R4_HITS="$(grep -RIn 'api\.github\.com' $SRC_DIRS 2>/dev/null | grep -v '^packages/auth/src/oauth/' || true)"
+  # Comment lines are dropped, but only when the marker is the FIRST non-space
+  # character on the line — a line that merely CONTAINS `//` is still policed,
+  # because `const base = 'https://api.github.com'` contains one and stripping
+  # from the first `//` would delete the very hit this rule exists to catch.
+  # Prose naming the host cannot issue a request; code naming it can.
+  R4_HITS="$(grep -RIn 'api\.github\.com' $SRC_DIRS 2>/dev/null \
+    | grep -v '^packages/auth/src/oauth/' \
+    | grep -Ev '^[^:]+:[0-9]+:[[:space:]]*(//|/\*|\*|#)' || true)"
   [ -z "$R4_HITS" ] && pass 4 "no api.github.com reference outside packages/forge (packages/auth/src/oauth/** exempted, SC-12/AC-4)" \
                     || { fail 4 "api.github.com referenced outside packages/forge:"; printf '%s\n' "$R4_HITS" | sed 's/^/        /'; }
 else

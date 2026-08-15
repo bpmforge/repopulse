@@ -67,6 +67,15 @@ export interface ForgeHttpClient {
   request(ctx: CallCtx, req: ForgeRequest): Promise<ForgeResponse>;
 }
 
+/**
+ * Public GitHub's API host. Exported because callers outside this package need
+ * the same default when they construct a client (the worker builds one per
+ * workspace), and the forge host is this package's business: validate-arch
+ * rule 4 keeps the literal from being re-typed anywhere else, which is how two
+ * copies of a default silently diverge.
+ */
+export const DEFAULT_GITHUB_BASE_URL = 'https://api.github.com';
+
 export interface GitHubProviderOptions {
   client: ForgeHttpClient;
   auth: AuthHeaderProvider;
@@ -91,7 +100,7 @@ export class GitHubProvider implements ForgeProvider {
   constructor(opts: GitHubProviderOptions) {
     this.client = opts.client;
     this.auth = opts.auth;
-    this.base = opts.baseUrl ?? 'https://api.github.com';
+    this.base = opts.baseUrl ?? DEFAULT_GITHUB_BASE_URL;
   }
 
   private getHeaders = (): Promise<Record<string, string>> => this.auth.headers();

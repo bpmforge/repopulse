@@ -1,5 +1,6 @@
 import {
   BudgetedClient,
+  DEFAULT_GITHUB_BASE_URL,
   GitHubProvider,
   createAuthHeaderProvider,
   createGithubExecutor,
@@ -85,7 +86,7 @@ export async function providerForRepo(
           installationId: conn.appInstallationId ?? '',
         };
 
-  const base = deps.forgeBaseUrl ?? 'https://api.github.com';
+  const base = deps.forgeBaseUrl ?? DEFAULT_GITHUB_BASE_URL;
   const client = new BudgetedClient({
     connectionId: conn.id,
     workspaceId,
