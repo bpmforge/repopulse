@@ -1453,7 +1453,7 @@
         "The wiring gate (apps/api/test/wiring.test.ts) grows a check for this defect class: a transport with a subscriber and no publisher is asserted, so a future stream cannot ship inert the way this one did"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "Found 2026-08-15 while reading W4-10 acceptance 3. `grep -rn publishSyncEvent apps packages | grep -v test` returns exactly ONE line: its own definition. The helper is fully implemented and unit-tested, packages/ingest/src/status/events.ts documents the contract, the SSE route was mounted by W4-18, and the browser subscribes to all four event names in useSyncStream.ts — and no code in production ever calls the publisher. Live sync has never worked; it degrades silently to ‘slightly staler dashboard’ by design, which is exactly why nobody noticed.",
         "THE SIXTH BUILT-BUT-NEVER-CALLED DEFECT (after SSE mount W4-18, connections/sync/webhooks W4-19, the six queue processors W12-03/W12-05, and plan/state-machine.ts). Same cause every time: the unit tests supply the missing end themselves — events.test.ts publishes and subscribes in one process, and the SSE route test publishes its own fixture event — so both ends are proven and the join between them is exercised by nothing. W12-04’s wiring gate catches queues without processors; it does not yet catch a CHANNEL without a publisher, which is why this one survived a gate written in response to the same pattern.",
