@@ -1649,7 +1649,7 @@
         "The /pull-requests screen renders that list directly instead of routing through a repo picker"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "Filed 2026-08-12 from W4-05. API_DESIGN and UX_SPEC 4.c both describe an org-wide PR list, but the API only exposes /repos/{id}/prs and /me/prs. W4-05 deliberately did NOT fan out one request per repo from the browser: that is an N+1 against the NFR-3 p95 <500ms budget and degrades silently as repo count grows, which is exactly the failure mode a dashboard hides until a customer has 50 repos. The /pull-requests screen therefore lists repos and routes into each repo PR list — a real screen that does not pretend to be the org-wide one."
       ]
