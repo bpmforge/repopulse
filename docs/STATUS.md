@@ -1834,3 +1834,49 @@ publish pipeline aimed at a public registry is exactly the kind of thing that
 gets enabled by accident. Revisit after **W11-05** proves a clean install.
 
 Not legal advice; a lawyer should review before any first distribution.
+
+### 2026-08-15 — both board validators were red on main, and nobody knew
+
+Not a ticket. A session opened by asking "what's the status", and the honest
+answer turned out to be that the tools which report status had stopped working.
+
+**`validate-plan.mjs` exited 1 and printed `Claimable now (0)`.** 22 tickets
+filed mid-flight (W4-11..W4-20, W11-*, W12-*) were written without the schema's
+`phase`, `module` and `stories` fields, and the id pattern predated waves 11
+and 12. Since MASTER_PROMPT forbids hand-deriving the claimable set, the claim
+protocol was unusable — which is presumably why the last several tickets were
+picked by eye.
+
+**`validate-arch.sh` also exited 1**, independently, on a clean tree. Rule 4
+(no `api.github.com` outside `packages/forge`) caught one real violation — the
+worker had its own hardcoded copy of the default forge base URL, the exact
+divergence the rule exists to prevent — and five doc comments the line-wise
+grep could not tell from a fetch.
+
+Both are in CI (`.github/workflows/ci.yml:47,53). The CI gate has therefore been
+failing on every push, and the local gate (`lint && typecheck && test`) never
+included the validators, so nothing surfaced it.
+
+**Correction to the claimable set.** With `phase` restored the wave gate applies
+again: **5 tickets are claimable, not 11**. `depends_on` alone suggests W5-02,
+W6-01, W7-05 and W11-01 are open; they are not — every W4 ticket must close
+first. The real list is the entire W4 remainder: **W4-09, W4-10, W4-15, W4-16,
+W4-17 (17 pts)**. Closing them reaches the **MVP gate**, which per PLAYBOOK
+needs a CHALLENGER pass from a session that implemented none of them.
+
+**Sizing guardrails now degrade after a ticket closes.** Two violations were
+masked by the schema errors: W12-03 delivered at 13 points, W12-05 at 7
+acceptance criteria. Neither was edited to fit. Those bounds exist to force a
+split *before* work starts, so they hard-fail while a ticket is claimable and
+warn once it is done — after that the board is a historical record, and
+rewriting a delivered 13 into an 8 would falsify the ledger to please a
+planning heuristic.
+
+ROADMAP.md gained W11 and W12 sections; it had stopped at W10. W12's says
+plainly that it ran out of order and carries forward the two unverified items:
+no real Gitea or GitLab instance has been ingested, and a forge 404 still
+completes a REST backfill job silently.
+
+Gate: lint 0, typecheck 0, **543 unit tests**, 42 e2e + 1 skipped,
+validate-arch / validate-plan / validate-traceability all exit 0 — the first
+time all three validators have been green together.
