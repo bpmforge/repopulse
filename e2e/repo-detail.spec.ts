@@ -104,3 +104,50 @@ test('repo detail passes axe with real data', async ({ page }) => {
   await expect(page.getByTestId('repo-pulse').locator('canvas').first()).toBeVisible();
   await expectNoA11yViolations(page);
 });
+
+test('the CI tab shows M9 duration and the flakiest workflows (W4-15)', async ({ page }) => {
+  await loginAsFixture(page);
+  // A SEEDED repo by name, for the reason at the top of this file: ingested
+  // repos share the workspace and can render first, and position is not identity.
+  await page.goto('/?window=90d');
+  await seededTile(page).click();
+  await page.getByTestId('repo-tab-ci').click();
+
+  // Both panels replaced an explanatory empty state that named W4-15. The
+  // reason was real: computeCiDuration and computeCiFlakiness were implemented,
+  // fixture-tested and called by nothing, so M9's snapshot row carried a single
+  // scalar and there was nothing for a chart to read.
+  const duration = page.getByTestId('ci-duration');
+  await expect(duration).toBeVisible();
+  // A real duration, not an em dash: "—" is what this renders when the value is
+  // null, which is exactly the state the panel used to be stuck in.
+  await expect(duration).toContainText(/\d/);
+  await expect(duration).not.toHaveText(/^—/);
+
+  const flakiest = page.getByTestId('ci-flakiest');
+  await expect(flakiest).toBeVisible();
+  await expect(flakiest.locator('tbody tr')).not.toHaveCount(0);
+  // Ranked by rate, and the rate is a percentage — a bare ratio here would be
+  // the 0-1-vs-0-100% misreading W4-13 already caught on the KPI tiles.
+  await expect(flakiest.locator('tbody tr').first()).toContainText('%');
+});
+
+test('the PR Flow tab shows review load built from REVIEWER data (W4-15)', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/?window=90d');
+  await seededTile(page).click();
+  await page.getByTestId('repo-tab-pr-flow').click();
+
+  const load = page.getByTestId('review-load');
+  await expect(load).toBeVisible();
+  await expect(load.locator('tbody tr')).not.toHaveCount(0);
+
+  // The exclusions are STATED. A filtered number presented as a total is the
+  // failure mode this panel was held back to avoid — a matrix built from author
+  // data would have rendered just as convincingly while answering a different
+  // question.
+  await expect(load).toContainText(/self-review/i);
+  await expect(load).toContainText(/bot review/i);
+  // Signals, not grades (UX_SPEC §7).
+  await expect(load).toContainText(/not a ranking/i);
+});

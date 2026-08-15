@@ -1,9 +1,10 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { core, facts, type Database } from '@repopulse/shared';
 import { rankHotspots } from '@repopulse/insights';
+import { computeReviewLoad, readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
 import { repoHealth } from '../org/health.js';
 
@@ -201,6 +202,140 @@ export default async function reposRoutes(
           share: total > 0 ? (r.lines ?? 0) / total : 0,
         })),
         bus_factor: rows.length,
+      });
+    },
+  );
+
+  // GET /repos/{id}/review-load — per-REVIEWER counts (W4-15, UX_SPEC §4.b).
+  //
+  // The PR list exposes author and a review_covered flag and nothing else, so
+  // a review-load matrix built from what was reachable would have rendered
+  // plausibly while answering a different question. W4-04 shipped an explicit
+  // empty state naming this ticket instead, on a screen whose whole job is
+  // evidence.
+  typedApp.get(
+    '/repos/:id/review-load',
+    { schema: { params: idParams, querystring: windowQuery } },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const repo = await requireRepo(db, workspaceId, request.params.id);
+      if (!repo) return fail(request, reply, 404, 'Not Found');
+
+      const days = WINDOW_DAYS[request.query.window] ?? 30;
+      const windowStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const rows = await db
+        .select({
+          reviewerLogin: core.identities.forgeLogin,
+          reviewerIsBot: core.identities.isBot,
+          state: facts.prReviews.state,
+          pullRequestId: facts.prReviews.pullRequestId,
+          authorIdentityId: facts.pullRequests.authorIdentityId,
+          reviewerIdentityId: facts.prReviews.reviewerIdentityId,
+        })
+        .from(facts.prReviews)
+        .innerJoin(core.identities, eq(facts.prReviews.reviewerIdentityId, core.identities.id))
+        .innerJoin(facts.pullRequests, eq(facts.prReviews.pullRequestId, facts.pullRequests.id))
+        .where(
+          and(
+            eq(facts.prReviews.workspaceId, workspaceId),
+            eq(facts.prReviews.repoId, repo.id),
+            gte(facts.prReviews.submittedAt, windowStart),
+          ),
+        );
+
+      const load = computeReviewLoad(
+        rows.map((r) => ({
+          reviewerLogin: r.reviewerLogin,
+          state: r.state,
+          pullRequestId: r.pullRequestId,
+          // Self-review is decided HERE, from the warehouse, rather than being
+          // inferred in the browser from two lists that may be filtered
+          // differently.
+          isSelfReview: r.authorIdentityId === r.reviewerIdentityId,
+          isBot: r.reviewerIsBot,
+        })),
+      );
+
+      return reply.send({
+        window: request.query.window,
+        items: load.reviewers.map((r) => ({
+          login: r.reviewerLogin,
+          prs_reviewed: r.prsReviewed,
+          reviews: r.reviews,
+          approvals: r.approvals,
+          changes_requested: r.changesRequested,
+          comments: r.comments,
+        })),
+        prs_with_review: load.prsWithReview,
+        // Surfaced so the screen can state what it left out rather than
+        // presenting a filtered number as a total.
+        excluded: {
+          self_reviews: load.excluded.selfReviews,
+          bot_reviews: load.excluded.botReviews,
+        },
+      });
+    },
+  );
+
+  // GET /repos/{id}/ci — M9's three components (W4-15, METRICS.md §1 M9).
+  //
+  // Reads the newest M9 snapshot rather than recomputing: metric_snapshots is
+  // the read model (Law 4/6), and a screen that recomputed would show numbers
+  // the trend chart beside it disagrees with.
+  typedApp.get(
+    '/repos/:id/ci',
+    { schema: { params: idParams, querystring: windowQuery } },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const repo = await requireRepo(db, workspaceId, request.params.id);
+      if (!repo) return fail(request, reply, 404, 'Not Found');
+
+      const [row] = await readMetricTrend(db, {
+        workspaceId,
+        repoId: repo.id,
+        metricKey: 'M9',
+        window: request.query.window,
+        limit: 1,
+      });
+
+      const dims = (row?.dims ?? {}) as {
+        passRate?: number | null;
+        prPassRate?: number | null;
+        defaultBranchRuns?: number;
+        prRuns?: number;
+        duration?: { medianMs: number | null; p90Ms: number | null };
+        flakiness?: { workflowName: string; flakinessRatio: number | null; rerunGroups: number; flippedGroups: number }[];
+        flakinessWorkflows?: number;
+      };
+
+      // A snapshot written before W4-15 carries `passRate` and nothing else.
+      // That is NOT the same as a repo with no CI, and conflating the two is
+      // how a screen ends up drawing a flat zero line labelled "duration".
+      // `duration === undefined` means "this row predates the components".
+      const componentsAvailable = dims.duration !== undefined;
+
+      return reply.send({
+        window: request.query.window,
+        computed_at: row ? row.computedAt : null,
+        // METRICS.md §1 M9 reports default-branch and PR runs SEPARATELY.
+        pass_rate: dims.passRate ?? null,
+        pr_pass_rate: dims.prPassRate ?? null,
+        default_branch_runs: dims.defaultBranchRuns ?? null,
+        pr_runs: dims.prRuns ?? null,
+        duration: dims.duration ?? null,
+        flakiest: (dims.flakiness ?? []).map((f) => ({
+          workflow: f.workflowName,
+          flakiness: f.flakinessRatio,
+          rerun_groups: f.rerunGroups,
+          flipped_groups: f.flippedGroups,
+        })),
+        flakiness_workflows: dims.flakinessWorkflows ?? null,
+        // The screen shows "this repo has not been snapshotted since CI
+        // components landed" instead of an empty chart that reads as "no CI".
+        components_available: componentsAvailable,
       });
     },
   );

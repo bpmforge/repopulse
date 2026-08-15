@@ -84,3 +84,43 @@ export function toTreemap(
     }))
     .sort((a, b) => b.value - a.value);
 }
+
+/** GET /repos/{id}/ci — M9's three components (W4-15, METRICS.md §1). */
+export interface RepoCi {
+  window: string;
+  computed_at: string | null;
+  /** Default-branch only. null = no completed runs to divide by, NOT zero. */
+  pass_rate: number | null;
+  pr_pass_rate: number | null;
+  default_branch_runs: number | null;
+  pr_runs: number | null;
+  duration: { medianMs: number | null; p90Ms: number | null } | null;
+  flakiest: {
+    workflow: string;
+    /** null = never rerun, which is not a flakiness of 0. */
+    flakiness: number | null;
+    rerun_groups: number;
+    flipped_groups: number;
+  }[];
+  flakiness_workflows: number | null;
+  /**
+   * False when the newest snapshot predates W4-15 — distinct from "this repo
+   * has no CI", which would otherwise render identically.
+   */
+  components_available: boolean;
+}
+
+/** GET /repos/{id}/review-load — per-reviewer counts (W4-15, UX_SPEC §4.b). */
+export interface RepoReviewLoad {
+  window: string;
+  items: {
+    login: string;
+    prs_reviewed: number;
+    reviews: number;
+    approvals: number;
+    changes_requested: number;
+    comments: number;
+  }[];
+  prs_with_review: number;
+  excluded: { self_reviews: number; bot_reviews: number };
+}

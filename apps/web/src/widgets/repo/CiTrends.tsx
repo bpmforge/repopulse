@@ -1,21 +1,44 @@
 import { Chart, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import type { MetricSeries } from './contracts.js';
+import type { MetricSeries, RepoCi } from './contracts.js';
 
-// CI tab (UX_SPEC §4.b): pass-rate trend from M9 snapshots.
+// CI tab (UX_SPEC §4.b): pass-rate trend, run duration, and the flakiest
+// workflows — M9's three components (METRICS.md §1).
 //
-// NOT built here: duration trend and flaky ranking. M9's snapshot row carries a
-// single `value` (pass rate); duration and flakiness are separate components of
-// the metric that no endpoint currently returns, and there is no flaky-run
-// ranking endpoint at all (see W4-15). A "flaky tests" panel fed by anything
-// else would be invented data on a screen whose whole job is evidence.
+// The empty state that stood here named W4-15, and the reason was real: M9's
+// snapshot row carried a single `value`, because computeCiDuration and
+// computeCiFlakiness were implemented, fixture-tested and called by NOBODY.
+// W4-15 made the snapshot carry all three; this reads them.
+//
+// Pass rate is DEFAULT-BRANCH only, shown beside the PR-run rate rather than
+// pooled with it: §1 reports them separately, and a repo with noisy PR CI has a
+// different problem from one whose main branch is broken.
 
 interface Props {
   repoId: string;
   window: string;
 }
 
+/** ms → a duration a human reads at a glance; null stays an em dash, not 0. */
+function formatMs(ms: number | null): string {
+  if (ms === null) return '—';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${(ms / 60_000).toFixed(1)}m`;
+}
+
 export function CiTrends({ repoId, window }: Props) {
+  const {
+    data: ci,
+    isLoading: ciLoading,
+    isError: ciIsError,
+    refetch: refetchCi,
+  } = useApiQuery<RepoCi>({
+    endpoint: '/repos/{id}/ci',
+    path: { id: repoId },
+    query: { window },
+  });
+
   const { data, isLoading, isError, error, refetch } = useApiQuery<MetricSeries>({
     endpoint: '/metrics/series',
     query: { metric_key: 'M9', window, repo_id: repoId },
@@ -61,10 +84,89 @@ export function CiTrends({ repoId, window }: Props) {
       </WidgetFrame>
 
       <WidgetFrame
-        title="Duration & flaky ranking"
-        state="empty"
-        emptyMessage="Needs an API that reports M9's duration and flakiness components and a flaky-run ranking — tracked as W4-15. Left empty rather than filled with a proxy."
-      />
+        title="Run duration (default branch)"
+        state={frameState({
+          isLoading: ciLoading,
+          isError: ciIsError,
+          isEmpty: ci !== undefined && ci.duration?.medianMs == null,
+        })}
+        onRetry={() => void refetchCi()}
+        emptyMessage={
+          ci && !ci.components_available
+            ? 'This repo has not been snapshotted since CI duration and flakiness began being recorded. It will fill in at the next nightly run.'
+            : 'No completed runs with timings in this window.'
+        }
+      >
+        {/* Two numbers, not a chart: duration is stored per snapshot as a
+            median and p90, so a "trend" would need a series this endpoint does
+            not return. A two-point line pretending to be a trend is the exact
+            thing the old empty state existed to avoid. */}
+        <dl className="flex gap-8" data-testid="ci-duration">
+          <div>
+            <dt className="text-xs text-fg-muted">Median</dt>
+            <dd className="text-2xl tabular-nums">{formatMs(ci?.duration?.medianMs ?? null)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-fg-muted">p90</dt>
+            <dd className="text-2xl tabular-nums">{formatMs(ci?.duration?.p90Ms ?? null)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-fg-muted">Runs</dt>
+            <dd className="text-2xl tabular-nums">{ci?.default_branch_runs ?? '—'}</dd>
+          </div>
+        </dl>
+      </WidgetFrame>
+
+      <WidgetFrame
+        title="Flakiest workflows"
+        state={frameState({
+          isLoading: ciLoading,
+          isError: ciIsError,
+          isEmpty: ci !== undefined && (ci.flakiest?.length ?? 0) === 0,
+        })}
+        onRetry={() => void refetchCi()}
+        definitionHref="/docs/design/METRICS.md"
+        emptyMessage={
+          ci && !ci.components_available
+            ? 'This repo has not been snapshotted since flakiness began being recorded.'
+            : 'No workflow was rerun on the same commit in this window — flakiness needs a rerun to measure.'
+        }
+      >
+        <table className="w-full text-sm" data-testid="ci-flakiest">
+          <caption className="sr-only">
+            Workflows ranked by fail-to-pass reruns on the same commit
+          </caption>
+          <thead>
+            <tr className="text-left text-xs text-fg-muted">
+              <th scope="col">Workflow</th>
+              <th scope="col" className="text-right">
+                Flaky reruns
+              </th>
+              <th scope="col" className="text-right">
+                Rerun groups
+              </th>
+              <th scope="col" className="text-right">
+                Rate
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {(ci?.flakiest ?? []).map((f) => (
+              <tr key={f.workflow} className="border-t border-border">
+                <th scope="row" className="py-1 text-left font-normal">
+                  {f.workflow}
+                </th>
+                <td className="py-1 text-right tabular-nums">{f.flipped_groups}</td>
+                <td className="py-1 text-right tabular-nums">{f.rerun_groups}</td>
+                {/* null rate = never rerun, which is not a rate of 0. */}
+                <td className="py-1 text-right tabular-nums">
+                  {f.flakiness === null ? '—' : `${Math.round(f.flakiness * 100)}%`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </WidgetFrame>
     </div>
   );
 }
