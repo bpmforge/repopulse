@@ -1671,6 +1671,7 @@
       ],
       "write_scope": [
         "apps/api/src/routes/files/**",
+        "packages/metrics/src/metrics/churn.ts",
         "apps/web/src/widgets/file/**",
         "e2e/**"
       ],
@@ -1684,9 +1685,17 @@
         "Deleted/renamed files carry a last-seen date and previousPath rename chain (FORGE_PROVIDER 1) so the banner in UX_SPEC 4.d can render"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Filed 2026-08-12 from W4-06. The file endpoint returns path, per-commit churn_series, and owners — enough for weekly gross/net bars and the M3 single-owner flag, and nothing else UX_SPEC 4.d asks for. W4-06 shipped what is reachable and named the rest in a visible empty state rather than faking it: drawing gross churn labelled \"rework\" would misstate a defined metric (M1 scopes rework to a prior non-bot touch <21d earlier), and a flat line labelled \"hotspot history\" would invent a trend from a single current value."
+        "Filed 2026-08-12 from W4-06. The file endpoint returns path, per-commit churn_series, and owners — enough for weekly gross/net bars and the M3 single-owner flag, and nothing else UX_SPEC 4.d asks for. W4-06 shipped what is reachable and named the rest in a visible empty state rather than faking it: drawing gross churn labelled \"rework\" would misstate a defined metric (M1 scopes rework to a prior non-bot touch <21d earlier), and a flat line labelled \"hotspot history\" would invent a trend from a single current value.",
+        "DONE 2026-08-15. All four criteria met. write_scope gained packages/metrics/src/metrics/churn.ts for a reason worth stating: computing rework inside the route would have put a SECOND definition of M1 in the codebase, and MASTER_PROMPT makes metric definitions spec. So churn.ts now exports attributeRework (per-touch attribution) and computeRework is a one-line reduce over it — the aggregate is the sum of the parts by construction, and the two cannot disagree.",
+        "THE SUBTLE PART, and the reason per-touch attribution was needed at all: rework is defined by the PREVIOUS touch of the same file, which routinely falls in the previous week. Bucketing touches by week and calling computeChurn per bucket zeroes the rework of every touch that happens to be first in its week — an error worst at exactly the cadence a 52-week bar chart displays. The sequence is walked once, whole, and each touch's contribution is bucketed afterwards. Pinned by a test that shows the naive approach returning 0 for the same data.",
+        "Rework is drawn as its OWN bar, not stacked on gross. It is a subset of gross, and stacking would imply gross+rework is a total — reading as double the churn that actually happened.",
+        "52 contiguous weekly buckets INCLUDING empty ones. A series containing only weeks that had commits compresses the quiet periods out, so a file touched twice a year renders as a dense pair of bars and reads as busy. The quiet periods are the signal on this screen.",
+        "DELETED CODE rather than leaving two implementations: toWeeklyChurn in the web contracts did the same bucketing in the browser. It was correct for what it could see and explicitly refused to compute rework, which is exactly why keeping it would have been the divergence risk — two nearly-identical series, one with rework and one without.",
+        "THE BANNER DOES NOT CLAIM A DELETION, because ingestion cannot see one: the warehouse cannot distinguish a deleted file from a quiet one. It reports `last_seen_at` and the previousPath rename chain (FORGE_PROVIDER §1, persisted end to end through commit_files.previous_path — verified before promising the banner rather than after). Similarly the PR list is matched on the CURRENT path from pr_files, so a PR that touched the file under an older name is filed under that path; the empty state says so instead of implying no PR ever touched it.",
+        "Hotspot history reads M2's snapshot series so the sparkline plots the same numbers the repo screen ranks by. Fewer than two points renders the empty state rather than a line: the original empty state's reasoning was that a flat line drawn from one current value invents a trend, and that stays true now that the data exists.",
+        "Gate: lint 0, typecheck 0, 579 unit tests (was 576), 54 e2e + 1 skipped (was 53), validate-arch/plan/traceability exit 0."
       ]
     },
     {

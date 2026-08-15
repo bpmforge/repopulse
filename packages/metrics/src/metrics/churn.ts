@@ -50,7 +50,23 @@ function buildRenameAliases(touches: readonly ChurnFileTouch[]): Map<string, str
 
 const REWORK_LOOKBACK_DAYS = 21;
 
-function computeRework(eligible: readonly ChurnFileTouch[]): number {
+export interface ReworkTouch {
+  touch: ChurnFileTouch;
+  /** Lines this touch contributes to rework — 0 when it is not rework. */
+  rework: number;
+}
+
+/**
+ * Per-touch rework attribution (METRICS.md §1 M1), the basis computeRework sums.
+ *
+ * Exported because a 52-week bar chart needs rework PER WEEK, and bucketing
+ * first would get it wrong: rework is defined by the previous touch of the same
+ * file, which routinely falls in the previous bucket. Computing per bucket
+ * would silently zero the rework of every touch that happens to be the first in
+ * its week — worst at exactly the cadence the chart displays. So the sequence is
+ * walked once, whole, and each touch's contribution is bucketed afterwards.
+ */
+export function attributeRework(eligible: readonly ChurnFileTouch[]): ReworkTouch[] {
   const aliasOf = buildRenameAliases(eligible);
   const byCanonicalPath = new Map<string, ChurnFileTouch[]>();
   for (const t of eligible) {
@@ -60,7 +76,9 @@ function computeRework(eligible: readonly ChurnFileTouch[]): number {
     else byCanonicalPath.set(key, [t]);
   }
 
-  let rework = 0;
+  const attributed = new Map<ChurnFileTouch, number>();
+  for (const t of eligible) attributed.set(t, 0);
+
   for (const touches of byCanonicalPath.values()) {
     const byTime = [...touches].sort(
       (a, b) => new Date(a.touchedAt).getTime() - new Date(b.touchedAt).getTime(),
@@ -72,11 +90,16 @@ function computeRework(eligible: readonly ChurnFileTouch[]): number {
       const prev = byTime[i - 1] as ChurnFileTouch;
       const curr = byTime[i] as ChurnFileTouch;
       if (daysBetween(new Date(prev.touchedAt), new Date(curr.touchedAt)) < REWORK_LOOKBACK_DAYS) {
-        rework += curr.additions + curr.deletions;
+        attributed.set(curr, curr.additions + curr.deletions);
       }
     }
   }
-  return rework;
+
+  return eligible.map((touch) => ({ touch, rework: attributed.get(touch) ?? 0 }));
+}
+
+function computeRework(eligible: readonly ChurnFileTouch[]): number {
+  return attributeRework(eligible).reduce((sum, r) => sum + r.rework, 0);
 }
 
 /** METRICS.md §1 M1: gross/net/rework over eligible (non-bot, non-merge, non-superseded) touches. */
@@ -101,16 +124,26 @@ export function computeChurn(
   return { gross, net, rework: computeRework(eligible) };
 }
 
+/**
+ * The touches belonging to one file, rename chain resolved — the input a
+ * per-file view needs before it can bucket anything by time.
+ */
+export function scopeTouchesToFile(
+  touches: readonly ChurnFileTouch[],
+  path: string,
+): ChurnFileTouch[] {
+  const aliasOf = buildRenameAliases(touches);
+  const target = resolveCanonicalPath(aliasOf, path);
+  return touches.filter((t) => resolveCanonicalPath(aliasOf, t.path) === target);
+}
+
 /** file grain: churn scoped to touches on a single canonical path (renames included). */
 export function computeFileChurn(
   touches: readonly ChurnFileTouch[],
   path: string,
   botGlobs?: readonly string[],
 ): ChurnResult {
-  const aliasOf = buildRenameAliases(touches);
-  const target = resolveCanonicalPath(aliasOf, path);
-  const scoped = touches.filter((t) => resolveCanonicalPath(aliasOf, t.path) === target);
-  return computeChurn(scoped, botGlobs);
+  return computeChurn(scopeTouchesToFile(touches, path), botGlobs);
 }
 
 /** person grain: churn attributed to a single author. */
