@@ -1911,3 +1911,51 @@ Noted on that ticket; not fixed from inside this one.
 Gate: lint 0, typecheck 0, **562 unit tests** (was 543), 44 e2e + 1 skipped,
 all three validators exit 0. On this machine e2e needs `E2E_API_PORT=3010 pnpm
 e2e` — a compose dev stack holds port 3000, which is what W4-11's override is for.
+
+### 2026-08-15 — W4-10 split, and W4-22: live sync has never worked
+
+**W4-10 landed in part and is deliberately still open.** Persona picker +
+migration 0006 (`users.persona`, `users.prefs`), onboarding checklist with
+admin/member variants, review-queue rail badge, R-D1 typography. UX_SPEC §6's
+role-routed homes were unimplementable before this: admin/member is an
+*authorization* role and says nothing about which screen someone wants — a
+security reviewer and a tech lead are both "member".
+
+Three criteria were filed rather than faked, for three different reasons: the
+first-insight toast had **no producer**, the findings badge has **no data**
+(and a badge stuck at 0 is indistinguishable from a working one), and the
+"hero tiles on the existing WidgetGrid" criterion is already true of the grid
+engine and false of the screen — `OrgOverview.tsx` never uses `WidgetGrid`, so
+that bullet is a rewrite of the MVP-gate landing screen. Filed as **W4-21**.
+**Re-scoping acceptance is a founder call, so W4-10 stays `in_progress` and the
+W4 gate is genuinely not reached until Brad rules.**
+
+**W4-22 (done) is the reason the toast had no producer, and it is worse than a
+missing event.** `grep -rn publishSyncEvent apps packages | grep -v test`
+returned exactly one line — its own definition. The helper was built,
+documented and unit-tested, the SSE route was mounted in W4-18, the browser
+subscribes to all four event names, and **nothing in production ever called the
+publisher**. Live sync had never worked. It degraded exactly as designed ("a
+dropped event just means a slightly staler dashboard"), which is why nobody
+noticed. The sixth built-but-never-called defect, same cause every time: the
+unit tests supply the missing end themselves, so both ends are proven and the
+join between them is exercised by nothing.
+
+The wiring gate now covers transports, not just queues — and **its first
+version was itself fake**: it asserted the file `includes('publishSyncEvent')`
+and passed against a gutted publisher, because the import line satisfied it.
+Negative controls were run on both the gate and the new e2e.
+
+Also fixed: `playwright.config.ts` claimed to serialize ("shared seeded
+warehouse") but `fullyParallel: false` only serializes *within* a file — 49
+tests were running on 9 workers against one warehouse and one fixture user.
+`workers: 1` is what the comment always meant, and it is **faster** (38s → 21s),
+because the parallel run spent its time on 30s timeouts.
+
+Gate: lint 0, typecheck 0, **566 unit tests**, 49 e2e + 1 skipped, all three
+validators exit 0.
+
+**Board state:** claimable = W4-15, W4-16, W4-17 (the API-gap trio). W4-21 is
+blocked on the W4-10 ruling. Those four plus that decision are all that stand
+between here and the MVP gate — which per PLAYBOOK needs a CHALLENGER pass from
+a session that implemented none of the wave's tickets.
