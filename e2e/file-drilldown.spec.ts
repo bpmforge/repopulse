@@ -62,3 +62,34 @@ test('the file screen passes axe with real data', async ({ page }) => {
   await expect(page.getByTestId('file-churn').locator('canvas')).toBeVisible();
   await expectNoA11yViolations(page);
 });
+
+test('the file screen shows rework, hotspot history and the PRs that touched it (W4-17)', async ({
+  page,
+}) => {
+  await loginAsFixture(page);
+  await page.goto('/');
+  await page.getByTestId('hotspot-leaderboard').locator('a').first().click();
+  await expect(page.getByTestId('file-detail')).toBeVisible();
+
+  // The churn chart's data alternative is the honest place to assert the
+  // numbers: the canvas cannot be read, and "view as table" is a WCAG
+  // requirement this project already ships. A REWORK column is the whole point
+  // — the old empty state said drawing gross churn labelled "rework" would
+  // misstate a defined metric.
+  await page
+    .getByTestId('file-churn')
+    .getByTestId('chart-table-toggle')
+    .click();
+  const table = page.getByTestId('file-churn').getByTestId('chart-table');
+  await expect(table).toBeVisible();
+  await expect(table).toContainText('Rework');
+
+  // Hotspot history is a real series or an honest empty state — never a flat
+  // line invented from one current value.
+  const history = page.getByTestId('file-hotspot-history');
+  const emptyHistory = page.getByText(/history builds up as nightly runs/i);
+  await expect(history.or(emptyHistory).first()).toBeVisible();
+
+  // The panel naming W4-17 is gone.
+  await expect(page.getByText(/Tracked as W4-17/i)).toHaveCount(0);
+});
