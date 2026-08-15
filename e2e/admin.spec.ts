@@ -121,3 +121,33 @@ test('the Members tab and DLQ panel show real controls, not empty states (W4-20)
   await expect(page.getByText(/tracked as W4-20/i)).toHaveCount(0);
   await expect(page.getByText(/Dead-letter queue/i).first()).toBeVisible();
 });
+
+test('Settings shows the METRICS.md defaults, labelled as defaults (W4-09)', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/admin/settings');
+
+  await expect(page.getByTestId('admin-settings')).toBeVisible();
+  // Seeded workspaces store no settings, so every field is showing a default —
+  // and must SAY so. A screen that renders 7 with no label cannot be told apart
+  // from one where an admin chose 7, which is the whole point of the API
+  // returning `stored` and `effective` separately.
+  await expect(page.getByTestId('stale-days')).toHaveValue('7');
+  await expect(page.getByText('default').first()).toBeVisible();
+  // METRICS.md §3 weights, reaching the browser from the API rather than being
+  // duplicated in the UI.
+  await expect(page.getByTestId('weight-reviewHygiene')).toHaveValue('0.3');
+
+  await expectNoA11yViolations(page);
+});
+
+test('the weight form refuses a set that does not sum to 1.00 (W4-09)', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/admin/settings');
+
+  await page.getByTestId('weight-activity').fill('0.9');
+  // The error is announced (role=alert) and the save is blocked in the browser.
+  // The API re-checks independently — a client-side check is a courtesy, never
+  // a control — which is asserted in the route's own integration test.
+  await expect(page.getByTestId('weights-sum-error')).toBeVisible();
+  await expect(page.getByTestId('save-weights')).toBeDisabled();
+});

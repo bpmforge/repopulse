@@ -1331,8 +1331,15 @@
       ],
       "write_scope": [
         "apps/api/src/routes/admin/workspace/**",
+        "apps/api/src/lib/workspace-settings.ts",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/api/src/workers/processors.ts",
+        "apps/api/src/routes/org/health.ts",
+        "packages/shared/src/logger/audit.ts",
         "apps/web/src/routes/admin/settings.tsx",
-        "apps/web/src/widgets/admin/settings/**"
+        "apps/web/src/routes/admin/route.tsx",
+        "apps/web/src/widgets/admin/settings/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W4-08",
@@ -1345,8 +1352,17 @@
         "Tenancy walker + axe green over the new route"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE AMENDED 2026-08-15, before any code, because as filed it could not satisfy its own acceptance 2 — and widening it silently is the thing MASTER_PROMPT rule 3 exists to prevent. Acceptance 2 requires an edited bot list or stale-N to reach 'the next metric recompute/snapshot' and an edited weight to reach 'the health-score breakdown endpoint'. Neither surface is inside apps/api/src/routes/admin/** or apps/web/**: snapshots are computed in apps/api/src/workers/processors.ts and the breakdown is built in apps/api/src/routes/org/health.ts. Added file-by-file rather than as a glob: lib/workspace-settings.ts (the zod schema + reader, needed by BOTH the route and the worker, so it cannot live under routes/), plugins/api-v1.ts (mounting — five built-but-never-mounted defects in this project so far, so registration is part of the work, not an afterthought), packages/shared/src/logger/audit.ts (acceptance 1's SC-22 audit event class; the AuditEvent union is a closed type that grows per wave by design), routes/admin/route.tsx (a tab nobody can navigate to is the same defect in the UI), and e2e/** (acceptance 4 wants axe green over the new route).",
+        "FOUND WHILE READING, not part of this ticket: apps/api/src/workers/processors.ts:368 passes `botGlobs: []` to computeRepoSnapshots. Empty array is NOT 'use the defaults' — isBotLogin does `globs.some(...)`, so [] means NOTHING is a bot and METRICS.md §0's shared rule ('exclude bot activity from every human-flow metric') has never held in production. DEFAULT_BOT_LOGIN_GLOBS exists and is passed by nobody. Every churn, hotspot and ownership number computed from real ingestion counts dependabot as a human. Fixed as part of this ticket since acceptance 2 puts the settings-derived bot list through exactly this call, but worth recording separately: it is a data-correctness bug, not a settings feature.",
+        "DONE 2026-08-15. All four criteria met. GET/PATCH /admin/workspace are zod-validated, admin-only (a member gets 403 on BOTH verbs, asserted), and every PATCH writes an SC-22 audit entry naming the CHANGED KEYS and not their values — the LM host list lands in this same object in W6, and an audit stream is not where a credential should surface. PATCH MERGES rather than replaces, for the same reason: a `.set({settings: body})` would delete the W6/W7 keys the moment an admin saved a weight.",
+        "THE WEIGHT TEST IS THE ONE THAT EARNS ITS SETUP COST. buildHealthSubScores looks weights up as `weights.reviewHygiene ?? DEFAULT_WEIGHTS.reviewHygiene`, so a renamed key or an unwired call does not fail — it silently scores exactly as before. The test therefore reads the breakdown endpoint's own numbers with TWO sub-scores present (M5 + M9): with one, computeHealthScore renormalizes its weight to 1.0 and every possible weight config produces identical output, so the test would have passed against a completely unwired endpoint. M9 is seeded at 0.8 rather than 0.5 for the same class of reason — 0.5 clamps ramp(0.95,0.6) to zero and every contribution becomes 0 x weight, which compares equal regardless. The schema also rejects snake_case weight keys, since those would fall through to defaults silently rather than erroring.",
+        "SUM SEMANTICS, read rather than assumed: METRICS.md §3's four Tier-1 weights sum to 1.00, and security (+0.20) / supply chain (+0.10) are added ON TOP and renormalized. So the refinement checks the four, and deliberately does not check a total that includes the two sub-scores that do not exist yet. The check is not arithmetic necessity — computeHealthScore renormalizes by the present weights, so a set summing to 4.0 yields identical numbers — it is so a stored config means what §3's table says when a human reads it back.",
+        "THE BOT-LIST BUG IS FIXED, and it was the real find. processors.ts passed a literal `botGlobs: []`, which reads as 'no override' but means 'nothing is a bot' (isBotLogin does globs.some over an empty array), so METRICS.md §0's exclusion rule had never held for any number computed from real ingestion. The settings reader returns DEFAULT_BOT_LOGIN_GLOBS when unset and an empty array only when an admin chose one, and `??` is used rather than `||` throughout so an emptied list survives. Pinned by unit tests on both states. The Settings screen says out loud what an empty box does ('dependabot then counts as a contributor') instead of letting it read as unset.",
+        "HANDOFF for W4-20 (closed, not reopened here): its PATCH /admin/members/:userId is NOT audit-logged, though SC-22 names 'admin role change' explicitly. The pieces are in place — auditLog is imported one file away and the AuditEvent union now grows per wave by design — but SC-22's verify clause wants an integration test per event class, so it is not a two-line change, and satisfying a closed ticket's acceptance from inside a different ticket would make the board stop meaning anything. Founder call.",
+        "Gate: lint 0, typecheck 0, 562 unit tests (was 543), 44 e2e + 1 skipped (was 42), validate-arch/plan/traceability all exit 0. Unit suite run TWICE to prove teardown is clean — the first run of the new suite left a second admin in the shared `default` workspace and broke W4-20's last-admin assertion in a file this ticket never touched. e2e must be run as `E2E_API_PORT=3010 pnpm e2e` on this machine: a compose dev stack holds port 3000, which is exactly what W4-11 shipped the override for."
+      ]
     },
     {
       "id": "W4-10",
