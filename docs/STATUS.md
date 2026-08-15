@@ -1959,3 +1959,52 @@ validators exit 0.
 blocked on the W4-10 ruling. Those four plus that decision are all that stand
 between here and the MVP gate — which per PLAYBOOK needs a CHALLENGER pass from
 a session that implemented none of the wave's tickets.
+
+### 2026-08-15 — W4-15, W4-16, W4-17: the API-gap trio, and a seventh inert feature
+
+All three tickets existed because W4-04/05/06 shipped what was reachable and
+named the rest in visible empty states. Each turned out to be bigger than its
+acceptance text implied, in a different way.
+
+**W4-15 was written as a retrieval gap and was a compute gap.**
+`computeCiDuration` and `computeCiFlakiness` were fully implemented against
+METRICS.md §1, fixture-tested to the line, and **called by nothing** —
+`snapshots/compute.ts` wrote `{value: passRate, dims: {passRate}}` and dropped
+two thirds of M9. No endpoint could retrieve what was never persisted. This is
+the **seventh** built-but-never-called defect, and the first to slip a wave
+*gate*: W3's exit criterion asks that every metric reproduce its fixture
+vector, which it did — in a unit test calling the function directly.
+
+Found alongside, and more consequential: §1 says "default-branch vs PR runs
+reported separately", but every run was pooled into one pass rate, which
+`routes/org/health.ts` then read as `m9PassRate` and ramped under the comment
+"M9 default-branch passRate". **The health score has been scoring a number that
+is not the one it names** — every repo with noisy PR CI was marked down for a
+default branch that was fine.
+
+**W4-16** replaced the repo picker with one workspace-scoped, keyset-paginated
+query. Every filter runs in SQL, which pagination makes mandatory rather than
+tidy: a page of 25 filtered to 9 in JS is a short page the client reads as
+"nearly the end".
+
+**W4-17** needed per-touch rework attribution, because rework is defined by the
+*previous* touch of the same file, which routinely falls in the previous week —
+bucketing first and computing per bucket zeroes the rework of every touch that
+happens to be first in its week, worst at exactly the cadence the chart shows.
+`churn.ts` now exports `attributeRework` and `computeRework` reduces over it, so
+the aggregate and the parts cannot disagree. The browser-side `toWeeklyChurn`
+was **deleted** rather than left beside it.
+
+Gate: lint 0, typecheck 0, **579 unit tests** (was 566), 54 e2e + 1 skipped,
+all three validators exit 0.
+
+**W4 is 21 of 23 done.** The only things left are **W4-10** (`in_progress`,
+awaiting the founder ruling on its split) and **W4-21** (blocked on that
+ruling). No ticket is claimable until it is made.
+
+**The W4 gate section is deliberately NOT written here.** PLAYBOOK requires the
+CHALLENGER pass to come from a session that implemented none of the wave's
+tickets, and this session implemented six of them. Three items must be carried
+into that gate entry as unverified: no real **Gitea** instance has been
+ingested, no real **GitLab** instance has been ingested, and the new
+**sync events** are proven against the fake forge only.
