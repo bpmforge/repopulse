@@ -1,6 +1,8 @@
 # RepoPulse — Roadmap
 
 > **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W10 are v1.x.
+> W11 (self-hosting) and W12 (multi-forge + production wiring) were filed after this
+> roadmap was written; W12 was executed out of order and its section says why.
 > Gate rule (PLAYBOOK.md): no wave-N+1 ticket starts until wave-N exit criteria pass
 > and are recorded in `docs/STATUS.md` (W0-* tickets always claimable).
 > Points are rough, apportioned from USER_STORIES.md epic totals (213 total / 117 MVP).
@@ -255,3 +257,55 @@ sub-score + axis wiring + plan catalog entries (FR-REG-7).
 - [ ] Architecture phase A: cycle + god-module + orphan-cluster fixtures reproduce per language adapter (JS/TS, Python, Go); adapters pass the D11 standalone-only admission filter; declared-boundary checking provably absent (phase B deferred).
 - [ ] Test-gap: hot-file-without-test-co-change fixture produces the finding; a repo with no test directory produces a repo-scoped basis-labeled finding, not per-file noise.
 - [ ] D12 integration: all four new dimensions carry effective_risk + decomposition; supply_chain sub-score reproduces from fixtures and renormalizes when absent (FR-INSIGHTS-3 pattern); Supply Chain axis letter + contributors render; new-dimension findings appear in Top Risks / plans / reports with zero surface-specific code.
+
+---
+
+## W11 — Customer self-hosting (~17 pts: no new epic; D10)
+
+**Goal:** a customer can install, configure, upgrade and recover RepoPulse on
+their own host. Nothing here adds product surface — it is the difference between
+"runs on Brad's machine" and "is a thing someone else can run". D10 (proprietary,
+all rights reserved) means no artifact is published to a public registry until
+W11-05 proves a clean install works end to end; W11-01's publish step is
+therefore deliberately unbuilt, not merely deferred.
+
+Ticket themes: portable multi-arch images + a generic compose artifact (W11-01);
+customer forge-App setup flow and config reference (W11-02); upgrade, backup and
+restore runbook (W11-03); the licensing/distribution/support decision, closed by
+the founder as D10 (W11-04); self-host smoke on a clean host (W11-05).
+
+**Exit criteria**
+- [ ] A clean host with only a container runtime reaches a working install from docs/INSTALL.md alone, with no repo checkout and no step that exists only in someone's shell history.
+- [ ] The upgrade path is exercised, not described: install version N, upgrade to N+1, and the warehouse survives with migrations applied.
+- [ ] Backup and restore round-trips: a restored instance serves the same org overview the backup was taken from.
+- [ ] No public distribution of any artifact until the above pass (D10).
+
+## W12 — Multi-forge and production wiring (~42 pts: E8 remainder; unplanned)
+
+**Goal:** an unplanned wave, filed and executed 2026-08-13/14 out of roadmap
+order because a systematic audit found that built-and-tested code was not
+reachable in production. Recorded here as a wave rather than folded into W2/W4
+so the out-of-order execution stays visible: seven tickets closed while W5-W10
+had not started.
+
+The defect class it exists to close — **built but never mounted** — appeared five
+times: the SSE events route (W4-18), connections/sync/webhooks (W4-19), all six
+queue processors (W12-03/W12-05), and the ingest state machine, which had no
+production caller at all. Root cause each time: unit tests mount the subject
+themselves into a throwaway scope, so the production entrypoint is exercised by
+nothing. W12-04 is the standing answer — a two-directional wiring gate that fails
+the build when a built processor or route is absent from the shipping composition
+root, and when a queue is neither consumed nor asserted as a sink.
+
+Ticket themes: GitLabProvider against the shared contract suite, completing
+multi-forge (W12-01); a fake forge server so e2e proves connect + backfill with
+no real credentials (W12-02); worker processor wiring, core loop then remaining
+lanes (W12-03, W12-05, W12-06); the wiring gate (W12-04); auth rate-limit test
+flake (W12-07).
+
+**Exit criteria**
+- [x] All three providers (GitHub, Gitea, GitLab) pass one shared contract suite, and nothing above the port branches on provider name (`capability-gate.test.ts`).
+- [x] Every declared queue is either consumed by a registered processor or asserted as a sink; `KNOWN_INERT` is `[]`.
+- [x] Ingestion is proven end to end in CI: the worker runs from the shipping entrypoint as a Playwright webServer, and the assertion fails when a processor is unregistered (negative control performed).
+- [ ] **Unverified, carried:** no real Gitea or GitLab instance has been ingested — both adapters pass recorded-fixture contract tests only.
+- [ ] **Carried defect:** a 404 from the forge still produces a COMPLETED backfill job with no error and no cursor on the REST paths, indistinguishable from a genuinely empty repo. Only the GraphQL path was hardened.
