@@ -1390,7 +1390,7 @@
         "Visual deltas R-D1/R-D2: tabular-nums Inter on all metric columns/KPIs, JetBrains Mono only for SHAs/paths/evidence (UX_SPEC §2.1 as amended); Org Overview supports 2x2 hero tiles on the existing WidgetGrid"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
