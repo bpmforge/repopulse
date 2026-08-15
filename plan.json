@@ -1595,6 +1595,8 @@
       "write_scope": [
         "apps/api/src/routes/repos/**",
         "apps/api/src/routes/metrics/**",
+        "packages/metrics/src/snapshots/**",
+        "packages/metrics/src/metrics/review-load.ts",
         "apps/web/src/widgets/repo/**",
         "e2e/**"
       ],
@@ -1608,9 +1610,12 @@
         "The Repo Detail CI tab replaces its explanatory empty state with the real charts, and PR Flow gains the review-load matrix"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "Filed 2026-08-12 from W4-04. UX_SPEC 4.b asks the PR Flow tab for a review-load matrix and the CI tab for duration trends plus a flaky ranking. None of the three are reachable from the current API: the PR list exposes author and review_covered but no per-reviewer counts, and metric_snapshots stores a single scalar per metric so M9 arrives as pass-rate only. W4-04 shipped the funnel, the size histogram and the pass-rate trend, which ARE reachable, and left the CI tab carrying an explicit empty state naming this ticket rather than a proxy chart. That choice is the point: a review-load matrix built from author data would look plausible and answer a different question, on a screen whose entire job is evidence."
+        "Filed 2026-08-12 from W4-04. UX_SPEC 4.b asks the PR Flow tab for a review-load matrix and the CI tab for duration trends plus a flaky ranking. None of the three are reachable from the current API: the PR list exposes author and review_covered but no per-reviewer counts, and metric_snapshots stores a single scalar per metric so M9 arrives as pass-rate only. W4-04 shipped the funnel, the size histogram and the pass-rate trend, which ARE reachable, and left the CI tab carrying an explicit empty state naming this ticket rather than a proxy chart. That choice is the point: a review-load matrix built from author data would look plausible and answer a different question, on a screen whose entire job is evidence.",
+        "WRITE_SCOPE AMENDED 2026-08-15, before code: acceptance 2 is not a retrieval gap, it is a COMPUTE gap, so no change confined to apps/api/src/routes/** can satisfy it. `grep -rn 'computeCiDuration|computeCiFlakiness' apps packages` returns only ci.test.ts. Both functions are fully implemented against METRICS.md §1 M9, fixture-tested to the line, and called by NOTHING — snapshots/compute.ts writes `{value: passRate, dims: {passRate}}` and drops the other two thirds of M9 on the floor. Added packages/metrics/src/snapshots/** (persist the components) and a new metrics/review-load.ts (per-reviewer counts for acceptance 1).",
+        "THE SEVENTH BUILT-BUT-NEVER-CALLED DEFECT (after the SSE mount W4-18, connections/sync/webhooks W4-19, six queue processors W12-03/05, plan/state-machine.ts, and publishSyncEvent W4-22). This one slipped past a wave GATE, not just a test: W3's exit criterion reads 'every FR-METRICS-1..12 metric reproduces its hand-computed fixture-history vector exactly', and it was satisfied honestly — by unit tests calling the functions directly. Reproducing a vector in a fixture test and reaching a snapshot row are different claims, and W3 only ever checked the first.",
+        "FOUND ALONGSIDE, and it is a correctness bug rather than a gap: METRICS.md §1 M9 says 'default-branch vs PR runs reported separately', but readCiRuns returns EVERY check run and computeCiPassRate is applied to the lot. So the stored passRate is a blend. routes/org/health.ts then reads it as `m9PassRate` with the comment 'M9 default-branch passRate' and ramps it — so the health score has been scoring a number that is not the one it names, and a repo with noisy PR CI scores worse on 'CI health' than its default branch deserves."
       ]
     },
     {
