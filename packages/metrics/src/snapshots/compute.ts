@@ -6,7 +6,8 @@ import { computeCycleStagePercentiles } from '../metrics/cycle.js';
 import { computeReviewCoverage } from '../metrics/review-coverage.js';
 import { computePrSizeDistribution } from '../metrics/pr-size.js';
 import { computeStalePrs } from '../metrics/stale-prs.js';
-import { computeCiPassRate } from '../metrics/ci.js';
+import { computeCiDuration, computeCiFlakiness, computeCiPassRate } from '../metrics/ci.js';
+
 import { computeIssueThroughput } from '../metrics/issues.js';
 import { computeReleaseCadence } from '../metrics/releases.js';
 import { computeDeploymentFrequency } from '../metrics/dora.js';
@@ -22,6 +23,12 @@ import {
   readReviewCoveragePrs,
   readStalePrs,
 } from './readers.js';
+
+// How many workflows' flakiness rows land in M9's dims. The ranking endpoint
+// reads these, and dims is a jsonb column on an append-only nightly series — a
+// monorepo with hundreds of workflows would otherwise write a table's worth of
+// JSON per repo per night to serve a "top offenders" list.
+const FLAKINESS_TOP_N = 20;
 
 // The nightly metrics.snapshot compute driver (W3-10, FR-METRICS-13). For one
 // repo, computes M1..M12 for every window and writes one snapshot row per
@@ -109,7 +116,22 @@ export async function computeRepoSnapshots(
     const stale = computeStalePrs(stalePrs, asOf, params.staleThresholdDays);
 
     // --- CI / issues / releases / dora ---
-    const ci = computeCiPassRate(await readCiRuns(db, params.repoId, windowStart));
+    // M9 has THREE components (METRICS.md §1: pass rate, duration, flakiness)
+    // and only the first was ever persisted — computeCiDuration and
+    // computeCiFlakiness were implemented, fixture-tested and called by nothing.
+    //
+    // The split is also the spec, not a refinement: §1 says "default-branch vs
+    // PR runs reported separately". Every run was being pooled into one
+    // passRate, which routes/org/health.ts then read as `m9PassRate` and ramped
+    // under the comment "M9 default-branch passRate" — so a repo with noisy PR
+    // CI was scored down for a default branch that was fine.
+    const ciRuns = await readCiRuns(db, params.repoId, windowStart);
+    const defaultBranchRuns = ciRuns.filter((r) => r.pullRequestId === null);
+    const prRuns = ciRuns.filter((r) => r.pullRequestId !== null);
+    const ci = computeCiPassRate(defaultBranchRuns);
+    const ciPr = computeCiPassRate(prRuns);
+    const ciDuration = computeCiDuration(defaultBranchRuns);
+    const ciFlakiness = computeCiFlakiness(ciRuns);
     const issues = computeIssueThroughput(await readIssues(db, params.repoId), windowStart, asOf);
     const release = computeReleaseCadence(
       await readReleaseInputs(db, params.repoId),
@@ -153,8 +175,35 @@ export async function computeRepoSnapshots(
       [
         'M9',
         ((): Reduced => {
-          // passRate is a ratio — recover numerator/denominator alongside value.
-          return { value: ci ?? 0, numerator: null, denominator: null, dims: { passRate: ci } };
+          // `value` stays the default-branch pass rate: it is what the health
+          // score and the existing trend endpoint read, and changing the scalar
+          // would silently rewrite the meaning of every historical row.
+          //
+          // NULL vs 0 is load-bearing throughout these dims. A repo with no
+          // CI at all and a repo whose CI never passes must not look alike —
+          // `passRate: null` means "no completed runs to divide by", and the
+          // ramp drops a null input from its sub-score rather than scoring it
+          // zero. Same for flakiness: a workflow never rerun has no flakiness
+          // ratio, which is not the same as a flakiness of 0.
+          return {
+            value: ci ?? 0,
+            numerator: null,
+            denominator: null,
+            dims: {
+              passRate: ci,
+              prPassRate: ciPr,
+              defaultBranchRuns: defaultBranchRuns.length,
+              prRuns: prRuns.length,
+              duration: ciDuration,
+              // Ranked desc by computeCiFlakiness; capped because this is a
+              // jsonb column on an append-only series, not a table — the
+              // ranking endpoint reads the top offenders, and a repo with 400
+              // workflows must not write 400 rows' worth of dims every night.
+              flakiness: ciFlakiness.slice(0, FLAKINESS_TOP_N),
+              flakinessWorkflows: ciFlakiness.length,
+              topFlakiness: ciFlakiness[0]?.flakinessRatio ?? null,
+            },
+          };
         })(),
       ],
       [

@@ -1,7 +1,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { core, facts, read } from '../../db/index.js';
-import { makeRng } from './prng.js';
+import { makeRng, type Rng } from './prng.js';
 
 // Deterministic warehouse seeder (W4-00) — one multi-repo org + a second
 // workspace, identities incl. the fixture login, facts and metric_snapshot rows
@@ -39,6 +39,39 @@ const WINDOWS = ['7d', '30d', '90d', '365d'] as const;
 function anchorFor(now: number): number {
   const midnightUtc = Math.floor(now / DAY) * DAY;
   return midnightUtc - SPAN_DAYS * DAY;
+}
+
+/**
+ * M9's dims in the shape snapshots/compute.ts writes them (W4-15).
+ *
+ * The seeder does not run the metric engine, so these are fabricated like every
+ * other seeded value — but the SHAPE is the contract the CI tab reads, and
+ * getting it wrong here would make the screen's tests pass against a payload
+ * production never produces. Null is used where the engine uses null (a
+ * workflow never rerun has no flakiness ratio), because "no CI" and "CI that
+ * never passes" must stay distinguishable on screen.
+ */
+function m9Dims(rng: Rng): Record<string, unknown> {
+  const flaky = [
+    { workflowName: 'ci', rerunGroups: rng.int(3, 8), flippedGroups: rng.int(1, 3) },
+    { workflowName: 'e2e', rerunGroups: rng.int(1, 4), flippedGroups: rng.int(0, 1) },
+  ].map((f) => ({
+    ...f,
+    flakinessRatio: f.rerunGroups === 0 ? null : f.flippedGroups / f.rerunGroups,
+  }));
+  flaky.sort((a, b) => (b.flakinessRatio ?? -1) - (a.flakinessRatio ?? -1));
+
+  const medianMs = rng.int(2, 12) * 60_000;
+  return {
+    passRate: rng.int(70, 99) / 100,
+    prPassRate: rng.int(55, 95) / 100,
+    defaultBranchRuns: rng.int(8, 40),
+    prRuns: rng.int(10, 60),
+    duration: { medianMs, p90Ms: medianMs + rng.int(1, 8) * 60_000 },
+    flakiness: flaky,
+    flakinessWorkflows: flaky.length,
+    topFlakiness: flaky[0]?.flakinessRatio ?? null,
+  };
 }
 
 export interface SeedResult {
@@ -293,6 +326,7 @@ export async function seedWarehouse(
       }
       // a check run per PR (mix pass/fail)
       const started = new Date(created.getTime() + 3600 * 1000);
+      const failed = p % 4 === 0;
       await db.insert(facts.checkRuns).values({
         workspaceId,
         repoId,
@@ -301,11 +335,31 @@ export async function seedWarehouse(
         workflowName: 'ci',
         headSha,
         status: 'completed',
-        conclusion: p % 4 === 0 ? 'failure' : 'success',
+        conclusion: failed ? 'failure' : 'success',
         runAttempt: 1,
         startedAt: started,
         completedAt: new Date(started.getTime() + rng.int(2, 20) * 60000),
       });
+      // W4-15: a RERUN of the failed run that passes. Flakiness (METRICS.md §1
+      // M9) is fail→pass on the same head SHA, so without a second attempt the
+      // fixture has no flakiness to measure at all — and the CI tab's flaky
+      // ranking would render an empty state that looks like a broken endpoint.
+      if (failed) {
+        const rerunStart = new Date(started.getTime() + 30 * 60000);
+        await db.insert(facts.checkRuns).values({
+          workspaceId,
+          repoId,
+          forgeRunId: `${name}-run${p}-a2`,
+          kind: 'check_run',
+          workflowName: 'ci',
+          headSha,
+          status: 'completed',
+          conclusion: 'success',
+          runAttempt: 2,
+          startedAt: rerunStart,
+          completedAt: new Date(rerunStart.getTime() + rng.int(2, 20) * 60000),
+        });
+      }
     }
 
     // issues, release, deployment
@@ -379,7 +433,13 @@ export async function seedWarehouse(
             value: isRatio ? (ratioTenths / 10).toFixed(6) : String(level),
             numerator: isRatio ? String(ratioTenths) : null,
             denominator: isRatio ? '10' : null,
-            dims: {},
+            // W4-15: M9's newest row carries the three components compute.ts
+            // now writes. Only the newest, because that is what the CI tab
+            // reads — and because older rows genuinely predate the change,
+            // which the endpoint reports as components_available: false. A
+            // fixture that back-filled every row would hide that state instead
+            // of letting a screen be tested against it.
+            dims: mk === 'M9' && i === 0 ? m9Dims(rng) : {},
             // i = 0 is the newest point and lands on the anchor end (today).
             computedAt: new Date(BASE + SPAN_DAYS * DAY - i * 7 * DAY),
           });
