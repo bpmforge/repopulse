@@ -86,7 +86,9 @@ describe('production wiring (regression gate)', () => {
     // worker with work no test asked for — the e2e run went from 9 seconds to
     // 33 minutes with 17 failures whose messages (page.goto timeouts, missing
     // locators) pointed nowhere near the cause. Costly enough to pin.
-    const config = readIfPresent(new URL('../../../playwright.config.ts', import.meta.url).pathname);
+    const config = readIfPresent(
+      new URL('../../../playwright.config.ts', import.meta.url).pathname,
+    );
     expect(
       /RECONCILE_CRON:\s*'off'/.test(config),
       'playwright.config.ts must set RECONCILE_CRON=off for the worker, or the nightly sweep can fire mid-suite',
@@ -109,5 +111,45 @@ describe('production wiring (regression gate)', () => {
       SINK_QUEUES.filter((q) => registered.includes(q)),
       'a sink queue has been given a processor — it would drain the failures the ops page exists to show',
     ).toEqual([]);
+  });
+
+  // W4-22. The fifth and sixth instances of the pattern were NOT a route or a
+  // queue: `publishSyncEvent` was fully built and unit-tested with ZERO
+  // production callers, so GET /api/v1/events relayed a Redis channel nothing
+  // ever wrote to. The browser subscribed to four event names and received
+  // none of them, and live sync degraded silently to "slightly staler
+  // dashboard" — which is precisely why nobody noticed for months.
+  //
+  // A queue check could never have caught it: this is a TRANSPORT with a
+  // subscriber and no publisher. Both ends are asserted here, in both
+  // directions, for the same reason the DLQ sink is.
+  it('the sync-event channel has a publisher AND a subscriber', () => {
+    const workerEntry = readIfPresent(join(API_SRC, 'workers/index.ts'));
+    // A CALL, not a mention. The first version of this assertion looked for the
+    // string `publishSyncEvent` anywhere in the file, and passed against a
+    // gutted `publish: () => Promise.resolve()` because the import line alone
+    // satisfied it — a wiring gate that a stubbed-out publisher can pass is the
+    // same false comfort as the tests that let this defect ship.
+    expect(
+      /publishSyncEvent\s*\(/.test(workerEntry),
+      'nothing CALLS publishSyncEvent in the worker entrypoint — the SSE stream would relay an ' +
+        'empty channel and the dashboard would look merely slow rather than broken',
+    ).toBe(true);
+    expect(
+      /publish:\s*\(/.test(workerEntry),
+      'the processors take a `publish` dependency that the entrypoint does not supply',
+    ).toBe(true);
+
+    const processors = readIfPresent(join(API_SRC, 'workers/processors.ts'));
+    expect(
+      /publish\??\.?\(/.test(processors) && processors.includes('sync.done'),
+      'the entrypoint wires a publisher but no processor emits an event through it',
+    ).toBe(true);
+
+    const events = readIfPresent(join(API_SRC, 'routes/events/index.ts'));
+    expect(
+      events.includes('syncEventsChannel'),
+      'nothing subscribes to the channel — events would be published into the void',
+    ).toBe(true);
   });
 });

@@ -18,9 +18,11 @@ import {
   reconcileRepo,
   requeueErrorRepos,
   syncPhaseToRepoStatus,
+  repoSyncStatus,
   PAGINATED_ENTITIES,
   type BackfillJobData,
   type DeltaJobData,
+  type SyncStreamEvent,
 } from '@repopulse/ingest';
 import { computeRepoSnapshots } from '@repopulse/metrics';
 import { providerForRepo, type WorkerProviderDeps } from './forge-provider.js';
@@ -40,6 +42,62 @@ export interface ProcessorDeps extends WorkerProviderDeps {
   enrichQueue: Queue;
   /** Nightly sweep fan-out (W12-05). */
   reconcileQueue: Queue;
+  /**
+   * Publish a sync event to the workspace's channel (W4-22). Optional and
+   * injectable so processors stay testable without Redis — but its ABSENCE in
+   * production is the defect this ticket exists to close: publishSyncEvent had
+   * zero callers, so the SSE endpoint W4-18 mounted relayed a channel nobody
+   * ever wrote to and live sync had never worked.
+   */
+  publish?: (workspaceId: number, event: SyncStreamEvent) => Promise<void>;
+}
+
+/**
+ * Publish a repo's CURRENT status, read from the same function the GET status
+ * endpoint uses so the pushed pct and the polled pct can never disagree —
+ * API_DESIGN §3 makes SSE an optimization over those reads, which only holds if
+ * both report the same number.
+ *
+ * Never throws. A dropped event means a slightly staler dashboard (the design
+ * says so explicitly); failing an ingestion job because a pub/sub write failed
+ * would trade a cosmetic problem for a data one.
+ */
+async function emitSyncStatus(
+  deps: ProcessorDeps,
+  workspaceId: number,
+  repoId: number,
+  type: 'sync.progress' | 'sync.done',
+): Promise<void> {
+  if (!deps.publish) return;
+  try {
+    const status = await repoSyncStatus(deps.db, repoId);
+    if (!status) return;
+    await deps.publish(workspaceId, {
+      type,
+      data: { repoId, phase: status.phase, pct: status.percentComplete },
+    });
+  } catch {
+    /* best-effort by design (API_DESIGN §3) */
+  }
+}
+
+async function emitBudgetWarning(
+  deps: ProcessorDeps,
+  workspaceId: number,
+  repoId: number,
+): Promise<void> {
+  if (!deps.publish) return;
+  try {
+    await deps.publish(workspaceId, {
+      type: 'budget.warning',
+      data: {
+        repoId,
+        message: `Sync paused for repo ${repoId} — forge rate-limit budget floor reached`,
+      },
+    });
+  } catch {
+    /* best-effort by design */
+  }
 }
 
 /** `plan` job: fan a connected repo out into one backfill job per entity type. */
@@ -203,6 +261,12 @@ export function backfillProcessor(deps: ProcessorDeps) {
             .update(core.repos)
             .set({ syncStatus: status })
             .where(eq(core.repos.id, repoId));
+          // A budget park is the one status change a user must be told about
+          // rather than left to discover: the dashboard simply stops advancing,
+          // which is indistinguishable from a stalled worker (NFR-12).
+          if (status === 'paused_budget') {
+            await emitBudgetWarning(deps, data.workspaceId, repoId);
+          }
         },
       },
       data,
@@ -212,6 +276,10 @@ export function backfillProcessor(deps: ProcessorDeps) {
     // or a budget park is explicitly not done, and asking on every page would
     // be a needless query per page.
     const snapshotQueued = result.done === true ? await maybeSnapshot(deps, data) : false;
+    // Progress after every entity job, including continuations: recent-first
+    // backfill means the useful window fills early, so a page that advances
+    // coverage is exactly what the org sync banner exists to show.
+    await emitSyncStatus(deps, data.workspaceId, data.repoId, 'sync.progress');
     return { ...result, ...(snapshotQueued ? { snapshotQueued: true } : {}) };
   };
 }
@@ -222,7 +290,12 @@ export function deltaProcessor(deps: ProcessorDeps) {
     const data = job.data as DeltaJobData;
     const resolved = await providerForRepo(deps, data.workspaceId, data.repoId);
     if (!resolved) return { skipped: 'no active connection' };
-    return processDeltaJob({ db: deps.db, provider: resolved.provider }, data);
+    const result = await processDeltaJob({ db: deps.db, provider: resolved.provider }, data);
+    // A webhook delta is the ONLY path that changes a live repo's data, so
+    // without this a live dashboard never updates until someone reloads —
+    // NFR-10 asks for webhook→dashboard within 60s.
+    await emitSyncStatus(deps, data.workspaceId, data.repoId, 'sync.progress');
+    return result;
   };
 }
 
@@ -295,6 +368,10 @@ export function enrichProcessor(deps: ProcessorDeps) {
         );
       }
     }
+    // `sync.done` fires exactly once per repo, on the guarded UPDATE that
+    // actually flipped it live — the concurrent losers return 0 rows, so the
+    // client gets one "finished syncing" toast rather than one per churn job.
+    if (becameLive) await emitSyncStatus(deps, data.workspaceId, data.repoId, 'sync.done');
     return { ...outcome, ...(becameLive ? { becameLive: true } : {}) };
   };
 }

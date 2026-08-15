@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { createDb, metricsRegistry } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
-import { QUEUE, createQueue } from '@repopulse/ingest';
-import { createRedisConnection } from '@repopulse/ingest';
+import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
+import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
 import { createWorkerRuntime } from './runtime.js';
 import {
   backfillProcessor,
@@ -32,6 +32,13 @@ async function main(): Promise<void> {
   // Producer handles for continuations and the metrics hand-off. Separate from
   // the runtime's consumer workers: a processor re-enqueueing onto its own queue
   // needs a Queue, not the Worker.
+  // A SECOND connection for pub/sub publishing. Publishing on the BullMQ
+  // connection works today, but the runtime may put its own into subscriber
+  // mode, and a connection in subscriber mode refuses ordinary commands — a
+  // failure that would present as sync events silently stopping, which is
+  // exactly the symptom this ticket exists to end.
+  const publisher = createRedisConnection(redisUrl);
+
   const backfillQueue = createQueue(QUEUE.backfill, connection);
   const snapshotQueue = createQueue(QUEUE.snapshot, connection);
   const enrichQueue = createQueue(QUEUE.enrich, connection);
@@ -43,6 +50,11 @@ async function main(): Promise<void> {
     snapshotQueue,
     enrichQueue,
     reconcileQueue,
+    // W4-22: the missing half. publishSyncEvent was built, documented and
+    // unit-tested, and had ZERO production callers — so GET /api/v1/events
+    // relayed a channel nothing ever wrote to, and live sync had never worked.
+    publish: (workspaceId: number, event: SyncStreamEvent) =>
+      publishSyncEvent(publisher, workspaceId, event),
     ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
     // SC-12 escape hatch, off unless the operator sets it. Lets the e2e fake
     // forge (http://127.0.0.1:PORT) drive the real ingestion path; still
@@ -110,6 +122,7 @@ async function main(): Promise<void> {
   process.once('SIGTERM', () => {
     healthServer.close();
     void connection.quit().catch(() => {});
+    void publisher.quit().catch(() => {});
     void healthRedis.quit().catch(() => {});
   });
 

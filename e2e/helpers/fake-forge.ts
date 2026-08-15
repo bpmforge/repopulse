@@ -17,6 +17,11 @@ export const FAKE_TOKEN = 'ghp_fake_forge_token_for_e2e_0123456789';
 export const FAKE_REPOS = [
   { id: 9001, name: 'alpha-service', full_name: 'fixture-org/alpha-service' },
   { id: 9002, name: 'beta-web', full_name: 'fixture-org/beta-web' },
+  // W4-22 owns this one. Specs that assert on ingestion must each own a repo no
+  // other spec touches: globalSetup seeds once for the whole suite, so a shared
+  // repo means a test can pass on ingestion it did not cause — and keep passing
+  // after its own path breaks.
+  { id: 9003, name: 'gamma-events', full_name: 'fixture-org/gamma-events' },
 ];
 
 export const FAKE_COMMITS = [
@@ -202,9 +207,7 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
     // Check runs, keyed on the HEAD COMMIT rather than the PR — the reason
     // `checks` could never go through the paginated repo-scope walk that
     // INGESTION §3's entity order implied.
-    const checksPath = /^\/repos\/[^/]+\/[^/]+\/commits\/([^/]+)\/check-runs$/.exec(
-      url.pathname,
-    );
+    const checksPath = /^\/repos\/[^/]+\/[^/]+\/commits\/([^/]+)\/check-runs$/.exec(url.pathname);
     if (checksPath && req.method === 'GET') {
       const ref = checksPath[1]!;
       const idx = FAKE_PRS.findIndex((p) => `head-${p.number}` === ref);

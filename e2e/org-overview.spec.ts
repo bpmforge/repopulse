@@ -98,5 +98,10 @@ test('the sync stream connects — /api/v1/events is mounted', async ({ page }) 
   // because the client retried against a 404 with backoff. That is the honest
   // rendering of a missing endpoint, which is exactly why it needs an assertion:
   // a dashboard that can never show backfill progress still looks fine.
+  //
+  // SCOPE (W4-22): this proves the socket OPENS, and nothing more. It passed
+  // for months while no code published a single event, so a connected chip and
+  // a working stream are different claims. e2e/sync-events.spec.ts asserts the
+  // second one — worker publish → Redis → this endpoint → the browser.
   await expect(page.locator('[role="status"]').first()).toHaveText(/live/i, { timeout: 10_000 });
 });
