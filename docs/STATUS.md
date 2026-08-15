@@ -1880,3 +1880,34 @@ completes a REST backfill job silently.
 Gate: lint 0, typecheck 0, **543 unit tests**, 42 e2e + 1 skipped,
 validate-arch / validate-plan / validate-traceability all exit 0 — the first
 time all three validators have been green together.
+
+### 2026-08-15 — W4-09 done: workspace settings, and a bot filter that was never on
+
+The ticket was "add a Settings tab". The consequential half was a one-word bug
+in the snapshot worker: `botGlobs: []`. That reads as "no override" and means
+"nothing is a bot" — `isBotLogin` does `globs.some(...)`, so an empty list
+matches no login. **METRICS.md §0's shared exclusion rule has never held for a
+single number computed from real ingestion.** `DEFAULT_BOT_LOGIN_GLOBS` existed
+and was passed by nobody, so every churn, hotspot and ownership figure counted
+dependabot as a contributor. Because of that, "unset" and "deliberately
+emptied" are now distinct states everywhere — optional schema fields, `??` not
+`||`, both cases pinned by tests, and UI copy that says what an empty box does.
+
+`write_scope` was amended in its own commit before any code: as filed it could
+not satisfy its own acceptance 2, since snapshots are computed in
+`workers/processors.ts` and the score breakdown in `routes/org/health.ts`,
+neither of which was listed.
+
+Two testing notes worth carrying: the weight assertion needs **two** sub-scores
+present or renormalization makes every weight config produce identical numbers
+(the test would pass against an unwired endpoint), and suites share the
+`default` workspace — this one first left a second admin behind and broke
+W4-20's last-admin assertion in a file it never touched. The unit suite is now
+run twice to prove teardown.
+
+Carried: W4-20's role change is still not audit-logged though SC-22 names it.
+Noted on that ticket; not fixed from inside this one.
+
+Gate: lint 0, typecheck 0, **562 unit tests** (was 543), 44 e2e + 1 skipped,
+all three validators exit 0. On this machine e2e needs `E2E_API_PORT=3010 pnpm
+e2e` — a compose dev stack holds port 3000, which is what W4-11's override is for.
