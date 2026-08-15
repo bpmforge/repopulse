@@ -99,3 +99,60 @@ test('PR screens pass axe with real data', async ({ page }) => {
   await expect(page.getByTestId('pr-detail')).toBeVisible();
   await expectNoA11yViolations(page);
 });
+
+test('the /pull-requests screen is the org-wide list, not a repo picker (W4-16)', async ({
+  page,
+}) => {
+  await loginAsFixture(page);
+  await page.goto('/pull-requests');
+
+  // This screen was a repo picker for a real reason — no endpoint returned an
+  // org-wide list, and fanning one request per repo out of the browser is an
+  // N+1 against the p95 <500ms budget. W4-16 added GET /prs.
+  await expect(page.getByTestId('org-pr-list')).toBeVisible();
+  await expect(page.getByTestId('pr-repo-picker')).toHaveCount(0);
+
+  const rows = page.getByTestId('org-pr-rows').locator('tr');
+  await expect(rows).not.toHaveCount(0);
+
+  // ACROSS repos, which is the whole point: a list showing one repo's PRs would
+  // satisfy every assertion above while still being the old screen.
+  // `td:first-child` per row — NOT rows.locator('td').first(), which is the
+  // first cell of the first row and would collapse every check to one value.
+  const repoCells = await rows.locator('td:first-child').allInnerTexts();
+  const distinctRepos = new Set(repoCells.map((t) => t.trim()).filter(Boolean));
+  expect(distinctRepos.size, 'org-wide list should span more than one repo').toBeGreaterThan(1);
+});
+
+test('org PR filters narrow the list server-side (W4-16)', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/pull-requests');
+
+  const rows = page.getByTestId('org-pr-rows').locator('tr');
+  await expect(rows).not.toHaveCount(0);
+  const before = await rows.count();
+
+  await page.getByTestId('pr-filter-state').selectOption('merged');
+  // POLLED, not read once: allInnerTexts does not auto-wait, so reading
+  // straight after the change asserts against the pre-refetch DOM and passes or
+  // fails on timing rather than on behaviour.
+  await expect
+    .poll(async () => {
+      const states = await rows.locator('td:nth-last-child(2)').allInnerTexts();
+      // Every visible row matches — a filter applied client-side to an already
+      // paginated page would leave non-matching rows behind.
+      return states.length > 0 && states.every((s) => s.trim() === 'merged');
+    })
+    .toBe(true);
+  expect(await rows.count()).toBeLessThanOrEqual(before);
+
+  await page.getByTestId('pr-filter-unreviewed').check();
+  await expect
+    .poll(async () => {
+      const reviewed = await rows.locator('td:last-child').allInnerTexts();
+      // An empty result is a legitimate answer here (every merged PR in the
+      // fixture may have been reviewed), so "no rows" counts as consistent.
+      return reviewed.every((r) => r.includes('no'));
+    })
+    .toBe(true);
+});
