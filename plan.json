@@ -1331,8 +1331,15 @@
       ],
       "write_scope": [
         "apps/api/src/routes/admin/workspace/**",
+        "apps/api/src/lib/workspace-settings.ts",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/api/src/workers/processors.ts",
+        "apps/api/src/routes/org/health.ts",
+        "packages/shared/src/logger/audit.ts",
         "apps/web/src/routes/admin/settings.tsx",
-        "apps/web/src/widgets/admin/settings/**"
+        "apps/web/src/routes/admin/route.tsx",
+        "apps/web/src/widgets/admin/settings/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W4-08",
@@ -1346,7 +1353,10 @@
       ],
       "points": 3,
       "status": "in_progress",
-      "notes": []
+      "notes": [
+        "WRITE_SCOPE AMENDED 2026-08-15, before any code, because as filed it could not satisfy its own acceptance 2 — and widening it silently is the thing MASTER_PROMPT rule 3 exists to prevent. Acceptance 2 requires an edited bot list or stale-N to reach 'the next metric recompute/snapshot' and an edited weight to reach 'the health-score breakdown endpoint'. Neither surface is inside apps/api/src/routes/admin/** or apps/web/**: snapshots are computed in apps/api/src/workers/processors.ts and the breakdown is built in apps/api/src/routes/org/health.ts. Added file-by-file rather than as a glob: lib/workspace-settings.ts (the zod schema + reader, needed by BOTH the route and the worker, so it cannot live under routes/), plugins/api-v1.ts (mounting — five built-but-never-mounted defects in this project so far, so registration is part of the work, not an afterthought), packages/shared/src/logger/audit.ts (acceptance 1's SC-22 audit event class; the AuditEvent union is a closed type that grows per wave by design), routes/admin/route.tsx (a tab nobody can navigate to is the same defect in the UI), and e2e/** (acceptance 4 wants axe green over the new route).",
+        "FOUND WHILE READING, not part of this ticket: apps/api/src/workers/processors.ts:368 passes `botGlobs: []` to computeRepoSnapshots. Empty array is NOT 'use the defaults' — isBotLogin does `globs.some(...)`, so [] means NOTHING is a bot and METRICS.md §0's shared rule ('exclude bot activity from every human-flow metric') has never held in production. DEFAULT_BOT_LOGIN_GLOBS exists and is passed by nobody. Every churn, hotspot and ownership number computed from real ingestion counts dependabot as a human. Fixed as part of this ticket since acceptance 2 puts the settings-derived bot list through exactly this call, but worth recording separately: it is a data-correctness bug, not a settings feature."
+      ]
     },
     {
       "id": "W4-10",
