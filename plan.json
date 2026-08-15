@@ -1684,7 +1684,7 @@
         "Deleted/renamed files carry a last-seen date and previousPath rename chain (FORGE_PROVIDER 1) so the banner in UX_SPEC 4.d can render"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "Filed 2026-08-12 from W4-06. The file endpoint returns path, per-commit churn_series, and owners — enough for weekly gross/net bars and the M3 single-owner flag, and nothing else UX_SPEC 4.d asks for. W4-06 shipped what is reachable and named the rest in a visible empty state rather than faking it: drawing gross churn labelled \"rework\" would misstate a defined metric (M1 scopes rework to a prior non-bot touch <21d earlier), and a flat line labelled \"hotspot history\" would invent a trend from a single current value."
       ]
