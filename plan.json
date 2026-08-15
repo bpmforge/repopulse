@@ -1390,8 +1390,75 @@
         "Visual deltas R-D1/R-D2: tabular-nums Inter on all metric columns/KPIs, JetBrains Mono only for SHAs/paths/evidence (UX_SPEC §2.1 as amended); Org Overview supports 2x2 hero tiles on the existing WidgetGrid"
       ],
       "points": 5,
+      "status": "in_progress",
+      "notes": [
+        "SPLIT PROPOSED 2026-08-15, before writing code, after reading each criterion against the code rather than after discovering it mid-implementation. Three of the five cannot be satisfied inside this ticket, for three DIFFERENT reasons, so they are filed rather than faked. (3) first-insight toast: there is no producer — see W4-22, publishSyncEvent has ZERO production callers, so no SSE event of any kind is ever published and a 30d-coverage event does not exist to filter. (4) findings half of the rail badges: Findings Explorer ships in MVP as a teaser shell, there are no findings rows and no lastSeenAt, and a badge that renders 0 forever is indistinguishable from a working one. (5) hero tiles: WidgetGrid ALREADY supports per-widget w/h, but OrgOverview.tsx never uses WidgetGrid — it is hand-composed flex/grid — so the criterion is already true of the engine and false of the screen, and converting the MVP-gate landing screen (four e2e specs point at it) is a rewrite, not a journey-pack delta.",
+        "LANDED HERE: acceptance 1 (persona picker + migration) and 2 (onboarding checklist), the review-queue half of 4, and the R-D1 half of 5. REMAINDER filed as W4-21 (toast, findings badge, bento) which depends on W4-22 (the missing event producer). Left in_progress rather than closed: re-scoping acceptance is a founder call, the same principle applied to W12-03 and W12-05. This ticket blocks the W4 gate until Brad rules on the split, which is the honest state — the gate genuinely is not reached while a criterion is unmet.",
+        "LANDED 2026-08-15 — acceptance 1 and 2 in full, plus the reachable halves of 4 and 5. Migration 0006 adds users.persona (NULL = never asked, which is what opens the picker — distinct from any value, so nobody is asked twice) and users.prefs jsonb, with a rollback note. prefs is on `users` and NOT workspaces.settings deliberately: the checklist has a member variant, and workspace-scoped state would let one member's dismissal hide it for everyone. PATCH /me/prefs merges, like the W4-09 settings PATCH, since the column will hold more than one preference. The persona->home mapping lives in the API and the picker routes from the API's own answer, so the browser carries no second copy to drift.",
+        "THE CHECKLIST DOES NOT PRETEND TO TRACK PROGRESS. Steps are links, not checkboxes; only 'connect your organisation' shows as done, because the health-tiles response the screen already fetched genuinely answers it. A checkbox that never ticks itself implies the app is watching progress it is not watching.",
+        "FOUND AND FIXED, a latent race this ticket happened to trip: playwright.config.ts set `fullyParallel: false` with the comment 'shared seeded warehouse — serialize like the vitest suite', but that flag only serializes tests WITHIN a file. The suite was running 49 tests across 9 workers against ONE seeded warehouse and one fixture user. Nulling the fixture's persona to test the first-login picker made six unrelated specs in other files time out behind a modal that appeared over their screens — any spec mutating shared state would have done the same, and the next one might have corrupted data instead of blocking a click. `workers: 1` is what the comment always meant. It is also FASTER: 38s -> 21s, because the parallel run was spending its time on 30s timeouts.",
+        "Gate: lint 0, typecheck 0, 565 unit tests (was 562), 48 e2e + 1 skipped (was 44), validate-arch/plan/traceability exit 0. The seeder now gives the fixture user a persona so the picker does not cover every other spec; journey.spec.ts clears the column and restores it, so the picker is still tested against a genuinely null value rather than a mocked store write.",
+        "STILL IN_PROGRESS, deliberately. Acceptance 3 (first-insight toast), the findings half of 4, and the bento half of 5 are filed as W4-21 (blocked on W4-22, the missing SSE producer). W4-10 as written cannot close, and re-scoping acceptance is a founder call — the same principle applied to W12-03 and W12-05. RECOMMEND closing W4-10 with criteria 3/4b/5b superseded by W4-21, which is the only thing standing between this board and the W4 MVP gate."
+      ]
+    },
+    {
+      "id": "W4-21",
+      "title": "Journey pack remainder: first-insight toast, findings rail badge, Org Overview bento",
+      "phase": 4,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/widgets/org/**",
+        "apps/web/src/components/shell/Rail.tsx",
+        "apps/web/src/sse/**",
+        "e2e/**"
+      ],
+      "depends_on": [
+        "W4-10",
+        "W4-22"
+      ],
+      "acceptance": [
+        "First-insight toast: when a repo’s 30d coverage completes, the SSE stream carries an event the client turns into ‘last 30 days ready for {repo}’ (UX_AGENTS_IMPROVEMENT_PLANS R-A3) — asserted end to end against a published event, not a mocked store write",
+        "Findings rail badge shows new-since-lastSeenAt counts once findings exist (W6); until then it renders NOTHING rather than 0, and a test pins that distinction",
+        "Org Overview composes through WidgetGrid with 1–2 hero tiles at 2×2 among 1×1 KPIs (R-D2); the four existing e2e specs pointed at the screen still pass unchanged"
+      ],
+      "points": 5,
       "status": "todo",
-      "notes": []
+      "notes": [
+        "Filed 2026-08-15 out of W4-10, whose acceptance spanned a migration, an SSE producer that does not exist, a badge with no data source, and a landing-screen refactor. Each criterion here is blocked on something outside a journey-pack ticket, and the blockers are different: an absent event producer (W4-22), an absent data source (W6 findings), and a rewrite of the MVP-gate screen.",
+        "ON THE BENTO CRITERION specifically: this is the one that could be done today and deliberately is not. WidgetGrid already honours widget.layout.w/h, so ‘supports 2×2 hero tiles’ is already true of the engine; the work is converting OrgOverview.tsx from its hand-composed flex/grid to widget descriptors. That is a rewrite of the screen the MVP gate demos, with org-overview.spec.ts, a11y.spec.ts and two drill-down specs asserting against its current DOM — worth doing deliberately, not as the fifth bullet of a 5-point ticket one ticket before the gate."
+      ]
+    },
+    {
+      "id": "W4-22",
+      "title": "Nothing ever publishes a sync event — the SSE stream is inert in production",
+      "phase": 4,
+      "module": "ingest",
+      "stories": [
+        "E3.6"
+      ],
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/ingest/src/**",
+        "apps/api/test/**",
+        "e2e/**"
+      ],
+      "depends_on": [
+        "W4-18",
+        "W12-05"
+      ],
+      "acceptance": [
+        "The worker publishes sync.progress / sync.done / budget.warning on the workspace channel at the points INGESTION and API_DESIGN §3 specify, so the org sync banner and status chip receive live data instead of only what a page refresh reveals",
+        "An e2e proves an event travels the whole path — worker publish → Redis channel → GET /api/v1/events → the browser store — and FAILS when the publish call is removed (negative control performed and recorded)",
+        "The wiring gate (apps/api/test/wiring.test.ts) grows a check for this defect class: a transport with a subscriber and no publisher is asserted, so a future stream cannot ship inert the way this one did"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "Found 2026-08-15 while reading W4-10 acceptance 3. `grep -rn publishSyncEvent apps packages | grep -v test` returns exactly ONE line: its own definition. The helper is fully implemented and unit-tested, packages/ingest/src/status/events.ts documents the contract, the SSE route was mounted by W4-18, and the browser subscribes to all four event names in useSyncStream.ts — and no code in production ever calls the publisher. Live sync has never worked; it degrades silently to ‘slightly staler dashboard’ by design, which is exactly why nobody noticed.",
+        "THE SIXTH BUILT-BUT-NEVER-CALLED DEFECT (after SSE mount W4-18, connections/sync/webhooks W4-19, the six queue processors W12-03/W12-05, and plan/state-machine.ts). Same cause every time: the unit tests supply the missing end themselves — events.test.ts publishes and subscribes in one process, and the SSE route test publishes its own fixture event — so both ends are proven and the join between them is exercised by nothing. W12-04’s wiring gate catches queues without processors; it does not yet catch a CHANNEL without a publisher, which is why this one survived a gate written in response to the same pattern.",
+        "e2e/org-overview.spec.ts asserts ‘the sync stream connects — /api/v1/events is mounted’, which is true and insufficient: it proves the socket opens, not that anything ever comes down it. That is the assertion to strengthen."
+      ]
     },
     {
       "id": "W4-11",

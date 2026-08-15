@@ -53,7 +53,11 @@ export function FileDetailScreen({ repoId, path }: Props) {
   return (
     <div className="flex flex-col gap-4" data-testid="file-detail">
       <header className="flex flex-wrap items-baseline gap-3">
-        <h1 className="truncate text-lg font-semibold" data-testid="file-path">
+        {/* R-D1: mono is for IDENTIFIERS — paths, SHAs, code evidence — and a
+            file path is the archetypal one. Numerals stay on Inter with
+            tabular-nums (set globally in theme.css), which is the other half of
+            the same rule. */}
+        <h1 className="truncate font-mono text-lg font-semibold" data-testid="file-path">
           {data?.path ?? path}
         </h1>
         {singleOwner && (

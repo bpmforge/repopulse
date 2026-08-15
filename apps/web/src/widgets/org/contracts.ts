@@ -78,4 +78,15 @@ export interface MeContext {
   role: 'admin' | 'member';
   identity_id: number | null;
   default_view_id: number | null;
+  /** W4-10 (UX_SPEC §6). null = never asked, which is what opens the picker. */
+  persona?: Persona | null;
+  prefs?: UserPrefs;
+}
+
+export const PERSONAS = ['lead', 'developer', 'security', 'exec'] as const;
+export type Persona = (typeof PERSONAS)[number];
+
+export interface UserPrefs {
+  /** Onboarding checklist dismissal (R-A1). Absent = never dismissed. */
+  onboardingDismissed?: boolean;
 }

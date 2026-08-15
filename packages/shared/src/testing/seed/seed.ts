@@ -113,10 +113,18 @@ export async function seedWarehouse(
   await wipeWorkspace(db, secondWorkspaceId);
 
   // --- users + membership (fixture is admin) ---
+  // W4-10: the fixture user carries a PERSONA. A null persona is what opens the
+  // first-login picker (UX_SPEC §6), and a modal over every seeded screen would
+  // break every e2e for a reason having nothing to do with what they assert.
+  // The picker's own spec clears the column first, so it still tests the real
+  // first-login state rather than a mock of it.
   const [fixtureUser] = await db
     .insert(core.users)
-    .values({ forgeUserId: FIXTURE_LOGIN, login: FIXTURE_LOGIN })
-    .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: FIXTURE_LOGIN } })
+    .values({ forgeUserId: FIXTURE_LOGIN, login: FIXTURE_LOGIN, persona: 'lead' })
+    .onConflictDoUpdate({
+      target: core.users.forgeUserId,
+      set: { login: FIXTURE_LOGIN, persona: 'lead' },
+    })
     .returning();
   await db
     .insert(core.workspaceMembers)

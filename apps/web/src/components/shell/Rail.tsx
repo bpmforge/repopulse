@@ -2,6 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { useUiStore } from '../store/uiStore.js';
 import { SyncStatusChip } from '../primitives/SyncStatusChip.js';
 import { ThemeToggle } from './ThemeToggle.js';
+import { UserMenu } from './UserMenu.js';
 
 // Left rail (UX §3.1): collapsible 240px/64px. Active item = accent bar + tinted
 // background. Bottom: sync-status chip, theme toggle, user menu. PRs/Findings
@@ -102,16 +103,9 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
         {!collapsed && <SyncStatusChip connection={sseConnection} />}
         <div className="flex items-center justify-between">
           <ThemeToggle />
-          {!collapsed && (
-            <button
-              type="button"
-              className="rounded-sm px-2 py-1 text-sm text-fg-muted hover:text-fg"
-              data-testid="user-menu"
-              aria-label="User menu"
-            >
-              ⋯
-            </button>
-          )}
+          {/* W4-10: this button existed and did nothing. It now opens the
+              persona switcher UX_SPEC §6 promises. */}
+          {!collapsed && <UserMenu />}
         </div>
       </div>
     </nav>

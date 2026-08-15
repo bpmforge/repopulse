@@ -6,6 +6,7 @@ import { KpiRow } from './KpiRow.js';
 import { HealthTileGrid } from './HealthTileGrid.js';
 import { HotspotLeaderboard } from './HotspotLeaderboard.js';
 import { AttentionFeed } from './AttentionFeed.js';
+import { OnboardingChecklist } from '../onboarding/OnboardingChecklist.js';
 import type { HealthTiles, MeContext } from './contracts.js';
 
 // Org Overview (UX_SPEC §4.a) — the landing screen. Composition only: each
@@ -63,6 +64,10 @@ export function OrgOverview({ search }: Props) {
 
   return (
     <div className="flex flex-col gap-4" data-testid="org-overview">
+      {/* R-A1. `hasRepos` is the one step that can be verified rather than
+          claimed — the health-tiles response already answers it. */}
+      <OnboardingChecklist hasRepos={(tiles?.items.length ?? 0) > 0} />
+
       {syncPct !== null && (
         <div
           className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-3 py-2"

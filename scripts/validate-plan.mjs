@@ -17,8 +17,14 @@ const MODULES = ['infra', 'forge', 'ingest', 'metrics', 'analysis', 'insights', 
 const STATUSES = ['todo', 'in_progress', 'blocked', 'done'];
 const POINTS = [1, 2, 3, 5, 8];
 const TICKET_KEYS = ['id', 'title', 'phase', 'module', 'stories', 'write_scope', 'depends_on', 'acceptance', 'points', 'status', 'notes'];
-// Documented gate exceptions for forward-wave depends_on entries: none yet.
-const FORWARD_DEP_EXCEPTIONS = new Set();
+// Documented gate exceptions for forward-wave depends_on entries.
+//
+// W4-22 -> W12-05: W12 was filed and executed OUT OF ORDER (ROADMAP.md W12),
+// so its phase number records when it was filed, not when it ran — every W12
+// ticket is already done. W4-22 publishes sync events from the queue processors
+// W12-05 wired, which is a real dependency pointing at completed work, not a
+// wave-gate violation. The check itself stays on for every other pair.
+const FORWARD_DEP_EXCEPTIONS = new Set(['W4-22->W12-05']);
 
 const errors = [];
 const warnings = [];
