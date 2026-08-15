@@ -1380,21 +1380,24 @@
     {
       "id": "W4-11",
       "title": "Dev proxy target env-overridable so e2e can run off port 3000",
-      "status": "done",
-      "points": 1,
-      "depends_on": [
-        "W4-02"
-      ],
+      "phase": 4,
+      "module": "infra",
+      "stories": [],
       "write_scope": [
         "apps/web/vite.config.ts",
         "playwright.config.ts",
         "docs/TESTING.md"
+      ],
+      "depends_on": [
+        "W4-02"
       ],
       "acceptance": [
         "apps/web/vite.config.ts reads the /api and /auth proxy target from API_PROXY_TARGET, defaulting to http://localhost:3000 so nothing changes for a normal pnpm dev",
         "playwright.config.ts derives that env for the web webServer from E2E_API_PORT, so E2E_API_PORT=<n> pnpm e2e runs the whole stack off a free port with NO manual edits and NO uncommitted overrides",
         "e2e green from committed code on a machine where port 3000 is occupied — this is what unblocks W4-00, whose harness was complete but only ever verified under a temporary uncommitted vite edit"
       ],
+      "points": 1,
+      "status": "done",
       "notes": [
         "Filed 2026-08-12 out of W4-00. The hardcoded localhost:3000 proxy target is not only a local annoyance: it blocks concurrent e2e runs and any CI box where 3000 is busy, and it forced W4-00 verification through an uncommitted edit, which is not a verification.",
         "DONE 2026-08-12. apps/web/vite.config.ts now reads API_PROXY_TARGET (default http://localhost:3000, so plain pnpm dev is unchanged), and playwright.config.ts derives that env for the web webServer from E2E_API_PORT — one variable moves the API, the proxy and the specs together. Also flipped the web webServer to reuseExistingServer:false: a stale vite left over from an earlier run would otherwise be silently reused with the OLD proxy target, which fails in a way that looks like a broken test rather than a stale server. VERIFIED against the RED baseline already on record: identical E2E_API_PORT=3011 at commit 85c2028, before this plumbing, gave 3 FAILED (the auth specs); with it, 4/4 green from committed code and no uncommitted edits. docs/TESTING.md §6 documents the flag plus the two traps found in W4-00 (fixture id must be the STRING FIXTURE_LOGIN; /me/* answers {items:[]} with HTTP 200 for an unlinked identity, so assert contents not status). Gate: lint clean, typecheck clean, test 462/462."
@@ -1403,21 +1406,26 @@
     {
       "id": "W4-12",
       "title": "Badge tint fails WCAG AA in BOTH themes — measured, systemic",
-      "status": "done",
-      "points": 3,
-      "depends_on": [
-        "W4-02"
+      "phase": 4,
+      "module": "web",
+      "stories": [
+        "E9.4"
       ],
       "write_scope": [
         "apps/web/src/styles/theme.css",
         "apps/web/src/components/primitives/**",
         "e2e/**"
       ],
+      "depends_on": [
+        "W4-02"
+      ],
       "acceptance": [
         "Every SeverityBadge and HealthBadge variant reaches >=4.5:1 measured against the ACTUAL rendered background (the /15 tint over --color-surface), in dark AND light, not against --color-bg",
         "An axe scan of a populated route (org overview with seeded data) passes with zero color-contrast violations — add it to e2e as a standing assertion",
         "theme.css comment updated: the AA claim states which background the check was run against"
       ],
+      "points": 3,
+      "status": "done",
       "notes": [
         "Found 2026-08-12 by the W4-03 axe run on real data — jsdom component tests cannot compute contrast, so this survived W4-02 green. MEASURED, all on the /15 tint the badges actually use (blend alpha 0.15 of the token over the surface beneath it): DARK over --color-surface #161b22 — sev-critical/health-attend #f85149 = 4.35 FAIL, sev-high #db6d28 = 4.27 FAIL, sev-info #8b949e = 4.50 borderline, sev-medium 5.37 ok, sev-low 5.31 ok, health-good 5.32 ok. LIGHT over --color-surface #f6f8fa — EVERY token fails: sev-critical #cf222e 3.97, sev-high #bc4c00 3.84, sev-medium #9a6700 3.77, sev-low #0969da 3.97, sev-info #656d76 4.07, health-good #1a7f37 3.92. The pattern is the defect, not the palette: tinting the background with the SAME hue as the text eats the contrast, and theme.css line 18 claims -AA-checked >=4.5:1 text- because it was checked against --color-bg, where the dark values do pass (4.73-6.02). Candidates verified for dark if the /15 pattern is kept: #ff7b72 = 5.44 (Primer dark red), #f0883e = 5.40. Light theme likely needs a neutral tint rather than a same-hue one. This is a design-system call (tokens vs tint pattern), which is why it is not folded into W4-03.",
         "DONE 2026-08-12. Fixed by MEASURING the alternatives rather than picking colours. Measured every candidate at alphas 0/0.08/0.10/0.15 over BOTH card surfaces in BOTH themes, which settled the design question: at alpha 0 every existing token already passes (light min 4.57, dark min 5.13), so the PALETTE was never the defect — the same-hue /15 tint was. No single alpha works for both themes (dark tolerates 0.10, light fails at any tint because its tokens are AA against WHITE and the card surface leaves no headroom), and a neutral surface-2 chip still left three light tokens failing (4.29-4.48). So the tint pattern is kept — least visual change — and 12 tokens moved to the palettes own darker/brighter Primer steps: dark sev-critical/health-attend #f85149→#ff7b72, sev-high #db6d28→#f0883e, sev-info #8b949e→#b1bac4; light sev-critical/health-attend #cf222e→#a40e26, sev-high #bc4c00→#953800, sev-medium/health-watch #9a6700→#7d4e00, sev-low #0969da→#0550ae, sev-info #656d76→#424a53, health-good #1a7f37→#116329. Worst case after: 4.94 (dark) / 5.03 (light) on a /15 tint over surface-2 — headroom, not a squeak past. theme.css now STATES which background the AA claim was checked against, since the old blanket -AA-checked >=4.5:1- against --color-bg is exactly what hid this.",
@@ -1427,14 +1435,15 @@
     {
       "id": "W4-13",
       "title": "Seeder fixture cannot satisfy the org screens: single-point series, one window bucket, absolute dates",
-      "status": "done",
-      "points": 3,
-      "depends_on": [
-        "W4-02"
-      ],
+      "phase": 4,
+      "module": "infra",
+      "stories": [],
       "write_scope": [
         "packages/shared/src/testing/seed/**",
         "e2e/**"
+      ],
+      "depends_on": [
+        "W4-02"
       ],
       "acceptance": [
         "Each metric gets a multi-point series per repo AND at org level (repo_id NULL) — at least enough points that a sparkline renders (>=2) and a trend delta has a prior value to compare against",
@@ -1443,6 +1452,8 @@
         "Determinism preserved: re-seeding still produces identical values via the seeded RNG (existing determinism/idempotence tests stay green)",
         "An e2e assertion covers the DEFAULT window and asserts KPI VALUES (not em dashes) plus a rendered sparkline — the assertion W4-03 could not write"
       ],
+      "points": 3,
+      "status": "done",
       "notes": [
         "Found 2026-08-12 while writing the W4-03 e2e. Seeded commits span 2026-06-01..2026-06-24 as ABSOLUTE dates, but the suite ran on 2026-08-12 — so the default 30d window contains ZERO commits and /hotspots returns {items:[]}, rendering the leaderboard empty state instead of data. W4-03 specs work around it by asserting at window=90d, which is honest for -renders from the warehouse- but leaves the default path untested. This is a time bomb, not a one-off: once the fixture is >365d old EVERY window preset goes empty and every W4-W6 screen e2e silently degrades to asserting empty states. Fix the anchoring before more screen tickets build assertions on top of it.",
         "DIAGNOSIS SHARPENED 2026-08-12 after building W4-03 against the real fixture. Three distinct fixture gaps, all in seed.ts, each independently blocking part of W4-03 acceptance 2: (1) SINGLE-POINT SERIES — the snapshot loop writes exactly one row per (repo|org) x metric at one computedAt, so every series has length 1. KpiRow renders no sparkline below 2 points (deliberately: a 1-point line reads as -no change- rather than -no history-), so sparklines can NEVER render, at any window. (2) ONE WINDOW BUCKET — every row is written with window=30d, so /org/summary?window=90d finds nothing and all five tiles render em dashes. Verified: select window, count(*) → 30d | 48, org rows 12. (3) ABSOLUTE DATES — commits span 2026-06-01..06-24, so on 2026-08-12 a 30d window has zero churn and /hotspots returns {items:[]}. Net effect: KPIs need window=30d, hotspots need 90d, sparklines need a series that does not exist — NO single window satisfies acceptance 2, which is why W4-03 is blocked on this rather than working around it.",
@@ -1452,10 +1463,11 @@
     {
       "id": "W4-14",
       "title": "Complete the GET /me contract (workspace, role, identity_id) — deferred from W1-03",
-      "status": "done",
-      "points": 2,
-      "depends_on": [
-        "W1-04"
+      "phase": 4,
+      "module": "api",
+      "stories": [
+        "E3.5",
+        "E9.1"
       ],
       "write_scope": [
         "apps/api/src/routes/me/**",
@@ -1463,12 +1475,17 @@
         "e2e/**",
         "docs/API_DESIGN.md"
       ],
+      "depends_on": [
+        "W1-04"
+      ],
       "acceptance": [
         "GET /me returns the docs/API_DESIGN.md line 35 shape {user, workspace, role, identity_id} — default_view_id stays null until W5-02 owns saved views",
         "role comes from the same workspace_members lookup the api-v1 guard uses, so the value the UI renders can never disagree with the value the guard enforces",
         "Unauthenticated /me still 401s with the problem envelope; no role leaks to an anonymous caller",
         "Org Overview first-run empty state branches on it: admin gets the connect CTA, member gets ask-an-admin (UX_SPEC 4.a, W4-03 acceptance 3)"
       ],
+      "points": 2,
+      "status": "done",
       "notes": [
         "Filed 2026-08-12. NOT a founder decision — I mis-framed it as one twice. API_DESIGN.md line 35 already specifies the full shape; W1-03 shipped {user} only, with an in-code comment saying workspace/role/identity_id needed RBAC infra that was W1-04 scope. W1-04 landed and api-v1.ts:53 now sets request.role on every request, so the contract has simply been sitting unfinished with no ticket owning it. Blocks W4-03 acceptance 3 (role-appropriate first-run CTA, currently shipped as the member-safe single variant) and is needed by W4-08 admin screens.",
         "DONE 2026-08-12. Landed as GET /api/v1/me/context, NOT as an extension of top-level /me — two real bugs forced that and both are worth recording. (1) ROUTE COLLISION: authRoutes already declares top-level /me, and the api-v1 and route-walker test harnesses register meRoutes at that same level, so a second /me is a duplicate GET declaration and three suites failed at setup with FastifyError. Production boots fine (there the prefix applies), which is exactly why it was only visible in tests. (2) FK VIOLATION: my first attempt had top-level /me call ensureMembership to get the role — a GET that WRITES a workspace_members row. That broke auth/index.test.ts teardown (delete users violated the FK). A read endpoint creating rows was the actual design error; the api-v1 guard already ensures membership on any /api/v1 call, so the context route needs no write at all.",
@@ -1478,10 +1495,12 @@
     {
       "id": "W4-15",
       "title": "API gaps behind the Repo Detail tabs: review-load matrix + CI duration/flakiness",
-      "status": "todo",
-      "points": 3,
-      "depends_on": [
-        "W3-12"
+      "phase": 4,
+      "module": "api",
+      "stories": [
+        "E2.2",
+        "E2.6",
+        "E3.2"
       ],
       "write_scope": [
         "apps/api/src/routes/repos/**",
@@ -1489,12 +1508,17 @@
         "apps/web/src/widgets/repo/**",
         "e2e/**"
       ],
+      "depends_on": [
+        "W3-12"
+      ],
       "acceptance": [
         "An endpoint returns per-reviewer review counts for a repo and window so the PR Flow review-load matrix can be built from reviewer data, not author data",
         "M9's duration and flakiness components are retrievable, not just its pass-rate value — the snapshot row carries one `value` today",
         "A flaky-run ranking endpoint exists (fail→pass reruns of the same head SHA, per METRICS.md M9)",
         "The Repo Detail CI tab replaces its explanatory empty state with the real charts, and PR Flow gains the review-load matrix"
       ],
+      "points": 3,
+      "status": "todo",
       "notes": [
         "Filed 2026-08-12 from W4-04. UX_SPEC 4.b asks the PR Flow tab for a review-load matrix and the CI tab for duration trends plus a flaky ranking. None of the three are reachable from the current API: the PR list exposes author and review_covered but no per-reviewer counts, and metric_snapshots stores a single scalar per metric so M9 arrives as pass-rate only. W4-04 shipped the funnel, the size histogram and the pass-rate trend, which ARE reachable, and left the CI tab carrying an explicit empty state naming this ticket rather than a proxy chart. That choice is the point: a review-load matrix built from author data would look plausible and answer a different question, on a screen whose entire job is evidence."
       ]
@@ -1502,21 +1526,27 @@
     {
       "id": "W4-16",
       "title": "Org-wide PR list endpoint (UX_SPEC §4.c) — only repo-scoped lists exist",
-      "status": "todo",
-      "points": 3,
-      "depends_on": [
-        "W4-01"
+      "phase": 4,
+      "module": "api",
+      "stories": [
+        "E3.2",
+        "E2.5"
       ],
       "write_scope": [
         "apps/api/src/routes/prs/**",
         "apps/web/src/routes/pull-requests.tsx",
         "e2e/**"
       ],
+      "depends_on": [
+        "W4-01"
+      ],
       "acceptance": [
         "A workspace-scoped PR list endpoint returns PRs across all repos with the §4.c filters (state, stale, unreviewed, size_bucket, author) and FR-API-3 cursor pagination",
         "Tenancy: the route is workspace-filtered and passes the W1-07 route walker like every other list",
         "The /pull-requests screen renders that list directly instead of routing through a repo picker"
       ],
+      "points": 3,
+      "status": "todo",
       "notes": [
         "Filed 2026-08-12 from W4-05. API_DESIGN and UX_SPEC 4.c both describe an org-wide PR list, but the API only exposes /repos/{id}/prs and /me/prs. W4-05 deliberately did NOT fan out one request per repo from the browser: that is an N+1 against the NFR-3 p95 <500ms budget and degrades silently as repo count grows, which is exactly the failure mode a dashboard hides until a customer has 50 repos. The /pull-requests screen therefore lists repos and routes into each repo PR list — a real screen that does not pretend to be the org-wide one."
       ]
@@ -1524,15 +1554,19 @@
     {
       "id": "W4-17",
       "title": "File drill-down API gaps: rework, hotspot history, per-file PRs, rename chain",
-      "status": "todo",
-      "points": 3,
-      "depends_on": [
-        "W3-02"
+      "phase": 4,
+      "module": "api",
+      "stories": [
+        "E2.3",
+        "E3.2"
       ],
       "write_scope": [
         "apps/api/src/routes/files/**",
         "apps/web/src/widgets/file/**",
         "e2e/**"
+      ],
+      "depends_on": [
+        "W3-02"
       ],
       "acceptance": [
         "GET /repos/{id}/files/* returns M1's rework component per week (a touch with a prior non-bot touch <21d earlier), so the 52-week bars can stack gross/net/rework as UX_SPEC 4.d specifies",
@@ -1540,6 +1574,8 @@
         "The response carries the PRs that touched the file, linking to PR detail",
         "Deleted/renamed files carry a last-seen date and previousPath rename chain (FORGE_PROVIDER 1) so the banner in UX_SPEC 4.d can render"
       ],
+      "points": 3,
+      "status": "todo",
       "notes": [
         "Filed 2026-08-12 from W4-06. The file endpoint returns path, per-commit churn_series, and owners — enough for weekly gross/net bars and the M3 single-owner flag, and nothing else UX_SPEC 4.d asks for. W4-06 shipped what is reachable and named the rest in a visible empty state rather than faking it: drawing gross churn labelled \"rework\" would misstate a defined metric (M1 scopes rework to a prior non-bot touch <21d earlier), and a flat line labelled \"hotspot history\" would invent a trend from a single current value."
       ]
@@ -1547,11 +1583,10 @@
     {
       "id": "W4-18",
       "title": "Mount GET /api/v1/events (SSE) — the shell could never show live sync",
-      "status": "done",
-      "points": 2,
-      "depends_on": [
-        "W1-07",
-        "W4-02"
+      "phase": 4,
+      "module": "api",
+      "stories": [
+        "E3.6"
       ],
       "write_scope": [
         "apps/api/src/plugins/api-v1.ts",
@@ -1560,12 +1595,18 @@
         "packages/shared/src/testing/route-walker.ts",
         "e2e/**"
       ],
+      "depends_on": [
+        "W1-07",
+        "W4-02"
+      ],
       "acceptance": [
         "GET /api/v1/events is registered in the production app with redisUrl threaded through api-v1",
         "The W1-07 tenancy route-walker no longer hangs: streaming routes are skipped EXPLICITLY, not blanket-exempted",
         "The coverage lost by skipping it is replaced by a cross-workspace isolation test on the events channel",
         "The running app shows a live sync chip instead of Reconnecting… forever"
       ],
+      "points": 2,
+      "status": "done",
       "notes": [
         "DONE 2026-08-13. The route existed and was unit-tested since W4-02 but was never MOUNTED, so the running dashboard retried a 404 with backoff and the rail chip read \"Reconnecting…\" permanently — the honest rendering of a missing endpoint, and therefore invisible as a bug. Watching progressive backfill is an explicit W4 exit criterion, so the MVP demo could not have passed with this open.",
         "The real blocker was never \"thread redisUrl\" as the code comment claimed: app.inject() waits for a response that never comes, so ANY socket-hijacking route hangs walkForTenancyLeakage. Fixed with an explicit streamingPrefixes option rather than adding /events to the generic exempt list — exempting a workspace-scoped stream from the tenancy sweep with no replacement would be a silent hole in NFR-4. The option is documented to require a replacement isolation test, and that test was written: a subscriber on one workspace channel receives only its own events. RED-checked by collapsing syncEventsChannel to a shared constant — the new test catches the foreign event, and the PRE-EXISTING events test still passed, which is what proves the new one covers something the old one did not.",
@@ -1575,12 +1616,11 @@
     {
       "id": "W4-19",
       "title": "Mount connections, sync and the webhook receiver — the connect flow was unreachable",
-      "status": "done",
-      "points": 3,
-      "depends_on": [
-        "W2-01",
-        "W2-04",
-        "W4-18"
+      "phase": 4,
+      "module": "api",
+      "stories": [
+        "E1.2",
+        "E1.4"
       ],
       "write_scope": [
         "apps/api/src/app.ts",
@@ -1589,12 +1629,19 @@
         "apps/api/**/*.test.ts",
         "e2e/**"
       ],
+      "depends_on": [
+        "W2-01",
+        "W2-04",
+        "W4-18"
+      ],
       "acceptance": [
         "POST/GET /api/v1/connections and GET /api/v1/sync/status are served by the production app",
         "POST /api/v1/webhooks/github is served as an UNAUTHENTICATED sibling and verifies its HMAC signature",
         "The API owns real BullMQ producers, so connecting an org actually enqueues a backfill plan",
         "Tests exercise the real mount rather than registering a rival copy of each route"
       ],
+      "points": 3,
+      "status": "done",
       "notes": [
         "DONE 2026-08-13. Three route modules existed and were fully tested since W2 but were never registered in the production server, so docs/INSTALL.md instructed operators to open Admin -> Connections — a screen backed by routes the API did not serve. The app could not connect a repository at all.",
         "Wired the real dependencies rather than stubbing them: the API now builds its own BullMQ producer connection and backfill/delta queues, so connecting an org genuinely enqueues a plan job and a webhook delivery genuinely enqueues a delta (jobId preserved, since it is the per-repo debounce key that collapses a push burst into one job). Queues close on Fastify onClose. Built INSIDE buildApp rather than passed as options on purpose: an option a test can omit is precisely how these routes stayed unmounted and unnoticed, which is the same failure as W4-18.",
@@ -1606,22 +1653,28 @@
     {
       "id": "W4-20",
       "title": "Admin endpoints still missing: workspace members + DLQ inspect/replay",
-      "status": "done",
-      "points": 3,
-      "depends_on": [
-        "W2-02",
-        "W4-19"
+      "phase": 4,
+      "module": "api",
+      "stories": [
+        "E9.1",
+        "E9.3"
       ],
       "write_scope": [
         "apps/api/src/routes/admin/**",
         "apps/web/src/widgets/admin/**",
         "e2e/**"
       ],
+      "depends_on": [
+        "W2-02",
+        "W4-19"
+      ],
       "acceptance": [
         "An admin endpoint lists workspace members with their roles and allows an admin to change one (FR-AUTH-4)",
         "An admin endpoint lists dead-letter jobs and replays a selected one (NFR-11)",
         "The Members tab and the Sync DLQ panel replace their explanatory empty states with the real controls"
       ],
+      "points": 3,
+      "status": "done",
       "notes": [
         "Filed 2026-08-13 from W4-08. /me/context returns the CALLER role only; nothing lists members or changes one, and no endpoint exposes the DLQ. Both surfaces ship as named empty states pointing here rather than being quietly absent from a page an operator was told to use.",
         "DIAGNOSIS SO FAR, so the next session does not restart it: the 403s come back in ~0.15ms, far too fast to have run the DB-backed preHandler, which means request.role is UNDEFINED rather than wrong. GET /api/v1/me/context returns 200 on the SAME cached session immediately before a 403, so the session and the membership row are both fine — the role simply is not attached for these routes. The first admin request of the run succeeds (req-3, 4.3ms) and every later one fails fast, which points at hook ordering rather than at data. api-v1.ts and rbac.ts both carry comments about the plugin-level preHandler not being reliable relative to a route-level one; routes/connections uses typedApp (withTypeProvider) for its requireAdmin routes while this module uses plain app, which is the most obvious untested difference and where to look first.",
@@ -3228,22 +3281,24 @@
     {
       "id": "W11-01",
       "title": "Portable container images + generic compose artifact",
-      "wave": "W11",
-      "status": "todo",
-      "points": 5,
-      "depends_on": [],
+      "phase": 11,
+      "module": "deploy",
+      "stories": [],
       "write_scope": [
         "Dockerfile*",
         "deploy/**",
         ".github/workflows/**",
         "docs/INSTALL.md"
       ],
+      "depends_on": [],
       "acceptance": [
         "Multi-arch (amd64+arm64) images for api, web and workers build in CI and publish to a public registry with immutable version tags plus a digest — never :latest only",
         "A single deploy/compose.yaml brings up api+web+workers+Postgres 16+Redis on a clean machine with ONLY a filled .env, no bpmforge-specific units, hostnames or volumes anywhere in it",
         "Migrations run as a one-shot job before app start; a second compose up on an existing install is a no-op, not a re-migrate",
         "Verified on a machine that has never built the repo: pull images, fill .env, up, reach the login page — recorded in docs/INSTALL.md with the exact commands run"
       ],
+      "points": 5,
+      "status": "todo",
       "notes": [
         "W7-05 builds bpmforge quadlet units against bpmforge infra and is NOT this ticket. D1a makes the customer the deployment target, so the artifact has to be portable: no quadlet, no repopulse.bpmforge.com, no assumptions about the host. Keep W7-05 for our own dogfood install.",
         "PARTIAL 2026-08-12 — stays in_progress. DONE and VERIFIED RUNNING: a single multi-stage Dockerfile with four targets (api, worker, migrate, web) sharing one dependency + build stage so a full compose build resolves the pnpm workspace once; deploy/compose.yaml with nothing bpmforge-specific in it; deploy/nginx.conf.template; deploy/.env.example where every secret is blank with its generation command; docs/INSTALL.md. Node pinned to 22.23.1 and pnpm to 9.15.9, matching .nvmrc and packageManager — a container silently running a different Node major is the NODE_MODULE_VERSION failure the test-on-stop hook documents.",
@@ -3262,11 +3317,10 @@
     {
       "id": "W11-02",
       "title": "Customer forge-App setup flow + config reference",
-      "wave": "W11",
-      "status": "todo",
-      "points": 5,
-      "depends_on": [
-        "W7-07"
+      "phase": 11,
+      "module": "deploy",
+      "stories": [
+        "E1.2"
       ],
       "write_scope": [
         "docs/INSTALL.md",
@@ -3274,12 +3328,17 @@
         "apps/web/src/routes/setup/**",
         "apps/api/src/routes/setup/**"
       ],
+      "depends_on": [
+        "W7-07"
+      ],
       "acceptance": [
         "Documented walkthrough for a customer registering their OWN GitHub App against their OWN org: exact permission set (contents, metadata, pull_requests, checks — read-only per C5/SC-25), webhook URL/secret, callback URL, and the private-key handling step",
         "Same walkthrough for Gitea (token + webhook secret), gated on W7-02 shipping the adapter",
         "docs/CONFIG.md documents EVERY env var the app reads: purpose, required/optional, default, and what breaks if it is wrong — generated from or checked against the actual requireEnv call sites so it cannot silently drift",
         "Wrong/missing config fails at startup with a message naming the variable, never a stack trace or a half-booted app"
       ],
+      "points": 5,
+      "status": "todo",
       "notes": [
         "The connect flow has never run against real GitHub (see docs/STATUS.md 2026-08-12) — that risk lands HERE for a customer, on their infra, where we cannot debug it. This ticket is why that spike should happen early."
       ]
@@ -3287,16 +3346,16 @@
     {
       "id": "W11-03",
       "title": "Upgrade, backup and restore path for a customer install",
-      "wave": "W11",
-      "status": "todo",
-      "points": 3,
-      "depends_on": [
-        "W11-01"
-      ],
+      "phase": 11,
+      "module": "deploy",
+      "stories": [],
       "write_scope": [
         "docs/RUNBOOK.md",
         "deploy/**",
         "scripts/**"
+      ],
+      "depends_on": [
+        "W11-01"
       ],
       "acceptance": [
         "Documented and EXECUTED upgrade from version N to N+1 on a populated install: images pulled, migrations applied, no data loss, downtime stated",
@@ -3304,6 +3363,8 @@
         "A documented rollback for a failed upgrade, executed once",
         "Every step runnable by a customer admin with no repo checkout and no bpmforge access"
       ],
+      "points": 3,
+      "status": "todo",
       "notes": [
         "SC-21 restore drill exists for OUR install (W7-06). This is the customer-facing equivalent: they cannot ssh to bpmforge infra or read plan.json."
       ]
@@ -3311,20 +3372,22 @@
     {
       "id": "W11-04",
       "title": "Licensing, distribution and support decision — FOUNDER",
-      "wave": "W11",
-      "status": "done",
-      "points": 1,
-      "depends_on": [],
+      "phase": 11,
+      "module": "infra",
+      "stories": [],
       "write_scope": [
         "docs/work/FOUNDING_BRIEF.md",
         "LICENSE",
         "docs/INSTALL.md"
       ],
+      "depends_on": [],
       "acceptance": [
         "License chosen and applied (a LICENSE file plus package.json fields), with the reasoning recorded in the brief — note Lodestone is deliberately private/UNLICENSED, so if RepoPulse ever consumes it the license interaction must be resolved BEFORE distribution, not after",
         "Distribution decided: public registry vs licensed/gated pull, and what a customer is permitted to do with the images",
         "Support and version-support expectations written down: what a customer gets, and which versions receive fixes"
       ],
+      "points": 1,
+      "status": "done",
       "notes": [
         "FOUNDER DECISION, not buildable. Blocks W11-01 publishing images to anywhere public — do not publish before this is answered.",
         "DECIDED 2026-08-14 (founder). PROPRIETARY, all rights reserved, and NOTHING goes public until a clean self-hosted install is proven working. All three acceptance criteria met: (1) LICENSE file written and \"license\": \"UNLICENSED\" applied to the root and every workspace manifest — per-package, so a package extracted from the workspace does not lose the licence with the repo root; reasoning recorded as D10 in FOUNDING_BRIEF.md. (2) Distribution: none — no public registry, no public image, no OSS grant; the gate to reconsider is a clean self-hosted install (W11-05). (3) Support: no commitment while undistributed, stated explicitly in the LICENSE rather than left silent, because \"no commitment\" and \"unstated commitment\" are different things to a customer.",
@@ -3336,24 +3399,26 @@
     {
       "id": "W11-05",
       "title": "Self-host smoke: full customer journey on a clean host",
-      "wave": "W11",
-      "status": "todo",
-      "points": 3,
-      "depends_on": [
-        "W11-01",
-        "W11-02",
-        "W11-03"
-      ],
+      "phase": 11,
+      "module": "deploy",
+      "stories": [],
       "write_scope": [
         "e2e/**",
         "docs/INSTALL.md",
         "docs/STATUS.md"
+      ],
+      "depends_on": [
+        "W11-01",
+        "W11-02",
+        "W11-03"
       ],
       "acceptance": [
         "On a machine with no repo checkout: install per docs/INSTALL.md, register a forge App, connect a real org, watch backfill complete, and read a generated report — end to end, by a person following only the docs",
         "Tier-2 pointed at a customer-supplied LM Studio endpoint completes at least one diff review; with NO LLM configured the whole Tier-1 product still works and says so clearly rather than erroring",
         "Result, date, host shape and every doc gap found are appended to docs/STATUS.md"
       ],
+      "points": 3,
+      "status": "todo",
       "notes": [
         "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference — that is its job."
       ]
@@ -3361,10 +3426,11 @@
     {
       "id": "W12-01",
       "title": "GitLabProvider adapter passing the shared contract suite",
-      "status": "done",
-      "points": 8,
-      "depends_on": [
-        "W7-02"
+      "phase": 12,
+      "module": "forge",
+      "stories": [
+        "E8.1",
+        "E8.2"
       ],
       "write_scope": [
         "packages/forge/src/gitlab/**",
@@ -3374,6 +3440,9 @@
         "apps/api/src/routes/connections/**",
         "e2e/**"
       ],
+      "depends_on": [
+        "W7-02"
+      ],
       "acceptance": [
         "ForgeProvider.kind widens to include 'gitlab' and GitLabProvider implements the full interface with an explicit ForgeCapabilities object",
         "The SAME recorded-fixture contract suite that covers GitHub and Gitea passes against GitLab fixtures (FR-FORGE-7)",
@@ -3381,6 +3450,8 @@
         "A customer can pick GitLab in Admin -> Connections and connect with a personal access token",
         "The webhook receiver verifies GitLab deliveries (GitLab uses X-Gitlab-Token, a different scheme from the GitHub HMAC and the Gitea signature)"
       ],
+      "points": 8,
+      "status": "done",
       "notes": [
         "Filed 2026-08-13 under D3a. N-6 forbade this until the founder redefined the MVP as a customer self-hosting and pointing at their own repos on GitHub, GitLab OR Gitea. Sized at 8 rather than W7-02 5 because GitLab needs its own fixture recordings, a different webhook auth scheme, and capability mapping for features it names differently (merge requests vs pull requests, pipelines vs check runs). The ForgeProvider interface itself does not change — that is the whole point of having built it.",
         "DONE 2026-08-14. ForgeProvider.kind widened to include gitlab; GitLabProvider implements the full port with an explicit capability object asserted by toEqual so a silent drift fails. 17 contract tests, zero network, on the same stub-client harness GitHub and Gitea use. Multi-forge is now complete: GitHub, Gitea and GitLab.",
@@ -3396,13 +3467,14 @@
     {
       "id": "W12-02",
       "title": "Fake forge server for e2e: prove connect + backfill with no real credentials",
-      "status": "done",
-      "points": 5,
-      "depends_on": [
-        "W4-08"
-      ],
+      "phase": 12,
+      "module": "infra",
+      "stories": [],
       "write_scope": [
         "e2e/**"
+      ],
+      "depends_on": [
+        "W4-08"
       ],
       "acceptance": [
         "A local fake forge serves the ForgeProvider surface (repos, commits, PRs, reviews, checks) from fixtures, as e2e/helpers/fake-github.ts already does for OAuth",
@@ -3410,6 +3482,8 @@
         "The org overview then renders data that arrived through INGESTION rather than through the seeder",
         "The egress guard still passes — nothing reaches a real forge host"
       ],
+      "points": 5,
+      "status": "done",
       "notes": [
         "Filed 2026-08-13. The connect+backfill path has never run end to end: every test mocks below it and the warehouse is populated by the seeder instead. This is the buildable half of that gap and it needs no credential from anyone. The other half — a real token against a real forge — stays a founder action, but afterwards it is a CONFIRMATION rather than the first-ever execution of the most important path in the product.",
         "PARTIAL 2026-08-13 — connect half DONE, ingestion half open. e2e/helpers/fake-forge.ts serves the forge DATA plane (repo discovery, webhook registration) the way fake-github.ts serves the OAuth plane, and the API reaches it through a new forgeBaseUrl option. That option is a REAL deployment feature, not a test seam: GitHub Enterprise Server lives at a customer's own host, which a self-hosted product (D1a) has to support, so it is threaded FORGE_BASE_URL -> index.ts -> buildApp -> api-v1 -> connections and e2e simply uses the same door.",
@@ -3424,16 +3498,20 @@
     {
       "id": "W12-03",
       "title": "Wire the worker processors — ALL SIX queues are inert, not just backfill",
-      "status": "done",
-      "points": 13,
-      "depends_on": [
-        "W2-03",
-        "W12-02"
+      "phase": 12,
+      "module": "ingest",
+      "stories": [
+        "E1.3",
+        "E1.4"
       ],
       "write_scope": [
         "apps/api/src/workers/**",
         "packages/ingest/src/**",
         "e2e/**"
+      ],
+      "depends_on": [
+        "W2-03",
+        "W12-02"
       ],
       "acceptance": [
         "Every queue in QUEUE has a registered processor: backfill (plan + entity pages), delta (webhook deltas), enrich, reconcile, snapshot (metric compute), dlq",
@@ -3442,6 +3520,8 @@
         "e2e: connect through the UI against the fake forge, the worker drains the queue, and the org overview renders data that arrived through INGESTION rather than the seeder",
         "apps/api/test/wiring.test.ts KNOWN_INERT shrinks to [] — the gate fails if a queue is left behind"
       ],
+      "points": 13,
+      "status": "done",
       "notes": [
         "Filed 2026-08-13. apps/api/src/workers/index.ts constructs the runtime with processors: {} and the comment 'Empty until W2-03 supplies the real entity processors' — but W2-03 is DONE, and processBackfillJob exists and is fully tested in packages/ingest. The processors were built and never registered, so THE WORKER CONSUMES NOTHING IN PRODUCTION. A customer connects, the API enqueues a plan job, and nothing ever drains it: no error, no data, just a dashboard that stays empty.",
         "This is the FOURTH built-but-never-mounted defect found this week (SSE events W4-18, connections/sync/webhooks W4-19, now the processors) and the most consequential. The others made a feature unreachable; this one makes the core loop inert. Same cause each time: the unit tests mount the thing themselves into a throwaway scope, so the production wiring is exercised by nothing. Worth a standing check that every route plugin and every queue processor appears in the production entrypoint, not only in a test.",
@@ -3469,15 +3549,19 @@
     {
       "id": "W12-05",
       "title": "Wire the remaining three queues — enrich, reconcile, dlq",
-      "status": "done",
-      "points": 8,
-      "depends_on": [
-        "W12-03"
+      "phase": 12,
+      "module": "ingest",
+      "stories": [
+        "E1.5",
+        "E9.3"
       ],
       "write_scope": [
         "apps/api/src/workers/**",
         "packages/ingest/src/**",
         "e2e/**"
+      ],
+      "depends_on": [
+        "W12-03"
       ],
       "acceptance": [
         "enrich processor registered and consuming the payload INGESTION section 6 actually specifies: commitFiles {repoId, sha}, key en:{repoId}:{sha}. enrichCommitChurn already implements exactly this.",
@@ -3488,6 +3572,8 @@
         "sync_status reaches `live`: define and implement what \"enrichment queue drained\" means per repo (section 2 states the transition but there is no per-repo cursor for enrich the way backfill_done exists), then run the state machine to its designed end.",
         "wiring.test.ts KNOWN_INERT shrinks to [] with dlq moved to SINK_QUEUES — so \"every queue is either consumed or an asserted sink\" becomes true and stays true."
       ],
+      "points": 8,
+      "status": "done",
       "notes": [
         "Split out of W12-03 on 2026-08-13, after the core loop was wired and proven end to end. W12-03 registered backfill (plan fan-out + entity pages), delta and snapshot; these three remain inert and are tracked by the KNOWN_INERT list in apps/api/test/wiring.test.ts, which fails the build in BOTH directions (a queue with no processor that is not on the list, and a processor that landed without leaving the list).",
         "THIS UNBLOCKS THREE THINGS beyond the queues themselves. (a) The `live` phase: plan/state-machine.ts routes enrichment -> live via enrichment_complete, which only the enrich processor can raise, so today a fully backfilled repo correctly stops at `backfilling`. Do NOT shortcut history_complete straight to live - that contradicts INGESTION section 2. (b) W12-02 acceptance 1: the fake forge deliberately does not serve reviews/checks yet, because nothing consumes them and an unverifiable fixture is the pattern this project keeps finding. (c) PR detail is currently rendering empty pr-reviews/pr-checks sections for ingested repos.",
@@ -3506,16 +3592,19 @@
     {
       "id": "W12-06",
       "title": "Broaden enrichment to per-parent detail fetches; survive un-hookable repos",
-      "status": "done",
-      "points": 5,
-      "depends_on": [
-        "W12-05"
+      "phase": 12,
+      "module": "ingest",
+      "stories": [
+        "E1.3"
       ],
       "write_scope": [
         "apps/api/src/workers/**",
         "packages/ingest/src/**",
         "packages/shared/src/db/**",
         "e2e/**"
+      ],
+      "depends_on": [
+        "W12-05"
       ],
       "acceptance": [
         "Enrichment covers per-PR reviews and per-head-SHA check runs alongside per-commit churn, per the founder decision of 2026-08-13",
@@ -3524,6 +3613,8 @@
         "PR detail renders pr-reviews and pr-checks for an ingested repo, asserted in e2e",
         "Webhook registration failure is non-fatal, so a public repo the operator does not administer still backfills"
       ],
+      "points": 5,
+      "status": "done",
       "notes": [
         "FOUNDER DECISION 2026-08-13: broaden enrichment from \"per-commit file churn\" to \"per-parent detail fetches\". Reviews (per PR number) and check runs (per head SHA) are nested fetches keyed on a row the history phase already ingested — structurally identical to commit churn and unlike every paginated history entity, which is walked page-by-page at repo scope. This resolves the inconsistency where INGESTION §3 listed `checks` in the HISTORY entity order even though processBackfillJob only accepts PaginatedEntity precisely because checks cannot be walked that way. No new queue: ingest.enrich already carries the right priority and retry policy, so this adds job kinds (commitFiles, prDetail).",
         "upsertReviews and upsertCheckRuns were both fully built, fully tested and called by NOTHING until this ticket — the sixth instance of that pattern here. The visible symptom was PR detail rendering an empty reviews section for every ingested repo.",
@@ -3536,17 +3627,20 @@
     {
       "id": "W12-04",
       "title": "Wiring gate: fail the build when built code is not registered in production",
-      "status": "done",
-      "points": 1,
-      "depends_on": [],
+      "phase": 12,
+      "module": "infra",
+      "stories": [],
       "write_scope": [
         "apps/api/test/wiring.test.ts"
       ],
+      "depends_on": [],
       "acceptance": [
         "Every route module under apps/api/src/routes is registered in app.ts or api-v1.ts, asserted by a test",
         "Every declared queue either has a processor or appears on an explicit KNOWN_INERT list that can only shrink",
         "Both directions RED-checked: unmounting a route fails, and registering a processor without removing it from the list also fails"
       ],
+      "points": 1,
+      "status": "done",
       "notes": [
         "DONE 2026-08-13. Written after the fourth built-but-never-mounted defect in a week (W4-18 SSE, W4-19 connections/sync/webhooks, W12-03 processors). Every one was found BY ACCIDENT while building something adjacent, and the suite was green throughout, because unit tests mount the subject into a throwaway scope and nothing ever exercises the production entrypoint. Finding them by luck is not a process. The KNOWN_INERT allowlist is deliberately two-directional: a new inert queue fails the gate, AND landing a processor without removing its entry fails too, so the debt cannot be quietly re-accrued behind a stale list. RED-checked both ways — unmounting the sync route reports ['sync'], registering a backfill processor reports ['backfill']."
       ]
@@ -3554,17 +3648,20 @@
     {
       "id": "W12-07",
       "title": "Auth rate limit (SC-11) makes the unit gate intermittently red",
-      "status": "done",
-      "points": 2,
-      "depends_on": [],
+      "phase": 12,
+      "module": "api",
+      "stories": [],
       "write_scope": [
         "apps/api/src/**",
         "apps/api/test/**"
       ],
+      "depends_on": [],
       "acceptance": [
         "The full unit suite passes repeatedly (10 consecutive runs) with no auth-related failures",
         "The fix does not weaken SC-11 in production — the limit stays 10/min/IP where it matters"
       ],
+      "points": 2,
+      "status": "done",
       "notes": [
         "OBSERVED 2026-08-14. `pnpm test` failed 3 tests in apps/api/src/routes/repos/index.test.ts with \"Cannot read properties of undefined (reading 'value')\", then passed 497/497 on an immediate re-run with no code change. The error is at the LOGIN step, not on data: the helper reads the oauth_state cookie off the authorize response and gets undefined, which is what a 429 looks like from that call site.",
         "CAUSE (high confidence, not yet proven): SC-11 caps the auth flow at 10 requests per minute per IP. Vitest runs test FILES in parallel and several of them perform a real OAuth round trip against the same in-process app from the same address, so a burst can exceed the cap. e2e/global-setup.ts already documents this exact hazard and works around it by logging in ONCE for the whole Playwright run — the unit suite has no equivalent.",

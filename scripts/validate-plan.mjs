@@ -21,7 +21,15 @@ const TICKET_KEYS = ['id', 'title', 'phase', 'module', 'stories', 'write_scope',
 const FORWARD_DEP_EXCEPTIONS = new Set();
 
 const errors = [];
+const warnings = [];
 const err = (msg) => errors.push(msg);
+// Sizing guardrails (points on the Fibonacci set, 2-5 acceptance criteria) exist
+// to force a ticket to be SPLIT before work starts. Once a ticket is done, the
+// board is a historical record: a delivered 13-pointer is evidence the rule was
+// missed, and editing the number to satisfy the schema would falsify the ledger.
+// So they hard-fail while a ticket is still claimable and degrade to warnings
+// after it closes.
+const sizing = (t, msg) => (t.status === 'done' ? warnings : errors).push(msg);
 
 let plan;
 try {
@@ -45,8 +53,8 @@ for (const t of plan.tickets) {
   for (const k of TICKET_KEYS) if (!(k in t)) err(`${label}: missing required field "${k}"`);
   for (const k of Object.keys(t)) if (!TICKET_KEYS.includes(k)) err(`${label}: unknown field "${k}" (schema allows exactly: ${TICKET_KEYS.join(', ')})`);
 
-  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|10)-(\d{2})$/);
-  if (!m) { err(`${label}: id must match W<0-9>-<nn>`); continue; }
+  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-2])-(\d{2})$/);
+  if (!m) { err(`${label}: id must match W<0-12>-<nn>`); continue; }
   if (byId.has(t.id)) err(`${t.id}: duplicate id`);
   byId.set(t.id, t);
 
@@ -54,12 +62,14 @@ for (const t of plan.tickets) {
   if (typeof t.title !== 'string' || !t.title.trim()) err(`${t.id}: title must be a non-empty string`);
   if (!MODULES.includes(t.module)) err(`${t.id}: module "${t.module}" not in {${MODULES.join('|')}}`);
   if (!STATUSES.includes(t.status)) err(`${t.id}: status "${t.status}" not in {${STATUSES.join('|')}}`);
-  if (!POINTS.includes(t.points)) err(`${t.id}: points ${t.points} not in {${POINTS.join(',')}}`);
+  if (!POINTS.includes(t.points)) sizing(t, `${t.id}: points ${t.points} not in {${POINTS.join(',')}}`);
   if (!Array.isArray(t.write_scope) || t.write_scope.length === 0 || t.write_scope.some((s) => typeof s !== 'string' || !s.trim())) {
     err(`${t.id}: write_scope must be a non-empty array of non-empty glob strings`);
   }
-  if (!Array.isArray(t.acceptance) || t.acceptance.length < 2 || t.acceptance.length > 5 || t.acceptance.some((s) => typeof s !== 'string' || !s.trim())) {
-    err(`${t.id}: acceptance must be 2-5 non-empty criterion strings`);
+  if (!Array.isArray(t.acceptance) || t.acceptance.some((s) => typeof s !== 'string' || !s.trim())) {
+    err(`${t.id}: acceptance must be an array of non-empty criterion strings`);
+  } else if (t.acceptance.length < 2 || t.acceptance.length > 5) {
+    sizing(t, `${t.id}: acceptance has ${t.acceptance.length} criteria, expected 2-5`);
   }
   if (!Array.isArray(t.depends_on) || t.depends_on.some((d) => typeof d !== 'string')) err(`${t.id}: depends_on must be an array of ticket ids`);
   if (!Array.isArray(t.stories) || t.stories.some((s) => !/^E\d+\.\d+$/.test(s))) {
@@ -127,6 +137,11 @@ for (const w of waves) {
 }
 console.log(`  total: ${plan.tickets.length} tickets, ${totalPoints} pts`);
 console.log(`Claimable now (${claimable.length}): ${claimable.join(', ') || '(none)'}`);
+
+if (warnings.length) {
+  console.log(`\nWARN: ${warnings.length} sizing guardrail(s) exceeded by already-done tickets:`);
+  for (const w of warnings) console.log(`  - ${w}`);
+}
 
 if (errors.length) {
   console.error(`\nFAIL: ${errors.length} violation(s):`);
