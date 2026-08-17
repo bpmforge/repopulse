@@ -2056,3 +2056,14 @@ passing suite:**
 
 **Do not start W5 until that section is written.** The board will let you; the
 playbook will not.
+
+#### One gate weakness noticed while running it, not fixed
+
+An increasing share of the unit suite needs live Postgres (`describeIfLiveInfra`
+→ `describe.skip` without `DATABASE_URL`). On a fresh clone with no `.env`, those
+files **skip silently and the suite reports green** — the same zero-vs-absent
+conflation this run caught three times in product code, now sitting in the gate
+itself. A contributor could satisfy `pnpm test` while never running the admin,
+settings, snapshot-settings or tenancy suites. Worth a ticket: either fail when
+`DATABASE_URL` is absent (the e2e harness already refuses to run unseeded, for
+exactly this reason) or report the skipped count as a gate number.

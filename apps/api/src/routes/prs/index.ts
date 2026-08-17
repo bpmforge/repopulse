@@ -29,6 +29,10 @@ const listQuery = z.object({
 // has to run INSIDE the paginated query: filtering rows out afterwards would
 // return short pages (and eventually an empty page with a next_cursor), which
 // is the classic way a paginated list looks like it has run out of data.
+// Exported for org-list.test.ts, which pins these bounds against prSizeBucket
+// at every boundary. A dead-code sweep will see a test as the only consumer —
+// it is deliberate: this is a SECOND expression of METRICS.md §1 M7, and an
+// unpinned copy is the divergence the test exists to prevent.
 export const SIZE_BUCKET_BOUNDS: Record<string, { min: number; max: number | null }> = {
   XS: { min: 0, max: 10 },
   S: { min: 10, max: 100 },
@@ -55,6 +59,8 @@ const orgListQuery = z.object({
  * every time a PR was updated mid-scroll. The id is the tiebreak, so two PRs
  * updated in the same millisecond still have a total order.
  */
+// Exported with decodeCursor for the same reason: the round-trip and the
+// malformed-cursor case are asserted against these, not against copies.
 export function encodeCursor(updatedAt: Date, id: number): string {
   return `${updatedAt.getTime()}:${id}`;
 }
