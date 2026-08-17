@@ -3799,6 +3799,86 @@
         "SC-11 IS UNTOUCHED. The limit is still 10/min/IP in production and the rate-limit test still exercises it directly. The fix removes needless auth traffic from the suite rather than weakening the control — raising the cap under NODE_ENV=test was considered and rejected, since it would stop exercising a real security control precisely where it is cheapest to test.",
         "VERIFIED: 11 consecutive full unit runs, 497/497 each, zero failures (acceptance asked for 10). Plus lint 0, typecheck 0, e2e 40 passed + 1 skipped."
       ]
+    },
+    {
+      "id": "W12-08",
+      "title": "The unit gate reports green while silently skipping every live-infra suite",
+      "phase": 12,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "vitest.workspace.ts",
+        "vitest.config.ts",
+        "apps/api/test/**",
+        "scripts/**"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A run with no DATABASE_URL/REDIS_URL prints the number of skipped live-infra suites as a gate number, not as silence",
+        "With REQUIRE_LIVE_INFRA set, a missing DATABASE_URL/REDIS_URL fails the run instead of skipping",
+        "RED-checked both ways: unset infra + REQUIRE_LIVE_INFRA fails; set infra passes with a zero skip count",
+        "No change to the 37 individual test files — the check is central"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "OBSERVED 2026-08-15 while closing W4. 37 test files declare their own . Without a .env they all become describe.skip and the suite reports GREEN. This is the same zero-vs-absent conflation caught three times in product code this run (bot globs, findings badge, components_available) — now sitting in the gate itself.",
+        "WORSE THAN FIRST WRITTEN: .github/workflows/ci.yml provisions NO postgres and NO redis service. So CI has never executed a single one of these suites — the admin, workspace-settings, tenancy, security-headers, rate-limit, audit-log, snapshot, backfill, reconcile, DLQ and seed integration suites have only ever run on a developer machine. Every green CI check on this repo has been green over a subset nobody declared.",
+        "DO NOT hard-fail unconditionally: that would make CI permanently red until it has a data tier, which is shipping a broken gate to replace a dishonest one. Visibility is unconditional; enforcement is opt-in via REQUIRE_LIVE_INFRA and gets switched on by W12-10.",
+        "DO NOT sweep the 37 files. A single vitest global setup inspects the env once for the whole run. Centralising describeIfLiveInfra into a shared export is a real cleanup but it is a 37-file write_scope and it is not this ticket.",
+        "CONSEQUENCE TO REPORT: after this lands, \"586 unit tests\" stops being the whole truth on a machine without live infra. Gate reports should carry both numbers — tests passed and suites skipped."
+      ]
+    },
+    {
+      "id": "W12-09",
+      "title": "Admin role change is not audit-logged, though SC-22 names it explicitly",
+      "phase": 12,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/admin/**",
+        "apps/api/test/security/**"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "PATCH /admin/members/:userId writes an audit entry with actor, workspace, ip, ua, ts and the old + new role",
+        "The entry names the target user; it does not log anything secret (SC-2 redaction still applies)",
+        "An integration test asserts the entry is emitted, captured at the log DESTINATION (request.log is a pino child — stubbing app.log.info catches nothing)",
+        "The last-admin refusal path emits no success entry"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "CARRIED FROM W4-20, which was closed with this gap known and recorded rather than quietly. SECURITY_CONTROLS.md SC-22 lists the audited event classes literally, and \"admin role change\" is one of them: the control is specified, the route exists, the log line was never written. T-29 and T-31 both lean on SC-22.",
+        "SCOPE CHECKED, NOT ASSUMED: apps/api/src/routes/admin/index.ts has two mutations — PATCH /admin/members/:userId (line ~105) and POST the DLQ replay (line ~210). Neither calls auditLog(). Role change is the one SC-22 names by hand, so it is the acceptance criterion. DLQ replay is a security-relevant mutation not on SC-22 list; log it too and say so in the notes rather than silently widening the control.",
+        "Log the OLD role as well as the new one. \"role changed to admin\" cannot be read as a privilege escalation without knowing what it was before, which is the entire reason T-29 wants the entry."
+      ]
+    },
+    {
+      "id": "W12-10",
+      "title": "Provision Postgres + Redis in CI and turn the live-infra gate on",
+      "phase": 12,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        ".github/workflows/**",
+        "docs/TESTING.md"
+      ],
+      "depends_on": [
+        "W12-08"
+      ],
+      "acceptance": [
+        "The unit job runs postgres:16 and redis as services, runs migrations, and exports DATABASE_URL/REDIS_URL",
+        "REQUIRE_LIVE_INFRA is set in that job, so a missing data tier fails rather than skips",
+        "The skipped-suite count printed by W12-08 is zero in CI",
+        "Every failure the newly-executing suites reveal is either fixed or filed — none suppressed"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED SEPARATELY FROM W12-08 ON PURPOSE. W12-08 makes the hole visible at near-zero risk. This ticket runs 37 previously-unexecuted suites in CI for the first time, and the honest expectation is that some of them fail — on ordering, on a shared default workspace, on assumptions that only hold against a developer database. Sizing reflects unknown fallout, not the yaml.",
+        "The fallout is the POINT. A suite that has never run in CI is not a passing suite. Do not close this by adding services and skipping whatever goes red."
+      ]
     }
   ]
 }
