@@ -40,6 +40,7 @@ function makeCallbacks() {
     done: [] as number[],
     toasts: [] as { message: string; tone: string }[][],
     invalidations: [] as { repoIds: number[]; org: boolean }[],
+    firstInsight: [] as number[],
   };
   const callbacks: SyncStreamCallbacks = {
     onConnection: (s) => calls.connection.push(s),
@@ -47,6 +48,7 @@ function makeCallbacks() {
     onRepoDone: (repoId) => calls.done.push(repoId),
     onToasts: (t) => calls.toasts.push(t.map((x) => ({ message: x.message, tone: x.tone }))),
     invalidate: (d) => calls.invalidations.push(d),
+    onFirstInsight: (repoId) => calls.firstInsight.push(repoId),
   };
   return { calls, callbacks };
 }
@@ -141,5 +143,72 @@ describe('createSyncStream (DASHBOARD §6)', () => {
     stream.stop();
     expect(es.closed).toBe(true);
     expect(calls.connection.at(-1)).toBe('closed');
+  });
+
+  // R-A3 (W4-21). Backfill is recent-first, so the useful window fills long
+  // before the year does — and nothing told anyone until this fired.
+  describe('first-insight moment', () => {
+    it('fires when 30-day coverage completes, and only once per repo', () => {
+      const { calls, callbacks } = makeCallbacks();
+      const stream = createSyncStream((url) => new FakeEventSource(url), callbacks);
+      const es = FakeEventSource.instances[0]!;
+
+      // percentComplete is (now − oldest)/365d, so 30 days ≈ 8.2%. Below that
+      // the window is genuinely incomplete and the toast must NOT fire.
+      es.emit('sync.progress', { repoId: 3, phase: 'history', pct: 5 });
+      expect(calls.firstInsight).toEqual([]);
+
+      es.emit('sync.progress', { repoId: 3, phase: 'history', pct: 12 });
+      expect(calls.firstInsight).toEqual([3]);
+
+      // Progress keeps arriving as the rest of the year backfills. A toast per
+      // event would be noise, not a moment.
+      es.emit('sync.progress', { repoId: 3, phase: 'history', pct: 40 });
+      es.emit('sync.progress', { repoId: 3, phase: 'history', pct: 99 });
+      expect(calls.firstInsight).toEqual([3]);
+
+      stream.stop();
+    });
+
+    it('tracks repos independently', () => {
+      const { calls, callbacks } = makeCallbacks();
+      const stream = createSyncStream((url) => new FakeEventSource(url), callbacks);
+      const es = FakeEventSource.instances[0]!;
+      es.emit('sync.progress', { repoId: 1, phase: 'history', pct: 50 });
+      es.emit('sync.progress', { repoId: 2, phase: 'history', pct: 50 });
+      expect(calls.firstInsight).toEqual([1, 2]);
+      stream.stop();
+    });
+
+    // THE CASE A PCT THRESHOLD ALONE GETS WRONG, and not as an edge case: a repo
+    // whose entire history is three days old has coverage of 3/365 ≈ 1% and
+    // would never cross 8.2% — while every day it has ever had is already
+    // ingested. Coverage measures how far BACK we reached, not what is missing.
+    // Caught by the e2e against the fake forge, whose fixture commits are days
+    // old, before this clause existed.
+    it('fires for a young repo whose whole history is in, however low the pct', () => {
+      const { calls, callbacks } = makeCallbacks();
+      const stream = createSyncStream((url) => new FakeEventSource(url), callbacks);
+      const es = FakeEventSource.instances[0]!;
+
+      es.emit('sync.progress', { repoId: 5, phase: 'history', pct: 1 });
+      expect(calls.firstInsight, 'still backfilling — nothing is proven yet').toEqual([]);
+
+      // Every entity cursor done: there is nothing older to fetch.
+      es.emit('sync.progress', { repoId: 5, phase: 'enrichment', pct: 1 });
+      expect(calls.firstInsight).toEqual([5]);
+
+      stream.stop();
+    });
+
+    it('a repo that jumps straight past the threshold still gets exactly one', () => {
+      // A small repo can reach full coverage in its first page, so the very
+      // first progress event may already be over the line.
+      const { calls, callbacks } = makeCallbacks();
+      const stream = createSyncStream((url) => new FakeEventSource(url), callbacks);
+      FakeEventSource.instances[0]!.emit('sync.progress', { repoId: 9, phase: 'live', pct: 100 });
+      expect(calls.firstInsight).toEqual([9]);
+      stream.stop();
+    });
   });
 });

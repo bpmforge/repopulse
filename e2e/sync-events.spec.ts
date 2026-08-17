@@ -97,3 +97,38 @@ test('a worker-published event reaches the browser through the SSE endpoint', as
   expect(first.data.repoId, 'event carries no repoId — the client store ignores it').toBeDefined();
   expect(typeof first.data.pct).toBe('number');
 });
+
+test('a repo crossing 30-day coverage raises the first-insight toast (W4-21, R-A3)', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+
+  await loginAsFixture(page);
+  // The toast names the repo, and the name is read from the org health-tiles
+  // response — so start on the screen that fetches it, as a user would.
+  await page.goto('/');
+  await expect(page.getByTestId('org-overview')).toBeVisible();
+
+  // Cause real ingestion of a repo this spec owns, through the API so the page
+  // (and its EventSource) survives.
+  const headers = { 'x-requested-with': 'repopulse' };
+  const created = await page.request.post('/api/v1/connections', {
+    headers,
+    data: { provider: 'github', auth_kind: 'pat', credential: FAKE_TOKEN },
+  });
+  expect(created.ok(), `connection create failed: ${created.status()}`).toBe(true);
+  const { id } = (await created.json()) as { id: number };
+  const mine = FAKE_REPOS[2]!;
+  const selected = await page.request.post(`/api/v1/connections/${id}/repos`, {
+    headers,
+    data: { repo_forge_ids: [String(mine.id)] },
+  });
+  expect(selected.ok(), `repo select failed: ${selected.status()}`).toBe(true);
+
+  // Backfill is RECENT-FIRST, so the 30-day window completes long before the
+  // year does — which is the entire premise of R-A3. The toast is the only
+  // thing that tells anyone.
+  await expect(page.getByRole('status').filter({ hasText: /last 30 days ready/i })).toBeVisible({
+    timeout: 60_000,
+  });
+});

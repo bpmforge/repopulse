@@ -2,10 +2,13 @@ import { SyncStatusChip, WidgetFrame, useUiStore } from '../../components/index.
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import type { GlobalSearch } from '../../api/urlState.js';
-import { KpiRow } from './KpiRow.js';
-import { HealthTileGrid } from './HealthTileGrid.js';
-import { HotspotLeaderboard } from './HotspotLeaderboard.js';
-import { AttentionFeed } from './AttentionFeed.js';
+import { WidgetGrid } from '../../components/widget/WidgetGrid.js';
+import type { Widget } from '../../components/widget/types.js';
+// Side-effect import: registers the four org widget types. The grid renders by
+// TYPE, so a screen that composes widgets must ensure they are registered — an
+// unregistered type degrades to a placeholder frame, which is a silent way for
+// this screen to lose a panel.
+import './register.js';
 import { OnboardingChecklist } from '../onboarding/OnboardingChecklist.js';
 import type { HealthTiles, MeContext } from './contracts.js';
 
@@ -22,6 +25,23 @@ function orgSyncPct(progress: Record<number, { phase: string; pct: number }>): n
   const values = Object.values(progress);
   if (values.length === 0) return null;
   return values.reduce((sum, p) => sum + p.pct, 0) / values.length;
+}
+
+/**
+ * The Org Overview bento (UX_SPEC §4.a, R-D2).
+ *
+ * Layout is DATA now, not JSX — the same shape a saved view stores, which is the
+ * point of one grid engine: the built-in home and a user-defined view differ by
+ * config, not by code.
+ */
+function orgWidgets(window: string, search: Record<string, string>): Widget[] {
+  const options = { window, search };
+  return [
+    { id: 'org-kpi', type: 'kpi', layout: { x: 0, y: 0, w: 12, h: 1 }, options },
+    { id: 'org-health', type: 'health-grid', layout: { x: 0, y: 1, w: 6, h: 2 }, options },
+    { id: 'org-attention', type: 'attention-feed', layout: { x: 6, y: 1, w: 6, h: 2 }, options },
+    { id: 'org-hotspots', type: 'hotspot-list', layout: { x: 0, y: 3, w: 12, h: 2 }, options },
+  ];
 }
 
 export function OrgOverview({ search }: Props) {
@@ -84,14 +104,12 @@ export function OrgOverview({ search }: Props) {
         </div>
       )}
 
-      <KpiRow window={window} />
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <HealthTileGrid window={window} search={preserved} />
-        <AttentionFeed window={window} search={preserved} />
-      </div>
-
-      <HotspotLeaderboard window={window} search={preserved} />
+      {/* R-D2: composed through the SAME WidgetGrid saved views use, with
+          sizing variety — a full-width KPI row, two 2×2 heroes side by side,
+          then a full-width leaderboard. The grid already honoured per-widget
+          w/h; this screen simply never used it, so "supports 2×2 hero tiles"
+          was true of the engine and false of the screen. */}
+      <WidgetGrid widgets={orgWidgets(window, preserved)} />
     </div>
   );
 }
