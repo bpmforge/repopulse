@@ -2008,3 +2008,51 @@ tickets, and this session implemented six of them. Three items must be carried
 into that gate entry as unverified: no real **Gitea** instance has been
 ingested, no real **GitLab** instance has been ingested, and the new
 **sync events** are proven against the fake forge only.
+
+### 2026-08-17 — W4 is code-complete (23/23). The gate is NOT yet passed.
+
+W4-10 was closed on the founder's instruction to proceed, with its remainder
+superseded by W4-21 — recorded in its notes rather than shown as a clean `done`,
+because it did not meet its acceptance as written. W4-21 then landed the three
+carried criteria:
+
+- **First-insight toast (R-A3)** on the sync events W4-22 made real. The
+  threshold decodes the server's own `percentComplete` rather than defining
+  coverage a second time. **The e2e caught a real bug in the premise:** a pct
+  threshold alone never fires for a young repo — the fixture's commits are 1–3
+  days old, giving 1% coverage, unreachable, while every day that repo has ever
+  had is already ingested. Coverage measures how far *back* ingestion reached,
+  not what is missing. It now also fires when history backfill completes. This
+  would have shipped as "the toast never appears for new repos", which nobody
+  reports as a bug.
+- **Findings badge**: absent and zero provably render identically. A badge
+  frozen at 0 looks like a working badge reporting no new findings, when nothing
+  feeds it until W6.
+- **Bento**: Org Overview composes through the same `WidgetGrid` saved views
+  use, so layout is data. One deviation, stated: the five KPI tiles remain a
+  single 12-wide widget rather than five 1×1 widgets — splitting them would
+  change the DOM two existing specs assert against for no visual difference.
+
+Gate: lint 0, typecheck 0, **586 unit tests** (543 at the start of this run), 56
+e2e + 1 skipped, all three validators exit 0.
+
+#### What the W4 gate still needs — for a FRESH session
+
+`validate-plan.mjs` now reports W5-02/03/05 claimable, because its wave gate is
+mechanical: every W4 ticket is `done`. **That is not the PLAYBOOK gate.** The
+exit criteria in ROADMAP.md W4 are a live demo script, and the CHALLENGER
+protocol requires a session that implemented **none** of the wave's tickets to
+re-derive each criterion from the docs and try to refute the evidence. This
+session implemented seven of them (W4-09, W4-10, W4-15, W4-16, W4-17, W4-21,
+W4-22), so it cannot write that section. Maker ≠ verifier.
+
+**Carry into the gate entry as unverified — none of these is covered by a
+passing suite:**
+1. No real **Gitea** instance has been ingested; the adapter passes recorded-fixture contract tests only.
+2. No real **GitLab** instance has been ingested; same.
+3. The new **sync events** are proven against the fake forge only.
+4. The MVP demo script's first criterion asks for the **real bpmforge org** or a full-fidelity fixture twin. Everything green today runs against the fake forge and the seeder.
+5. A forge **404 still completes a REST backfill job silently** (carried from W12-03) — indistinguishable from a genuinely empty repo.
+
+**Do not start W5 until that section is written.** The board will let you; the
+playbook will not.
