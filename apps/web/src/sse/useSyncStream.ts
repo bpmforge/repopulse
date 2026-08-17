@@ -22,6 +22,38 @@ const TOAST_BATCH_MS = 500;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
+/**
+ * The first-insight threshold (R-A3, W4-21).
+ *
+ * Backfill is RECENT-FIRST, so the useful window fills long before the whole
+ * year does — and until this toast existed, nothing told anyone. The signal is
+ * the pct the worker already publishes: status.ts defines percentComplete as
+ * `min over entities of (now − oldest) / 365d`, so pct ≥ 30/365 means every
+ * entity covers at least the last 30 days. That is a DECODE of the server's own
+ * number, not a second definition of coverage.
+ *
+ * pct arrives rounded to whole percent, so a repo at exactly 30 days reports 8
+ * and only crosses this at 9 (~33 days). The toast therefore fires slightly
+ * LATE rather than early, which is the safe direction: it never claims a window
+ * is ready before it is.
+ */
+const FIRST_INSIGHT_PCT = (30 / 365) * 100;
+
+/**
+ * Phases in which the 30-day window is complete REGARDLESS of pct.
+ *
+ * A pct threshold alone is wrong for a young repo, and not as an edge case: a
+ * repo whose entire history is three days old has coverage of 3/365 ≈ 1% and
+ * would NEVER cross the threshold — while in fact every day it has ever had is
+ * already ingested. Coverage measures how far back we reached, not whether
+ * anything is missing.
+ *
+ * Once history backfill is complete (`enrichment`) or the repo is `live`, every
+ * entity cursor is done, so there is nothing older to fetch and the last 30 days
+ * are covered by definition.
+ */
+const HISTORY_COMPLETE_PHASES = new Set(['enrichment', 'live']);
+
 /** The server frame: `{ type, data }` (packages/ingest SyncStreamEvent). */
 type SyncEventType = 'sync.progress' | 'sync.done' | 'budget.warning' | 'sync.repo';
 interface WireEvent {
@@ -45,6 +77,12 @@ export interface SyncStreamCallbacks {
   onConnection(state: SseConnection): void;
   onRepoProgress(repoId: number, progress: RepoSyncProgress): void;
   onRepoDone(repoId: number): void;
+  /**
+   * A repo's 30-day window just became complete (R-A3). Separate from
+   * onRepoProgress so the caller can name the repo — the event carries an id,
+   * and "last 30 days ready for payments" is the point of the message.
+   */
+  onFirstInsight?(repoId: number): void;
   onToasts(toasts: Toast[]): void;
   /** Debounced flush: which repos + whether org-level views went stale. */
   invalidate(dirty: { repoIds: number[]; org: boolean }): void;
@@ -83,6 +121,10 @@ export function createSyncStream(
   let attempt = 0;
 
   const dirtyRepos = new Set<number>();
+  // Once per repo per session. Progress events keep arriving as the rest of the
+  // year backfills, and a toast on every one of them would be noise rather than
+  // a moment.
+  const firstInsightFired = new Set<number>();
   let dirtyOrg = false;
   let invalidateTimer: ReturnType<typeof setTimeout> | null = null;
   let toastBuffer: Toast[] = [];
@@ -124,10 +166,14 @@ export function createSyncStream(
     switch (event.type) {
       case 'sync.progress': {
         if (repoId !== undefined) {
-          callbacks.onRepoProgress(repoId, {
-            phase: typeof event.data.phase === 'string' ? event.data.phase : 'syncing',
-            pct: num(event.data.pct) ?? 0,
-          });
+          const pct = num(event.data.pct) ?? 0;
+          const phase = typeof event.data.phase === 'string' ? event.data.phase : 'syncing';
+          callbacks.onRepoProgress(repoId, { phase, pct });
+          const windowCovered = pct >= FIRST_INSIGHT_PCT || HISTORY_COMPLETE_PHASES.has(phase);
+          if (windowCovered && !firstInsightFired.has(repoId)) {
+            firstInsightFired.add(repoId);
+            callbacks.onFirstInsight?.(repoId);
+          }
           dirtyRepos.add(repoId);
         }
         dirtyOrg = true;
@@ -216,6 +262,26 @@ function invalidateQueries(queryClient: QueryClient, dirty: { repoIds: number[];
   });
 }
 
+/**
+ * A repo's display name from whatever the cache already holds (R-A3).
+ *
+ * The event carries only an id, and "last 30 days ready for payments" is the
+ * whole point of the message — a toast naming "repo 41" tells nobody anything.
+ * Read from the org health-tiles response the shell has already fetched rather
+ * than issuing a request from inside an event handler; falls back to the id,
+ * because a slightly worse message beats a missing moment.
+ */
+function repoNameFromCache(queryClient: QueryClient, repoId: number): string {
+  const queries = queryClient.getQueriesData<{ items?: { id: number; name: string }[] }>({
+    predicate: (query) => (query.queryKey as [string?])[0] === '/org/health-tiles',
+  });
+  for (const [, data] of queries) {
+    const match = data?.items?.find((r) => Number(r.id) === repoId);
+    if (match) return match.name;
+  }
+  return `repo ${repoId}`;
+}
+
 /** Mount the single app-wide sync stream (called once, in __root). */
 export function useSyncStream(createEventSource?: EventSourceFactory): void {
   const queryClient = useQueryClient();
@@ -233,6 +299,14 @@ export function useSyncStream(createEventSource?: EventSourceFactory): void {
       onConnection: (state) => useUiStore.getState().setSseConnection(state),
       onRepoProgress: (repoId, progress) => useUiStore.getState().setRepoProgress(repoId, progress),
       onRepoDone: (repoId) => useUiStore.getState().clearRepoProgress(repoId),
+      onFirstInsight: (repoId) =>
+        useUiStore.getState().pushToasts([
+          {
+            id: `first-insight-${repoId}`,
+            tone: 'ok',
+            message: `Last 30 days ready for ${repoNameFromCache(queryClient, repoId)} — take a look`,
+          },
+        ]),
       onToasts: (toasts) => useUiStore.getState().pushToasts(toasts),
       invalidate: (dirty) => invalidateQueries(queryClient, dirty),
     });
