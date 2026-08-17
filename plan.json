@@ -3814,19 +3814,21 @@
       ],
       "depends_on": [],
       "acceptance": [
-        "A run with no DATABASE_URL/REDIS_URL prints the number of skipped live-infra suites as a gate number, not as silence",
-        "With REQUIRE_LIVE_INFRA set, a missing DATABASE_URL/REDIS_URL fails the run instead of skipping",
-        "RED-checked both ways: unset infra + REQUIRE_LIVE_INFRA fails; set infra passes with a zero skip count",
+        "With REQUIRE_LIVE_INFRA set, a missing DATABASE_URL or REDIS_URL fails the run before any test executes, naming what is missing",
+        "Without it, the run proceeds and prints a warning naming the suites that will skip and how to start the data tier",
+        "RED-checked both ways: unset infra + REQUIRE_LIVE_INFRA fails; infra present passes with zero skipped files",
         "No change to the 37 individual test files — the check is central"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "OBSERVED 2026-08-15 while closing W4. 37 test files declare their own . Without a .env they all become describe.skip and the suite reports GREEN. This is the same zero-vs-absent conflation caught three times in product code this run (bot globs, findings badge, components_available) — now sitting in the gate itself.",
         "WORSE THAN FIRST WRITTEN: .github/workflows/ci.yml provisions NO postgres and NO redis service. So CI has never executed a single one of these suites — the admin, workspace-settings, tenancy, security-headers, rate-limit, audit-log, snapshot, backfill, reconcile, DLQ and seed integration suites have only ever run on a developer machine. Every green CI check on this repo has been green over a subset nobody declared.",
         "DO NOT hard-fail unconditionally: that would make CI permanently red until it has a data tier, which is shipping a broken gate to replace a dishonest one. Visibility is unconditional; enforcement is opt-in via REQUIRE_LIVE_INFRA and gets switched on by W12-10.",
         "DO NOT sweep the 37 files. A single vitest global setup inspects the env once for the whole run. Centralising describeIfLiveInfra into a shared export is a real cleanup but it is a 37-file write_scope and it is not this ticket.",
-        "CONSEQUENCE TO REPORT: after this lands, \"586 unit tests\" stops being the whole truth on a machine without live infra. Gate reports should carry both numbers — tests passed and suites skipped."
+        "CONSEQUENCE TO REPORT: after this lands, \"586 unit tests\" stops being the whole truth on a machine without live infra. Gate reports should carry both numbers — tests passed and suites skipped.",
+        "CORRECTED BEFORE IMPLEMENTING, by running it rather than trusting the note. The skip is NOT silent: with no .env, vitest prints \"Test Files 85 passed | 37 skipped (122)\" and \"Tests 433 passed | 153 skipped (586)\". Visibility already exists, so building a reporter for it would have been redundant work justified by a stale observation. What is missing is ENFORCEMENT — pnpm test exits 0 either way and CI reads only the exit code. The real number: CI has been green over 433 of 586 tests.",
+        "Local runs hid this because every live-infra test file does `import 'dotenv/config'` and .env exists on a dev machine — so `env -u DATABASE_URL` changes nothing and the local suite always reports 586/586. Reproducing the CI condition needs DOTENV_CONFIG_PATH=/dev/null."
       ]
     },
     {
