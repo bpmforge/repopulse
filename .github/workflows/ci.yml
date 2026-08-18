@@ -19,6 +19,50 @@ jobs:
     name: lint / typecheck / test / validators
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+
+    # W12-10. Until this landed the job had NO data tier, so the 37 test files
+    # that gate themselves on live Postgres + Redis became `describe.skip` and
+    # `pnpm test` exited 0 over 433 of 586 tests. Every green check this repo
+    # ever showed covered a subset nobody had declared.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: repopulse
+          POSTGRES_PASSWORD: repopulse_ci_password
+          POSTGRES_DB: repopulse
+        ports:
+          - 5432:5432
+        # Without a healthcheck the job races the container: migrations run
+        # against a port that is open but not yet accepting auth, which fails
+        # as a connection error rather than as "the DB is not up".
+        options: >-
+          --health-cmd "pg_isready -U repopulse -d repopulse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7.2
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Values are CI-local and reachable only from inside this job's network
+      # namespace — no SC-20/Law 9 exposure. They deliberately do NOT match the
+      # dev compose password, so a copied CI log cannot be used against a
+      # developer's machine.
+      DATABASE_URL: postgres://repopulse:repopulse_ci_password@localhost:5432/repopulse
+      REDIS_URL: redis://localhost:6379
+      # The point of the whole ticket: with this set, a missing service FAILS
+      # the run (scripts/check-live-infra.mjs) instead of quietly skipping 37
+      # files. If this line is ever removed, CI goes back to lying.
+      REQUIRE_LIVE_INFRA: '1'
+
     steps:
       - uses: actions/checkout@v7
 
@@ -34,6 +78,11 @@ jobs:
       # job's own network use (checkout/install) is unrelated to that rule.
       - name: install
         run: pnpm install --frozen-lockfile
+
+      # The schema has to exist before the integration suites connect; they
+      # assume tables, they do not create them.
+      - name: migrate
+        run: pnpm db:migrate
 
       - name: lint
         run: pnpm lint

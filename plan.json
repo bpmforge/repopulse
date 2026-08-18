@@ -3833,7 +3833,8 @@
         "It COUNTS the gated files by scanning for the describeIfLiveInfra marker rather than hardcoding 37, so the warning cannot drift into a lie as files are added. The count agrees independently with what vitest reports skipped (37), which is a useful cross-check that the marker scan finds the right set.",
         "RED-CHECKED THREE WAYS: (A) no infra, flag unset -> warns, exits 0. (B) no infra, REQUIRE_LIVE_INFRA=1 -> exits 1 naming both missing vars and listing all 37 files. (C) infra present, REQUIRE_LIVE_INFRA=1 -> silent, exits 0.",
         "GATE: lint 0, typecheck 0, REQUIRE_LIVE_INFRA=1 pnpm test -> 122 files, 586 tests, ZERO skipped. All three validators exit 0. Reporting the skip count alongside the pass count is now the honest form of a gate report on this repo.",
-        "STILL OPEN, BY DESIGN: CI does not yet set the flag, because it has no data tier to satisfy it. That is W12-10. Until it lands, CI keeps passing over 433 of 586 tests — the difference is that it now says so in the log."
+        "STILL OPEN, BY DESIGN: CI does not yet set the flag, because it has no data tier to satisfy it. That is W12-10. Until it lands, CI keeps passing over 433 of 586 tests — the difference is that it now says so in the log.",
+        "CORRECTION, 2026-08-17, found while closing W12-10: the claim in these notes and in the commit body that \"CI has been green over 433 of 586 tests\" is WRONG in the reader's favour. CI has never been green, because CI has never RUN. Every one of the last 100 workflow runs — the repo's entire history, 2026-07-18 to now — failed in about 3 seconds with zero steps executed, annotated \"The job was not started because an Actions budget is preventing further use\" (the earliest ones: \"recent account payments have failed or your spending limit needs to be increased\"). The live-infra hole is real and the fix stands, but it was never the reason CI passed over a subset — nothing in CI has ever executed at all."
       ]
     },
     {
@@ -3886,10 +3887,15 @@
         "Every failure the newly-executing suites reveal is either fixed or filed — none suppressed"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "blocked",
       "notes": [
         "FILED SEPARATELY FROM W12-08 ON PURPOSE. W12-08 makes the hole visible at near-zero risk. This ticket runs 37 previously-unexecuted suites in CI for the first time, and the honest expectation is that some of them fail — on ordering, on a shared default workspace, on assumptions that only hold against a developer database. Sizing reflects unknown fallout, not the yaml.",
-        "The fallout is the POINT. A suite that has never run in CI is not a passing suite. Do not close this by adding services and skipping whatever goes red."
+        "The fallout is the POINT. A suite that has never run in CI is not a passing suite. Do not close this by adding services and skipping whatever goes red.",
+        "IMPLEMENTED 2026-08-17, BLOCKED ON BILLING — not on code. .github/workflows/ci.yml now runs postgres:16 and redis:7.2 as services with healthchecks, exports DATABASE_URL/REDIS_URL, runs `pnpm db:migrate` before lint, and sets REQUIRE_LIVE_INFRA=1 so a missing service fails instead of skipping 37 files.",
+        "CANNOT BE CLOSED: acceptance asks that the skipped-suite count be zero IN CI, and no GitHub Actions job in this repository has ever started. 100 of 100 runs since 2026-07-18 failed at job creation with an Actions budget annotation. Marked blocked rather than done, because marking it done would assert a verification that has not happened — which is the same defect class this whole wave has been closing.",
+        "VERIFIED AS FAR AS IS POSSIBLE OFFLINE: the workflow parses and the job carries both services, both healthchecks, all three env vars and the migrate step in the right order. More usefully, the CI condition was SIMULATED locally — a brand-new empty database (repopulse_cisim), migrated from scratch, then the full suite run against it with REQUIRE_LIVE_INFRA=1: 122 files, 589 tests, zero skipped, zero failures. The expected fallout from running 37 never-in-CI suites did not materialise on a fresh DB. That is a strong proxy for the CI environment, not a substitute for it.",
+        "ALSO OBSERVED, NOT FIXED: the nightly-e2e job has no data tier either and would fail the moment the budget is restored, since `pnpm e2e` needs a seeded stack. Out of scope here (it needs the API and web servers plus the seeder in CI, not two service containers) — worth its own ticket.",
+        "USER ACTION REQUIRED: the Actions budget/spending limit on the bpmforge org has to be raised before any of this executes. Until then every gate in this repo is a local gate, and the validators, lint, typecheck and test steps in ci.yml are decorative."
       ]
     }
   ]

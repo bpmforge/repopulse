@@ -2076,11 +2076,22 @@ up a third fact that is worse than either.
 #### CI has never run a single integration test
 
 `.github/workflows/ci.yml` provisions **no Postgres and no Redis**. 37 test
-files gate themselves on both and become `describe.skip` without them. So every
-green check this repo has ever shown covered **433 of 586 tests** — the admin,
-workspace-settings, tenancy, security-header, rate-limit, audit-log, snapshot,
-backfill, reconcile, DLQ and seed suites have only ever executed on a
+files gate themselves on both and become `describe.skip` without them — the
+admin, workspace-settings, tenancy, security-header, rate-limit, audit-log,
+snapshot, backfill, reconcile, DLQ and seed suites have only ever executed on a
 developer's machine.
+
+> **Correction, same day, found while closing W12-10.** This section first said
+> "every green check this repo has ever shown covered 433 of 586 tests." That is
+> wrong, and wrong in the reassuring direction. **CI has never been green because
+> CI has never run.** All 100 workflow runs — the repo's entire history, from
+> 2026-07-18 to now — failed in about three seconds with *zero steps executed*,
+> annotated `The job was not started because an Actions budget is preventing
+> further use` (the earliest: *"recent account payments have failed or your
+> spending limit needs to be increased"*). The live-infra hole below is real and
+> the fix stands on its own; it was simply never the reason CI passed over a
+> subset. Nothing in CI has ever executed at all. **Every gate in this repo has
+> been a local gate since day one.**
 
 The previous STATUS entry called this a *silent* skip. **That was wrong, and
 running it rather than trusting the note is what corrected it**: vitest prints
@@ -2102,10 +2113,31 @@ has no data tier yet, and a permanently-red gate is not an improvement on a
 dishonest one. The 37 is counted from the source marker, not hardcoded, and
 agrees independently with vitest's own skip count. RED-checked all three modes.
 
-**W12-10 (filed, not started).** Provision the services in CI and set the flag.
-Filed separately on purpose: it runs 37 previously-unexecuted suites in CI for
-the first time and the honest expectation is fallout. A suite that has never run
-in CI is not a passing suite.
+**W12-10 (implemented, BLOCKED — on billing, not on code).** `ci.yml` now runs
+`postgres:16` and `redis:7.2` as services with healthchecks, exports
+`DATABASE_URL`/`REDIS_URL`, runs `pnpm db:migrate` before lint, and sets
+`REQUIRE_LIVE_INFRA=1`.
+
+It is **not** marked done, because its acceptance asks for a zero skip count
+*in CI* and no job in this repository has ever started. Marking it done would
+assert a verification that has not happened — the same defect class this wave
+has spent its time closing.
+
+What could be verified offline was: the workflow parses with both services,
+both healthchecks and the migrate step in the right order; and — more usefully
+— the CI condition was **simulated**. A brand-new empty database, migrated from
+scratch, then the full suite against it with `REQUIRE_LIVE_INFRA=1`: **122
+files, 589 tests, zero skipped, zero failures.** The expected fallout from
+running 37 never-in-CI suites did not materialise on a fresh DB. A strong proxy
+for the CI environment; not a substitute for it.
+
+Also observed, not fixed: **the nightly-e2e job has no data tier either** and
+will fail the moment the budget is restored — `pnpm e2e` needs a seeded stack,
+which is two servers and the seeder, not two service containers. Worth its own
+ticket.
+
+**User action required:** raise the Actions budget on the `bpmforge` org.
+Nothing in `ci.yml` runs until that happens.
 
 #### W12-09: the role change SC-22 already asked for
 
