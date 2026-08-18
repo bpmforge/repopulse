@@ -3886,7 +3886,7 @@
         "Every failure the newly-executing suites reveal is either fixed or filed — none suppressed"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED SEPARATELY FROM W12-08 ON PURPOSE. W12-08 makes the hole visible at near-zero risk. This ticket runs 37 previously-unexecuted suites in CI for the first time, and the honest expectation is that some of them fail — on ordering, on a shared default workspace, on assumptions that only hold against a developer database. Sizing reflects unknown fallout, not the yaml.",
         "The fallout is the POINT. A suite that has never run in CI is not a passing suite. Do not close this by adding services and skipping whatever goes red."
