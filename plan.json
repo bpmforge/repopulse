@@ -3820,7 +3820,7 @@
         "No change to the 37 individual test files — the check is central"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "OBSERVED 2026-08-15 while closing W4. 37 test files declare their own . Without a .env they all become describe.skip and the suite reports GREEN. This is the same zero-vs-absent conflation caught three times in product code this run (bot globs, findings badge, components_available) — now sitting in the gate itself.",
         "WORSE THAN FIRST WRITTEN: .github/workflows/ci.yml provisions NO postgres and NO redis service. So CI has never executed a single one of these suites — the admin, workspace-settings, tenancy, security-headers, rate-limit, audit-log, snapshot, backfill, reconcile, DLQ and seed integration suites have only ever run on a developer machine. Every green CI check on this repo has been green over a subset nobody declared.",
@@ -3828,7 +3828,12 @@
         "DO NOT sweep the 37 files. A single vitest global setup inspects the env once for the whole run. Centralising describeIfLiveInfra into a shared export is a real cleanup but it is a 37-file write_scope and it is not this ticket.",
         "CONSEQUENCE TO REPORT: after this lands, \"586 unit tests\" stops being the whole truth on a machine without live infra. Gate reports should carry both numbers — tests passed and suites skipped.",
         "CORRECTED BEFORE IMPLEMENTING, by running it rather than trusting the note. The skip is NOT silent: with no .env, vitest prints \"Test Files 85 passed | 37 skipped (122)\" and \"Tests 433 passed | 153 skipped (586)\". Visibility already exists, so building a reporter for it would have been redundant work justified by a stale observation. What is missing is ENFORCEMENT — pnpm test exits 0 either way and CI reads only the exit code. The real number: CI has been green over 433 of 586 tests.",
-        "Local runs hid this because every live-infra test file does `import 'dotenv/config'` and .env exists on a dev machine — so `env -u DATABASE_URL` changes nothing and the local suite always reports 586/586. Reproducing the CI condition needs DOTENV_CONFIG_PATH=/dev/null."
+        "Local runs hid this because every live-infra test file does `import 'dotenv/config'` and .env exists on a dev machine — so `env -u DATABASE_URL` changes nothing and the local suite always reports 586/586. Reproducing the CI condition needs DOTENV_CONFIG_PATH=/dev/null.",
+        "DONE 2026-08-17. scripts/check-live-infra.mjs runs as a preflight in the `test` script (`node scripts/check-live-infra.mjs && vitest run`). Implemented as a preflight rather than a vitest globalSetup because in workspace mode it is not settled which root-level test options apply to every project, and the gate should not depend on that answer. Cost: `vitest` invoked directly bypasses it. The gate is `pnpm test`, which does not.",
+        "It COUNTS the gated files by scanning for the describeIfLiveInfra marker rather than hardcoding 37, so the warning cannot drift into a lie as files are added. The count agrees independently with what vitest reports skipped (37), which is a useful cross-check that the marker scan finds the right set.",
+        "RED-CHECKED THREE WAYS: (A) no infra, flag unset -> warns, exits 0. (B) no infra, REQUIRE_LIVE_INFRA=1 -> exits 1 naming both missing vars and listing all 37 files. (C) infra present, REQUIRE_LIVE_INFRA=1 -> silent, exits 0.",
+        "GATE: lint 0, typecheck 0, REQUIRE_LIVE_INFRA=1 pnpm test -> 122 files, 586 tests, ZERO skipped. All three validators exit 0. Reporting the skip count alongside the pass count is now the honest form of a gate report on this repo.",
+        "STILL OPEN, BY DESIGN: CI does not yet set the flag, because it has no data tier to satisfy it. That is W12-10. Until it lands, CI keeps passing over 433 of 586 tests — the difference is that it now says so in the log."
       ]
     },
     {
