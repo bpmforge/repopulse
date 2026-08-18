@@ -3854,7 +3854,7 @@
         "The last-admin refusal path emits no success entry"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "CARRIED FROM W4-20, which was closed with this gap known and recorded rather than quietly. SECURITY_CONTROLS.md SC-22 lists the audited event classes literally, and \"admin role change\" is one of them: the control is specified, the route exists, the log line was never written. T-29 and T-31 both lean on SC-22.",
         "SCOPE CHECKED, NOT ASSUMED: apps/api/src/routes/admin/index.ts has two mutations — PATCH /admin/members/:userId (line ~105) and POST the DLQ replay (line ~210). Neither calls auditLog(). Role change is the one SC-22 names by hand, so it is the acceptance criterion. DLQ replay is a security-relevant mutation not on SC-22 list; log it too and say so in the notes rather than silently widening the control.",
