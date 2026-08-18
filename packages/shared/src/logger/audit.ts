@@ -10,11 +10,11 @@ export interface AuditLogger {
   info(obj: Record<string, unknown>, msg: string): void;
 }
 
-// SC-22 event classes wired so far (login/logout - the only real routes
-// that exist). Later waves add: connection.created/updated/deleted,
-// tier3.opt_in.toggled, share.created/revoked, report.downloaded,
-// finding.bulk_export, identity.merged, role.changed (docs/SECURITY_CONTROLS.md
-// SC-22) - each new event class is additive, this union grows per wave.
+// SC-22 event classes wired so far. Later waves add: connection.created/
+// updated/deleted, tier3.opt_in.toggled, share.created/revoked,
+// report.downloaded, finding.bulk_export, identity.merged
+// (docs/SECURITY_CONTROLS.md SC-22) - each new event class is additive, this
+// union grows per wave.
 export type AuditEvent =
   | 'auth.login.success'
   | 'auth.login.failure'
@@ -23,7 +23,19 @@ export type AuditEvent =
   // W4-09. Workspace settings decide what every metric counts (bot list,
   // stale-N) and how the health score is weighted, so a changed number can
   // move every screen at once with nothing else in the system to show why.
-  | 'workspace.settings.updated';
+  | 'workspace.settings.updated'
+  // W12-09. SC-22 names "admin role change" in its own list of audited event
+  // classes, and W4-20 shipped the route without it - the control was
+  // specified, the endpoint existed, the log line was never written. T-29
+  // (any member can bulk-read the org vuln map) and T-31 (untraceable share)
+  // both lean on this stream to answer "who granted that access, and when".
+  | 'admin.role.changed'
+  // NOT on the SC-22 list. Replaying a dead-lettered job re-runs work against
+  // the forge on an operator's say-so, which is a privileged mutation with no
+  // other record: the job_failure row gets a replayed_at stamp and nothing
+  // says who pressed it. Logged deliberately rather than left out because the
+  // list did not happen to anticipate it.
+  | 'dlq.job.replayed';
 
 export interface AuditEntry {
   event: AuditEvent;

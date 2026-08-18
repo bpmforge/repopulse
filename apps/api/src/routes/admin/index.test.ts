@@ -2,7 +2,9 @@ import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { core, createDb, type Database } from '@repopulse/shared';
+import { Writable } from 'node:stream';
+import pino from 'pino';
+import { core, createDb, redactLine, type Database, type Logger } from '@repopulse/shared';
 import type { Job, Queue } from 'bullmq';
 import { buildApp } from '../../app.js';
 import { loginAs } from '../../testing/login.js';
@@ -14,6 +16,52 @@ const CSRF = { 'x-requested-with': 'repopulse' };
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
+
+interface AuditLine {
+  audit?: boolean;
+  event?: string;
+  actorUserId?: number | null;
+  targetUserId?: number;
+  fromRole?: string | null;
+  toRole?: string;
+  queue?: string;
+  failureId?: number;
+}
+
+/**
+ * Captures audit output at the pino DESTINATION (W12-09).
+ *
+ * Not by stubbing `app.log.info`: `request.log` is a pino CHILD logger, so a
+ * stub on the parent's method sees nothing and the test passes against a route
+ * that logs nothing at all. The destination is the only place both are visible.
+ */
+function auditCapture(): { logger: Logger; lines: () => AuditLine[]; reset: () => void } {
+  let raw = '';
+  const dest = new Writable({
+    write(chunk, _enc, cb) {
+      raw += chunk.toString();
+      cb();
+    },
+  });
+  const logger = pino(
+    { hooks: { streamWrite: (s: string) => redactLine(s) } },
+    dest as unknown as pino.DestinationStream,
+  );
+  return {
+    logger,
+    lines: () =>
+      raw
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as AuditLine)
+        .filter((l) => l.audit === true),
+    reset: () => {
+      raw = '';
+    },
+  };
+}
+
+const audit = auditCapture();
 
 // Admin members + DLQ (W4-20).
 //
@@ -91,6 +139,7 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
       },
       loginRedirectUrl: 'http://localhost/',
       adminQueueFor: () => fakeQueue,
+      loggerInstance: audit.logger,
     });
     await app.ready();
 
@@ -303,6 +352,106 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
     expect((after2.json() as { items: { id: number }[] }).items.map((i) => i.id)).not.toContain(
       failure!.id,
     );
+  });
+
+  // SC-22 audit entries (W12-09). W4-20 shipped these routes with no audit
+  // line at all, though SECURITY_CONTROLS.md SC-22 names "admin role change"
+  // in its own list of audited event classes.
+  it('audit-logs a role change with the role it changed FROM', async () => {
+    const cookie = await adminSession();
+    await db
+      .update(core.workspaceMembers)
+      .set({ role: 'member' })
+      .where(
+        and(
+          eq(core.workspaceMembers.workspaceId, workspaceId),
+          eq(core.workspaceMembers.userId, memberUserId),
+        ),
+      );
+
+    audit.reset();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/members/${memberUserId}`,
+      cookies: { repopulse_sid: cookie },
+      headers: { ...CSRF, 'user-agent': 'w12-09-audit' },
+      payload: { role: 'admin' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const entry = audit.lines().find((l) => l.event === 'admin.role.changed');
+    expect(entry, 'the role change must leave an audit entry').toBeTruthy();
+    expect(entry).toMatchObject({
+      event: 'admin.role.changed',
+      actorUserId: adminUserId,
+      targetUserId: memberUserId,
+      // Without the OLD role the entry cannot be read as a privilege
+      // escalation, which is the only reason T-29 wants it.
+      fromRole: 'member',
+      toRole: 'admin',
+      ua: 'w12-09-audit',
+    });
+  });
+
+  it('does NOT log a role change that was refused', async () => {
+    const cookie = await adminSession();
+    // Demote every other admin so the caller is the last one, then have them
+    // demote themselves: the route 409s and nothing changes.
+    await db
+      .update(core.workspaceMembers)
+      .set({ role: 'member' })
+      .where(
+        and(
+          eq(core.workspaceMembers.workspaceId, workspaceId),
+          eq(core.workspaceMembers.userId, memberUserId),
+        ),
+      );
+
+    audit.reset();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/members/${adminUserId}`,
+      cookies: { repopulse_sid: cookie },
+      headers: CSRF,
+      payload: { role: 'member' },
+    });
+    expect(res.statusCode).toBe(409);
+    // An audit stream that records attempts as though they were changes is
+    // worse than one that records neither — it would show a demotion that
+    // never happened.
+    expect(audit.lines().find((l) => l.event === 'admin.role.changed')).toBeUndefined();
+  });
+
+  it('audit-logs a DLQ replay, naming the queue and the actor', async () => {
+    const cookie = await adminSession();
+    const [failure] = await db
+      .insert(core.jobFailure)
+      .values({
+        workspaceId,
+        queue: 'ingest.backfill',
+        jobId: 'w12-09-replay-audit',
+        payload: { workspaceId, repoId: 7 },
+        error: 'boom',
+      })
+      .returning();
+
+    audit.reset();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/dlq/${failure!.id}/replay`,
+      cookies: { repopulse_sid: cookie },
+      headers: CSRF,
+    });
+    expect(res.statusCode).toBe(200);
+
+    // Not on the SC-22 list; logged anyway. Replay re-runs forge work on an
+    // operator's say-so and the job_failure row records only THAT it was
+    // replayed, never by whom.
+    expect(audit.lines().find((l) => l.event === 'dlq.job.replayed')).toMatchObject({
+      actorUserId: adminUserId,
+      failureId: failure!.id,
+      queue: 'ingest.backfill',
+    });
   });
 
   it('another workspace’s dead-letter job is a 404, not a 403 (Law 5)', async () => {

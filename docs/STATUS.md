@@ -2067,3 +2067,72 @@ itself. A contributor could satisfy `pnpm test` while never running the admin,
 settings, snapshot-settings or tenancy suites. Worth a ticket: either fail when
 `DATABASE_URL` is absent (the e2e harness already refuses to run unseeded, for
 exactly this reason) or report the skipped count as a gate number.
+
+### 2026-08-17 — W12-08/09/10: the gate had been passing over a third of itself
+
+The two items W4 carried out as noted-but-unfiled got filed. Filing them turned
+up a third fact that is worse than either.
+
+#### CI has never run a single integration test
+
+`.github/workflows/ci.yml` provisions **no Postgres and no Redis**. 37 test
+files gate themselves on both and become `describe.skip` without them. So every
+green check this repo has ever shown covered **433 of 586 tests** — the admin,
+workspace-settings, tenancy, security-header, rate-limit, audit-log, snapshot,
+backfill, reconcile, DLQ and seed suites have only ever executed on a
+developer's machine.
+
+The previous STATUS entry called this a *silent* skip. **That was wrong, and
+running it rather than trusting the note is what corrected it**: vitest prints
+`Test Files 85 passed | 37 skipped (122)` perfectly plainly. Visibility was
+never the problem — a reporter to restate the count would have been redundant
+work justified by a stale observation. What was missing is that nothing
+*failed*: CI reads the exit code, not the summary line.
+
+It stayed invisible locally because every one of those files does
+`import 'dotenv/config'`, and `.env` exists on a dev machine — so `env -u
+DATABASE_URL pnpm test` still reports 586/586. Reproducing the CI condition
+needs `DOTENV_CONFIG_PATH=/dev/null`.
+
+**W12-08 (done).** `scripts/check-live-infra.mjs` preflights `pnpm test`. With
+`REQUIRE_LIVE_INFRA` set, a missing service fails *before any test runs* and
+names all 37 files; without it the run proceeds behind a warning that says which
+suites are not covered. Unconditional failure was considered and rejected — CI
+has no data tier yet, and a permanently-red gate is not an improvement on a
+dishonest one. The 37 is counted from the source marker, not hardcoded, and
+agrees independently with vitest's own skip count. RED-checked all three modes.
+
+**W12-10 (filed, not started).** Provision the services in CI and set the flag.
+Filed separately on purpose: it runs 37 previously-unexecuted suites in CI for
+the first time and the honest expectation is fallout. A suite that has never run
+in CI is not a passing suite.
+
+#### W12-09: the role change SC-22 already asked for
+
+`SECURITY_CONTROLS.md` SC-22 lists its audited event classes literally, and
+"admin role change" is one of them. W4-20 shipped `PATCH /admin/members/:userId`
+with no audit line — control specified, endpoint built, log never written. The
+`AuditEvent` union even carried `role.changed` in a comment listing what later
+waves would add.
+
+The entry records the role it changed **from**: "role changed to admin" cannot
+be read as a privilege escalation without the previous value, which is the only
+reason T-29 wants the record, and after the `UPDATE` it is gone. Emitted on the
+success path only — an audit stream that logs refused attempts as though they
+were changes would show a demotion that never happened.
+
+DLQ replay is logged too and is **not** on the SC-22 list. Replaying re-runs
+forge work on an operator's say-so, and `job_failure.replayed_at` records that
+it happened but never who did it. Logged deliberately, and said so, rather than
+left out because the list did not anticipate it.
+
+The assertion captures at the pino **destination**. `request.log` is a child
+logger, so stubbing `app.log.info` catches nothing and would pass against a
+route that logs nothing at all — RED-checked by disabling the call, which failed
+exactly the new assertion and nothing else.
+
+Gate: lint 0, typecheck 0, **589 unit tests** (was 586), zero skipped under
+`REQUIRE_LIVE_INFRA=1`, all three validators exit 0.
+
+**W4's gate section is still unwritten and still cannot be written here.** None
+of this changes that; W12 is out-of-band infrastructure work, not W4 verification.
