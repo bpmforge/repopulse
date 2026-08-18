@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { core, type Database } from '@repopulse/shared';
+import { auditLog, core, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
 import type { Queue } from 'bullmq';
 import { requireAdmin } from '../../lib/rbac.js';
@@ -153,6 +153,21 @@ export default async function adminRoutes(
         }
       }
 
+      // Read the CURRENT role before writing the new one. "role changed to
+      // admin" cannot be read as a privilege escalation without knowing what
+      // it was before, which is the whole reason T-29 wants the entry — and
+      // after the UPDATE the old value is gone.
+      const [before] = await opts.db
+        .select({ role: core.workspaceMembers.role })
+        .from(core.workspaceMembers)
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, workspaceId),
+            eq(core.workspaceMembers.userId, userId),
+          ),
+        )
+        .limit(1);
+
       const updated = await opts.db
         .update(core.workspaceMembers)
         .set({ role })
@@ -167,6 +182,21 @@ export default async function adminRoutes(
       // Tenancy (Law 5): a user in ANOTHER workspace is a 404 here, not a 403 —
       // a 403 would confirm the id exists somewhere.
       if (updated.length === 0) return problem(request, reply, 404, 'Member not found');
+
+      // SC-22. Emitted only on the success path: the last-admin refusal and
+      // the 404 changed nothing, and an audit stream that records attempts as
+      // though they were changes is worse than one that records neither.
+      auditLog(request.log, {
+        event: 'admin.role.changed',
+        actorUserId: callerId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        targetUserId: userId,
+        fromRole: before?.role ?? null,
+        toRole: updated[0]!.role,
+      });
+
       return reply.send({ user_id: updated[0]!.userId, role: updated[0]!.role });
     },
   );
@@ -247,6 +277,19 @@ export default async function adminRoutes(
         .update(core.jobFailure)
         .set({ replayedAt: new Date() })
         .where(eq(core.jobFailure.id, id));
+
+      // After the stamp, for the same reason the stamp comes after the enqueue:
+      // a failed replay must not leave a record saying it happened.
+      auditLog(request.log, {
+        event: 'dlq.job.replayed',
+        actorUserId: request.session.get('userId') ?? null,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        failureId: id,
+        queue: row.queue,
+        jobId: row.jobId,
+      });
 
       return reply.send({ id, queue: row.queue, replayed: true });
     },

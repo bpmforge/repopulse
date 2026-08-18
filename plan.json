@@ -3854,11 +3854,16 @@
         "The last-admin refusal path emits no success entry"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "CARRIED FROM W4-20, which was closed with this gap known and recorded rather than quietly. SECURITY_CONTROLS.md SC-22 lists the audited event classes literally, and \"admin role change\" is one of them: the control is specified, the route exists, the log line was never written. T-29 and T-31 both lean on SC-22.",
         "SCOPE CHECKED, NOT ASSUMED: apps/api/src/routes/admin/index.ts has two mutations — PATCH /admin/members/:userId (line ~105) and POST the DLQ replay (line ~210). Neither calls auditLog(). Role change is the one SC-22 names by hand, so it is the acceptance criterion. DLQ replay is a security-relevant mutation not on SC-22 list; log it too and say so in the notes rather than silently widening the control.",
-        "Log the OLD role as well as the new one. \"role changed to admin\" cannot be read as a privilege escalation without knowing what it was before, which is the entire reason T-29 wants the entry."
+        "Log the OLD role as well as the new one. \"role changed to admin\" cannot be read as a privilege escalation without knowing what it was before, which is the entire reason T-29 wants the entry.",
+        "DONE 2026-08-17. auditLog(request.log, {event: admin.role.changed}) on the success path of PATCH /admin/members/:userId, carrying actor, workspace, ip, ua, ts, targetUserId, fromRole and toRole. The PRIOR role is read in a separate SELECT before the UPDATE, because after the write it is gone — and without it the entry cannot be read as a privilege escalation, which is the only reason T-29 wants it.",
+        "NOT logged on the refusal paths. The last-admin 409 and the cross-tenant 404 changed nothing; an audit stream that records attempts as though they were changes would show a demotion that never happened. Pinned by its own test.",
+        "DLQ REPLAY LOGGED TOO (dlq.job.replayed), and it is NOT on the SC-22 list — said plainly rather than folded in silently. Replay re-runs forge work on an operator say-so, and job_failure.replayed_at records that it happened but never who did it.",
+        "THE TEST CAPTURES AT THE PINO DESTINATION, not by stubbing app.log.info: request.log is a CHILD logger, so a parent stub sees nothing and the assertion would pass against a route that logs nothing at all. RED-CHECKED by disabling the auditLog call — exactly the new assertion failed and nothing else.",
+        "GATE: lint 0, typecheck 0, 589 unit tests (was 586), zero skipped under REQUIRE_LIVE_INFRA=1, all three validators exit 0."
       ]
     },
     {
