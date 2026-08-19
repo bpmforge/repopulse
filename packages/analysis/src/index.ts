@@ -5,3 +5,5 @@ export * from './chunker/index.js';
 export * from './schema/finding.js';
 export * from './passes/verify.js';
 export * from './config/hosts.js';
+export * from './t3/client.js';
+export * from './escalation/index.js';

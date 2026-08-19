@@ -122,7 +122,7 @@ persists to the `forge_etag` table (not `api_cache` — corrected stale referenc
 | Piece | Pin | Why |
 |---|---|---|
 | openai (SDK) | **4.x** | Tier 2: LM Studio exposes an OpenAI-compatible API; official SDK + `baseURL` override beats hand-rolled fetch and satisfies the NFR-8 lint (no direct HTTP to LAN hosts). |
-| @anthropic-ai/sdk | **latest 0.x/1.x major at W-analysis start** | Tier 3 Claude API deep review (FR-ANALYSIS-7); pin exact major in this doc when the analysis wave begins. |
+| @anthropic-ai/sdk | **0.119.x** (pinned W7-01, 2026-08-19) | Tier 3 Claude API deep review (FR-ANALYSIS-7). Verified against node_modules at install: `client.messages.create` is the call used. Model id `claude-sonnet-5` is the default and is workspace-configurable. |
 
 Tier-2 wrapper hard-codes C2 discipline: `max_tokens: 45000`, retry + warm-up on
 "model crashed", chunks sized for ≈10k real output tokens (FR-ANALYSIS-2/3).

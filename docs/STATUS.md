@@ -2311,3 +2311,18 @@ not because they are safe. This is W7-04's (WCAG 2.2 AA pass) to resolve
 properly — either by darkening `--color-fg-faint` in the light palette or by
 retiring the token. Recorded here so W7-04 starts from a known fact rather than
 rediscovering it.
+
+#### Tier-3 is built but has never run (2026-08-19, W7-01)
+
+The Tier-3 client, escalation rules and egress audit are complete and tested —
+but **no live Claude call has been made**, and none is possible here:
+`ANTHROPIC_API_KEY` is unset. Every test injects the transport.
+
+What that proves: the egress row is written before the call and survives a
+throwing one, the digest matches what was sent, escalation badges instead of
+sending without opt-in, and over-budget queues instead of dropping.
+
+What it does **not** prove: that a real Claude response parses into the Finding
+schema. That needs an API key from Brad. It is the Tier-3 twin of the
+GiteaProvider gap — a contract suite green against a service it has never
+touched.
