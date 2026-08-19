@@ -2348,3 +2348,32 @@ not keep offering work nothing can finish.
 Related and still outstanding: **W14-01** (a Gitea token — the product has
 still never ingested a real repository), **W12-10** (the Actions budget), and a
 live Tier-3 call (an `ANTHROPIC_API_KEY`).
+
+#### Live secret verification is gated OFF and not implemented (2026-08-19, W8-04)
+
+The secrets scanner ships the OFFLINE half of SECURITY_SUITE.md §3.1's
+verified-secret escalation. A format verifier says "this is shaped like a real
+`ghp_` token" and raises confidence to 4; it never sets `verified` and never
+touches severity, because shape is not liveness — a revoked token and a live one
+are the same string.
+
+The LIVE half — an outbound probe to the issuer with someone else's credential —
+is config-gated (`liveVerification`, default off) and **throws when enabled**
+rather than quietly returning unverified. A switch that reads as on and does
+nothing is worse than no switch.
+
+What that costs: nothing in the product reaches severity 5 / confidence 5 with
+the org banner today, because nothing can confirm a credential is live. The
+escalation path itself is real and tested (a stub `verified` outcome produces
+5/5 + `surfaceImmediately`), so turning it on is a verifier implementation, not
+a rework.
+
+What it needs from a person: a decision, not a token. Probing an issuer with a
+credential found in a customer's repository is an outbound request carrying
+someone else's secret — it belongs in the data-egress conversation alongside
+Tier-3, not in a scanner ticket. When that decision is made, the verifier
+registry in `packages/security/src/scanners/secrets/verify.ts` is where it goes.
+
+GitHub's token checksum is deliberately NOT implemented either: this codebase has
+no real token to verify the algorithm against, and an unverified checksum would
+reject valid tokens while claiming rigour.

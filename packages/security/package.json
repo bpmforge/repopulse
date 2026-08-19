@@ -16,7 +16,8 @@
     "@repopulse/shared": "workspace:*",
     "drizzle-orm": "^0.39.3",
     "@repopulse/forge": "workspace:*",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@repopulse/insights": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

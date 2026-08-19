@@ -1,0 +1,3 @@
+ALTER TABLE "findings" ALTER COLUMN "analysis_run_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "findings" ADD CONSTRAINT "findings_scan_run_id_scan_runs_id_fk" FOREIGN KEY ("scan_run_id") REFERENCES "public"."scan_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "findings" ADD CONSTRAINT "findings_run_parent_check" CHECK (("findings"."analysis_run_id" is not null) <> ("findings"."scan_run_id" is not null));

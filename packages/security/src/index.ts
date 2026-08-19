@@ -11,3 +11,8 @@ export * from './snapshot/fetch.js';
 // spawns a scan tool.
 export * from '../sandbox/profile.js';
 export * from '../sandbox/run.js';
+export * from './scanners/secrets/rulepack.js';
+export * from './scanners/secrets/detect.js';
+export * from './scanners/secrets/verify.js';
+export * from './scanners/secrets/scanner.js';
+export * from './scanners/secrets/stream.js';

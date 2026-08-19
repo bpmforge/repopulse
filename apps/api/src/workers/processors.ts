@@ -34,7 +34,29 @@ import { providerForRepo, type WorkerProviderDeps } from './forge-provider.js';
 // populated by the seeder. This module is the missing wiring, kept separate
 // from the entrypoint so it can be tested without booting a worker.
 
+export interface SecretsStreamRequest {
+  workspaceId: number;
+  repoId: number;
+  repo: string;
+  provider: unknown;
+  trigger: 'pr_synced' | 'push';
+}
+
 export interface ProcessorDeps extends WorkerProviderDeps {
+  /**
+   * Secrets stream scan, injected by the worker entrypoint (W8-04).
+   *
+   * Optional so processor tests stay free of the security package — but its
+   * ABSENCE in production would be the same defect this module was written to
+   * close, so workers/index.ts wires it and a test asserts the delta path
+   * calls it.
+   */
+  runSecretsStream?: (req: SecretsStreamRequest) => Promise<{
+    findingsCreated: number;
+    scanned: unknown[];
+    deferred: number;
+    skipped?: string;
+  }>;
   /** Re-enqueue onto the backfill queue (continuations and planned entities). */
   backfillQueue: Queue;
   snapshotQueue: Queue;
@@ -291,11 +313,29 @@ export function deltaProcessor(deps: ProcessorDeps) {
     const resolved = await providerForRepo(deps, data.workspaceId, data.repoId);
     if (!resolved) return { skipped: 'no active connection' };
     const result = await processDeltaJob({ db: deps.db, provider: resolved.provider }, data);
+
+    // Secrets stream mode (W8-04, FR-SEC-3). It rides the delta rather than
+    // taking a queue hop, because the whole claim of stream mode is "a finding
+    // within 60s of the webhook" — and it runs AFTER the delta, because it
+    // scans head SHAs the delta has just warehoused.
+    //
+    // Injected rather than imported here so the scanner is a decision the
+    // worker makes, not a dependency of ingestion.
+    let secrets: Awaited<ReturnType<NonNullable<ProcessorDeps['runSecretsStream']>>> | undefined;
+    if (deps.runSecretsStream && (data.kind === 'pull_requests' || data.kind === 'push_commits')) {
+      secrets = await deps.runSecretsStream({
+        workspaceId: data.workspaceId,
+        repoId: data.repoId,
+        repo: resolved.repoFullName,
+        provider: resolved.provider,
+        trigger: data.kind === 'push_commits' ? 'push' : 'pr_synced',
+      });
+    }
     // A webhook delta is the ONLY path that changes a live repo's data, so
     // without this a live dashboard never updates until someone reloads —
     // NFR-10 asks for webhook→dashboard within 60s.
     await emitSyncStatus(deps, data.workspaceId, data.repoId, 'sync.progress');
-    return result;
+    return { ...result, ...(secrets ? { secrets } : {}) };
   };
 }
 

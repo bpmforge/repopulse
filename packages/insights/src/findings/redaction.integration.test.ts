@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { core, createDb, read, type Database } from '@repopulse/shared';
+import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import { assertRedacted, fingerprintSecret, redactSecretFinding } from './redaction.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -73,25 +73,20 @@ describeIfLiveInfra('secrets never reach the database (SC-29)', () => {
       .returning();
     repoId = repo!.id;
 
+    // Parented on a SCAN run since W8-04. This fixture used to insert a
+    // tier-2 analysis_runs row purely to satisfy a NOT NULL, which made a
+    // scanner finding claim an LLM tier it never used; findings.analysis_run_id
+    // is nullable now and the check constraint requires exactly one parent.
     const [run] = await db
-      .insert(read.analysisRuns)
+      .insert(security.scanRuns)
       .values({
         workspaceId,
         repoId,
-        pullRequestId: null,
-        // tier 2: analysis_runs.tier is constrained to the LLM tiers, and a
-        // scanner run has no tier of its own — the row exists only to satisfy
-        // the findings FK until scan_run_id replaces it.
-        tier: 2,
-        dimension: 'secrets',
-        checklistVersion: 'v1',
-        modelId: 'scanner',
+        scannerKey: 'secrets',
+        scannerVersion: 'secrets.v1',
+        commitSha: 'w8-02-redaction-sha',
+        trigger: 'manual',
         status: 'succeeded',
-        chunkCount: 1,
-        promptTokens: 0,
-        outputTokens: 0,
-        startedAt: new Date(),
-        finishedAt: new Date(),
       })
       .returning();
     runId = run!.id;
@@ -99,7 +94,7 @@ describeIfLiveInfra('secrets never reach the database (SC-29)', () => {
 
   afterAll(async () => {
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
-    await db.delete(read.analysisRuns).where(eq(read.analysisRuns.repoId, repoId));
+    await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
     await db
       .delete(core.forgeConnections)
@@ -126,7 +121,7 @@ describeIfLiveInfra('secrets never reach the database (SC-29)', () => {
     await db.insert(read.findings).values({
       workspaceId,
       repoId,
-      analysisRunId: runId,
+      scanRunId: runId,
       dimension: 'secrets',
       severity: 5,
       confidence: 5,

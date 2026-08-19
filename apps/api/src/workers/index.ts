@@ -4,6 +4,7 @@ import { credentials } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
 import { createWorkerRuntime } from './runtime.js';
+import type { SecretsStreamRequest } from './processors.js';
 import {
   backfillProcessor,
   deltaProcessor,
@@ -15,7 +16,7 @@ import { startWorkerHealthServer } from './health.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
-import { startSweeper } from '@repopulse/security';
+import { runSecretsStreamScan, startSweeper } from '@repopulse/security';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
@@ -59,6 +60,18 @@ async function main(): Promise<void> {
     // relayed a channel nothing ever wrote to, and live sync had never worked.
     publish: (workspaceId: number, event: SyncStreamEvent) =>
       publishSyncEvent(publisher, workspaceId, event),
+    // W8-04: the secrets scanner rides the webhook delta. Wired HERE, in the
+    // one place that already owns "which side effects a delta has", so the
+    // scanner never becomes another thing that exists and is never called.
+    runSecretsStream: (req: SecretsStreamRequest) =>
+      runSecretsStreamScan({
+        db,
+        provider: req.provider as Parameters<typeof runSecretsStreamScan>[0]['provider'],
+        workspaceId: req.workspaceId,
+        repoId: req.repoId,
+        repo: req.repo,
+        trigger: req.trigger,
+      }),
     ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
     // SC-12 escape hatch, off unless the operator sets it. Lets the e2e fake
     // forge (http://127.0.0.1:PORT) drive the real ingestion path; still
