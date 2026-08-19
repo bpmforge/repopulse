@@ -3953,7 +3953,7 @@
         "The demo login is visibly a demo: the UI says so, and it cannot be reached when DEMO_MODE is off"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "CHOSEN BY THE USER 2026-08-18 over a real local-password login, deliberately: password auth is new security surface (session handling, credential storage, SC-11) and this is being written unattended. Demo mode reuses code that already exists and is already tested.",
         "The pieces exist but are trapped in e2e/: e2e/server.ts boots the API against a fake forge with OAuth mocked at the boundary, and seedWarehouse() fills the warehouse deterministically. Promote, do not rewrite.",
