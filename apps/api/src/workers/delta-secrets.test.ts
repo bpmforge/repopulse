@@ -23,4 +23,30 @@ describe('delta -> secrets stream (W8-04)', () => {
     expect(processors).toContain("data.kind === 'pull_requests'");
     expect(processors).toContain("data.kind === 'push_commits'");
   });
+
+  it('the MONTHLY history sweep is scheduled and fans out per repo (W8-05)', () => {
+    // Stream mode cannot see a credential committed last March and deleted in
+    // April, so history mode is the only thing that finds it — and a history
+    // mode nobody schedules finds nothing at all.
+    const entry = readFileSync(new URL('./index.ts', import.meta.url).pathname, 'utf8');
+    expect(entry).toContain('SECRETS_HISTORY_CRON');
+    expect(entry).toContain("'history-sweep'");
+    expect(entry).toContain('runSecretsHistoryScan');
+    // Off-switch, like the reconcile cron: a sweep starts work nobody asked
+    // for at a wall-clock time, which is wrong in a test harness.
+    expect(entry).toContain("historyCron !== 'off'");
+
+    const processor = readFileSync(
+      new URL('./scan-processor.ts', import.meta.url).pathname,
+      'utf8',
+    );
+    // Looked up in an injected map, never a switch on the key: FR-SEC-1 says
+    // the framework does not know scanner names.
+    expect(processor).toContain('deps.historyRunners?.[data.scannerKey]');
+    const code = processor
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join('\n');
+    expect(code).not.toMatch(/switch\s*\(\s*\w*[sS]cannerKey/);
+  });
 });

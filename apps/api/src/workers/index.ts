@@ -1,5 +1,6 @@
 import 'dotenv/config';
-import { createDb, metricsRegistry } from '@repopulse/shared';
+import { and, eq } from 'drizzle-orm';
+import { core, createDb, metricsRegistry } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
@@ -16,7 +17,8 @@ import { startWorkerHealthServer } from './health.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
-import { runSecretsStreamScan, startSweeper } from '@repopulse/security';
+import { providerForRepo } from './forge-provider.js';
+import { runSecretsHistoryScan, runSecretsStreamScan, startSweeper } from '@repopulse/security';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
@@ -48,6 +50,7 @@ async function main(): Promise<void> {
   const snapshotQueue = createQueue(QUEUE.snapshot, connection);
   const enrichQueue = createQueue(QUEUE.enrich, connection);
   const reconcileQueue = createQueue(QUEUE.reconcile, connection);
+  const securityScanQueue = createQueue(QUEUE.securityScan, connection);
   const processorDeps = {
     db,
     tokenKey: credentials.loadTokenKey(),
@@ -99,7 +102,59 @@ async function main(): Promise<void> {
       // W5-06. Nightly, after metrics.snapshot writes the numbers it reads.
       [QUEUE.plansVerify]: plansVerifyProcessor({ db }),
       // W8-01. Own lane, own workers (NFR-15).
-      [QUEUE.securityScan]: scanProcessor({ db }),
+      [QUEUE.securityScan]: scanProcessor({
+        db,
+        // W8-05: history mode, by scanner key. A map rather than a switch, so
+        // FR-SEC-1's "the framework never branches on a scanner key" stays true.
+        historyRunners: {
+          secrets: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(
+              { db, tokenKey: credentials.loadTokenKey() },
+              workspaceId,
+              repoId,
+            );
+            // No active connection: nothing to fetch patches with. Reported as
+            // zero work, not as a failure — the repo simply is not connected.
+            if (!resolved) return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            return runSecretsHistoryScan({
+              db,
+              provider: resolved.provider,
+              workspaceId,
+              repoId,
+              repo: resolved.repoFullName,
+            });
+          },
+        },
+        historySweep: async (scannerKey) => {
+          // Same shape as the nightly reconcile fan-out: list what is live,
+          // enqueue one job each, and let the per-repo job own its own caps.
+          const workspaces = await db.select({ id: core.workspaces.id }).from(core.workspaces);
+          const month = new Date().toISOString().slice(0, 7);
+          let enqueued = 0;
+          for (const ws of workspaces) {
+            const live = await db
+              .select({ id: core.repos.id })
+              .from(core.repos)
+              .where(and(eq(core.repos.workspaceId, ws.id), eq(core.repos.syncStatus, 'live')));
+            for (const repo of live) {
+              await securityScanQueue.add(
+                'history',
+                {
+                  workspaceId: ws.id,
+                  repoId: repo.id,
+                  scannerKey,
+                  commitSha: '',
+                  trigger: 'schedule' as const,
+                  mode: 'history' as const,
+                },
+                { jobId: `sec-history-${scannerKey}-${repo.id}-${month}` },
+              );
+              enqueued += 1;
+            }
+          }
+          return { enqueued };
+        },
+      }),
       [QUEUE.reports]: reportProcessor({
         db,
         dataDir: process.env.DATA_DIR ?? './.data',
@@ -148,6 +203,31 @@ async function main(): Promise<void> {
   const sweptOnBoot = await sweeper.ran;
   console.log(
     `[worker] snapshot sweep on boot: removed ${sweptOnBoot.removed.length}, in flight ${sweptOnBoot.keptInFlight}`,
+  );
+
+  // Secrets history sweep (W8-05, SECURITY_SUITE §4: "secrets(history,
+  // monthly)"). Stream mode only sees diffs arriving now, so without this a
+  // credential committed last March and deleted in April is never found —
+  // and deleting a secret from the working tree changes nothing about the
+  // secret. Same switch-off as the reconcile cron, for the same reason: it
+  // starts work nobody asked for at a wall-clock time.
+  const historyCron = process.env.SECRETS_HISTORY_CRON ?? '23 4 1 * *';
+  if (historyCron !== 'off') {
+    await securityScanQueue.add(
+      'history-sweep',
+      {
+        workspaceId: 0,
+        repoId: 0,
+        scannerKey: 'secrets',
+        commitSha: '',
+        trigger: 'schedule' as const,
+        mode: 'history_sweep' as const,
+      },
+      { repeat: { pattern: historyCron }, jobId: 'secrets-history-monthly-sweep' },
+    );
+  }
+  console.log(
+    `[worker] monthly secrets history sweep: ${historyCron === 'off' ? 'disabled' : historyCron}`,
   );
 
   const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3001);

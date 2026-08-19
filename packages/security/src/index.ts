@@ -16,3 +16,4 @@ export * from './scanners/secrets/detect.js';
 export * from './scanners/secrets/verify.js';
 export * from './scanners/secrets/scanner.js';
 export * from './scanners/secrets/stream.js';
+export * from './scanners/secrets/history.js';
