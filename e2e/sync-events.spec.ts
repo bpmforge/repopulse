@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
-import { FAKE_REPOS, FAKE_TOKEN } from './helpers/fake-forge.js';
+import { FAKE_REPOS, FAKE_TOKEN } from '@repopulse/shared';
 
 // W4-22: the sync event stream, end to end.
 //

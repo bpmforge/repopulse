@@ -3,7 +3,7 @@ import { FIXTURE_LOGIN } from '@repopulse/shared';
 
 // Login as the seeded fixture user (docs/TESTING.md §6). OAuth is mocked at the
 // boundary only — e2e/server.ts points the API's GitHub authorize/token/user
-// URLs at e2e/helpers/fake-github.ts, which returns the fixture identity
+// URLs at packages/shared/src/testing/fake/github.ts, which returns the fixture identity
 // (forge_user_id = the seeder's FIXTURE_LOGIN). Everything else is the real
 // path: /auth/login sets the real signed state cookie, the callback verifies
 // it, exchanges the code over HTTP, and saves a real Redis session.

@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { installEgressGuard } from './helpers/egress-guard.js';
-import { FAKE_TOKEN } from './helpers/fake-forge.js';
+import { FAKE_TOKEN } from '@repopulse/shared';
 
 // W12-02: the connect path, end to end, through the real UI.
 //
 // This is the product's most important flow and until now it had NEVER
 // executed: every test mocked below the ForgeProvider, and the warehouse was
 // populated by the seeder rather than by ingestion. The API talks to a fake
-// forge (e2e/helpers/fake-forge.ts) rather than api.github.com, so this needs
+// forge (the shared fake forge (packages/shared/src/testing/fake/forge.ts)) rather than api.github.com, so this needs
 // no credential and no network — the egress guard still asserts nothing reaches
 // a real forge host.
 //

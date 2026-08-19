@@ -3953,12 +3953,19 @@
         "The demo login is visibly a demo: the UI says so, and it cannot be reached when DEMO_MODE is off"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "CHOSEN BY THE USER 2026-08-18 over a real local-password login, deliberately: password auth is new security surface (session handling, credential storage, SC-11) and this is being written unattended. Demo mode reuses code that already exists and is already tested.",
         "The pieces exist but are trapped in e2e/: e2e/server.ts boots the API against a fake forge with OAuth mocked at the boundary, and seedWarehouse() fills the warehouse deterministically. Promote, do not rewrite.",
         "THE REFUSAL IS THE SECURITY CONTROL. A demo login that can be switched on in production is an authentication bypass. It must fail closed — refuse to boot, not silently disable — and the test must assert the refusal, not just the happy path.",
-        "Demo mode must never touch a real forge. C1/Law 4 still applies: it reads our own Postgres, seeded, and any forge call goes to the local fake."
+        "Demo mode must never touch a real forge. C1/Law 4 still applies: it reads our own Postgres, seeded, and any forge call goes to the local fake.",
+        "DONE 2026-08-19. `DEMO_MODE=1 pnpm dev` serves the whole product with no GitHub account and no registered OAuth app: fake OAuth boundary, fake forge, seeded warehouse. Verified as a real login round trip with GITHUB_APP_CLIENT_ID/SECRET deliberately REMOVED from the environment — /auth/login -> fake authorize -> /auth/callback issues repopulse_sid, /me/context returns 200 with demo:true, /repos returns seeded repos with health scores.",
+        "A SEPARATE ENTRYPOINT (apps/api/src/demo.ts), not a DEMO_MODE branch in index.ts. e2e/server.ts already documents why: pointing the shipping binary at a fake forge is not a capability production should have. A branch inside index.ts would create exactly that capability and put it one environment variable away. Demo composes the SAME buildApp — every plugin, guard, route and session path is the one that ships; only the three OAuth URLs and the forge base URL differ.",
+        "THE FAKES MOVED OUT OF e2e/ into packages/shared/src/testing/fake/{forge,github}.ts, re-exported from @repopulse/shared, and the four e2e importers now take them from the package. A fixture only a test runner can start cannot serve a demo.",
+        "REAL BUG FOUND BY RUNNING IT: demo.ts first took apiBaseUrl from API_BASE_URL, which .env pins to http://localhost:3000. Running the demo on any other port therefore built an OAuth redirect_uri pointing at whatever ELSE was listening on 3000 — here, the deploy/compose stack — so the callback 307d to /login and issued no session. A login that appears to do nothing, with nothing in the log to explain it. apiBaseUrl is now derived from the port actually bound; demo mode is local by definition.",
+        "THE REFUSAL IS THE SECURITY CONTROL AND IT FAILS CLOSED. assertDemoAllowed throws under NODE_ENV=production BEFORE any port is bound or fake started, and the message says why (authentication bypass) so nobody deletes the check as noise. Four unit tests cover it, including that explicit falsey spellings (DEMO_MODE=0/false/empty) count as OFF — a truthiness check on the string alone would enable a demo login in front of real data. Also checked as a real process: `NODE_ENV=production DEMO_MODE=1 tsx apps/api/src/demo.ts` refuses.",
+        "THE UI SAYS SO, AND THE SERVER IS THE AUTHORITY. /me/context carries `demo`, the shell renders a banner from it, and the banner tests pin absent-vs-false: an API that omits the field renders NOTHING rather than treating unknown as demo (a fake-data warning over real numbers) or as not-demo. A browser build flag was rejected — the browser cannot know what forge the API it is talking to is connected to.",
+        "GATE: lint 0, typecheck 0, 597 unit tests (was 589), zero skipped, e2e 56 passed + 1 skipped, three validators exit 0."
       ]
     },
     {

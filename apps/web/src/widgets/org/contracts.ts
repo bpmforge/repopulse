@@ -81,6 +81,14 @@ export interface MeContext {
   /** W4-10 (UX_SPEC §6). null = never asked, which is what opens the picker. */
   persona?: Persona | null;
   prefs?: UserPrefs;
+  /**
+   * W13-02. True when the API is serving a fake forge and a mocked login.
+   * Comes from the server because only the server knows what it is connected
+   * to — a browser-side build flag could disagree with the API it is talking
+   * to, and the failure mode is a screenshot of fixture data mistaken for a
+   * real organisation.
+   */
+  demo?: boolean;
 }
 
 export const PERSONAS = ['lead', 'developer', 'security', 'exec'] as const;
