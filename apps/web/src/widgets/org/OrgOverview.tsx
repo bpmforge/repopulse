@@ -1,6 +1,7 @@
 import { SyncStatusChip, WidgetFrame, useUiStore } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import '../plans/PlanTile.js';
+import '../pulse/PulseCard.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import type { GlobalSearch } from '../../api/urlState.js';
 import { WidgetGrid } from '../../components/widget/WidgetGrid.js';
@@ -38,7 +39,10 @@ function orgSyncPct(progress: Record<number, { phase: string; pct: number }>): n
 function orgWidgets(window: string, search: Record<string, string>): Widget[] {
   const options = { window, search };
   return [
-    { id: 'org-kpi', type: 'kpi', layout: { x: 0, y: 0, w: 12, h: 1 }, options },
+    // Pinned at the top (R-A7): the pulse is what someone reads if they read
+    // one thing, so it sits above the tiles rather than below them.
+    { id: 'org-pulse', type: 'weekly-pulse', layout: { x: 0, y: 0, w: 12, h: 2 }, options },
+    { id: 'org-kpi', type: 'kpi', layout: { x: 0, y: 2, w: 12, h: 1 }, options },
     { id: 'org-health', type: 'health-grid', layout: { x: 0, y: 1, w: 6, h: 2 }, options },
     { id: 'org-attention', type: 'attention-feed', layout: { x: 6, y: 1, w: 6, h: 2 }, options },
     // W5-07. On the row BELOW the two 6x2 heroes, not carved out of them:

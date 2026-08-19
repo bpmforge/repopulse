@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { core, type Database } from '@repopulse/shared';
-import { computeMetricTrend } from '@repopulse/insights';
+import { core, plans, read, type Database } from '@repopulse/shared';
+import { buildPulse, computeMetricTrend } from '@repopulse/insights';
+import { readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
 import { repoHealth } from './health.js';
 
@@ -116,4 +117,81 @@ export default async function orgRoutes(
       return reply.send({ items });
     },
   );
+
+  // GET /org/pulse — the deterministic weekly narrative (W6-06, R-A7).
+  //
+  // Computed from snapshots here, not by a model. A Tier-2 pass may reword it
+  // later (pass_kind='narrate'), but the numbers are settled before any model
+  // sees them — a narrative that invents "coverage improved 12%" is worse than
+  // none, because it is wrong in the register people quote.
+  app.get<{ Querystring: { window?: string } }>('/org/pulse', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const window = request.query.window ?? '30d';
+
+    const PULSE_METRICS: { key: string; label: string; higherBetter: boolean; unit: 'ratio' | 'count' | 'hours' }[] = [
+      { key: 'M5', label: 'Review coverage', higherBetter: true, unit: 'ratio' },
+      { key: 'M8', label: 'Stale pull requests', higherBetter: false, unit: 'count' },
+      { key: 'M9', label: 'CI pass rate', higherBetter: true, unit: 'ratio' },
+      { key: 'M4', label: 'Cycle time', higherBetter: false, unit: 'hours' },
+    ];
+
+    const deltas = [];
+    for (const metric of PULSE_METRICS) {
+      // Two points from the SAME series: current and one window back. Reading
+      // the previous value from a different window would compare a 7-day figure
+      // with a 30-day one and report the difference as movement.
+      const series = await readMetricTrend(opts.db, {
+        workspaceId,
+        repoId: null,
+        metricKey: metric.key,
+        window,
+        limit: 2,
+      });
+      deltas.push({
+        key: metric.key,
+        label: metric.label,
+        current: series[0] ? Number(series[0].value) : null,
+        previous: series[1] ? Number(series[1].value) : null,
+        higherBetter: metric.higherBetter,
+        unit: metric.unit,
+      });
+    }
+
+    const [findingCounts] = await opts.db
+      .select({
+        open: sql<number>`count(*) filter (where ${read.findings.status} in ('open','confirmed'))::int`,
+        recent: sql<number>`count(*) filter (where ${read.findings.firstSeenAt} > now() - interval '7 days')::int`,
+      })
+      .from(read.findings)
+      .where(eq(read.findings.workspaceId, workspaceId));
+
+    const [planVerified] = await opts.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(plans.planItemEvents)
+      .where(
+        and(
+          eq(plans.planItemEvents.workspaceId, workspaceId),
+          eq(plans.planItemEvents.toStatus, 'done'),
+          gte(plans.planItemEvents.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+        ),
+      );
+
+    const bullets = buildPulse({
+      repoLabel: 'this workspace',
+      windowDays: Number(window.replace('d', '')) || 30,
+      deltas,
+      openFindings: findingCounts?.open ?? 0,
+      newFindingsThisWindow: findingCounts?.recent ?? 0,
+      planItemsVerified: planVerified?.n ?? 0,
+    });
+
+    return reply.send({
+      bullets,
+      // Provenance chip (R-D3). 'template' until a narrate pass runs — the card
+      // must never imply a model wrote something it did not.
+      provenance: 'template',
+      window,
+    });
+  });
 }

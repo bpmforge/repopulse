@@ -2297,3 +2297,17 @@ A declared script that cannot execute is the same defect class as a queue with
 no processor: it looks like coverage and performs nothing. Fixed by declaring
 vitest in `apps/web` at the root's version; `pnpm --filter @repopulse/web test`
 now runs 63 tests.
+
+#### `text-fg-faint` fails contrast in the light theme (2026-08-19, found in W6-06)
+
+The Weekly Pulse card's provenance line used `text-fg-faint`, and the light-theme
+axe spec went red with `color-contrast`. In light mode that token is `#818b98`
+on white — roughly 3:1, under the 4.5:1 AA needs for body text. Switching that
+one line to `text-fg-muted` (`#59636e`, ~5.7:1) cleared it.
+
+**The token is used in 17 places across 13 components.** They do not currently
+fail because axe only checks what is rendered and visible in the specs that run,
+not because they are safe. This is W7-04's (WCAG 2.2 AA pass) to resolve
+properly — either by darkening `--color-fg-faint` in the light palette or by
+retiring the token. Recorded here so W7-04 starts from a known fact rather than
+rediscovering it.

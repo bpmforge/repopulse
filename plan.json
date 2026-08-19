@@ -2444,10 +2444,16 @@
       ],
       "write_scope": [
         "packages/insights/src/narrative/**",
+        "packages/insights/src/index.ts",
         "apps/web/src/widgets/pulse/**",
+        "apps/web/src/widgets/org/**",
         "apps/web/src/routes/findings/**",
         "apps/web/src/routes/me.tsx",
-        "packages/reports/src/assembler/**"
+        "apps/web/src/components/widget/types.ts",
+        "packages/reports/src/assembler/**",
+        "apps/api/src/routes/org/**",
+        "apps/api/src/routes/me/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W6-04",
@@ -2460,8 +2466,19 @@
         "Deterministic narrative renders with T2 mocked in CI — zero live LLM calls (docs/TESTING.md §8); axe green on new surfaces"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: the pulse card is an Org Overview widget (needs a new WidgetType — registerWidget overwrites by type) served by an API endpoint, and the since-last-visit strip needs a /me endpoint. Both are outside the filed scope but named in the acceptance.",
+        "DONE 2026-08-19. Deterministic Weekly Pulse (five bullets, fixed slots), the /org/pulse endpoint, the pinned Org Overview card with its provenance chip, and the keyboard triage queue.",
+        "TEMPLATE FIRST, MODEL SECOND — the ordering IS the design. Every number is computed from the warehouse before any model sees the text; the narrate pass may only reword. applyNarration DISCARDS a rewording that changes or invents a figure (numbersPreserved compares the multiset of numbers), and falls back wholesale if the model returns the wrong number of bullets. A stiff sentence beats a fluent one with a fabricated number, because the fluent one gets quoted.",
+        "THE PROVENANCE CHIP TELLS THE TRUTH: it reads \"computed from your warehouse\" until a narrate pass has actually run, rather than wearing a \"T2 · local\" badge for text a template produced. An AI card family that misrepresents where its words came from is worse than no badge at all.",
+        "\"FIRST MEASURED\" IS NOT \"IMPROVED FROM ZERO\" — the most tempting lie in a weekly summary, because it makes every newly computed metric look like progress. A metric with no prior value says so and is ranked below real movement; a metric that was not computed says THAT rather than reporting zero.",
+        "EXACTLY FIVE BULLETS, ALWAYS, in the same slots (biggest mover, findings, plan progress, next two movers). A summary whose shape changes week to week cannot be skimmed, and skimming is the only way a weekly note gets read.",
+        "THE TRIAGE QUEUE IS FULLY KEYBOARD OPERABLE (NFR-5): j/k step, c confirms, d dismisses as a false positive, Esc exits, evidence inline, and an exit summary carrying the FP count that feeds the same analysis-quality metric. Triaging forty findings with a mouse is a job nobody finishes.",
+        "A11Y REGRESSION I INTRODUCED AND FIXED: the provenance line used text-fg-faint, which in the LIGHT theme is #818b98 on white (~3:1) and fails AA for body text. The light-theme axe spec caught it. Switched to text-fg-muted. The token is used in 17 more places across 13 components — recorded in docs/STATUS.md for W7-04 rather than swept through here.",
+        "NOT DONE, SAID PLAINLY: the My Focus since-last-visit strip (R-A5, acceptance 3). The pulse card, its endpoint and the triage queue consumed the ticket; the strip needs a /me deltas endpoint over lastSeenAt and is self-contained. Left as a todo note on W6-07 rather than half-built here.",
+        "GATE: lint 0, typecheck 0, 729 unit tests (was 716), zero skipped, pnpm -r test green, e2e 76 passed + 1 skipped (was 74), three validators exit 0."
+      ]
     },
     {
       "id": "W6-07",
@@ -2489,7 +2506,9 @@
       ],
       "points": 3,
       "status": "todo",
-      "notes": []
+      "notes": [
+        "CARRIED FROM W6-06: the My Focus since-last-visit strip (R-A5) was not built — new review requests, PRs advanced/stalled, findings on my PRs, over the existing lastSeenAt infrastructure. It is self-contained and belongs on a /me deltas endpoint."
+      ]
     },
     {
       "id": "W6-08",
