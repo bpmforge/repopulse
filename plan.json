@@ -3035,8 +3035,14 @@
         "CI uses vendored mini grype/OSV/KEV databases — zero live tool-DB downloads (docs/TESTING.md §10)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "blocked",
+      "notes": [
+        "BLOCKED 2026-08-19 — every tool this ticket names is absent from this machine. syft (SBOM), grype and osv-scanner (CVE match) and a CISA KEV database: none installed, and the acceptance is written entirely in terms of what they produce (\"fixture manifests reproduce the known CVE set\", \"vendored mini grype/OSV/KEV databases\").",
+        "WHAT COULD HAVE BEEN FAKED AND WAS NOT: a hand-written CVE list would satisfy the fixture test and report a repository as having no known vulnerabilities the moment it met a real dependency tree. A security scanner that says \"clean\" without the database that decides what clean means is worse than an absent scanner, because the empty Security tab is indistinguishable from a good result.",
+        "WHAT IS NEEDED, FROM WHOM: Brad installs syft + grype (or osv-scanner) — `brew install syft grype` — and decides where the vulnerability databases live, since the sandbox runs with --network=none and cannot fetch them at scan time. That is the real design question this ticket cannot answer alone: the tool databases have to be pulled HOST-SIDE and mounted read-only, which is exactly the \"tool/rulepack db-sync job\" in W8-12.",
+        "SUGGESTED ORDER when it unblocks: W8-12 first (scan sandbox image + db-sync), then this ticket, because the pipeline needs both the image and the mounted databases before a single assertion here can be true.",
+        "The slopsquatting half (registry age, download counts, Damerau-Levenshtein to top-N) needs a registry API and is a separate live-network decision, listed here so it is not forgotten when the CVE half unblocks."
+      ]
     },
     {
       "id": "W8-07",

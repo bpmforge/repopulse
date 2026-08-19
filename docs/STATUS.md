@@ -2377,3 +2377,25 @@ registry in `packages/security/src/scanners/secrets/verify.ts` is where it goes.
 GitHub's token checksum is deliberately NOT implemented either: this codebase has
 no real token to verify the algorithm against, and an unverified checksum would
 reject valid tokens while claiming rigour.
+
+#### W8-06 parked — the dependency scanner has no tools to run (2026-08-19)
+
+`syft`, `grype`, `osv-scanner` and a CISA KEV database are all absent from this
+machine, and W8-06's acceptance is written entirely in terms of what they
+produce. It is `blocked`, not `todo`.
+
+The thing not to do here is obvious once stated: a hand-written CVE list would
+make the fixture test pass and would report a repository as having no known
+vulnerabilities the moment it met a real dependency tree. An empty Security tab
+looks exactly like a good result.
+
+**What it needs from you:** `brew install syft grype` (or `osv-scanner`), plus a
+decision about where the vulnerability databases live. That second half is the
+real design question — the scan sandbox runs with `--network=none` and cannot
+fetch a CVE database at scan time, so the databases have to be pulled host-side
+and mounted read-only. That is the "tool/rulepack db-sync job" in W8-12, which
+is why the sensible order is W8-12 first, then W8-06.
+
+The slopsquatting heuristics (registry age, download counts, edit distance to
+popular package names) need a package-registry API and are a separate live-
+network decision — noted so they are not forgotten when the CVE half unblocks.
