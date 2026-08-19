@@ -2288,7 +2288,7 @@
         "Finding zod schema exactly per ANALYSIS_TIERS.md §4 REQUIRED JSON including evidence_quote verbatim-substring validation; malformed model output retries once with the error appended, then dead-letters keeping the raw payload (FR-ANALYSIS-5)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
