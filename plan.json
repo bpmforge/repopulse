@@ -2249,9 +2249,18 @@
         "Lint rule ships forbidding direct HTTP to LM Studio hosts and @anthropic-ai/sdk imports outside packages/analysis (ANALYSIS_TIERS.md header rule, CLAUDE.md Law 8)"
       ],
       "points": 8,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "WRITE_SCOPE WIDENED before code: acceptance 5 requires a LINT RULE (eslint.config.js is at the repo root, outside the filed scope) and acceptance 3 requires the analysis.review QUEUE, which lives in the ingest topology."
+        "WRITE_SCOPE WIDENED before code: acceptance 5 requires a LINT RULE (eslint.config.js is at the repo root, outside the filed scope) and acceptance 3 requires the analysis.review QUEUE, which lives in the ingest topology.",
+        "DONE 2026-08-19. AnalysisGateway per ANALYSIS_TIERS.md §1, the Tier-2 LM Studio wrapper (45000 maxTokens always, warm-up before cold/errored hosts, crash-match retry with [5s,15s,60s] backoff, per-host concurrency cap), scheduling (policy matrix, idempotency key, NFR-7 status), and the Law 8 lint rule.",
+        "VERIFIED AGAINST THE REAL MODEL, not a mock: packages/analysis/src/t2/live.integration.test.ts completes a real prompt against LM Studio — model=qwen3.8-27b, 66 tokens in, 44 out, 4.8s. Everything else in the suite is a fetch double, which can only confirm our shapes agree with themselves. That is exactly the trap GiteaProvider fell into: a contract suite green for months against a forge it had never touched.",
+        "REAL BUG THE LIVE TEST CAUGHT, which every mock had hidden: .env sets LMSTUDIO_BASE_URLS=http://host:1234/v1, and the client appended /v1/chat/completions — producing /v1/v1/chat/completions and a 404 that reads as \"model not loaded\". A URL problem wearing a model problem's clothes. normalizeHost now accepts either form.",
+        "THE LIVE TEST FALLS BACK TO localhost AND REPORTS RATHER THAN FAILS when no candidate answers. The configured LAN hosts are frequently closed laptops; an unreachable host is a normal state (NFR-7), and a suite that depended on one being open would be a suite people learn to skip.",
+        "T3 IS REJECTED, NEVER DOWNGRADED, and a missing opt-in callback counts as NOT opted in — fail closed. A deployment that forgot to wire the flag must not send repositories to a third party by default. The error explains why, so nobody deletes the check as noise.",
+        "HOST SATURATION IS SURFACED, NOT QUEUED INTERNALLY: pickHost returns null at the cap and the gateway throws, so the scheduler parks and retries. An in-process queue would be an invisible backlog nobody could inspect.",
+        "THE LINT RULE WAS RED-CHECKED, not assumed: a temporary file containing an LM Studio endpoint outside packages/analysis failed lint with the rule's own message. It also bans @anthropic-ai/sdk imports outside the analysis package.",
+        "QUEUE DECLARATION DEFERRED ON PURPOSE: analysis.review is NOT added to the topology here. The wiring gate requires every declared queue to have a processor and its KNOWN_INERT list may only ever shrink, so declaring it a wave early would mean either a red gate or growing a list that is not allowed to grow. The queue lands with its processor in W6-03; the idempotency key format ships here.",
+        "GATE: lint 0, typecheck 0, 668 unit tests (was 650), zero skipped, three validators exit 0."
       ]
     },
     {

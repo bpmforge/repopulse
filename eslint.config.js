@@ -129,6 +129,40 @@ const webNoDangerousHtml = {
   },
 };
 
+
+// Law 8 / ANALYSIS_TIERS.md header rule (W6-01): every LLM call goes through
+// packages/analysis. The token cap, the warm-up, the crash retry and the
+// Tier-3 egress audit all live behind that gateway, so code that reached a
+// model directly would bypass all four at once — and nothing else would notice.
+const analysisGatewayOnly = {
+  files: ['apps/**/*.{ts,tsx}', 'packages/!(analysis)/**/*.ts'],
+  ignores: ['**/*.test.ts', '**/*.test.tsx'],
+  rules: {
+    '@typescript-eslint/no-restricted-imports': [
+      'error',
+      {
+        paths: [
+          {
+            name: '@anthropic-ai/sdk',
+            message:
+              'Tier-3 calls go through @repopulse/analysis (Law 8). Importing the SDK here bypasses the repo opt-in check and the data-egress audit row.',
+          },
+        ],
+      },
+    ],
+    'no-restricted-syntax': [
+      'error',
+      {
+        // Catches the literal shape of an LM Studio endpoint anywhere outside
+        // packages/analysis, whether reached by fetch, axios or anything else.
+        selector: "Literal[value=/\\/v1\\/chat\\/completions/]",
+        message:
+          'Direct HTTP to an LM Studio host is forbidden outside packages/analysis (Law 8, ANALYSIS_TIERS.md). Use the analysis gateway, which enforces the 45000-token cap and the warm-up/retry policy.',
+      },
+    ],
+  },
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -167,4 +201,5 @@ export default tseslint.config(
   apiBoundary,
   webBoundary,
   webNoDangerousHtml,
+  analysisGatewayOnly,
 );

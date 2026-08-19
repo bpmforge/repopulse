@@ -19,6 +19,12 @@ export const QUEUE = {
   // W5-06. Nightly, after metrics.snapshot — it reads the snapshots that job
   // writes, so running it on its own schedule would verify yesterday's numbers.
   plansVerify: 'plans.verify',
+  // NOTE (W6-01): 'analysis.review' is NOT declared here yet, deliberately.
+  // The wiring gate requires every declared queue to have a processor, and its
+  // KNOWN_INERT list "may only ever shrink" — so declaring the queue a wave
+  // before the processor exists would mean either a red gate or growing a list
+  // that is not allowed to grow. The queue lands with its processor in W6-03.
+  // The idempotency key format lives in packages/analysis/src/scheduling.
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
