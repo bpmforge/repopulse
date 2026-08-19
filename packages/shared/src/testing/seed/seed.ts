@@ -117,6 +117,11 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   // so it stayed empty until the first real-GitHub run.
   await db.delete(core.forgeEtag).where(eq(core.forgeEtag.workspaceId, workspaceId));
   await db.delete(core.webhookDelivery).where(eq(core.webhookDelivery.workspaceId, workspaceId));
+  // Saved views (W5-02). Workspace-scoped like everything above, and missed
+  // until something finally created one: saved_views has an FK to users, so a
+  // leftover view makes unseedWarehouse's user delete fail with a constraint
+  // error from a table the caller never mentioned.
+  await db.delete(read.savedViews).where(eq(read.savedViews.workspaceId, workspaceId));
   await db.delete(core.forgeConnections).where(eq(core.forgeConnections.workspaceId, workspaceId));
 }
 
