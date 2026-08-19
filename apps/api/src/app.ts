@@ -109,12 +109,17 @@ export function buildApp(opts: BuildAppOptions) {
   let backfillQueue: Queue | undefined;
   let deltaQueue: Queue | undefined;
   const connection = () => (queueConnection ??= createRedisConnection(opts.redisUrl));
+  let reportQueue: ReturnType<typeof createQueue> | undefined;
   const backfill = () => (backfillQueue ??= createQueue(QUEUE.backfill, connection()));
   const delta = () => (deltaQueue ??= createQueue(QUEUE.delta, connection()));
+  // Lazily created like the others: an API process that never generates a
+  // report should not hold a Redis connection for the privilege.
+  const reportsQueue = () => (reportQueue ??= createQueue(QUEUE.reports, connection()));
 
   app.addHook('onClose', async () => {
     await backfillQueue?.close();
     await deltaQueue?.close();
+    await reportQueue?.close();
     queueConnection?.disconnect();
   });
 
@@ -126,6 +131,9 @@ export function buildApp(opts: BuildAppOptions) {
     ...(opts.forgeBaseUrl ? { forgeBaseUrl: opts.forgeBaseUrl } : {}),
     ...(opts.adminQueueFor ? { adminQueueFor: opts.adminQueueFor } : {}),
     demo: opts.demo ?? false,
+    enqueueReport: async ({ reportId, workspaceId, params }) => {
+      await reportsQueue().add('generate', { reportId, workspaceId, params });
+    },
     enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
       await backfill().add('plan', { workspaceId, repoId });
     },

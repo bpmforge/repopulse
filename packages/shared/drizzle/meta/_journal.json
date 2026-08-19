@@ -50,6 +50,13 @@
       "when": 1786832239286,
       "tag": "0006_rare_agent_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787145940057,
+      "tag": "0007_free_the_hunter",
+      "breakpoints": true
     }
   ]
 }

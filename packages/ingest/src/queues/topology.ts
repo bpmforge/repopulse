@@ -11,6 +11,11 @@ export const QUEUE = {
   reconcile: 'ingest.reconcile',
   snapshot: 'metrics.snapshot',
   dlq: 'ingest.dlq',
+  // W5-04. Report generation is user-triggered and slow (a headless print),
+  // so it gets its own queue rather than sharing an ingestion lane: a backfill
+  // burst must not make someone's report sit behind it, and a stuck print must
+  // not stall ingestion.
+  reports: 'reports.generate',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -24,6 +29,9 @@ export const QUEUE_PRIORITY: Record<string, number> = {
   [QUEUE.enrich]: 4,
   [QUEUE.reconcile]: 5,
   [QUEUE.snapshot]: 5,
+  // Someone is watching a spinner for this one (UX_SPEC §4.h), so it outranks
+  // every background lane except live webhook deltas.
+  [QUEUE.reports]: 2,
 };
 
 const MIN = 60_000;
@@ -36,6 +44,10 @@ export const RETRY: Record<string, JobsOptions> = {
   [QUEUE.enrich]: { attempts: 3, backoff: { type: 'exponential', delay: MIN } },
   [QUEUE.reconcile]: { attempts: 2, backoff: { type: 'exponential', delay: MIN } },
   [QUEUE.snapshot]: { attempts: 3, backoff: { type: 'exponential', delay: MIN } },
+  // Two attempts, not five: a print that fails twice is a broken report, not a
+  // transient forge hiccup, and a user waiting on a spinner is better served by
+  // a fast failure they can see than by 30 minutes of silent retries.
+  [QUEUE.reports]: { attempts: 2, backoff: { type: 'exponential', delay: 5_000 } },
 };
 
 /** Full default job options for a queue: retry + priority + keep-failed. */

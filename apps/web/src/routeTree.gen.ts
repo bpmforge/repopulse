@@ -18,10 +18,12 @@ import { Route as AdminIdentitiesRouteImport } from './routes/admin/identities'
 import { Route as AdminMembersRouteImport } from './routes/admin/members'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSyncRouteImport } from './routes/admin/sync'
+import { Route as ReportsIndexRouteImport } from './routes/reports/index'
 import { Route as ReposIndexRouteImport } from './routes/repos/index'
 import { Route as ReposRepoIdRouteRouteImport } from './routes/repos/$repoId/route'
 import { Route as ViewsIndexRouteImport } from './routes/views/index'
 import { Route as ViewsViewIdRouteImport } from './routes/views/$viewId'
+import { Route as PrintReportsReportIdRouteImport } from './routes/print/reports/$reportId'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
 import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
 import { Route as ReposRepoIdFindingsRouteImport } from './routes/repos/$repoId/findings'
@@ -76,6 +78,11 @@ const AdminSyncRoute = AdminSyncRouteImport.update({
   path: '/sync',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const ReportsIndexRoute = ReportsIndexRouteImport.update({
+  id: '/reports/',
+  path: '/reports/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReposIndexRoute = ReposIndexRouteImport.update({
   id: '/repos/',
   path: '/repos/',
@@ -94,6 +101,11 @@ const ViewsIndexRoute = ViewsIndexRouteImport.update({
 const ViewsViewIdRoute = ViewsViewIdRouteImport.update({
   id: '/views/$viewId',
   path: '/views/$viewId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrintReportsReportIdRoute = PrintReportsReportIdRouteImport.update({
+  id: '/print/reports/$reportId',
+  path: '/print/reports/$reportId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReposRepoIdIndexRoute = ReposRepoIdIndexRouteImport.update({
@@ -149,8 +161,10 @@ export interface FileRoutesByFullPath {
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/reports/': typeof ReportsIndexRoute
   '/repos/': typeof ReposIndexRoute
   '/views/': typeof ViewsIndexRoute
+  '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
@@ -170,8 +184,10 @@ export interface FileRoutesByTo {
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin': typeof AdminIndexRoute
+  '/reports': typeof ReportsIndexRoute
   '/repos': typeof ReposIndexRoute
   '/views': typeof ViewsIndexRoute
+  '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
@@ -194,8 +210,10 @@ export interface FileRoutesById {
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/reports/': typeof ReportsIndexRoute
   '/repos/': typeof ReposIndexRoute
   '/views/': typeof ViewsIndexRoute
+  '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
@@ -219,8 +237,10 @@ export interface FileRouteTypes {
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin/'
+    | '/reports/'
     | '/repos/'
     | '/views/'
+    | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
@@ -240,8 +260,10 @@ export interface FileRouteTypes {
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin'
+    | '/reports'
     | '/repos'
     | '/views'
+    | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
@@ -263,8 +285,10 @@ export interface FileRouteTypes {
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin/'
+    | '/reports/'
     | '/repos/'
     | '/views/'
+    | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
@@ -282,8 +306,10 @@ export interface RootRouteChildren {
   PullRequestsRoute: typeof PullRequestsRoute
   ReposRepoIdRouteRoute: typeof ReposRepoIdRouteRouteWithChildren
   ViewsViewIdRoute: typeof ViewsViewIdRoute
+  ReportsIndexRoute: typeof ReportsIndexRoute
   ReposIndexRoute: typeof ReposIndexRoute
   ViewsIndexRoute: typeof ViewsIndexRoute
+  PrintReportsReportIdRoute: typeof PrintReportsReportIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -351,6 +377,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSyncRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/reports/': {
+      id: '/reports/'
+      path: '/reports'
+      fullPath: '/reports/'
+      preLoaderRoute: typeof ReportsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/repos/': {
       id: '/repos/'
       path: '/repos'
@@ -377,6 +410,13 @@ declare module '@tanstack/react-router' {
       path: '/views/$viewId'
       fullPath: '/views/$viewId'
       preLoaderRoute: typeof ViewsViewIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/print/reports/$reportId': {
+      id: '/print/reports/$reportId'
+      path: '/print/reports/$reportId'
+      fullPath: '/print/reports/$reportId'
+      preLoaderRoute: typeof PrintReportsReportIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/repos/$repoId/': {
@@ -490,8 +530,10 @@ const rootRouteChildren: RootRouteChildren = {
   PullRequestsRoute: PullRequestsRoute,
   ReposRepoIdRouteRoute: ReposRepoIdRouteRouteWithChildren,
   ViewsViewIdRoute: ViewsViewIdRoute,
+  ReportsIndexRoute: ReportsIndexRoute,
   ReposIndexRoute: ReposIndexRoute,
   ViewsIndexRoute: ViewsIndexRoute,
+  PrintReportsReportIdRoute: PrintReportsReportIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -41,7 +41,12 @@ export type AuditEvent =
   // one is a silent change to the numbers people make staffing decisions on.
   | 'identity.merged'
   | 'identity.merge_undone'
-  | 'identity.bot_flagged';
+  | 'identity.bot_flagged'
+  // W5-04. SC-22 names report download explicitly: a report carries an
+  // organisation's delivery data, so who took a copy and when is the record
+  // T-31 asks for.
+  | 'report.generated'
+  | 'report.downloaded';
 
 export interface AuditEntry {
   event: AuditEvent;

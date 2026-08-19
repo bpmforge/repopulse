@@ -30,13 +30,18 @@ export function queryKeyFor(d: QueryDescriptor): readonly unknown[] {
 
 export function useApiQuery<T>(
   descriptor: QueryDescriptor,
-  options: { enabled?: boolean } = {},
+  // `refetchInterval` (W5-04): report generation is asynchronous, and the
+  // Report Center's history table is how anyone learns it finished. Forwarded
+  // to the query rather than reimplemented as a setInterval beside it, which
+  // would fight the very cache it is meant to refresh.
+  options: { enabled?: boolean; refetchInterval?: number } = {},
 ): UseQueryResult<T, Error> {
   return useQuery<T, Error>({
     queryKey: queryKeyFor(descriptor),
     queryFn: () => apiFetch<T>(buildUrl(descriptor.endpoint, descriptor)),
     placeholderData: keepPreviousData,
     enabled: options.enabled ?? true,
+    ...(options.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
   });
 }
 

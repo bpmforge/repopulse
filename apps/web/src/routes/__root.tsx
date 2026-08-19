@@ -93,6 +93,12 @@ function RootShell() {
     } as NavigateOptions);
   };
 
+  // Print routes render bare (W5-04). Every file route is a child of this
+  // shell, so without this the rail, topbar, breadcrumb and toaster would be
+  // printed into the PDF — and the SSE mount above would keep the page busy
+  // forever, which is worse: the print pipeline waits for the page to settle.
+  if (pathname.startsWith('/print/')) return <Outlet />;
+
   const preservedSearch = serializeGlobalSearch(search);
 
   return (
