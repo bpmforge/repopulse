@@ -31,3 +31,36 @@ test('populated org overview passes axe in the light theme', async ({ page }) =>
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expectNoA11yViolations(page);
 });
+
+// W7-04: every route added after W4-12 wrote the spec above, in BOTH themes.
+//
+// The existing scans covered the Org Overview only. Findings, Plans, Reports
+// and Views all landed later — and the light theme is where contrast fails
+// first, so a route that was never scanned there was never really checked. The
+// text-fg-faint fix in this ticket was found exactly this way.
+const ROUTES: { path: string; ready: string }[] = [
+  { path: '/findings', ready: 'findings' },
+  { path: '/plans', ready: 'plans' },
+  { path: '/reports', ready: 'report-center' },
+  { path: '/views', ready: 'views' },
+  { path: '/me', ready: 'main' },
+  { path: '/admin/identities', ready: 'identities' },
+  { path: '/admin/agreements', ready: 'agreements' },
+];
+
+for (const theme of ['dark', 'light'] as const) {
+  for (const route of ROUTES) {
+    test(`${route.path} passes axe in the ${theme} theme`, async ({ page }) => {
+      await loginAsFixture(page);
+      await page.goto(route.path);
+      // Wait for the screen's own root, not a timer: scanning a skeleton is
+      // how a contrast defect survives an a11y suite.
+      await expect(page.getByTestId(route.ready)).toBeVisible();
+      if (theme === 'light') {
+        await page.getByTestId('theme-toggle').click();
+        await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+      }
+      await expectNoA11yViolations(page);
+    });
+  }
+}

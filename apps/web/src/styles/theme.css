@@ -67,13 +67,22 @@
 
   --color-fg: #1f2328;
   --color-fg-muted: #59636e;
-  --color-fg-faint: #818b98;
+  /* W7-04: was #818b98 — 3.45:1 on white, which fails WCAG AA (4.5:1) for
+     body text, and this token is used in 17 places across 13 components.
+     #6b7280 is 4.83:1 and still a visible step lighter than fg-muted (6.11:1),
+     so the visual hierarchy survives the fix. The dark palette was already
+     compliant (5.07:1) and is unchanged. */
+  --color-fg-faint: #6b7280;
 
   --color-accent: #4f46e5;
   --color-accent-fg: #ffffff;
 
   --color-ok: #1a7f37;
-  --color-warn: #9a6700;
+  /* W7-04: was #9a6700 — 4.29:1 on surface-2 (#eef1f4), which passes on white
+     but FAILS AA on the panel backgrounds warn text actually sits on. Contrast
+     has to clear on the darkest surface the token is used against, not the
+     lightest. #8a5c00 is 5.13:1 there and 5.81:1 on white. */
+  --color-warn: #8a5c00;
   --color-crit: #cf222e;
   --color-info: #0969da;
   --color-neutral: #656d76;
