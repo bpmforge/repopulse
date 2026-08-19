@@ -2254,3 +2254,24 @@ plan tile already surfaces agreement-sourced items — a third surface for the
 same counts is a third place for them to disagree. Recorded as a decision
 rather than shipped half-built; cheap to add if the org screen turns out to be
 where people look first.
+
+#### W5-09 blocked on one e2e, not on the feature (2026-08-19)
+
+The report diff, annotations, `previousSnapshotAt` threading and scheduled
+generation are built and unit-tested (650 tests green). A probe proved the
+whole flow works in a real browser and that the API returns `comparable: true`
+with nine deltas.
+
+The blocker is the **test**, and its shape is worth recording: it identifies
+reports by **list position** (`.first()`) in a list other tests are adding to,
+which refetches on a 3-second timer. Three separate races were found and fixed
+— a poll landing late, `goBack()` returning to an unpopulated list, and a
+baseline taken between two generations — and each fix made it pass alone and
+fail in the file. Position is not a stable identifier here.
+
+Next session should rewrite the test to drive the UI **by report id** captured
+from the POST response, rather than adding a fourth wait.
+
+It also found the most valuable bug of the wave: **every report from the Report
+Center was empty**, because the form sends no `repo_ids` and an empty list meant
+"no repositories" rather than "all of them". Fixed on the branch.
