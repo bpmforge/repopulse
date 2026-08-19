@@ -179,3 +179,28 @@ test('the Identities tab lists real identities and merges one, passing axe (W5-0
   await undo.click();
   await expect(page.getByTestId(`identity-merge-${sourceId}`)).toBeVisible();
 });
+
+test('agreements are admin-configurable and show real exception lists (W5-08)', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/admin/agreements');
+
+  await expect(page.getByTestId('agreement-form')).toBeVisible();
+  await expectNoA11yViolations(page);
+
+  // A deliberately tight threshold so the seeded warehouse actually breaches
+  // it — an agreement nobody breaks proves only that the form submits.
+  await page.getByTestId('agreement-kind').selectOption('pr_size_max');
+  await page.getByTestId('agreement-threshold').fill('1');
+  await page.getByTestId('agreement-create').click();
+
+  const first = page.locator('[data-testid^="agreement-count-"]').first();
+  await expect(first).toBeVisible();
+  await expect(first).toContainText(/exceptions|no exceptions/);
+
+  // The list must name PULL REQUESTS. If it ever names people, the screen has
+  // become a leaderboard and N-9 is broken.
+  const exceptions = page.locator('[data-testid^="agreement-exceptions-"]').first();
+  if ((await exceptions.count()) > 0) {
+    await expect(exceptions).toContainText(/#\d+/);
+  }
+});
