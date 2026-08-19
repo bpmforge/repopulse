@@ -2857,10 +2857,11 @@
         "E10.8"
       ],
       "write_scope": [
-        "packages/shared/src/db/schema/security/**",
-        "packages/shared/src/db/schema/read/**",
-        "packages/shared/src/db/index.ts",
-        "packages/shared/drizzle/**"
+        "packages/shared/src/db/schema/**",
+        "packages/shared/drizzle/**",
+        "packages/shared/src/testing/seed/**",
+        "packages/insights/src/findings/**",
+        "apps/api/src/routes/findings/**"
       ],
       "depends_on": [
         "W1-02",
@@ -2873,8 +2874,10 @@
         "Secret-redaction invariant in schema + helpers: secrets findings store fingerprint hash + file/line only — DB-dump grep with a planted fixture secret finds zero plaintext occurrences (SC-29)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "NOTE ON SCOPE: scan_runs and repo_scanner_config already landed in W8-01 (the framework needed them to exist). This ticket adds the findings delta, the sboms table, the dedup extension and the secret-redaction invariant."
+      ]
     },
     {
       "id": "W8-03",
