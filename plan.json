@@ -2692,7 +2692,7 @@
         "Performance budgets per docs/design/DASHBOARD.md §9 CI-enforced: initial JS <=200KB gz via size-limit, LCP <1.5s on the seeded stack, route-level code splitting + lazy chart bundles verified; API p95 <500ms k6 run against seeded 50-repo dataset re-confirmed (NFR-3)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
