@@ -33,6 +33,7 @@ import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
 import { Route as ReposRepoIdFindingsRouteImport } from './routes/repos/$repoId/findings'
 import { Route as ReposRepoIdHotspotsRouteImport } from './routes/repos/$repoId/hotspots'
 import { Route as ReposRepoIdPrFlowRouteImport } from './routes/repos/$repoId/pr-flow'
+import { Route as ReposRepoIdSecurityRouteImport } from './routes/repos/$repoId/security'
 import { Route as ReposRepoIdFilesSplatRouteImport } from './routes/repos/$repoId/files/$'
 import { Route as ReposRepoIdPrsIndexRouteImport } from './routes/repos/$repoId/prs/index'
 import { Route as ReposRepoIdPrsNumberRouteImport } from './routes/repos/$repoId/prs/$number'
@@ -157,6 +158,11 @@ const ReposRepoIdPrFlowRoute = ReposRepoIdPrFlowRouteImport.update({
   path: '/pr-flow',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
+const ReposRepoIdSecurityRoute = ReposRepoIdSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
 const ReposRepoIdFilesSplatRoute = ReposRepoIdFilesSplatRouteImport.update({
   id: '/files/$',
   path: '/files/$',
@@ -197,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
+  '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
   '/repos/$repoId/files/$': typeof ReposRepoIdFilesSplatRoute
   '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
+  '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
   '/repos/$repoId': typeof ReposRepoIdIndexRoute
   '/repos/$repoId/files/$': typeof ReposRepoIdFilesSplatRoute
   '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
+  '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
   '/repos/$repoId/files/$': typeof ReposRepoIdFilesSplatRoute
   '/repos/$repoId/prs/$number': typeof ReposRepoIdPrsNumberRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
+    | '/repos/$repoId/security'
     | '/repos/$repoId/'
     | '/repos/$repoId/files/$'
     | '/repos/$repoId/prs/$number'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
+    | '/repos/$repoId/security'
     | '/repos/$repoId'
     | '/repos/$repoId/files/$'
     | '/repos/$repoId/prs/$number'
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
+    | '/repos/$repoId/security'
     | '/repos/$repoId/'
     | '/repos/$repoId/files/$'
     | '/repos/$repoId/prs/$number'
@@ -532,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReposRepoIdPrFlowRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
+    '/repos/$repoId/security': {
+      id: '/repos/$repoId/security'
+      path: '/security'
+      fullPath: '/repos/$repoId/security'
+      preLoaderRoute: typeof ReposRepoIdSecurityRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
     '/repos/$repoId/files/$': {
       id: '/repos/$repoId/files/$'
       path: '/files/$'
@@ -585,6 +604,7 @@ interface ReposRepoIdRouteRouteChildren {
   ReposRepoIdFindingsRoute: typeof ReposRepoIdFindingsRoute
   ReposRepoIdHotspotsRoute: typeof ReposRepoIdHotspotsRoute
   ReposRepoIdPrFlowRoute: typeof ReposRepoIdPrFlowRoute
+  ReposRepoIdSecurityRoute: typeof ReposRepoIdSecurityRoute
   ReposRepoIdIndexRoute: typeof ReposRepoIdIndexRoute
   ReposRepoIdFilesSplatRoute: typeof ReposRepoIdFilesSplatRoute
   ReposRepoIdPrsNumberRoute: typeof ReposRepoIdPrsNumberRoute
@@ -596,6 +616,7 @@ const ReposRepoIdRouteRouteChildren: ReposRepoIdRouteRouteChildren = {
   ReposRepoIdFindingsRoute: ReposRepoIdFindingsRoute,
   ReposRepoIdHotspotsRoute: ReposRepoIdHotspotsRoute,
   ReposRepoIdPrFlowRoute: ReposRepoIdPrFlowRoute,
+  ReposRepoIdSecurityRoute: ReposRepoIdSecurityRoute,
   ReposRepoIdIndexRoute: ReposRepoIdIndexRoute,
   ReposRepoIdFilesSplatRoute: ReposRepoIdFilesSplatRoute,
   ReposRepoIdPrsNumberRoute: ReposRepoIdPrsNumberRoute,

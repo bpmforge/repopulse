@@ -5,6 +5,7 @@ import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
 import {
+  ALL_DIMENSIONS as DIMENSIONS,
   SEVERITY_LABEL,
   VERIFY_LABEL,
   type Finding,
@@ -18,7 +19,7 @@ import {
 export const Route = createFileRoute('/findings/')({ component: FindingsExplorer });
 
 const LIST = { endpoint: '/findings' } as const;
-const DIMENSIONS = ['code_health', 'security', 'performance', 'test_coverage'] as const;
+
 const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as const;
 
 function FindingsExplorer() {
@@ -26,6 +27,11 @@ function FindingsExplorer() {
   const [status, setStatus] = useState('open');
   const [severityMin, setSeverityMin] = useState('');
   const [verifyStatus, setVerifyStatus] = useState('');
+  // W8-10 scanner facets. A secrets finding was storable and countable before
+  // this and not FILTERABLE — the API dropped an unknown dimension silently,
+  // so asking for the thing you wanted showed you everything instead.
+  const [scannerKey, setScannerKey] = useState('');
+  const [inChain, setInChain] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
   const [note, setNote] = useState('');
@@ -38,6 +44,8 @@ function FindingsExplorer() {
       ...(status ? { status } : {}),
       ...(severityMin ? { severity_min: severityMin } : {}),
       ...(verifyStatus ? { verify_status: verifyStatus } : {}),
+      ...(scannerKey ? { scanner_key: scannerKey } : {}),
+      ...(inChain ? { in_chain: 'true' } : {}),
     },
   } as const;
 
@@ -46,6 +54,12 @@ function FindingsExplorer() {
     next_cursor: string | null;
   }>(listDescriptor);
   const { data: stats } = useApiQuery<FindingStats>({ endpoint: '/findings/stats' });
+  // The scanner facet is driven by the REGISTRY, not a hard-coded list: a
+  // scanner added in a later wave becomes filterable without touching this
+  // screen (SECURITY_SUITE §5).
+  const { data: scanners } = useApiQuery<{ items: { key: string; display_name: string }[] }>({
+    endpoint: '/scanners',
+  });
 
   const bulk = useApiMutation<{ ids: number[]; status: string; note: string }, unknown>(
     { endpoint: '/findings/bulk', method: 'POST' },
@@ -122,6 +136,31 @@ function FindingsExplorer() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Scanner
+          <select
+            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            data-testid="filter-scanner"
+            value={scannerKey}
+            onChange={(e) => setScannerKey(e.target.value)}
+          >
+            <option value="">Any source</option>
+            {(scanners?.items ?? []).map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.display_name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-fg-muted">
+          <input
+            type="checkbox"
+            data-testid="filter-in-chain"
+            checked={inChain}
+            onChange={(e) => setInChain(e.target.checked)}
+          />
+          In an attack chain
         </label>
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Verification

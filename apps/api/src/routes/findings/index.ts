@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
@@ -11,7 +11,21 @@ export interface FindingsRoutesOptions {
 }
 
 const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as const;
-const DIMENSIONS = ['code_health', 'security', 'performance', 'test_coverage'] as const;
+// W8-10: the scanner dimensions join the analysis ones. Before this, a secrets
+// finding was stored, listed and counted but could not be FILTERED — the facet
+// silently dropped an unknown dimension, so asking for the thing you wanted
+// showed you everything instead.
+const DIMENSIONS = [
+  'code_health',
+  'security',
+  'performance',
+  'test_coverage',
+  'secrets',
+  'dependency',
+  'sast',
+  'iac',
+  'chain',
+] as const;
 
 /** Reasons a dismissal may carry. false_positive is the one the FP rate reads. */
 const DISMISS_REASONS = ['false_positive', 'accepted_risk', 'not_applicable', 'duplicate'] as const;
@@ -60,6 +74,12 @@ export default async function findingsRoutes(
       confidence_min?: string;
       repo_id?: string;
       verify_status?: string;
+      scanner_key?: string;
+      cve_id?: string;
+      /** 'true' restricts to findings that belong to an attack chain. */
+      in_chain?: string;
+      /** 'true' restricts to CISA KEV-listed CVEs. */
+      kev?: string;
       cursor?: string;
     };
   }>('/findings', async (request, reply) => {
@@ -87,6 +107,21 @@ export default async function findingsRoutes(
     // finding nobody re-judged must be filterable as such.
     if (q.verify_status && ['unverified', 'confirmed', 'contradicted'].includes(q.verify_status)) {
       filters.push(eq(read.findings.verifyStatus, q.verify_status));
+    }
+
+    // W8-10 scanner facets (SECURITY_SUITE §5). Driven by what the finding
+    // rows carry, so a scanner added later is filterable the day it writes its
+    // first row — no per-scanner code here.
+    if (q.scanner_key) filters.push(eq(read.findings.scannerKey, q.scanner_key));
+    if (q.cve_id) filters.push(eq(read.findings.cveId, q.cve_id));
+    if (q.in_chain === 'true') filters.push(isNotNull(read.findings.chainId));
+    if (q.kev === 'true') {
+      // KEV lives in the finding's payload rather than a column: it is a fact
+      // about the CVE, set by the dependency scanner (W8-06, parked), and a
+      // column would have to be backfilled for every scanner that never sets
+      // it. Filtering on the payload means this facet works the day W8-06
+      // lands and returns nothing — correctly — until then.
+      filters.push(sql`${read.findings.yields} ->> 'kev' = 'true'`);
     }
 
     // Keyset, not offset: the list is ordered by severity and new findings
@@ -125,6 +160,12 @@ export default async function findingsRoutes(
         firstSeenAt: read.findings.firstSeenAt,
         lastSeenAt: read.findings.lastSeenAt,
         tier: read.findings.tier,
+        scannerKey: read.findings.scannerKey,
+        ruleId: read.findings.ruleId,
+        cveId: read.findings.cveId,
+        chainId: read.findings.chainId,
+        scanRunId: read.findings.scanRunId,
+        yields: read.findings.yields,
       })
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
@@ -153,6 +194,15 @@ export default async function findingsRoutes(
         first_seen_at: r.firstSeenAt.toISOString(),
         last_seen_at: r.lastSeenAt.toISOString(),
         tier: r.tier,
+        // null, not '', for every one of these: a finding with no rule id has
+        // no rule id, and an empty string would render as a blank chip that
+        // looks like a rendering bug.
+        scanner_key: r.scannerKey,
+        rule_id: r.ruleId,
+        cve_id: r.cveId,
+        chain_id: r.chainId,
+        scan_run_id: r.scanRunId,
+        kev: r.yields?.['kev'] === true,
       })),
       next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.severity, last.id) : null,
     });

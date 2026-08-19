@@ -1,5 +1,18 @@
 // Findings wire contracts (W6-04). Source of truth: apps/api/src/routes/findings.
 
+/** Every dimension the store can hold — analysis (W6) plus scanners (W8). */
+export const ALL_DIMENSIONS = [
+  'code_health',
+  'security',
+  'performance',
+  'test_coverage',
+  'secrets',
+  'dependency',
+  'sast',
+  'iac',
+  'chain',
+] as const;
+
 export interface Finding {
   id: number;
   repo: { id: number; org: string; name: string };
@@ -7,8 +20,9 @@ export interface Finding {
   severity: number;
   confidence: number;
   title: string;
-  file: string;
-  line_range: [number, number];
+  // Nullable since W8-02: a dependency CVE is a repo-level fact with no line.
+  file: string | null;
+  line_range: [number | null, number | null];
   evidence: string;
   recommendation: string;
   status: string;
@@ -19,6 +33,15 @@ export interface Finding {
   tier: number;
   /** W6-05. 'unverified' is honest, not missing: nobody re-judged it. */
   verify_status: 'unverified' | 'confirmed' | 'contradicted';
+  // W8-10 scanner delta. NULL on an analysis finding, and null rather than ''
+  // so an absent rule id renders as nothing at all instead of a blank chip
+  // that looks like a rendering bug.
+  scanner_key?: string | null;
+  rule_id?: string | null;
+  cve_id?: string | null;
+  chain_id?: string | null;
+  scan_run_id?: number | null;
+  kev?: boolean;
 }
 
 /** Paired glyph + word — a badge that relies on colour says nothing in print. */
