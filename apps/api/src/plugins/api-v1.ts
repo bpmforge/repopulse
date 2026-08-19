@@ -16,6 +16,7 @@ import eventsRoutes from '../routes/events/index.js';
 import connectionsRoutes, { type ConnectionsRoutesOptions } from '../routes/connections/index.js';
 import syncRoutes from '../routes/sync/index.js';
 import adminRoutes from '../routes/admin/index.js';
+import identityRoutes from '../routes/admin/identities/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
 
 export interface ApiV1Options {
@@ -127,6 +128,9 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     ...(opts.redisUrl ? { redisUrl: opts.redisUrl } : {}),
     ...(opts.adminQueueFor ? { queueFor: opts.adminQueueFor } : {}),
   });
+  // Identity admin (W5-05) — merging decides WHO the ownership and bus-factor
+  // numbers are about, so it sits beside the settings that decide what they mean.
+  await app.register(identityRoutes, { db: opts.db });
   // Workspace settings (W4-09) — the weights, bot list and stale-N that decide
   // what every other number on every screen means.
   await app.register(workspaceRoutes, { db: opts.db });

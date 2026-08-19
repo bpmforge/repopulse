@@ -1952,8 +1952,11 @@
       ],
       "write_scope": [
         "apps/api/src/routes/admin/identities/**",
-        "apps/web/src/routes/admin/identities.tsx",
-        "apps/web/src/widgets/admin/identities/**"
+        "apps/web/src/routes/admin/**",
+        "apps/web/src/widgets/admin/**",
+        "packages/metrics/src/snapshots/readers.ts",
+        "apps/api/src/routes/files/**",
+        "apps/api/src/routes/me/**"
       ],
       "depends_on": [
         "W4-08"
@@ -1965,8 +1968,19 @@
         "Tenancy walker + axe green over the new route"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED 2026-08-19, deliberately and before any code. As filed it covered only the admin route and the web widget, but acceptance criterion 2 requires merged identities to resolve through COALESCE(merged_into_id, id) in ownership/churn/personal queries — which live in packages/metrics/src/snapshots/readers.ts and the files/me routes. Building only what the original scope allowed would ship a merge button that changes nothing on any screen, which is precisely the built-but-never-wired defect this project has now hit nine times.",
+        "FOUND BEFORE STARTING: mergedIntoId is referenced NOWHERE outside the schema definition. The column exists, DATABASE.md §2 documents that queries resolve through COALESCE(merged_into_id, id), and not one query does. So identity merging has never worked, and nothing would have reported that.",
+        "ALSO FOUND, FILED SEPARATELY (not fixed here): the identities table CHECK constraint allows provider in (github, gitea) only — but GitLabProvider shipped in W12-01 and the connections UI offers GitLab. A GitLab identity would violate the constraint at ingestion time.",
+        "DONE 2026-08-19. GET /admin/identities (login, provider, commit/PR weight, linked user, is_bot, merged_into, email-fallback flag), PATCH for the bot flag, POST /:id/merge with into_id:null as the undo. All admin-only, all tenancy-scoped (another workspace is a 404, never a 403), all audit-logged under three new SC-22 event classes.",
+        "THE ACTUAL FIX WAS IN THE READERS, NOT THE UI. merged_into_id was referenced NOWHERE outside the schema: the column shipped, DATABASE.md §2 documented COALESCE(merged_into_id, id) resolution, and no query did it. packages/metrics/src/snapshots/readers.ts now joins a canonical_identity alias for churn touches, PR authors and reviewers, so every metric built on them inherits the merge.",
+        "PROVEN BY MOVING NUMBERS, not by a 200. The integration test seeds one person as two identities (20 lines under an account, 12 under an email-only author), asserts churn attribution is split, merges, and asserts ONE author with 32 lines — then undoes it and asserts the split returns. Without the reader change that test fails, which is the point.",
+        "CHAINS ARE KEPT FLAT AT WRITE TIME. Merging into an already-merged identity resolves to its survivor, and merging an identity that is itself a merge target is a 409. The readers resolve exactly ONE hop (COALESCE, not a recursive CTE), so an unchecked A→B→C would make A's churn vanish from every screen rather than follow the chain — silent data loss, not an error.",
+        "BUG IN MY OWN FIRST IMPLEMENTATION, caught because the count was 0 where a raw join found rows: a correlated subquery written as sql`(select count(*) from ${facts.commits} where ${facts.commits.authorIdentityId} = ${core.identities.id})` returns 0 for every row, while the hand-written equivalent returns 1 — verified side by side in the same query. Replaced with two grouped reads joined in JS, which is also easier to reason about than SQL whose rendering has to be trusted.",
+        "WRITE_SCOPE WAS WIDENED FIRST, and recorded: as filed the ticket allowed only the admin route and web widget, but acceptance criterion 2 needs the metrics readers. Building only what the scope allowed would have shipped a merge button that changes nothing.",
+        "GATE: lint 0, typecheck 0, 602 unit tests (was 597), zero skipped, e2e 57 passed + 1 skipped (new spec merges and undoes through the real UI and runs axe over the tab), three validators exit 0."
+      ]
     },
     {
       "id": "W5-06",

@@ -18,6 +18,7 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/admin/', label: 'Connections', exact: true },
   { to: '/admin/sync', label: 'Sync' },
   { to: '/admin/members', label: 'Members' },
+  { to: '/admin/identities', label: 'Identities' },
   { to: '/admin/settings', label: 'Settings' },
 ];
 
