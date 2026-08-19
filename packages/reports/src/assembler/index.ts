@@ -15,6 +15,7 @@ import type {
   ScoreBreakdownRow,
 } from '../types/index.js';
 import { readReportRepos, readSnapshotsAsOf, type BoundedSnapshot } from './read.js';
+import { planSections } from './plans.js';
 
 // Report assembler (W5-03, REPORTS.md §1/§2/§5/§6).
 //
@@ -402,6 +403,19 @@ export function createReportAssembler(db: Database): ReportAssembler {
                 ];
 
       const { workspaceId, repoIds, snapshotAt, windowEnd, repos, window } = await common(params);
+
+      // Every report closes with the plan (IMPROVEMENT_PLANS.md §5). Appended
+      // for every type, including security_posture: the whole point is that a
+      // report ends with what was agreed, not with a list of problems.
+      const planned = await planSections(db, {
+        workspaceId,
+        snapshotAt,
+        // W5-09 will thread the previous same-scope report's pin; until then a
+        // report says plainly that it has nothing to compare against rather
+        // than implying nothing moved.
+        previousSnapshotAt: null,
+      });
+
       const qualitySnapshots = await readSnapshotsAsOf(db, {
         workspaceId,
         repoIds,
@@ -412,7 +426,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
 
       return {
         params,
-        sections,
+        sections: [...sections, ...planned],
         appendix: {
           // Appendix A comes from the catalog (FR-METRICS-15), never from
           // prose in this file: a definition that disagrees with the tooltip

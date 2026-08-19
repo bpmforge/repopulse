@@ -16,6 +16,10 @@ export type WidgetType =
   | 'pr-table'
   | 'finding-table'
   | 'attention-feed'
+  // W5-07. Its own type rather than reusing attention-feed: registerWidget
+  // overwrites by type, so a duplicate registration silently replaces the
+  // widget already there.
+  | 'plan-progress'
   | 'my-prs'
   | 'my-queue'
   | 'text';
