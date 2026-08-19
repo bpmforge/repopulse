@@ -9,9 +9,16 @@ import { createHash } from 'node:crypto';
 
 export interface DedupInput {
   dimension: string;
-  file: string;
+  /** Null for repo-level scanner findings (a CVE has no line). */
+  file: string | null;
   evidenceQuote: string;
-  lineStart: number;
+  lineStart: number | null;
+  /** W8-02: present only for scanner findings. */
+  // `| undefined` explicitly: exactOptionalPropertyTypes is on, and a caller
+  // spreading a record that has the field set to undefined is the normal way
+  // an analysis finding arrives here.
+  scannerKey?: string | null | undefined;
+  ruleId?: string | null | undefined;
 }
 
 /**
@@ -45,8 +52,19 @@ export function normalizeEvidence(quote: string): string {
  */
 export function dedupKey(input: DedupInput): string {
   const normalized = normalizeEvidence(input.evidenceQuote);
-  const bucket = Math.floor(input.lineStart / 10);
-  return createHash('sha256')
-    .update(`${input.dimension}\0${input.file}\0${normalized}\0${bucket}`)
-    .digest('hex');
+  const bucket = input.lineStart === null ? 'repo' : String(Math.floor(input.lineStart / 10));
+
+  // BACKWARD-COMPATIBLE BY CONSTRUCTION (W8-02). An analysis finding — one with
+  // no scannerKey — hashes exactly the string it always did. Appending the new
+  // fields unconditionally would re-key every finding already in the store, so
+  // the next run would create a duplicate of each and every occurrence count,
+  // triage decision and false-positive suppression would silently detach from
+  // its finding. Scanner findings get the richer key; analysis findings do not
+  // move.
+  const base = `${input.dimension}\0${input.file}\0${normalized}\0${bucket}`;
+  const keyed = input.scannerKey
+    ? `${input.scannerKey}\0${input.ruleId ?? ''}\0${base}`
+    : base;
+
+  return createHash('sha256').update(keyed).digest('hex');
 }

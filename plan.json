@@ -2874,9 +2874,17 @@
         "Secret-redaction invariant in schema + helpers: secrets findings store fingerprint hash + file/line only — DB-dump grep with a planted fixture secret finds zero plaintext occurrences (SC-29)"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "NOTE ON SCOPE: scan_runs and repo_scanner_config already landed in W8-01 (the framework needed them to exist). This ticket adds the findings delta, the sboms table, the dedup extension and the secret-redaction invariant."
+        "NOTE ON SCOPE: scan_runs and repo_scanner_config already landed in W8-01 (the framework needed them to exist). This ticket adds the findings delta, the sboms table, the dedup extension and the secret-redaction invariant.",
+        "DONE 2026-08-19. Migration 0013: findings dimension check extended to code_health|security|performance|test_coverage|secrets|dependency|sast|iac|chain; file/line_start/line_end made NULLABLE for repo-level findings; added scanner_key, rule_id, cve_id, chain_id, preconditions jsonb, yields jsonb, scan_run_id. New sboms table (CycloneDX per repo+sha); scan_runs and repo_scanner_config landed in W8-01. All carry workspace_id — validate-arch rule 5 PASS.",
+        "THE DEDUP KEY IS BACKWARD-COMPATIBLE BY CONSTRUCTION, and that was the real hazard in this ticket. Appending scanner_key/rule_id unconditionally would have re-keyed every finding already in the store: the next run would create a duplicate of each, and every occurrence count, triage decision and false-positive suppression would silently detach from its finding. A finding with no scannerKey now hashes EXACTLY the string it always did; only scanner findings get the richer key. There is a test that asserts the old key is unchanged.",
+        "FILE AND LINE ARE NULL, NOT ZERO OR EMPTY, for a repo-level finding. A CVE in a lockfile has no line, and the previous null-vs-zero bugs in this codebase all came from encoding \"absent\" as a value the UI would render. The line-bucket tiebreak reads null as the literal bucket \"repo\" rather than falling through to Math.floor(0/10).",
+        "SC-29 IS PROVEN AGAINST THE DATABASE, NOT AGAINST THE FUNCTION. A unit test on redactSecretFinding would only prove the function; the integration test plants a real-looking key, stores the finding a scanner would store, then greps every text column of findings for the plaintext — the same thing a database dump would contain. It creates its own workspace/user/connection/repo/run fixtures rather than reading whichever repo happened to exist, because an earlier version of that pattern passed by depending on another test having run.",
+        "NOT EVEN A MASKED PREFIX IS STORED: the test asserts the first 8 characters are absent too. \"AKIA…\" plus a repository name is often enough to find the rest.",
+        "assertRedacted THROWS rather than warns, because redaction is easy to forget in a new scanner and an author who forgets should get an exception, not a leak.",
+        "HONEST LIMIT: analysis_runs.tier is constrained to (2,3), so the secrets fixture attaches its finding to a tier-2 run. A scanner run has no LLM tier of its own — scan_run_id is the correct parent and the analysis_runs FK stays only until the scanners in W8-03+ write scan_runs rows. Worth revisiting when findings.analysis_run_id can be made nullable.",
+        "GATE: lint 0, typecheck 0, 800 unit tests (was 794), zero skipped — the redaction integration test RUNS rather than skips, which was the point of it; pnpm -r test green; validate-arch, validate-plan, validate-traceability all PASS. No e2e — this ticket ships no screen."
       ]
     },
     {
