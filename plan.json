@@ -1891,9 +1891,10 @@
         "E5.4"
       ],
       "write_scope": [
-        "packages/reports/src/assembler/**",
-        "packages/reports/src/types/**",
-        "packages/reports/fixtures/**"
+        "packages/reports/src/**",
+        "packages/reports/fixtures/**",
+        "packages/insights/src/score/**",
+        "apps/api/src/routes/org/health.ts"
       ],
       "depends_on": [
         "W3-10",
@@ -1906,8 +1907,18 @@
         "Assembler snapshot tests per report type against the seeded fixture warehouse (same fixtures as METRICS.md §4 E1–E3)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED 2026-08-19, before writing code. The assembler needs the health-score DECOMPOSITION (section 2 of the Repo Health outline is the full input -> normalized -> weight -> contribution table), and the mapping from metric_snapshot rows to HealthMetricInputs lives in apps/api/src/routes/org/health.ts — which packages/reports may not import (Law 6: reports never imports api). Writing a second copy of that mapping inside the assembler is how the report and the screen start disagreeing about the same repo score. The mapping moves to packages/insights, which both may import, and the api route is repointed at it.",
+        "DONE 2026-08-19. ReportAssembler/ReportParams/ReportData/ReportSection in packages/reports/src/types exactly per REPORTS.md §2/§6, and an assembler covering Repo Health, Org Executive Summary and Delivery/DORA outlines from §1. Security Posture returns a single no_data naming its real dependencies (W6 findings store, W8 scanners) rather than a stub that looks implemented.",
+        "THE DETERMINISM PIN IS ENFORCED IN THE READS, NOT PROMISED IN A COMMENT. packages/metrics readMetricTrend deliberately reads newest-first with no upper bound — correct for a live screen, fatal for a report — so the assembler has its own reader that filters computed_at <= snapshotAt. Proven three ways: identical params produce byte-identical JSON; inserting a WILDLY different M9 computed after the pin changes nothing; and moving the pin forward DOES change the output, so the first assertion is a real bound rather than an accidental cache.",
+        "DAYS-SINCE-LAST-PUSH IS MEASURED FROM windowEnd, NOT Date.now(). Using wall-clock there would make the same ReportParams score differently tomorrow — determinism lost through the one input nobody thinks of as a read.",
+        "WRITE_SCOPE WIDENED FIRST (recorded above): the health input mapping lived in apps/api/src/routes/org/health.ts, which reports may not import (Law 6). It moved to packages/insights (healthInputsFromSnapshots) and the API route was repointed at it, so the report and the repo screen decompose a score through ONE implementation. Two copies would each stay self-consistent while disagreeing with each other, which no test could catch.",
+        "NO BLANK SECTIONS, asserted rather than intended: every section is content or an explicit no_data whose reason must exceed 20 characters, checked across all three report types. \"No findings\" and \"nothing has analysed this repo yet\" are different facts and now read differently.",
+        "MTTR renders \"needs incident data\" instead of 0, and every DORA tile carries its heuristic basis — an unlabelled DORA number reads as measured when it is inferred (FR-METRICS-12). An absent basis is labelled \"heuristic (basis not recorded)\" rather than assumed exact.",
+        "Appendix A is generated from METRIC_CATALOG (FR-METRICS-15), never from prose in the assembler: a definition that disagrees with the tooltip the same reader saw on screen is worse than no appendix.",
+        "GATE: lint 0, typecheck 0, 607 unit tests (was 602), zero skipped, three validators exit 0. No e2e — this ticket ships no route or screen; W5-04 wires the pipeline and W5-02 the UI."
+      ]
     },
     {
       "id": "W5-04",

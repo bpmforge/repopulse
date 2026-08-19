@@ -2,8 +2,8 @@ import { readMetricTrend } from '@repopulse/metrics';
 import {
   buildHealthSubScores,
   computeHealthScore,
+  healthInputsFromSnapshots,
   scoreLetter,
-  type HealthMetricInputs,
   type HealthScore,
 } from '@repopulse/insights';
 import type { Database } from '@repopulse/shared';
@@ -14,8 +14,6 @@ import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 // snapshot set doesn't carry (commit-count-vs-median, flakiness, CFR) are null →
 // excluded from their sub-score's mean (never scored 0).
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 async function latest(
   db: Database,
   workspaceId: number,
@@ -25,15 +23,6 @@ async function latest(
 ): Promise<{ value: number | null; dims: Record<string, unknown> }> {
   const [row] = await readMetricTrend(db, { workspaceId, repoId, metricKey, window, limit: 1 });
   return row ? { value: Number(row.value), dims: row.dims } : { value: null, dims: {} };
-}
-
-function dimNum(dims: Record<string, unknown>, path: string[]): number | null {
-  let cur: unknown = dims;
-  for (const k of path) {
-    if (cur && typeof cur === 'object' && k in cur) cur = (cur as Record<string, unknown>)[k];
-    else return null;
-  }
-  return typeof cur === 'number' ? cur : null;
 }
 
 export async function repoHealth(
@@ -52,18 +41,13 @@ export async function repoHealth(
     latest(db, workspaceId, repoId, 'M11', window),
   ]);
 
-  const inputs: HealthMetricInputs = {
-    commitCountVsMedian: null,
-    daysSinceLastPush: pushedAt ? (nowMs - pushedAt.getTime()) / DAY_MS : null,
-    m5ReviewCoverage: m5.value,
-    medianFirstReviewHours: dimNum(m4.dims, ['stages', 'openToFirstReview', 'median']),
-    stalePrCount: m8.value,
-    m9PassRate: dimNum(m9.dims, ['passRate']) ?? m9.value,
-    topFlakiness: null,
-    e2eCycleP50Hours: m4.value,
-    m11DaysSinceRelease: dimNum(m11.dims, ['daysSinceLast']),
-    m12Cfr: null,
-  };
+  // The mapping lives in @repopulse/insights (W5-03) so the report assembler
+  // and this screen decompose a repo's score identically. Two copies would
+  // drift silently, each self-consistent.
+  const inputs = healthInputsFromSnapshots(
+    { M4: m4, M5: m5, M8: m8, M9: m9, M11: m11 },
+    { pushedAt, nowMs },
+  );
 
   // W4-09: weights come from workspace config, not code (METRICS.md §3).
   // buildHealthSubScores falls back to DEFAULT_WEIGHTS per key, so an unset
