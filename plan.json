@@ -2232,9 +2232,10 @@
         "E7.3"
       ],
       "write_scope": [
-        "packages/analysis/src/gateway/**",
-        "packages/analysis/src/t2/**",
-        "packages/analysis/src/scheduling/**"
+        "packages/analysis/src/**",
+        "packages/analysis/package.json",
+        "eslint.config.js",
+        "packages/ingest/src/queues/**"
       ],
       "depends_on": [
         "W1-02",
@@ -2248,8 +2249,10 @@
         "Lint rule ships forbidding direct HTTP to LM Studio hosts and @anthropic-ai/sdk imports outside packages/analysis (ANALYSIS_TIERS.md header rule, CLAUDE.md Law 8)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: acceptance 5 requires a LINT RULE (eslint.config.js is at the repo root, outside the filed scope) and acceptance 3 requires the analysis.review QUEUE, which lives in the ingest topology."
+      ]
     },
     {
       "id": "W6-02",
