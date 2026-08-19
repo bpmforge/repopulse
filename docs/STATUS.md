@@ -2275,3 +2275,25 @@ from the POST response, rather than adding a fourth wait.
 It also found the most valuable bug of the wave: **every report from the Report
 Center was empty**, because the form sends no `repo_ids` and an empty list meant
 "no repositories" rather than "all of them". Fixed on the branch.
+
+#### `pnpm --filter @repopulse/web test` had never worked (2026-08-19)
+
+Found by a stop-hook running the tests differently from the way this session
+had been running them. `apps/web/package.json` declares `"test": "vitest run"`
+but never declared **vitest**, so under pnpm's strict isolation the binary is
+not on that package's path:
+
+```
+sh: vitest: command not found
+ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @repopulse/web@0.1.0 test
+```
+
+Root `pnpm test` always passed because vitest is a root devDependency and the
+workspace config sweeps every package — so the broken script was invisible to
+every gate this project runs. `pnpm -r test` and any per-package CI step would
+have hit it immediately.
+
+A declared script that cannot execute is the same defect class as a queue with
+no processor: it looks like coverage and performs nothing. Fixed by declaring
+vitest in `apps/web` at the root's version; `pnpm --filter @repopulse/web test`
+now runs 63 tests.
