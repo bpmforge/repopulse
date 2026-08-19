@@ -94,3 +94,48 @@ test('the verification facet separates confirmed, unverified and contradicted (W
   // A contradicted finding must not still claim to be verified.
   await expect(page.getByTestId('finding-rows')).not.toContainText(/verified by a second model/i);
 });
+
+test('the triage queue steps with the keyboard and reports its own FP count (W6-06)', async ({
+  page,
+}) => {
+  await loginAsFixture(page);
+  await page.goto('/findings');
+  await page.getByTestId('filter-status').selectOption('');
+  await expect(page.getByTestId('main')).toBeVisible();
+
+  await page.getByTestId('start-triage').click();
+  await expect(page.getByTestId('triage-queue')).toBeVisible();
+  await expectNoA11yViolations(page);
+
+  const position = page.getByTestId('triage-position');
+  await expect(position).toContainText(/1 of/);
+
+  // j/k move without a mouse — triaging forty findings by clicking is a job
+  // nobody finishes (NFR-5).
+  await page.keyboard.press('j');
+  await expect(position).toContainText(/2 of/);
+  await page.keyboard.press('k');
+  await expect(position).toContainText(/1 of/);
+
+  // d dismisses as a false positive and advances; the summary counts it,
+  // feeding the same false-positive metric the quality widget reads.
+  await page.keyboard.press('d');
+  await expect(page.getByTestId('triage-summary')).toContainText(/1 dismissed/);
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('triage-queue')).toHaveCount(0);
+});
+
+test('the weekly pulse card is computed, and says so (W6-06, R-A7/R-D3)', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/');
+  await expect(page.getByTestId('pulse-card')).toBeVisible();
+
+  // Exactly five bullets, always — a summary whose shape changes week to week
+  // cannot be skimmed.
+  await expect(page.getByTestId('pulse-card').locator('li')).toHaveCount(5);
+
+  // Provenance is honest: a template wrote this, and the chip must not imply a
+  // model did.
+  await expect(page.getByTestId('pulse-provenance')).toContainText(/computed from your warehouse/i);
+});

@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
+import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
 import {
   SEVERITY_LABEL,
   VERIFY_LABEL,
@@ -28,6 +29,7 @@ function FindingsExplorer() {
   const [selected, setSelected] = useState<number[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
   const [note, setNote] = useState('');
+  const [triage, setTriage] = useState(false);
 
   const listDescriptor = {
     endpoint: '/findings',
@@ -60,6 +62,18 @@ function FindingsExplorer() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="findings">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid="start-triage"
+          disabled={items.length === 0}
+          onClick={() => setTriage(true)}
+        >
+          Triage queue ({items.length})
+        </button>
+      </div>
+
       <div className="flex flex-wrap items-end gap-3" data-testid="finding-filters">
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Dimension
@@ -255,6 +269,14 @@ function FindingsExplorer() {
           </tbody>
         </table>
       </WidgetFrame>
+
+      {triage && (
+        <TriageQueue
+          findings={items}
+          onExit={() => setTriage(false)}
+          invalidate={[queryKeyFor(listDescriptor), queryKeyFor({ endpoint: '/findings/stats' })]}
+        />
+      )}
 
       {openId !== null && items.find((f) => f.id === openId) && (
         <FindingDetail

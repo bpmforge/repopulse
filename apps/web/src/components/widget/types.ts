@@ -20,6 +20,9 @@ export type WidgetType =
   // overwrites by type, so a duplicate registration silently replaces the
   // widget already there.
   | 'plan-progress'
+  // W6-06. Its own type: registerWidget overwrites by type, so reusing one
+  // would silently replace an existing widget.
+  | 'weekly-pulse'
   | 'my-prs'
   | 'my-queue'
   | 'text';
