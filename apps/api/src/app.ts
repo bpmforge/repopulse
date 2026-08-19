@@ -134,6 +134,34 @@ export function buildApp(opts: BuildAppOptions) {
     enqueueReport: async ({ reportId, workspaceId, params }) => {
       await reportsQueue().add('generate', { reportId, workspaceId, params });
     },
+    // Scheduled generation (W5-09, R-A10) rides BullMQ's own repeatable jobs.
+    // No schedules table: BullMQ already holds the timer AND can list it, so a
+    // table would be a second source of truth able to disagree with reality.
+    schedules: {
+      list: async (workspaceId) => {
+        const repeatables = await reportsQueue().getRepeatableJobs();
+        return repeatables
+          .filter((r) => r.name.startsWith(`schedule:${workspaceId}:`))
+          .map((r) => {
+            const [, , type, cadence] = r.name.split(':');
+            return { key: r.key, type: type ?? '', cadence: cadence ?? '', next: r.next ?? null };
+          });
+      },
+      add: async (workspaceId, type, cadence, windowDays) => {
+        // Monthly on the 1st, quarterly on the 1st of Jan/Apr/Jul/Oct — both at
+        // 03:00, after the nightly snapshot has written the numbers a report
+        // reads. Generating before it would report yesterday's warehouse.
+        const pattern = cadence === 'monthly' ? '0 3 1 * *' : '0 3 1 1,4,7,10 *';
+        await reportsQueue().add(
+          `schedule:${workspaceId}:${type}:${cadence}`,
+          { scheduled: true, workspaceId, type, windowDays },
+          { repeat: { pattern } },
+        );
+      },
+      remove: async (_workspaceId, key) => {
+        await reportsQueue().removeRepeatableByKey(key);
+      },
+    },
     enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
       await backfill().add('plan', { workspaceId, repoId });
     },

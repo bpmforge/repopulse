@@ -21,6 +21,15 @@ export interface ReportParams {
   snapshotAt: string;
   weightsVersion: string;
   catalogVersion: string;
+  /**
+   * Optional human context captured AT GENERATION and stored with the params
+   * (R-A11) — "this quarter includes the payments migration". Part of params
+   * rather than a mutable column on purpose: a report is immutable, so an
+   * annotation cannot be edited onto one after the fact. Changing the note
+   * means generating a new report, which is exactly the guarantee that makes a
+   * report quotable.
+   */
+  annotation?: string;
 }
 
 export interface ScoreBreakdownRow {

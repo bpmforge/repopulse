@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import { read, type Database } from '@repopulse/shared';
+import { and, eq } from 'drizzle-orm';
+import { core, read, type Database } from '@repopulse/shared';
 import { createReportAssembler, renderReport, type ReportParams } from '@repopulse/reports';
 import type { Job } from 'bullmq';
 
@@ -15,6 +15,20 @@ export interface ReportJobData {
   params: ReportParams;
 }
 
+/**
+ * What a REPEATABLE schedule enqueues (W5-09). It has no reportId, because the
+ * report row does not exist yet — the schedule fires, then a report is created.
+ * Handled explicitly here: without this branch the processor would read
+ * `job.data.reportId` as undefined and update zero rows, so a scheduled report
+ * would look like it ran and produce nothing.
+ */
+export interface ScheduledReportJobData {
+  scheduled: true;
+  workspaceId: number;
+  type: ReportParams['type'];
+  windowDays: number;
+}
+
 export interface ReportProcessorDeps {
   db: Database;
   dataDir: string;
@@ -23,9 +37,58 @@ export interface ReportProcessorDeps {
   printToPdf?: (url: string) => Promise<Buffer>;
 }
 
+async function createScheduledReport(
+  deps: ReportProcessorDeps,
+  data: ScheduledReportJobData,
+): Promise<{ reportId: number; params: ReportParams }> {
+  const now = new Date();
+  const params: ReportParams = {
+    type: data.type,
+    workspaceId: String(data.workspaceId),
+    repoIds: [],
+    windowDays: data.windowDays as ReportParams['windowDays'],
+    windowEnd: now.toISOString(),
+    snapshotAt: now.toISOString(),
+    weightsVersion: 'v1',
+    catalogVersion: 'v1',
+    annotation: 'Generated automatically on schedule.',
+  };
+  const [row] = await deps.db
+    .insert(read.reports)
+    .values({
+      workspaceId: data.workspaceId,
+      type: params.type,
+      params: params as unknown as Record<string, unknown>,
+      status: 'queued',
+      // The schedule's creator is not tracked per firing; the row records the
+      // workspace's first admin as the generator so the FK holds and the audit
+      // question "who set this up" is answered by the report.scheduled event.
+      generatedBy: await firstAdminId(deps, data.workspaceId),
+    })
+    .returning();
+  return { reportId: row!.id, params };
+}
+
+async function firstAdminId(deps: ReportProcessorDeps, workspaceId: number): Promise<number> {
+  const [member] = await deps.db
+    .select({ userId: core.workspaceMembers.userId })
+    .from(core.workspaceMembers)
+    .where(
+      and(eq(core.workspaceMembers.workspaceId, workspaceId), eq(core.workspaceMembers.role, 'admin')),
+    )
+    .limit(1);
+  if (!member) throw new Error(`scheduled report: workspace ${workspaceId} has no admin to attribute it to`);
+  return member.userId;
+}
+
 export function reportProcessor(deps: ReportProcessorDeps) {
-  return async function process(job: Job<ReportJobData>): Promise<void> {
-    const { reportId, params } = job.data;
+  return async function process(job: Job<ReportJobData | ScheduledReportJobData>): Promise<void> {
+    const data = job.data;
+    // A scheduled firing creates its own report row first, pinning "now" at
+    // the moment the schedule ran — the same determinism rule as a manual
+    // generation, just with the clock read by the scheduler.
+    const { reportId, params } =
+      'scheduled' in data ? await createScheduledReport(deps, data) : data;
 
     await deps.db
       .update(read.reports)

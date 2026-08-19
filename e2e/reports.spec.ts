@@ -77,3 +77,43 @@ test('downloading a report that is not ready is refused, not a broken file', asy
   const res = await context.request.get('/api/v1/reports/999999/download');
   expect(res.status()).toBe(404);
 });
+
+test('two reports of the same scope diff, and an annotation reaches the cover (W5-09)', async ({
+  page,
+}) => {
+  await loginAsFixture(page);
+  await page.goto('/reports');
+
+  // Two generations of the SAME scope, the second annotated.
+  await page.getByTestId('generate-report').click();
+  await expect(page.locator('[data-testid^="report-status-"]').first()).toContainText(/ready/, {
+    timeout: 45_000,
+  });
+  const rows = page.locator('[data-testid^="report-status-"]');
+  const before = await rows.count();
+
+  await page.getByTestId('report-annotation').fill('Quarter includes the payments migration');
+  await page.getByTestId('generate-report').click();
+
+  // Wait for the NEW row to appear before asserting on the first one. The
+  // history polls every 3s, so immediately after clicking Generate the first
+  // row is still the PREVIOUS report — which is already ready, so a status
+  // assertion passes against the wrong report and the annotation check then
+  // fails on a report that never had one.
+  await expect(rows).toHaveCount(before + 1, { timeout: 15_000 });
+  await expect(rows.first()).toContainText(/ready/, { timeout: 45_000 });
+
+  // The annotation is on the cover of the report it was captured with — and
+  // immutability means it could not have been added to the earlier one.
+  await page.locator('[data-testid^="report-view-"]').first().click();
+  await expect(page.getByTestId('print-annotation')).toContainText(/payments migration/);
+  await page.goBack();
+
+  const boxes = page.locator('[data-testid^="report-compare-"]');
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+
+  // Same type, same scope, same window → comparable, with real rows.
+  await expect(page.getByTestId('diff-table')).toBeVisible();
+  await expect(page.getByTestId('diff-table').locator('tbody tr').first()).toBeVisible();
+});

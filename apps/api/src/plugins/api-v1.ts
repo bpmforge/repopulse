@@ -49,6 +49,8 @@ export interface ApiV1Options {
     workspaceId: number;
     params: import('@repopulse/reports').ReportParams;
   }) => Promise<void>;
+  /** W5-09: repeatable-job seam for scheduled generation. */
+  schedules?: import('../routes/reports/index.js').ReportsRoutesOptions['schedules'];
 }
 
 // The guarded /api/v1 scope (API_DESIGN.md §1/§2): session required,
@@ -142,6 +144,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   await app.register(reportsRoutes, {
     db: opts.db,
     ...(opts.enqueueReport ? { enqueueReport: opts.enqueueReport } : {}),
+    ...(opts.schedules ? { schedules: opts.schedules } : {}),
   });
   // Working agreements (W5-08).
   await app.register(agreementsRoutes, { db: opts.db });

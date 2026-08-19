@@ -16,6 +16,7 @@ import type {
 } from '../types/index.js';
 import { readReportRepos, readSnapshotsAsOf, type BoundedSnapshot } from './read.js';
 import { planSections } from './plans.js';
+import { readPreviousSnapshotAt } from './previous.js';
 
 // Report assembler (W5-03, REPORTS.md §1/§2/§5/§6).
 //
@@ -68,7 +69,10 @@ export function createReportAssembler(db: Database): ReportAssembler {
     const snapshotAt = new Date(params.snapshotAt);
     const windowEnd = new Date(params.windowEnd);
     const repos = await readReportRepos(db, workspaceId, repoIds);
-    return { workspaceId, repoIds, snapshotAt, windowEnd, repos, window: windowOf(params) };
+    // Resolved ids, so an all-repos report reads snapshots for the repos it
+    // actually covers rather than passing an empty IN list downstream.
+    const scopedIds = repoIds.length > 0 ? repoIds : repos.map((r) => r.id);
+    return { workspaceId, repoIds: scopedIds, snapshotAt, windowEnd, repos, window: windowOf(params) };
   }
 
   /**
@@ -407,14 +411,10 @@ export function createReportAssembler(db: Database): ReportAssembler {
       // Every report closes with the plan (IMPROVEMENT_PLANS.md §5). Appended
       // for every type, including security_posture: the whole point is that a
       // report ends with what was agreed, not with a list of problems.
-      const planned = await planSections(db, {
-        workspaceId,
-        snapshotAt,
-        // W5-09 will thread the previous same-scope report's pin; until then a
-        // report says plainly that it has nothing to compare against rather
-        // than implying nothing moved.
-        previousSnapshotAt: null,
-      });
+      // W5-09: the previous same-scope report's pin, so the plan section can
+      // report what MOVED rather than what is merely true now.
+      const previousSnapshotAt = await readPreviousSnapshotAt(db, params);
+      const planned = await planSections(db, { workspaceId, snapshotAt, previousSnapshotAt });
 
       const qualitySnapshots = await readSnapshotsAsOf(db, {
         workspaceId,

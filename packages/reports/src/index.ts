@@ -3,3 +3,4 @@ export * from './types/index.js';
 export * from './assembler/index.js';
 export { readSnapshotsAsOf, readReportRepos } from './assembler/read.js';
 export * from './pipeline/render.js';
+export * from './diff/index.js';

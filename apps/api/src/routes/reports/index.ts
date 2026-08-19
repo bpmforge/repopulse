@@ -1,9 +1,10 @@
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, read, type Database } from '@repopulse/shared';
-import { uriToPath, type ReportParams, type ReportType } from '@repopulse/reports';
+import { requireAdmin } from '../../lib/rbac.js';
+import { diffReports, uriToPath, type ReportData, type ReportParams, type ReportType } from '@repopulse/reports';
 import { sendProblem } from '../../lib/problem.js';
 
 // Report Center API (W5-04, FR-REPORTS-1/6/7, REPORTS.md §4).
@@ -21,6 +22,17 @@ export interface ReportsRoutesOptions {
     workspaceId: number;
     params: ReportParams;
   }) => Promise<void>;
+  /**
+   * Repeatable-job seam for scheduled generation (R-A10). BullMQ already
+   * stores and lists repeatable jobs, so there is no schedules TABLE — a table
+   * would be a second source of truth that can disagree with the scheduler
+   * actually holding the timer. Injectable so tests run without Redis.
+   */
+  schedules?: {
+    list: (workspaceId: number) => Promise<{ key: string; type: string; cadence: string; next: number | null }[]>;
+    add: (workspaceId: number, type: string, cadence: string, windowDays: number) => Promise<void>;
+    remove: (workspaceId: number, key: string) => Promise<void>;
+  };
 }
 
 const TYPES: ReportType[] = ['repo_health', 'org_exec', 'security_posture', 'delivery_dora'];
@@ -44,7 +56,7 @@ export default async function reportsRoutes(
   const { db } = opts;
 
   /** POST /reports — pin the params, then queue the generation. */
-  app.post<{ Body: { type?: unknown; repo_ids?: unknown; window_days?: unknown } }>(
+  app.post<{ Body: { type?: unknown; repo_ids?: unknown; window_days?: unknown; annotation?: unknown } }>(
     '/reports',
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
@@ -79,6 +91,13 @@ export default async function reportsRoutes(
         snapshotAt: now.toISOString(),
         weightsVersion: 'v1',
         catalogVersion: 'v1',
+        // Captured at generation and stored IN the params (R-A11), never as a
+        // mutable column: a report is immutable, so changing the note means
+        // generating a new report. That is the property that makes a report
+        // quotable weeks later.
+        ...(typeof request.body?.annotation === 'string' && request.body.annotation.trim() !== ''
+          ? { annotation: request.body.annotation.trim().slice(0, 2000) }
+          : {}),
       };
 
       const [row] = await db
@@ -212,4 +231,96 @@ export default async function reportsRoutes(
       .header('content-disposition', 'attachment; filename="report-' + row.id + '.pdf"')
       .send(createReadStream(path));
   });
+
+  /** GET /reports/:id/diff/:otherId — per-row deltas between two reports. */
+  app.get<{ Params: { id: string; otherId: string } }>(
+    '/reports/:id/diff/:otherId',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const ids = [Number(request.params.id), Number(request.params.otherId)];
+      if (!ids.every(Number.isInteger)) return fail(request, reply, 400, 'Invalid report id');
+
+      const rows = await db
+        .select()
+        .from(read.reports)
+        .where(and(eq(read.reports.workspaceId, workspaceId), inArray(read.reports.id, ids)));
+      if (rows.length !== 2) return fail(request, reply, 404, 'Not Found');
+
+      const loaded: Record<number, ReportData | null> = {};
+      for (const row of rows) {
+        loaded[row.id] = null;
+        if (!row.jsonUri) continue;
+        try {
+          loaded[row.id] = JSON.parse(await readFile(uriToPath(row.jsonUri), 'utf8')) as ReportData;
+        } catch {
+          loaded[row.id] = null;
+        }
+      }
+      const before = loaded[ids[0] as number];
+      const after = loaded[ids[1] as number];
+      if (!before || !after) {
+        // 409, not 500: both reports exist, but one has no stored data to
+        // compare — which is a state, not a server fault.
+        return fail(request, reply, 409, 'Report data unavailable', 'One of these reports has no stored ReportData.');
+      }
+
+      return reply.send({ before: ids[0], after: ids[1], ...diffReports(before, after) });
+    },
+  );
+
+  /** GET /reports/schedules — what is scheduled, and when it next runs. */
+  app.get('/reports/schedules', { preHandler: requireAdmin }, async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const items = (await opts.schedules?.list(workspaceId)) ?? [];
+    return reply.send({ items });
+  });
+
+  /** POST /reports/schedules — admin-only. In-app only; no delivery channel (N-4). */
+  app.post<{ Body: { type?: unknown; cadence?: unknown; window_days?: unknown } }>(
+    '/reports/schedules',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session.get('userId');
+      if (workspaceId === undefined || userId === undefined) {
+        return fail(request, reply, 401, 'No active session');
+      }
+      const type = request.body?.type;
+      const cadence = request.body?.cadence;
+      if (typeof type !== 'string' || !TYPES.includes(type as ReportType)) {
+        return fail(request, reply, 400, 'Invalid report type');
+      }
+      if (cadence !== 'monthly' && cadence !== 'quarterly') {
+        return fail(request, reply, 400, 'Invalid cadence', 'cadence must be monthly or quarterly');
+      }
+      const windowDays = Number(request.body?.window_days ?? 30);
+      if (!WINDOWS.includes(windowDays)) return fail(request, reply, 400, 'Invalid window');
+
+      await opts.schedules?.add(workspaceId, type, cadence, windowDays);
+      auditLog(request.log, {
+        event: 'report.scheduled',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        reportType: type,
+        cadence,
+      });
+      return reply.code(201).send({ type, cadence, window_days: windowDays });
+    },
+  );
+
+  /** DELETE /reports/schedules/:key — admin-only. */
+  app.delete<{ Params: { key: string } }>(
+    '/reports/schedules/:key',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      await opts.schedules?.remove(workspaceId, decodeURIComponent(request.params.key));
+      return reply.send({ key: request.params.key, deleted: true });
+    },
+  );
 }

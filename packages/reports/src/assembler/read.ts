@@ -87,7 +87,12 @@ export async function readReportRepos(
   workspaceId: number,
   repoIds: number[],
 ): Promise<ReportRepo[]> {
-  if (repoIds.length === 0) return [];
+  // An EMPTY list means every repository in the workspace, matching the saved
+  // views convention. It previously meant "none", so every report generated
+  // from the Report Center — which sends no repo_ids — assembled to "No
+  // repository in scope" and produced a cover, a basis box and nothing else.
+  // A report that renders perfectly and says nothing is the worst kind of
+  // empty: it looks like the product working.
   const rows = await db
     .select({
       id: core.repos.id,
@@ -97,7 +102,11 @@ export async function readReportRepos(
       pushedAt: core.repos.pushedAt,
     })
     .from(core.repos)
-    .where(and(eq(core.repos.workspaceId, workspaceId), inArray(core.repos.id, repoIds)))
+    .where(
+      repoIds.length === 0
+        ? eq(core.repos.workspaceId, workspaceId)
+        : and(eq(core.repos.workspaceId, workspaceId), inArray(core.repos.id, repoIds)),
+    )
     .orderBy(core.repos.org, core.repos.name);
   return rows;
 }
