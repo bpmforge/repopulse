@@ -56,7 +56,10 @@ export type AuditEvent =
   | 'agreement.configured'
   // W5-09. A schedule generates reports unattended from then on, so who set
   // one and at what cadence is part of the record.
-  | 'report.scheduled';
+  | 'report.scheduled'
+  // W6-04. A finding is a claim about someone's code; who dismissed it and why
+  // is the record that makes the claim reviewable later (FR-INSIGHTS-1).
+  | 'finding.status_changed';
 
 export interface AuditEntry {
   event: AuditEvent;

@@ -472,6 +472,81 @@ export async function seedWarehouse(
   }
   const snapshotCount = snapshotRows.length;
 
+  // Findings (W6-04). Without these the Findings Explorer can only ever be
+  // exercised against its empty state — which is how W5-04 shipped a Report
+  // Center whose every report was empty and still passed its own e2e.
+  const [analysisRun] = await db
+    .insert(read.analysisRuns)
+    .values({
+      workspaceId,
+      repoId: repoIds[0]!,
+      pullRequestId: null,
+      tier: 2,
+      dimension: 'security',
+      checklistVersion: 'v1',
+      modelId: 'fixture-model',
+      status: 'succeeded',
+      chunkCount: 3,
+      promptTokens: 12_000,
+      outputTokens: 2_400,
+      startedAt: new Date(BASE + SPAN_DAYS * DAY - DAY),
+      finishedAt: new Date(BASE + SPAN_DAYS * DAY - DAY + 45_000),
+    })
+    .returning();
+
+  const findingSeeds = [
+    {
+      dimension: 'security',
+      severity: 5,
+      confidence: 5,
+      title: 'SQL built by string concatenation',
+      file: 'src/payments/charge.ts',
+      evidence: "db.query('select * from charges where id = ' + req.params.id)",
+      recommendation: 'Use a parameterised query.',
+    },
+    {
+      dimension: 'performance',
+      severity: 4,
+      confidence: 4,
+      title: 'Query inside a loop over pull requests',
+      file: 'src/reports/build.ts',
+      evidence: 'for (const pr of prs) { await db.select().from(reviews) }',
+      recommendation: 'Batch the lookup outside the loop.',
+    },
+    {
+      dimension: 'code_health',
+      severity: 2,
+      confidence: 3,
+      title: 'Empty catch swallows the failure',
+      file: 'src/sync/webhook.ts',
+      evidence: 'catch { }',
+      recommendation: 'Log the error or let it propagate.',
+    },
+  ];
+
+  await db.insert(read.findings).values(
+    findingSeeds.map((f, i) => ({
+      workspaceId,
+      repoId: repoIds[0]!,
+      analysisRunId: analysisRun!.id,
+      pullRequestId: null,
+      dimension: f.dimension,
+      severity: f.severity,
+      confidence: f.confidence,
+      title: f.title,
+      file: f.file,
+      lineStart: 10 + i * 25,
+      lineEnd: 12 + i * 25,
+      evidence: f.evidence,
+      recommendation: f.recommendation,
+      tier: 2,
+      // Deterministic keys: re-seeding must not create a second copy, the same
+      // property the store guarantees in production.
+      dedupKey: `fixture-${f.dimension}-${i}`,
+      status: 'open',
+    })),
+  );
+
   return {
     workspaceId,
     secondWorkspaceId,
