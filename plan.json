@@ -2314,7 +2314,11 @@
         "E6.4"
       ],
       "write_scope": [
-        "packages/insights/src/findings/**"
+        "packages/insights/src/findings/**",
+        "packages/insights/src/score/**",
+        "packages/insights/src/hotspots/**",
+        "packages/insights/src/index.ts",
+        "packages/insights/package.json"
       ],
       "depends_on": [
         "W6-02",
@@ -2327,8 +2331,10 @@
         "Health score gains the security sub-score with weight renormalization per METRICS.md §3, and hotspot ranking gains open-finding density (FR-INSIGHTS-2/5 v1.x halves)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: acceptance 4 adds the security sub-score to the health score (packages/insights/src/score) and open-finding density to hotspot ranking (packages/insights/src/hotspots), neither of which is under findings/**."
+      ]
     },
     {
       "id": "W6-04",
