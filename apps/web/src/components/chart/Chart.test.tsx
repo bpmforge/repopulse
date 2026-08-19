@@ -34,25 +34,30 @@ const OPTION = { series: [{ type: 'line' as const, data: [1, 2, 3] }] };
 const TABLE = { columns: ['week', 'value'], rows: [['W1', 4]] };
 
 describe('Chart wrapper (DASHBOARD §5)', () => {
-  it('initializes echarts once and sets the option with animation on', () => {
+  it('initializes echarts once and sets the option with animation on', async () => {
     render(<Chart option={OPTION} ariaLabel="cycle time trend" tableData={TABLE} />);
-    expect(initChart).toHaveBeenCalledTimes(1);
+    // await: echarts is now loaded with a dynamic import (W7-09) so it lands in
+    // its own chunk instead of the entry bundle. Init is therefore a microtask
+    // later than mount — the behaviour is unchanged, the timing is not.
+    await vi.waitFor(() => expect(initChart).toHaveBeenCalledTimes(1));
     expect(chart.setOption).toHaveBeenCalledTimes(1);
     expect(chart.setOption.mock.calls[0]![0]).toMatchObject({ animation: true });
   });
 
-  it('disables animation under prefers-reduced-motion', () => {
+  it('disables animation under prefers-reduced-motion', async () => {
     (matchMedia as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       matches: true,
       addEventListener() {},
       removeEventListener() {},
     });
     render(<Chart option={OPTION} ariaLabel="cycle time trend" />);
+    await vi.waitFor(() => expect(chart.setOption).toHaveBeenCalled());
     expect(chart.setOption.mock.calls[0]![0]).toMatchObject({ animation: false });
   });
 
-  it('disposes the instance on unmount', () => {
+  it('disposes the instance on unmount', async () => {
     const { unmount } = render(<Chart option={OPTION} ariaLabel="cycle time trend" />);
+    await vi.waitFor(() => expect(initChart).toHaveBeenCalled());
     unmount();
     expect(chart.dispose).toHaveBeenCalled();
   });

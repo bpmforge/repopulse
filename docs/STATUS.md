@@ -2326,3 +2326,25 @@ What it does **not** prove: that a real Claude response parses into the Finding
 schema. That needs an API key from Brad. It is the Tier-3 twin of the
 GiteaProvider gap — a contract suite green against a service it has never
 touched.
+
+#### W7-05/06/07 parked — they need production infrastructure (2026-08-19)
+
+Three W7 tickets cannot be done by this loop, and faking them would be worse
+than leaving them open:
+
+- **W7-05 Production containers** — needs a real host, TLS certificates and
+  somewhere to put secrets. `deploy/compose.yaml` already exists and runs
+  locally; what is missing is a production target.
+- **W7-06 Prod deploy runbook execution** — is, by definition, executing a
+  deploy against that host and verifying observability on it.
+- **W7-07 Production GitHub App** — needs an App registered under the bpmforge
+  org with a callback and webhook URL pointing at a live
+  `repopulse.bpmforge.com`. Only Brad can create it.
+
+**From Brad:** a deploy target with DNS and TLS, and a registered GitHub App.
+Until then these stay `blocked` rather than `todo`, so the claimable set does
+not keep offering work nothing can finish.
+
+Related and still outstanding: **W14-01** (a Gitea token — the product has
+still never ingested a real repository), **W12-10** (the Actions budget), and a
+live Tier-3 call (an `ANTHROPIC_API_KEY`).

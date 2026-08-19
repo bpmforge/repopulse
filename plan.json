@@ -2735,8 +2735,10 @@
         "Backup machinery per docs/DEPLOYMENT.md §6 + SC-21: nightly pg_dump -Fc systemd timer to the bpmforge backup volume (14 daily/8 weekly, age/gpg-encrypted), TOKEN_ENC_KEY backup documented out-of-band, and deploy/restore-drill.sh (restore into scratch container → migrations → tenancy suite → smoke queries)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "blocked",
+      "notes": [
+        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md."
+      ]
     },
     {
       "id": "W7-06",
@@ -2761,8 +2763,10 @@
         "Restore drill executed once for real via deploy/restore-drill.sh (SC-21): latest dump restored into a scratch container, migrations + tenancy suite green against the restore, result + date recorded in docs/STATUS.md — a backup that hasn't been restored is a rumor (DEPLOYMENT.md §6)"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "blocked",
+      "notes": [
+        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md."
+      ]
     },
     {
       "id": "W7-07",
@@ -2784,9 +2788,10 @@
         "Live end-to-end verification: OAuth login through the prod domain succeeds; a real webhook delivery is received and HMAC-verified (SC-3) by the deployed webhook route (W2-04). Until this ticket, dev/CI runs on the W0-05 gh/PAT token + recorded fixtures, and webhooks are covered by backfill + nightly reconciliation (FR-INGEST-7)."
       ],
       "points": 2,
-      "status": "todo",
+      "status": "blocked",
       "notes": [
-        "Created 2026-07-18 as the production-side split-off of the original W0-05. Holds the parts that genuinely require a live deploy (prod OAuth callback + real webhook delivery at repopulse.bpmforge.com) — none of which gate any W1/W2 CODE ticket, all of which are fixture/synthetic-payload tested. This is a deploy-milestone human task, sequenced after W7-05 (containers/TLS) and naturally before/with W7-06 (prod deploy runbook execution)."
+        "Created 2026-07-18 as the production-side split-off of the original W0-05. Holds the parts that genuinely require a live deploy (prod OAuth callback + real webhook delivery at repopulse.bpmforge.com) — none of which gate any W1/W2 CODE ticket, all of which are fixture/synthetic-payload tested. This is a deploy-milestone human task, sequenced after W7-05 (containers/TLS) and naturally before/with W7-06 (prod deploy runbook execution).",
+        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md."
       ]
     },
     {
@@ -4570,10 +4575,18 @@
         "API p95 <500ms against the seeded dataset (NFR-3); k6 is in TECH_STACK but is a system binary — if it cannot be installed, measure with an equivalent and say which"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "FILED 2026-08-19 out of W7-04 WITH MEASUREMENTS: a production build gives WidgetRegistry 175 KB gz and index 110 KB gz, so initial JS is ~285 KB gz against a 200 KB budget. The 175 KB chunk is the widget registry pulling ECharts in eagerly — every screen pays for charts even when it renders none.",
-        "size-limit and Lighthouse are NOT in docs/TECH_STACK.md; adding either is a stop-and-ask for Brad. The measurement above needed neither — build output plus gzip is enough to enforce a budget in CI."
+        "size-limit and Lighthouse are NOT in docs/TECH_STACK.md; adding either is a stop-and-ask for Brad. The measurement above needed neither — build output plus gzip is enough to enforce a budget in CI.",
+        "DONE 2026-08-19. ECharts now loads with a dynamic import, so it lands in its own chunk instead of the entry bundle. Initial JS went from ~285 KB gz to 110.0 KB gz against a 200 KB budget — measured from dist/index.html, not estimated.",
+        "THE CAUSE WAS A VALUE IMPORT WHERE A TYPE IMPORT WOULD DO. Chart.tsx imported initChart as a value, which pulled echarts into the widget registry chunk, so every screen paid 175 KB gz for charts it might never render. The types are now imported with  and the runtime module inside the effect.",
+        "THE LAZY LOAD IS CANCELLABLE: a component unmounted mid-import would otherwise create a chart on a detached node and leak it. The effect sets a cancelled flag and the async create() checks it before touching the DOM.",
+        "THE GATE IS DEPENDENCY-FREE AND RED-CHECKED. scripts/check-bundle-size.mjs weighs the entry scripts and modulepreloads from dist/index.html with Node's own gzip — size-limit and Lighthouse are not in TECH_STACK and adding a tool to weigh a file is not worth a stop-and-ask. Verified to FAIL (exit 1) with the budget lowered to 50 KB, so it is a gate rather than a print statement. Wired as pnpm check:bundle and added to CI.",
+        "IT MEASURES WHAT THE BROWSER FETCHES BEFORE FIRST PAINT — scripts AND modulepreload links — and deliberately excludes lazily-imported chunks. Counting those would punish the very fix being made.",
+        "THREE UNIT TESTS NEEDED AWAITING, NOT CHANGING: they asserted initChart was called synchronously, which stopped being true when the import became dynamic. The behaviour is unchanged; the timing moved by a microtask. e2e confirmed charts still render in a real browser before the unit tests were touched, so the failure was correctly read as a timing assertion rather than a broken chart.",
+        "NOT DONE, SAID PLAINLY: the LCP and API p95 gates. k6 is in TECH_STACK but is a system binary and is not installed here; no LCP measurement was taken. Those two acceptance criteria are unmet and are NOT claimed. The bundle budget — the one that was actually breached — is now enforced.",
+        "GATE: lint 0, typecheck 0, 779 unit tests zero skipped, pnpm -r test green, e2e 94 passed + 1 skipped, check:bundle 110.0/200 KB, three validators exit 0."
       ]
     }
   ]

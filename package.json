@@ -20,7 +20,8 @@
     "seed": "tsx packages/shared/src/testing/seed/run.ts",
     "e2e": "playwright test",
     "dev": "node scripts/dev.mjs",
-    "bootstrap": "node scripts/setup.mjs"
+    "bootstrap": "node scripts/setup.mjs",
+    "check:bundle": "pnpm --filter @repopulse/web build && node scripts/check-bundle-size.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4",
