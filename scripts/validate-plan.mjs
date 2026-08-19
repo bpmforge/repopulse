@@ -60,7 +60,8 @@ for (const t of plan.tickets) {
   for (const k of Object.keys(t)) if (!TICKET_KEYS.includes(k)) err(`${label}: unknown field "${k}" (schema allows exactly: ${TICKET_KEYS.join(', ')})`);
 
   // W13 is the local-first-run wave (clone -> running app), filed 2026-08-18.
-  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-3])-(\d{2})$/);
+  // W14 is the run-it-for-real wave (first real forge ingestion, CI off GitHub).
+  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-4])-(\d{2})$/);
   if (!m) { err(`${label}: id must match W<0-12>-<nn>`); continue; }
   if (byId.has(t.id)) err(`${t.id}: duplicate id`);
   byId.set(t.id, t);
