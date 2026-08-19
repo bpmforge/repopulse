@@ -3918,12 +3918,19 @@
         "It fails with an actionable message when podman/node/ports are missing, naming what to do"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "FILED 2026-08-18 after auditing the fresh-clone path by actually running it. Booting the API with only .env.example dies twice: first `missing required env var GITHUB_APP_CLIENT_ID`, then `TOKEN_ENC_KEY is required (32-byte hex)`. Both blanks are CORRECT (Law 9 — a committed key is a published key), which means the documented setup file cannot start the app and never could.",
         "Generation, not documentation. Telling a newcomer to run `openssl rand -hex 32` twice and paste the results is the step everyone gets wrong; the script should do it and print what it did.",
         "NEVER overwrite an existing secret in .env. A rerun that regenerates TOKEN_ENC_KEY silently makes every stored forge credential undecryptable (DEPLOYMENT.md §3).",
-        "Port preflight matters here specifically: a compose dev stack already holds 3000 on this machine, which is what E2E_API_PORT exists to work around. A setup script that does not check ports hands the user a confusing failure later instead of a clear one now."
+        "Port preflight matters here specifically: a compose dev stack already holds 3000 on this machine, which is what E2E_API_PORT exists to work around. A setup script that does not check ports hands the user a confusing failure later instead of a clear one now.",
+        "DONE 2026-08-19. scripts/setup.mjs: tool checks (node 22+, podman or docker), .env creation, secret generation, data tier up, wait for postgres to actually ACCEPT connections, migrate, seed, then print what is still missing.",
+        "THE COMMAND IS `pnpm bootstrap`, NOT `pnpm setup`. `pnpm setup` is a pnpm BUILTIN (\"Sets up pnpm\") and wins over a package script, so every doc telling a newcomer to run `pnpm setup` would have quietly run pnpm's own command and never touched this repo. Caught by running `pnpm setup --help` before wiring the name.",
+        "FOUND AND FIXED, a real security defect rather than a setup inconvenience: .env.example PRE-FILLS SESSION_SECRET and WEBHOOK_SECRET with `dev-insecure-…` placeholders. A fill-only-blanks rule therefore left every fresh install signing session cookies and validating webhook HMACs with a secret PUBLISHED IN THIS REPOSITORY — forgeable by anyone who has read it. Placeholders (dev-insecure/REPLACE_WITH/changeme) now count as unset and are regenerated; .env.example says so.",
+        "NEVER OVERWRITES A REAL SECRET. Regenerating TOKEN_ENC_KEY on a rerun would silently make every stored forge credential undecryptable (DEPLOYMENT.md §3) — damage that surfaces weeks later as \"why can we no longer sync\". Verified: rerunning leaves .env byte-identical.",
+        "SECOND BUG FOUND BY RUNNING IT: the readiness probe shelled out to `podman exec -T postgres`, but the compose SERVICE is `postgres` while the CONTAINER is `repopulse-postgres`, and plain `podman exec` has no -T. It reported \"Postgres did not become ready\" against a database that had been healthy for six days. Now `podman compose -f compose.dev.yaml exec -T`.",
+        "DOES NOT INVENT GITHUB CREDENTIALS. GITHUB_APP_CLIENT_ID/SECRET identify an OAuth app only a human can register; a generated value would produce a stack trace at login instead of an honest \"you have not set this\". Setup ends by naming the gap and pointing at demo mode (W13-02).",
+        "VERIFIED BOTH PATHS: (A) fresh directory with only .env.example -> .env created, all three secrets generated as valid 32-byte hex, rerun leaves the file unchanged. (B) this repo -> idempotent, migrations applied, warehouse seeded (3 repos, 24 commits, 15 PRs, 1536 snapshots). Gate: lint 0, typecheck 0, 589 tests zero skipped, three validators exit 0."
       ]
     },
     {
