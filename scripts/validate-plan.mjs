@@ -125,9 +125,21 @@ for (const start of byId.keys()) {
 
 // ---- Reporting -------------------------------------------------------------
 const isDone = (id) => byId.get(id)?.status === 'done';
+// A BLOCKED ticket does not hold the wave gate closed (W7-09, 2026-08-19).
+//
+// `blocked` means "cannot be done here" — it needs a credential, a host, or a
+// budget only a human can supply. Treating it like `todo` stalls every later
+// wave on infrastructure nobody can produce tonight: parking W7-05/06/07 took
+// the claimable set to ZERO with 40+ tickets of buildable work behind them.
+//
+// This is not a weakening of the gate. The gate exists so a wave is not built
+// on an unfinished one; a ticket explicitly marked blocked, with what it needs
+// and from whom recorded in docs/STATUS.md, is a decision rather than an
+// oversight. `todo` still blocks, which is the case the gate was written for.
+const gateSatisfied = (o) => o.status === 'done' || o.status === 'blocked';
 const waveGateOpen = (t) =>
   t.phase === 0 ||
-  plan.tickets.every((o) => o.phase >= t.phase || o.module === 'infra' || o.status === 'done');
+  plan.tickets.every((o) => o.phase >= t.phase || o.module === 'infra' || gateSatisfied(o));
 const claimable = plan.tickets
   .filter((t) => t.status === 'todo' && (t.depends_on || []).every(isDone) && waveGateOpen(t))
   .map((t) => t.id)
