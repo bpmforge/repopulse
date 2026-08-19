@@ -2535,8 +2535,9 @@
         "E6.1"
       ],
       "write_scope": [
-        "packages/analysis/src/config/**",
-        "deploy/**"
+        "packages/analysis/src/**",
+        "deploy/**",
+        "docs/design/DEPLOYMENT.md"
       ],
       "depends_on": [
         "W6-01"
@@ -2547,7 +2548,7 @@
         "deploy compose/quadlet note: LLM VLAN reachable from the worker network only (pairs with the W7-05 SC-20 hardening); reachability check listed for the W7-06 runbook execution"
       ],
       "points": 1,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
