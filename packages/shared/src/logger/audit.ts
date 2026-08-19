@@ -46,7 +46,11 @@ export type AuditEvent =
   // organisation's delivery data, so who took a copy and when is the record
   // T-31 asks for.
   | 'report.generated'
-  | 'report.downloaded';
+  | 'report.downloaded'
+  // W5-06. A plan item moving is a decision about a team's work; the nightly
+  // verifier's transitions are audited too, with a null actor.
+  | 'plan.generated'
+  | 'plan.item.transitioned';
 
 export interface AuditEntry {
   event: AuditEvent;

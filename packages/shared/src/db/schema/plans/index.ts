@@ -1,0 +1,108 @@
+import {
+  bigint,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { workspaces } from '../core/workspaces.js';
+import { users } from '../core/users.js';
+import { reports } from '../read/reports.js';
+
+// Improvement plans (W5-06, DATABASE.md D9, FR-PLANS-1/2/3).
+//
+// Team-scoped by construction: there is no person column anywhere below, and
+// there must never be one (N-9). A plan item names a repository, a file or a
+// finding set — never who is responsible for it. The moment an item can name a
+// person, the product becomes a performance-management tool, which the founding
+// brief rules out.
+
+export const improvementPlans = pgTable(
+  'improvement_plans',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    repoIds: bigint('repo_ids', { mode: 'number' }).array().notNull(),
+    window: text('window').notNull(),
+    createdFromReportId: bigint('created_from_report_id', { mode: 'number' }).references(
+      () => reports.id,
+    ),
+    catalogVersion: text('catalog_version').notNull(),
+    status: text('status').notNull().default('active'),
+    createdBy: bigint('created_by', { mode: 'number' })
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('improvement_plans_workspace_id_idx').on(t.workspaceId),
+    check('improvement_plans_status_check', sql`${t.status} in ('active', 'archived')`),
+  ],
+);
+
+export const planItems = pgTable(
+  'plan_items',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    planId: bigint('plan_id', { mode: 'number' })
+      .notNull()
+      .references(() => improvementPlans.id),
+    rank: integer('rank').notNull(),
+    /** FR-PLANS-1: an item exists ONLY for a catalog entry — no free-form items. */
+    catalogId: text('catalog_id').notNull(),
+    source: text('source').notNull(),
+    /** What the UI links to: metric keys, finding ids, PR ids, file paths. */
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull(),
+    recommendation: text('recommendation').notNull(),
+    effort: text('effort').notNull(),
+    status: text('status').notNull().default('proposed'),
+    verifyCriterion: jsonb('verify_criterion').$type<Record<string, unknown>>().notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    statusChangedBy: bigint('status_changed_by', { mode: 'number' }).references(() => users.id),
+    statusChangedAt: timestamp('status_changed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('plan_items_workspace_plan_status_rank_idx').on(t.workspaceId, t.planId, t.status, t.rank),
+    check(
+      'plan_items_source_check',
+      sql`${t.source} in ('metric', 'finding', 'chain', 'compound', 'agreement')`,
+    ),
+    check('plan_items_effort_check', sql`${t.effort} in ('S', 'M', 'L')`),
+    check(
+      'plan_items_status_check',
+      sql`${t.status} in ('proposed', 'accepted', 'in_progress', 'done', 'regressed', 'dismissed')`,
+    ),
+  ],
+);
+
+// Every transition, including the automatic ones. A nightly job flipping an
+// item to done or regressed with no record is indistinguishable from a human
+// doing it, and "why did this reopen?" is the first question anyone asks.
+export const planItemEvents = pgTable(
+  'plan_item_events',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    planItemId: bigint('plan_item_id', { mode: 'number' })
+      .notNull()
+      .references(() => planItems.id),
+    fromStatus: text('from_status'),
+    toStatus: text('to_status').notNull(),
+    /** null = the nightly verifier, not a person. */
+    actorUserId: bigint('actor_user_id', { mode: 'number' }).references(() => users.id),
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('plan_item_events_workspace_item_idx').on(t.workspaceId, t.planItemId)],
+);

@@ -18,6 +18,7 @@ import syncRoutes from '../routes/sync/index.js';
 import adminRoutes from '../routes/admin/index.js';
 import identityRoutes from '../routes/admin/identities/index.js';
 import reportsRoutes from '../routes/reports/index.js';
+import plansRoutes from '../routes/plans/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
 
 export interface ApiV1Options {
@@ -141,6 +142,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     db: opts.db,
     ...(opts.enqueueReport ? { enqueueReport: opts.enqueueReport } : {}),
   });
+  // Improvement plans (W5-06).
+  await app.register(plansRoutes, { db: opts.db });
   // Identity admin (W5-05) — merging decides WHO the ownership and bus-factor
   // numbers are about, so it sits beside the settings that decide what they mean.
   await app.register(identityRoutes, { db: opts.db });
