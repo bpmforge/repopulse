@@ -3199,8 +3199,20 @@
         "Determinism pin intact: assembly reads findings/scan_run/snapshot rows as of snapshotAt only; regenerating with identical params is byte-identical (FR-REPORTS-6)"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. Per-scanner sections (posture counts, top findings, delta vs the PREVIOUS run) and a chains appendix on the Security Posture report, replacing the W7-03 placeholder that said dependency/secret signals were \"not computed in this version\".",
+        "THE REPORT DELIBERATELY DOES NOT IMPORT THE SCANNER REGISTRY, and that is the determinism decision in this ticket. The registry is code, and code changes: a report regenerated in six months would gain sections for scanners that did not exist when it was first produced and lose them for scanners since removed — byte-identical regeneration (FR-REPORTS-6) would break in a way nobody notices until an auditor compares two copies. The catalogue here is what the DATA says: every scanner with a config row, a run, or a finding at or before snapshotAt. A scanner nobody has ever configured or run is absent here and present on the Security tab, which is the screen that legitimately reflects the live registry.",
+        "ABSENT CONFIG IS null, NOT false. A scanner with no repo_scanner_config row is running on the workspace default; printing \"not enabled\" for it would be a claim the warehouse cannot support. Only an explicit stored false renders \"switched off\" — and that section also says what it costs the reader: the zeros elsewhere in the report exclude what this scanner would have found.",
+        "NEW-SINCE-PREVIOUS-RUN IS null ON A FIRST RUN, never 0. A brand-new scanner reporting \"0 new\" would say nothing changed when in fact nothing had ever been measured. The delta is counted against the PREVIOUS run's finish time rather than the latest one's, because \"what appeared since we last looked\" is the question a reader is asking.",
+        "TIES ARE BROKEN BY TITLE, NOT BY INSERTION ORDER. Top-findings sorted by severity alone would reorder between two runs over identical data and quietly break the byte-identical guarantee — the test asserts two assemblies serialise identically.",
+        "THE PIN IS ENFORCED ON SCAN RUNS TOO: a run started after snapshotAt is invisible to the report, asserted directly. Determinism that covers findings but not the runs that produced them is determinism with a hole in it.",
+        "A CHAIN IS RANKED BY ITS WORST STEP, never an average — an average lets one critical link hide behind three trivial ones — and the empty appendix says chains have not been LOOKED for (W8-09), not that none exist.",
+        "THE DEGRADED RENDERING SAYS \"not yet scanned\". A report that simply omits its scanner sections reads as though the scanners ran and found nothing, which is the exact confusion this whole report is written against.",
+        "A repo-level finding renders its location as \"repository-level\" rather than an empty cell: a blank looks like missing data, and a CVE genuinely has no line.",
+        "SCOPE WIDENED, WITH REASON: packages/reports/src/assembler/security-scanners.integration.test.ts — the ticket allotted fixtures/security/** for fixtures, but the assertions that matter here are about live warehouse rows and the snapshot pin, which a static fixture cannot exercise.",
+        "GATE: lint 0, typecheck 0, 900 unit tests (was 892), zero skipped, three consecutive clean runs; pnpm -r test green; validate-arch (7 rules), validate-plan, validate-traceability PASS. No e2e — the report body is assembled server-side and the Report Center screens are unchanged."
+      ]
     },
     {
       "id": "W8-13",

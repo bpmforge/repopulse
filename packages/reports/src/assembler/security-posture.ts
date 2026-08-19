@@ -1,6 +1,7 @@
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
-import { core, read, type Database } from '@repopulse/shared';
+import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm';
+import { core, read, security, type Database } from '@repopulse/shared';
 import type { ReportSection } from '../types/index.js';
+import type { ChainAppendixEntry, ScannerPosture } from '../types/security-posture.js';
 
 // Security Posture report (W7-03, REPORTS.md §1, FR-REPORTS-4).
 //
@@ -136,13 +137,8 @@ export async function securityPostureSections(
         },
   );
 
-  // 3. Dependency and secret signals — heuristic, and labelled as such.
-  sections.push({
-    kind: 'no_data',
-    id: 'dependency_secret_signals',
-    reason:
-      'Manifest-diff and secret-pattern signals are not computed in this version. They are HEURISTIC by design (v1.x, REPORTS.md §1) — a pattern match is not a confirmed leak — and this report will label them so when they land in W8 rather than presenting them beside scanner findings as equals.',
-  });
+  // 3. One section per scanner the warehouse knows about (W8-11).
+  sections.push(...(await scannerSections(db, params)));
 
   // 4. Egress audit summary (NFR-9).
   const [egress] = await db
@@ -245,6 +241,267 @@ export async function securityPostureSections(
       '- An empty section states why it is empty. "No findings" and "not yet analysed" are different facts and are never rendered the same way.',
     ].join('\n'),
   });
+
+  return sections;
+}
+
+/**
+ * Scanner posture, read entirely from the warehouse (W8-11, FR-SEC-10).
+ *
+ * WHY THIS DOES NOT IMPORT THE SCANNER REGISTRY. The registry is code, and code
+ * changes: a report regenerated in six months would gain sections for scanners
+ * that did not exist when it was first produced, and lose them for scanners
+ * that were removed — which breaks the byte-identical guarantee (FR-REPORTS-6)
+ * in a way nobody would notice until an auditor compared two copies. So the
+ * catalogue here is what the DATA says: every scanner with a config row or a
+ * run at or before snapshotAt. A scanner nobody has ever configured or run is
+ * absent from the report and present on the Security tab, which is the screen
+ * that legitimately reflects the live registry.
+ */
+export async function scannerPostures(
+  db: Database,
+  params: SecurityPostureParams,
+): Promise<ScannerPosture[]> {
+  const repoScope =
+    params.repoIds.length > 0
+      ? and(
+          eq(security.scanRuns.workspaceId, params.workspaceId),
+          inArray(security.scanRuns.repoId, params.repoIds),
+        )
+      : eq(security.scanRuns.workspaceId, params.workspaceId);
+
+  const runs = await db
+    .select()
+    .from(security.scanRuns)
+    .where(and(repoScope, lte(security.scanRuns.startedAt, params.snapshotAt)))
+    .orderBy(desc(security.scanRuns.startedAt))
+    .limit(2000);
+
+  const configScope =
+    params.repoIds.length > 0
+      ? and(
+          eq(security.repoScannerConfig.workspaceId, params.workspaceId),
+          inArray(security.repoScannerConfig.repoId, params.repoIds),
+        )
+      : eq(security.repoScannerConfig.workspaceId, params.workspaceId);
+  const configs = await db.select().from(security.repoScannerConfig).where(configScope);
+
+  const findingScope =
+    params.repoIds.length > 0
+      ? and(
+          eq(read.findings.workspaceId, params.workspaceId),
+          inArray(read.findings.repoId, params.repoIds),
+        )
+      : eq(read.findings.workspaceId, params.workspaceId);
+
+  const findings = await db
+    .select({
+      scannerKey: read.findings.scannerKey,
+      severity: read.findings.severity,
+      title: read.findings.title,
+      file: read.findings.file,
+      ruleId: read.findings.ruleId,
+      firstSeenAt: read.findings.firstSeenAt,
+    })
+    .from(read.findings)
+    .where(
+      and(
+        findingScope,
+        isNotNull(read.findings.scannerKey),
+        inArray(read.findings.status, ['open', 'confirmed']),
+        lte(read.findings.firstSeenAt, params.snapshotAt),
+      ),
+    );
+
+  const keys = [
+    ...new Set([
+      ...runs.map((r) => r.scannerKey),
+      ...configs.map((c) => c.scannerKey),
+      ...findings.map((f) => f.scannerKey as string),
+    ]),
+  ].sort();
+
+  return keys.map((key) => {
+    const keyRuns = runs.filter((r) => r.scannerKey === key);
+    const last = keyRuns[0];
+    // The run BEFORE the latest one, which is what "since the previous run"
+    // means. Absent on a scanner's first run — reported as null, not 0: "no
+    // previous run to compare against" is not "nothing changed".
+    const previous = keyRuns.find((r) => r.finishedAt && last && r.id !== last.id);
+
+    // A scanner is disabled only if a row SAYS so. Absent config is null, not
+    // false: an unconfigured scanner is running on the workspace default, and
+    // printing "not enabled" for it would be a claim the warehouse cannot make.
+    const configRows = configs.filter((c) => c.scannerKey === key);
+    const enabled = configRows.length === 0 ? null : configRows.every((c) => c.enabled);
+
+    const mine = findings.filter((f) => f.scannerKey === key);
+    const bySeverity: Record<number, number> = {};
+    for (const f of mine) bySeverity[f.severity] = (bySeverity[f.severity] ?? 0) + 1;
+
+    const cutoff = previous?.finishedAt ?? null;
+    return {
+      scannerKey: key,
+      enabled,
+      lastRunAt: last?.finishedAt ?? last?.startedAt ?? null,
+      lastRunStatus: last?.status ?? null,
+      scannerVersion: last?.scannerVersion ?? null,
+      bySeverity,
+      openTotal: mine.length,
+      newSincePreviousRun: cutoff === null ? null : mine.filter((f) => f.firstSeenAt > cutoff).length,
+      topFindings: mine
+        // Severity first, then title: a tie broken by insertion order would
+        // reorder between two runs over identical data and break the
+        // byte-identical guarantee.
+        .sort((a, b) => b.severity - a.severity || a.title.localeCompare(b.title))
+        .slice(0, 5)
+        .map((f) => ({ severity: f.severity, title: f.title, file: f.file, ruleId: f.ruleId })),
+    };
+  });
+}
+
+/** Open chains, worst step first (SECURITY_SUITE §5 appendix). */
+export async function chainAppendix(
+  db: Database,
+  params: SecurityPostureParams,
+): Promise<ChainAppendixEntry[]> {
+  const scope =
+    params.repoIds.length > 0
+      ? and(
+          eq(read.findings.workspaceId, params.workspaceId),
+          inArray(read.findings.repoId, params.repoIds),
+        )
+      : eq(read.findings.workspaceId, params.workspaceId);
+
+  const rows = await db
+    .select({
+      chainId: read.findings.chainId,
+      id: read.findings.id,
+      title: read.findings.title,
+      severity: read.findings.severity,
+    })
+    .from(read.findings)
+    .where(
+      and(
+        scope,
+        isNotNull(read.findings.chainId),
+        inArray(read.findings.status, ['open', 'confirmed']),
+        lte(read.findings.firstSeenAt, params.snapshotAt),
+      ),
+    )
+    .orderBy(read.findings.id);
+
+  const chains = new Map<string, ChainAppendixEntry>();
+  for (const row of rows) {
+    const chainId = row.chainId as string;
+    const entry = chains.get(chainId) ?? { chainId, severity: 0, steps: [] };
+    entry.steps.push({ findingId: row.id, title: row.title, severity: row.severity });
+    // Worst step, never an average: an average lets one critical link hide
+    // behind three trivial ones.
+    entry.severity = Math.max(entry.severity, row.severity);
+    chains.set(chainId, entry);
+  }
+  return [...chains.values()].sort(
+    (a, b) => b.severity - a.severity || a.chainId.localeCompare(b.chainId),
+  );
+}
+
+/** Per-scanner sections plus the chains appendix. */
+export async function scannerSections(
+  db: Database,
+  params: SecurityPostureParams,
+): Promise<ReportSection[]> {
+  const postures = await scannerPostures(db, params);
+  const sections: ReportSection[] = [];
+
+  if (postures.length === 0) {
+    // The degraded rendering (W7-03 Tier-1 only). Says which fact it is: no
+    // scanner has been configured or run, which is not "the scanners found
+    // nothing".
+    sections.push({
+      kind: 'no_data',
+      id: 'scanner_posture',
+      reason:
+        'No scanner has been configured or has run for these repositories at or before the report snapshot, so this report carries no scanner sections. This is "not yet scanned", not "scanned and clean" — the Tier-1 sections above stand on ingested data alone and are unaffected.',
+    });
+    return sections;
+  }
+
+  for (const posture of postures) {
+    const id = `scanner_${posture.scannerKey}`;
+    if (posture.enabled === false) {
+      sections.push({
+        kind: 'no_data',
+        id,
+        reason: `The ${posture.scannerKey} scanner is switched off for these repositories, so nothing has looked. Any count of zero elsewhere in this report excludes what this scanner would have found.`,
+      });
+      continue;
+    }
+    if (posture.lastRunAt === null) {
+      sections.push({
+        kind: 'no_data',
+        id,
+        reason: `The ${posture.scannerKey} scanner is enabled but has not run at or before this snapshot. No findings from it are included, and that absence is not evidence of their absence in the code.`,
+      });
+      continue;
+    }
+
+    sections.push({
+      kind: 'table',
+      id,
+      columns: ['Measure', 'Value'],
+      rows: [
+        ['Scanner', posture.scannerKey],
+        ['Version', posture.scannerVersion],
+        ['Last run', posture.lastRunAt.toISOString()],
+        ['Last run status', posture.lastRunStatus],
+        ['Open findings', posture.openTotal],
+        ['Critical (5)', posture.bySeverity[5] ?? 0],
+        ['High (4)', posture.bySeverity[4] ?? 0],
+        // null, not 0, on a first run: "no previous run to compare against" is
+        // a different fact from "nothing changed", and a 0 here would report a
+        // brand-new scanner as having found nothing new.
+        ['New since previous run', posture.newSincePreviousRun],
+      ],
+    });
+
+    if (posture.topFindings.length > 0) {
+      sections.push({
+        kind: 'table',
+        id: `${id}_top`,
+        columns: ['Severity', 'Finding', 'Location', 'Rule'],
+        rows: posture.topFindings.map((f) => [
+          f.severity,
+          f.title,
+          // A repo-level finding genuinely has no location; an empty string
+          // would render as a blank cell that looks like missing data.
+          f.file ?? 'repository-level',
+          f.ruleId,
+        ]),
+      });
+    }
+  }
+
+  const chains = await chainAppendix(db, params);
+  sections.push(
+    chains.length > 0
+      ? {
+          kind: 'table',
+          id: 'chains_appendix',
+          columns: ['Chain', 'Severity', 'Steps'],
+          rows: chains.map((chain) => [
+            chain.chainId,
+            chain.severity,
+            chain.steps.map((s) => s.title).join(' → '),
+          ]),
+        }
+      : {
+          kind: 'no_data',
+          id: 'chains_appendix',
+          reason:
+            'No attack chains are recorded for these repositories. Chain analysis correlates one finding\'s yields with another\'s preconditions; until it has run, the correct reading is that no chains have been LOOKED for, not that none exist.',
+        },
+  );
 
   return sections;
 }
