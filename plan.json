@@ -3287,8 +3287,14 @@
         "V4: EPSS scores join the nightly db-sync (scan containers stay --network=none, SC-28 checksum rules); effective_risk = f(CVSS, KEV, EPSS, reachability, dep_scope) with workspace-tunable weights in the catalog; findings columns reachability/epss/effective_risk per docs/DATABASE.md D10; CI uses vendored mini EPSS/OSV data (docs/TESTING.md §10)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "blocked",
+      "notes": [
+        "BLOCKED 2026-08-19 — this pipeline validates DEPENDENCY findings, and there are none, because W8-06 is blocked for missing syft/grype/osv-scanner. Every tier here is written as \"runs on every dependency finding\": V0 dedups OSV aliases, V1 scopes them against the lockfile, V2 asks whether the vulnerable package is imported, V3 proves reachability, V4 scores them. With no CVE source there is nothing to dedup, scope, or score.",
+        "WHY NOT BUILD THE PURE CORE ANYWAY. The deterministic halves — alias grouping, dev/prod scoping, the import scan, the effective_risk formula — could be written and tested against fixtures I invent. That is 8 points of code with ZERO production callers, validated only against my own idea of what grype emits, for findings that cannot exist. Built-but-never-called is the single most common defect this codebase has produced (W4-22, W12-03, and four more), and writing a whole subsystem that way on purpose would be the largest instance of it yet. The shape of grype/OSV output should come from grype, not from me.",
+        "ALSO MISSING BEYOND W8-06: govulncheck (V3 Go call-graph proof) — Go itself IS installed, so `go install golang.org/x/vuln/cmd/govulncheck@latest` is the whole gap; and the EPSS feed for V4, which needs the nightly db-sync whose vulnerability-database half is already parked in W8-12 (scan containers are --network=none, so EPSS must be fetched host-side and mounted).",
+        "WHAT IS ALREADY IN PLACE FOR IT: the sandbox (W8-03/W8-12) that govulncheck would run inside, the sboms table (W8-02), the findings columns for cve_id/yields, and the chainer vocabulary term `vuln-dependency:{cve}` that dependency findings are meant to yield.",
+        "ORDER WHEN IT UNBLOCKS: install syft+grype (and govulncheck), finish W8-12's db-sync vulnerability half, then W8-06, then this. Doing this ticket before W8-06 would mean designing the funnel around imagined tool output and rewriting it on first contact."
+      ]
     },
     {
       "id": "W8-14",

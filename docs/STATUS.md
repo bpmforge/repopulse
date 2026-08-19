@@ -2432,3 +2432,25 @@ your host — treat the production smoke as outstanding.
 - syft/grype are absent from the image for the same reason W8-06 is parked. The
   db-sync script's vulnerability-database half fails loudly if enabled rather
   than pretending to sync.
+
+#### W8-13 parked — nothing to validate until W8-06 runs (2026-08-19)
+
+The CVE validation pipeline (alias dedup → dep scoping → usage detection →
+reachability → EPSS/effective risk) operates on dependency findings, and there
+are none: W8-06 is blocked for missing `syft`/`grype`/`osv-scanner`.
+
+The deterministic halves could be written against fixtures today. They would be
+eight points of code with no production callers, validated only against my own
+idea of what grype emits — and built-but-never-called is the defect this
+codebase has produced most often. The shape of that output should come from the
+tool, not from me.
+
+**Extra gaps beyond W8-06**, so they are not discovered later:
+- `govulncheck` is not installed (V3's Go call-graph proof). Go itself is, so
+  `go install golang.org/x/vuln/cmd/govulncheck@latest` closes it.
+- The EPSS feed (V4) needs the nightly db-sync whose vulnerability half is
+  already parked in W8-12 — scan containers are `--network=none`, so EPSS has to
+  be fetched host-side and mounted read-only.
+
+**Order when it unblocks:** install syft + grype (+ govulncheck) → finish
+W8-12's db-sync → W8-06 → W8-13.
