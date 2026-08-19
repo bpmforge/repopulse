@@ -2647,9 +2647,7 @@
         "E10.9"
       ],
       "write_scope": [
-        "packages/reports/src/assembler/security-posture.ts",
-        "packages/reports/src/types/security-posture.ts",
-        "packages/reports/fixtures/security/**"
+        "packages/reports/src/**"
       ],
       "depends_on": [
         "W7-01",
@@ -2661,7 +2659,7 @@
         "Renders with Tier-1-only data (review-bypass section) and enriches when findings exist; assembler snapshot test both ways"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
