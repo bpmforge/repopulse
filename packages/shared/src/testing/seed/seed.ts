@@ -121,6 +121,12 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   // until something finally created one: saved_views has an FK to users, so a
   // leftover view makes unseedWarehouse's user delete fail with a constraint
   // error from a table the caller never mentioned.
+  // Reports (W5-04), for the same reason as saved views directly below: the
+  // row FKs to users, so a leftover report makes unseedWarehouse's user delete
+  // fail with a constraint error naming a table the caller never mentioned.
+  // Second time this exact gap has surfaced — every future workspace-scoped
+  // table needs a line here.
+  await db.delete(read.reports).where(eq(read.reports.workspaceId, workspaceId));
   await db.delete(read.savedViews).where(eq(read.savedViews.workspaceId, workspaceId));
   await db.delete(core.forgeConnections).where(eq(core.forgeConnections.workspaceId, workspaceId));
 }

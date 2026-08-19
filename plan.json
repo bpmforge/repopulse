@@ -1957,7 +1957,9 @@
         "packages/shared/drizzle/**",
         "packages/ingest/src/queues/**",
         "e2e/**",
-        "apps/api/src/plugins/api-v1.ts"
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/web/src/routes/__root.tsx",
+        "apps/web/src/api/useApiQuery.ts"
       ],
       "depends_on": [
         "W5-03",
@@ -1970,7 +1972,7 @@
         "E2E per REPORTS.md §6: generate → poll ready → download → pdf-parse asserts section headings + footnote text present (FR-REPORTS-1/6)"
       ],
       "points": 8,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "PARKED FOR BRAD, NOT ADDED: acceptance names pdf-parse for asserting section headings inside the generated PDF. pdf-parse is not in docs/TECH_STACK.md and is not installed, and adding a runtime/test dependency unattended is a MASTER_PROMPT stop-and-ask. Playwright IS sanctioned (TECH_STACK line 162 names it as the PDF engine), so the e2e asserts what can be checked without a new package: a valid %PDF artifact of non-trivial size, the page count from the PDF trailer, BYTE-STABILITY across regeneration (the stronger FR-REPORTS-6 property), and the section headings + footnote text in the PRINT ROUTE DOM the PDF is rendered from. If Brad wants literal text extraction from the PDF bytes, adding pdf-parse is a one-line test change.",
         "WRITE_SCOPE WIDENED 2026-08-19 before code. The filed scope covered the pipeline, API route, Report Center and print route, but REPORTS.md §3 also needs a \"reports.generate\" queue (absent from the topology), a worker processor to consume it, schema columns the table is missing, and the api-v1 mount. None were in scope and no acceptance criterion can be met without them.",
@@ -1978,7 +1980,18 @@
         "PARTIAL 2026-08-19, LEFT in_progress ON A BRANCH (w5-04-report-pipeline) — deliberately not merged. The backend half is complete and green: reports.generate queue + priority/retry, reportProcessor writing status transitions and storing the failure reason ON the row, the Playwright print pipeline (packages/reports/src/pipeline/render.ts) with an injectable printToPdf seam, schema columns json_uri + error with migration 0007, and the four API routes (POST/GET list/GET one/GET download) mounted in api-v1 with the download streamed behind the session check and audited.",
         "WHAT REMAINS: the /print/reports/:id web route that renders stored ReportData with Date pinned to snapshotAt, the Report Center UI at /reports (still a dead rail link until it lands), the byte-stability test, and the generate -> ready -> download e2e. None of it is started; nothing half-written is on the branch.",
         "THE WIRING GATE EARNED ITS KEEP AGAIN: adding QUEUE.reports without a processor failed apps/api/test/wiring.test.ts with \"this queue is declared, has no processor... work enqueued onto it is performed by nothing\". That is exactly the built-but-never-called class W12-04 was written to catch, caught this time before it could ship.",
-        "Gate at the checkpoint: lint 0, typecheck 0, 615 unit tests zero skipped. Unchanged from W5-02 because the new backend paths have no tests yet — which is precisely why this is not merged."
+        "Gate at the checkpoint: lint 0, typecheck 0, 615 unit tests zero skipped. Unchanged from W5-02 because the new backend paths have no tests yet — which is precisely why this is not merged.",
+        "WRITE_SCOPE: added apps/web/src/routes/__root.tsx. Every file route is a child of the root shell, so the print route would otherwise render the rail, topbar, breadcrumb, toaster and the SSE subscription INTO the PDF. The shell is skipped for /print paths — and skipping the SSE mount matters as much as the chrome: a live subscription keeps the page from ever going quiet for the printer.",
+        "WRITE_SCOPE: added apps/web/src/api/useApiQuery.ts. The hook accepted only { enabled }, and the Report Center needs polling — report generation is asynchronous and the history table is how anyone learns it finished. refetchInterval is forwarded rather than reimplemented with a setInterval beside the query, which would fight the cache it is meant to refresh.",
+        "DONE 2026-08-19. Full pipeline: POST /reports pins the params -> reports.generate queue -> worker assembles -> stores report.json -> Playwright prints /print/reports/:id -> stores report.pdf -> row goes ready. Report Center at /reports (generate form, polling history with status chips, inline viewer, download), which retires the second of the four dead rail links. Proven end to end by an e2e that generates, polls to ready, downloads through the session check and asserts a real %PDF over 5KB.",
+        "THE PRINT BROWSER HAS NO SESSION — found by designing the e2e, before it could ship. A print route that fetched /reports/:id through the API would have 401d in the headless browser and produced a login-shaped blank PDF that still passed a \"valid %PDF\" check. The pipeline now INJECTS the stored ReportData via addInitScript, which also makes REPORTS.md §3's \"renders from the stored data, never a live query\" true by construction instead of by intent. The same route still fetches when a human with a session opens it as the in-app viewer.",
+        "RELATIVE DATA_DIR BUG, found by the e2e failing at download: DATA_DIR defaults to ./.data and the worker and API run with DIFFERENT working directories under pnpm --filter, so the worker wrote file://./.data/... and the API resolved it to nothing. A report that generated perfectly failed to download with \"artifact is gone\". reportDir now resolves to an absolute path.",
+        "SEEDER GAP, SECOND INSTANCE: wipeWorkspace still did not delete reports, so the shared seed test went red again from a file this ticket never touched — the same FK-through-users failure saved_views hit in W5-02. Fixed, and the comment now says plainly that every future workspace-scoped table needs a line there.",
+        "ARTIFACTS WERE NOT GITIGNORED. The e2e run left apps/api/.data/ untracked-but-visible; report artifacts contain an organisation's delivery data and are generated output. .gitignore now covers .data/ and **/.data/ — caught by reading git status during the gate rather than by a rule.",
+        "THE WIRING GATE CAUGHT THE QUEUE: adding QUEUE.reports without a processor failed wiring.test.ts with \"work enqueued onto it is performed by nothing\" — the exact built-but-never-called class W12-04 exists for, caught before merge.",
+        "pdf-parse REMAINS PARKED (not in TECH_STACK). The e2e asserts a real %PDF of non-trivial size served through the session check, plus the cover, basis box and appendix in the print-route DOM the PDF renders from — and that no app chrome (the rail) leaks into a printed page. Literal PDF text extraction is a one-line change if Brad adds the dependency.",
+        "BYTE-STABILITY is pinned at the pipeline level (same stored ReportData -> identical bytes and identical stored JSON, no per-run entropy in paths or serialization). The browser half is fixed by the print route reading only pinned params — every date rendered comes from windowEnd/snapshotAt, never a clock — and by waiting on __REPORT_READY rather than a timer.",
+        "GATE: lint 0, typecheck 0, 619 unit tests (was 615), zero skipped, e2e 65 passed + 1 skipped (was 62), three validators exit 0."
       ]
     },
     {

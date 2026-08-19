@@ -17,3 +17,9 @@ docs/work/telemetry.jsonl
 tools/fixture-recorder/tmp/
 e2e/.auth/
 deploy/.env
+
+# Report artifacts and other local-disk state (DATA_DIR, docs/design/REPORTS.md §3).
+# These contain an organisation's delivery data — they are generated output and
+# must never be committed.
+.data/
+**/.data/

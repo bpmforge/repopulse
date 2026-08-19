@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { ReportData } from '../types/index.js';
 
 // PDF pipeline (W5-04, REPORTS.md §3).
@@ -11,7 +11,12 @@ import type { ReportData } from '../types/index.js';
 
 /** Where a report's artifacts live. REPORTS.md §3: local volume, URI-shaped. */
 export function reportDir(dataDir: string, workspaceId: number, reportId: number): string {
-  return join(dataDir, 'reports', String(workspaceId), String(reportId));
+  // RESOLVED to an absolute path. DATA_DIR defaults to './.data', and the
+  // worker and the API run with different working directories under
+  // `pnpm --filter` — so a relative URI written by the worker pointed at
+  // nothing from the API, and a report that generated perfectly failed to
+  // download with "artifact is gone".
+  return resolve(join(dataDir, 'reports', String(workspaceId), String(reportId)));
 }
 
 export interface RenderDeps {
@@ -19,7 +24,7 @@ export interface RenderDeps {
   /** Base URL of the web app serving /print/reports/:id. */
   printBaseUrl: string;
   /** Injectable so tests can drive the pipeline without a browser. */
-  printToPdf?: (url: string) => Promise<Buffer>;
+  printToPdf?: (url: string, data: ReportData) => Promise<Buffer>;
 }
 
 export interface RenderResult {
@@ -33,11 +38,21 @@ export interface RenderResult {
  * a pinned viewport, no animations, and a wait for the page to say it is
  * ready rather than a timeout race (REPORTS.md §3 byte-stability).
  */
-async function playwrightPrint(url: string): Promise<Buffer> {
+async function playwrightPrint(url: string, data: ReportData): Promise<Buffer> {
   const { chromium } = await import('playwright');
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: { width: 1240, height: 1754 } });
+    // The ReportData is INJECTED, not fetched. Two reasons, both load-bearing:
+    // this browser has no session, so an authenticated fetch would 401 and the
+    // PDF would be a login-shaped blank; and REPORTS.md §3 requires the print
+    // to render from the STORED data with no live queries, which injection
+    // guarantees rather than merely intends.
+    // `globalThis`, not `window`: this callback is serialized and run in the
+    // browser, but it is TYPE-CHECKED here, where no DOM lib is configured.
+    await page.addInitScript((payload) => {
+      (globalThis as unknown as { __REPORT_DATA?: unknown }).__REPORT_DATA = payload;
+    }, data as unknown);
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     // The print route sets this once every chart has rendered. Printing on a
     // timer instead produces a PDF whose contents depend on how busy the
@@ -79,7 +94,7 @@ export async function renderReport(
   await writeFile(jsonPath, JSON.stringify(data, null, 2), 'utf8');
 
   const url = `${deps.printBaseUrl.replace(/\/$/, '')}/print/reports/${reportId}`;
-  const pdf = await (deps.printToPdf ?? playwrightPrint)(url);
+  const pdf = await (deps.printToPdf ?? playwrightPrint)(url, data);
   const pdfPath = join(dir, 'report.pdf');
   await writeFile(pdfPath, pdf);
 
