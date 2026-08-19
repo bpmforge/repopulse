@@ -4022,11 +4022,18 @@
         "Troubleshooting names the failures a newcomer really hits: ports in use, podman not running, blank secrets"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "The current README is 38 lines of product summary and a doc index, with NO setup section at all. It tells a newcomer what RepoPulse is and nothing about how to run it.",
         "Document the container path too, not just the dev path: deploy/compose.yaml (W11-01) already brings up postgres, redis, migrate, api, worker and web, and it is running on this machine right now. It is undiscoverable from the README.",
-        "Untested setup docs are fiction. W13-05 exists to keep this one honest."
+        "Untested setup docs are fiction. W13-05 exists to keep this one honest.",
+        "DONE 2026-08-19. README gains a Quickstart at the TOP (three commands to a running app in demo mode) and docs/RUNNING.md covers all three ways to run it: demo mode, dev stack against a real org, and the deploy/compose.yaml container stack — which existed since W11-01 and was undiscoverable from the README.",
+        "EVERY COMMAND IN THE DEMO AND DEV PATHS WAS EXECUTED while writing W13-01/02/03, not composed from memory: pnpm bootstrap (twice, for idempotence), DEMO_MODE=1 pnpm dev with the GitHub credentials deliberately removed, pnpm dev, the worker healthz on :3001, pnpm seed, pnpm test, REQUIRE_LIVE_INFRA=1 pnpm test, and pnpm e2e.",
+        "NOT YET EXECUTED FROM SCRATCH, and flagged rather than glossed: the deploy/compose.yaml path is documented from the file and from the stack already running on this machine, but no clean `cp deploy/.env.example deploy/.env && podman compose up` run has been done. W13-05 is where that gets tested.",
+        "TROUBLESHOOTING LISTS THE FAILURES ACTUALLY HIT, not imagined ones: port 3000 held by the compose stack, missing GITHUB_APP_CLIENT_ID, TOKEN_ENC_KEY missing when .env is copied by hand, Postgres not becoming ready, empty screens, and nothing ingesting because the worker is not running.",
+        "Documents `pnpm bootstrap` and says explicitly why it is not `pnpm setup` — the builtin would run and never touch the repo, which is the kind of thing a reader would otherwise report as \"the setup command does nothing\".",
+        "Documents REQUIRE_LIVE_INFRA=1 as what a real gate run looks like, since a plain `pnpm test` passes over 37 skipped files without a data tier (W12-08).",
+        "GATE: lint 0, 597 unit tests zero skipped, three validators exit 0 (traceability: 135 FR/NFR all cited, 72 stories ticket-covered)."
       ]
     },
     {

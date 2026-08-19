@@ -6,6 +6,24 @@ monitoring. Connect an org, backfill history through the forge APIs (never
 finding), custom saved views, and an in-app report center with exportable
 PDF packs.
 
+## Quickstart
+
+No GitHub account needed — demo mode runs the whole product against a local
+fake forge and seeded data:
+
+```bash
+pnpm install
+pnpm bootstrap          # containers, .env, generated secrets, migrate, seed
+DEMO_MODE=1 pnpm dev    # then open http://localhost:5173
+```
+
+`pnpm bootstrap`, **not** `pnpm setup` — the latter is a built-in pnpm command
+and would never touch this repo.
+
+To point it at your own organisation instead, register a GitHub OAuth app and
+run `pnpm dev`. Container deployment, tests and troubleshooting are all in
+**[docs/RUNNING.md](docs/RUNNING.md)**.
+
 **Analysis is tiered:**
 
 | Tier | Engine | Cost | What it does |
@@ -36,3 +54,4 @@ bpmforge infra (internal, SaaS-ready tenancy).
 | `docs/research/*` | Verified GitHub API + competitive research |
 | `docs/ROADMAP.md`, `plan.json` | Waves, exit criteria, ticket board |
 | `docs/STATUS.md` | Progress ledger |
+| `docs/RUNNING.md` | How to run it: demo mode, dev stack, containers, troubleshooting |
