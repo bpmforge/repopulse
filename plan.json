@@ -2139,11 +2139,18 @@
       ],
       "write_scope": [
         "packages/insights/src/agreements/**",
+        "packages/insights/src/index.ts",
+        "packages/insights/src/plans/**",
         "packages/shared/src/db/schema/plans/**",
         "packages/shared/drizzle/**",
+        "packages/shared/src/testing/seed/**",
         "apps/api/src/routes/agreements/**",
+        "apps/api/src/plugins/api-v1.ts",
         "apps/web/src/widgets/agreements/**",
-        "apps/web/src/routes/admin/agreements.tsx"
+        "apps/web/src/routes/admin/**",
+        "apps/web/src/widgets/org/**",
+        "apps/web/src/components/widget/types.ts",
+        "e2e/**"
       ],
       "depends_on": [
         "W5-06"
@@ -2155,8 +2162,10 @@
         "Active agreement violations generate plan-item candidates (source='agreement') that dedupe against existing open items"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: acceptance 3 puts a digest card on the Org Overview (needs a new WidgetType — registerWidget overwrites by type, so reusing one would silently replace an existing widget) and acceptance 4 feeds plan-item candidates (packages/insights/src/plans). The admin tab also needs the tab list in routes/admin/route.tsx, and the seeder needs a wipe line for the new table."
+      ]
     },
     {
       "id": "W5-09",
