@@ -14,24 +14,46 @@ export interface IncomingFinding {
   dimension: string;
   severity: number;
   confidence: number;
-  file: string;
-  lineStart: number;
-  lineEnd: number;
+  // Nullable since W8-02: a CVE or an IaC misconfiguration is a repo-level
+  // fact with no line to point at, and an invented location in a security
+  // finding sends someone to the wrong place with confidence.
+  file: string | null;
+  lineStart: number | null;
+  lineEnd: number | null;
   title: string;
   evidenceQuote: string;
   rationale: string;
   suggestedFix: string | null;
+  /** W8-04 scanner fields. Absent on analysis findings, and the dedup key
+   *  changes shape only when they are present (see dedup.ts). */
+  scannerKey?: string | null;
+  ruleId?: string | null;
+  cveId?: string | null;
+  /** What an attacker gains, for the chainer: { 'credential:aws': true }. */
+  yields?: Record<string, unknown> | null;
 }
 
 export interface PersistParams {
   workspaceId: number;
   repoId: number;
-  analysisRunId: number;
+  /** Exactly one of these two. A scanner run is not an analysis run (W8-04). */
+  analysisRunId?: number | null;
+  scanRunId?: number | null;
   pullRequestId: number | null;
   tier: number;
   findings: readonly IncomingFinding[];
   /** Files this run actually reviewed — used to auto-resolve stale findings. */
   reviewedFiles?: readonly string[];
+  /**
+   * Restricts the stale sweep to findings this run could have produced (W8-04).
+   *
+   * Without it, a secrets scan that reviewed src/config.ts would auto-resolve
+   * the CODE_HEALTH findings on that file — a scanner silently closing another
+   * pass's work. Defaults to the dimensions present in `findings`, which is
+   * the narrowest correct answer when the caller says nothing.
+   */
+  sweepDimensions?: readonly string[];
+  sweepScannerKey?: string | null;
 }
 
 export interface PersistResult {
@@ -58,11 +80,17 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
 
   const keyed = params.findings.map((f) => ({
     finding: f,
+    // The scanner fields are threaded through — W8-02 added them to the key
+    // precisely so two scanners flagging the same line stay two findings, and
+    // a store that dropped them here would have collapsed them into one row
+    // while the dedup unit test went on passing.
     key: dedupKey({
       dimension: f.dimension,
       file: f.file,
       evidenceQuote: f.evidenceQuote,
       lineStart: f.lineStart,
+      scannerKey: f.scannerKey ?? null,
+      ruleId: f.ruleId ?? null,
     }),
   }));
 
@@ -91,7 +119,8 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
       await db.insert(read.findings).values({
         workspaceId: params.workspaceId,
         repoId: params.repoId,
-        analysisRunId: params.analysisRunId,
+        analysisRunId: params.analysisRunId ?? null,
+        scanRunId: params.scanRunId ?? null,
         pullRequestId: params.pullRequestId,
         dimension: finding.dimension,
         severity: finding.severity,
@@ -103,6 +132,10 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         evidence: finding.evidenceQuote,
         recommendation: finding.suggestedFix ?? finding.rationale,
         tier: params.tier,
+        scannerKey: finding.scannerKey ?? null,
+        ruleId: finding.ruleId ?? null,
+        cveId: finding.cveId ?? null,
+        yields: finding.yields ?? null,
         dedupKey: key,
         status: 'open',
         firstSeenAt: now,
@@ -151,6 +184,8 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
   // Findings on files this run reviewed but no longer reports are stale.
   if (params.reviewedFiles && params.reviewedFiles.length > 0) {
     const seenKeys = new Set(keyed.map((k) => k.key));
+    const sweepDimensions =
+      params.sweepDimensions ?? [...new Set(params.findings.map((f) => f.dimension))];
     const candidates = await db
       .select()
       .from(read.findings)
@@ -160,6 +195,15 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
           eq(read.findings.repoId, params.repoId),
           inArray(read.findings.file, [...params.reviewedFiles]),
           inArray(read.findings.status, ['open', 'confirmed']),
+          // A run may only close what it could have found. A pass with nothing
+          // to say about a dimension has not observed that its findings are
+          // gone; it has simply not looked.
+          ...(sweepDimensions.length > 0
+            ? [inArray(read.findings.dimension, [...sweepDimensions])]
+            : []),
+          ...(params.sweepScannerKey !== undefined && params.sweepScannerKey !== null
+            ? [eq(read.findings.scannerKey, params.sweepScannerKey)]
+            : []),
         ),
       );
 

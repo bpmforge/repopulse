@@ -16,6 +16,7 @@ import { repos } from '../core/repos.js';
 import { users } from '../core/users.js';
 import { pullRequests } from '../facts/pull-requests.js';
 import { analysisRuns } from './analysis-runs.js';
+import { scanRuns } from '../security/index.js';
 
 // Base shape only (ANALYSIS_TIERS.md §4/§5) — the W8/D9/D10/D11/D12/D13
 // delta columns (scanner_key, verify_status, risk_factors, reachability,
@@ -32,9 +33,12 @@ export const findings = pgTable(
     repoId: bigint('repo_id', { mode: 'number' })
       .notNull()
       .references(() => repos.id),
-    analysisRunId: bigint('analysis_run_id', { mode: 'number' })
-      .notNull()
-      .references(() => analysisRuns.id),
+    // NULLABLE since W8-04: a scanner run is not an analysis run. W8-02
+    // attached scanner findings to a dummy tier-2 analysis_runs row to satisfy
+    // this FK, which made every scanner finding claim an LLM tier it never
+    // used. scan_run_id is the real parent; the check below requires exactly
+    // one of the two, so a finding always has a run that explains it.
+    analysisRunId: bigint('analysis_run_id', { mode: 'number' }).references(() => analysisRuns.id),
     pullRequestId: bigint('pull_request_id', { mode: 'number' }).references(() => pullRequests.id),
     dimension: text('dimension').notNull(),
     // 1-5, 5=critical ... 1=info (ANALYSIS_TIERS.md §4 canonical numeric scale).
@@ -79,7 +83,7 @@ export const findings = pgTable(
     preconditions: jsonb('preconditions').$type<Record<string, unknown>>(),
     /** What an attacker gains from it — matched against another finding's preconditions. */
     yields: jsonb('yields').$type<Record<string, unknown>>(),
-    scanRunId: bigint('scan_run_id', { mode: 'number' }),
+    scanRunId: bigint('scan_run_id', { mode: 'number' }).references(() => scanRuns.id),
   },
   (t) => [
     unique('findings_workspace_repo_dedup_key').on(t.workspaceId, t.repoId, t.dedupKey),
@@ -104,6 +108,14 @@ export const findings = pgTable(
     check(
       'findings_verify_status_check',
       sql`${t.verifyStatus} in ('unverified', 'confirmed', 'contradicted')`,
+    ),
+    check(
+      // W8-04: every finding has exactly one parent run. Without this, dropping
+      // the NOT NULL above would allow an orphan finding that no run explains —
+      // and "which scan found this, with which rulepack version" is the first
+      // question anyone asks of a security finding.
+      'findings_run_parent_check',
+      sql`(${t.analysisRunId} is not null) <> (${t.scanRunId} is not null)`,
     ),
     check(
       'findings_status_check',

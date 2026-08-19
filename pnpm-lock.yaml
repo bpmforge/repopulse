@@ -401,6 +401,9 @@ importers:
       '@repopulse/forge':
         specifier: workspace:*
         version: link:../forge
+      '@repopulse/insights':
+        specifier: workspace:*
+        version: link:../insights
       '@repopulse/shared':
         specifier: workspace:*
         version: link:../shared
