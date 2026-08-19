@@ -2444,10 +2444,16 @@
       ],
       "write_scope": [
         "packages/insights/src/narrative/**",
+        "packages/insights/src/index.ts",
         "apps/web/src/widgets/pulse/**",
+        "apps/web/src/widgets/org/**",
         "apps/web/src/routes/findings/**",
         "apps/web/src/routes/me.tsx",
-        "packages/reports/src/assembler/**"
+        "apps/web/src/components/widget/types.ts",
+        "packages/reports/src/assembler/**",
+        "apps/api/src/routes/org/**",
+        "apps/api/src/routes/me/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W6-04",
@@ -2460,8 +2466,10 @@
         "Deterministic narrative renders with T2 mocked in CI — zero live LLM calls (docs/TESTING.md §8); axe green on new surfaces"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: the pulse card is an Org Overview widget (needs a new WidgetType — registerWidget overwrites by type) served by an API endpoint, and the since-last-visit strip needs a /me endpoint. Both are outside the filed scope but named in the acceptance."
+      ]
     },
     {
       "id": "W6-07",
