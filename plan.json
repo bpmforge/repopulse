@@ -3111,8 +3111,22 @@
         "owasp_llm auto-enables only when the dependency scanner's SBOM contains LLM packages; a repo without LLM deps never enqueues owasp_llm (test); owasp_web manual/scheduled per repo"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. OWASP Web Top-10 (2021) and LLM Top-10 (2025) as versioned checklist assets run through the analysis gateway, with the chaining vocabulary populated and owasp_llm gated on the SBOM.",
+        "THE GATEWAY IS THE POINT, NOT A CONVENIENCE. Every control lives behind it — the 45k cap, the warm-up and crash retry, the Tier-3 opt-in check, the egress audit row — so a scanner that called a model directly would bypass four controls at once (Law 8). Chunking, quote validation and dedup are the analysis package's, unchanged: a second implementation of \"does this quote appear in the diff\" is a second place for a paraphrase to slip through as evidence.",
+        "ACCOUNTING CARRIES meta.initiator = scanner:{key} on every call. Scanner spend has to be separable from review spend or the first question about an LLM bill has no answer.",
+        "A CHECKLIST IS A VERSIONED ASSET, and editing one in place is a mistake dressed as a small change: the version is stamped on the scan_run and on every finding, so a rewritten v1 makes last month's findings stop meaning what they said. The loader takes the HIGHEST version rather than a configured one — pinning belongs in per-repo config, not in a default that quietly runs last year's questions forever.",
+        "THE PROMPTS ARE WRITTEN FOR RESTRAINT, NOT COVERAGE. Both say in as many words that silence is a valid answer, because a ten-category checklist that rewards finding something per category returns ten findings and most are invented. Both demand a verbatim quote, and the validator drops anything that is not in the diff — asserted with a planted paraphrase that is thrown out and COUNTED, never silently dropped.",
+        "THE DIFF GOES LAST, FENCED, AND LABELLED AS DATA. This scanner's entire input is attacker-influenced text: anyone who can open a PR can write \"ignore your instructions\" in a comment. Instructions first, code last, inside a fence, with an explicit line saying everything in it is data.",
+        "A CHUNK WHOSE OUTPUT CANNOT BE VALIDATED CONTRIBUTES NOTHING and is counted. Salvaging what parses would mean storing findings from a response we already know was malformed.",
+        "T3 IS DECIDED, NEVER ASSUMED. A security finding at severity ≥3 MEETS the existing escalation trigger; without the per-repo opt-in it is refused rather than downgraded, and the test asserts both halves — met without permission, and permitted with it. No silent egress.",
+        "owasp_llm HAS THREE ANSWERS, NOT TWO. `no_sbom` is a fact about US and `no_llm_packages` is a fact about the REPOSITORY; collapsing them would render \"nobody has looked\" as \"not applicable\". A repo with no SBOM never enqueues owasp_llm and writes NO scan_run row — a scanner that did not run must not appear to have. The package matcher is anchored so `openai-mock-server` and `my-openai-wrapper` do not trip it: a false positive here runs a whole LLM checklist over a codebase with no model in it and every finding it produces is confident and wrong.",
+        "THE GATEWAY IS FAKED IN THE TESTS, ON PURPOSE. What needs proving is the path — prompt built, response validated against the chunk it reviewed, findings stored with their yields, accounting tagged. A live model would make every one of those assertions flaky while proving nothing extra: LM Studio's answer is not part of this contract. No live-model test is claimed here.",
+        "SCHEMA DELTA: findings gained optional preconditions[]/yields[] with an empty default, so every W6 pass and every existing prompt keeps validating unchanged — making them required would have rejected every checklist that predates them.",
+        "SCOPE WIDENED, WITH REASON: packages/analysis/src/schema/finding.ts (the acceptance names the two new fields, and they belong in the one schema every pass validates against).",
+        "GATE: lint 0, typecheck 0, 937 unit tests (was 920), zero skipped; pnpm -r test green; validate-arch (7 rules), validate-plan, validate-traceability PASS. No e2e — no screen changed."
+      ]
     },
     {
       "id": "W8-09",
