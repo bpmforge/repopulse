@@ -80,54 +80,56 @@ test('downloading a report that is not ready is refused, not a broken file', asy
 
 test('two reports of the same scope diff, and an annotation reaches the cover (W5-09)', async ({
   page,
+  context,
 }) => {
   await loginAsFixture(page);
-  await page.goto('/reports');
 
-  // Two generations of the SAME scope, the second annotated.
-  //
-  // The baseline is taken BEFORE the first generate, and every wait counts from
-  // it. Taking it in between let the FIRST generation's row satisfy the count
-  // assertion meant for the second, so `.first()` was the unannotated report
-  // and the annotation check failed on a report that never had one — a race
-  // invisible when this file runs alone and reliable once earlier tests have
-  // already put reports in the list.
-  const rows = page.locator('[data-testid^="report-status-"]');
-  const before = await rows.count();
+  // Reports are created through the API so the test HOLDS THEIR IDS, then the
+  // UI is driven by those ids. The previous version identified reports by list
+  // position (.first()) in a list other tests add to and that refetches every
+  // three seconds — three separate races were fixed and it still failed inside
+  // the full file, because position is not a stable identifier here.
+  const create = async (annotation?: string): Promise<number> => {
+    const res = await context.request.post('/api/v1/reports', {
+      headers: { 'x-requested-with': 'repopulse' },
+      data: { type: 'repo_health', window_days: 30, ...(annotation ? { annotation } : {}) },
+    });
+    expect(res.status()).toBe(201);
+    return ((await res.json()) as { id: number }).id;
+  };
 
-  await page.getByTestId('generate-report').click();
-  await expect(rows).toHaveCount(before + 1, { timeout: 15_000 });
-  await expect(rows.first()).toContainText(/ready/, { timeout: 45_000 });
+  const waitReady = async (id: number): Promise<void> => {
+    await expect
+      .poll(
+        async () => {
+          const r = await context.request.get(`/api/v1/reports/${id}`);
+          return ((await r.json()) as { status: string }).status;
+        },
+        { timeout: 60_000, message: `report ${id} never became ready` },
+      )
+      .toBe('ready');
+  };
 
-  await page.getByTestId('report-annotation').fill('Quarter includes the payments migration');
-  await page.getByTestId('generate-report').click();
-
-  // Wait for the NEW row to appear before asserting on the first one. The
-  // history polls every 3s, so immediately after clicking Generate the first
-  // row is still the PREVIOUS report — which is already ready, so a status
-  // assertion passes against the wrong report and the annotation check then
-  // fails on a report that never had one.
-  await expect(rows).toHaveCount(before + 2, { timeout: 15_000 });
-  await expect(rows.first()).toContainText(/ready/, { timeout: 45_000 });
+  const first = await create();
+  const second = await create('Quarter includes the payments migration');
+  await waitReady(first);
+  await waitReady(second);
 
   // The annotation is on the cover of the report it was captured with — and
-  // immutability means it could not have been added to the earlier one.
-  await page.locator('[data-testid^="report-view-"]').first().click();
+  // because reports are immutable, it could not have been added to the earlier
+  // one. Navigated by id, so it cannot land on the wrong report.
+  await page.goto(`/print/reports/${second}`);
   await expect(page.getByTestId('print-annotation')).toContainText(/payments migration/);
 
-  // Navigate back EXPLICITLY and wait for both rows before touching the
-  // checkboxes. page.goBack() returned to a Report Center whose list had not
-  // repopulated, so the compare boxes were operated on a half-rendered table
-  // and the diff panel never mounted — which read as "the diff is broken" when
-  // an identical sequence with an explicit wait renders it fine.
-  await page.goto('/reports');
-  const readyRows = page.locator('[data-testid^="report-compare-"]');
-  await expect(readyRows).toHaveCount(before + 2);
-
-  await readyRows.nth(0).check();
-  await readyRows.nth(1).check();
+  await page.goto(`/print/reports/${first}`);
+  await expect(page.getByTestId('print-report')).toBeVisible();
+  await expect(page.getByTestId('print-annotation')).toHaveCount(0);
 
   // Same type, same scope, same window → comparable, with real rows.
+  await page.goto('/reports');
+  await page.getByTestId(`report-compare-${first}`).check();
+  await page.getByTestId(`report-compare-${second}`).check();
+
   await expect(page.getByTestId('diff-table')).toBeVisible();
   await expect(page.getByTestId('diff-table').locator('tbody tr').first()).toBeVisible();
 });
