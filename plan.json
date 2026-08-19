@@ -2050,8 +2050,14 @@
       "write_scope": [
         "packages/insights/src/plans/**",
         "packages/shared/src/db/schema/plans/**",
+        "packages/shared/src/db/schema/index.ts",
         "packages/shared/drizzle/**",
-        "apps/api/src/routes/plans/**"
+        "packages/shared/src/testing/seed/**",
+        "apps/api/src/routes/plans/**",
+        "apps/api/src/workers/**",
+        "apps/api/src/plugins/api-v1.ts",
+        "packages/ingest/src/queues/**",
+        "docs/design/IMPROVEMENT_PLANS.md"
       ],
       "depends_on": [
         "W5-03"
@@ -2063,8 +2069,10 @@
         "Dismissed (catalog id × scope) does not regenerate while dismissed; plans API per FR-PLANS-6 with tenancy walker green"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED 2026-08-19 before code: the filed scope covered the catalog, schema and API, but acceptance 3 requires a NIGHTLY plans.verify JOB — which needs a queue entry, a worker processor and the api-v1 mount. Also added the seeder: wipeWorkspace needs a delete line for each of the three new workspace-scoped tables, a gap that has already broken the shared seed test twice (saved_views in W5-02, reports in W5-04)."
+      ]
     },
     {
       "id": "W5-07",
