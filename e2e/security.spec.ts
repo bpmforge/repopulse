@@ -1,0 +1,85 @@
+import { expect, test } from '@playwright/test';
+import { loginAsFixture } from './helpers/auth.js';
+import { expectNoA11yViolations } from './helpers/axe.js';
+import { SEED_REPO_NAMES } from '@repopulse/shared';
+
+// Security tab + scanner facets (W8-10, SECURITY_SUITE.md §5, NFR-15).
+//
+// The property under test is the one this screen exists for: a security page
+// must never let "nobody looked" read as "nothing found". Every assertion below
+// is about a sentence being present, not about a number.
+
+async function openSeededRepo(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/?window=90d');
+  await page
+    .getByTestId('health-tile-grid')
+    .locator('a')
+    .filter({ hasText: SEED_REPO_NAMES[0] as string })
+    .first()
+    .click();
+  await expect(page).toHaveURL(/\/repos\/\d+/);
+}
+
+test('the Security tab says what has NOT been looked at, and passes axe', async ({ page }) => {
+  await loginAsFixture(page);
+  await openSeededRepo(page);
+
+  await page.getByTestId('repo-tabs').getByRole('link', { name: 'Security' }).click();
+  await expect(page).toHaveURL(/\/repos\/\d+\/security/);
+  await expect(page.getByTestId('security-tab')).toBeVisible();
+
+  // Coverage table: every scanner in the catalog, including the ones that have
+  // never run. A scanner missing from this table is a scanner nobody knows is
+  // missing.
+  const coverage = page.getByTestId('scanner-status');
+  await expect(coverage).toBeVisible();
+  await expect(coverage).toContainText(/not enabled|has never run|ran clean/);
+
+  // The CVE panel is empty and SAYS WHY — "no dependency scan has run" rather
+  // than a blank panel that reads as a clean bill of health.
+  await expect(page.getByTestId('cves-empty')).toContainText(/not a clean bill of health/i);
+
+  // Chains: "has not run" rather than "no chains", because those differ.
+  await expect(page.getByTestId('chains-empty')).toContainText(/has not run/i);
+
+  await expectNoA11yViolations(page);
+});
+
+test('a never-run scanner shows a dash, not a zero', async ({ page }) => {
+  await loginAsFixture(page);
+  await openSeededRepo(page);
+  await page.getByTestId('repo-tabs').getByRole('link', { name: 'Security' }).click();
+
+  const rows = page.getByTestId('scanner-status').locator('tbody tr');
+  await expect(rows.first()).toBeVisible();
+  // Whatever the seeded state is, every row that says nothing has looked must
+  // show a dash in the count column — a zero there is a claim.
+  const unlooked = rows.filter({ hasText: /not enabled|has never run/ });
+  const count = await unlooked.count();
+  for (let i = 0; i < count; i++) {
+    await expect(unlooked.nth(i).locator('td').last()).toHaveText('—');
+  }
+});
+
+test('the Findings Explorer can filter by scanner, and the tab links into it', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/findings');
+  await expect(page.getByTestId('findings')).toBeVisible();
+
+  // The facet exists and is driven by the registry, not a hard-coded list.
+  const scannerFilter = page.getByTestId('filter-scanner');
+  await expect(scannerFilter).toBeVisible();
+  await expect(scannerFilter.locator('option')).not.toHaveCount(1);
+
+  // Secrets is a filterable dimension now: before W8-10 the API dropped an
+  // unknown dimension silently, so asking for secrets showed everything.
+  await page.getByTestId('filter-status').selectOption('');
+  await page.getByTestId('filter-dimension').selectOption('secrets');
+  await expect(page.getByTestId('findings')).toBeVisible();
+
+  // And the Security tab drills into that same filtered view.
+  await openSeededRepo(page);
+  await page.getByTestId('repo-tabs').getByRole('link', { name: 'Security' }).click();
+  await page.getByTestId('secrets-drill').click();
+  await expect(page).toHaveURL(/\/findings/);
+});

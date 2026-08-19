@@ -1,6 +1,8 @@
 import { SyncStatusChip, WidgetFrame, useUiStore } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import '../plans/PlanTile.js';
+// W8-10: side-effect import, same pattern — the tile registers itself.
+import '../security/SecurityRollupTile.js';
 import '../pulse/PulseCard.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import type { GlobalSearch } from '../../api/urlState.js';
@@ -52,6 +54,10 @@ function orgWidgets(window: string, search: Record<string, string>): Widget[] {
     // acts on.
     { id: 'org-plan', type: 'plan-progress', layout: { x: 0, y: 3, w: 4, h: 2 }, options },
     { id: 'org-hotspots', type: 'hotspot-list', layout: { x: 4, y: 3, w: 8, h: 2 }, options },
+    // W8-10: the security rollup sits below the fold rather than above it —
+    // with one scanner running it would otherwise be the loudest tile on the
+    // page while saying the least.
+    { id: 'org-security', type: 'security-rollup', layout: { x: 0, y: 5, w: 4, h: 2 }, options },
   ];
 }
 

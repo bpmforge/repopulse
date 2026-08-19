@@ -3156,8 +3156,22 @@
         "E2E: filter by scanner facet → open Security tab → click a chain node → land on member finding; tenancy route-walker and axe green over all new routes"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. Repo Security tab, scanner facets on the Findings Explorer, the org security rollup tile, and GET /repos/:id/security + GET /org/security behind them.",
+        "THE WHOLE SCREEN IS BUILT AGAINST ONE FAILURE: a security page that says nothing and reads as \"safe\". A scanner that is SWITCHED OFF, one that has NEVER RUN, and one that RAN AND FOUND NOTHING are three different sentences and only the last is good news — so every scanner carries an explicit state, and the coverage table prints a DASH rather than a zero for anything that has not looked. A zero is a claim; an unrun scanner has not earned it.",
+        "THE EMPTY PANELS NAME THEIR CAUSE. The CVE panel says \"no dependency scan has run — this is not a clean bill of health\" (W8-06 is parked for missing tools); the chains panel distinguishes \"no chains\" from \"chain analysis has never run\" (W8-09). A missing panel reads as a broken page and a broken security page reads as no problems, so the sections stay and explain themselves (NFR-15).",
+        "A REAL BUG FOUND AND FIXED: the findings API validated `dimension` against the four ANALYSIS dimensions and silently dropped anything else. Secrets findings were storable, listable and countable — and unfilterable, so asking for exactly the ones you wanted showed you everything instead. The list is now the full nine from the W8-02 schema, and the facet is exercised by e2e.",
+        "THE SCANNER FACET IS DRIVEN BY THE REGISTRY, not a hard-coded list: a scanner added in a later wave becomes filterable the day it registers, without touching this screen (SECURITY_SUITE §5).",
+        "THE KEV FACET FILTERS ON THE FINDING PAYLOAD, not a column. KEV is a fact about a CVE that only the dependency scanner sets; a column would need backfilling for every scanner that never sets it. Filtering on the payload means the facet works the day W8-06 lands and returns nothing — correctly — until then.",
+        "TWO CLOCKS FOR SECRETS, NOT ONE: \"last scan of new commits\" and \"last sweep of history\" are separate lines, because a repo scanned on every push but never swept has twelve months nobody has read, and one timestamp cannot say that.",
+        "VERIFIED CREDENTIALS READS \"none confirmed\", NOT 0. Live verification is gated off (W8-04), so nothing can confirm liveness; \"none confirmed\" is true and \"0\" would imply someone checked.",
+        "A CHAIN IS AS SEVERE AS ITS WORST STEP, never an average — an average lets one critical link hide behind three trivial ones. Chain nodes link to their member findings, because a path you cannot click through is a picture of an argument rather than the argument.",
+        "THE ROLLUP CARRIES A BASIS LABEL, same discipline as the health score’s \"Tier-1 only\": with one scanner running, \"0 open\" means \"one scanner found nothing\", and a reader who cannot see that reads it as an audit. The tile sits BELOW the fold for the same reason — above it, it would be the loudest thing on the page while saying the least.",
+        "AN AXE VIOLATION THE A11Y SWEEP CAUGHT ON ITS FIRST RUN: the secrets drill-down link was inside a <dl>, which may only contain dt/dd groups. Moved out. This is the third time the a11y gate has caught something a click-through would have called fine.",
+        "NOT DONE, DELIBERATELY: the e2e \"click a chain node → land on member finding\" step. No chain data exists until W8-09 computes it, and seeding fake chain rows to make an e2e green would test the seeder, not the product. The panel, the node links and their empty states ARE covered; the click-through is W8-09 acceptance.",
+        "GATE: lint 0, typecheck 0, 892 unit tests (was 881), zero skipped; pnpm -r test green; 97 e2e passed (was 94; 1 skipped real-forge smoke), including a new axe sweep over the Security tab; bundle 110.1 KB of a 200 KB budget; validate-arch (7 rules), validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W8-11",

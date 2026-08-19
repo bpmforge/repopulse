@@ -23,6 +23,8 @@ export type WidgetType =
   // W6-06. Its own type: registerWidget overwrites by type, so reusing one
   // would silently replace an existing widget.
   | 'weekly-pulse'
+  // W8-10. Its own type, for the same reason as the two above.
+  | 'security-rollup'
   | 'my-prs'
   | 'my-queue'
   | 'text';
