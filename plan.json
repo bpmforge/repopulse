@@ -4464,10 +4464,17 @@
         "axe green on both surfaces; e2e sets an intent and sees the row disappear from the leaderboard with the count incremented"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "FILED 2026-08-19 out of W6-07. The engine, the table and the API all exist and are tested; what remains is the surfaces. Filed rather than carried because the My Focus strip had already slipped twice (deferred from W6-06 into W6-07, then again) — at that point a note is not a plan.",
-        "The suppression count is ALREADY in the hotspots response (suppressed_count / suppressed_paths). The UI must render it; a leaderboard that hides rows without saying so is worse than one that shows everything."
+        "The suppression count is ALREADY in the hotspots response (suppressed_count / suppressed_paths). The UI must render it; a leaderboard that hides rows without saying so is worse than one that shows everything.",
+        "DONE 2026-08-19. Intent control on the file drill-down, the acknowledged-suppression badge on the hotspot leaderboard, and the My Focus since-last-visit strip. W6 IS COMPLETE.",
+        "REAL BUG CAUGHT BY THE E2E: applySuppression keyed on PATH ALONE, so acknowledging src/mod0.ts in one repository hid src/mod0.ts in EVERY repository — and common filenames are exactly the ones a monorepo repeats. The test expected one suppression and found two. Now keyed on repoId AND path, with a unit test that acknowledges the same path in one of two repos and asserts only that one disappears.",
+        "THE FIRST VERSION OF THAT E2E WAS WORTHLESS AND I REPLACED IT: it hunted for a file link by clicking through the app and called test.skip() when it found none — a test that proves nothing while reporting green. Rewritten to take the target repo and path from the hotspots API and navigate straight there, so it either exercises the feature or fails.",
+        "THE SUPPRESSION BADGE RENDERS ONLY WHEN SOMETHING IS HIDDEN. Quiet in the common case, never silent when it matters — a leaderboard that omits rows without saying so is worse than one that shows everything, because the first person to notice the gap stops trusting every other number on the screen.",
+        "THE SINCE-LAST-VISIT STRIP USES THE USER'S OWN lastVisitAt, not a fixed 7-day window: \"new this week\" to someone who was here an hour ago is noise, and to someone back from two weeks off it is a lie by omission. A first visit says so and shows nothing rather than reporting counts about nothing, and the strip is hidden entirely when every count is zero — a row that says \"0 new\" every load is furniture people learn to skip.",
+        "THE INTENT CONTROL STATES THE CONSEQUENCE BEFORE THE CLICK (\"hidden from hotspot lists, still counted\"), because acknowledging a file changes what a shared screen shows and that is worth understanding at the moment you decide it.",
+        "GATE: lint 0, typecheck 0, 763 unit tests (was 762), zero skipped, pnpm -r test green, e2e 77 passed + 1 skipped (was 76), three validators exit 0."
       ]
     }
   ]

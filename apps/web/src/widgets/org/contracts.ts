@@ -33,6 +33,14 @@ export interface AttentionItems {
 /** GET /hotspots?window=&limit= */
 export interface HotspotItems {
   items: { repoId: number; path: string; score: number }[];
+  /**
+   * W6-09. Acknowledged files are hidden from the LIST, never from the data —
+   * so the count travels with it. A leaderboard that omits rows without saying
+   * so is worse than one that shows everything: the first person to notice
+   * stops trusting every other number on the screen.
+   */
+  suppressed_count?: number;
+  suppressed_paths?: string[];
 }
 
 /** GET /metrics/series?metric_key=&window= — oldest-first. */

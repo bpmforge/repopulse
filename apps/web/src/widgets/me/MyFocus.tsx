@@ -37,6 +37,15 @@ export function MyFocus({ search }: Props) {
   const queue = useApiQuery<ReviewQueue>({ endpoint: '/me/review-queue' });
   const hotspots = useApiQuery<MyHotspots>({ endpoint: '/me/hotspots' });
   const stats = useApiQuery<MyStats>({ endpoint: '/me/stats' });
+  // Since-last-visit (W6-09, R-A5). Its own query so a slow count never delays
+  // the queue below it — the queue is what people came for.
+  const since = useApiQuery<{
+    since: string | null;
+    first_visit: boolean;
+    review_requests: number;
+    prs_advanced: number;
+    findings_on_my_prs: number;
+  }>({ endpoint: '/me/since' });
 
   // Identity-unlinked is a DISTINCT state from "nothing to do" (UX_SPEC §4.f).
   // Both render empty lists, but only one is fixable by the user, and telling
@@ -148,6 +157,23 @@ export function MyFocus({ search }: Props) {
 
   return (
     <div className="flex flex-col gap-4" data-testid="my-focus">
+      {/* Since-last-visit strip. Rendered only when there IS a previous visit
+          and something changed: a strip that says "0 new" every load is
+          furniture people learn to skip. */}
+      {since.data && !since.data.first_visit &&
+        (since.data.review_requests > 0 ||
+          since.data.prs_advanced > 0 ||
+          since.data.findings_on_my_prs > 0) && (
+          <div
+            className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs"
+            data-testid="since-strip"
+          >
+            Since your last visit: {since.data.review_requests} review
+            {since.data.review_requests === 1 ? ' request' : ' requests'},{' '}
+            {since.data.prs_advanced} of your pull requests advanced,{' '}
+            {since.data.findings_on_my_prs} new findings on your work.
+          </div>
+        )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="my-stats">
         <KpiTile
           label="PRs merged"
