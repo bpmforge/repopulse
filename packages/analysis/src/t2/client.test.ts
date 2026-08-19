@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { T2Client, T2_DEFAULTS, T2_MAX_TOKENS } from './client.js';
 import type { CompleteOpts } from '../gateway/types.js';
+import { containsCredentialMaterial } from '../config/hosts.js';
 
 // Tier-2 wrapper (W6-01, ANALYSIS_TIERS.md §2, FR-ANALYSIS-2/NFR-8/C2).
 
@@ -106,5 +107,26 @@ describe('tier-2 wrapper', () => {
   it('treats an unreachable host as a state, not an exception (NFR-7)', async () => {
     const c = client((() => Promise.reject(new Error('ECONNREFUSED'))) as unknown as typeof fetch);
     await expect(c.health(HOST)).resolves.toEqual({ ok: false });
+  });
+});
+
+describe('SC-24 credential-free requests', () => {
+  it('sends no authorization header and no secret in the body', async () => {
+    // T-20/T-21: a LAN model needs no credential, and the diff payload must not
+    // carry one either. Asserted on the ACTUAL outbound request rather than on
+    // the header constant, so a future change inside chat() is caught too.
+    let seenHeaders: Record<string, string> = {};
+    let seenBody = '';
+    const fetchImpl = vi.fn(async (_u: string | URL | Request, init?: RequestInit) => {
+      seenHeaders = (init?.headers ?? {}) as Record<string, string>;
+      seenBody = String(init?.body);
+      return ok();
+    }) as unknown as typeof fetch;
+
+    await client(fetchImpl).complete('review this diff', opts, HOST);
+
+    expect(Object.keys(seenHeaders).map((k) => k.toLowerCase())).toEqual(['content-type']);
+    expect(containsCredentialMaterial(seenBody)).toBe(false);
+    expect(containsCredentialMaterial(JSON.stringify(seenHeaders))).toBe(false);
   });
 });

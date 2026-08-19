@@ -85,6 +85,13 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
 
+  # SC-24 deployment note (W6-08): the LLM VLAN must be reachable from the
+  # WORKER network only. The worker is the only service that calls a Tier-2
+  # host, so api and web have no business on that network — and if they cannot
+  # reach it, a compromised web container cannot be turned into a diff
+  # exfiltration path. Enforce with a podman network policy on the host:
+  # the LLM VLAN accepts traffic from the worker's network namespace only.
+  # Reachability is a manual check in the W7-06 deploy runbook (SC-24 verify).
   worker:
     build:
       context: ..

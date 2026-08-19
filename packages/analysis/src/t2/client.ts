@@ -1,4 +1,5 @@
 import type { CompleteOpts, CompleteResult } from '../gateway/types.js';
+import { T2_REQUEST_HEADERS } from '../config/hosts.js';
 
 // Tier-2 LM Studio client (W6-01, ANALYSIS_TIERS.md §2, FR-ANALYSIS-2/NFR-8/C2).
 //
@@ -110,7 +111,10 @@ export class T2Client {
     try {
       const res = await this.fetchImpl(`${normalizeHost(host.baseUrl)}/v1/chat/completions`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        // SC-24: the exact, credential-free header set. A LAN model needs no
+        // authorization, and sending one would put a workspace secret on a wire
+        // this product does not control.
+        headers: { ...T2_REQUEST_HEADERS },
         body: JSON.stringify({
           model: host.modelSlot,
           messages: [{ role: 'user', content: prompt }],
