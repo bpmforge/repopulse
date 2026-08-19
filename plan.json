@@ -4022,7 +4022,7 @@
         "Troubleshooting names the failures a newcomer really hits: ports in use, podman not running, blank secrets"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "The current README is 38 lines of product summary and a doc index, with NO setup section at all. It tells a newcomer what RepoPulse is and nothing about how to run it.",
         "Document the container path too, not just the dev path: deploy/compose.yaml (W11-01) already brings up postgres, redis, migrate, api, worker and web, and it is running on this machine right now. It is undiscoverable from the README.",
