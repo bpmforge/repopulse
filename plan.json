@@ -4514,10 +4514,13 @@
       "module": "web",
       "stories": [],
       "write_scope": [
-        "apps/api/src/routes/admin/analysis/**",
+        "apps/api/src/routes/admin/**",
         "apps/api/src/plugins/api-v1.ts",
         "apps/web/src/routes/admin/**",
         "apps/web/src/widgets/admin/**",
+        "packages/shared/src/logger/audit.ts",
+        "packages/shared/src/db/schema/core/**",
+        "packages/shared/drizzle/**",
         "e2e/**"
       ],
       "depends_on": [
@@ -4530,10 +4533,11 @@
         "A repo without opt-in shows the needs-T3 badge and the reason, never a send button that silently escalates; axe green"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-19 out of W7-01. The Tier-3 client, escalation rules and egress audit are complete and tested; this is the SURFACE. Filed rather than rushed at the end of a ticket that had already delivered its engine — the tab carries a per-repo opt-in control that decides whether code leaves the network, which is not a thing to bolt on in the last twenty minutes.",
-        "The opt-in control must show the CONSEQUENCE at the point of decision, the way the artifact-intent control does: turning it on means this repository's diffs may be sent to a third party."
+        "The opt-in control must show the CONSEQUENCE at the point of decision, the way the artifact-intent control does: turning it on means this repository's diffs may be sent to a third party.",
+        "WRITE_SCOPE WIDENED before code: the per-repo T3 opt-in is a repos column (repos.tier3OptIn), toggling it is an SC-22 audit event, and the new screen joins the a11y route sweep."
       ]
     },
     {
