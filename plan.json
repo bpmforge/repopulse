@@ -3918,7 +3918,7 @@
         "It fails with an actionable message when podman/node/ports are missing, naming what to do"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-18 after auditing the fresh-clone path by actually running it. Booting the API with only .env.example dies twice: first `missing required env var GITHUB_APP_CLIENT_ID`, then `TOKEN_ENC_KEY is required (32-byte hex)`. Both blanks are CORRECT (Law 9 — a committed key is a published key), which means the documented setup file cannot start the app and never could.",
         "Generation, not documentation. Telling a newcomer to run `openssl rand -hex 32` twice and paste the results is the step everyone gets wrong; the script should do it and print what it did.",
