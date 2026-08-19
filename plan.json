@@ -3579,8 +3579,21 @@
         "M13 rework-14d (share of line changes touching lines authored <14d prior; M1's 21d definition unchanged) and M14 revert rate (is_revert_heuristic commits / non-merge commits) per repo/file/window, snapshotted nightly and registered in the FR-METRICS-15 catalog with heuristic notes (FR-CH-7); fixture history reproduces both to the line"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. performance.v2 and code_health.v2 as NEW checklist files, M13 rework-14d and M14 revert rate in packages/metrics, both registered in the FR-METRICS-15 catalog with their caveats.",
+        "v1 IS UNTOUCHED AND STILL THE DEFAULT, asserted by a test. Re-recording v1 would make every finding produced under it stop meaning what it said; adding v2 without repointing the default means a run has to ASK for the new questions. Golden prompt digests are recorded for both v2 checklists — the digest moves only when the prompt does, which is the signal that a version bump is due.",
+        "THE 5-20x FIGURE IS DELIBERATELY NOT QUOTED. try/catch-in-hot-loop is real, but the commonly cited penalty is an old-engine number and much smaller on modern V8. The checklist asks the model to report the STRUCTURE and explicitly forbids quoting a speedup — a finding citing a benchmark nobody ran, on an engine version nobody checked, is worse than no finding. It also points at the more durable problem: the catch usually hides how many iterations failed.",
+        "code_health.v2 NAMES THE RULE IDS IT OVERLAPS WITH and requires them as a title prefix (FR-CH-5). Without that the pack and the checklist produce two rows for one problem, because the dedup key is built from title and evidence. The checklist says \"This is not cosmetic\" for the next person tempted to drop it.",
+        "M13 USES 14 DAYS AND M1 USES 21, ON PURPOSE. M1 is a churn-quality signal over a sprint horizon; M13 is a DEBT signal — work redone almost immediately. Changing M1 to match would move a number people already have history for. The boundary is exclusive and tested on both sides: exactly 14 days is not rework, 13 is.",
+        "BOTH RATES ARE NULL OVER AN EMPTY WINDOW, NEVER 0. A 0% rework rate for a week with no commits reads as a perfect week — the same null-vs-zero trap this codebase has now hit in eight places.",
+        "M14 EXCLUDES MERGES FROM THE DENOMINATOR (§0), or a squash-merging team looks healthier than a merge-committing one for reasons that have nothing to do with reverts. Bots too.",
+        "THE CAVEATS ARE THE DELIVERABLE, and a test asserts they are present: M14 says in the catalog that it is a HEURISTIC (message-shape detection misses a revert described in other words) and that a revert is often the CORRECT response to a bad deploy. A revert rate without that becomes a target, and a team that stops reverting bad deploys is not a healthier team.",
+        "M13/M14 HANG OFF FR-CH-7, NOT FR-METRICS-n: they came from the code-health suite, and inventing FR-METRICS-13/14 would leave a gap in that numbering for a later reader to try to fill.",
+        "TWO EXISTING TESTS ASSERTED \"exactly 12 metrics\" and correctly failed — the catalog is the UI's tooltip source, so a metric that exists in code but not here renders with no definition, and the reverse renders a definition for a number nobody computes. Both updated to 14 with that reasoning recorded.",
+        "NOT DONE: nightly snapshotting of M13/M14 into metric_snapshots. The compute path writes the twelve older metrics from one place, and adding two more is a change to that path rather than to these functions — it belongs with the snapshot work, not bolted on here. Recorded rather than silently skipped.",
+        "GATE: lint 0, typecheck 0, 1025 unit tests (was 1001), zero skipped; pnpm -r test green; validate-arch, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+      ]
     },
     {
       "id": "W9-06",
