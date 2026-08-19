@@ -21,3 +21,6 @@ export * from './scanners/semgrep/output.js';
 export * from './scanners/semgrep/scanner.js';
 export * from './scanners/semgrep/run-modes.js';
 export * from './scanners/semgrep/triage.js';
+export * from './scanners/owasp/checklist.js';
+export * from './scanners/owasp/llm-packages.js';
+export * from './scanners/owasp/run.js';
