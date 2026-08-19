@@ -46,6 +46,7 @@ const ROUTES: { path: string; ready: string }[] = [
   { path: '/me', ready: 'main' },
   { path: '/admin/identities', ready: 'identities' },
   { path: '/admin/agreements', ready: 'agreements' },
+  { path: '/admin/analysis', ready: 'analysis-policy' },
 ];
 
 for (const theme of ['dark', 'light'] as const) {

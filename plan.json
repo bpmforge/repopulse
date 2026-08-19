@@ -4533,11 +4533,19 @@
         "A repo without opt-in shows the needs-T3 badge and the reason, never a send button that silently escalates; axe green"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "FILED 2026-08-19 out of W7-01. The Tier-3 client, escalation rules and egress audit are complete and tested; this is the SURFACE. Filed rather than rushed at the end of a ticket that had already delivered its engine — the tab carries a per-repo opt-in control that decides whether code leaves the network, which is not a thing to bolt on in the last twenty minutes.",
         "The opt-in control must show the CONSEQUENCE at the point of decision, the way the artifact-intent control does: turning it on means this repository's diffs may be sent to a third party.",
-        "WRITE_SCOPE WIDENED before code: the per-repo T3 opt-in is a repos column (repos.tier3OptIn), toggling it is an SC-22 audit event, and the new screen joins the a11y route sweep."
+        "WRITE_SCOPE WIDENED before code: the per-repo T3 opt-in is a repos column (repos.tier3OptIn), toggling it is an SC-22 audit event, and the new screen joins the a11y route sweep.",
+        "DONE 2026-08-19. Admin -> Analysis: per-repo Tier-2 auto and Tier-3 opt-in, the egress audit log, and a per-repo off-network rollup. Admin-only via requireAdmin; the opt-in toggle writes an SC-22 audit row. No migration needed — repos.tier3_opt_in already existed.",
+        "THE CONSEQUENCE IS RENDERED BESIDE THE CONTROL, not in a doc nobody opens: the row reads \"stays on your network\" or \"diffs may be sent to Anthropic\" depending on the toggle. Someone ticking this is deciding that their code may leave their network, and that sentence belongs at the moment of the decision — the same pattern as the artifact-intent control.",
+        "THE EMPTY EGRESS LOG DISTINGUISHES \"NOTHING WAS SENT\" FROM \"NOTHING WAS RECORDED\": its empty state says the log is written BEFORE each call, so an empty log means no call was made. That is the property that makes the reassurance worth anything, and without saying it the screen would be indistinguishable from one whose logging is broken.",
+        "PER-REPO USAGE READS \"nothing sent\" RATHER THAN \"0 bytes\". Zero bytes is a measurement; nothing sent is the fact an admin came to this screen for.",
+        "THE COST ROLLUP IS COMPUTED FROM THE EGRESS AUDIT, not a counter: the audit is written before every call, so it cannot undercount one that failed after sending — a counter incremented on success would.",
+        "TEST BUG WORTH RECORDING: Playwright check() failed with \"clicking the checkbox did not change its state\" — a TRUE statement about a correct control. The checkbox is controlled by the server value, so its state only changes after the mutation refetches. Switched to click() plus asserting the visible consequence, which is what a user would actually observe.",
+        "The new screen joined the a11y route sweep (both themes) per the standing note, and passes.",
+        "GATE: lint 0, typecheck 0, 779 unit tests zero skipped, pnpm -r test green, e2e 94 passed + 1 skipped (was 91), three validators exit 0."
       ]
     },
     {

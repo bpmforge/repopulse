@@ -15,6 +15,7 @@ import { Route as MeRouteImport } from './routes/me'
 import { Route as PullRequestsRouteImport } from './routes/pull-requests'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAgreementsRouteImport } from './routes/admin/agreements'
+import { Route as AdminAnalysisRouteImport } from './routes/admin/analysis'
 import { Route as AdminIdentitiesRouteImport } from './routes/admin/identities'
 import { Route as AdminMembersRouteImport } from './routes/admin/members'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
@@ -64,6 +65,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const AdminAgreementsRoute = AdminAgreementsRouteImport.update({
   id: '/agreements',
   path: '/agreements',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminAnalysisRoute = AdminAnalysisRouteImport.update({
+  id: '/analysis',
+  path: '/analysis',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminIdentitiesRoute = AdminIdentitiesRouteImport.update({
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/pull-requests': typeof PullRequestsRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
+  '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/me': typeof MeRoute
   '/pull-requests': typeof PullRequestsRoute
   '/admin/agreements': typeof AdminAgreementsRoute
+  '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -229,6 +237,7 @@ export interface FileRoutesById {
   '/pull-requests': typeof PullRequestsRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
+  '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -259,6 +268,7 @@ export interface FileRouteTypes {
     | '/pull-requests'
     | '/repos/$repoId'
     | '/admin/agreements'
+    | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/settings'
@@ -285,6 +295,7 @@ export interface FileRouteTypes {
     | '/me'
     | '/pull-requests'
     | '/admin/agreements'
+    | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/settings'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | '/pull-requests'
     | '/repos/$repoId'
     | '/admin/agreements'
+    | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/settings'
@@ -392,6 +404,13 @@ declare module '@tanstack/react-router' {
       path: '/agreements'
       fullPath: '/admin/agreements'
       preLoaderRoute: typeof AdminAgreementsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/analysis': {
+      id: '/admin/analysis'
+      path: '/analysis'
+      fullPath: '/admin/analysis'
+      preLoaderRoute: typeof AdminAnalysisRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/identities': {
@@ -539,6 +558,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteRouteChildren {
   AdminAgreementsRoute: typeof AdminAgreementsRoute
+  AdminAnalysisRoute: typeof AdminAnalysisRoute
   AdminIdentitiesRoute: typeof AdminIdentitiesRoute
   AdminMembersRoute: typeof AdminMembersRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -548,6 +568,7 @@ interface AdminRouteRouteChildren {
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAgreementsRoute: AdminAgreementsRoute,
+  AdminAnalysisRoute: AdminAnalysisRoute,
   AdminIdentitiesRoute: AdminIdentitiesRoute,
   AdminMembersRoute: AdminMembersRoute,
   AdminSettingsRoute: AdminSettingsRoute,
