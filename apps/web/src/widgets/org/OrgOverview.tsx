@@ -1,5 +1,6 @@
 import { SyncStatusChip, WidgetFrame, useUiStore } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import '../plans/PlanTile.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import type { GlobalSearch } from '../../api/urlState.js';
 import { WidgetGrid } from '../../components/widget/WidgetGrid.js';
@@ -40,7 +41,13 @@ function orgWidgets(window: string, search: Record<string, string>): Widget[] {
     { id: 'org-kpi', type: 'kpi', layout: { x: 0, y: 0, w: 12, h: 1 }, options },
     { id: 'org-health', type: 'health-grid', layout: { x: 0, y: 1, w: 6, h: 2 }, options },
     { id: 'org-attention', type: 'attention-feed', layout: { x: 6, y: 1, w: 6, h: 2 }, options },
-    { id: 'org-hotspots', type: 'hotspot-list', layout: { x: 0, y: 3, w: 12, h: 2 }, options },
+    // W5-07. On the row BELOW the two 6x2 heroes, not carved out of them:
+    // W4-21 deliberately made this screen read bento with exactly two heroes,
+    // and shrinking one to fit the plan tile broke that assertion. Still above
+    // the fold though — a regression nobody scrolls to is a regression nobody
+    // acts on.
+    { id: 'org-plan', type: 'plan-progress', layout: { x: 0, y: 3, w: 4, h: 2 }, options },
+    { id: 'org-hotspots', type: 'hotspot-list', layout: { x: 4, y: 3, w: 8, h: 2 }, options },
   ];
 }
 

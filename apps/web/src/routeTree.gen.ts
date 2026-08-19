@@ -18,6 +18,7 @@ import { Route as AdminIdentitiesRouteImport } from './routes/admin/identities'
 import { Route as AdminMembersRouteImport } from './routes/admin/members'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSyncRouteImport } from './routes/admin/sync'
+import { Route as PlansIndexRouteImport } from './routes/plans/index'
 import { Route as ReportsIndexRouteImport } from './routes/reports/index'
 import { Route as ReposIndexRouteImport } from './routes/repos/index'
 import { Route as ReposRepoIdRouteRouteImport } from './routes/repos/$repoId/route'
@@ -77,6 +78,11 @@ const AdminSyncRoute = AdminSyncRouteImport.update({
   id: '/sync',
   path: '/sync',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const PlansIndexRoute = PlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ReportsIndexRoute = ReportsIndexRouteImport.update({
   id: '/reports/',
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/plans/': typeof PlansIndexRoute
   '/reports/': typeof ReportsIndexRoute
   '/repos/': typeof ReposIndexRoute
   '/views/': typeof ViewsIndexRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByTo {
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin': typeof AdminIndexRoute
+  '/plans': typeof PlansIndexRoute
   '/reports': typeof ReportsIndexRoute
   '/repos': typeof ReposIndexRoute
   '/views': typeof ViewsIndexRoute
@@ -210,6 +218,7 @@ export interface FileRoutesById {
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/plans/': typeof PlansIndexRoute
   '/reports/': typeof ReportsIndexRoute
   '/repos/': typeof ReposIndexRoute
   '/views/': typeof ViewsIndexRoute
@@ -237,6 +246,7 @@ export interface FileRouteTypes {
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin/'
+    | '/plans/'
     | '/reports/'
     | '/repos/'
     | '/views/'
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin'
+    | '/plans'
     | '/reports'
     | '/repos'
     | '/views'
@@ -285,6 +296,7 @@ export interface FileRouteTypes {
     | '/admin/sync'
     | '/views/$viewId'
     | '/admin/'
+    | '/plans/'
     | '/reports/'
     | '/repos/'
     | '/views/'
@@ -306,6 +318,7 @@ export interface RootRouteChildren {
   PullRequestsRoute: typeof PullRequestsRoute
   ReposRepoIdRouteRoute: typeof ReposRepoIdRouteRouteWithChildren
   ViewsViewIdRoute: typeof ViewsViewIdRoute
+  PlansIndexRoute: typeof PlansIndexRoute
   ReportsIndexRoute: typeof ReportsIndexRoute
   ReposIndexRoute: typeof ReposIndexRoute
   ViewsIndexRoute: typeof ViewsIndexRoute
@@ -376,6 +389,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/sync'
       preLoaderRoute: typeof AdminSyncRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/plans/': {
+      id: '/plans/'
+      path: '/plans'
+      fullPath: '/plans/'
+      preLoaderRoute: typeof PlansIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/reports/': {
       id: '/reports/'
@@ -530,6 +550,7 @@ const rootRouteChildren: RootRouteChildren = {
   PullRequestsRoute: PullRequestsRoute,
   ReposRepoIdRouteRoute: ReposRepoIdRouteRouteWithChildren,
   ViewsViewIdRoute: ViewsViewIdRoute,
+  PlansIndexRoute: PlansIndexRoute,
   ReportsIndexRoute: ReportsIndexRoute,
   ReposIndexRoute: ReposIndexRoute,
   ViewsIndexRoute: ViewsIndexRoute,

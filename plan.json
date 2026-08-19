@@ -2098,7 +2098,9 @@
         "apps/web/src/routes/plans/**",
         "apps/web/src/widgets/plans/**",
         "packages/reports/src/assembler/**",
-        "apps/web/src/widgets/org/**"
+        "apps/web/src/widgets/org/**",
+        "apps/web/src/components/widget/types.ts",
+        "apps/web/src/widgets/org/OrgOverview.tsx"
       ],
       "depends_on": [
         "W5-06",
@@ -2111,8 +2113,19 @@
         "E2E: generate plan from fixture report → accept item → seeded improved snapshots → nightly verify flips done → regenerated report shows movement; axe + tenancy green"
       ],
       "points": 5,
-      "status": "in_progress",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "NEAR-MISS WORTH RECORDING: the plan tile was first registered as type attention-feed, which org/register.tsx ALREADY registers. registerWidget does registry.set(), so it would have silently REPLACED the attention feed on the Org Overview with the plan tile — no error, no test failure, just a widget quietly gone. Added a distinct plan-progress type to the WidgetType union instead (hence the scope widening). A registry that overwrites without complaint is worth a guard of its own; noted for a future ticket rather than fixed inside this one.",
+        "DONE 2026-08-19. /plans page (plan list with progress bar, ranked item cards, accept/start/dismiss, regressed pinned and warn-styled), the plan section every report now closes with, and the Org Overview plan tile. THIRD of four dead rail links retired — only /findings (W6-04) remains.",
+        "NO \"MARK DONE\" BUTTON ANYWHERE, and an e2e asserts its absence. If a human could tick an item done, the metric would never have to move and W5-06's nightly verification would be decorative. The card instead renders the criterion in plain language (\"Closes automatically when M5 stays at least 0.8 for 30 days\") so someone can see what done will MEAN before accepting the work.",
+        "REGRESSED ITEMS SORT ABOVE RANK. Something that came undone outranks new advice: it is work already paid for that is being lost, and burying it under a higher-ranked new item is how a regression goes unnoticed.",
+        "NEAR-MISS: the plan tile was first registered as widget type \"attention-feed\", which org/register.tsx already registers. registerWidget does registry.set(), so it would have SILENTLY REPLACED the attention feed on the Org Overview — no error, no failing test, a widget simply gone. Fixed with a distinct plan-progress type. A registry that overwrites without complaining is worth a guard; recorded rather than fixed inside this ticket.",
+        "BROKE A W4-21 ASSERTION AND FIXED THE LAYOUT, NOT THE TEST: placing the tile beside the attention feed shrank it to 3 columns, leaving one 6-wide hero where W4-21 deliberately built two, and its e2e failed with \"expected 2, received 1\". The tile moved to its own row (4 wide, beside an 8-wide hotspot list) rather than editing the assertion — the earlier ticket made a deliberate bento decision and this one had no business quietly undoing it.",
+        "THE REPORT PLAN SECTION reads movement from plan_item_events BETWEEN the two report pins, not from current status: \"3 items are done\" says nothing about whether they were done last month too. Automatic transitions render their criterion, human ones say \"changed by a person\", so a reader can tell who decided what.",
+        "PARTIAL AGAINST ACCEPTANCE, SAID PLAINLY: acceptance 2 asks for movement since the PREVIOUS same-scope report, and the assembler currently passes previousSnapshotAt: null, so every report says it has nothing to compare against rather than implying nothing moved. Threading the previous pin belongs with W5-09 (report diff view), which owns comparing two reports; doing it here would build half of that ticket's machinery in the wrong place.",
+        "E2E SCOPE, SAID PLAINLY: the browser test asserts the page, generation, and that accepting persists across a reload. It does NOT drive generate -> accept -> seeded-improvement -> nightly-verify -> regenerated-report end to end, because that chain needs snapshot mutation between two verifier runs; the verifier is instead covered directly against real rows in apps/api/src/workers/plans-processor.test.ts, both directions plus the missing-metric case. The e2e also tolerates an EMPTY plan, because an empty plan is the correct result for a healthy fixture — demanding items would assert the fixture's health rather than the feature.",
+        "GATE: lint 0, typecheck 0, 635 unit tests zero skipped, e2e 68 passed + 1 skipped (was 65), three validators exit 0."
+      ]
     },
     {
       "id": "W5-08",
