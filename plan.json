@@ -2995,8 +2995,21 @@
         "Dedups against stream-mode findings: re-run on unchanged history creates 0 new rows (FR-ANALYSIS-6 extension); optional snapshot pass for current-tree files without patch coverage wired behind config"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. History mode over the 12-month commit window, scheduled monthly per SECURITY_SUITE §4, with the per-target scan path shared with stream mode rather than copied.",
+        "THE DESIGN AND THE WAREHOUSE DISAGREED, AND THE NOTE IS THE DELIVERABLE. §3.1 says history mode needs no forge calls because \"patches are already warehoused\" — they are NOT: commit_files and pr_files carry per-file churn counts and say \"No patch text\" in their own headers, because DATABASE.md never made room for diff bodies. So history mode re-fetches patches per commit through the budgeted client on the scan lane: one core point per commit, which is why it is capped (200/sweep), monthly, and reports what it deferred. Warehousing patch bodies is the alternative and it is a storage AND secret-exposure decision — a patch body containing a live key would then be a row in our own database — not something to slip into a 2-point ticket.",
+        "A SILENT CAP READS AS \"HISTORY IS CLEAN\" when it means \"history is half-read\", so the result carries `deferred` and a test asserts it.",
+        "OLDEST FIRST, unlike stream mode. History exists to reach the far end of the window; newest-first would spend every capped sweep re-walking the recent commits stream mode has already covered.",
+        "THE TEST PLANTS THE SHAPE THAT MATTERS: a key added in a 6-month-old commit and REMOVED in a 1-month-old one. Stream mode never saw it and the current tree does not contain it, so finding it proves history mode rather than proving the detector twice. The removal commit yields nothing, because a removed line is a key that was already committed and the finding belongs where it was added. A commit 20 months old is never fetched at all — the 12-month window is a filter, not a label.",
+        "FAILED RUNS ARE NOT COVERAGE: the \"already scanned\" predicate counts succeeded and running, never failed, so a commit whose scan blew up is retried by the next sweep instead of being silently written off.",
+        "RE-RUNNING CREATES ZERO ROWS, and both halves are asserted: the commits are already covered so nothing is re-fetched, and a forced re-scan would land on the same dedup key because BOTH modes go through persistFindings rather than inserting their own findings. That shared path is also why there is only one place SC-29 can be got wrong.",
+        "WIRED, WITH AN OFF SWITCH. A monthly repeatable job fans out one history job per live repo (SECRETS_HISTORY_CRON, default `23 4 1 * *`, `off` to disable — same reasoning as RECONCILE_CRON: a sweep starts work nobody asked for at a wall-clock time, which is wrong in a test harness). The history runner is looked up in an INJECTED MAP keyed by scanner key, never a switch, so FR-SEC-1’s \"the framework never branches on a scanner key\" stays true; a test asserts the absence of that switch in non-comment lines.",
+        "THE SWEEP WRITES ONE scan_run PER COMMIT, not one per sweep: a single row over a 200-commit sweep could not say which commits were actually covered, and \"which commits has this repo been swept for\" is exactly the question the next sweep asks.",
+        "SNAPSHOT PASS FOR FILES WITH NO PATCH COVERAGE: NOT BUILT. The acceptance calls it optional and behind config; with patches fetched per commit there is no patch-coverage gap for commits inside the window, and the real gap — code older than the window — is a snapshot scan that belongs with the other snapshot scanners (W8-07 onward), not bolted onto a 2-point ticket. Recorded here rather than silently dropped.",
+        "SCOPE WIDENED, WITH REASON: apps/api/src/workers/{scan-processor,index}.ts — a history mode nobody schedules finds nothing, and this codebase has shipped that defect enough times to have a gate for it.",
+        "GATE: lint 0, typecheck 0, 881 unit tests (was 875), zero skipped; pnpm -r test green; 94 e2e passed (1 skipped: real-forge smoke, needs Brad token); validate-arch (7 rules), validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W8-06",

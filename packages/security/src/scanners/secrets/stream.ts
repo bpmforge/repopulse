@@ -118,7 +118,11 @@ export async function pendingCommitTargets(
   return rows.map((r) => ({ commitSha: r.sha }));
 }
 
-async function scannerEnabled(db: Database, workspaceId: number, repoId: number): Promise<boolean> {
+export async function scannerEnabled(
+  db: Database,
+  workspaceId: number,
+  repoId: number,
+): Promise<boolean> {
   const [row] = await db
     .select({ enabled: security.repoScannerConfig.enabled })
     .from(security.repoScannerConfig)
@@ -134,7 +138,10 @@ async function scannerEnabled(db: Database, workspaceId: number, repoId: number)
   return isEnabled(SECRETS_SCANNER_KEY, row ? { enabled: row.enabled } : undefined);
 }
 
-async function diffOf(deps: StreamScanDeps, target: StreamScanTarget): Promise<ForgeDiffFile[]> {
+export async function diffOf(
+  deps: Pick<StreamScanDeps, 'provider' | 'repo' | 'repoId'>,
+  target: StreamScanTarget,
+): Promise<ForgeDiffFile[]> {
   // The `scan` lane (W8-03): below a user waiting on a page, above reconcile.
   const ctx: CallCtx = { lane: 'scan', repoId: String(deps.repoId) };
   const files: ForgeDiffFile[] = [];
@@ -182,69 +189,14 @@ export async function runSecretsStreamScan(deps: StreamScanDeps): Promise<Stream
     return { scanned: [], findingsCreated: 0, deferred: 0, skipped: 'no_targets' };
   }
 
-  const pack = loadRulepack();
   let findingsCreated = 0;
   const scanned: StreamScanTarget[] = [];
 
   for (const target of targets) {
-    const [run] = await deps.db
-      .insert(security.scanRuns)
-      .values({
-        workspaceId: deps.workspaceId,
-        repoId: deps.repoId,
-        scannerKey: SECRETS_SCANNER_KEY,
-        // The RULEPACK version, not a package version: the pack is what
-        // decides whether something is a secret, so it is what a finding has
-        // to be reproducible against.
-        scannerVersion: pack.versionTag,
-        commitSha: target.commitSha,
-        trigger: deps.trigger === 'push' ? 'push' : 'pr_synced',
-        status: 'running',
-      })
-      .returning();
-
-    try {
-      const files = await diffOf(deps, target);
-      const findings = buildSecretFindings({
-        files: files.map((f) => ({ path: f.path, patch: f.patch ?? null })),
-        rulepack: pack,
-        ...(deps.verification ? { verification: deps.verification } : {}),
-      });
-
-      const persisted = await persistFindings(deps.db, {
-        workspaceId: deps.workspaceId,
-        repoId: deps.repoId,
-        scanRunId: run!.id,
-        pullRequestId: target.pullRequestId ?? null,
-        // Tier 1: no LLM was involved. A regex pass claiming tier 2 would put
-        // deterministic findings in the same bucket as model output.
-        tier: 1,
-        findings,
-        // NO reviewedFiles on purpose: stream mode sees one diff, not the
-        // repository. Auto-resolving "everything I did not see" from a partial
-        // view would close findings on files this PR simply did not touch.
-        sweepScannerKey: SECRETS_SCANNER_KEY,
-      });
-      findingsCreated += persisted.created;
+    const created = await scanOneTarget(deps, target, deps.trigger === 'push' ? 'push' : 'pr_synced');
+    if (created !== null) {
+      findingsCreated += created;
       scanned.push(target);
-
-      await deps.db
-        .update(security.scanRuns)
-        .set({
-          status: 'succeeded',
-          findingCount: findings.length,
-          finishedAt: new Date(),
-        })
-        .where(eq(security.scanRuns.id, run!.id));
-    } catch (err) {
-      await deps.db
-        .update(security.scanRuns)
-        .set({
-          status: 'failed',
-          error: (err as Error).message.slice(0, 500),
-          finishedAt: new Date(),
-        })
-        .where(eq(security.scanRuns.id, run!.id));
     }
   }
 
@@ -263,4 +215,80 @@ export async function secretsFindingCount(db: Database, repoId: number): Promise
       ),
     );
   return row?.n ?? 0;
+}
+
+/**
+ * Scans ONE commit/PR head and stores what it finds. Returns the number of new
+ * findings, or null when the scan failed.
+ *
+ * Shared by stream mode and history mode (W8-05) rather than copied: the two
+ * differ in WHICH SHAs they pick, and nothing else. A second copy of the
+ * redaction-and-persist path is a second place for SC-29 to be got wrong.
+ *
+ * Never throws for a scanner-side failure: a secrets scan that blows up must
+ * not fail the ingestion job it rides on (NFR-15). The scan_run row carries the
+ * failure instead, which is the difference between a scan nobody noticed and a
+ * repo whose data stopped updating.
+ */
+export async function scanOneTarget(
+  deps: Pick<StreamScanDeps, 'db' | 'provider' | 'repo' | 'repoId' | 'workspaceId' | 'verification'>,
+  target: StreamScanTarget,
+  trigger: 'pr_synced' | 'push' | 'schedule' | 'manual',
+): Promise<number | null> {
+  const pack = loadRulepack();
+  const [run] = await deps.db
+    .insert(security.scanRuns)
+    .values({
+      workspaceId: deps.workspaceId,
+      repoId: deps.repoId,
+      scannerKey: SECRETS_SCANNER_KEY,
+      // The RULEPACK version, not a package version: the pack is what decides
+      // whether something is a secret, so it is what a finding has to be
+      // reproducible against.
+      scannerVersion: pack.versionTag,
+      commitSha: target.commitSha,
+      trigger,
+      status: 'running',
+    })
+    .returning();
+
+  try {
+    const files = await diffOf(deps, target);
+    const findings = buildSecretFindings({
+      files: files.map((f) => ({ path: f.path, patch: f.patch ?? null })),
+      rulepack: pack,
+      ...(deps.verification ? { verification: deps.verification } : {}),
+    });
+
+    const persisted = await persistFindings(deps.db, {
+      workspaceId: deps.workspaceId,
+      repoId: deps.repoId,
+      scanRunId: run!.id,
+      pullRequestId: target.pullRequestId ?? null,
+      // Tier 1: no LLM was involved. A regex pass claiming tier 2 would put
+      // deterministic findings in the same bucket as model output.
+      tier: 1,
+      findings,
+      // NO reviewedFiles on purpose: a diff is not the repository. Auto-
+      // resolving "everything I did not see" from a partial view would close
+      // findings on files this commit simply did not touch.
+      sweepScannerKey: SECRETS_SCANNER_KEY,
+    });
+
+    await deps.db
+      .update(security.scanRuns)
+      .set({ status: 'succeeded', findingCount: findings.length, finishedAt: new Date() })
+      .where(eq(security.scanRuns.id, run!.id));
+    return persisted.created;
+  } catch (err) {
+    await deps.db
+      .update(security.scanRuns)
+      .set({
+        status: 'failed',
+        error: (err as Error).message.slice(0, 500),
+        finishedAt: new Date(),
+      })
+      .where(eq(security.scanRuns.id, run!.id));
+    return null;
+  }
 }

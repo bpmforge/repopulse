@@ -17,17 +17,66 @@ export interface ScanJobData {
   commitSha: string;
   trigger: ScanTrigger;
   prNumber?: number;
+  /**
+   * W8-05. A `history` job sweeps warehoused history for one repo instead of
+   * scanning one pinned SHA — same scanner, different question about which
+   * commits to look at. `history_sweep` is the monthly fan-out that enqueues
+   * one `history` job per repo.
+   */
+  mode?: 'sha' | 'history' | 'history_sweep';
+}
+
+export interface HistoryRunner {
+  (args: { workspaceId: number; repoId: number }): Promise<{
+    scanned: number;
+    findingsCreated: number;
+    deferred: number;
+    skipped?: string;
+  }>;
 }
 
 export interface ScanProcessorDeps {
   db: Database;
   /** Injectable so tests exercise the whole path without a real scanner. */
   buildContext?: (data: ScanJobData) => ScannerContext;
+  /**
+   * History sweepers BY SCANNER KEY, injected by the worker entrypoint (W8-05).
+   *
+   * A map rather than a `switch (scannerKey)`: FR-SEC-1's claim is that the
+   * framework never branches on a scanner key, and a lookup in an injected
+   * registry keeps that true — a scanner that gains a history mode adds one
+   * entry at the entrypoint and changes nothing here.
+   */
+  historyRunners?: Record<string, HistoryRunner>;
+  /**
+   * The monthly fan-out (W8-05): lists repos and enqueues one history job each.
+   * Injected because listing live repos and enqueueing are the entrypoint's
+   * job, not this processor's — the same split the nightly reconcile sweep uses.
+   */
+  historySweep?: (scannerKey: string) => Promise<{ enqueued: number }>;
 }
 
 export function scanProcessor(deps: ScanProcessorDeps) {
   return async function process(job: Job<ScanJobData>): Promise<void> {
     const data = job.data;
+
+    if (data.mode === 'history_sweep') {
+      await deps.historySweep?.(data.scannerKey);
+      return;
+    }
+
+    if (data.mode === 'history') {
+      // The sweeper writes its OWN scan_run rows, one per commit it covers, so
+      // this path deliberately does not open one here: a single run row over a
+      // 200-commit sweep could not say which commits were actually scanned,
+      // and "which commits has this repo been swept for" is the question the
+      // next sweep asks.
+      const runner = deps.historyRunners?.[data.scannerKey];
+      if (!runner) return;
+      await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
+      return;
+    }
+
     const scanner = getScanner(data.scannerKey);
 
     const [run] = await deps.db
