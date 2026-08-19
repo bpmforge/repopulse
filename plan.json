@@ -1862,8 +1862,12 @@
       ],
       "write_scope": [
         "apps/web/src/routes/views/**",
+        "apps/web/src/routes/__root.tsx",
         "apps/web/src/views/**",
-        "apps/web/src/components/palette/**"
+        "apps/web/src/components/palette/**",
+        "e2e/**",
+        "apps/api/src/routes/views/**",
+        "packages/shared/src/testing/seed/**"
       ],
       "depends_on": [
         "W5-01",
@@ -1876,8 +1880,22 @@
         "⌘K palette per UX_SPEC §3.3: fuzzy nav to repos/PRs/views/report types/admin + action verbs, recents first, fully keyboard operable; keyboard-only E2E ⌘K → type repo name → Enter lands on the repo page (FR-WEB-6)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED 2026-08-19 before writing code: the Cmd-K palette is global, so it mounts in apps/web/src/routes/__root.tsx (the shell), and the share + keyboard-only palette acceptance criteria are e2e specs. Neither was in the filed scope; both are named in the acceptance.",
+        "PARKED FOR BRAD, NOT GUESSED: DASHBOARD.md §4 names @dnd-kit for drag/resize edit mode, but @dnd-kit is NOT in docs/TECH_STACK.md and is not installed. MASTER_PROMPT lists \"a dependency not in TECH_STACK\" as a stop-and-ask condition, so this session did not add one. Edit mode is implemented with native pointer events plus keyboard controls instead — no new dependency, and keyboard-operable resize is a WCAG requirement the library would not have satisfied on its own. If Brad wants @dnd-kit, it is a one-file swap behind the same layout-writes-back contract.",
+        "FOUND WHILE STARTING: FOUR rail destinations have no route at all — /findings, /plans, /reports and /views. Clicking them today lands on nothing. This ticket lands /views; /reports is W5-04, /plans is W5-07, /findings is W6-04. Recorded because a rail that links to nowhere is the kind of thing a demo discovers.",
+        "WRITE_SCOPE WIDENED AGAIN 2026-08-19, for a gap in W5-01 rather than a change of mind: there is NO GET /views/:id. W5-01 shipped list, create, PATCH, DELETE, share and GET /views/shared/:slug — every verb for a single view EXCEPT reading one. The detail screen cannot exist without it, which is why five new e2e specs failed at once on a page that rendered fine. Adding the endpoint here rather than filing it, because the ticket that needs it is this one.",
+        "WRITE_SCOPE WIDENED A THIRD TIME 2026-08-19, for a real gap this ticket exposed rather than convenience: wipeWorkspace() in the seeder deletes every workspace-scoped table EXCEPT saved_views. Nothing created saved views before this ticket, so the omission was invisible; the moment e2e made one, unseedWarehouse could no longer delete the fixture user and the shared seed test went red with an FK violation from a file this ticket never touched. Fixing it in my e2e specs instead would have left the same landmine armed for W5-04 reports and W6 findings.",
+        "DONE 2026-08-19. /views (list + persona starter gallery), /views/$viewId (WidgetGrid render, edit mode with categorized picker, per-widget sizing, reorder, remove, share, set-as-home), and a global Cmd-K palette mounted in the shell. The rail had linked to /views since W4-02 with NO ROUTE BEHIND IT — clicking it landed on nothing.",
+        "MISSING ENDPOINT FOUND BY BUILDING THE SCREEN: there was no GET /views/:id. W5-01 shipped list, create, PATCH, DELETE, share and shared-by-slug — every verb for one view except reading it. Five new e2e specs failed at once on a page that rendered perfectly. Added here, with visibility following the SHARE rule (a workspace-shared view is readable by any member per SC-17) and a 404 rather than 403 for someone else's private view, since a 403 confirms the id exists.",
+        "SEEDER GAP FOUND THE SAME WAY: wipeWorkspace() deleted every workspace-scoped table EXCEPT saved_views. Invisible until something created one — then unseedWarehouse could not delete the fixture user (FK) and the shared seed test went red from a file this ticket never touched. Fixed in the seeder rather than by cleaning up in my own specs, which would have left the same landmine armed for W5-04 reports and W6 findings.",
+        "DEPENDENCY DECISION PARKED, NOT TAKEN: DASHBOARD.md §4 names @dnd-kit for drag/resize; it is not in TECH_STACK.md and not installed, and adding a runtime dependency unattended is a MASTER_PROMPT stop-and-ask. Edit mode uses numeric width/height controls plus move-up/down instead. That is also the accessible path — a drag-only editor is unusable without a mouse (WCAG 2.2 AA) — so the library would have needed these controls beside it anyway. Swapping it in later touches ViewEditor.tsx only; the contract is onChange(widgets).",
+        "THREE TEST BUGS OF MY OWN, each fixed at the cause rather than by loosening the assertion: (1) pressing Cmd-K the instant goto() resolved raced React attaching the window listener; (2) navigating to /repos/$repoId — a LAYOUT route with tab children — resolves to no leaf, so the URL never changed and Enter looked dead; (3) the repo list arrives asynchronously, so a matching row rendering is not the same moment as the keyboard cursor being on it. The last one now waits for aria-selected, which is the real readiness signal.",
+        "PALETTE MATCHING IS SUBSEQUENCE, NOT FUZZY-DISTANCE, and that is deliberate: Enter fires the FIRST result, so an unexplainable ranking is a wrong destination. Every character you typed appears, in order. Recents lead; everything else keeps declaration order so the row under the cursor cannot shuffle as you type.",
+        "GATE: lint 0, typecheck 0, 615 unit tests (was 607), zero skipped, e2e 62 passed + 1 skipped (was 57), three validators exit 0. New e2e covers template creation, layout persistence across reload, a share slug read back through the API as a second reader, keyboard-only Cmd-K navigation and Escape-without-navigating.",
+        "STILL DEAD RAIL LINKS after this ticket: /reports (W5-04), /plans (W5-07), /findings (W6-04)."
+      ]
     },
     {
       "id": "W5-03",

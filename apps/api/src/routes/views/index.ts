@@ -123,6 +123,41 @@ export default async function viewsRoutes(
     },
   );
 
+  // GET /views/:id — read ONE view (W5-02).
+  //
+  // W5-01 shipped list, create, PATCH, DELETE and share, but no single-view
+  // read: every verb for a saved view except looking at it. The detail screen
+  // cannot exist without this, which is how five e2e specs failed at once on a
+  // page that rendered perfectly.
+  //
+  // Visibility follows the SHARE rule, not just ownership: a view shared with
+  // the workspace is readable by any member (SC-17), because a share link that
+  // only its author can open is not a share link. An unshared view belonging to
+  // someone else is a 404, not a 403 — a 403 confirms the id exists.
+  typedApp.get(
+    '/views/:id',
+    { schema: { params: viewIdParamsSchema, response: { 200: viewResponseSchema } } },
+    async (request, reply) => {
+      const ctx = requireContext(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+
+      const [row] = await db
+        .select()
+        .from(read.savedViews)
+        .where(eq(read.savedViews.id, request.params.id))
+        .limit(1);
+      if (!row || row.workspaceId !== ctx.workspaceId) return fail(request, reply, 404, 'Not Found');
+      if (row.ownerUserId !== ctx.userId && !row.isShared) {
+        return fail(request, reply, 404, 'Not Found');
+      }
+
+      // is_default lives on the row itself (is_default_for_owner), the same
+      // source the list endpoint serializes from — not a second lookup that
+      // could disagree with it.
+      return reply.send(serializeView(row));
+    },
+  );
+
   typedApp.patch(
     '/views/:id',
     {

@@ -20,6 +20,8 @@ import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSyncRouteImport } from './routes/admin/sync'
 import { Route as ReposIndexRouteImport } from './routes/repos/index'
 import { Route as ReposRepoIdRouteRouteImport } from './routes/repos/$repoId/route'
+import { Route as ViewsIndexRouteImport } from './routes/views/index'
+import { Route as ViewsViewIdRouteImport } from './routes/views/$viewId'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
 import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
 import { Route as ReposRepoIdFindingsRouteImport } from './routes/repos/$repoId/findings'
@@ -84,6 +86,16 @@ const ReposRepoIdRouteRoute = ReposRepoIdRouteRouteImport.update({
   path: '/repos/$repoId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ViewsIndexRoute = ViewsIndexRouteImport.update({
+  id: '/views/',
+  path: '/views/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ViewsViewIdRoute = ViewsViewIdRouteImport.update({
+  id: '/views/$viewId',
+  path: '/views/$viewId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReposRepoIdIndexRoute = ReposRepoIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -135,8 +147,10 @@ export interface FileRoutesByFullPath {
   '/admin/members': typeof AdminMembersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
+  '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
   '/repos/': typeof ReposIndexRoute
+  '/views/': typeof ViewsIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
@@ -154,8 +168,10 @@ export interface FileRoutesByTo {
   '/admin/members': typeof AdminMembersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
+  '/views/$viewId': typeof ViewsViewIdRoute
   '/admin': typeof AdminIndexRoute
   '/repos': typeof ReposIndexRoute
+  '/views': typeof ViewsIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
@@ -176,8 +192,10 @@ export interface FileRoutesById {
   '/admin/members': typeof AdminMembersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
+  '/views/$viewId': typeof ViewsViewIdRoute
   '/admin/': typeof AdminIndexRoute
   '/repos/': typeof ReposIndexRoute
+  '/views/': typeof ViewsIndexRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
@@ -199,8 +217,10 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/settings'
     | '/admin/sync'
+    | '/views/$viewId'
     | '/admin/'
     | '/repos/'
+    | '/views/'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
@@ -218,8 +238,10 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/settings'
     | '/admin/sync'
+    | '/views/$viewId'
     | '/admin'
     | '/repos'
+    | '/views'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
@@ -239,8 +261,10 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/settings'
     | '/admin/sync'
+    | '/views/$viewId'
     | '/admin/'
     | '/repos/'
+    | '/views/'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
@@ -257,7 +281,9 @@ export interface RootRouteChildren {
   MeRoute: typeof MeRoute
   PullRequestsRoute: typeof PullRequestsRoute
   ReposRepoIdRouteRoute: typeof ReposRepoIdRouteRouteWithChildren
+  ViewsViewIdRoute: typeof ViewsViewIdRoute
   ReposIndexRoute: typeof ReposIndexRoute
+  ViewsIndexRoute: typeof ViewsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -337,6 +363,20 @@ declare module '@tanstack/react-router' {
       path: '/repos/$repoId'
       fullPath: '/repos/$repoId'
       preLoaderRoute: typeof ReposRepoIdRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/views/': {
+      id: '/views/'
+      path: '/views'
+      fullPath: '/views/'
+      preLoaderRoute: typeof ViewsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/views/$viewId': {
+      id: '/views/$viewId'
+      path: '/views/$viewId'
+      fullPath: '/views/$viewId'
+      preLoaderRoute: typeof ViewsViewIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/repos/$repoId/': {
@@ -449,7 +489,9 @@ const rootRouteChildren: RootRouteChildren = {
   MeRoute: MeRoute,
   PullRequestsRoute: PullRequestsRoute,
   ReposRepoIdRouteRoute: ReposRepoIdRouteRouteWithChildren,
+  ViewsViewIdRoute: ViewsViewIdRoute,
   ReposIndexRoute: ReposIndexRoute,
+  ViewsIndexRoute: ViewsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
