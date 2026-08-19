@@ -20,6 +20,7 @@ import { scanProcessor } from './scan-processor.js';
 import { providerForRepo } from './forge-provider.js';
 import {
   runChainer,
+  runCodeHealthScan,
   runSecretsHistoryScan,
   runSecretsStreamScan,
   runSemgrepFull,
@@ -167,6 +168,43 @@ async function main(): Promise<void> {
               repoId,
               repo: resolved.repoFullName,
               commitSha: sha,
+            });
+            return {
+              scanned: result.status === 'succeeded' ? 1 : 0,
+              findingsCreated: result.findingsCreated,
+              deferred: 0,
+              ...(result.error ? { skipped: result.error } : {}),
+            };
+          },
+          // W9-02. Same weekly slot as semgrep: both want a snapshot of the
+          // same commit, and complexity is a property of a codebase rather
+          // than of a change — a per-PR run would report the same findings on
+          // every branch until people filtered the scanner out of their view.
+          code_health_tools: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(
+              { db, tokenKey: credentials.loadTokenKey() },
+              workspaceId,
+              repoId,
+            );
+            if (!resolved) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            }
+            const [head] = await db
+              .select({ sha: facts.commits.sha })
+              .from(facts.commits)
+              .where(eq(facts.commits.repoId, repoId))
+              .orderBy(desc(facts.commits.committedAt))
+              .limit(1);
+            if (!head?.sha) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
+            }
+            const result = await runCodeHealthScan({
+              db,
+              provider: resolved.provider,
+              workspaceId,
+              repoId,
+              repo: resolved.repoFullName,
+              commitSha: head.sha,
             });
             return {
               scanned: result.status === 'succeeded' ? 1 : 0,
@@ -328,6 +366,7 @@ async function main(): Promise<void> {
   if (weeklyCron !== 'off') {
     for (const [scannerKey, pattern] of [
       ['semgrep', weeklyCron],
+      ['code_health_tools', weeklyCron],
       ['attack_chainer', chainCron],
     ] as const) {
       await securityScanQueue.add(

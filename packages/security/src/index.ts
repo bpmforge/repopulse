@@ -27,3 +27,6 @@ export * from './scanners/owasp/run.js';
 export * from './scanners/chainer/build.js';
 export * from './scanners/chainer/compound.js';
 export * from './scanners/chainer/run.js';
+export * from './scanners/code-health/thresholds.js';
+export * from './scanners/code-health/tools.js';
+export * from './scanners/code-health/run.js';
