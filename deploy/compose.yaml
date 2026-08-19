@@ -106,6 +106,28 @@ services:
     restart: unless-stopped
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    volumes:
+      # SCAN SCRATCH (W8-12, C1a / NFR-13). A snapshot is extracted here, read
+      # by a scan container, and deleted — so it is a tmpfs: the bytes never
+      # reach a disk that survives a reboot, and a crashed worker cannot leave
+      # a customer's source in a volume backup. Sized for one snapshot at a
+      # time plus headroom; raise SCAN_SCRATCH_SIZE for large monorepos rather
+      # than pointing SCAN_SCRATCH_ROOT at a disk.
+      - type: tmpfs
+        target: /var/tmp/repopulse-scan
+        tmpfs:
+          size: ${SCAN_SCRATCH_SIZE:-2g}
+          mode: 0o700
+      # The scan tool's rulepacks and vulnerability databases, refreshed
+      # HOST-SIDE by deploy/scan-db-sync.sh and mounted read-only. The scan
+      # container itself has --network=none and could not fetch them: that is
+      # the point — the thing with the network is not the thing running
+      # third-party code over customer source.
+      - ${SCAN_RULES_DIR:-./scan-rules}:/var/lib/repopulse/scan-rules:ro
+    environment:
+      SNAPSHOT_ROOT: /var/tmp/repopulse-scan
+      SCAN_IMAGE: ${SCAN_IMAGE:-repopulse/scan:dev}
+      SCAN_RULES_DIR: /var/lib/repopulse/scan-rules
 
   web:
     build:

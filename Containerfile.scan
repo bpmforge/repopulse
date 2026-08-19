@@ -1,0 +1,95 @@
+# Scan sandbox image (W8-12, SECURITY_SUITE.md §2.2, NFR-14).
+#
+# This image is the thing a scan tool runs inside. It exists so a third-party
+# binary pointed at a customer's source has: no network, no writable filesystem,
+# no privileges, and nothing of ours to read. The RUNTIME half of that lives in
+# packages/security/sandbox/profile.ts (the podman argv); this file is the other
+# half — what is in the box.
+#
+# RULES THIS IMAGE FOLLOWS
+#   - No package manager at runtime. apk is used at build time and the cache is
+#     removed; a scan container that can install software is a scan container
+#     that can be turned into something else.
+#   - No shell tooling beyond busybox, no curl, no git. C1 says we never clone,
+#     and a container that CANNOT clone is a stronger statement than a policy
+#     that says it must not.
+#   - Runs as uid 65534 (nobody). The profile passes --user as well; both, so
+#     the image is not one flag away from root.
+#
+# WHAT IS AND IS NOT PINNED, HONESTLY
+#   Opengrep publishes sigstore .sig/.cert files but no checksum manifest. The
+#   sha256 below was computed from the downloaded artefact on 2026-08-19 and is
+#   verified on every build — so a SILENT REPLACEMENT of a published binary
+#   fails the build, which is the property we actually want. It is NOT a
+#   vendor-signed checksum, and calling it one would be a lie: verifying the
+#   sigstore signature needs cosign, which is not installed here (recorded in
+#   docs/STATUS.md).
+
+FROM docker.io/library/alpine:3.20
+
+ARG OPENGREP_VERSION=1.27.1
+# musllinux builds, because the base is alpine. Both arches are listed so the
+# image builds on an arm64 laptop and an x86 server from the same file.
+ARG OPENGREP_SHA256_AARCH64=06e7de74ba49e6e619f5109c68a8d235357dff143f18a0a6296a416f47c90924
+ARG OPENGREP_SHA256_X86=ce109a213565634b94ee0094a494ab132b867e8b1e81dd983ed6c63f5f48d7c6
+
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) asset=opengrep_musllinux_aarch64; sha="$OPENGREP_SHA256_AARCH64" ;; \
+      x86_64) asset=opengrep_musllinux_x86; sha="$OPENGREP_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /usr/local/bin/opengrep \
+      "https://github.com/opengrep/opengrep/releases/download/v${OPENGREP_VERSION}/${asset}"; \
+    echo "${sha}  /usr/local/bin/opengrep" | sha256sum -c -; \
+    chmod 0755 /usr/local/bin/opengrep; \
+    apk del .fetch; \
+    rm -rf /var/cache/apk/*
+
+# PRE-EXTRACT AT BUILD TIME. The opengrep launcher unpacks its core binary into
+# $HOME on first run and then EXECS it — which fails twice under the §2.2
+# profile: the tmpfs is small, and it is mounted noexec. Doing the unpack here
+# means the runtime never needs an exec-able writable directory, so /tmp stays
+# noexec and the snapshot mount stays ro,noexec. Loosening either of those to
+# suit a tool's packaging would be trading the trust boundary for convenience.
+# The tool also writes a log under $HOME/.opengrep, and the whole root
+# filesystem is read-only at runtime — so the PROFILE mounts a small tmpfs over
+# exactly that directory (writablePaths in packages/security/sandbox/profile.ts)
+# and nothing else. A symlink onto /tmp was tried first and fails: the tool
+# mkdirs the path, which errors EEXIST on a dangling symlink. Making $HOME
+# writable would have worked too, and would have let a scan mutate the
+# extracted core between runs.
+#
+# (A comment INSIDE a RUN body is swallowed by the line continuations along
+# with everything after it — which is how the first version of this silently
+# skipped a step and failed only at runtime.)
+ENV OPENGREP_CACHE=/opt/opengrep
+RUN set -eux; \
+    mkdir -p "$OPENGREP_CACHE"; \
+    HOME="$OPENGREP_CACHE" XDG_CACHE_HOME="$OPENGREP_CACHE" opengrep --version; \
+    chmod -R a+rX "$OPENGREP_CACHE"; \
+    find "$OPENGREP_CACHE" -type f -name 'opengrep-core*' -exec chmod a+rx {} +; \
+    rm -rf "$OPENGREP_CACHE/.opengrep"; \
+    mkdir -p "$OPENGREP_CACHE/.opengrep"; \
+    chown -R 65534:65534 "$OPENGREP_CACHE/.opengrep"
+
+# The mount points the profile uses. Created at build time so the container
+# never needs to mkdir anything on a read-only root.
+RUN mkdir -p /scan /rules && chown -R 65534:65534 /scan /rules
+
+USER 65534:65534
+WORKDIR /scan
+
+# HOME points at the PRE-EXTRACTED, read-only cache above rather than the
+# tmpfs: nothing has to be unpacked at scan time. TMPDIR is the tmpfs, for the
+# ordinary scratch files a scan does write.
+ENV HOME=/opt/opengrep \
+    XDG_CACHE_HOME=/opt/opengrep \
+    TMPDIR=/tmp \
+    OPENGREP_VERSION=${OPENGREP_VERSION}
+
+# No ENTRYPOINT on purpose: the sandbox runner passes the whole command, and an
+# entrypoint here would be a second place that decides what runs.
+CMD ["opengrep", "--version"]

@@ -112,3 +112,86 @@ Rollback: retag previous `<sha>` as `:prod`, restart units. DB rolls **forward**
 only shipped after the release that stopped using the old shape has soaked. If a bad
 migration must be undone, restore from dump (§6) and replay the gap via nightly
 reconciliation (FR-INGEST-7) — the warehouse self-heals from the forge.
+
+## 9. Scan sandbox (W8-12, SECURITY_SUITE.md §2.2, NFR-14)
+
+The scan sandbox is a fourth image, built from `Containerfile.scan`. It holds
+the scan tools; the runtime half of the trust boundary is the podman argv in
+`packages/security/sandbox/profile.ts`. Both must be in place — the image
+without the profile runs a tool with the host's network, and the profile
+without the image has nothing to run.
+
+### Build
+
+```
+podman build -f Containerfile.scan -t repopulse/scan:$(git rev-parse --short HEAD) .
+```
+
+The Opengrep binary is pinned by version **and** sha256. Opengrep publishes
+sigstore `.sig`/`.cert` files but no checksum manifest, so the recorded sha256
+was computed from the downloaded artefact and is verified on every build: a
+silently replaced upstream binary fails the build. That is not the same as a
+vendor-signed checksum, and it is worth upgrading to `cosign verify-blob` when
+cosign is available on the build host.
+
+### What the container may do
+
+Nothing but read `/scan` and write two tmpfs mounts:
+
+- `--network=none` — a scan tool with a network is an exfiltration path for the
+  source it is reading.
+- `--read-only` root, `--cap-drop=ALL`, `--security-opt=no-new-privileges`,
+  `--user=65534:65534`, `--pids-limit`.
+- the snapshot at `/scan:ro,noexec` — a repository is full of executable files
+  someone else wrote.
+- `/tmp` (256 MB) and any path the scanner declares in `writablePaths`, each a
+  `noexec,nosuid,mode=1777` tmpfs. Opengrep needs `/opt/opengrep/.opengrep` for
+  its log; it is mounted individually rather than by making `$HOME` writable,
+  which would let one scan mutate the binary the next scan runs.
+- **no environment at all** — not a filtered copy of the worker's.
+
+The image pre-extracts Opengrep's core at build time, because the launcher
+otherwise unpacks it into `$HOME` and execs it, which fails under `noexec`. The
+fix belongs in the image; loosening the mount would have traded the boundary for
+convenience.
+
+### Scratch space (`SCAN_SCRATCH_ROOT`, NFR-13)
+
+Snapshots are extracted into a **tmpfs** mounted at `/var/tmp/repopulse-scan`
+(`SCAN_SCRATCH_SIZE`, default 2 GB). A tmpfs, not a volume, so a customer's
+source never reaches a disk that survives a reboot or a volume backup.
+
+Size it for the largest single repository you scan plus headroom — extraction
+aborts with `size_cap` rather than filling the mount, and a repository that will
+not fit is a raised `SCAN_SCRATCH_SIZE`, not a redirect onto disk.
+
+Two cleanup mechanisms, for two different failures:
+
+- the scan brackets its own snapshot and deletes it in a `finally` — covers
+  returning and throwing;
+- the worker's orphan sweeper runs at boot and hourly, removing `snap-*`
+  directories older than the longest allowed scan — this is the **SIGKILL**
+  path, which no in-process cleanup can cover.
+
+Check for leftovers with `ls /var/tmp/repopulse-scan` on a quiet host: anything
+older than six hours means the sweeper is not running.
+
+### Rulepacks and vulnerability databases (`deploy/scan-db-sync.sh`)
+
+The scan container cannot fetch anything. `deploy/scan-db-sync.sh` runs on the
+**host**, nightly, and populates `SCAN_RULES_DIR`, which is mounted read-only
+into the worker:
+
+```
+0 3 * * * /opt/repopulse/deploy/scan-db-sync.sh >> /var/log/repopulse-scan-sync.log 2>&1
+```
+
+It syncs the in-house rulepacks (Semgrep registry packs `p/*` and `--config
+auto` are licence-barred for service use, so our packs travel with the code) and
+writes `rulepacks.sha256` next to them. The vulnerability-database half is **not
+implemented**: grype/OSV/KEV belong to the dependency scanner, which is blocked
+on those tools being installed at all (W8-06). Setting `SCAN_SYNC_VULN_DB=1`
+fails loudly rather than pretending to sync.
+
+A partial sync exits non-zero. A scanner running against a stale rulepack still
+produces findings and still looks green, which is why this is noisy.
