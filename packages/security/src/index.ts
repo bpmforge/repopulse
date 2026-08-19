@@ -30,3 +30,5 @@ export * from './scanners/chainer/run.js';
 export * from './scanners/code-health/thresholds.js';
 export * from './scanners/code-health/tools.js';
 export * from './scanners/code-health/run.js';
+export * from './scanners/anti-slop/ldr.js';
+export * from './scanners/anti-slop/run.js';
