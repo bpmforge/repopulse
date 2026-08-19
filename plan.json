@@ -2361,7 +2361,8 @@
         "apps/web/src/routes/findings/**",
         "apps/web/src/widgets/findings/**",
         "packages/shared/src/logger/audit.ts",
-        "e2e/**"
+        "e2e/**",
+        "packages/shared/src/testing/seed/**"
       ],
       "depends_on": [
         "W6-03",
@@ -2373,9 +2374,19 @@
         "PR Detail findings accordion and file drill-down findings list light up (UX_SPEC §4.c/§4.d); analysis-paused banner state wired (NFR-7); Repo Detail Findings tab replaces its teaser"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "WRITE_SCOPE WIDENED before code: the findings routes need mounting in api-v1.ts, status transitions are SC-22 audit events, and acceptance 2 is an e2e."
+        "WRITE_SCOPE WIDENED before code: the findings routes need mounting in api-v1.ts, status transitions are SC-22 audit events, and acceptance 2 is an e2e.",
+        "WRITE_SCOPE: added the seeder. The fixture warehouse had no findings, so the Explorer could only ever be exercised against its empty state — exactly how W5-04 shipped a Report Center whose every report was empty and still passed its e2e. Seeded findings across three dimensions and severities so the filter, the detail panel and the triage transition are tested against data.",
+        "DONE 2026-08-19. Findings API (cursor-paginated filtered list, stats with the false-positive rate, per-finding history, PATCH with a required note, bulk transitions) and the Findings Explorer with filters, selection, bulk triage, and a detail panel carrying the evidence quote and status history. THE LAST DEAD RAIL LINK IS RETIRED — /findings, /plans, /reports and /views all resolve now.",
+        "SEEDED FINDINGS RATHER THAN TESTING AN EMPTY SCREEN. The fixture warehouse had no findings, so the Explorer could only ever have been exercised against its empty state — which is exactly how W5-04 shipped a Report Center whose every report was empty and still passed its own e2e. Three findings across three dimensions and severities now seed with deterministic dedup keys, so re-seeding cannot create duplicates (the same property the store guarantees in production).",
+        "A NOTE IS REQUIRED ON EVERY STATUS CHANGE, enforced by the API and asserted in the browser (the button is disabled until one is typed). \"Why was this closed?\" is the first question anyone asks about a finding that later turned out to matter, and a dismissal with no reason is unreviewable six months on.",
+        "BULK TRANSITIONS REPORT PER-ID RATHER THAN FAILING THE BATCH: a bulk action that rejects forty findings because one was already resolved is a bulk action nobody uses. Skipped ids come back with their reason.",
+        "THE FALSE-POSITIVE RATE IS NULL, NOT ZERO, until something is triaged — and the UI renders an em dash with \"no findings triaged yet\" rather than 0%. A 0% false-positive rate across zero findings reads as a flawless model.",
+        "BUG IN MY OWN CODE, caught by the e2e: the transition mutation invalidated the list and the stats but NOT the history query the panel itself renders, so the audit trail the user had just added to kept showing the previous state. The change looked like it had not happened.",
+        "PRODUCT BEHAVIOUR THE TEST EXPOSED, recorded rather than papered over: confirming a finding while the default status=open filter is active removes it from the list and unmounts the detail panel with it. That is correct filtering, but someone reading a finding probably expects the panel to survive their own triage. Noted in the spec as a UX question rather than silently changed here.",
+        "FLAKE OBSERVED: one full e2e run reported 72 passed with a failure that did not reproduce on the verifying run (73 passed + 1 skipped, zero failures). Not diagnosed. Recorded because an unexplained red that goes away is exactly the thing that gets ignored until it is load-bearing.",
+        "GATE: lint 0, typecheck 0, 704 unit tests zero skipped, e2e 73 passed + 1 skipped (was 70), three validators exit 0."
       ]
     },
     {
