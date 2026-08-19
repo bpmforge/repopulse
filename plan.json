@@ -3974,7 +3974,7 @@
         "A port already in use is reported as such, before the stack half-starts"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FOUND 2026-08-18: apps/api/src/workers/index.ts is the ingestion process and NOTHING in any package.json starts it. The only thing that launches it is playwright.config.ts webServer. So a developer running `pnpm --filter api dev` gets an API whose queues fill and never drain — the same silent-inertness class this project has now caught eight times.",
         "Three terminals is not a setup story. One command, or people run the API alone and conclude ingestion is broken."
