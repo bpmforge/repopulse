@@ -4058,7 +4058,7 @@
         "STATUS.md records what a newcomer actually experiences, including anything still rough"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "THE ONLY TICKET THAT MAKES THE OTHERS REAL. Every previous instance of this defect class in this project was found by running the thing rather than reading it — the bot filter, the unpublished sync events, the never-called CI metrics, and CI itself never having run a single step.",
         "A fresh clone in a temp dir, because the working tree has a .env, a migrated database, a warmed pnpm store and six days of running containers. None of that is true for a newcomer, and every one of them can hide a broken step."
