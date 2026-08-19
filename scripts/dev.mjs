@@ -99,6 +99,14 @@ if (taken.length > 0) {
   process.exit(1);
 }
 
+// The web dev server proxies /api and /auth to API_PROXY_TARGET, which
+// defaults to :3000. So `PORT=3010 pnpm dev` — the workaround this script
+// itself prints on a port conflict — moved the API but left the browser
+// talking to whatever was still on 3000. Found by running the documented
+// quickstart on a clean clone (W13-05). Setting it from PORT here makes the
+// advice true; an explicit API_PROXY_TARGET still wins.
+process.env.API_PROXY_TARGET ??= `http://localhost:${PROCS[0].port}`;
+
 const children = [];
 let shuttingDown = false;
 
