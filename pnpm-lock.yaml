@@ -353,6 +353,19 @@ importers:
         version: 5.9.3
 
   packages/reports:
+    dependencies:
+      '@repopulse/insights':
+        specifier: workspace:*
+        version: link:../insights
+      '@repopulse/metrics':
+        specifier: workspace:*
+        version: link:../metrics
+      '@repopulse/shared':
+        specifier: workspace:*
+        version: link:../shared
+      drizzle-orm:
+        specifier: ^0.39.3
+        version: 0.39.3(@opentelemetry/api@1.9.1)(postgres@3.4.9)
     devDependencies:
       '@types/node':
         specifier: ^22.20.1
