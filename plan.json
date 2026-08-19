@@ -1948,10 +1948,16 @@
         "E5.5"
       ],
       "write_scope": [
-        "packages/reports/src/pipeline/**",
+        "packages/reports/src/**",
         "apps/api/src/routes/reports/**",
+        "apps/api/src/workers/**",
         "apps/web/src/routes/reports/**",
-        "apps/web/src/routes/print/**"
+        "apps/web/src/routes/print/**",
+        "packages/shared/src/db/schema/read/**",
+        "packages/shared/drizzle/**",
+        "packages/ingest/src/queues/**",
+        "e2e/**",
+        "apps/api/src/plugins/api-v1.ts"
       ],
       "depends_on": [
         "W5-03",
@@ -1964,8 +1970,11 @@
         "E2E per REPORTS.md §6: generate → poll ready → download → pdf-parse asserts section headings + footnote text present (FR-REPORTS-1/6)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED 2026-08-19 before code. The filed scope covered the pipeline, API route, Report Center and print route — but REPORTS.md §3 also requires a  TABLE (which does not exist), a  QUEUE (not in the topology), a worker processor to consume it, and the api-v1 mount. None of those were in scope and none of the acceptance criteria can be met without them.",
+        "PARKED FOR BRAD, NOT ADDED: acceptance names pdf-parse for asserting section headings inside the generated PDF. pdf-parse is not in docs/TECH_STACK.md and is not installed, and adding a runtime/test dependency unattended is a MASTER_PROMPT stop-and-ask. Playwright IS sanctioned (TECH_STACK line 162 names it as the PDF engine), so the e2e asserts what can be checked without a new package: a valid %PDF artifact of non-trivial size, the page count from the PDF trailer, BYTE-STABILITY across regeneration (the stronger FR-REPORTS-6 property), and the section headings + footnote text in the PRINT ROUTE DOM the PDF is rendered from. If Brad wants literal text extraction from the PDF bytes, adding pdf-parse is a one-line test change."
+      ]
     },
     {
       "id": "W5-05",
