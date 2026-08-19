@@ -67,6 +67,17 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
       emptyMessage="No churn in this window — nothing is hot."
     >
       <div data-testid="hotspot-leaderboard">
+        {/* The honesty badge (W6-09). Rendered only when something IS hidden,
+            so the common case stays quiet — but never silent when it matters. */}
+        {(data?.suppressed_count ?? 0) > 0 && (
+          <p className="mb-2 text-xs text-fg-muted" data-testid="hotspot-suppressed">
+            {data?.suppressed_count} acknowledged file
+            {data?.suppressed_count === 1 ? '' : 's'} hidden from this list
+            {data?.suppressed_paths && data.suppressed_paths.length > 0
+              ? `: ${data.suppressed_paths.join(', ')}`
+              : ''}
+          </p>
+        )}
         <DataTable
           name="org-hotspots"
           columns={columns}

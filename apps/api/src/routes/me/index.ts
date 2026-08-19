@@ -1,6 +1,6 @@
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ne, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { core, facts, type Database } from '@repopulse/shared';
+import { core, facts, read, type Database } from '@repopulse/shared';
 import { identity } from '@repopulse/auth';
 import { prSizeBucket } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
@@ -264,5 +264,76 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       .from(facts.pullRequests)
       .where(eq(facts.pullRequests.authorIdentityId, ctx.identityId));
     return reply.send({ merged_prs: row?.mergedCount ?? 0, median_size: row?.medianSize ?? null });
+  });
+
+  /**
+   * GET /me/since — the since-last-visit strip (W6-09, R-A5).
+   *
+   * "Since when" is the user's own `prefs.lastVisitAt`, written by the client
+   * on load. Deliberately per-user and deliberately NOT a 7-day window: a
+   * strip that says "new this week" to someone who was here an hour ago is
+   * noise, and to someone back from two weeks off it is a lie by omission.
+   */
+  app.get('/me/since', async (request, reply) => {
+    const ctx = await myIdentity(request);
+    if (!ctx || request.workspace === undefined) return fail(request, reply, 401, 'No active session');
+
+    const me = await readUser(request);
+    const rawSince = (me?.prefs as Record<string, unknown> | undefined)?.lastVisitAt;
+    const since = typeof rawSince === 'string' ? new Date(rawSince) : null;
+
+    // No recorded visit = FIRST visit. Reported as such rather than defaulting
+    // to a window: "3 new review requests" on someone's first ever load is a
+    // number about nothing.
+    if (since === null || Number.isNaN(since.getTime())) {
+      return reply.send({ since: null, first_visit: true, review_requests: 0, findings_on_my_prs: 0, prs_advanced: 0 });
+    }
+
+    const identityId = ctx.identityId;
+    if (identityId === null) {
+      return reply.send({ since: since.toISOString(), first_visit: false, review_requests: 0, findings_on_my_prs: 0, prs_advanced: 0 });
+    }
+
+    const [reviewRequests] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(facts.prReviews)
+      .where(
+        and(
+          eq(facts.prReviews.workspaceId, ctx.workspaceId),
+          eq(facts.prReviews.reviewerIdentityId, identityId),
+          gte(facts.prReviews.submittedAt, since),
+        ),
+      );
+
+    const [advanced] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(facts.pullRequests)
+      .where(
+        and(
+          eq(facts.pullRequests.workspaceId, ctx.workspaceId),
+          eq(facts.pullRequests.authorIdentityId, identityId),
+          gte(facts.pullRequests.lastActivityAt, since),
+        ),
+      );
+
+    const [findingsOnMine] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(read.findings)
+      .innerJoin(facts.pullRequests, eq(facts.pullRequests.id, read.findings.pullRequestId))
+      .where(
+        and(
+          eq(read.findings.workspaceId, ctx.workspaceId),
+          eq(facts.pullRequests.authorIdentityId, identityId),
+          gte(read.findings.firstSeenAt, since),
+        ),
+      );
+
+    return reply.send({
+      since: since.toISOString(),
+      first_visit: false,
+      review_requests: reviewRequests?.n ?? 0,
+      prs_advanced: advanced?.n ?? 0,
+      findings_on_my_prs: findingsOnMine?.n ?? 0,
+    });
   });
 }

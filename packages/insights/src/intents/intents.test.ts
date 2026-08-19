@@ -88,8 +88,8 @@ describe('acknowledged intents', () => {
     // omits rows is one nobody can reason about — and the first person to
     // notice stops trusting every other number on the screen.
     const rows = [
-      { path: 'src/a.ts', score: 0.9 },
-      { path: 'src/known.ts', score: 0.8 },
+      { repoId: 1, path: 'src/a.ts', score: 0.9 },
+      { repoId: 1, path: 'src/known.ts', score: 0.8 },
     ];
     const result = applySuppression(rows, [intent({ path: 'src/known.ts', intent: 'acknowledged' })]);
     expect(result.visible.map((r) => r.path)).toEqual(['src/a.ts']);
@@ -97,10 +97,25 @@ describe('acknowledged intents', () => {
     expect(result.suppressedPaths).toEqual(['src/known.ts']);
   });
 
+  it('suppresses only in the repository where it was acknowledged', () => {
+    // Common filenames are exactly the ones a monorepo repeats, so keying on
+    // path alone hid src/index.ts everywhere the moment anyone acknowledged it
+    // once. Found by an e2e that expected one suppression and got two.
+    const rows = [
+      { repoId: 1, path: 'src/index.ts', score: 0.9 },
+      { repoId: 2, path: 'src/index.ts', score: 0.8 },
+    ];
+    const result = applySuppression(rows, [
+      intent({ repoId: 1, path: 'src/index.ts', intent: 'acknowledged' }),
+    ]);
+    expect(result.visible.map((r) => r.repoId)).toEqual([2]);
+    expect(result.suppressedCount).toBe(1);
+  });
+
   it('does not suppress for refactor or supervise intents', () => {
     // Only "we have decided to live with this" hides a row. A file someone
     // means to fix should stay visible precisely because they mean to fix it.
-    const rows = [{ path: 'src/a.ts', score: 0.9 }];
+    const rows = [{ repoId: 1, path: 'src/a.ts', score: 0.9 }];
     expect(applySuppression(rows, [intent({ path: 'src/a.ts' })]).visible).toHaveLength(1);
     expect(
       applySuppression(rows, [intent({ path: 'src/a.ts', intent: 'supervise' })]).visible,

@@ -8,6 +8,7 @@ import {
 } from '../../components/index.js';
 import { Link } from '@tanstack/react-router';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { IntentControl } from './IntentControl.js';
 import {
   SINGLE_OWNER_THRESHOLD,
   STALE_FILE_DAYS,
@@ -60,6 +61,9 @@ export function FileDetailScreen({ repoId, path }: Props) {
 
   return (
     <div className="flex flex-col gap-4" data-testid="file-detail">
+      {/* W6-09: the intent control sits at the top, because deciding what a
+          team means to do about a file is context for every number below it. */}
+      <IntentControl repoId={Number(repoId)} path={path} />
       {/* UX_SPEC §4.d's deleted/renamed banner. It reports what the warehouse
           knows — the last date we saw a touch, and the paths this file was
           known by — and does NOT claim the file was deleted, because ingestion

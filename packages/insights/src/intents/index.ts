@@ -78,6 +78,7 @@ export function intentWarnings(
 }
 
 export interface HotspotRow {
+  repoId: number;
   path: string;
   score: number;
 }
@@ -101,10 +102,17 @@ export function applySuppression<T extends HotspotRow>(
   rows: readonly T[],
   intents: readonly FileIntent[],
 ): SuppressionResult<T> {
+  // Keyed on repoId AND path. Keying on path alone meant acknowledging
+  // src/index.ts in one repository hid src/index.ts in EVERY repository — and
+  // common filenames are exactly the ones a monorepo repeats. Caught by an e2e
+  // that expected one suppression and found two.
+  const key = (repoId: number, path: string) => `${repoId}\u0000${path}`;
   const acknowledged = new Set(
-    intents.filter((i) => i.intent === 'acknowledged').map((i) => i.path),
+    intents.filter((i) => i.intent === 'acknowledged').map((i) => key(i.repoId, i.path)),
   );
-  const visible = rows.filter((r) => !acknowledged.has(r.path));
-  const suppressedPaths = rows.filter((r) => acknowledged.has(r.path)).map((r) => r.path);
+  const visible = rows.filter((r) => !acknowledged.has(key(r.repoId, r.path)));
+  const suppressedPaths = rows
+    .filter((r) => acknowledged.has(key(r.repoId, r.path)))
+    .map((r) => r.path);
   return { visible, suppressedCount: suppressedPaths.length, suppressedPaths };
 }
