@@ -2386,7 +2386,8 @@
         "BUG IN MY OWN CODE, caught by the e2e: the transition mutation invalidated the list and the stats but NOT the history query the panel itself renders, so the audit trail the user had just added to kept showing the previous state. The change looked like it had not happened.",
         "PRODUCT BEHAVIOUR THE TEST EXPOSED, recorded rather than papered over: confirming a finding while the default status=open filter is active removes it from the list and unmounts the detail panel with it. That is correct filtering, but someone reading a finding probably expects the panel to survive their own triage. Noted in the spec as a UX question rather than silently changed here.",
         "FLAKE OBSERVED: one full e2e run reported 72 passed with a failure that did not reproduce on the verifying run (73 passed + 1 skipped, zero failures). Not diagnosed. Recorded because an unexplained red that goes away is exactly the thing that gets ignored until it is load-bearing.",
-        "GATE: lint 0, typecheck 0, 704 unit tests zero skipped, e2e 73 passed + 1 skipped (was 70), three validators exit 0."
+        "GATE: lint 0, typecheck 0, 704 unit tests zero skipped, e2e 73 passed + 1 skipped (was 70), three validators exit 0.",
+        "FLAKE FOLLOW-UP: not reproduced. Three consecutive full e2e runs after the merge all reported 73 passed + 1 skipped, zero failures. Left recorded rather than closed as fixed — nothing was changed, so if it returns the observation still stands."
       ]
     },
     {
