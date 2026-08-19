@@ -48,6 +48,15 @@ export const scanRuns = pgTable(
     partial: boolean('partial').notNull().default(false),
     findingCount: bigint('finding_count', { mode: 'number' }).notNull().default(0),
     error: text('error'),
+    /**
+     * Tool + rulepack versions for this run (W8-07, SECURITY_SUITE §3.3).
+     *
+     * scanner_version above is one string and cannot carry both: a semgrep
+     * finding is reproducible only against an engine version AND a pack
+     * version, and "which of the two changed" is the first question when a
+     * finding appears or disappears between runs.
+     */
+    toolVersions: jsonb('tool_versions').$type<Record<string, string>>(),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
   },

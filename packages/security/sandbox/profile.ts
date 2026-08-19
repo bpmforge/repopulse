@@ -91,7 +91,24 @@ export function buildSandboxArgs(args: SandboxProfileArgs): string[] {
   return argv;
 }
 
-/** Env for the container process: empty, by construction. */
-export function sandboxEnv(): Record<string, string> {
-  return {};
+/**
+ * Environment for the CONTAINER RUNTIME process — not for the container.
+ *
+ * These are two different things and conflating them broke the first version
+ * of this: spawning podman with a completely empty environment means podman
+ * itself cannot be found (`spawn podman ENOENT`), because PATH is how a name
+ * becomes a binary.
+ *
+ * What matters for the boundary is what the CONTAINER sees, and podman does
+ * not copy the host environment into it — only the image's own env plus its
+ * defaults. Verified live: a host variable set beside the run does not appear
+ * in `env` inside the container (see sandbox.test.ts). `--unsetenv-all` would
+ * additionally strip the image's own env, which would break tools that need
+ * HOME or PATH set by the image.
+ */
+export function runtimeEnv(): Record<string, string> {
+  return { PATH: process.env.PATH ?? '/usr/bin:/bin' };
 }
+
+/** @deprecated Use runtimeEnv — kept so the old name is not silently reused. */
+export const sandboxEnv = runtimeEnv;

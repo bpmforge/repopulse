@@ -172,6 +172,11 @@ export default tseslint.config(
       '**/coverage/**',
       '**/*.gen.ts',
       '**/.vite/**',
+      // Scanner fixtures (W8-07). These files are DELIBERATELY bad code — a
+      // vulnerable fixture that satisfies the linter is a fixture that no
+      // longer resembles the code the scanner exists to find. They are never
+      // imported, only scanned.
+      'packages/security/fixtures/**',
     ],
   },
   js.configs.recommended,

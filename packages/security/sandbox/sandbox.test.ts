@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildSandboxArgs, sandboxEnv, SCAN_MOUNT_PATH } from './profile.js';
+import { buildSandboxArgs, runtimeEnv, SCAN_MOUNT_PATH } from './profile.js';
 import { parseSandboxOutput, runInSandbox } from './run.js';
 
 // Sandbox profile + runner (W8-03, SECURITY_SUITE.md 2.2, NFR-14).
@@ -46,10 +46,12 @@ describe('sandbox profile (NFR-14)', () => {
     expect(argv).toContain('--timeout=60');
   });
 
-  it('passes NO environment at all - not a filtered copy of ours', () => {
-    // A denylist of secret-looking names is a guess about what the next wave
-    // will put in the environment. An empty env is not a guess.
-    expect(sandboxEnv()).toEqual({});
+  it('gives the RUNTIME a PATH and the container nothing (W8-12)', () => {
+    // Two different environments, and conflating them broke the first version:
+    // an empty env means podman itself cannot be found. What matters is that
+    // no --env flag hands the container anything of ours; the live test below
+    // proves the host environment does not reach inside.
+    expect(Object.keys(runtimeEnv())).toEqual(['PATH']);
     expect(args().some((a) => a.startsWith('--env') || a === '-e')).toBe(false);
   });
 
@@ -239,4 +241,17 @@ describeIfPodman('sandbox, actually run (NFR-14)', () => {
     ).toString();
     expect(out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   }, 120_000);
+
+  it('does NOT leak the host environment into the container', () => {
+    // The claim the profile makes, checked rather than asserted in a comment:
+    // a secret-shaped variable set beside the run must not be visible inside.
+    const dir = snapshotDir();
+    const out = execFileSync(
+      'podman',
+      buildSandboxArgs({ image, snapshotDir: dir, command: ['env'], budget }),
+      { stdio: 'pipe', env: { ...process.env, REPOPULSE_TEST_SECRET: 'must-not-appear' } },
+    ).toString();
+    expect(out).not.toContain('must-not-appear');
+    expect(out).not.toContain('REPOPULSE_TEST_SECRET');
+  }, 30_000);
 });
