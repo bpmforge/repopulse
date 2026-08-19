@@ -1,6 +1,8 @@
 import {
+  unique,
   boolean,
   bigint,
+  smallint,
   check,
   index,
   integer,
@@ -136,6 +138,41 @@ export const agreements = pgTable(
     check(
       'agreements_kind_check',
       sql`${t.kind} in ('pr_size_max', 'review_within_hours', 'no_unreviewed_merge', 'stale_ceiling', 'ci_pass_floor')`,
+    ),
+  ],
+);
+
+// Artifact intents (W6-07, DATABASE.md D9, FR-PLANS-5).
+//
+// An intent is a team saying something about a FILE: we mean to refactor this,
+// keep an eye on this, or we know and have decided to live with it. The third
+// one is why the table exists — without it the only way to stop a known-bad
+// file dominating a hotspot list is to pretend it is fine, and people do that
+// by ignoring the whole list.
+export const fileIntents = pgTable(
+  'file_intents',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    repoId: bigint('repo_id', { mode: 'number' }).notNull(),
+    path: text('path').notNull(),
+    intent: text('intent').notNull(),
+    note: text('note'),
+    createdBy: bigint('created_by', { mode: 'number' })
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** How long a `refactor` intent may sit without improvement before warning. */
+    warnAfterMonths: smallint('warn_after_months').notNull().default(3),
+  },
+  (t) => [
+    index('file_intents_workspace_repo_idx').on(t.workspaceId, t.repoId),
+    unique('file_intents_workspace_repo_path_key').on(t.workspaceId, t.repoId, t.path),
+    check(
+      'file_intents_intent_check',
+      sql`${t.intent} in ('refactor', 'supervise', 'acknowledged')`,
     ),
   ],
 );

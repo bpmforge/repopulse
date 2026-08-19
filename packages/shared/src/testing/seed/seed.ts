@@ -121,6 +121,8 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   // until something finally created one: saved_views has an FK to users, so a
   // leftover view makes unseedWarehouse's user delete fail with a constraint
   // error from a table the caller never mentioned.
+  // File intents (W6-07).
+  await db.delete(plans.fileIntents).where(eq(plans.fileIntents.workspaceId, workspaceId));
   // Agreements (W5-08).
   await db.delete(plans.agreements).where(eq(plans.agreements.workspaceId, workspaceId));
   // Plans (W5-06). Children first: plan_item_events -> plan_items ->
