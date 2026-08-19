@@ -3414,8 +3414,20 @@
         "License gate: zero rules copied from the Semgrep registry (grep for registry rule ids + provenance note per rule — DESIGN_REVIEW.md G-18 discipline)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. rulepacks/code-health/: anti-slop.v1.yaml (8 rules, R-01/02/10/13/14/16/27/29) and logging.v1.yaml (4 rules per §3), each with a triggering AND a clean fixture, run by the real engine in the sandbox as a golden set.",
+        "THE LICENCE GATE IS A TEST, NOT PAPERWORK. This pack exists because Semgrep registry rules are barred for service use, so a test that would NOTICE a registry rule arriving is part of the deliverable: it greps for registry namespaces (javascript.lang.security, p/*, --config auto, semgrep.dev) and requires a per-rule `provenance:` line, counted against the rule count so the claim is checkable file by file rather than asserted once in a header nobody re-reads. \"Adapted from the registry\" would be the same violation with extra steps.",
+        "ONLY THE DETERMINISTIC RULES ARE HERE. CODE_HEALTH_SUITE §1 splits 30 rules across PACK/HYB/LLM, and a rule earned a place only if a pattern can decide it without judgement. The rest are not weaker versions of these — they are different questions, and answering them with a regex would produce confident nonsense at scale. R-25 (phantom imports) was left out for exactly that reason: the honest version needs reference analysis, and the pattern-only version would fire on every re-exported symbol.",
+        "THE TWO PROXY RULES SAY SO IN THE PACK. what-comment matches mechanical phrasings (\"// increment the counter\"), not redundancy; prose-padding matches filler phrases, not density — the LDR measure in §1 is the real answer and belongs in the anti_slop scanner. Both carry a `limitation:` field and a test requires them, because the next reader will otherwise assume coverage the rules do not have.",
+        "NOTHING IN THIS PACK EXCEEDS WARNING (severity 3), asserted by a test. Code health is not exploitability, and a slop rule at severity 4 would outrank a real vulnerability in every list that sorts by severity.",
+        "THE CLEAN FIXTURE IS THE HALF THAT DECIDES WHETHER ANYONE KEEPS THE PACK ON. Both clean files do the same jobs as their triggering twins — the difference is that they handle their failures and say why — and zero rules fire on them.",
+        "THE LOGGING FIELD DENYLIST MIRRORS SC-2 ON PURPOSE, with a note saying so: two lists of \"what counts as a secret\" drift apart, and the one in the logger is the one actually enforced. console.log is excluded in tests, scripts and e2e — a rule that fires there is a rule people disable everywhere.",
+        "LOG INJECTION USES TAINT MODE (CWE-117), verified working in opengrep before the rule was written, with JSON.stringify and newline-stripping replaces as sanitizers. A newline in a logged request value forges a log line, which is how an attacker writes \"authentication succeeded\" into the file an incident is reconstructed from.",
+        "TWO SEMGREP SYNTAX FACTS LEARNED BY RUNNING IT: `catch(...)` is not valid in a JS pattern (it must bind, `catch($E)`), and two rules silently failed to PARSE while the run still reported success — which is precisely the failure W8-07 built tool-error surfacing for. The pack now parses with zero tool errors, asserted.",
+        "SCOPE WIDENED, WITH REASON: packages/security/src/scanners/code-health/pack.test.ts — the ticket scoped rulepacks/ and fixtures/, and a pack whose rules are never executed is exactly the decoration this pack is meant to detect.",
+        "GATE: lint 0, typecheck 0, 963 unit tests (was 955), zero skipped — the golden opengrep-in-sandbox runs execute; pnpm -r test green; validate-arch (7 rules), validate-plan, validate-traceability PASS. No e2e — no screen changed."
+      ]
     },
     {
       "id": "W9-02",

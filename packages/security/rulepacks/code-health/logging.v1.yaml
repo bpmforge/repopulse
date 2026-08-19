@@ -1,0 +1,125 @@
+# bpm-rulepacks — logging antipatterns v1 (W9-01, CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for this repository. Nothing here is copied or adapted
+# from the Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# Logging is where two different failures meet. One is noise — a console.log in
+# a request path that nobody reads and that costs a syscall per request. The
+# other is disclosure: a log line is a place secrets go to be readable by
+# everyone with log access, forever, outside every access control the product
+# has. The second is why the denylist below deliberately mirrors SC-2's
+# redaction fields rather than inventing its own list: two lists of "what counts
+# as a secret" drift, and the one in the logger is the one that is actually
+# enforced.
+rules:
+  - id: bpm-log-console-in-prod
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      console.log in a production path. It bypasses the logger's redaction, its
+      levels and its destination — a line here is unstructured, unfiltered and
+      un-turn-off-able.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # Tests, scripts and tooling legitimately print. A rule that fires there
+        # is a rule people disable everywhere.
+        - '*.test.ts'
+        - '*.test.tsx'
+        - '*.test.js'
+        - '*.spec.ts'
+        - '*.spec.js'
+        - 'scripts/**'
+        - 'test/**'
+        - 'tests/**'
+        - 'e2e/**'
+        - '*.config.ts'
+        - '*.config.js'
+    pattern-either:
+      - pattern: console.log(...)
+      - pattern: console.debug(...)
+      - pattern: console.info(...)
+
+  - id: bpm-log-injection
+    mode: taint
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Request data reaches a log call unencoded (CWE-117). A newline in that
+      value forges a log line, which is how an attacker writes "authentication
+      succeeded" into the file an incident is later reconstructed from.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      cwe: 'CWE-117: Improper Output Neutralization for Logs'
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - pattern-either:
+          - pattern: $REQ.body
+          - pattern: $REQ.query
+          - pattern: $REQ.params
+          - pattern: $REQ.headers
+    pattern-sanitizers:
+      # Anything that removes newlines makes the value a single log line again.
+      - pattern-either:
+          - pattern: JSON.stringify(...)
+          - pattern: encodeURIComponent(...)
+          - pattern: $X.replace(/[\r\n]/g, ...)
+          - pattern: $X.replace(/\r?\n/g, ...)
+    pattern-sinks:
+      - pattern-either:
+          - pattern: console.log(...)
+          - pattern: console.error(...)
+          - pattern: console.warn(...)
+          - pattern: $LOG.info(...)
+          - pattern: $LOG.warn(...)
+          - pattern: $LOG.error(...)
+          - pattern: $LOG.debug(...)
+
+  - id: bpm-log-secret-field
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      A secret-shaped field passed to a log call. Logs outlive the request, sit
+      outside the product's access control, and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        The field list mirrors SC-2's redaction denylist on purpose. Two lists
+        of "what counts as a secret" drift apart, and the one in the logger is
+        the one that is actually enforced.
+    patterns:
+      - pattern-either:
+          - pattern: console.log(..., $OBJ, ...)
+          - pattern: console.error(..., $OBJ, ...)
+          - pattern: $LOG.info(..., $OBJ, ...)
+          - pattern: $LOG.warn(..., $OBJ, ...)
+          - pattern: $LOG.error(..., $OBJ, ...)
+          - pattern: $LOG.debug(..., $OBJ, ...)
+      - metavariable-regex:
+          metavariable: $OBJ
+          regex: (?i).*\b(password|passwd|secret|token|api[_-]?key|private[_-]?key|credential|authorization|session[_-]?id|cookie|ssn|credit[_-]?card)\b.*
+
+  - id: bpm-log-and-rethrow
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      Logged and rethrown. The caller will log it again, and the incident
+      timeline gets the same failure three times at three levels of the stack —
+      log it where it is handled, or rethrow it where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try { ... } catch ($E) { $LOG.error(...); throw $E; }
+          - pattern: |
+              try { ... } catch ($E) { console.error(...); throw $E; }
