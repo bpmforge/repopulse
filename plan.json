@@ -4570,7 +4570,7 @@
         "API p95 <500ms against the seeded dataset (NFR-3); k6 is in TECH_STACK but is a system binary — if it cannot be installed, measure with an equivalent and say which"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-19 out of W7-04 WITH MEASUREMENTS: a production build gives WidgetRegistry 175 KB gz and index 110 KB gz, so initial JS is ~285 KB gz against a 200 KB budget. The 175 KB chunk is the widget registry pulling ECharts in eagerly — every screen pays for charts even when it renders none.",
         "size-limit and Lighthouse are NOT in docs/TECH_STACK.md; adding either is a stop-and-ask for Brad. The measurement above needed neither — build output plus gzip is enough to enforce a budget in CI."
