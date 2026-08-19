@@ -204,3 +204,38 @@ test('agreements are admin-configurable and show real exception lists (W5-08)', 
     await expect(exceptions).toContainText(/#\d+/);
   }
 });
+
+test('the Analysis tab states the consequence of Tier-3 opt-in and audits the toggle (W7-08)', async ({
+  page,
+}) => {
+  await loginAsFixture(page);
+  await page.goto('/admin/analysis');
+  await expect(page.getByTestId('analysis-policy')).toBeVisible();
+
+  const row = page.locator('[data-testid^="analysis-repo-"]').first();
+  await expect(row).toBeVisible();
+
+  // Off by default, and the row SAYS what that means rather than showing an
+  // unlabelled checkbox. Someone ticking it is deciding that code may leave
+  // their network — that belongs beside the control.
+  await expect(row).toContainText(/stays on your network/i);
+
+  const toggle = page.locator('[data-testid^="tier3-"]').first();
+  await expect(toggle).not.toBeChecked();
+  // click(), not check(): the checkbox is CONTROLLED by the server's value, so
+  // its state only changes after the mutation refetches. check() asserts the
+  // new state synchronously and fails with "clicking did not change its state"
+  // — a true statement about a correct control.
+  await toggle.click();
+  await expect(row).toContainText(/diffs may be sent/i);
+
+  // Nothing has actually been sent — the opt-in is permission, not a call.
+  await expect(row).toContainText(/nothing sent/i);
+
+  // And the empty egress log distinguishes "nothing was sent" from "nothing
+  // was recorded", which is the whole point of writing the row first.
+  await expect(page.getByText(/written before each call/i)).toBeVisible();
+
+  await toggle.click();
+  await expect(row).toContainText(/stays on your network/i);
+});

@@ -62,7 +62,11 @@ export type AuditEvent =
   | 'finding.status_changed'
   // W6-07. Acknowledging a file hides it from hotspot leaderboards, so who
   // decided that and when is part of the record.
-  | 'file.intent_set';
+  | 'file.intent_set'
+  // W7-08. Turning Tier-3 on means this repository's diffs may leave the
+  // network. Who decided that, and when, is not a preference — it is the
+  // record NFR-9 depends on.
+  | 'repo.tier3_opt_in_changed';
 
 export interface AuditEntry {
   event: AuditEvent;
