@@ -5,3 +5,4 @@ export * from './trends/index.js';
 export * from './hotspots/index.js';
 export * from './plans/engine.js';
 export * from './agreements/index.js';
+export * from './findings/index.js';

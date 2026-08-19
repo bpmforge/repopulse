@@ -32,18 +32,48 @@ const perfectInputs: HealthMetricInputs = {
   e2eCycleP50Hours: 24,
   m11DaysSinceRelease: 14,
   m12Cfr: 0.05,
+  openFindingDensity: null,
+  worstOpenSeverity: null,
 };
 
 describe('computeHealthScore (FR-INSIGHTS-2/3)', () => {
   it('all-good inputs → 100 with a full per-input breakdown', () => {
     const result = computeHealthScore(buildHealthSubScores(perfectInputs));
     expect(result.score).toBeCloseTo(100, 5);
+    // Four sub-scores, not five: the security sub-score exists (W6-03) but this
+    // repo has no findings data, so it is DROPPED rather than scored 100.
     expect(result.subScores).toHaveLength(4);
     const activity = result.subScores.find((s) => s.key === 'activity')!;
-    expect(activity.weight).toBeCloseTo(0.2, 5);
     expect(activity.inputs[0]).toMatchObject({ key: 'commitCountVsMedian', normalized: 100 });
-    expect(result.tier1Only).toBe(true); // no security sub-score in v1
+    expect(result.tier1Only).toBe(true);
+    // TRUE since W6-03: dropping the absent security sub-score renormalizes the
+    // remaining four. Previously false only because no fifth sub-score existed.
+    expect(result.renormalized).toBe(true);
+    // The four Tier-1 weights keep their RELATIVE proportions after
+    // renormalization — activity stays 0.2/1.0 of the Tier-1 total.
+    expect(activity.weight).toBeCloseTo(0.2, 5);
+  });
+
+  it('scores security once a repo has actually been analysed (W6-03)', () => {
+    const analysed = { ...perfectInputs, openFindingDensity: 0, worstOpenSeverity: 1 };
+    const result = computeHealthScore(buildHealthSubScores(analysed));
+    expect(result.subScores).toHaveLength(5);
+    // No longer Tier-1 only: there IS non-Tier-1 evidence in the score now.
+    expect(result.tier1Only).toBe(false);
     expect(result.renormalized).toBe(false);
+    expect(result.score).toBeCloseTo(100, 5);
+  });
+
+  it('a repo with no analysis is NOT scored as secure', () => {
+    // The distinction the whole sub-score turns on. If absent findings scored
+    // as "clean", every unanalysed repository would outrank an analysed one
+    // that honestly reported two issues.
+    const unanalysed = computeHealthScore(buildHealthSubScores(perfectInputs));
+    const clean = computeHealthScore(
+      buildHealthSubScores({ ...perfectInputs, openFindingDensity: 0, worstOpenSeverity: 1 }),
+    );
+    expect(unanalysed.subScores.some((s) => s.key === 'security')).toBe(false);
+    expect(clean.subScores.some((s) => s.key === 'security')).toBe(true);
   });
 
   it('review hygiene reflects the E3 M5 ramp (53.4) when it is the only available input', () => {
