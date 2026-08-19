@@ -2571,10 +2571,13 @@
         "E9.3"
       ],
       "write_scope": [
-        "packages/analysis/src/t3/**",
-        "packages/analysis/src/escalation/**",
-        "apps/api/src/routes/admin/analysis/**",
-        "apps/web/src/routes/admin/analysis.tsx"
+        "packages/analysis/**",
+        "apps/api/src/routes/admin/**",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/web/src/routes/admin/**",
+        "apps/web/src/widgets/admin/**",
+        "docs/TECH_STACK.md",
+        "e2e/**"
       ],
       "depends_on": [
         "W6-02",
@@ -2587,8 +2590,10 @@
         "Admin Analysis tab per docs/UX_SPEC.md §4.i: Tier-2 policy, per-repo T3 opt-in with per-PR override, egress audit log view + per-repo T3 cost rollup (NFR-12), admin-only"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: docs/TECH_STACK.md line 125 says the @anthropic-ai/sdk major must be PINNED when the analysis wave begins — that is now, and pinning it is part of this ticket. The admin Analysis tab also needs the api-v1 mount and the admin tab list."
+      ]
     },
     {
       "id": "W7-02",
