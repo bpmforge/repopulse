@@ -3539,8 +3539,20 @@
         "Test/script paths excluded via workspace globs (no noise from fixtures/specs); FP dismissals feed the standard tuning metric"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. logging_hygiene: the W9-01 pack rules run over a tree or a diff and filtered to bpm-log-*, plus the OWASP A09 checklist through the gateway, verify-gated. Migration 0017 adds the `logging` dimension.",
+        "THE DETERMINISTIC HALF IS NOT REIMPLEMENTED. It runs the SAME W9-01 rules through the SAME engine and keeps only the logging ones — a second copy of \"what does a dangerous log call look like\" would drift from the first, and the first is the one with fixtures. The anti-slop rules in that pack are explicitly filtered OUT here, because claiming them would double-report every empty catch in the repository (W9-03 owns them).",
+        "EVERY CHECKLIST ITEM CITES ITS OWASP ID (A09-1..A09-5, plus the Logging Cheat Sheet) so a reader can check the claim against the source rather than taking ours for it. And the checklist says in as many words that the pack's rules are NOT asked about here.",
+        "A REAL BUG, CAUGHT BY THE EXCLUSION TEST AND WORTH THE WRITE-UP: my glob-to-regexp helper replaced the globstar first and the single star second — so the star INSIDE the replacement text just produced got rewritten, narrowing \"any directories\" to \"one directory with no slash\". Every test file in a subdirectory sailed through. This is the SAME ordering bug as the W8-04 normalizer (digits before whitespace); it now substitutes through placeholders and the comment says why.",
+        "A SECOND SELF-INFLICTED ONE, RECORDED BECAUSE IT WILL RECUR: the comment explaining that bug contained a literal star-slash and closed the block comment early. The comment now names the sequence instead of showing it.",
+        "THE ENGINE ALREADY SKIPS TEST PATHS, which the test discovered: nothing from test/ reached the runner at all, so the runner-level globs are belt-and-braces rather than the only guard. The test now says so — that makes opengrep's defaults load-bearing, and an engine swap would move that line.",
+        "SEVERITY CAPPED AT 3 for judgement findings: a missing log line is not itself exploitable, it is what makes the exploitable thing invisible — a different and slower harm. The one exception is A09-4, where `log-exposure` survives as a chaining term, because an attack that leaves no trace genuinely is a step in a chain.",
+        "REFUTED JUDGEMENTS NEVER REACH THE STORE, same gate as W9-03: \"this log line is inadequate\" is an opinion about someone's code, and the product has to be able to be talked out of one. FP dismissals feed the existing falsePositiveRate tuning metric — no new plumbing.",
+        "SCOPE WIDENED, WITH REASON: packages/shared schema + migration 0017 (the acceptance names dimension `logging`, which the check constraint did not allow).",
+        "NOT DONE: the weekly schedule. Same carry-forward as W9-03 — anti_slop and logging_hygiene both want a snapshot source-reading path in the weekly fan-out, and wiring two half-paths would be worse than wiring one whole one.",
+        "GATE: lint 0, typecheck 0, 1001 unit tests (was 996), zero skipped — the live pack run executes; pnpm -r test green; validate-arch, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+      ]
     },
     {
       "id": "W9-05",

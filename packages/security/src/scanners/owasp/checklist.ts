@@ -18,7 +18,7 @@ export const CHECKLIST_DIR = path.resolve(
   '../../../checklists',
 );
 
-export type ChecklistKey = 'owasp_web' | 'owasp_llm' | 'anti_slop';
+export type ChecklistKey = 'owasp_web' | 'owasp_llm' | 'anti_slop' | 'logging';
 
 const FILE_PREFIX: Record<ChecklistKey, string> = {
   owasp_web: 'owasp-web.v',
@@ -27,6 +27,7 @@ const FILE_PREFIX: Record<ChecklistKey, string> = {
   // "find the highest version of a checklist" is a second place for a pinned
   // version to be got wrong.
   anti_slop: 'anti-slop.v',
+  logging: 'logging.v',
 };
 
 export interface Checklist {
