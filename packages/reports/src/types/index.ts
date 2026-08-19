@@ -48,7 +48,7 @@ export interface EgressSummary {
 }
 
 export type ReportSection =
-  | { kind: 'summary'; markdown: string }
+  | { kind: 'summary'; id?: string; markdown: string }
   | { kind: 'score_breakdown'; rows: ScoreBreakdownRow[] }
   | { kind: 'table'; id: string; columns: string[]; rows: unknown[][] }
   | { kind: 'chart'; id: string; echartsOption: object }
