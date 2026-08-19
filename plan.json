@@ -1906,7 +1906,7 @@
         "Assembler snapshot tests per report type against the seeded fixture warehouse (same fixtures as METRICS.md §4 E1–E3)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
