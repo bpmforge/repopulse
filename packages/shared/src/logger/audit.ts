@@ -35,7 +35,13 @@ export type AuditEvent =
   // other record: the job_failure row gets a replayed_at stamp and nothing
   // says who pressed it. Logged deliberately rather than left out because the
   // list did not happen to anticipate it.
-  | 'dlq.job.replayed';
+  | 'dlq.job.replayed'
+  // W5-05. SC-22 names "identity merge" in its own list. A merge rewrites who
+  // authored what on every ownership and bus-factor screen, so an unattributed
+  // one is a silent change to the numbers people make staffing decisions on.
+  | 'identity.merged'
+  | 'identity.merge_undone'
+  | 'identity.bot_flagged';
 
 export interface AuditEntry {
   event: AuditEvent;

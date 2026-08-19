@@ -1,5 +1,21 @@
-import { and, eq, gte } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { core, facts, type Database } from '@repopulse/shared';
+
+// Identity merges resolve HERE, in the readers, so every metric computed from
+// them inherits it (W5-05). DATABASE.md §2 specifies merges as non-destructive
+// and reversible — the row stays, `merged_into_id` points at the survivor, and
+// queries read through COALESCE(merged_into_id, id). Until this landed the
+// column was referenced NOWHERE outside the schema: merging was a no-op that
+// no screen or metric would ever have reflected.
+//
+// Attribution is by LOGIN downstream (churn, ownership, review load all group
+// on the string), so resolving means reading the canonical identity's login in
+// place of the merged one. One hop only — the API keeps chains flat by
+// resolving a merge target to ITS canonical before writing, so A→B→C cannot
+// exist and a recursive CTE is not needed.
+const canonicalOf = (id: typeof core.identities) =>
+  sql`coalesce(${id.mergedIntoId}, ${id.id})`;
 import type { ChurnFileTouch } from '../metrics/churn.js';
 import type { ReviewCoveragePr, ReviewCoverageReview } from '../metrics/review-coverage.js';
 import type { CyclePr, CycleEvent, CycleEventKind } from '../metrics/cycle.js';
@@ -27,6 +43,9 @@ export interface RepoRef {
   repoId: number;
 }
 
+/** The survivor of a merge, or the identity itself when it was never merged. */
+const canonicalIdentity = alias(core.identities, 'canonical_identity');
+
 /** M1 churn / M2 hotspots / M3 ownership — one read feeds all three. */
 export async function readChurnTouches(
   db: Database,
@@ -38,7 +57,7 @@ export async function readChurnTouches(
       sha: facts.commits.sha,
       isMerge: facts.commits.isMerge,
       authoredAt: facts.commits.authoredAt,
-      authorLogin: core.identities.forgeLogin,
+      authorLogin: canonicalIdentity.forgeLogin,
       path: facts.commitFiles.path,
       previousPath: facts.commitFiles.previousPath,
       additions: facts.commitFiles.additions,
@@ -47,6 +66,7 @@ export async function readChurnTouches(
     .from(facts.commitFiles)
     .innerJoin(facts.commits, eq(facts.commitFiles.commitId, facts.commits.id))
     .innerJoin(core.identities, eq(facts.commits.authorIdentityId, core.identities.id))
+    .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
     .where(and(eq(facts.commits.repoId, repoId), gte(facts.commits.authoredAt, windowStart)));
 
   return rows.map((r) => ({
@@ -67,7 +87,7 @@ async function prRowsWithReviews(db: Database, repoId: number, windowStart: Date
     .select({
       id: facts.pullRequests.id,
       number: facts.pullRequests.number,
-      authorLogin: core.identities.forgeLogin,
+      authorLogin: canonicalIdentity.forgeLogin,
       isBot: facts.pullRequests.isBot,
       createdAt: facts.pullRequests.createdAt,
       mergedAt: facts.pullRequests.mergedAt,
@@ -79,6 +99,7 @@ async function prRowsWithReviews(db: Database, repoId: number, windowStart: Date
     })
     .from(facts.pullRequests)
     .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
+    .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
     .where(
       and(eq(facts.pullRequests.repoId, repoId), gte(facts.pullRequests.createdAt, windowStart)),
     );
@@ -86,12 +107,13 @@ async function prRowsWithReviews(db: Database, repoId: number, windowStart: Date
   const reviewRows = await db
     .select({
       pullRequestId: facts.prReviews.pullRequestId,
-      reviewerLogin: core.identities.forgeLogin,
+      reviewerLogin: canonicalIdentity.forgeLogin,
       state: facts.prReviews.state,
       submittedAt: facts.prReviews.submittedAt,
     })
     .from(facts.prReviews)
     .innerJoin(core.identities, eq(facts.prReviews.reviewerIdentityId, core.identities.id))
+    .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
     .where(eq(facts.prReviews.repoId, repoId));
 
   const byPr = new Map<number, typeof reviewRows>();

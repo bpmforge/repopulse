@@ -151,3 +151,31 @@ test('the weight form refuses a set that does not sum to 1.00 (W4-09)', async ({
   await expect(page.getByTestId('weights-sum-error')).toBeVisible();
   await expect(page.getByTestId('save-weights')).toBeDisabled();
 });
+
+test('the Identities tab lists real identities and merges one, passing axe (W5-05)', async ({
+  page,
+}) => {
+  // The merge is asserted through the UI rather than the API because the whole
+  // ticket is that merging was unreachable: the column existed, the readers
+  // ignored it, and no screen could reach it.
+  await loginAsFixture(page);
+  await page.goto('/admin/identities');
+
+  await expect(page.getByTestId('identity-rows')).toBeVisible();
+  const rows = page.locator('[data-testid^="identity-"][data-testid*="-"]');
+  await expect(rows.first()).toBeVisible();
+  await expectNoA11yViolations(page);
+
+  // Merge the first mergeable identity into another, then undo it, so the
+  // reversibility DATABASE.md §2 promises is exercised on a real screen.
+  const mergeButton = page.locator('[data-testid^="identity-merge-"]').first();
+  const sourceId = (await mergeButton.getAttribute('data-testid'))!.replace('identity-merge-', '');
+  await mergeButton.click();
+  await expect(page.getByTestId('merge-picker')).toBeVisible();
+  await page.locator('[data-testid^="merge-into-"]').first().click();
+
+  const undo = page.getByTestId(`identity-unmerge-${sourceId}`);
+  await expect(undo).toBeVisible();
+  await undo.click();
+  await expect(page.getByTestId(`identity-merge-${sourceId}`)).toBeVisible();
+});
