@@ -2288,8 +2288,20 @@
         "Finding zod schema exactly per ANALYSIS_TIERS.md §4 REQUIRED JSON including evidence_quote verbatim-substring validation; malformed model output retries once with the error appended, then dead-letters keeping the raw payload (FR-ANALYSIS-5)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. Chunker (per-file split, hunk-boundary splitting for oversized files, greedy packing, skip-with-reason), the token estimator and both budgets, the four versioned checklists as FILES, the map-reduce prompt builders, and the zod finding schema with verbatim evidence validation.",
+        "THE PROPERTY TEST HOLDS ON A 5000-LINE DIFF: 50 hunks in, 50 hunks out, each in exactly ONE chunk. That is FR-ANALYSIS-3 acceptance and it is the property that matters — a lost hunk is a silently unreviewed change, a duplicated one is the same finding raised twice.",
+        "CHUNKS ARE SIZED BY PROJECTED OUTPUT, not by context window. A qwen3.6-class model advertises a large context but returns roughly 10k usable tokens, and overshooting does not fail loudly — it returns a TRUNCATED answer that looks complete, which is the worst possible failure mode for a review tool.",
+        "NEVER MID-HUNK. A sub-chunk that started inside a hunk would show the model changed lines with no surrounding context, which reliably produces confident findings about code that is not there. Asserted: every split chunk body begins at an @@ marker.",
+        "THE EVIDENCE VALIDATOR IS THE LOAD-BEARING PART of the schema. A model asked for a verbatim quote will sometimes paraphrase, and a finding whose quote is absent from the diff is a finding about code that does not exist. Rejected with a reason, never silently dropped — a finding count that quietly shrinks is worse than one that explains itself. It normalizes whitespace first, because rejecting a correct finding over a line wrap would teach everyone to switch the validator off.",
+        "EMPTY QUOTE IS REJECTED EXPLICITLY: the empty string is a substring of everything, so without that branch a model that omitted its evidence would have every finding accepted.",
+        "suggested_fix IS NULLABLE, NOT OPTIONAL: \"no fix suggested\" is an answer; a missing key is a model that stopped early, and the two must not look the same.",
+        "THE REDUCE CALL RECEIVES FINDINGS JSON, NEVER THE DIFF AGAIN — asserted by checking the reduce prompt contains no @@ marker. That is what keeps the summary bounded regardless of PR size, so the final call can never be the one that blows the budget.",
+        "DEDUP KEYS ON A LINE BUCKET, not the line number: a finding that shifts a few lines after an unrelated edit above it is the same finding, and exact-line keying would resurrect it as new on every adjacent change.",
+        "NOTED: the api views suite failed once during a full run and passed on the two runs either side, in isolation and in the suite. That matches the SC-11 auth-rate-limit flake documented in W12-07 rather than anything in this ticket. Recorded rather than ignored; if it recurs it needs its own investigation.",
+        "GATE: lint 0, typecheck 0, 690 unit tests (was 668), zero skipped, three validators exit 0."
+      ]
     },
     {
       "id": "W6-03",
