@@ -2357,8 +2357,11 @@
       ],
       "write_scope": [
         "apps/api/src/routes/findings/**",
+        "apps/api/src/plugins/api-v1.ts",
         "apps/web/src/routes/findings/**",
-        "apps/web/src/widgets/findings/**"
+        "apps/web/src/widgets/findings/**",
+        "packages/shared/src/logger/audit.ts",
+        "e2e/**"
       ],
       "depends_on": [
         "W6-03",
@@ -2370,8 +2373,10 @@
         "PR Detail findings accordion and file drill-down findings list light up (UX_SPEC §4.c/§4.d); analysis-paused banner state wired (NFR-7); Repo Detail Findings tab replaces its teaser"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: the findings routes need mounting in api-v1.ts, status transitions are SC-22 audit events, and acceptance 2 is an e2e."
+      ]
     },
     {
       "id": "W6-05",
