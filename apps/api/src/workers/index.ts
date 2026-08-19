@@ -12,6 +12,7 @@ import {
   snapshotProcessor,
 } from './processors.js';
 import { startWorkerHealthServer } from './health.js';
+import { reportProcessor } from './report-processor.js';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
@@ -76,6 +77,14 @@ async function main(): Promise<void> {
       [QUEUE.snapshot]: snapshotProcessor(processorDeps),
       [QUEUE.enrich]: enrichProcessor(processorDeps),
       [QUEUE.reconcile]: reconcileProcessor(processorDeps),
+      // W5-04. Report generation runs in the WORKER, not the API: a headless
+      // print holds a browser for seconds and must not occupy an API process
+      // that is serving requests.
+      [QUEUE.reports]: reportProcessor({
+        db,
+        dataDir: process.env.DATA_DIR ?? './.data',
+        printBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:5173',
+      }),
     },
     onError: (err) => console.error('[worker] DLQ/error:', err),
   });

@@ -17,6 +17,7 @@ import connectionsRoutes, { type ConnectionsRoutesOptions } from '../routes/conn
 import syncRoutes from '../routes/sync/index.js';
 import adminRoutes from '../routes/admin/index.js';
 import identityRoutes from '../routes/admin/identities/index.js';
+import reportsRoutes from '../routes/reports/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
 
 export interface ApiV1Options {
@@ -40,6 +41,12 @@ export interface ApiV1Options {
   adminQueueFor?: (queue: string) => import('bullmq').Queue | undefined;
   /** W13-02: surfaced to the SPA on /me/context so the UI can say it is a demo. */
   demo?: boolean;
+  /** W5-04: enqueue a report generation (reports.generate). */
+  enqueueReport?: (data: {
+    reportId: number;
+    workspaceId: number;
+    params: import('@repopulse/reports').ReportParams;
+  }) => Promise<void>;
 }
 
 // The guarded /api/v1 scope (API_DESIGN.md §1/§2): session required,
@@ -127,6 +134,12 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     db: opts.db,
     ...(opts.redisUrl ? { redisUrl: opts.redisUrl } : {}),
     ...(opts.adminQueueFor ? { queueFor: opts.adminQueueFor } : {}),
+  });
+  // Report Center (W5-04). enqueueReport is threaded from app.ts so the route
+  // can queue a generation without owning a Redis connection.
+  await app.register(reportsRoutes, {
+    db: opts.db,
+    ...(opts.enqueueReport ? { enqueueReport: opts.enqueueReport } : {}),
   });
   // Identity admin (W5-05) — merging decides WHO the ownership and bus-factor
   // numbers are about, so it sits beside the settings that decide what they mean.

@@ -86,6 +86,9 @@ importers:
       '@repopulse/metrics':
         specifier: workspace:^
         version: link:../../packages/metrics
+      '@repopulse/reports':
+        specifier: workspace:*
+        version: link:../../packages/reports
       '@repopulse/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -366,6 +369,9 @@ importers:
       drizzle-orm:
         specifier: ^0.39.3
         version: 0.39.3(@opentelemetry/api@1.9.1)(postgres@3.4.9)
+      playwright:
+        specifier: ^1
+        version: 1.61.1
     devDependencies:
       '@types/node':
         specifier: ^22.20.1

@@ -18,6 +18,14 @@ export const reports = pgTable(
     status: text('status').notNull(),
     htmlUri: text('html_uri'),
     pdfUri: text('pdf_uri'),
+    // The stored ReportData (REPORTS.md §3). It is what the print route
+    // renders from and what a regeneration re-renders, so a report can be
+    // reproduced byte-for-byte without re-reading the warehouse — which is
+    // the whole point of pinning snapshotAt in the first place.
+    jsonUri: text('json_uri'),
+    // Why a generation failed, kept ON the row: a failed report that says
+    // nothing sends its owner to the worker logs, and REPORTS.md §3 lists it.
+    error: text('error'),
     generatedBy: bigint('generated_by', { mode: 'number' })
       .notNull()
       .references(() => users.id),
