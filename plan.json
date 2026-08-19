@@ -2548,8 +2548,17 @@
         "deploy compose/quadlet note: LLM VLAN reachable from the worker network only (pairs with the W7-05 SC-20 hardening); reachability check listed for the W7-06 runbook execution"
       ],
       "points": 1,
-      "status": "in_progress",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. zod host-list validation, credential-free request assertion on the real outbound call, and the SC-24 VLAN note in deploy/compose.yaml pointing at the W7-06 runbook check.",
+        "THE CONTROL IS THAT NO ROUTE ACCEPTS A HOST. The list is admin workspace config; validation is the second line of defence. If a request could name the host, anyone who can reach the analysis API could point this product's diff-sending machinery at a server they control — and diffs are the most sensitive thing the warehouse holds.",
+        "THE METADATA ENDPOINT IS CHECKED BEFORE THE PRIVATE-RANGE TEST, and that ordering is the whole trap: 169.254.169.254 is LINK-LOCAL, so a naive \"is it private?\" check waves it straight through. It is the single most valuable SSRF target there is — it hands instance credentials to anything that can make an HTTP request. Rejected by name, with a message that says why.",
+        "HOSTNAMES ARE REJECTED BY DEFAULT even though one could resolve to a private address: resolution happens later, elsewhere, and can change between validation and use. A name that resolves privately today is not a guarantee about tomorrow.",
+        "A PUBLIC HOST NEEDS AN EXPLICIT FLAG, and the flag is deliberately awkward — a deployment that genuinely runs its model on a public host should have to say so in config, where a person reviews it.",
+        "CREDENTIAL-FREE IS ASSERTED ON THE ACTUAL OUTBOUND REQUEST, not on the header constant: the test drives a real complete() call and inspects what fetch received, so a future edit inside chat() that adds an auth header is caught. The header set is also frozen.",
+        "THE SECRET DETECTOR IGNORES A DIFF THAT MERELY MENTIONS THE WORD (\"// renamed the password field\"). A guard that fires on prose becomes noise, and noise gets switched off.",
+        "GATE: lint 0, typecheck 0, 762 unit tests (was 739), zero skipped, pnpm -r test green, four validators exit 0 (compose validator included, since this touched deploy/)."
+      ]
     },
     {
       "id": "W7-01",
