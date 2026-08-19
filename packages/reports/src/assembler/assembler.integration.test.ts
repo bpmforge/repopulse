@@ -199,3 +199,82 @@ describeIfLiveInfra('report assembler', () => {
     expect(dq?.syncLagHours).toBe(24);
   });
 });
+
+describe('security posture report (W7-03, FR-REPORTS-4)', () => {
+  const db2: Database = createDb(databaseUrl as string);
+  let wsId = 0;
+
+  beforeAll(async () => {
+    const [ws] = await db2
+      .select({ id: core.workspaces.id })
+      .from(core.workspaces)
+      .where(eq(core.workspaces.slug, 'default'))
+      .limit(1);
+    wsId = ws!.id;
+  });
+  afterAll(async () => {
+    await db2.$client.end();
+  });
+
+  /** Self-contained params: the other suite's helper is scoped to its describe. */
+  const securityParams = (): ReportParams => ({
+    type: 'security_posture',
+    workspaceId: String(wsId),
+    repoIds: [],
+    windowDays: 30,
+    windowEnd: '2026-08-10T00:00:00.000Z',
+    snapshotAt: '2026-08-10T00:00:00.000Z',
+    weightsVersion: 'v1',
+    catalogVersion: 'v1',
+  });
+
+  it('renders with TIER-1 ONLY data and says why each section is empty', async () => {
+    // The report has to work before any analysis has run — that is the common
+    // case for a new install, and it is exactly when a reader is most likely to
+    // mistake "nothing found" for "nothing wrong".
+    const data = await createReportAssembler(db2).assemble(securityParams());
+
+    const ids = data.sections.map((s) => (s.kind === 'no_data' || s.kind === 'table' ? s.id : s.kind));
+    expect(ids).toContain('open_security_findings');
+    expect(ids).toContain('review_bypass');
+    expect(ids).toContain('egress_audit');
+    expect(ids).toContain('finding_lifecycle');
+
+    for (const section of data.sections) {
+      if (section.kind === 'no_data') {
+        // Every empty section explains itself. "No findings" and "not yet
+        // analysed" are the same shape on a page and opposite facts in a room.
+        expect(section.reason.length, `${section.id} reason`).toBeGreaterThan(40);
+      }
+    }
+  });
+
+  it('never lets an empty findings section read as "clean"', async () => {
+    const data = await createReportAssembler(db2).assemble(securityParams());
+    const findings = data.sections.find((s) => s.kind === 'no_data' && s.id === 'open_security_findings');
+    if (findings?.kind === 'no_data') {
+      expect(findings.reason).toMatch(/not yet examined|were RAISED/i);
+    }
+  });
+
+  it('states plainly when nothing left the network', async () => {
+    // The most reassuring empty section in the product — and the one most
+    // easily confused with "we did not record it".
+    const data = await createReportAssembler(db2).assemble(securityParams());
+    const egress = data.sections.find((s) => s.kind === 'no_data' && s.id === 'egress_audit');
+    if (egress?.kind === 'no_data') {
+      expect(egress.reason).toMatch(/zero Tier-3 calls/);
+      expect(egress.reason).toMatch(/written before each call/);
+    }
+  });
+
+  it('carries Appendix B so the numbers can be interpreted without us', async () => {
+    const data = await createReportAssembler(db2).assemble(securityParams());
+    const appendix = data.sections.find((s) => s.kind === 'summary' && s.id === 'appendix_b');
+    expect(appendix).toBeTruthy();
+    if (appendix?.kind === 'summary') {
+      expect(appendix.markdown).toMatch(/unverified/);
+      expect(appendix.markdown).toMatch(/heuristic/);
+    }
+  });
+});

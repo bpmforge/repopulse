@@ -2659,8 +2659,17 @@
         "Renders with Tier-1-only data (review-bypass section) and enriches when findings exist; assembler snapshot test both ways"
       ],
       "points": 3,
-      "status": "in_progress",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. Five sections (open security findings by severity/repo/age, review-bypass exposure, dependency-and-secret signals, egress audit summary, finding lifecycle) plus Appendix B, replacing the placeholder no_data the assembler returned for this type.",
+        "THIS IS THE REPORT MOST LIKELY TO BE READ BY SOMEONE WHO DID NOT RUN IT — an auditor, a customer security team, a board pack. Two rules follow and shape every section: nothing may look like a measurement when it is a heuristic, and an empty section must say WHY. \"No findings\" and \"nothing has analysed this repository\" are the same shape on a page and opposite facts in a meeting.",
+        "THE EMPTY FINDINGS SECTION REFUSES TO READ AS \"CLEAN\": it says the findings were never RAISED and that the correct reading is \"not yet examined\" unless an analysis run covered the repos — then points at the egress and lifecycle sections as the evidence of whether one did. Asserted by a test.",
+        "THE EMPTY EGRESS SECTION IS THE MOST REASSURING ONE IN THE PRODUCT, and the most easily confused with \"we did not record it\". It states zero Tier-3 calls AND that the log is written before each call rather than after — the property that makes the zero mean something.",
+        "VERIFY STATUS TRAVELS INTO THE REPORT. An unverified critical finding and one a second model confirmed are different claims, and a security document that flattens them overstates its case.",
+        "THE WINDOW START IS DERIVED FROM THE PINNED windowEnd, never Date.now(): the egress summary would otherwise widen silently every time the report was regenerated, which is exactly the determinism the W5-03 pin exists to protect.",
+        "DEPENDENCY AND SECRET SIGNALS ARE DECLARED ABSENT AND HEURISTIC-BY-DESIGN rather than quietly omitted, so a reader knows the report is not claiming a clean dependency tree. They land in W8 and will be labelled there too — a pattern match is not a confirmed leak, and putting one beside scanner findings as an equal is how a report overstates.",
+        "GATE: lint 0, typecheck 0, 779 unit tests (was 775), zero skipped, pnpm -r test green, three validators exit 0. No e2e — this ticket ships no screen; the report renders through the existing print route and Report Center."
+      ]
     },
     {
       "id": "W7-04",

@@ -16,6 +16,7 @@ import type {
 } from '../types/index.js';
 import { readReportRepos, readSnapshotsAsOf, type BoundedSnapshot } from './read.js';
 import { planSections } from './plans.js';
+import { securityPostureSections } from './security-posture.js';
 import { readPreviousSnapshotAt } from './previous.js';
 
 // Report assembler (W5-03, REPORTS.md §1/§2/§5/§6).
@@ -298,6 +299,18 @@ export function createReportAssembler(db: Database): ReportAssembler {
     return sections;
   }
 
+  async function securityPostureReport(params: ReportParams): Promise<ReportSection[]> {
+    const { workspaceId, repoIds, snapshotAt, windowEnd } = await common(params);
+    return securityPostureSections(db, {
+      workspaceId,
+      repoIds,
+      snapshotAt,
+      // The window START, derived from the pinned end — never Date.now(), or
+      // the egress summary would silently widen every time it is regenerated.
+      windowStart: new Date(windowEnd.getTime() - params.windowDays * 86_400_000),
+    });
+  }
+
   async function deliveryDoraReport(params: ReportParams): Promise<ReportSection[]> {
     const { workspaceId, repoIds, snapshotAt, window } = await common(params);
     const orgSnapshots = await readSnapshotsAsOf(db, {
@@ -399,12 +412,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
             ? await orgExecReport(params)
             : params.type === 'delivery_dora'
               ? await deliveryDoraReport(params)
-              : [
-                  noData(
-                    'security_posture',
-                    'The Security Posture report needs the W6 findings store and W8 scanners (REPORTS.md §1, v1.x).',
-                  ),
-                ];
+              : await securityPostureReport(params);
 
       const { workspaceId, repoIds, snapshotAt, windowEnd, repos, window } = await common(params);
 
