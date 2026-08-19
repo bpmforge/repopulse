@@ -2184,10 +2184,13 @@
       "module": "reports",
       "stories": [],
       "write_scope": [
-        "packages/reports/src/diff/**",
-        "packages/reports/src/pipeline/**",
+        "packages/reports/src/**",
         "apps/api/src/routes/reports/**",
-        "apps/web/src/routes/reports/**"
+        "apps/api/src/app.ts",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/web/src/routes/reports/**",
+        "apps/web/src/routes/print/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W5-04"
@@ -2198,8 +2201,10 @@
         "Annotations (R-A11): optional context block captured at generation, stored in params, rendered on the PDF cover (REPORTS.md §5 cover framing); immutability preserved — annotations never edit an existing report"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: threading previousSnapshotAt (left null by W5-07 for this ticket) touches the assembler, annotations render on the print route cover, and scheduled generation needs the repeatable-job seam threaded through app.ts and api-v1.ts. NO new table: BullMQ already stores repeatable jobs and can list them, so a report_schedules table would be a second source of truth that can disagree with the scheduler actually holding the timer."
+      ]
     },
     {
       "id": "W6-01",
