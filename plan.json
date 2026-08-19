@@ -4464,7 +4464,7 @@
         "axe green on both surfaces; e2e sets an intent and sees the row disappear from the leaderboard with the count incremented"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-19 out of W6-07. The engine, the table and the API all exist and are tested; what remains is the surfaces. Filed rather than carried because the My Focus strip had already slipped twice (deferred from W6-06 into W6-07, then again) — at that point a note is not a plan.",
         "The suppression count is ALREADY in the hotspots response (suppressed_count / suppressed_paths). The UI must render it; a leaderboard that hides rows without saying so is worse than one that shows everything."
