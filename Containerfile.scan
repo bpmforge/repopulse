@@ -28,6 +28,18 @@
 FROM docker.io/library/alpine:3.20
 
 ARG OPENGREP_VERSION=1.27.1
+# W9-02 code-health tools. Both are standalone SOURCE PARSERS — they read files
+# and compute numbers, with no dependency install and no network at scan time,
+# which is the only kind of tool this sandbox can host (§10 admission filter).
+ARG LIZARD_VERSION=1.24.0
+ARG LIZARD_SHA256=a688bc607a891ff4a7836826f25742dc9c1bf648da3075dbd495e199e8848602
+# lizard's ONE real dependency, pinned the same way. Installed explicitly with
+# --no-deps rather than letting pip resolve it: "pip install lizard" would pull
+# whatever satisfies its ranges on the day the image is built, and a scanner
+# whose parser version floats is a scanner whose numbers move on their own.
+ARG PYGMENTS_VERSION=2.21.0
+ARG PYGMENTS_SHA256=2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+ARG PYGMENTS_URL=https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl
 # musllinux builds, because the base is alpine. Both arches are listed so the
 # image builds on an arm64 laptop and an x86 server from the same file.
 ARG OPENGREP_SHA256_AARCH64=06e7de74ba49e6e619f5109c68a8d235357dff143f18a0a6296a416f47c90924
@@ -47,6 +59,37 @@ RUN set -eux; \
     chmod 0755 /usr/local/bin/opengrep; \
     apk del .fetch; \
     rm -rf /var/cache/apk/*
+
+# lizard (complexity, MIT) — the wheel by URL with its PyPI sha256, installed
+# with --no-deps so pip cannot pull anything unpinned behind it.
+RUN set -eux; \
+    apk add --no-cache python3 py3-pip; \
+    apk add --no-cache --virtual .fetch-lizard curl; \
+    pyg="/tmp/pygments-${PYGMENTS_VERSION}-py3-none-any.whl"; \
+    curl -fsSL -o "$pyg" "${PYGMENTS_URL}"; \
+    echo "${PYGMENTS_SHA256}  $pyg" | sha256sum -c -; \
+    pip install --no-cache-dir --break-system-packages --no-deps "$pyg"; \
+    rm "$pyg"; \
+    whl="/tmp/lizard-${LIZARD_VERSION}-py2.py3-none-any.whl"; \
+    curl -fsSL -o "$whl" \
+      "https://files.pythonhosted.org/packages/py2.py3/l/lizard/lizard-${LIZARD_VERSION}-py2.py3-none-any.whl"; \
+    echo "${LIZARD_SHA256}  $whl" | sha256sum -c -; \
+    pip install --no-cache-dir --break-system-packages --no-deps "$whl"; \
+    rm "$whl"; \
+    apk del .fetch-lizard; \
+    lizard --version
+
+# jscpd (duplication, MIT). `npm ci` from a COMMITTED lockfile, not `npm i`:
+# the lockfile pins every transitive dependency with its integrity hash, and a
+# scanner whose dependency tree floats at image build time is a scanner whose
+# findings are not reproducible.
+COPY deploy/scan-tools/package.json deploy/scan-tools/package-lock.json /opt/scan-tools/
+RUN set -eux; \
+    apk add --no-cache nodejs npm; \
+    cd /opt/scan-tools; \
+    npm ci --omit=dev --ignore-scripts; \
+    ln -s /opt/scan-tools/node_modules/.bin/jscpd /usr/local/bin/jscpd; \
+    jscpd --version
 
 # PRE-EXTRACT AT BUILD TIME. The opengrep launcher unpacks its core binary into
 # $HOME on first run and then EXECS it — which fails twice under the §2.2

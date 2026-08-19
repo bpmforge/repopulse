@@ -67,5 +67,9 @@ describe('delta -> secrets stream (W8-04)', () => {
       'utf8',
     );
     expect(processor).toContain('deps.weeklyRunners?.[data.scannerKey]');
+    // W9-02 rides the same slot: both scanners want a snapshot of the same
+    // commit, and a second weekly cron would drift from this one.
+    expect(entry).toContain('runCodeHealthScan');
+    expect(entry).toContain("'code_health_tools'");
   });
 });

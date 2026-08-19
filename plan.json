@@ -3455,8 +3455,22 @@
         "Weekly schedule + manual trigger per the FR-SEC-9 matrix; NFR-15 isolation holds (crash test)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. lizard 1.24.0 + jscpd 4.3.0 baked into the scan image and run over snapshots inside the sandbox, canon thresholds with boundary fixtures, findings under complexity.*/duplication.*, and ch_* posture metrics onto the existing metric_snapshots series.",
+        "BOTH TOOLS ARE PINNED WITH CHECKSUMS, INCLUDING WHAT THEY DRAG IN. lizard is a wheel fetched by URL and verified against its PyPI sha256, installed --no-deps; its one real dependency (pygments) is pinned the same way rather than resolved, because \"pip install lizard\" would pull whatever satisfies its ranges on build day and a scanner whose parser version floats is a scanner whose numbers move on their own. jscpd comes from `npm ci` against a COMMITTED lockfile — 119 packages, every one with an integrity hash.",
+        "jscpd 5.x CANNOT RUN HERE AND THE PIN SAYS WHY: it ships platform-specific native binaries with no linux/arm64 musl build, so it refuses to start in an Alpine sandbox. Pinned to the 4.x line, with a commander override because jscpd 4.3.0 otherwise resolves commander 12+, which is ESM-only and crashes its own CommonJS bundle on --version. Both facts are recorded in the package.json description where the next person will hit them.",
+        "WHAT LIZARD DOES NOT MEASURE IS STATED, NOT APPROXIMATED. §2 names cognitive complexity and nesting depth; lizard reports neither. They are ABSENT from the thresholds rather than derived from cyclomatic complexity — a \"cognitive complexity\" computed from CCN is CCN wearing a different label, and someone would eventually tune a threshold against it.",
+        "THE BOUNDARY FIXTURES WERE WRITTEN AGAINST THE REAL TOOL. ccTen genuinely measures CC 10 and ccEleven CC 11; lenFifty is 50 lines and lenFiftyOne is 51; paramsFour has four parameters and paramsFive five — all confirmed by running lizard. The rules fire ABOVE a threshold, never AT it, which is the difference between a rule people trust and one they argue with.",
+        "A TEST BUG THE FIXTURES CAUGHT: the first version asserted \"no finding mentions ccTen\", but ccTen needs nine parameters to reach CC 10 and therefore legitimately trips the PARAMETER rule. Asserting per-rule instead is the correct shape — the loose version would have called correct behaviour a bug.",
+        "NOTHING HERE EXCEEDS SEVERITY 3, and confidence is 5. These are MEASUREMENTS: a cyclomatic complexity of 23 is not an opinion. What is arguable is the threshold, so every finding carries the measured number AND the threshold it crossed. And no code-health finding carries `yields` — complexity hands an attacker nothing, and a chain built on \"this function is long\" is one nobody believes twice.",
+        "POSTURE METRICS RIDE THE EXISTING SERIES TABLE (ch_duplication_pct, ch_complexity_p90, ch_worst_fn_count), so trends need no new endpoint and no new chart. p90 over a tree with no functions is NULL, not 0 — a zero would draw a flat healthy line for a repository nobody has measured. Window is `all`, because a snapshot describes one commit and a 30d window would imply a measurement over time that nobody made.",
+        "ONE CONTAINER, TWO TOOLS: the snapshot is already mounted and both binaries are in the image, so a second container start per scan would double the slow part for nothing. jscpd writes its report to the tmpfs and it is cat-ed back rather than mounting a writable host path for output.",
+        "NFR-15 IS TESTED AS \"A FAILURE MUST NOT LOOK CLEAN\": a broken image leaves a FAILED scan_run with an error and zero findings, and the p90 stays null — a scanner returning [] on error would be indistinguishable from a healthy repository.",
+        "WEEKLY, NOT PER-PR, and wired into the same weekly slot as the semgrep full scan (W8-07/W8-09): complexity and duplication are properties of a codebase rather than of a change, and a per-PR run would report the same findings on every branch until people filtered the scanner out of their view entirely.",
+        "SCOPE WIDENED, WITH REASON: Containerfile.scan at the repo root (the ticket named deploy/Containerfile.scan; W8-12 put the file at the root and moving it would break the W8-12 build docs), deploy/scan-tools/{package.json,package-lock.json} (the lockfile IS the pin), packages/security/fixtures/code-health-tools/** (boundary fixtures), and apps/api/src/workers/index.ts (a scanner nobody schedules never runs).",
+        "GATE: lint 0, typecheck 0, 979 unit tests (was 963), zero skipped — the live lizard/jscpd sandbox runs execute; pnpm -r test green; validate-arch, validate-compose, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+      ]
     },
     {
       "id": "W9-03",
