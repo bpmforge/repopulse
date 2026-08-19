@@ -18,11 +18,15 @@ export const CHECKLIST_DIR = path.resolve(
   '../../../checklists',
 );
 
-export type ChecklistKey = 'owasp_web' | 'owasp_llm';
+export type ChecklistKey = 'owasp_web' | 'owasp_llm' | 'anti_slop';
 
 const FILE_PREFIX: Record<ChecklistKey, string> = {
   owasp_web: 'owasp-web.v',
   owasp_llm: 'owasp-llm.v',
+  // W9-03. The loader is shared rather than copied: a second implementation of
+  // "find the highest version of a checklist" is a second place for a pinned
+  // version to be got wrong.
+  anti_slop: 'anti-slop.v',
 };
 
 export interface Checklist {

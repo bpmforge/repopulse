@@ -3499,8 +3499,23 @@
         "Dedupe alignment (FR-CH-5): scanner rule finding + code_health.v2 T2 finding on the same evidence collapse to one row (dedup-key test)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. Two layers that must not overlap: the deterministic one (W9-01 pack + LDR arithmetic + docstring inflation) and the T2 judgment checklist anti-slop.v1, gated behind the FR-ANALYSIS-9 verify pass.",
+        "THE LAYERS ARE SPLIT BY WHAT CAN DECIDE THE QUESTION, and the checklist deliberately does NOT ask about anything the pack settles. Asking a model about something a regex already decided produces two findings for one problem and makes the model the authority on the half it is worst at.",
+        "A REFUTED JUDGEMENT FINDING IS DROPPED, NOT STORED QUIETLY. A structural claim is an accusation about someone's code, and the product has to be able to be talked out of one; keeping refuted claims \"for reference\" is how a triage queue fills with things nobody trusts. Asserted with a verifier that refutes. With NO verifier available the finding is stored as UNVERIFIED — not dropped and not promoted — because \"nobody re-judged this\" is the honest state and mayBeSurfacedLoudly keeps it off the loud surfaces.",
+        "MODEL SEVERITY IS CAPPED AT 3 regardless of what the checklist returns. The fixture model says 4; structural slop is not exploitable, and a severity-4 wrapper would outrank a real vulnerability in every list that sorts by severity.",
+        "LDR IS ARITHMETIC AND THE FINDING SHOWS ITS WORKING: logic, overhead, comment, import, blank and type-only counts all travel with the finding, so a reader who disagrees argues with the arithmetic rather than with a number. The file that computes it would itself score badly, and that is the correct answer for a file whose comments carry the reasoning — the message says so.",
+        "THE BLOCK-COMMENT STATE FLAG IS LOAD-BEARING: a regex over the whole file treats a `/*` inside a string literal as the start of a comment and returns an LDR near zero, which looks exactly like a finding. Tested directly.",
+        "AN EMPTY FILE HAS NO RATIO. The first implementation returned 0 for a file of blank lines — maximally sloppy, the opposite of true — because blanks counted in the denominator with nothing else. Now null, and the boundary fixtures pin 0.29 / 0.30 / 0.31 from real line counts rather than asserted arithmetic.",
+        "A TEST BUG THE THRESHOLD CAUGHT: the first docstring-inflation fixture had a 7-line doc over a 3-line function and expected a finding — a ratio of 2.33 against a limit of 3. Had it \"passed\", the threshold would not have been doing what it says. The fixture now genuinely exceeds 3x. Inflation is measured PER EXPORTED SYMBOL, because the failure has a shape — a long block over a three-line wrapper in a file that also contains the function doing the work — and a file average washes it out. A file HEADER that documents nothing is explicitly not inflation; a rule that fired there would train people to delete the most useful comments in the codebase.",
+        "CROSS-LINK, NEVER DUPLICATE (FR-CH-3): a file the dependency scanner already flagged as a hallucinated package is skipped by the deterministic layer, because two findings for one package is two triage decisions for one problem. Asserted.",
+        "DEDUPE ALIGNMENT (FR-CH-5) rests on the W8-02 key: same scanner + rule + evidence collapses, different scanners stay separate — those are two tools' opinions, not one duplicated row.",
+        "THE CHECKLIST LOADER IS SHARED with the OWASP scanners rather than copied: a second implementation of \"find the highest version of a checklist\" is a second place for a pinned version to be got wrong.",
+        "THE GATEWAY IS FAKED IN TESTS, ON PURPOSE. What needs proving is the verify gate and the layer split; what a local model happens to say about a wrapper is not part of this contract, and a live call would make every assertion flaky while proving nothing extra.",
+        "NOT DONE: the weekly snapshot mode is present as worstByLdr (worst-density files first) but is not yet wired to a schedule — the weekly fan-out currently carries semgrep, code_health_tools and the chainer. Adding anti_slop to it needs the snapshot source-reading path that W9-04/W9-05 also want; recorded rather than half-wired.",
+        "GATE: lint 0, typecheck 0, 996 unit tests (was 979), zero skipped; pnpm -r test green; validate-arch, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+      ]
     },
     {
       "id": "W9-04",
