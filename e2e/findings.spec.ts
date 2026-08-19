@@ -75,3 +75,22 @@ test('bulk triage applies to a selection and refuses without a note', async ({ p
   await page.getByTestId('bulk-note').fill('Triaged in the weekly review.');
   await expect(page.getByTestId('bulk-dismissed')).toBeEnabled();
 });
+
+test('the verification facet separates confirmed, unverified and contradicted (W6-05)', async ({
+  page,
+}) => {
+  await loginAsFixture(page);
+  await page.goto('/findings');
+  await page.getByTestId('filter-status').selectOption('');
+
+  // A finding a second model confirmed carries a badge that says so — and one
+  // nobody re-judged says THAT, rather than nothing.
+  await expect(page.getByTestId('finding-rows')).toContainText(/verified by a second model/i);
+
+  await page.getByTestId('filter-verify').selectOption('contradicted');
+  await expect
+    .poll(async () => (await page.getByTestId('finding-rows').allInnerTexts()).join(' '))
+    .toMatch(/contradicted on review/i);
+  // A contradicted finding must not still claim to be verified.
+  await expect(page.getByTestId('finding-rows')).not.toContainText(/verified by a second model/i);
+});

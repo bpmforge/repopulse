@@ -71,6 +71,13 @@
       "when": 1787148271005,
       "tag": "0009_clean_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787163071779,
+      "tag": "0010_little_doctor_octopus",
+      "breakpoints": true
     }
   ]
 }

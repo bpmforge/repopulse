@@ -5,6 +5,7 @@ import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import {
   SEVERITY_LABEL,
+  VERIFY_LABEL,
   type Finding,
   type FindingStats,
 } from '../../widgets/findings/contracts.js';
@@ -23,6 +24,7 @@ function FindingsExplorer() {
   const [dimension, setDimension] = useState('');
   const [status, setStatus] = useState('open');
   const [severityMin, setSeverityMin] = useState('');
+  const [verifyStatus, setVerifyStatus] = useState('');
   const [selected, setSelected] = useState<number[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
   const [note, setNote] = useState('');
@@ -33,6 +35,7 @@ function FindingsExplorer() {
       ...(dimension ? { dimension } : {}),
       ...(status ? { status } : {}),
       ...(severityMin ? { severity_min: severityMin } : {}),
+      ...(verifyStatus ? { verify_status: verifyStatus } : {}),
     },
   } as const;
 
@@ -104,6 +107,20 @@ function FindingsExplorer() {
                 {SEVERITY_LABEL[s]} and above
               </option>
             ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Verification
+          <select
+            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            data-testid="filter-verify"
+            value={verifyStatus}
+            onChange={(e) => setVerifyStatus(e.target.value)}
+          >
+            <option value="">Any</option>
+            <option value="confirmed">Verified by a second model</option>
+            <option value="unverified">Not independently verified</option>
+            <option value="contradicted">Contradicted on review</option>
           </select>
         </label>
       </div>
@@ -192,6 +209,7 @@ function FindingsExplorer() {
               <th scope="col">Repository</th>
               <th scope="col">File</th>
               <th scope="col">Status</th>
+              <th scope="col">Verification</th>
             </tr>
           </thead>
           <tbody data-testid="finding-rows">
@@ -229,6 +247,9 @@ function FindingsExplorer() {
                   {f.file}:{f.line_range[0]}
                 </td>
                 <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                <td className="py-1 text-xs whitespace-nowrap" data-testid={`finding-verify-${f.id}`}>
+                  {VERIFY_LABEL[f.verify_status]}
+                </td>
               </tr>
             ))}
           </tbody>

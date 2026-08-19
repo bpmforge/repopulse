@@ -56,6 +56,13 @@ export const findings = pgTable(
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     occurrenceCount: integer('occurrence_count').notNull().default(1),
+    /**
+     * W6-05 (FR-ANALYSIS-9). 'unverified' is the honest default: a finding
+     * nobody has re-judged is not the same as one a second model confirmed,
+     * and collapsing the two would let an unchecked claim wear the badge of a
+     * verified one.
+     */
+    verifyStatus: text('verify_status').notNull().default('unverified'),
   },
   (t) => [
     unique('findings_workspace_repo_dedup_key').on(t.workspaceId, t.repoId, t.dedupKey),
@@ -73,6 +80,10 @@ export const findings = pgTable(
     ),
     check('findings_severity_check', sql`${t.severity} between 1 and 5`),
     check('findings_confidence_check', sql`${t.confidence} between 1 and 5`),
+    check(
+      'findings_verify_status_check',
+      sql`${t.verifyStatus} in ('unverified', 'confirmed', 'contradicted')`,
+    ),
     check(
       'findings_status_check',
       sql`${t.status} in ('open', 'confirmed', 'dismissed', 'resolved', 'wont_fix')`,
