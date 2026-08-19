@@ -3898,6 +3898,144 @@
         "ALSO OBSERVED, NOT FIXED: the nightly-e2e job has no data tier either and would fail the moment the budget is restored, since `pnpm e2e` needs a seeded stack. Out of scope here (it needs the API and web servers plus the seeder in CI, not two service containers) — worth its own ticket.",
         "USER ACTION REQUIRED: the Actions budget/spending limit on the bpmforge org has to be raised before any of this executes. Until then every gate in this repo is a local gate, and the validators, lint, typecheck and test steps in ci.yml are decorative."
       ]
+    },
+    {
+      "id": "W13-01",
+      "title": "pnpm setup: one command from clone to a ready dev stack",
+      "phase": 13,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "scripts/**",
+        "package.json",
+        ".env.example"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A single `pnpm setup` on a clean clone leaves the dev data tier healthy, migrated and seeded",
+        "It WRITES .env from the template and GENERATES TOKEN_ENC_KEY and SESSION_SECRET rather than leaving them blank",
+        "It is idempotent: running it twice is safe and never overwrites an existing .env secret",
+        "It fails with an actionable message when podman/node/ports are missing, naming what to do"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-18 after auditing the fresh-clone path by actually running it. Booting the API with only .env.example dies twice: first `missing required env var GITHUB_APP_CLIENT_ID`, then `TOKEN_ENC_KEY is required (32-byte hex)`. Both blanks are CORRECT (Law 9 — a committed key is a published key), which means the documented setup file cannot start the app and never could.",
+        "Generation, not documentation. Telling a newcomer to run `openssl rand -hex 32` twice and paste the results is the step everyone gets wrong; the script should do it and print what it did.",
+        "NEVER overwrite an existing secret in .env. A rerun that regenerates TOKEN_ENC_KEY silently makes every stored forge credential undecryptable (DEPLOYMENT.md §3).",
+        "Port preflight matters here specifically: a compose dev stack already holds 3000 on this machine, which is what E2E_API_PORT exists to work around. A setup script that does not check ports hands the user a confusing failure later instead of a clear one now."
+      ]
+    },
+    {
+      "id": "W13-02",
+      "title": "Demo mode: run the whole app with no GitHub account and no OAuth app",
+      "phase": 13,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/**",
+        "packages/shared/src/testing/**",
+        "e2e/**",
+        "apps/web/src/**"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "With DEMO_MODE on, a fresh install serves a usable app: log in, see seeded org/repo/PR/file screens, no GitHub OAuth app registered anywhere",
+        "The fake forge is reachable outside the Playwright harness — a runnable process, not a test-only fixture",
+        "DEMO_MODE HARD-REFUSES to start when NODE_ENV=production, and a test proves the refusal",
+        "The demo login is visibly a demo: the UI says so, and it cannot be reached when DEMO_MODE is off"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "CHOSEN BY THE USER 2026-08-18 over a real local-password login, deliberately: password auth is new security surface (session handling, credential storage, SC-11) and this is being written unattended. Demo mode reuses code that already exists and is already tested.",
+        "The pieces exist but are trapped in e2e/: e2e/server.ts boots the API against a fake forge with OAuth mocked at the boundary, and seedWarehouse() fills the warehouse deterministically. Promote, do not rewrite.",
+        "THE REFUSAL IS THE SECURITY CONTROL. A demo login that can be switched on in production is an authentication bypass. It must fail closed — refuse to boot, not silently disable — and the test must assert the refusal, not just the happy path.",
+        "Demo mode must never touch a real forge. C1/Law 4 still applies: it reads our own Postgres, seeded, and any forge call goes to the local fake."
+      ]
+    },
+    {
+      "id": "W13-03",
+      "title": "pnpm dev: api + workers + web in one command",
+      "phase": 13,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "package.json",
+        "apps/api/package.json",
+        "apps/web/package.json",
+        "scripts/**"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "`pnpm dev` starts the API, the ingestion worker and the web dev server together with distinguishable prefixed logs",
+        "The worker gets a start script of its own — today nothing in any package.json launches it",
+        "Ctrl-C stops all three cleanly, leaving no orphan process holding a port",
+        "A port already in use is reported as such, before the stack half-starts"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FOUND 2026-08-18: apps/api/src/workers/index.ts is the ingestion process and NOTHING in any package.json starts it. The only thing that launches it is playwright.config.ts webServer. So a developer running `pnpm --filter api dev` gets an API whose queues fill and never drain — the same silent-inertness class this project has now caught eight times.",
+        "Three terminals is not a setup story. One command, or people run the API alone and conclude ingestion is broken."
+      ]
+    },
+    {
+      "id": "W13-04",
+      "title": "README quickstart + docs/RUNNING.md",
+      "phase": 13,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "README.md",
+        "docs/RUNNING.md"
+      ],
+      "depends_on": [
+        "W13-01",
+        "W13-02",
+        "W13-03"
+      ],
+      "acceptance": [
+        "README carries a quickstart at the TOP: the commands, in order, that take a clone to a running app",
+        "docs/RUNNING.md covers demo mode, connecting a real GitHub org, and the deploy/compose.yaml container path",
+        "Every command in both documents was actually executed, not composed from memory",
+        "Troubleshooting names the failures a newcomer really hits: ports in use, podman not running, blank secrets"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "The current README is 38 lines of product summary and a doc index, with NO setup section at all. It tells a newcomer what RepoPulse is and nothing about how to run it.",
+        "Document the container path too, not just the dev path: deploy/compose.yaml (W11-01) already brings up postgres, redis, migrate, api, worker and web, and it is running on this machine right now. It is undiscoverable from the README.",
+        "Untested setup docs are fiction. W13-05 exists to keep this one honest."
+      ]
+    },
+    {
+      "id": "W13-05",
+      "title": "Verify the whole path on a clean clone",
+      "phase": 13,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        "docs/RUNNING.md",
+        "docs/STATUS.md",
+        "scripts/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W13-04"
+      ],
+      "acceptance": [
+        "The full quickstart is executed in a FRESH clone in a scratch directory, not in the working tree",
+        "Every deviation is fixed or written down — no step is reported as working because it looked right",
+        "The run ends with a screenshot-or-equivalent proof that the app served real seeded screens",
+        "STATUS.md records what a newcomer actually experiences, including anything still rough"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "THE ONLY TICKET THAT MAKES THE OTHERS REAL. Every previous instance of this defect class in this project was found by running the thing rather than reading it — the bot filter, the unpublished sync events, the never-called CI metrics, and CI itself never having run a single step.",
+        "A fresh clone in a temp dir, because the working tree has a .env, a migrated database, a warmed pnpm store and six days of running containers. None of that is true for a newcomer, and every one of them can hide a broken step."
+      ]
     }
   ]
 }
