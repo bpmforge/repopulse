@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
-import { core, createDb, metricsRegistry } from '@repopulse/shared';
+import { and, desc, eq } from 'drizzle-orm';
+import { core, createDb, facts, metricsRegistry } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
@@ -18,7 +18,13 @@ import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { providerForRepo } from './forge-provider.js';
-import { runSecretsHistoryScan, runSecretsStreamScan, startSweeper } from '@repopulse/security';
+import {
+  runChainer,
+  runSecretsHistoryScan,
+  runSecretsStreamScan,
+  runSemgrepFull,
+  startSweeper,
+} from '@repopulse/security';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
@@ -125,6 +131,89 @@ async function main(): Promise<void> {
             });
           },
         },
+        // W8-07 + W8-09 share ONE weekly pass, wired once. A semgrep full run
+        // and a chain recompute are the same shape of work — per repo, on a
+        // schedule, no user waiting — and two crons doing it would drift.
+        weeklyRunners: {
+          semgrep: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(
+              { db, tokenKey: credentials.loadTokenKey() },
+              workspaceId,
+              repoId,
+            );
+            if (!resolved) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            }
+            // The newest commit we have ingested, which is the only head SHA
+            // this side of the product actually knows: repos carries pushed_at
+            // but not the sha it belongs to.
+            const [head] = await db
+              .select({ sha: facts.commits.sha })
+              .from(facts.commits)
+              .where(eq(facts.commits.repoId, repoId))
+              .orderBy(desc(facts.commits.committedAt))
+              .limit(1);
+            const sha = head?.sha;
+            // No known head SHA means no pinned commit to scan. Reported as
+            // skipped rather than scanning "whatever is current", which would
+            // produce findings nobody can reproduce.
+            if (!sha) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
+            }
+            const result = await runSemgrepFull({
+              db,
+              provider: resolved.provider,
+              workspaceId,
+              repoId,
+              repo: resolved.repoFullName,
+              commitSha: sha,
+            });
+            return {
+              scanned: result.status === 'succeeded' ? 1 : 0,
+              findingsCreated: result.findingsCreated,
+              deferred: 0,
+              ...(result.error ? { skipped: result.error } : {}),
+            };
+          },
+          attack_chainer: async ({ workspaceId, repoId }) => {
+            // Runs whether or not the repo has a connection: it reads findings
+            // we already have and calls no forge at all.
+            const result = await runChainer({ db, workspaceId, repoId, trigger: 'schedule' });
+            return {
+              scanned: result.chains + result.compound,
+              findingsCreated: result.created,
+              deferred: 0,
+              ...(result.error ? { skipped: result.error } : {}),
+            };
+          },
+        },
+        weeklySweep: async (scannerKey) => {
+          const workspaces = await db.select({ id: core.workspaces.id }).from(core.workspaces);
+          const week = `${new Date().getUTCFullYear()}w${Math.ceil(new Date().getUTCDate() / 7)}`;
+          let enqueued = 0;
+          for (const ws of workspaces) {
+            const live = await db
+              .select({ id: core.repos.id })
+              .from(core.repos)
+              .where(and(eq(core.repos.workspaceId, ws.id), eq(core.repos.syncStatus, 'live')));
+            for (const repo of live) {
+              await securityScanQueue.add(
+                'weekly',
+                {
+                  workspaceId: ws.id,
+                  repoId: repo.id,
+                  scannerKey,
+                  commitSha: '',
+                  trigger: 'schedule' as const,
+                  mode: 'weekly' as const,
+                },
+                { jobId: `sec-weekly-${scannerKey}-${repo.id}-${week}` },
+              );
+              enqueued += 1;
+            }
+          }
+          return { enqueued };
+        },
         historySweep: async (scannerKey) => {
           // Same shape as the nightly reconcile fan-out: list what is live,
           // enqueue one job each, and let the per-repo job own its own caps.
@@ -228,6 +317,35 @@ async function main(): Promise<void> {
   }
   console.log(
     `[worker] monthly secrets history sweep: ${historyCron === 'off' ? 'disabled' : historyCron}`,
+  );
+
+  // The weekly security pass (SECURITY_SUITE §4): a full semgrep scan and a
+  // chain recompute, per repo. Two scanners, ONE schedule — a chain built from
+  // findings a full scan is about to replace is a chain about last week.
+  // Chainer runs an hour later for exactly that reason.
+  const weeklyCron = process.env.SECURITY_WEEKLY_CRON ?? '41 2 * * 0';
+  const chainCron = process.env.SECURITY_CHAIN_CRON ?? '41 3 * * 0';
+  if (weeklyCron !== 'off') {
+    for (const [scannerKey, pattern] of [
+      ['semgrep', weeklyCron],
+      ['attack_chainer', chainCron],
+    ] as const) {
+      await securityScanQueue.add(
+        'weekly-sweep',
+        {
+          workspaceId: 0,
+          repoId: 0,
+          scannerKey,
+          commitSha: '',
+          trigger: 'schedule' as const,
+          mode: 'weekly_sweep' as const,
+        },
+        { repeat: { pattern }, jobId: `security-weekly-sweep-${scannerKey}` },
+      );
+    }
+  }
+  console.log(
+    `[worker] weekly security pass: ${weeklyCron === 'off' ? 'disabled' : `${weeklyCron} (semgrep), ${chainCron} (chains)`}`,
   );
 
   const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
