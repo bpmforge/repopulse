@@ -34,6 +34,14 @@ export interface BuildAppOptions {
   /** Injectable queue lookup for DLQ replay (W4-20) — tests replay without Redis. */
   adminQueueFor?: (queue: string) => import('bullmq').Queue | undefined;
   loginRedirectUrl: string;
+  /**
+   * Demo mode (W13-02). Surfaced to the SPA via /me/context so the UI can say
+   * plainly that this is fake data — a demo that looks identical to the real
+   * product is how a screenshot of fixtures ends up in a decision meeting.
+   * The API is the authority: a browser-side env flag could disagree with the
+   * server it is talking to.
+   */
+  demo?: boolean;
   /** Test-only override so security tests can capture audit/redaction output. */
   loggerInstance?: Logger;
 }
@@ -117,6 +125,7 @@ export function buildApp(opts: BuildAppOptions) {
     webhookUrl: opts.webhookUrl,
     ...(opts.forgeBaseUrl ? { forgeBaseUrl: opts.forgeBaseUrl } : {}),
     ...(opts.adminQueueFor ? { adminQueueFor: opts.adminQueueFor } : {}),
+    demo: opts.demo ?? false,
     enqueueBackfillPlan: async ({ workspaceId, repoId }) => {
       await backfill().add('plan', { workspaceId, repoId });
     },

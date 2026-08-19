@@ -37,6 +37,8 @@ export interface ApiV1Options {
   /** Forge API base URL (GHES / self-hosted forge, or a fake in e2e). */
   forgeBaseUrl?: string;
   adminQueueFor?: (queue: string) => import('bullmq').Queue | undefined;
+  /** W13-02: surfaced to the SPA on /me/context so the UI can say it is a demo. */
+  demo?: boolean;
 }
 
 // The guarded /api/v1 scope (API_DESIGN.md §1/§2): session required,
@@ -95,7 +97,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   await app.register(reposRoutes, { db: opts.db });
   await app.register(prsRoutes, { db: opts.db });
   await app.register(filesRoutes, { db: opts.db });
-  await app.register(meRoutes, { db: opts.db });
+  await app.register(meRoutes, { db: opts.db, demo: opts.demo ?? false });
   // SSE, mounted at last. It was deferred because inject() hangs on a
   // socket-hijacking route and stalled the W1-07 tenancy walker; the walker now
   // skips streaming prefixes explicitly, and this route carries its own

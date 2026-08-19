@@ -12,6 +12,14 @@ import { sendProblem } from '../../lib/problem.js';
 
 export interface MeRoutesOptions {
   db: Database;
+  /**
+   * W13-02. True when the API is serving a fake forge and a mocked login, so
+   * the shell can say so. Comes from the SERVER, not a browser env flag: the
+   * browser cannot know what the API it is talking to is actually connected to,
+   * and a demo that looks identical to the real product is how a screenshot of
+   * fixture data ends up in a decision meeting.
+   */
+  demo?: boolean;
 }
 
 // UX_SPEC §6 personas and the home each one routes to (D9/R-A2). The mapping
@@ -95,6 +103,7 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       // first paint and flash the wrong home.
       persona: me?.persona ?? null,
       prefs: me?.prefs ?? {},
+      demo: opts.demo ?? false,
     });
   });
 

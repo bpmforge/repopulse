@@ -4,8 +4,7 @@ import { createDb } from '@repopulse/shared';
 // and adding one to ship a test seam is the wrong trade — W4-00's write_scope
 // is e2e/** for exactly this reason.
 import { buildApp } from '../apps/api/src/app.js';
-import { startFakeGithub } from './helpers/fake-github.js';
-import { startFakeForge } from './helpers/fake-forge.js';
+import { startFakeForge, startFakeGithub } from '@repopulse/shared';
 
 // e2e API server (W4-00, docs/TESTING.md §6).
 //

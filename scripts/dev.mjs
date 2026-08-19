@@ -25,8 +25,18 @@ import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { createInterface } from 'node:readline';
 
+// DEMO_MODE swaps the API entrypoint for the demo one (W13-02): a fake forge,
+// a mocked login boundary and a seeded warehouse, so the whole product runs
+// with no GitHub account and no registered OAuth app. Explicit falsey spellings
+// count as OFF — `DEMO_MODE=0` reading as ON is how a demo login ends up in
+// front of real data.
+const DEMO = (() => {
+  const f = process.env.DEMO_MODE;
+  return f !== undefined && f !== '' && f !== '0' && f.toLowerCase() !== 'false';
+})();
+
 const PROCS = [
-  { name: 'api', color: '\x1b[36m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', 'dev'], port: Number(process.env.PORT ?? 3000) },
+  { name: 'api', color: '\x1b[36m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', DEMO ? 'demo' : 'dev'], port: Number(process.env.PORT ?? 3000) },
   { name: 'worker', color: '\x1b[35m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', 'dev:worker'] },
   { name: 'web', color: '\x1b[32m', cmd: 'pnpm', args: ['--filter', '@repopulse/web', 'dev'], port: 5173 },
 ];
@@ -53,7 +63,12 @@ function portInUse(port) {
 // output. On a fresh clone this is the FIRST thing a newcomer hits, and a
 // stack trace does not tell them the fix is `pnpm bootstrap` (W13-01) or demo mode
 // (W13-02).
-const REQUIRED = ['DATABASE_URL', 'REDIS_URL', 'SESSION_SECRET', 'API_BASE_URL', 'PUBLIC_BASE_URL', 'TOKEN_ENC_KEY', 'GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET'];
+// Demo mode needs no GitHub credentials at all — that is the entire point, so
+// requiring them here would defeat it.
+const REQUIRED = [
+  'DATABASE_URL', 'REDIS_URL', 'SESSION_SECRET', 'API_BASE_URL', 'PUBLIC_BASE_URL', 'TOKEN_ENC_KEY',
+  ...(DEMO ? [] : ['GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET']),
+];
 const missingEnv = REQUIRED.filter((k) => !process.env[k]);
 if (missingEnv.length > 0) {
   console.error(
@@ -127,7 +142,8 @@ function shutdown(code) {
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => shutdown(0));
 
 console.log(
-  `\n  api    http://localhost:${PROCS[0].port}\n` +
+  (DEMO ? `\n  \x1b[33mDEMO MODE\x1b[0m — fake forge, mocked sign-in, seeded data\n` : '') +
+    `\n  api    http://localhost:${PROCS[0].port}\n` +
     `  web    http://localhost:5173\n` +
     `  worker (ingestion queues)\n\n` +
     `  Ctrl-C stops all three.\n`,

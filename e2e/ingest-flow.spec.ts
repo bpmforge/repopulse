@@ -9,7 +9,7 @@ import {
   FAKE_REPOS,
   FAKE_REVIEWS,
   FAKE_TOKEN,
-} from './helpers/fake-forge.js';
+} from '@repopulse/shared';
 import { waitForIngestedRepo } from './helpers/warehouse.js';
 
 // The operator's real path: connect a credential, then CHOOSE repositories.

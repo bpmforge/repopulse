@@ -8,6 +8,7 @@ import {
 import type { QueryClient } from '@tanstack/react-query';
 import { Rail } from '../components/shell/Rail.js';
 import { Topbar } from '../components/shell/Topbar.js';
+import { DemoBanner } from '../components/shell/DemoBanner.js';
 import { Breadcrumb, type Crumb } from '../components/shell/Breadcrumb.js';
 import { Toaster } from '../components/shell/Toaster.js';
 import { useUiStore } from '../components/store/uiStore.js';
@@ -97,6 +98,7 @@ function RootShell() {
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-fg">
       <Rail search={preservedSearch} badges={railBadges} />
       <div className="flex min-w-0 flex-1 flex-col">
+        <DemoBanner />
         <Topbar value={search} onChange={onFilterChange} />
         <Breadcrumb crumbs={deriveCrumbs(pathname)} search={preservedSearch} />
         <main className="min-h-0 flex-1 overflow-auto p-4" data-testid="main">

@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { FIXTURE_LOGIN } from '@repopulse/shared';
+import { FIXTURE_LOGIN } from '../seed/index.js';
 
 // Fake GitHub OAuth boundary for e2e (W4-00, docs/TESTING.md §6).
 //
