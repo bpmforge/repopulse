@@ -16,6 +16,7 @@ import type {
   ForgeRelease,
   ForgeRepo,
   ForgeReview,
+  ForgeTarball,
   Page,
   SinceQuery,
 } from '../types.js';
@@ -60,6 +61,11 @@ export const GITLAB_CAPABILITIES: ForgeCapabilities = {
   supportsRawDiff: false, // diffs come through the JSON API, never a raw patch endpoint
   reportsTotalCounts: true, // x-total
   hasRateLimits: true, // gitlab.com enforces limits; self-managed usually does too
+  // False on purpose (W8-03): GitLab's archive endpoint has not been verified
+  // against a live instance the way the rest of this adapter was, and a
+  // capability that claims an unverified op is worse than one that says no —
+  // callers branch on this flag and will simply skip snapshot scanners.
+  supportsTarball: false,
   maxPerPage: GITLAB_MAX_PER_PAGE,
 };
 
@@ -316,6 +322,16 @@ export class GitLabProvider implements ForgeProvider {
       'contents',
     );
     return normalizeFileContent(res.body as RawGitlabFile, path, ref);
+  }
+
+  /**
+   * Not supported (W8-03). `supportsTarball` is false, so a caller that branches
+   * on the capability — which the port requires — never reaches this. It throws
+   * rather than returning an empty archive: an empty snapshot would scan clean
+   * and report a repo as having no findings.
+   */
+  async getTarball(_ctx: CallCtx, _repo: string, _sha: string): Promise<ForgeTarball> {
+    throw new Error('GitLab archive download is not implemented — check supportsTarball first');
   }
 
   async registerWebhook(

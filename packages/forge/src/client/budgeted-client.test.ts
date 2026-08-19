@@ -325,7 +325,7 @@ describeIfLiveInfra('BudgetedClient (FR-FORGE-3/4, NFR-12)', () => {
       expect(snapshot.requestsTotal['issues|user|200']).toBe(1);
       expect(snapshot.budgetRemaining).toBe(4000);
       expect(snapshot.pointsSpent.rest).toBeGreaterThan(0);
-      expect(snapshot.queueDepth).toEqual({ webhook: 0, user: 0, backfill: 0, reconcile: 0 });
+      expect(snapshot.queueDepth).toEqual({ webhook: 0, user: 0, backfill: 0, scan: 0, reconcile: 0 });
     });
   });
 });

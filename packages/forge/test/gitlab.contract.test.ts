@@ -28,6 +28,7 @@ describe('GitLabProvider contract (W12-01, zero network)', () => {
     expect(p.kind).toBe('gitlab');
     expect(p.capabilities).toEqual({
       supportsGraphQLBackfill: false,
+      supportsTarball: false,
       supportsDeployments: true,
       supportsCheckRuns: true,
       supportsStatsEndpoints: false,

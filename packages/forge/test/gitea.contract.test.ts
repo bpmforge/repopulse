@@ -54,6 +54,7 @@ describe('GiteaProvider contract (W7-02, zero network)', () => {
     expect(p.kind).toBe('gitea');
     expect(p.capabilities).toEqual({
       supportsGraphQLBackfill: false,
+      supportsTarball: true,
       supportsDeployments: false,
       supportsCheckRuns: false,
       supportsStatsEndpoints: false,

@@ -1,3 +1,4 @@
+import { resolveTarball, createFetchDownloader, type TarballDownloader } from '../client/tarball.js';
 import type { ForgeRequest, ForgeResponse } from '../client/budgeted-client.js';
 import type { ForgeProvider } from '../provider.js';
 import type {
@@ -15,6 +16,7 @@ import type {
   ForgeRelease,
   ForgeRepo,
   ForgeReview,
+  ForgeTarball,
   Page,
   SinceQuery,
 } from '../types.js';
@@ -55,6 +57,7 @@ export const GITHUB_CAPABILITIES: ForgeCapabilities = {
   supportsRawDiff: false,
   reportsTotalCounts: false,
   hasRateLimits: true,
+  supportsTarball: true, // /tarball/{sha} → 302 codeload (W8-03)
   maxPerPage: 100,
 };
 
@@ -81,6 +84,8 @@ export interface GitHubProviderOptions {
   auth: AuthHeaderProvider;
   /** Override for tests / GHE-later; defaults to public GitHub. */
   baseUrl?: string;
+  /** W8-03: injected so tests never touch codeload; prod uses plain fetch. */
+  tarballDownloader?: TarballDownloader;
 }
 
 function withPage(base: string, cursor?: ForgeCursor): string {
@@ -96,11 +101,13 @@ export class GitHubProvider implements ForgeProvider {
   private readonly client: ForgeHttpClient;
   private readonly auth: AuthHeaderProvider;
   private readonly base: string;
+  private readonly download: TarballDownloader;
 
   constructor(opts: GitHubProviderOptions) {
     this.client = opts.client;
     this.auth = opts.auth;
     this.base = opts.baseUrl ?? DEFAULT_GITHUB_BASE_URL;
+    this.download = opts.tarballDownloader ?? createFetchDownloader();
   }
 
   private getHeaders = (): Promise<Record<string, string>> => this.auth.headers();
@@ -273,6 +280,29 @@ export class GitHubProvider implements ForgeProvider {
       'contents',
     );
     return normalizeFileContent(res.body as RawFileContent, ref);
+  }
+
+  /**
+   * Source archive for one commit (W8-03, C1a). ONE core point, like any REST
+   * GET — the download itself happens on codeload, which is not rate-limited
+   * and which we deliberately reach without the forge token.
+   */
+  async getTarball(ctx: CallCtx, repo: string, sha: string): Promise<ForgeTarball> {
+    const res = await this.client.request(ctx, {
+      method: 'GET',
+      url: `${this.base}/repos/${repo}/tarball/${sha}`,
+      family: 'contents',
+      cost: 1,
+      getHeaders: this.getHeaders,
+    });
+    return resolveTarball({
+      commitSha: sha,
+      apiHost: new URL(this.base).hostname,
+      status: res.status,
+      headers: res.headers,
+      body: res.body,
+      download: this.download,
+    });
   }
 
   async registerWebhook(

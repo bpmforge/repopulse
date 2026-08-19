@@ -124,6 +124,7 @@ export interface ForgeCapabilities {
   supportsRawDiff: boolean; // GitHub 406s >300 files/20k lines - adapters may say false outright
   reportsTotalCounts: boolean; // Gitea x-total-count true / GitHub false
   hasRateLimits: boolean; // Gitea self-hosted false -> budgeter becomes pass-through
+  supportsTarball: boolean; // W8-03: source archive download for snapshot scanners (C1a)
   maxPerPage: number; // GitHub 100 / Gitea MAX_RESPONSE_ITEMS (50 default)
 }
 
@@ -133,7 +134,12 @@ export interface SinceQuery {
   perPage?: number;
 }
 
-export type Lane = 'webhook' | 'user' | 'backfill' | 'reconcile'; // priority, high->low
+// W8-03: 'scan' sits between backfill and reconcile. A security scan is worth
+// less than a user waiting on a page and less than filling in history someone
+// asked for, but more than reconciliation, which is by definition catching up
+// on data we already have — a scan blocked behind reconcile would never run on
+// a busy workspace.
+export type Lane = 'webhook' | 'user' | 'backfill' | 'scan' | 'reconcile'; // priority, high->low
 
 export interface CallCtx {
   lane: Lane;
@@ -144,3 +150,19 @@ export interface CallCtx {
 // Endpoint families for BudgetedClient secondary buckets (§3).
 export type EndpointFamily =
   'commits' | 'pulls' | 'pull_files' | 'checks' | 'contents' | 'issues' | 'releases' | 'graphql';
+
+/**
+ * A source archive for one pinned commit (W8-03, C1a exception, SECURITY_SUITE §1.4).
+ *
+ * Bytes, never a working copy: the archive is fetched through the budgeted
+ * client, extracted under guard into an ephemeral scratch dir, scanned and
+ * deleted. Nothing is cloned and nothing persists.
+ */
+export interface ForgeTarball {
+  /** The SHA the archive is pinned to — every scan result is reproducible for it. */
+  commitSha: string;
+  /** gzip-compressed tar bytes. */
+  bytes: Uint8Array;
+  /** Where the bytes actually came from, for the audit trail (codeload, not the API host). */
+  sourceHost: string;
+}

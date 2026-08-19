@@ -119,6 +119,22 @@ else
   pass 5 "no Drizzle schema files yet (skipped)"
 fi
 
+# ---- Rules 6 & 7: C1a (no clone / tarball only via the snapshot service) and
+# ---- NFR-14 (scan tools spawn only inside the sandbox) ----------------------
+# Defined in their own file so they can be tested by PLANTING violations — see
+# packages/security/src/snapshot/arch-rules.test.ts. A rule nobody has watched
+# fire is a rule that passes forever with a broken regex.
+# shellcheck source=scripts/arch-rules-6-7.sh
+. "$ROOT/scripts/arch-rules-6-7.sh"
+
+R6_HITS="$(rule6_clone_and_tarball "$ROOT")" && R6_OK=1 || R6_OK=0
+[ "$R6_OK" = 1 ] && pass 6 "no git clone anywhere; getTarball called only from the snapshot service (C1a)" \
+                 || { fail 6 "C1a violation:"; printf '%s\n' "$R6_HITS" | sed 's/^/        /'; }
+
+R7_HITS="$(rule7_scan_tool_spawn "$ROOT")" && R7_OK=1 || R7_OK=0
+[ "$R7_OK" = 1 ] && pass 7 "scan tools spawn only inside packages/security/sandbox (NFR-14)" \
+                 || { fail 7 "scan tool spawned outside the sandbox:"; printf '%s\n' "$R7_HITS" | sed 's/^/        /'; }
+
 echo
 if [ "$FAIL" = 0 ]; then
   echo "validate-arch: all rules PASS"

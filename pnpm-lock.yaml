@@ -398,12 +398,18 @@ importers:
       '@repopulse/analysis':
         specifier: workspace:*
         version: link:../analysis
+      '@repopulse/forge':
+        specifier: workspace:*
+        version: link:../forge
       '@repopulse/shared':
         specifier: workspace:*
         version: link:../shared
       drizzle-orm:
         specifier: ^0.39.3
         version: 0.39.3(@opentelemetry/api@1.9.1)(postgres@3.4.9)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.9.3

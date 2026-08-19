@@ -6,7 +6,7 @@ describe('ConcurrencyQueue', () => {
     const queue = new ConcurrencyQueue(2);
     const releaseA = await queue.acquire('backfill');
     const releaseB = await queue.acquire('user');
-    expect(queue.queueDepth).toEqual({ webhook: 0, user: 0, backfill: 0, reconcile: 0 });
+    expect(queue.queueDepth).toEqual({ webhook: 0, user: 0, backfill: 0, scan: 0, reconcile: 0 });
     releaseA();
     releaseB();
   });
@@ -30,7 +30,7 @@ describe('ConcurrencyQueue', () => {
     });
 
     // all three are queued behind the single in-flight slot
-    expect(queue.queueDepth).toEqual({ webhook: 1, user: 1, backfill: 0, reconcile: 1 });
+    expect(queue.queueDepth).toEqual({ webhook: 1, user: 1, backfill: 0, scan: 0, reconcile: 1 });
 
     releaseFirst(); // frees one slot -> highest priority queued lane (webhook) goes next
     const releaseWebhook = await webhookPromise;
