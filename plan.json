@@ -4096,6 +4096,94 @@
         "The dev path had five defects when it was finally run end to end on a clean clone, three of which were invisible on a machine that already worked. There is no reason to assume the container path is cleaner: it has more required secrets (POSTGRES_PASSWORD, REDIS_PASSWORD, all the GITHUB_APP_* values), a build step, and a migrate job whose ordering nothing has tested.",
         "Do NOT verify it against the already-running stack on this machine. That stack was started from a deploy/.env that already exists, which is precisely the state a newcomer does not have."
       ]
+    },
+    {
+      "id": "W14-01",
+      "title": "First real Gitea ingestion: connect git.bpmforge.com and land a backfill",
+      "phase": 14,
+      "module": "ingest",
+      "stories": [],
+      "write_scope": [
+        "deploy/**",
+        "packages/forge/src/gitea/**",
+        "apps/api/src/**",
+        "docs/STATUS.md"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A Gitea connection against git.bpmforge.com discovers repositories and completes a backfill",
+        "repos, commits, pull_requests and metric_snapshots are all non-zero for that connection in the deployed stack",
+        "Whatever the first real instance breaks is fixed or filed — no failure absorbed silently",
+        "STATUS.md records that the GiteaProvider has now run against a real instance, replacing the W4 carried unknown"
+      ],
+      "points": 5,
+      "status": "in_progress",
+      "notes": [
+        "FILED 2026-08-19. THE POINT OF THE PROJECT: deploy/compose.yaml has been up for days and its database holds 0 connections, 0 repos, 0 commits, 0 snapshots. The product is deployed and has never been pointed at anything.",
+        "CLOSES A W4 CARRIED UNKNOWN. GiteaProvider (W7-02) passes the shared contract suite against recorded fixtures and has NEVER touched a real Gitea instance. W4 could not gate partly because of this. A contract suite proves the adapter matches our recording; it does not prove the recording matches Gitea 1.26.2.",
+        "PREREQUISITE, DISCOVERED BEFORE SPENDING A TOKEN: buildDiscoveryProvider throws \"Gitea is self-hosted: FORGE_BASE_URL must point at the instance\" — the base URL is a SERVER-level env, not a per-connection field. deploy/.env needs FORGE_BASE_URL=https://git.bpmforge.com before any Gitea connection can be created.",
+        "VERIFIED REACHABLE: the deployed api container resolves and reaches https://git.bpmforge.com/api/v1/version (1.26.2). Anonymous API reads return 404 for the repos, so a token is genuinely required — this cannot be done credential-free.",
+        "HUMAN STEP: a Gitea access token (Settings -> Applications) with read scopes, entered through the Connections UI. It is encrypted at rest (FR-AUTH-5) and never touches git (Law 9).",
+        "PREP DONE 2026-08-19, WAITING ON A HUMAN. FORGE_BASE_URL=https://git.bpmforge.com is set in deploy/.env and documented in deploy/.env.example; api and worker were force-recreated and both now carry it (verified with printenv inside each container); the stack answers /healthz 200 on :8099. The only remaining step is a Gitea token, which only Brad can mint.",
+        "CORRECTION TO AN EARLIER CLAIM IN THIS SESSION: I said deploy/compose.yaml does not pass FORGE_BASE_URL through. It does — api and worker both declare env_file: [.env], so every variable in that file reaches them. The grep that produced the claim looked for an explicit environment: entry and missed the env_file line. No compose change was needed."
+      ]
+    },
+    {
+      "id": "W14-02",
+      "title": "Per-connection forge base URL — one deployment cannot serve two forges",
+      "phase": 14,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "packages/shared/src/db/schema/**",
+        "packages/shared/drizzle/**",
+        "apps/api/src/routes/connections/**",
+        "apps/web/src/widgets/admin/**"
+      ],
+      "depends_on": [
+        "W14-01"
+      ],
+      "acceptance": [
+        "A connection carries its own base URL; FORGE_BASE_URL becomes the default, not the only answer",
+        "A Gitea connection to a self-hosted instance and a GitHub connection to api.github.com coexist in ONE workspace and both ingest",
+        "Existing connections keep working after the migration (base URL backfilled from the env value they were created under)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "FOUND 2026-08-19 while preparing W14-01. buildDiscoveryProvider takes the base URL from opts.forgeBaseUrl, which comes from a single server env. Setting it to a self-hosted Gitea therefore points EVERY connection in that deployment at that host — a GitHub connection in the same stack would be sent to git.bpmforge.com and fail.",
+        "This is not hypothetical for this project: D1a is a self-hostable product and the connections UI already offers github/gitlab/gitea in one workspace, which cannot work today beyond the first forge.",
+        "The multi-tenant/multi-forge tests pass because they inject buildProvider directly, so nothing exercises the env-derived path with two different forges. Worth a test that would have caught it."
+      ]
+    },
+    {
+      "id": "W14-03",
+      "title": "Move CI off GitHub Actions onto Gitea Actions with a local runner",
+      "phase": 14,
+      "module": "infra",
+      "stories": [],
+      "write_scope": [
+        ".gitea/**",
+        ".github/**",
+        "deploy/**",
+        "docs/RUNNING.md",
+        "docs/STATUS.md"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A .gitea/workflows gate runs lint, typecheck, test and the three validators on push, with Postgres + Redis services and REQUIRE_LIVE_INFRA=1",
+        "An act_runner is registered against git.bpmforge.com and survives a host reboot",
+        "A deliberately broken commit turns the gate RED — proven, not assumed",
+        "The GitHub workflow is removed or reduced to nothing, and README/RUNNING say where CI now lives"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-19. Brad: GitHub should be repo storage only; Actions costs too much. It has also never run even once — 100 of 100 runs failed at job creation on an Actions budget — so there is no CI history to migrate, only a gate to make real for the first time.",
+        "Gitea is 1.26.2, which supports Actions (1.19+). No act_runner is registered yet. Registration needs a runner token from the Gitea admin UI — a human step.",
+        "Port the W12-10 job as-is: it already carries the postgres/redis services, the migrate step and REQUIRE_LIVE_INFRA=1. Do not re-derive it.",
+        "THE RED CHECK IS THE ACCEPTANCE CRITERION THAT MATTERS. A CI system nobody has seen fail is indistinguishable from one that cannot fail — which is exactly the state GitHub Actions was in here for four months."
+      ]
     }
   ]
 }
