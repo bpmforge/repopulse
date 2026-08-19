@@ -17,3 +17,7 @@ export * from './scanners/secrets/verify.js';
 export * from './scanners/secrets/scanner.js';
 export * from './scanners/secrets/stream.js';
 export * from './scanners/secrets/history.js';
+export * from './scanners/semgrep/output.js';
+export * from './scanners/semgrep/scanner.js';
+export * from './scanners/semgrep/run-modes.js';
+export * from './scanners/semgrep/triage.js';

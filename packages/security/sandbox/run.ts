@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
-import { buildSandboxArgs, sandboxEnv, type SandboxProfileArgs } from './profile.js';
+import { buildSandboxArgs, runtimeEnv, type SandboxProfileArgs } from './profile.js';
 
 // The sandbox runner (W8-03, SECURITY_SUITE.md 2.2, NFR-14).
 //
@@ -37,6 +37,15 @@ export interface SandboxRunResult {
   status: SandboxStatus;
   exitCode: number | null;
   output?: SandboxOutput;
+  /**
+   * Everything the tool wrote to stdout (W8-07).
+   *
+   * Returned always, because not every scan tool speaks our findings schema:
+   * Opengrep emits its own JSON and the scanner that owns it does the parsing.
+   * The sandbox's job is to contain the process, not to be the only reader of
+   * what comes out of it.
+   */
+  rawStdout?: string;
   /** Truncated stderr, kept for the operator - never parsed for findings. */
   stderr: string;
   durationMs: number;
@@ -50,6 +59,12 @@ export interface RunInSandboxOptions extends SandboxProfileArgs {
   spawnFn?: typeof spawn;
   /** Stdout cap - a tool that emits gigabytes is a tool that gets cut off. */
   maxStdoutBytes?: number;
+  /**
+   * Validate stdout against the findings schema. Off for tools with their own
+   * output format, whose scanner parses and validates it instead — the
+   * validation still happens, one layer out.
+   */
+  parseOutput?: boolean;
 }
 
 const STDERR_KEEP = 4000;
@@ -62,9 +77,10 @@ export async function runInSandbox(opts: RunInSandboxOptions): Promise<SandboxRu
   const startedAt = Date.now();
 
   return await new Promise<SandboxRunResult>((resolve) => {
-    // An empty env, not a filtered one: see profile.ts.
+    // PATH only, and only so the RUNTIME binary can be found — the container
+    // itself inherits nothing from this process (see runtimeEnv).
     const child = spawnImpl(runtime, argv, {
-      env: sandboxEnv(),
+      env: runtimeEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -112,7 +128,17 @@ export async function runInSandbox(opts: RunInSandboxOptions): Promise<SandboxRu
         return;
       }
       if (code !== 0) {
-        finish({ status: 'failed', exitCode: code, stderr, error: `exit ${String(code)}` });
+        finish({
+          status: 'failed',
+          exitCode: code,
+          stderr,
+          rawStdout: stdout,
+          error: `exit ${String(code)}`,
+        });
+        return;
+      }
+      if (opts.parseOutput === false) {
+        finish({ status: 'succeeded', exitCode: code, stderr, rawStdout: stdout });
         return;
       }
       const parsed = parseSandboxOutput(stdout);
@@ -120,10 +146,16 @@ export async function runInSandbox(opts: RunInSandboxOptions): Promise<SandboxRu
         // A tool that emitted something we cannot validate has produced no
         // findings, not zero findings. Reporting the latter would let a broken
         // scanner render a repo clean.
-        finish({ status: 'invalid_output', exitCode: code, stderr, error: parsed.error });
+        finish({
+          status: 'invalid_output',
+          exitCode: code,
+          stderr,
+          rawStdout: stdout,
+          error: parsed.error,
+        });
         return;
       }
-      finish({ status: 'succeeded', exitCode: code, output: parsed.value, stderr });
+      finish({ status: 'succeeded', exitCode: code, output: parsed.value, stderr, rawStdout: stdout });
     });
   });
 }

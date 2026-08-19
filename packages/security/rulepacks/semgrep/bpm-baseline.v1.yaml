@@ -1,0 +1,131 @@
+# bpm-rulepacks — baseline v1 (W8-07, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES. Semgrep's registry packs (`p/*`, `--config auto`) are barred
+# for service use by their licence (CPU_FIRST_OFFLOAD 2026-07-16 §4/§6), so
+# every rule here is written by us, in the semgrep rule format the Opengrep
+# engine reads. That constraint is also why the pack is small and boring: a
+# rule is worth shipping only if we can say what it costs to be wrong about it.
+#
+# Each rule carries `metadata.yields`, which is what the attack chainer (W8-09)
+# matches against another finding's preconditions. A rule with no yields is a
+# finding that can never become a step in a chain — fine for hygiene rules,
+# wrong for anything that hands an attacker a capability.
+#
+# Severity mapping (see output.ts): ERROR → 4, WARNING → 3, INFO → 2. Nothing
+# in a static pattern match earns 5: severity 5 in this product means confirmed
+# and immediately exploitable, and a regex over a syntax tree cannot know that.
+rules:
+  - id: bpm-js-eval-dynamic
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      eval() executes whatever string it is given. If any part of that string
+      can come from a request, a database row or a file, this is remote code
+      execution.
+    metadata:
+      category: security
+      cwe: 'CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code'
+      yields: ['rce']
+    patterns:
+      - pattern-either:
+          - pattern: eval($X)
+          - pattern: new Function($X)
+      - pattern-not: eval("...")
+      - pattern-not: new Function("...")
+
+  - id: bpm-js-child-process-concat
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A shell command built by string concatenation. Anything interpolated into
+      it is executed by the shell, so a value containing `;` or backticks runs
+      as a second command.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+    patterns:
+      - pattern-either:
+          - pattern: $CP.exec($CMD, ...)
+          - pattern: $CP.execSync($CMD, ...)
+      - metavariable-pattern:
+          metavariable: $CMD
+          patterns:
+            - pattern-either:
+                - pattern: $A + $B
+                - pattern: |
+                    `...${$X}...`
+
+  - id: bpm-js-sql-string-concat
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      SQL assembled by concatenation or interpolation. Use a parameterised
+      query: an escaping helper applied by hand is one forgotten call away from
+      an injection.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+    patterns:
+      - pattern-either:
+          - pattern: $DB.query("..." + $X, ...)
+          - pattern: |
+              $DB.query(`...${$X}...`, ...)
+          - pattern: $DB.raw("..." + $X, ...)
+
+  - id: bpm-js-weak-hash
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      MD5 and SHA-1 are broken for anything security-bearing. They are still
+      fine as non-security checksums — if that is what this is, say so in a
+      comment, because the next reader cannot tell from the call.
+    metadata:
+      category: security
+      cwe: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm'
+      yields: []
+    pattern-either:
+      - pattern: crypto.createHash("md5")
+      - pattern: crypto.createHash("sha1")
+
+  - id: bpm-js-math-random-token
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Math.random() is not a cryptographic random source; its output is
+      predictable from previous values. Use crypto.randomBytes / randomUUID for
+      anything that acts as a secret.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      yields: ['predictable-token']
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $TOKEN = Math.random()
+          - pattern: |
+              $TOKEN = Math.random().toString(...)
+      - metavariable-regex:
+          metavariable: $TOKEN
+          # `key` alone is deliberately NOT here: `cacheKey` is an ordinary
+          # name and the fixture caught this rule firing on it. A rule that
+          # cries wolf on cache keys is a rule people turn off, and then it
+          # misses the session token too.
+          regex: (?i).*(token|secret|password|nonce|session|api[_-]?key|private[_-]?key).*
+
+  - id: bpm-js-jwt-verify-disabled
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A JWT decoded without verification is an attacker-supplied JSON document.
+      Anything read from it — a user id, a role — is whatever the caller typed.
+    metadata:
+      category: security
+      cwe: 'CWE-347: Improper Verification of Cryptographic Signature'
+      yields: ['auth-bypass']
+    pattern-either:
+      - pattern: jwt.decode(...)
+      # Quoted: an unquoted pattern starting with `{` is a YAML flow mapping,
+      # and the whole file fails to load rather than the rule failing to match.
+      - pattern: '$JWT.verify($T, $K, {..., algorithms: ["none"], ...})'
