@@ -1,0 +1,161 @@
+# bpm-rulepacks — anti-slop v1 (W9-01, CODE_HEALTH_SUITE.md §1, FR-CH-1).
+#
+# PROVENANCE: every rule below was written for this repository. NONE is copied,
+# adapted or derived from the Semgrep registry — that licence is barred for
+# service use (DESIGN_REVIEW.md G-18, CPU_FIRST_OFFLOAD 2026-07-16 §4/§6), and
+# "adapted from" would be the same violation with extra steps. Each rule carries
+# `metadata.source` naming the bpm-opencode-experts rule number it implements,
+# which is our own prior art.
+#
+# THESE ARE THE DETERMINISTIC ONES ONLY. The §1 table splits 30 rules across
+# PACK / HYB / LLM layers, and a rule lands here only if a pattern can decide it
+# without judgement. The rest are not weaker versions of these — they are
+# genuinely different questions, and answering them with a regex would produce
+# confident nonsense at scale.
+#
+# Severity here is a code-health signal, not a security one: nothing in this
+# pack exceeds WARNING, because none of it is exploitable. INFO is for things
+# that are only worth mentioning when something else is already wrong.
+rules:
+  - id: bpm-ch-empty-catch
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      An empty or comment-only catch block. The failure still happened; the only
+      thing removed was anyone's chance of knowing. If the error genuinely does
+      not matter, say so by handling it — a logged line, a fallback with a
+      comment explaining why it is safe.
+    metadata:
+      source: R-01
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try { ... } catch ($E) { }
+          - pattern: |
+              try { ... } catch { }
+
+  - id: bpm-ch-try-catch-in-loop
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      try/catch inside a loop body. Sometimes deliberate (continue past one bad
+      row), often a swallowed failure repeated N times with nobody counting.
+      If it is deliberate, the catch should record how many it skipped.
+    metadata:
+      source: R-02
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              for (...) { ... try { ... } catch($E) { ... } ... }
+          - pattern: |
+              while (...) { ... try { ... } catch($E) { ... } ... }
+          - pattern: |
+              for (...) { ... try { ... } catch { ... } ... }
+
+  - id: bpm-ch-silent-fallback-return
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      A catch block that returns an empty value. The caller cannot tell "there
+      is nothing" from "we failed to find out", and those are different facts —
+      this is the shape behind most "the dashboard shows zero" bugs.
+    metadata:
+      source: R-10
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try { ... } catch($E) { return null; }
+          - pattern: |
+              try { ... } catch($E) { return []; }
+          - pattern: |
+              try { ... } catch($E) { return {}; }
+          - pattern: |
+              try { ... } catch($E) { return 0; }
+          - pattern: |
+              try { ... } catch($E) { return false; }
+          - pattern: |
+              try { ... } catch($E) { return ''; }
+
+  - id: bpm-ch-stub-as-feature
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      A function that exists and does nothing but refuse. Exported stubs read as
+      capabilities from the outside — a caller sees the name, not the throw —
+      which is how "we support that" survives into a demo.
+    metadata:
+      source: R-27
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-regex: throw new Error\((['"`])(?i)(not implemented|unimplemented|todo|tbd)[^'"`]*\1\)
+          - pattern-regex: throw new Error\((['"`])(?i)[^'"`]*\bcoming soon\b[^'"`]*\1\)
+
+  - id: bpm-ch-what-comment
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches the mechanical phrasings only ("// increment the counter",
+        "// loop through the items"). A genuinely redundant comment written in
+        natural prose is a judgement call and belongs to the LLM layer.
+    pattern-regex: >-
+      (?i)^\s*//\s*(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new)\s+(the\s+)?\w+\s*\.?\s*$
+
+  - id: bpm-ch-step-narration
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      Step-numbered narration. Three of these in a row usually means the code
+      was written to a plan and the plan was left behind as comments; the
+      structure they describe should be functions with names.
+    metadata:
+      source: R-14
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '^\s*//\s*(Step|STEP)\s*\d+\s*[:.\-]'
+
+  - id: bpm-ch-emoji-comment
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      An emoji in a comment. Harmless once; at scale it is the clearest tell of
+      generated commentary nobody edited, and it does not survive a grep, a
+      terminal without a font, or a diff someone reads at 6am.
+    metadata:
+      source: R-16
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '^\s*(//|\*)\s*.*[\x{1F300}-\x{1FAFF}\x{2700}-\x{27BF}\x{2600}-\x{26FF}]'
+
+  - id: bpm-ch-prose-padding
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      Filler phrasing in a comment. "It is important to note that" and its
+      relatives carry no information — they are the written equivalent of
+      clearing your throat, and they are what a model produces when it has
+      nothing specific to say.
+    metadata:
+      source: R-29
+      category: code_health
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A phrase list, not a measure of density. The LDR calculation in §1 is
+        the real answer and is computed in the anti_slop scanner, not here.
+    pattern-regex: >-
+      (?i)//.*\b(it is important to note|it should be noted|as we can see|in order to be able to|this function is responsible for|needless to say|at the end of the day)\b
