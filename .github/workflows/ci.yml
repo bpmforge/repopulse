@@ -93,6 +93,12 @@ jobs:
       - name: test
         run: pnpm test
 
+      # W7-09: the initial-JS budget (DASHBOARD.md §9). Dependency-free — it
+      # weighs the built entry chunks with Node's own gzip rather than adding a
+      # size tool that is not in TECH_STACK.
+      - name: check:bundle (initial JS <= 200KB gz)
+        run: pnpm check:bundle
+
       - name: validate-arch (module boundary law)
         run: bash scripts/validate-arch.sh
 

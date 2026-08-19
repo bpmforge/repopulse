@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { initChart, type EChartsInstance, type EChartsOption } from './echarts.js';
+// TYPE-ONLY import: pulling `initChart` as a value here put echarts into the
+// registry chunk, so every screen paid 175 KB gz for charts it might never
+// render (W7-09). The runtime import happens inside the effect below, which
+// gives echarts its own chunk fetched on first chart mount.
+import type { EChartsInstance, EChartsOption } from './echarts.js';
 import { activeChartTheme, buildChartTheme } from './chartTheme.js';
 
 // The one ECharts wrapper (DASHBOARD §5). Owns init/dispose, container resize
@@ -47,26 +51,33 @@ export function Chart({
     const el = containerRef.current;
     if (!el) return;
 
-    const create = () => {
+    // Cancellation matters because the import is async: a component unmounted
+    // mid-fetch would otherwise create a chart on a detached node and leak it.
+    let cancelled = false;
+
+    const create = async () => {
+      const { initChart } = await import('./echarts.js');
+      if (cancelled || !containerRef.current) return;
       instanceRef.current?.dispose();
       const chart = initChart(el, buildChartTheme());
       instanceRef.current = chart;
       chart.setOption({ animation: !prefersReducedMotion(), ...option });
       for (const [name, handler] of Object.entries(onEvents ?? {})) chart.on(name, handler);
     };
-    create();
+    void create();
 
     const resize = new ResizeObserver(() => instanceRef.current?.resize());
     resize.observe(el);
 
     // Re-init when data-theme flips so the token bridge picks up new colors.
-    const themeObserver = new MutationObserver(create);
+    const themeObserver = new MutationObserver(() => void create());
     themeObserver.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['data-theme'],
     });
 
     return () => {
+      cancelled = true;
       resize.disconnect();
       themeObserver.disconnect();
       instanceRef.current?.dispose();
