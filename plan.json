@@ -3974,10 +3974,16 @@
         "A port already in use is reported as such, before the stack half-starts"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "FOUND 2026-08-18: apps/api/src/workers/index.ts is the ingestion process and NOTHING in any package.json starts it. The only thing that launches it is playwright.config.ts webServer. So a developer running `pnpm --filter api dev` gets an API whose queues fill and never drain — the same silent-inertness class this project has now caught eight times.",
-        "Three terminals is not a setup story. One command, or people run the API alone and conclude ingestion is broken."
+        "Three terminals is not a setup story. One command, or people run the API alone and conclude ingestion is broken.",
+        "DONE 2026-08-19. scripts/dev.mjs spawns api + worker + web with prefixed, colour-coded output, and apps/api gained the dev:worker and start:worker scripts it never had. No new dependency: three spawns and a readline prefix is less code than wiring a process runner, and it keeps the shutdown semantics ours.",
+        "TWO REAL BUGS FOUND BY RUNNING IT, not by reading it. (1) `pnpm --filter` runs each child with cwd=apps/api or apps/web, so the child's own `import 'dotenv/config'` looks for .env in THAT directory and finds nothing — the API died on \"missing required env var DATABASE_URL\" and the worker on \"DATABASE_URL and REDIS_URL are required\", on a machine where .env exists and every other entrypoint works. Fixed by loading dotenv in the PARENT and inheriting. playwright.config.ts carries a note about the identical trap. (2) Port 3000 is held on this machine by the deploy/compose.yaml stack, so the preflight fired on its first real run.",
+        "TWO PREFLIGHTS, env before ports, because a fresh clone hits the env wall first: missing vars are reported as a list with the fix (`pnpm setup`, or DEMO_MODE for no GitHub account) instead of a stack trace interleaved with two other processes' output. Ports are checked BEFORE anything starts, so a conflict never leaves two orphans running.",
+        "One process exiting takes the stack down, and anything still alive 3s after SIGTERM gets SIGKILL — a half-running stack is the failure mode where the worker is silently absent and people conclude ingestion is broken.",
+        "VERIFIED: all three up, /healthz 200 on api (:3010), web 200 (:5173), worker 200 (:3001), Ctrl-C clean with no orphans. Missing-env path and port-conflict path both checked. Gate: lint 0, typecheck 0, 589 tests zero skipped, three validators exit 0.",
+        "NOT FIXED HERE, and it is the newcomer blocker: the API still requires GITHUB_APP_CLIENT_ID/SECRET to boot at all, so on a fresh clone `pnpm dev` cannot start the API even with a database. That is W13-02 (demo mode). The preflight message points at it rather than pretending otherwise."
       ]
     },
     {

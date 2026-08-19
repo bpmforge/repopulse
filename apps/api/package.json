@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev:worker": "tsx watch src/workers/index.ts",
+    "start:worker": "tsx src/workers/index.ts"
   },
   "dependencies": {
     "@fastify/helmet": "^13.1.0",
