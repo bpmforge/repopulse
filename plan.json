@@ -2832,9 +2832,19 @@
         "ScanBudget enforcement per §1.2 (wall-clock, container CPU/mem, forge-call quota on the scan lane, LLM tokens via gateway accounting with meta.initiator='scanner:{key}'); exhaustion ⇒ scan_run budget_exceeded with partial findings kept + flagged; chaos test: crash every scanner — ingestion lag and Tier-1 dashboards unaffected (NFR-15)"
       ],
       "points": 8,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "WRITE_SCOPE WIDENED before code: packages/security does not exist yet, the repo_scanner_config table needs schema + migration + a drizzle.config.ts entry + a wipeWorkspace line, and the security.scan queue must land WITH its processor (the wiring gate requires it)."
+        "WRITE_SCOPE WIDENED before code: packages/security does not exist yet, the repo_scanner_config table needs schema + migration + a drizzle.config.ts entry + a wipeWorkspace line, and the security.scan queue must land WITH its processor (the wiring gate requires it).",
+        "DONE 2026-08-19. New packages/security: Scanner/ScannerContext/ScanBudget contracts per SECURITY_SUITE.md §1, the static registry, workspace enablement defaults, budget metering with failure isolation, the repo_scanner_config and scan_runs tables (migration 0012), the security.scan queue WITH its processor, and the admin enablement API.",
+        "THE REGISTRY THROWS ON A DUPLICATE KEY RATHER THAN OVERWRITING. The widget registry silently replaced by type and cost a panel in W5-07; here the key is stamped onto every finding, so a duplicate would misattribute results to the wrong tool. A startup crash is the cheaper failure.",
+        "THE FRAMEWORK NEVER BRANCHES ON A SCANNER KEY, which is the only way FR-SEC-1 can be true: dispatch, triggering and tool requirements all read registry METADATA. A test registers a fixture scanner under a new key and asserts it participates in triggering without a framework change — the moment a switch on scanner.key appears, that claim is already false.",
+        "runScanner NEVER RETHROWS (NFR-15). A scanner is third-party code by construction, so the worst it may do is produce no findings; if it rethrew, one poison scanner would take ingestion and every other scanner down with it. Crash returns failed, wall-clock returns budget_exceeded — distinct statuses because they need distinct responses: failed is a bug to fix, budget_exceeded is a limit to raise.",
+        "BUDGETS ARE ENFORCED BY THE FRAMEWORK, NOT TRUSTED TO THE SCANNER. BudgetMeter charges forge calls and LLM tokens and throws at the cap, so a runaway scanner cannot spend the workspace forge budget (Law 7) or an unbounded number of tokens.",
+        "AN EXPLICIT STORED `false` BEATS A DEFAULT OF `true`, and the test says why: `stored?.enabled ?? default` would be correct here by luck and wrong the moment a default flips — a repo that deliberately opted out would silently opt back in. An unknown scanner key is disabled, not enabled: fail closed on a key nobody has reasoned about.",
+        "THE CATALOG ENDPOINT LISTS DOCUMENTED DEFAULTS EVEN WHEN NO SCANNER IS REGISTERED for them, marked `registered: false`. A scanner that failed to register would otherwise vanish from the admin screen and look like it was never meant to exist.",
+        "A PARTIAL RUN IS FLAGGED ON THE ROW. Findings from a budget-cut scan are real but the SET is incomplete, and an unflagged partial scan reads as a clean one — which is the most dangerous thing a security screen can say.",
+        "TOOL AVAILABILITY CHECKED BEFORE BUILDING: semgrep and gitleaks ARE installed here; syft, grype, trivy and osv-scanner are NOT. This ticket is the framework and needs none of them. The scanners that do are W8-02 onward, and any whose tool is missing will be parked rather than shelled out to.",
+        "GATE: lint 0, typecheck 0, 794 unit tests (was 779), zero skipped, pnpm -r test green, three validators exit 0. No e2e — this ticket ships no screen."
       ]
     },
     {

@@ -1,6 +1,6 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
-import { core, facts, plans, read } from '../../db/index.js';
+import { core, facts, plans, read, security } from '../../db/index.js';
 import { makeRng, type Rng } from './prng.js';
 
 // Deterministic warehouse seeder (W4-00) — one multi-repo org + a second
@@ -121,6 +121,9 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   // until something finally created one: saved_views has an FK to users, so a
   // leftover view makes unseedWarehouse's user delete fail with a constraint
   // error from a table the caller never mentioned.
+  // Scanner config and runs (W8-01).
+  await db.delete(security.scanRuns).where(eq(security.scanRuns.workspaceId, workspaceId));
+  await db.delete(security.repoScannerConfig).where(eq(security.repoScannerConfig.workspaceId, workspaceId));
   // File intents (W6-07).
   await db.delete(plans.fileIntents).where(eq(plans.fileIntents.workspaceId, workspaceId));
   // Agreements (W5-08).

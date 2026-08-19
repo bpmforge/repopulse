@@ -14,6 +14,7 @@ import {
 import { startWorkerHealthServer } from './health.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
+import { scanProcessor } from './scan-processor.js';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
@@ -83,6 +84,8 @@ async function main(): Promise<void> {
       // that is serving requests.
       // W5-06. Nightly, after metrics.snapshot writes the numbers it reads.
       [QUEUE.plansVerify]: plansVerifyProcessor({ db }),
+      // W8-01. Own lane, own workers (NFR-15).
+      [QUEUE.securityScan]: scanProcessor({ db }),
       [QUEUE.reports]: reportProcessor({
         db,
         dataDir: process.env.DATA_DIR ?? './.data',

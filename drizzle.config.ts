@@ -16,6 +16,7 @@ export default defineConfig({
     // db/index.ts, so a schema directory absent here generates no migration and
     // the tables simply never exist.
     './packages/shared/src/db/schema/plans/index.ts',
+    './packages/shared/src/db/schema/security/index.ts',
   ],
   out: './packages/shared/drizzle',
   dbCredentials: {
