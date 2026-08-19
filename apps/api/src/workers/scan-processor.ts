@@ -23,7 +23,7 @@ export interface ScanJobData {
    * commits to look at. `history_sweep` is the monthly fan-out that enqueues
    * one `history` job per repo.
    */
-  mode?: 'sha' | 'history' | 'history_sweep';
+  mode?: 'sha' | 'history' | 'history_sweep' | 'weekly' | 'weekly_sweep';
 }
 
 export interface HistoryRunner {
@@ -54,11 +54,30 @@ export interface ScanProcessorDeps {
    * job, not this processor's — the same split the nightly reconcile sweep uses.
    */
   historySweep?: (scannerKey: string) => Promise<{ enqueued: number }>;
+  /**
+   * The WEEKLY pass (W8-07 full semgrep scan + W8-09 chain recompute), by
+   * scanner key, and its fan-out. Same injected-map shape as the history
+   * runners for the same reason: the framework must not learn scanner names.
+   */
+  weeklyRunners?: Record<string, HistoryRunner>;
+  weeklySweep?: (scannerKey: string) => Promise<{ enqueued: number }>;
 }
 
 export function scanProcessor(deps: ScanProcessorDeps) {
   return async function process(job: Job<ScanJobData>): Promise<void> {
     const data = job.data;
+
+    if (data.mode === 'weekly_sweep') {
+      await deps.weeklySweep?.(data.scannerKey);
+      return;
+    }
+
+    if (data.mode === 'weekly') {
+      const runner = deps.weeklyRunners?.[data.scannerKey];
+      if (!runner) return;
+      await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
+      return;
+    }
 
     if (data.mode === 'history_sweep') {
       await deps.historySweep?.(data.scannerKey);

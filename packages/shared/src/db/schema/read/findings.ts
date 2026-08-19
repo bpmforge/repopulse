@@ -101,7 +101,10 @@ export const findings = pgTable(
       // ONE store. A separate scanner_findings table was the alternative and
       // would have doubled every query, every facet and every report section —
       // and made "all findings for this file" a union nobody remembers to write.
-      sql`${t.dimension} in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain')`,
+      // 'compound' joins them in W8-09: a file flagged by three different
+      // scanners is a finding in its own right (FR-INSIGHTS-6, D9), and it is
+      // not a chain — a chain is a path, this is a concentration.
+      sql`${t.dimension} in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain', 'compound')`,
     ),
     check('findings_severity_check', sql`${t.severity} between 1 and 5`),
     check('findings_confidence_check', sql`${t.confidence} between 1 and 5`),

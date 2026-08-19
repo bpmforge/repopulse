@@ -3153,8 +3153,23 @@
         "Compound-risk detector rides the same completion job (FR-INSIGHTS-6, D9): pure SQL — same file/module flagged by >=3 distinct dimensions/scanners ⇒ dimension 'compound' finding at severity min(5, max(member)+1), auto-resolving when a member resolves; golden test on a 3-dimension fixture module"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. The chainer pass: yields→preconditions matching over all open findings, the compound-risk detector, auto-resolution when a link breaks, and ONE weekly schedule that also carries W8-07's deferred full semgrep scan.",
+        "THE MATCHING IS DELIBERATELY LITERAL. One finding's `yields` term must EQUAL another's `preconditions` term — no synonyms, no inference, no model. `credential:aws` does not match `credential:amazon`, and a test says so. A chainer that guesses produces plausible paths nobody can refute, and every one of them has to be argued down by a person; that is worse than no chainer at all.",
+        "A CHAIN IS ONE WORSE THAN ITS WORST LINK, capped at 5 — not the max, and never an average. If a chain could not exceed its worst member it would tell a reader nothing they did not already have from the member.",
+        "THE CHAIN ID IS DERIVED FROM ITS MEMBERS (sha256 over their dedup keys, in order), not generated. That is what makes the weekly recompute update a chain in place instead of raising a new one every week — and it is why re-running over unchanged findings creates zero rows, which the integration test asserts.",
+        "EVERY STEP REFERENCES ITS FINDING. The payload carries member ids, the matched link terms and a node list, because the entire value of a chain is that it turns three medium findings into a path someone can WALK — and a path you cannot trace back to its evidence is a scary picture, not a finding. The chain itself has NO file: picking one member's path would send a reader to a step rather than to the path.",
+        "AUTO-RESOLUTION NEEDED ITS OWN PASS, and that is a real finding about the existing store: the ordinary stale sweep works on FILES, and a chain has none — nothing would ever have closed one. Any member closing breaks the chain, every closure writes a finding_events row with the reason, and cleanup runs BEFORE rebuilding so a chain whose member was fixed yesterday is not rebuilt from today's findings and counted as new.",
+        "COMPOUND RISK COUNTS DIMENSIONS, NOT SCANNERS (FR-INSIGHTS-6, D9). Two scanners reporting the same KIND of problem is corroboration; counting them separately would make \"we ran more scanners\" look like \"this file got worse\". Asserted with two sast findings on one file that correctly do NOT compound. Pure SQL, as the ticket asks: it is a grouping question, and there is nothing here a model could add that would not be a guess.",
+        "THE CHAINER EXCLUDES ITS OWN OUTPUT from both passes. Chaining chains would produce findings about findings, deeper every week.",
+        "CONFIDENCE 4, NOT 5, on a chain: the links are deterministic but whether the path is truly walkable depends on code neither end of it can see. The rationale says the useful thing out loud — breaking ANY link breaks the chain, and the cheapest step to fix is usually not the most severe one.",
+        "ONE WEEKLY SCHEDULE FOR TWO SCANNERS, which is why W8-07 deliberately left its cron to this ticket. A full semgrep scan and a chain recompute are the same shape of work and two crons would drift. The chainer runs an hour later on purpose: a chain built from findings a full scan is about to replace is a chain about last week. Both are looked up in an INJECTED MAP by scanner key, never a switch (FR-SEC-1), and the worker was watched booting with both schedules registered.",
+        "THE WEEKLY SEMGREP RUN NEEDS A PINNED SHA and uses the newest ingested commit — repos carries pushed_at but not the sha it belongs to. With no commits it reports skipped rather than scanning \"whatever is current\", which would produce findings nobody can reproduce.",
+        "SCOPE WIDENED, WITH REASON: packages/shared schema + migration 0016 (the acceptance names dimension `compound`, which the check constraint did not allow), apps/api/src/workers/{scan-processor,index}.ts (a chainer nobody schedules never runs — and this is the wiring pass W8-07 deferred here).",
+        "NOTE ON THE E2E SUITE: one run of 98 reported a single failure that did not reproduce on two further full runs (97 passed, 1 skipped, both times). Recorded rather than ignored — if it recurs it is a real flake to chase, and pretending three runs were three greens would be the wrong kind of tidy.",
+        "GATE: lint 0, typecheck 0, 955 unit tests (was 937), zero skipped; pnpm -r test green; 97 e2e passed (1 skipped real-forge smoke); validate-arch (7 rules), validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W8-10",

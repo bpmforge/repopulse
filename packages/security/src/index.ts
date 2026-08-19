@@ -24,3 +24,6 @@ export * from './scanners/semgrep/triage.js';
 export * from './scanners/owasp/checklist.js';
 export * from './scanners/owasp/llm-packages.js';
 export * from './scanners/owasp/run.js';
+export * from './scanners/chainer/build.js';
+export * from './scanners/chainer/compound.js';
+export * from './scanners/chainer/run.js';

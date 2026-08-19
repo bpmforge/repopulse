@@ -49,4 +49,23 @@ describe('delta -> secrets stream (W8-04)', () => {
       .join('\n');
     expect(code).not.toMatch(/switch\s*\(\s*\w*[sS]cannerKey/);
   });
+
+  it('the WEEKLY pass is one schedule for two scanners (W8-07 + W8-09)', () => {
+    // A semgrep full run and a chain recompute are the same shape of work, and
+    // two crons doing it would drift. The chainer runs AFTER the full scan on
+    // purpose: a chain built from findings a full scan is about to replace is
+    // a chain about last week.
+    const entry = readFileSync(new URL('./index.ts', import.meta.url).pathname, 'utf8');
+    expect(entry).toContain('SECURITY_WEEKLY_CRON');
+    expect(entry).toContain('SECURITY_CHAIN_CRON');
+    expect(entry).toContain('runSemgrepFull');
+    expect(entry).toContain('runChainer');
+    expect(entry).toContain("weeklyCron !== 'off'");
+
+    const processor = readFileSync(
+      new URL('./scan-processor.ts', import.meta.url).pathname,
+      'utf8',
+    );
+    expect(processor).toContain('deps.weeklyRunners?.[data.scannerKey]');
+  });
 });
