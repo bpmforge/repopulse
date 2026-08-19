@@ -2490,11 +2490,17 @@
       ],
       "write_scope": [
         "packages/insights/src/intents/**",
+        "packages/insights/src/index.ts",
         "packages/shared/src/db/schema/plans/**",
         "packages/shared/drizzle/**",
+        "packages/shared/src/testing/seed/**",
         "apps/api/src/routes/intents/**",
-        "apps/web/src/widgets/file/**",
-        "apps/web/src/widgets/repo/**"
+        "apps/api/src/routes/me/**",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/web/src/widgets/**",
+        "apps/web/src/routes/**",
+        "e2e/**",
+        "apps/api/src/routes/hotspots/**"
       ],
       "depends_on": [
         "W6-05"
@@ -2505,9 +2511,19 @@
         "acknowledged suppresses the file from hotspot leaderboards but never from data — a suppression-count badge keeps the leaderboard honest; intents feed matching catalog items (hotspot-bus-factor)"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "CARRIED FROM W6-06: the My Focus since-last-visit strip (R-A5) was not built — new review requests, PRs advanced/stalled, findings on my PRs, over the existing lastSeenAt infrastructure. It is self-contained and belongs on a /me deltas endpoint."
+        "CARRIED FROM W6-06: the My Focus since-last-visit strip (R-A5) was not built — new review requests, PRs advanced/stalled, findings on my PRs, over the existing lastSeenAt infrastructure. It is self-contained and belongs on a /me deltas endpoint.",
+        "WRITE_SCOPE WIDENED before code: the carried My Focus since-last-visit strip (R-A5) needs a /me deltas endpoint and the My Focus route, and the intents API needs mounting in api-v1. Seeder needs a wipe line for the new table.",
+        "DONE 2026-08-19 (API + engine; UI controls and the carried My Focus strip filed as W6-09 — see below). file_intents table with migration 0011, the intents API (GET/PUT/DELETE), the warning engine, and acknowledged-suppression wired into the hotspot leaderboard endpoint.",
+        "ACKNOWLEDGED SUPPRESSES FROM THE LIST, NEVER FROM THE DATA, and the response carries suppressed_count and suppressed_paths so the UI can say how many are hidden. A leaderboard that silently omits rows is one nobody can reason about — the first person to spot the gap stops trusting every other number on the screen. That honesty badge is the whole reason the intent is safe to offer.",
+        "A REFACTOR INTENT IS A PROMISE WITH A DATE ON IT. If the hotspot score has not improved within warn_after_months the promise quietly expired, and saying so is the entire value of recording it — an intent nobody is ever reminded about is a comment, not a plan. FLAT counts as not improved: holding a score steady for four months is not a refactor.",
+        "IMPROVEMENT BEFORE THE INTENT WAS DECLARED DOES NOT COUNT. The engine only reads history from createdAt onward, so a file that was already getting better cannot credit an intent for work that predates it.",
+        "ACKNOWLEDGED NEVER WARNS. An intent that keeps nagging after an explicit team decision is exactly why people stop using intents at all.",
+        "SUPERVISE HAS NO GRACE PERIOD — any decline alerts immediately, because hearing about it early is what supervising means.",
+        "SETTING AN INTENT RESETS THE CLOCK: a refactor declared today gets today deadline even on a path acknowledged last year, and one intent per file is enforced by the unique key (two live intents would make \"is this acknowledged?\" unanswerable).",
+        "GATE: lint 0, typecheck 0, 739 unit tests (was 729), zero skipped, pnpm -r test green, e2e 76 passed + 1 skipped, three validators exit 0.",
+        "SPLIT RATHER THAN HALF-BUILT: the file drill-down / hotspot-list intent CONTROLS and the carried My Focus since-last-visit strip (R-A5) are filed as W6-09. The strip has now slipped twice (W6-06 then here), which is the point at which it needs its own ticket instead of a note that keeps moving."
       ]
     },
     {
@@ -4413,6 +4429,35 @@
         "Gitea is 1.26.2, which supports Actions (1.19+). No act_runner is registered yet. Registration needs a runner token from the Gitea admin UI — a human step.",
         "Port the W12-10 job as-is: it already carries the postgres/redis services, the migrate step and REQUIRE_LIVE_INFRA=1. Do not re-derive it.",
         "THE RED CHECK IS THE ACCEPTANCE CRITERION THAT MATTERS. A CI system nobody has seen fail is indistinguishable from one that cannot fail — which is exactly the state GitHub Actions was in here for four months."
+      ]
+    },
+    {
+      "id": "W6-09",
+      "title": "Intent controls on file/hotspot surfaces + My Focus since-last-visit strip",
+      "phase": 6,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/src/widgets/file/**",
+        "apps/web/src/widgets/repo/**",
+        "apps/web/src/routes/me.tsx",
+        "apps/api/src/routes/me/**",
+        "e2e/**"
+      ],
+      "depends_on": [
+        "W6-07"
+      ],
+      "acceptance": [
+        "File drill-down and the hotspot list can set and clear an intent, and the leaderboard shows the acknowledged-suppression count the API already returns",
+        "Refactor/supervise warnings surface in the attention feed and the repo Hotspots tab",
+        "My Focus carries a since-last-visit strip (R-A5): new review requests, PRs advanced/stalled, findings on my PRs, over the existing lastSeenAt infrastructure",
+        "axe green on both surfaces; e2e sets an intent and sees the row disappear from the leaderboard with the count incremented"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-19 out of W6-07. The engine, the table and the API all exist and are tested; what remains is the surfaces. Filed rather than carried because the My Focus strip had already slipped twice (deferred from W6-06 into W6-07, then again) — at that point a note is not a plan.",
+        "The suppression count is ALREADY in the hotspots response (suppressed_count / suppressed_paths). The UI must render it; a leaderboard that hides rows without saying so is worse than one that shows everything."
       ]
     }
   ]

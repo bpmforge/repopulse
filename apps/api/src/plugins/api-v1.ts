@@ -20,6 +20,7 @@ import identityRoutes from '../routes/admin/identities/index.js';
 import reportsRoutes from '../routes/reports/index.js';
 import plansRoutes from '../routes/plans/index.js';
 import findingsRoutes from '../routes/findings/index.js';
+import intentsRoutes from '../routes/intents/index.js';
 import agreementsRoutes from '../routes/agreements/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
 
@@ -147,6 +148,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
     ...(opts.enqueueReport ? { enqueueReport: opts.enqueueReport } : {}),
     ...(opts.schedules ? { schedules: opts.schedules } : {}),
   });
+  // Artifact intents (W6-07).
+  await app.register(intentsRoutes, { db: opts.db });
   // Findings (W6-04).
   await app.register(findingsRoutes, { db: opts.db });
   // Working agreements (W5-08).

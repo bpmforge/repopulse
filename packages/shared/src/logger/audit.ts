@@ -59,7 +59,10 @@ export type AuditEvent =
   | 'report.scheduled'
   // W6-04. A finding is a claim about someone's code; who dismissed it and why
   // is the record that makes the claim reviewable later (FR-INSIGHTS-1).
-  | 'finding.status_changed';
+  | 'finding.status_changed'
+  // W6-07. Acknowledging a file hides it from hotspot leaderboards, so who
+  // decided that and when is part of the record.
+  | 'file.intent_set';
 
 export interface AuditEntry {
   event: AuditEvent;
