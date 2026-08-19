@@ -2399,3 +2399,36 @@ is why the sensible order is W8-12 first, then W8-06.
 The slopsquatting heuristics (registry age, download counts, edit distance to
 popular package names) need a package-registry API and are a separate live-
 network decision — noted so they are not forgotten when the CVE half unblocks.
+
+#### W8-12: the scan sandbox is real; the prod smoke is not (2026-08-19)
+
+The scan image builds and **was run** here: `podman build -f Containerfile.scan`
+produces an Alpine image with Opengrep 1.27.1 pinned by sha256, and the sandbox
+test drives it through the real §2.2 profile — no network, read-only root,
+uid 65534, `/scan` mounted `ro,noexec` — and gets `1.27.1` back out.
+
+Three failures on the way there, all fixed in the IMAGE rather than by loosening
+the profile, because each one was the profile working as intended:
+
+1. Opengrep unpacks its core into `$HOME` on first run — a 64 MB tmpfs was too
+   small. Pre-extracted at build time instead.
+2. It then **execs** what it unpacked — `/tmp` is `noexec`. Same fix.
+3. It writes a log under `$HOME/.opengrep`, and the root filesystem is
+   read-only. A small tmpfs is now mounted over exactly that path
+   (`writablePaths` on the profile), rather than making `$HOME` writable, which
+   would let one scan mutate the binary the next scan runs.
+
+**What is NOT done, and why:** acceptance item 3, the production smoke ("manual
+scan now on a connected repo, scratch dir provably deleted, result appended
+here"). It needs the production host that W7-05 is blocked on. The shred and
+sweeper behaviour it would confirm is covered against a real SIGKILL in
+`packages/security/src/snapshot/snapshot.test.ts`, but that is a laptop, not
+your host — treat the production smoke as outstanding.
+
+**Also outstanding, needing you:**
+- `cosign` is not installed, so the Opengrep binary's sigstore signature is not
+  verified. The pinned sha256 catches a silent replacement; it is not a
+  vendor-signed checksum and the deployment doc says so.
+- syft/grype are absent from the image for the same reason W8-06 is parked. The
+  db-sync script's vulnerability-database half fails loudly if enabled rather
+  than pretending to sync.

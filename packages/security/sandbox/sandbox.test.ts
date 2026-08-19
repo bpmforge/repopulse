@@ -134,10 +134,14 @@ const localImage = (() => {
   // Any local image with a shell will do - this asserts the PROFILE, not a
   // particular scanner. Pulling one would need network, which is the thing
   // under test.
-  return out
+  const images = out
     .split('\n')
     .map((s) => s.trim())
-    .find((s) => s !== '' && !s.includes('<none>'));
+    .filter((s) => s !== '' && !s.includes('<none>'));
+  // Prefer the real scan image (W8-12) when it has been built: asserting the
+  // profile against the image scanners actually run in is worth more than
+  // asserting it against whatever happened to be on the machine.
+  return images.find((s) => s.startsWith('localhost/repopulse/scan:')) ?? images[0];
 })();
 
 const describeIfPodman = podmanAvailable && localImage ? describe : describe.skip;
@@ -210,4 +214,29 @@ describeIfPodman('sandbox, actually run (NFR-14)', () => {
     ).toString();
     expect(out.trim()).not.toBe('0');
   }, 30_000);
+
+  it('runs the REAL scan tool under the REAL profile (W8-12)', () => {
+    // Skipped unless the scan image is present, because that is the only image
+    // with opengrep in it. This is the assertion the sandbox exists for: the
+    // tool runs with no network, a read-only root, an unprivileged user and a
+    // ro,noexec source mount — and it took three failures to get there, each
+    // of which is recorded in Containerfile.scan rather than fixed by
+    // loosening the profile.
+    if (!image.startsWith('localhost/repopulse/scan:')) return;
+    const dir = snapshotDir();
+    const out = execFileSync(
+      'podman',
+      buildSandboxArgs({
+        image,
+        snapshotDir: dir,
+        command: ['opengrep', '--version'],
+        budget,
+        // The tool's log directory, declared by the caller rather than assumed
+        // by the profile.
+        writablePaths: ['/opt/opengrep/.opengrep'],
+      }),
+      { stdio: 'pipe' },
+    ).toString();
+    expect(out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+  }, 120_000);
 });
