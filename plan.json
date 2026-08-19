@@ -2401,10 +2401,13 @@
         "E13.2"
       ],
       "write_scope": [
-        "packages/analysis/src/passes/**",
+        "packages/analysis/src/**",
         "packages/insights/src/findings/**",
         "packages/shared/src/db/schema/read/**",
-        "packages/shared/drizzle/**"
+        "packages/shared/drizzle/**",
+        "apps/web/src/routes/findings/**",
+        "apps/web/src/widgets/findings/**",
+        "apps/api/src/routes/findings/**"
       ],
       "depends_on": [
         "W6-03"
@@ -2417,8 +2420,10 @@
         "Explorer gains verify_status facet + 'verified by second model' badge; all LLM calls mocked at the gateway in CI (docs/TESTING.md §8)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "in_progress",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: acceptance 5 adds a verify_status facet and badge to the Explorer (web) which reads a new API field (apps/api/src/routes/findings)."
+      ]
     },
     {
       "id": "W6-06",
