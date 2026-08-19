@@ -2111,7 +2111,7 @@
         "E2E: generate plan from fixture report → accept item → seeded improved snapshots → nightly verify flips done → regenerated report shows movement; axe + tenancy green"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
