@@ -66,7 +66,10 @@ export type AuditEvent =
   // W7-08. Turning Tier-3 on means this repository's diffs may leave the
   // network. Who decided that, and when, is not a preference — it is the
   // record NFR-9 depends on.
-  | 'repo.tier3_opt_in_changed';
+  | 'repo.tier3_opt_in_changed'
+  // W8-01. Turning a scanner off is a decision about what this workspace stops
+  // looking for, which is exactly the kind of change an audit exists for.
+  | 'scanner.enablement_changed';
 
 export interface AuditEntry {
   event: AuditEvent;

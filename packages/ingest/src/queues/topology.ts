@@ -19,6 +19,10 @@ export const QUEUE = {
   // W5-06. Nightly, after metrics.snapshot — it reads the snapshots that job
   // writes, so running it on its own schedule would verify yesterday's numbers.
   plansVerify: 'plans.verify',
+  // W8-01. Its OWN queue with its own workers (NFR-15): a scanner is
+  // third-party code, and a poison scan must not be able to stall ingestion or
+  // the metrics that Tier-1 dashboards read.
+  securityScan: 'security.scan',
   // NOTE (W6-01): 'analysis.review' is NOT declared here yet, deliberately.
   // The wiring gate requires every declared queue to have a processor, and its
   // KNOWN_INERT list "may only ever shrink" — so declaring the queue a wave
@@ -42,6 +46,9 @@ export const QUEUE_PRIORITY: Record<string, number> = {
   // every background lane except live webhook deltas.
   [QUEUE.reports]: 2,
   [QUEUE.plansVerify]: 6,
+  // Below analysis.review (4): a scan is background work, a PR review is
+  // someone waiting.
+  [QUEUE.securityScan]: 5,
 };
 
 const MIN = 60_000;
@@ -59,6 +66,9 @@ export const RETRY: Record<string, JobsOptions> = {
   // a fast failure they can see than by 30 minutes of silent retries.
   [QUEUE.reports]: { attempts: 2, backoff: { type: 'exponential', delay: 5_000 } },
   [QUEUE.plansVerify]: { attempts: 2, backoff: { type: 'exponential', delay: MIN } },
+  // Two attempts: a scanner that fails twice is broken or over budget, and
+  // retrying a five-minute scan five times wastes an hour to learn that.
+  [QUEUE.securityScan]: { attempts: 2, backoff: { type: 'exponential', delay: MIN } },
 };
 
 /** Full default job options for a queue: retry + priority + keep-failed. */

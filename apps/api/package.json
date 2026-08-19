@@ -31,7 +31,8 @@
     "ioredis": "^5.11.1",
     "prom-client": "^15",
     "zod": "^3.25.76",
-    "@repopulse/reports": "workspace:*"
+    "@repopulse/reports": "workspace:*",
+    "@repopulse/security": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
