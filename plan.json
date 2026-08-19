@@ -2420,9 +2420,17 @@
         "Explorer gains verify_status facet + 'verified by second model' badge; all LLM calls mocked at the gateway in CI (docs/TESTING.md §8)"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "WRITE_SCOPE WIDENED before code: acceptance 5 adds a verify_status facet and badge to the Explorer (web) which reads a new API field (apps/api/src/routes/findings)."
+        "WRITE_SCOPE WIDENED before code: acceptance 5 adds a verify_status facet and badge to the Explorer (web) which reads a new API field (apps/api/src/routes/findings).",
+        "DONE 2026-08-19. Schema delta (analysis_runs.pass_kind + parent_run_id, findings.verify_status) with migration 0010 and a rollback note that says what the rollback DESTROYS. Verify pass with host affinity, refute-first prompt, the challenger gate, FP-suppression memory, and the Explorer verification facet + badge.",
+        "MAKER != VERIFIER IS ENFORCED, NOT REQUESTED. pickVerifierHost never returns the finder host, and when no second host exists the finding is SKIPPED and stays `unverified` rather than being confirmed by the model that raised it. A model asked whether it was right agrees with itself, so a same-host pass would confirm nearly always and the \"verified by a second model\" badge would mean nothing — worse than no badge, because people would trust it.",
+        "THE PROMPT ASKS FOR A REFUTATION, NOT A REVIEW. \"Is this correct?\" invites agreement: the model has been handed a confident claim and a reason to accept it. The verifier is told its default position is that the finder was wrong and to confirm only if it cannot refute — which makes agreement the expensive answer.",
+        "THE CHALLENGER GATE BLOCKS UNVERIFIED SEVERITY>=4 FROM LOUD SURFACING. An unverified critical claim on an org banner is the most expensive way this product can be wrong: everyone sees it, and being wrong once there costs more trust than ten correct findings earn. Contradicted findings are never surfaced at any severity.",
+        "FP-SUPPRESSION MEMORY (R-B4): a finding dismissed as a false positive does not come back while its evidence is unchanged — the dedup key IS the unchanged test. The sighting still bumps occurrence_count, because how often a suppressed pattern recurs is worth knowing. A dismiss button that does not stick is one nobody presses twice.",
+        "\"unverified\" IS AN ANSWER, NOT A MISSING VALUE, and the UI says so: the badge reads \"not independently verified\" rather than rendering nothing. Collapsing unverified into unlabelled would let an unchecked claim look identical to a confirmed one — the same null-vs-zero conflation this project keeps finding, here applied to trust.",
+        "SEEDED ONE FINDING OF EACH VERIFICATION STATE so the facet and badge are exercised against data rather than an empty filter, and the e2e asserts a contradicted finding does NOT still claim to be verified.",
+        "GATE: lint 0, typecheck 0, 716 unit tests (was 704), zero skipped, e2e 74 passed + 1 skipped (was 73), three validators exit 0."
       ]
     },
     {

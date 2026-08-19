@@ -17,7 +17,16 @@ export interface Finding {
   first_seen_at: string;
   last_seen_at: string;
   tier: number;
+  /** W6-05. 'unverified' is honest, not missing: nobody re-judged it. */
+  verify_status: 'unverified' | 'confirmed' | 'contradicted';
 }
+
+/** Paired glyph + word — a badge that relies on colour says nothing in print. */
+export const VERIFY_LABEL: Record<string, string> = {
+  confirmed: '✓✓ verified by a second model',
+  contradicted: '✕ contradicted on review',
+  unverified: '· not independently verified',
+};
 
 export interface FindingStats {
   by_dimension: { dimension: string; status: string; n: number }[];

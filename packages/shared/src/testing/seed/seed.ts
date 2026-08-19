@@ -544,6 +544,11 @@ export async function seedWarehouse(
       // property the store guarantees in production.
       dedupKey: `fixture-${f.dimension}-${i}`,
       status: 'open',
+      // W6-05: one of each verification state, so the Explorer facet and the
+      // challenger gate are exercised against data rather than an empty filter.
+      // The critical SQL finding is confirmed by a second model; the low
+      // severity one was contradicted on review.
+      verifyStatus: i === 0 ? 'confirmed' : i === 2 ? 'contradicted' : 'unverified',
     })),
   );
 

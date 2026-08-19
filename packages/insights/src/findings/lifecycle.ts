@@ -65,6 +65,22 @@ export function reappearanceDecision(current: FindingStatus): AutoDecision | nul
   return null;
 }
 
+/**
+ * FP-suppression memory (W6-05, R-B4).
+ *
+ * A finding dismissed as a false positive must NEVER come back while its
+ * evidence is unchanged — the dedup key IS the "unchanged" test. Re-surfacing
+ * it would mean a person's judgement is overruled by the next scheduled run,
+ * and a dismiss button that does not stick is a dismiss button nobody presses
+ * twice.
+ *
+ * The occurrence count still bumps: how often a suppressed pattern recurs is
+ * useful, and silently discarding the sighting would lose it.
+ */
+export function isSuppressed(status: FindingStatus, reason: string | null): boolean {
+  return status === 'dismissed' && reason === 'false_positive';
+}
+
 /** false_positive dismissals feed analysis_false_positive_rate (FR-INSIGHTS-1). */
 export function countsAsFalsePositive(status: FindingStatus, reason: string | null): boolean {
   return status === 'dismissed' && reason === 'false_positive';

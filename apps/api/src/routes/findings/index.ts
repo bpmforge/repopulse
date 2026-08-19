@@ -59,6 +59,7 @@ export default async function findingsRoutes(
       severity_min?: string;
       confidence_min?: string;
       repo_id?: string;
+      verify_status?: string;
       cursor?: string;
     };
   }>('/findings', async (request, reply) => {
@@ -81,6 +82,11 @@ export default async function findingsRoutes(
     }
     if (q.repo_id && Number.isInteger(Number(q.repo_id))) {
       filters.push(eq(read.findings.repoId, Number(q.repo_id)));
+    }
+    // W6-05 facet. 'unverified' is a real answer, not the absence of one — a
+    // finding nobody re-judged must be filterable as such.
+    if (q.verify_status && ['unverified', 'confirmed', 'contradicted'].includes(q.verify_status)) {
+      filters.push(eq(read.findings.verifyStatus, q.verify_status));
     }
 
     // Keyset, not offset: the list is ordered by severity and new findings
@@ -115,6 +121,7 @@ export default async function findingsRoutes(
         status: read.findings.status,
         dismissReason: read.findings.dismissReason,
         occurrenceCount: read.findings.occurrenceCount,
+        verifyStatus: read.findings.verifyStatus,
         firstSeenAt: read.findings.firstSeenAt,
         lastSeenAt: read.findings.lastSeenAt,
         tier: read.findings.tier,
@@ -142,6 +149,7 @@ export default async function findingsRoutes(
         status: r.status,
         dismiss_reason: r.dismissReason,
         occurrence_count: r.occurrenceCount,
+        verify_status: r.verifyStatus,
         first_seen_at: r.firstSeenAt.toISOString(),
         last_seen_at: r.lastSeenAt.toISOString(),
         tier: r.tier,

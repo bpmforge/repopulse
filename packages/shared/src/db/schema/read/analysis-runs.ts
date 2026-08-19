@@ -33,6 +33,11 @@ export const analysisRuns = pgTable(
     checklistVersion: text('checklist_version').notNull(),
     modelId: text('model_id').notNull(),
     status: text('status').notNull(),
+    // W6-05 (DATABASE.md D9). A run is one PASS, not one analysis: find,
+    // then verify, then challenge. parentRunId chains them so a finding can be
+    // traced to the pass that raised it AND the pass that judged it.
+    passKind: text('pass_kind').notNull().default('find'),
+    parentRunId: bigint('parent_run_id', { mode: 'number' }),
     chunkCount: integer('chunk_count').notNull(),
     promptTokens: integer('prompt_tokens').notNull(),
     outputTokens: integer('output_tokens').notNull(),
@@ -48,6 +53,10 @@ export const analysisRuns = pgTable(
     check(
       'analysis_runs_status_check',
       sql`${t.status} in ('queued', 'running', 'succeeded', 'failed', 'dead_letter')`,
+    ),
+    check(
+      'analysis_runs_pass_kind_check',
+      sql`${t.passKind} in ('find', 'verify', 'challenge', 'synthesize', 'narrate', 'plan')`,
     ),
   ],
 );

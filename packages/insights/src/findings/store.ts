@@ -1,7 +1,12 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
 import { dedupKey } from './dedup.js';
-import { autoResolveOutdated, reappearanceDecision, type FindingStatus } from './lifecycle.js';
+import {
+  autoResolveOutdated,
+  isSuppressed,
+  reappearanceDecision,
+  type FindingStatus,
+} from './lifecycle.js';
 
 // Findings store (W6-03, FR-ANALYSIS-6 / FR-INSIGHTS-1).
 
@@ -31,6 +36,8 @@ export interface PersistParams {
 
 export interface PersistResult {
   created: number;
+  /** Sightings of a false-positive dismissal, counted but not resurfaced. */
+  suppressed: number;
   /** Existing rows whose last_seen and occurrence_count were bumped. */
   updated: number;
   reopened: number;
@@ -46,7 +53,7 @@ export interface PersistResult {
  * would also quietly move a number nobody changed the code to move.
  */
 export async function persistFindings(db: Database, params: PersistParams): Promise<PersistResult> {
-  const result: PersistResult = { created: 0, updated: 0, reopened: 0, autoResolved: 0 };
+  const result: PersistResult = { created: 0, updated: 0, reopened: 0, autoResolved: 0, suppressed: 0 };
   const now = new Date();
 
   const keyed = params.findings.map((f) => ({
@@ -107,7 +114,15 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
     }
 
     // Seen before: bump the sighting, never duplicate the row.
-    const decision = reappearanceDecision(prior.status as FindingStatus);
+    //
+    // FP-suppression memory (R-B4): a finding dismissed as a false positive
+    // stays dismissed while its evidence is unchanged — and the dedup key IS
+    // the unchanged test. Re-surfacing it would let the next scheduled run
+    // overrule a person, and a dismiss button that does not stick is one
+    // nobody presses twice. The sighting still counts.
+    const suppressed = isSuppressed(prior.status as FindingStatus, prior.dismissReason);
+    const decision = suppressed ? null : reappearanceDecision(prior.status as FindingStatus);
+    if (suppressed) result.suppressed += 1;
     await db
       .update(read.findings)
       .set({
