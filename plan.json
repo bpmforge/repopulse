@@ -4069,6 +4069,33 @@
         "ONE CHECK FAILED AND IT WAS THE CHECK, NOT THE PRODUCT: the assertion looked for \"Health\" where the widget is titled \"Repo health\". Recorded rather than quietly corrected, because a verification script that is wrong in the OTHER direction is how a broken screen passes.",
         "NOT VERIFIED, SAID PLAINLY: the deploy/compose.yaml container path has no clean from-scratch run behind it. It is documented from the file and from the long-running stack on this machine. Worth its own ticket."
       ]
+    },
+    {
+      "id": "W13-06",
+      "title": "Verify the deploy/compose.yaml container path from scratch",
+      "phase": 13,
+      "module": "deploy",
+      "stories": [],
+      "write_scope": [
+        "deploy/**",
+        "docs/RUNNING.md",
+        "docs/STATUS.md"
+      ],
+      "depends_on": [
+        "W13-05"
+      ],
+      "acceptance": [
+        "A clean run — cp deploy/.env.example deploy/.env, fill it, podman compose -f deploy/compose.yaml up -d — serves the app on REPOPULSE_PORT",
+        "Every secret the compose file requires is documented with how to generate it, and none has a working default",
+        "Deviations are fixed or written down; no step is reported as working because it looked right"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-19 from W13-05. The container path is documented in docs/RUNNING.md from reading compose.yaml and from the stack that has been running on this machine for days — but NO clean from-scratch run has been done, so the docs are inference, not verification.",
+        "The dev path had five defects when it was finally run end to end on a clean clone, three of which were invisible on a machine that already worked. There is no reason to assume the container path is cleaner: it has more required secrets (POSTGRES_PASSWORD, REDIS_PASSWORD, all the GITHUB_APP_* values), a build step, and a migrate job whose ordering nothing has tested.",
+        "Do NOT verify it against the already-running stack on this machine. That stack was started from a deploy/.env that already exists, which is precisely the state a newcomer does not have."
+      ]
     }
   ]
 }
