@@ -1,4 +1,5 @@
 import {
+  boolean,
   bigint,
   check,
   index,
@@ -105,4 +106,36 @@ export const planItemEvents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('plan_item_events_workspace_item_idx').on(t.workspaceId, t.planItemId)],
+);
+
+// Working agreements (W5-08, DATABASE.md D9, FR-PLANS-4).
+//
+// A team's own thresholds over metrics that already exist — the product does
+// not invent a standard, it holds the team to the one they set. Exceptions are
+// deliberately NOT stored: they are computed from facts at read time over a
+// trailing window, so the list is always the current truth rather than a cache
+// that can disagree with the pull requests it names.
+export const agreements = pgTable(
+  'agreements',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    repoIds: bigint('repo_ids', { mode: 'number' }).array().notNull(),
+    kind: text('kind').notNull(),
+    threshold: jsonb('threshold').$type<Record<string, unknown>>().notNull(),
+    active: boolean('active').notNull().default(true),
+    createdBy: bigint('created_by', { mode: 'number' })
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('agreements_workspace_id_idx').on(t.workspaceId),
+    check(
+      'agreements_kind_check',
+      sql`${t.kind} in ('pr_size_max', 'review_within_hours', 'no_unreviewed_merge', 'stale_ceiling', 'ci_pass_floor')`,
+    ),
+  ],
 );

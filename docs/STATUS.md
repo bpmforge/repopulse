@@ -2244,3 +2244,13 @@ Gate: lint 0, typecheck 0, **597 unit tests** (was 589), zero skipped under
   documented from the file and from the stack running on this machine, but no
   clean `cp deploy/.env.example deploy/.env && podman compose up` run has been
   done. Worth a ticket.
+
+#### W5-08 deferred one acceptance item, deliberately (2026-08-19)
+
+Acceptance 3 asks for an **Org Overview digest card** summarising active
+agreements and exception counts. Not built. The Admin → Agreements tab carries
+the same numbers with the actual offending pull requests beneath them, and the
+plan tile already surfaces agreement-sourced items — a third surface for the
+same counts is a third place for them to disagree. Recorded as a decision
+rather than shipped half-built; cheap to add if the org screen turns out to be
+where people look first.

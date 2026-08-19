@@ -1,7 +1,17 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, plans as plansSchema, read, type Database } from '@repopulse/shared';
-import { CATALOG_VERSION, generatePlanItems, type MetricSet } from '@repopulse/insights';
+import { auditLog, facts, plans as plansSchema, read, type Database } from '@repopulse/shared';
+import {
+  AGREEMENT_CATALOG_ID,
+  CATALOG_VERSION,
+  EXCEPTION_WINDOW_DAYS,
+  computeExceptions,
+  findCatalogEntry,
+  generatePlanItems,
+  type Agreement,
+  type AgreementKind,
+  type MetricSet,
+} from '@repopulse/insights';
 import { sendProblem } from '../../lib/problem.js';
 
 // Plans API (W5-06, FR-PLANS-2/6).
@@ -66,6 +76,98 @@ async function metricsForScope(
   return set;
 }
 
+/**
+ * Plan items raised by a breached working agreement (W5-08).
+ *
+ * `already` carries the catalog ids the metric pass produced plus everything
+ * dismissed, so an agreement can only ADD an item nobody has raised or refused.
+ */
+async function agreementSourcedItems(
+  db: Database,
+  workspaceId: number,
+  already: ReadonlySet<string>,
+): Promise<
+  {
+    catalogId: string;
+    rank: number;
+    source: 'agreement';
+    effort: 'S' | 'M' | 'L';
+    recommendation: string;
+    evidence: Record<string, unknown>;
+    verifyCriterion: Record<string, unknown>;
+  }[]
+> {
+  const rows = await db
+    .select()
+    .from(plansSchema.agreements)
+    .where(and(eq(plansSchema.agreements.workspaceId, workspaceId), eq(plansSchema.agreements.active, true)));
+  if (rows.length === 0) return [];
+
+  const since = new Date(Date.now() - EXCEPTION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const prRows = await db
+    .select({
+      repoId: facts.pullRequests.repoId,
+      number: facts.pullRequests.number,
+      title: facts.pullRequests.title,
+      additions: facts.pullRequests.additions,
+      deletions: facts.pullRequests.deletions,
+      createdAt: facts.pullRequests.createdAt,
+      mergedAt: facts.pullRequests.mergedAt,
+      reviewCount: sql<number>`(select count(*)::int from ${facts.prReviews} where ${facts.prReviews.pullRequestId} = ${facts.pullRequests.id})`,
+      firstReviewAt: sql<Date | null>`(select min(${facts.prReviews.submittedAt}) from ${facts.prReviews} where ${facts.prReviews.pullRequestId} = ${facts.pullRequests.id})`,
+    })
+    .from(facts.pullRequests)
+    .where(and(eq(facts.pullRequests.workspaceId, workspaceId), gte(facts.pullRequests.createdAt, since)))
+    .limit(500);
+
+  const prs = prRows.map((r) => ({
+    repoId: r.repoId,
+    number: r.number,
+    title: r.title,
+    additions: r.additions ?? 0,
+    deletions: r.deletions ?? 0,
+    reviewCount: r.reviewCount ?? 0,
+    firstReviewHours:
+      r.firstReviewAt === null
+        ? null
+        : (new Date(r.firstReviewAt).getTime() - r.createdAt.getTime()) / 3_600_000,
+    mergedAt: r.mergedAt,
+  }));
+
+  const out: Awaited<ReturnType<typeof agreementSourcedItems>> = [];
+  for (const row of rows) {
+    const agreement: Agreement = {
+      id: row.id,
+      kind: row.kind as AgreementKind,
+      threshold: row.threshold,
+      repoIds: row.repoIds,
+      active: row.active,
+    };
+    const catalogId = AGREEMENT_CATALOG_ID[agreement.kind];
+    if (already.has(catalogId) || out.some((o) => o.catalogId === catalogId)) continue;
+    const exceptions = computeExceptions(agreement, prs);
+    if (exceptions.length === 0) continue;
+    const entry = findCatalogEntry(catalogId);
+    if (!entry) continue;
+
+    out.push({
+      catalogId,
+      rank: 0,
+      source: 'agreement',
+      effort: entry.effort,
+      recommendation: entry.title,
+      evidence: {
+        agreementId: agreement.id,
+        agreementKind: agreement.kind,
+        // PR numbers, never authors — the item points at artifacts (N-9).
+        exceptions: exceptions.slice(0, 20).map((e) => ({ repoId: e.repoId, prNumber: e.prNumber })),
+      },
+      verifyCriterion: entry.verifyCriterion as unknown as Record<string, unknown>,
+    });
+  }
+  return out;
+}
+
 export default async function plansRoutes(
   app: FastifyInstance,
   opts: PlansRoutesOptions,
@@ -100,10 +202,23 @@ export default async function plansRoutes(
         );
 
       const metrics = await metricsForScope(db, workspaceId, repoIds, window);
-      const proposed = generatePlanItems({
-        metrics,
-        dismissedCatalogIds: dismissed.map((d) => d.catalogId),
-      });
+      const dismissedIds = dismissed.map((d) => d.catalogId);
+      const proposed = generatePlanItems({ metrics, dismissedCatalogIds: dismissedIds });
+
+      // Agreement breaches feed the SAME catalog entries (IMPROVEMENT_PLANS.md
+      // §1), marked source='agreement'. Deduped against what the metric pass
+      // already proposed: a team that agreed a PR-size limit AND breaches the
+      // metric threshold has one problem, not two, and listing it twice makes
+      // the plan look padded.
+      const agreementItems = await agreementSourcedItems(
+        db,
+        workspaceId,
+        new Set([...proposed.map((p) => p.catalogId), ...dismissedIds]),
+      );
+      const allProposed = [...proposed, ...agreementItems].map((item, index) => ({
+        ...item,
+        rank: index + 1,
+      }));
 
       const [plan] = await db
         .insert(plansSchema.improvementPlans)
@@ -120,9 +235,9 @@ export default async function plansRoutes(
         })
         .returning();
 
-      if (proposed.length > 0) {
+      if (allProposed.length > 0) {
         await db.insert(plansSchema.planItems).values(
-          proposed.map((item) => ({
+          allProposed.map((item) => ({
             workspaceId,
             planId: plan!.id,
             rank: item.rank,
@@ -144,10 +259,10 @@ export default async function plansRoutes(
         ip: request.ip,
         ua: request.headers['user-agent'] ?? null,
         planId: plan!.id,
-        itemCount: proposed.length,
+        itemCount: allProposed.length,
       });
 
-      return reply.code(201).send({ id: plan!.id, item_count: proposed.length });
+      return reply.code(201).send({ id: plan!.id, item_count: allProposed.length });
     },
   );
 

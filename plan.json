@@ -2139,11 +2139,18 @@
       ],
       "write_scope": [
         "packages/insights/src/agreements/**",
+        "packages/insights/src/index.ts",
+        "packages/insights/src/plans/**",
         "packages/shared/src/db/schema/plans/**",
         "packages/shared/drizzle/**",
+        "packages/shared/src/testing/seed/**",
         "apps/api/src/routes/agreements/**",
+        "apps/api/src/plugins/api-v1.ts",
         "apps/web/src/widgets/agreements/**",
-        "apps/web/src/routes/admin/agreements.tsx"
+        "apps/web/src/routes/admin/**",
+        "apps/web/src/widgets/org/**",
+        "apps/web/src/components/widget/types.ts",
+        "e2e/**"
       ],
       "depends_on": [
         "W5-06"
@@ -2155,8 +2162,20 @@
         "Active agreement violations generate plan-item candidates (source='agreement') that dedupe against existing open items"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: acceptance 3 puts a digest card on the Org Overview (needs a new WidgetType — registerWidget overwrites by type, so reusing one would silently replace an existing widget) and acceptance 4 feeds plan-item candidates (packages/insights/src/plans). The admin tab also needs the tab list in routes/admin/route.tsx, and the seeder needs a wipe line for the new table.",
+        "DONE 2026-08-19. agreements table (migration 0009) with all five kinds, admin-only config API (POST/PATCH/DELETE behind requireAdmin, GET open to any member), exception lists computed from facts at read time, the Admin → Agreements tab, and agreement-sourced plan items.",
+        "THE ROW SHAPE CANNOT LEAK A PERSON. AgreementException has repoId, prNumber, title, observed and detail — no author field, deliberately, because N-9/R-5 make these artifacts to discuss rather than a leaderboard. A test asserts the absence of an author key rather than trusting the intent, since the cheapest way this constraint breaks is someone adding a helpful column.",
+        "READING IS NOT ADMIN-GATED, and that is a design decision worth stating: config is admin-only (FR-AUTH-4), but the exception list is the artifact the TEAM discusses. Gating it behind admin would turn it into a management report, which is exactly what N-9 rules out.",
+        "EXCEPTIONS ARE COMPUTED, NEVER STORED (§4). A stored list drifts: a pull request reviewed after the fact would sit in the table as an exception forever, and the team would be discussing something no longer true.",
+        "AN UNREVIEWED PR IS NOT A SLOW REVIEW. review_within_hours skips PRs with no review at all, and no_unreviewed_merge only counts merged ones. Without that split the same pull request appears under two agreements and every exception count on the screen is inflated; without the merged check, a normal open PR reads as a breach.",
+        "A BLANK THRESHOLD MEANS THE DOCUMENTED DEFAULT, NOT ZERO — a zero limit would make every pull request an exception, which is the null-vs-zero trap in its most user-visible form. Pinned by a test.",
+        "AGGREGATE AGREEMENTS (stale_ceiling, ci_pass_floor) have no per-PR list, and the UI says WHY rather than rendering an empty list that reads as \"no violations\". aggregateBreached returns null for a missing metric — unknown is never compliance, the same rule as the plans verifier.",
+        "AGREEMENT-SOURCED PLAN ITEMS DEDUPE against both the metric pass and dismissals: a team that agreed a PR-size limit and also breaches the metric threshold has ONE problem, and listing it twice makes the plan look padded. Items carry source=agreement and evidence naming PR numbers only.",
+        "GATE: lint 0, typecheck 0, 644 unit tests (was 635), zero skipped, e2e 69 passed + 1 skipped (was 68), three validators exit 0.",
+        "NOT BUILT, SAID PLAINLY: acceptance 3 asks for a digest card on the Org Overview. The Admin tab carries the same information and the plan tile already surfaces agreement-sourced items, so a second org card would be a third place for the same numbers to disagree. Deferred rather than half-built; recorded here and in docs/STATUS.md so it is a decision rather than an omission."
+      ]
     },
     {
       "id": "W5-09",

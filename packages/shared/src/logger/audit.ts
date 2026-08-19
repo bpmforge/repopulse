@@ -50,7 +50,10 @@ export type AuditEvent =
   // W5-06. A plan item moving is a decision about a team's work; the nightly
   // verifier's transitions are audited too, with a null actor.
   | 'plan.generated'
-  | 'plan.item.transitioned';
+  | 'plan.item.transitioned'
+  // W5-08. An agreement threshold decides what counts as a breach on every
+  // screen that reads it, so a change to one is a change to the numbers.
+  | 'agreement.configured';
 
 export interface AuditEntry {
   event: AuditEvent;
