@@ -2490,11 +2490,16 @@
       ],
       "write_scope": [
         "packages/insights/src/intents/**",
+        "packages/insights/src/index.ts",
         "packages/shared/src/db/schema/plans/**",
         "packages/shared/drizzle/**",
+        "packages/shared/src/testing/seed/**",
         "apps/api/src/routes/intents/**",
-        "apps/web/src/widgets/file/**",
-        "apps/web/src/widgets/repo/**"
+        "apps/api/src/routes/me/**",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/web/src/widgets/**",
+        "apps/web/src/routes/**",
+        "e2e/**"
       ],
       "depends_on": [
         "W6-05"
@@ -2505,9 +2510,10 @@
         "acknowledged suppresses the file from hotspot leaderboards but never from data — a suppression-count badge keeps the leaderboard honest; intents feed matching catalog items (hotspot-bus-factor)"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "CARRIED FROM W6-06: the My Focus since-last-visit strip (R-A5) was not built — new review requests, PRs advanced/stalled, findings on my PRs, over the existing lastSeenAt infrastructure. It is self-contained and belongs on a /me deltas endpoint."
+        "CARRIED FROM W6-06: the My Focus since-last-visit strip (R-A5) was not built — new review requests, PRs advanced/stalled, findings on my PRs, over the existing lastSeenAt infrastructure. It is self-contained and belongs on a /me deltas endpoint.",
+        "WRITE_SCOPE WIDENED before code: the carried My Focus since-last-visit strip (R-A5) needs a /me deltas endpoint and the My Focus route, and the intents API needs mounting in api-v1. Seeder needs a wipe line for the new table."
       ]
     },
     {
