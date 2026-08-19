@@ -2571,10 +2571,13 @@
         "E9.3"
       ],
       "write_scope": [
-        "packages/analysis/src/t3/**",
-        "packages/analysis/src/escalation/**",
-        "apps/api/src/routes/admin/analysis/**",
-        "apps/web/src/routes/admin/analysis.tsx"
+        "packages/analysis/**",
+        "apps/api/src/routes/admin/**",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/web/src/routes/admin/**",
+        "apps/web/src/widgets/admin/**",
+        "docs/TECH_STACK.md",
+        "e2e/**"
       ],
       "depends_on": [
         "W6-02",
@@ -2587,8 +2590,19 @@
         "Admin Analysis tab per docs/UX_SPEC.md §4.i: Tier-2 policy, per-repo T3 opt-in with per-PR override, egress audit log view + per-repo T3 cost rollup (NFR-12), admin-only"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: docs/TECH_STACK.md line 125 says the @anthropic-ai/sdk major must be PINNED when the analysis wave begins — that is now, and pinning it is part of this ticket. The admin Analysis tab also needs the api-v1 mount and the admin tab list.",
+        "DONE 2026-08-19 (client + escalation + egress; the admin Analysis TAB is filed as W7-08 — see below). @anthropic-ai/sdk pinned to 0.119.x in docs/TECH_STACK.md, which that doc explicitly asked for \"when the analysis wave begins\".",
+        "THE SDK API WAS VERIFIED AGAINST node_modules, NOT TRAINING DATA (CLAUDE.md Law 2): instantiated the real client and confirmed client.messages.create exists before writing a line against it. Model id claude-sonnet-5, workspace-configurable.",
+        "THE EGRESS ROW IS WRITTEN BEFORE THE CALL, and a test asserts the ORDER plus a second test that the row survives a throwing call. An audit that only records successes is not an audit — Tier 3 is the only place this product sends a customer's code off their network, and a call that crashes mid-parse must still leave evidence it happened.",
+        "recordEgress IS REQUIRED, NOT OPTIONAL, in the client's deps. A Tier-3 client that can run without an auditor is one that can send code off-network with no record, which is exactly what NFR-9 exists to prevent. The type system enforces it.",
+        "THE AUDIT STORES A CONTENT DIGEST, NOT THE CONTENT: sha256 of exactly what was sent, so a prompt can be verified later without the audit table itself becoming a copy of the customer's code.",
+        "WITHOUT OPT-IN THE PR IS BADGED, NEVER SENT. Silent egress — code leaving the network because a heuristic thought it important — is the worst thing this subsystem could do, and decideEscalation returns needs_opt_in rather than escalate. Over budget QUEUES rather than drops, because dropping silently would make a spending limit look like a quality change.",
+        "THE OPT-IN GAP IS REPORTED BEFORE THE BUDGET GAP. Checking budget first would tell someone to raise a limit that would change nothing, because the repository was never permitted to escalate.",
+        "NO LIVE TIER-3 CALL HAS BEEN MADE, and none is possible here: ANTHROPIC_API_KEY is unset in this environment. The transport is injected and every test drives it. What is proven is the egress discipline and the escalation rules; what is NOT proven is that a real Claude response parses into the Finding schema. That needs Brad's key and is called out in docs/STATUS.md.",
+        "GATE: lint 0, typecheck 0, 775 unit tests (was 763), zero skipped, pnpm -r test green, validators exit 0."
+      ]
     },
     {
       "id": "W7-02",
@@ -4475,6 +4489,35 @@
         "THE SINCE-LAST-VISIT STRIP USES THE USER'S OWN lastVisitAt, not a fixed 7-day window: \"new this week\" to someone who was here an hour ago is noise, and to someone back from two weeks off it is a lie by omission. A first visit says so and shows nothing rather than reporting counts about nothing, and the strip is hidden entirely when every count is zero — a row that says \"0 new\" every load is furniture people learn to skip.",
         "THE INTENT CONTROL STATES THE CONSEQUENCE BEFORE THE CLICK (\"hidden from hotspot lists, still counted\"), because acknowledging a file changes what a shared screen shows and that is worth understanding at the moment you decide it.",
         "GATE: lint 0, typecheck 0, 763 unit tests (was 762), zero skipped, pnpm -r test green, e2e 77 passed + 1 skipped (was 76), three validators exit 0."
+      ]
+    },
+    {
+      "id": "W7-08",
+      "title": "Admin Analysis tab: T2 policy, per-repo T3 opt-in, egress log, cost rollup",
+      "phase": 7,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/admin/analysis/**",
+        "apps/api/src/plugins/api-v1.ts",
+        "apps/web/src/routes/admin/**",
+        "apps/web/src/widgets/admin/**",
+        "e2e/**"
+      ],
+      "depends_on": [
+        "W7-01"
+      ],
+      "acceptance": [
+        "Admin → Analysis tab per UX_SPEC §4.i: Tier-2 host policy and concurrency, per-repo Tier-3 opt-in with a per-PR override, admin-only",
+        "Egress audit log view: one row per Tier-3 call with bytes, tokens, content digest, initiator and checklist version",
+        "Per-repo Tier-3 cost rollup (NFR-12) reading cost_usd from the audit rows",
+        "A repo without opt-in shows the needs-T3 badge and the reason, never a send button that silently escalates; axe green"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-19 out of W7-01. The Tier-3 client, escalation rules and egress audit are complete and tested; this is the SURFACE. Filed rather than rushed at the end of a ticket that had already delivered its engine — the tab carries a per-repo opt-in control that decides whether code leaves the network, which is not a thing to bolt on in the last twenty minutes.",
+        "The opt-in control must show the CONSEQUENCE at the point of decision, the way the artifact-intent control does: turning it on means this repository's diffs may be sent to a third party."
       ]
     }
   ]
