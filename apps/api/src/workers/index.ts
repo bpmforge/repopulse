@@ -15,6 +15,7 @@ import { startWorkerHealthServer } from './health.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
+import { startSweeper } from '@repopulse/security';
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
@@ -122,6 +123,20 @@ async function main(): Promise<void> {
     `[worker] nightly reconcile: ${reconcileCron === 'off' ? 'disabled' : reconcileCron}`,
   );
 
+  // Snapshot orphan sweep (W8-03, NFR-13). A scan brackets its own snapshot in
+  // a `finally`, which covers returning and throwing and CANNOT cover SIGKILL —
+  // so a killed worker leaves a customer's source on disk until something else
+  // removes it. This is that something else, and it is wired here rather than
+  // merely exported, because an unwired cleanup is the same defect as an
+  // unwired processor: it exists, it is tested, and it never runs.
+  const sweeper = startSweeper({
+    ...(process.env.SNAPSHOT_ROOT ? { root: process.env.SNAPSHOT_ROOT } : {}),
+  });
+  const sweptOnBoot = await sweeper.ran;
+  console.log(
+    `[worker] snapshot sweep on boot: removed ${sweptOnBoot.removed.length}, in flight ${sweptOnBoot.keptInFlight}`,
+  );
+
   const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
   const healthServer = startWorkerHealthServer({
     db,
@@ -135,6 +150,7 @@ async function main(): Promise<void> {
       console.warn('[worker] drain timed out — forcing close, jobs resume from cursor'),
   });
   process.once('SIGTERM', () => {
+    sweeper.stop();
     healthServer.close();
     void connection.quit().catch(() => {});
     void publisher.quit().catch(() => {});

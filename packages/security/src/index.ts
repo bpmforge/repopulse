@@ -2,3 +2,12 @@ export * from './framework/types.js';
 export * from './framework/budget.js';
 export * from './registry.js';
 export * from './config/defaults.js';
+export * from './snapshot/tar.js';
+export * from './snapshot/extract.js';
+export * from './snapshot/snapshot.js';
+export * from './snapshot/fetch.js';
+// The sandbox lives outside src/ because it is a trust boundary, not a module:
+// validate-arch rule 7 keys on the directory when it checks that nothing else
+// spawns a scan tool.
+export * from '../sandbox/profile.js';
+export * from '../sandbox/run.js';

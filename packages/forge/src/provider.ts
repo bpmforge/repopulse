@@ -9,6 +9,7 @@ import type {
   ForgeCommit,
   ForgeDiffFile,
   ForgeFileContent,
+  ForgeTarball,
   ForgeIssue,
   ForgePR,
   ForgeRelease,
@@ -51,6 +52,17 @@ export interface ForgeProvider {
   listDeployments(ctx: CallCtx, repo: string, cursor?: ForgeCursor): Promise<Page<ForgeDeployment>>;
   listIssues(ctx: CallCtx, repo: string, q: SinceQuery): Promise<Page<ForgeIssue>>;
   getFileContent(ctx: CallCtx, repo: string, path: string, ref: string): Promise<ForgeFileContent>; // FR-FORGE-6 only
+
+  /**
+   * Source archive for one commit — capability-guarded by `supportsTarball`
+   * (W8-03, C1a exception). Callers branch on the capability; they never
+   * try/catch feature-detect.
+   *
+   * ONLY the snapshot service may call this. It is the single sanctioned way
+   * whole-repo source reaches this machine, and validate-arch rule 6 fails the
+   * build if anything else calls it or if `git clone` appears anywhere.
+   */
+  getTarball(ctx: CallCtx, repo: string, sha: string): Promise<ForgeTarball>;
   registerWebhook(
     ctx: CallCtx,
     repo: string,

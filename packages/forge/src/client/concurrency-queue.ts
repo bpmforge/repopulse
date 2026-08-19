@@ -1,6 +1,6 @@
 import type { Lane } from '../types.js';
 
-const LANES_BY_PRIORITY: Lane[] = ['webhook', 'user', 'backfill', 'reconcile'];
+const LANES_BY_PRIORITY: Lane[] = ['webhook', 'user', 'backfill', 'scan', 'reconcile'];
 
 // Global concurrency semaphore (<=100, FORGE_PROVIDER.md §3c) with lane
 // priority ordering for whichever pending call gets the next free slot.
@@ -10,6 +10,7 @@ export class ConcurrencyQueue {
     webhook: [],
     user: [],
     backfill: [],
+    scan: [],
     reconcile: [],
   };
 
@@ -44,6 +45,7 @@ export class ConcurrencyQueue {
       webhook: this.queues.webhook.length,
       user: this.queues.user.length,
       backfill: this.queues.backfill.length,
+      scan: this.queues.scan.length,
       reconcile: this.queues.reconcile.length,
     };
   }

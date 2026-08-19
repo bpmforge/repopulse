@@ -1,3 +1,4 @@
+import { resolveTarball } from '../client/tarball.js';
 import type { ForgeResponse } from '../client/budgeted-client.js';
 // ForgeHttpClient is declared alongside the GitHub adapter; both adapters take
 // the same injected transport so the BudgetedClient serves either (Law 7).
@@ -18,6 +19,7 @@ import type {
   ForgeRelease,
   ForgeRepo,
   ForgeReview,
+  ForgeTarball,
   Page,
   SinceQuery,
 } from '../types.js';
@@ -64,6 +66,7 @@ export const GITEA_CAPABILITIES: ForgeCapabilities = {
   supportsRawDiff: false,
   reportsTotalCounts: true, // x-total-count → true percent-complete (INGESTION §7)
   hasRateLimits: false, // budgeter passes through; politeness cap below
+  supportsTarball: true, // /archive/{sha}.tar.gz answers with bytes, no redirect
   maxPerPage: GITEA_MAX_PER_PAGE,
 };
 
@@ -283,6 +286,35 @@ export class GiteaProvider implements ForgeProvider {
       'commits',
     );
     return normalizeFileContent(res.body as RawGiteaFileContent, ref);
+  }
+
+  /**
+   * Source archive for one commit (W8-03, C1a). Gitea answers with the bytes
+   * directly rather than a redirect, so there is nothing to follow — the
+   * shared resolver handles both shapes and this provider simply passes the
+   * response through.
+   */
+  async getTarball(ctx: CallCtx, repo: string, sha: string): Promise<ForgeTarball> {
+    const res = await this.client.request(ctx, {
+      method: 'GET',
+      url: `${this.base}/repos/${repo}/archive/${sha}.tar.gz`,
+      family: 'commits',
+      cost: 1,
+      getHeaders: this.getHeaders,
+    });
+    return resolveTarball({
+      commitSha: sha,
+      apiHost: new URL(this.base).hostname,
+      status: res.status,
+      headers: res.headers,
+      body: res.body,
+      download: async () => {
+        // Unreachable unless a Gitea deployment starts redirecting archives —
+        // and if it does, we want to know rather than silently fetch from
+        // wherever it points.
+        throw new Error('Gitea archive responded with a redirect; not followed');
+      },
+    });
   }
 
   async registerWebhook(

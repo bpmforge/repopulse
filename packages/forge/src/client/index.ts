@@ -8,3 +8,4 @@ export * from './metrics.js';
 export * from './primary-budget.js';
 export * from './rate-bucket.js';
 export * from './rate-limit-headers.js';
+export * from './tarball.js';
