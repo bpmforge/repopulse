@@ -51,14 +51,14 @@ function portInUse(port) {
 // throws `missing required env var GITHUB_APP_CLIENT_ID` from inside a tsx
 // child, which arrives as a stack trace interleaved with two other processes'
 // output. On a fresh clone this is the FIRST thing a newcomer hits, and a
-// stack trace does not tell them the fix is `pnpm setup` (W13-01) or demo mode
+// stack trace does not tell them the fix is `pnpm bootstrap` (W13-01) or demo mode
 // (W13-02).
 const REQUIRED = ['DATABASE_URL', 'REDIS_URL', 'SESSION_SECRET', 'API_BASE_URL', 'PUBLIC_BASE_URL', 'TOKEN_ENC_KEY', 'GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET'];
 const missingEnv = REQUIRED.filter((k) => !process.env[k]);
 if (missingEnv.length > 0) {
   console.error(
     `\nThe API cannot start — missing: ${missingEnv.join(', ')}\n\n` +
-      `  Fresh clone?   pnpm setup            # writes .env and generates the secrets\n` +
+      `  Fresh clone?   pnpm bootstrap            # writes .env and generates the secrets\n` +
       `  No GitHub app? DEMO_MODE=1 pnpm dev  # seeded demo data, no GitHub account\n\n` +
       `  These live in .env at the REPO ROOT (not apps/api/.env).\n`,
   );

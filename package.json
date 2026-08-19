@@ -19,7 +19,8 @@
     "db:migrate": "drizzle-kit migrate",
     "seed": "tsx packages/shared/src/testing/seed/run.ts",
     "e2e": "playwright test",
-    "dev": "node scripts/dev.mjs"
+    "dev": "node scripts/dev.mjs",
+    "bootstrap": "node scripts/setup.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4",
