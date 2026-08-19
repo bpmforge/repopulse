@@ -4058,10 +4058,16 @@
         "STATUS.md records what a newcomer actually experiences, including anything still rough"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "THE ONLY TICKET THAT MAKES THE OTHERS REAL. Every previous instance of this defect class in this project was found by running the thing rather than reading it — the bot filter, the unpublished sync events, the never-called CI metrics, and CI itself never having run a single step.",
-        "A fresh clone in a temp dir, because the working tree has a .env, a migrated database, a warmed pnpm store and six days of running containers. None of that is true for a newcomer, and every one of them can hide a broken step."
+        "A fresh clone in a temp dir, because the working tree has a .env, a migrated database, a warmed pnpm store and six days of running containers. None of that is true for a newcomer, and every one of them can hide a broken step.",
+        "DONE 2026-08-19. Fresh git clone into a scratch directory, then the quickstart exactly as documented. pnpm install, pnpm bootstrap: .env created, SESSION_SECRET/WEBHOOK_SECRET/TOKEN_ENC_KEY all generated as valid 32-byte hex, migrations applied, warehouse seeded (3 repos, 24 commits, 15 PRs, 1536 snapshots).",
+        "THE DOCUMENTED TROUBLESHOOTING ENTRY FIRED VERBATIM: DEMO_MODE=1 pnpm dev hit \"Port already in use: api (:3000)\" — correct cause named (the deploy/compose.yaml stack), correct fix offered. Good sign for the message; the fix itself was not.",
+        "FIFTH DEFECT OF THE WAVE, AND IT WAS IN MY OWN ADVICE: PORT=3010 pnpm dev moved the API but left the vite proxy on API_PROXY_TARGET=http://localhost:3000, so the browser kept talking to whatever was still listening there. Printed by our own tooling, documented in our own troubleshooting, and it did not work. dev.mjs now derives the proxy target from PORT; an explicit override still wins. THIS IS WHY THIS TICKET EXISTS.",
+        "BROWSER PROOF, not a curl: a real chromium session logged in through the mocked OAuth boundary and rendered the Org Overview — demo banner across the top, Delivery KPIs, Repo health (payments 52, web-app 69, infra 47), Needs attention, Hotspots. Screenshot captured to the scratch dir.",
+        "ONE CHECK FAILED AND IT WAS THE CHECK, NOT THE PRODUCT: the assertion looked for \"Health\" where the widget is titled \"Repo health\". Recorded rather than quietly corrected, because a verification script that is wrong in the OTHER direction is how a broken screen passes.",
+        "NOT VERIFIED, SAID PLAINLY: the deploy/compose.yaml container path has no clean from-scratch run behind it. It is documented from the file and from the long-running stack on this machine. Worth its own ticket."
       ]
     }
   ]

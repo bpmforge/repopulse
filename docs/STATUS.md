@@ -2168,3 +2168,79 @@ Gate: lint 0, typecheck 0, **589 unit tests** (was 586), zero skipped under
 
 **W4's gate section is still unwritten and still cannot be written here.** None
 of this changes that; W12 is out-of-band infrastructure work, not W4 verification.
+
+### 2026-08-19 — W13: clone to running app, verified on a clean clone
+
+Goal changed on 2026-08-18: not build/CI infrastructure, but **anyone can clone
+this and run it**. Filed as W13 and worked overnight, unattended. All five
+tickets done.
+
+#### What a newcomer used to hit
+
+Three walls, found by running the fresh-clone path rather than reading it.
+`.env.example` could not boot the API (`missing required env var
+GITHUB_APP_CLIENT_ID`, then `TOKEN_ENC_KEY is required`) — both blanks correct
+per Law 9, which means **the documented setup file had never been able to start
+the app**. Nothing in any `package.json` started the ingestion worker; the only
+thing that ever launched it was `playwright.config.ts`. And login required a
+registered GitHub OAuth app, so there was no way in at all.
+
+#### The wave
+
+- **W13-01** `pnpm bootstrap` — containers, `.env`, **generated** secrets,
+  migrate, seed. Idempotent.
+- **W13-03** `pnpm dev` — api + worker + web, one command, prefixed logs.
+- **W13-02** demo mode — the whole product with no GitHub account.
+- **W13-04** README quickstart + `docs/RUNNING.md`.
+- **W13-05** the clean-clone verification below.
+
+#### Four defects the work itself surfaced
+
+1. **`pnpm setup` is a pnpm builtin.** Every doc telling a newcomer to run it
+   would have run pnpm's own command and never touched this repo. The command
+   is `pnpm bootstrap`.
+2. **Published secrets.** `.env.example` *pre-fills* `SESSION_SECRET` and
+   `WEBHOOK_SECRET` with `dev-insecure-…`, so a fill-only-blanks rule left every
+   install signing session cookies and validating webhook HMACs with a secret
+   **published in this repository**. Placeholders now count as unset.
+3. **`pnpm --filter` gives children `cwd=apps/api`**, so their own dotenv found
+   no root `.env` — API and worker both died on a machine where `.env` exists.
+4. **Demo's OAuth `redirect_uri` came from `API_BASE_URL`** (pinned to :3000),
+   so running the demo on any other port sent the callback to whatever else was
+   listening. It presented as a login that does nothing, with nothing in the log.
+
+#### W13-05: the clean-clone run
+
+Fresh `git clone` into a scratch directory, then the quickstart exactly as
+documented. `pnpm install`, `pnpm bootstrap` (all three secrets generated as
+valid 32-byte hex; 3 repos, 24 commits, 15 PRs, 1536 snapshots seeded).
+
+`DEMO_MODE=1 pnpm dev` then failed with `Port already in use: api (:3000)` —
+**the documented troubleshooting entry, firing verbatim**, naming the right
+cause (the `deploy/compose.yaml` stack) and the right fix.
+
+That fix then exposed a **fifth defect, in my own advice**: `PORT=3010 pnpm dev`
+moved the API but left the vite proxy on `API_PROXY_TARGET=http://localhost:3000`,
+so the browser kept talking to whatever was still there. `dev.mjs` now derives
+the proxy target from `PORT`. This is exactly why W13-05 exists — the
+workaround was printed by our own tooling and documented in our own
+troubleshooting, and it did not work.
+
+Proof: a real browser logged in through the mocked OAuth boundary and rendered
+the Org Overview — demo banner across the top, Delivery KPIs, Repo health
+(payments 52, web-app 69, infra 47), Needs attention, Hotspots. Screenshot
+captured. One "failure" in that check was **my assertion, not the product**: it
+looked for "Health" where the widget is "Repo health".
+
+Gate: lint 0, typecheck 0, **597 unit tests** (was 589), zero skipped under
+`REQUIRE_LIVE_INFRA=1`, e2e 56 passed + 1 skipped, three validators exit 0.
+
+#### Still true, and still needing you
+
+- **CI has never run** — Actions budget. Every gate above is local.
+- **W4's gate section** still requires a challenger session; nothing here
+  changed that, and W12/W13 are out-of-band infrastructure, not W4 verification.
+- **Not verified from scratch:** the `deploy/compose.yaml` container path is
+  documented from the file and from the stack running on this machine, but no
+  clean `cp deploy/.env.example deploy/.env && podman compose up` run has been
+  done. Worth a ticket.
