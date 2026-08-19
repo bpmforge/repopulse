@@ -171,7 +171,7 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
     await db.$client.end();
   });
 
-  it('catalog serves the FR-METRICS-15 definitions (12 metrics)', async () => {
+  it('catalog serves the FR-METRICS-15 definitions (14 metrics)', async () => {
     const cookie = await loginAs(app, MEMBER);
     const res = await app.inject({
       method: 'GET',
@@ -180,7 +180,8 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
     });
     expect(res.statusCode).toBe(200);
     const items = res.json().items as { id: string; formula: string }[];
-    expect(items).toHaveLength(12);
+    // 14 since W9-05 (M13 rework-14d, M14 revert rate).
+    expect(items).toHaveLength(14);
     expect(items[0]).toHaveProperty('formula');
   });
 

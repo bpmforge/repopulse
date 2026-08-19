@@ -1,11 +1,11 @@
-// FR-METRICS-15: machine-readable catalog for M1-M12. Formula text is a
+// FR-METRICS-15: machine-readable catalog for M1-M14. Formula text is a
 // human-readable summary of docs/design/METRICS.md §1's exact definitions -
 // that doc is LAW; this catalog must not drift from it. UI renders tooltips
 // from this catalog, never hardcoded strings (SRS §2.3 acceptance).
 export type MetricDirection = 'higher_better' | 'lower_better' | 'neutral';
 
 export interface MetricCatalogEntry {
-  id: string; // 'M1'..'M12'
+  id: string; // 'M1'..'M14'
   frId: string; // 'FR-METRICS-1'..'FR-METRICS-12'
   name: string;
   formula: string;
@@ -143,6 +143,27 @@ export const METRIC_CATALOG: readonly MetricCatalogEntry[] = [
     direction: 'higher_better',
     heuristicNotes:
       'Every tile/report carries a basis label and honesty caveat (§1 table) — Gitea always falls back to releases (no deployments API).',
+  },
+  {
+    id: 'M13',
+    frId: 'FR-CH-7',
+    name: 'Rework (14 day)',
+    formula:
+      'rework14 = sum(additions+deletions) on a file touched again <14d after its previous touch / sum(additions+deletions) in the window',
+    unit: 'ratio 0-1',
+    direction: 'lower_better',
+    heuristicNotes:
+      'A DEBT signal, not a verdict: high rework is normal in a young feature and alarming in a mature one. The 14-day window is deliberately shorter than M1 rework (21d) - M1 measures churn quality over a sprint, M13 measures work redone almost immediately. Null (not 0) over a window with no line changes: a 0% rework rate for a week with no commits reads as a perfect week.',
+  },
+  {
+    id: 'M14',
+    frId: 'FR-CH-7',
+    name: 'Revert rate',
+    formula: 'reverting commits / non-merge, non-bot commits in the window',
+    unit: 'ratio 0-1',
+    direction: 'lower_better',
+    heuristicNotes:
+      'HEURISTIC: a revert is detected from the commit message shape (is_revert_heuristic), so a revert described in other words is missed and a commit that merely mentions reverting is counted. A revert is also often the CORRECT response to a bad deploy - this measures how often the team has to undo, not how careless they are. Merges are excluded from the denominator (section 0), or a squash-merging team would look healthier than a merge-committing one for reasons unrelated to reverts.',
   },
 ];
 
