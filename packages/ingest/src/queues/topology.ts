@@ -16,6 +16,9 @@ export const QUEUE = {
   // burst must not make someone's report sit behind it, and a stuck print must
   // not stall ingestion.
   reports: 'reports.generate',
+  // W5-06. Nightly, after metrics.snapshot — it reads the snapshots that job
+  // writes, so running it on its own schedule would verify yesterday's numbers.
+  plansVerify: 'plans.verify',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -32,6 +35,7 @@ export const QUEUE_PRIORITY: Record<string, number> = {
   // Someone is watching a spinner for this one (UX_SPEC §4.h), so it outranks
   // every background lane except live webhook deltas.
   [QUEUE.reports]: 2,
+  [QUEUE.plansVerify]: 6,
 };
 
 const MIN = 60_000;
@@ -48,6 +52,7 @@ export const RETRY: Record<string, JobsOptions> = {
   // transient forge hiccup, and a user waiting on a spinner is better served by
   // a fast failure they can see than by 30 minutes of silent retries.
   [QUEUE.reports]: { attempts: 2, backoff: { type: 'exponential', delay: 5_000 } },
+  [QUEUE.plansVerify]: { attempts: 2, backoff: { type: 'exponential', delay: MIN } },
 };
 
 /** Full default job options for a queue: retry + priority + keep-failed. */

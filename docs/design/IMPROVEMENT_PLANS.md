@@ -27,7 +27,11 @@ interface CatalogEntry {
 }
 ```
 
-### Seed catalog v1 (12 entries)
+### Seed catalog v1 (13 entries)
+
+<!-- W5-06: the heading said 12 while the table listed 13. `act-band-cluster` was
+added later as the D12 sibling of `sev-findings-cluster` and the count was never
+updated. Corrected here rather than in code: the catalog implements all 13. -->
 
 | id | Condition (defaults; workspace-tunable) | Recommendation (template) | Verify criterion |
 |---|---|---|---|

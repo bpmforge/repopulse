@@ -2050,8 +2050,15 @@
       "write_scope": [
         "packages/insights/src/plans/**",
         "packages/shared/src/db/schema/plans/**",
+        "packages/shared/src/db/schema/index.ts",
         "packages/shared/drizzle/**",
-        "apps/api/src/routes/plans/**"
+        "packages/shared/src/testing/seed/**",
+        "apps/api/src/routes/plans/**",
+        "apps/api/src/workers/**",
+        "apps/api/src/plugins/api-v1.ts",
+        "packages/ingest/src/queues/**",
+        "docs/design/IMPROVEMENT_PLANS.md",
+        "drizzle.config.ts"
       ],
       "depends_on": [
         "W5-03"
@@ -2063,8 +2070,21 @@
         "Dismissed (catalog id × scope) does not regenerate while dismissed; plans API per FR-PLANS-6 with tenancy walker green"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED 2026-08-19 before code: the filed scope covered the catalog, schema and API, but acceptance 3 requires a NIGHTLY plans.verify JOB — which needs a queue entry, a worker processor and the api-v1 mount. Also added the seeder: wipeWorkspace needs a delete line for each of the three new workspace-scoped tables, a gap that has already broken the shared seed test twice (saved_views in W5-02, reports in W5-04).",
+        "DONE 2026-08-19. Catalog v1 as pure versioned functions (condition / evidence / verifyCriterion / effort / rankWeight), the three plans tables with migration 0008, generation with deterministic ranking and dismissal suppression, the plans API (generate, list, human transitions), and the nightly plans.verify processor wired into the worker.",
+        "THE SPEC SAID 12 AND LISTED 13. IMPROVEMENT_PLANS.md §1 headed the table \"Seed catalog v1 (12 entries)\" while listing thirteen — act-band-cluster was added later as the D12 sibling of sev-findings-cluster and the count was never updated. Fixed the DOC in this PR (CLAUDE.md: metric/plan definitions are spec; fix the spec rather than improvise) and implemented all 13.",
+        "UNKNOWN IS NOT BROKEN, and it is the most consequential line in the engine: evaluateCriterion returns holds | broken | unknown, and a missing metric returns unknown, which produces NO transition. Without that distinction a metric that stopped being computed would flip a team's completed work to \"regressed\" — telling them their fix came undone when in truth we stopped measuring. Pinned by both a unit test and an integration test that deletes the snapshot and asserts the item stays done with no new event.",
+        "THE VERIFIER NEVER ACTS FOR A HUMAN: proposed -> accepted and dismissed -> anything are refused by verifyTransition, so the nightly job cannot accept work on someone's behalf or resurrect a dismissal. Conversely `done` is absent from every HUMAN transition list in the API — marking an item done by hand would defeat the automatic verification that is the point of the feature. A blocked transition is a 409 (well-formed request, forbidden state), not a 400.",
+        "ABSENT METRICS NEVER PROPOSE WORK: every condition uses helpers that treat null as \"not breaching\", so a warehouse with no data generates an empty plan rather than thirteen items nobody can act on. Asserted directly (\"proposes nothing when the metrics are ABSENT rather than bad\").",
+        "AUDIT ROWS DISTINGUISH THE ACTOR: automatic transitions write actorUserId null, human ones write the user. Without that an automatic reopen is indistinguishable from a colleague reopening it, and \"why did this come back?\" has no answer.",
+        "TEAM-SCOPED BY CONSTRUCTION (N-9): none of the three tables has a person column and none should ever gain one. Items name a repository, a metric or a finding set.",
+        "THE FINDING-DRIVEN ENTRIES (sev-findings-cluster, kev-or-chain-open, act-band-cluster) are declared with conditions that are false until findings exist in W6. Declared now so the catalog is complete and versioned, and so W6 wires data rather than adding vocabulary. kev-or-chain-open carries rankWeight 1000 — pinned first per §2.",
+        "SEEDER LINES ADDED IN THIS TICKET, per the standing note: wipeWorkspace now deletes plan_item_events, plan_items and improvement_plans (children first). The same gap broke the shared seed test in W5-02 and W5-04; this time it was written with the table rather than after it.",
+        "ALSO FIXED: drizzle.config.ts lists schema directories explicitly and did not include plans/, so the first generate reported \"No schema changes, nothing to migrate\" and the tables would simply never have existed. Caught by checking the migration output rather than trusting it.",
+        "GATE: lint 0, typecheck 0, 635 unit tests (was 619), zero skipped, three validators exit 0. No e2e — this ticket ships no screen; W5-07 lands the Plans page and retires the /plans dead rail link."
+      ]
     },
     {
       "id": "W5-07",

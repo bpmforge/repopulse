@@ -1,6 +1,6 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
-import { core, facts, read } from '../../db/index.js';
+import { core, facts, plans, read } from '../../db/index.js';
 import { makeRng, type Rng } from './prng.js';
 
 // Deterministic warehouse seeder (W4-00) — one multi-repo org + a second
@@ -121,6 +121,11 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   // until something finally created one: saved_views has an FK to users, so a
   // leftover view makes unseedWarehouse's user delete fail with a constraint
   // error from a table the caller never mentioned.
+  // Plans (W5-06). Children first: plan_item_events -> plan_items ->
+  // improvement_plans, since each FKs the one before it.
+  await db.delete(plans.planItemEvents).where(eq(plans.planItemEvents.workspaceId, workspaceId));
+  await db.delete(plans.planItems).where(eq(plans.planItems.workspaceId, workspaceId));
+  await db.delete(plans.improvementPlans).where(eq(plans.improvementPlans.workspaceId, workspaceId));
   // Reports (W5-04), for the same reason as saved views directly below: the
   // row FKs to users, so a leftover report makes unseedWarehouse's user delete
   // fail with a constraint error naming a table the caller never mentioned.
