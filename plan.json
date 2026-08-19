@@ -2314,7 +2314,11 @@
         "E6.4"
       ],
       "write_scope": [
-        "packages/insights/src/findings/**"
+        "packages/insights/src/findings/**",
+        "packages/insights/src/score/**",
+        "packages/insights/src/hotspots/**",
+        "packages/insights/src/index.ts",
+        "packages/insights/package.json"
       ],
       "depends_on": [
         "W6-02",
@@ -2327,8 +2331,20 @@
         "Health score gains the security sub-score with weight renormalization per METRICS.md §3, and hotspot ranking gains open-finding density (FR-INSIGHTS-2/5 v1.x halves)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "WRITE_SCOPE WIDENED before code: acceptance 4 adds the security sub-score to the health score (packages/insights/src/score) and open-finding density to hotspot ranking (packages/insights/src/hotspots), neither of which is under findings/**.",
+        "DONE 2026-08-19. Dedup keying, the finding lifecycle, the store (persist with dedup, reopen, auto-resolve, open-finding density, false-positive rate), the security sub-score in the health score, and hotspot density inputs.",
+        "THE CONTRACT: re-running an unchanged PR creates ZERO new rows and bumps last_seen/occurrence_count. A findings list that grows every time the same question is asked is a list people stop reading — and the count now feeds the health score, so it would also move a number nobody changed the code to move.",
+        "A MACHINE NEVER UNDOES A HUMAN JUDGEMENT: a dismissed or wont_fix finding is NOT reopened when the model says the same thing again. A resolved one IS reopened when its evidence reappears, with an audit row and a null actor — that is not undoing a judgement, it is new information: the code came back.",
+        "AUTO-RESOLVE IS RECORDED AS outdated_diff, NOT fixed. We observed that we stopped seeing the finding, not that anyone repaired it. Crediting an unwitnessed fix would make the resolution rate a number nobody should trust.",
+        "THE SECURITY SUB-SCORE IS ABSENT, NOT ZERO, FOR AN UNANALYSED REPO — and a test asserts the difference directly. If absent findings scored as clean, every repository nobody has reviewed would outrank an analysed one that honestly reported two issues. That is the null-vs-zero trap in the place it would do the most damage.",
+        "REAL BUG FOUND IN EXISTING CODE: tier1Only was computed from the sub-score DEFINITIONS rather than the sub-scores that survived. The moment buildHealthSubScores always emitted a security definition, every repo — including unanalysed ones — reported \"not Tier-1 only\". The label means \"this score contains non-Tier-1 evidence\", and only a SCORED sub-score does. Fixed and pinned.",
+        "NORMALIZER MADE IDEMPOTENT, caught by my own failing expectation: collapsing whitespace before stripping digits leaves the gap the number occupied (\"foo( 42 )\" -> \"foo(  )\"), so normalizing an already-normalized quote produced a different string — and a normalizer that is not idempotent gives the same finding two keys, which silently disables dedup.",
+        "FALSE-POSITIVE RATE COUNTS ONLY false_positive DISMISSALS. \"We accept this risk\" is not the model being wrong; folding the two together would make the FP rate measure team policy instead of model quality. It returns null rather than 0 over an empty set — a 0% false-positive rate across zero findings reads as a perfect model.",
+        "NOT IN THIS TICKET: the analysis.review queue and its processor. W6-01 deferred the queue so it would land WITH its processor; that is the review runner, which belongs with the API/UI wiring in W6-04 rather than with the store.",
+        "GATE: lint 0, typecheck 0, 704 unit tests (was 690), zero skipped, three validators exit 0."
+      ]
     },
     {
       "id": "W6-04",

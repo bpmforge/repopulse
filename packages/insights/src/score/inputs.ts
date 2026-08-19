@@ -28,6 +28,12 @@ export interface HealthContext {
   nowMs: number;
 }
 
+/** Findings inputs, supplied by callers that have analysed the repo (W6-03). */
+export interface HealthFindingInputs {
+  openFindingDensity: number | null;
+  worstOpenSeverity: number | null;
+}
+
 /** Reads a nested numeric dim, or null when any hop is missing. */
 export function dimNum(dims: Record<string, unknown>, path: string[]): number | null {
   let cur: unknown = dims;
@@ -48,6 +54,7 @@ const EMPTY: HealthSnapshotValue = { value: null, dims: {} };
 export function healthInputsFromSnapshots(
   snapshots: HealthSnapshotSet,
   ctx: HealthContext,
+  findings: HealthFindingInputs = { openFindingDensity: null, worstOpenSeverity: null },
 ): HealthMetricInputs {
   const m4 = snapshots.M4 ?? EMPTY;
   const m5 = snapshots.M5 ?? EMPTY;
@@ -69,5 +76,10 @@ export function healthInputsFromSnapshots(
     e2eCycleP50Hours: m4.value,
     m11DaysSinceRelease: dimNum(m11.dims, ['daysSinceLast']),
     m12Cfr: null,
+    // Snapshots do not carry findings; the callers that HAVE them (the repo
+    // route once W6-04 lands) pass them in. Null here means "not analysed",
+    // which drops the security sub-score and renormalizes — never "secure".
+    openFindingDensity: findings.openFindingDensity,
+    worstOpenSeverity: findings.worstOpenSeverity,
   };
 }

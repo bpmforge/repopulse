@@ -52,6 +52,10 @@ export const DEFAULT_WEIGHTS: Record<string, number> = {
   reviewHygiene: 0.3,
   ciHealth: 0.25,
   delivery: 0.25,
+  // W6-03. Absent for any repo with no analysis, in which case the four above
+  // renormalize to 1.0 and the score is labelled "Tier-1 only" — the mechanism
+  // METRICS.md §3 already specifies, now with something real to put in it.
+  security: 0.2,
 };
 
 interface EvaluatedSub {
@@ -98,8 +102,13 @@ export function computeHealthScore(defs: SubScoreDef[]): HealthScore {
   });
 
   const score = subScores.reduce((s, e) => s + e.contribution, 0);
-  // security + supply_chain are the non-Tier-1 sub-scores (v1.x / W10).
-  const tier1Only = !defs.some((d) => d.key === 'security' || d.key === 'supplyChain');
+  // Based on the sub-scores that SURVIVED, not on the definitions offered.
+  // W6-03 made buildHealthSubScores always emit a `security` definition, so the
+  // old check (does a definition exist?) reported "not Tier-1 only" for every
+  // repository — including ones nobody has analysed. What the label means is
+  // "this score contains non-Tier-1 evidence", and only a scored sub-score
+  // does.
+  const tier1Only = !subScores.some((e) => e.key === 'security' || e.key === 'supplyChain');
 
   return { score, subScores, renormalized, tier1Only };
 }
@@ -119,6 +128,16 @@ export interface HealthMetricInputs {
   e2eCycleP50Hours: number | null;
   m11DaysSinceRelease: number | null;
   m12Cfr: number | null; // change-failure rate 0–1, when present
+  /**
+   * W6-03 (FR-INSIGHTS-2): open findings weighted by severity, per 1000 lines
+   * changed in the window. NULL until a repository has actually been analysed —
+   * and null is the whole point: a repo nobody has reviewed must score as
+   * "unknown security" and be excluded from the mean, not as "no findings,
+   * therefore secure".
+   */
+  openFindingDensity: number | null;
+  /** Highest open severity (1-5), or null when nothing has been analysed. */
+  worstOpenSeverity: number | null;
 }
 
 export function buildHealthSubScores(
@@ -149,6 +168,21 @@ export function buildHealthSubScores(
       inputs: [
         { key: 'm9PassRate', raw: inputs.m9PassRate, good: 0.95, bad: 0.6 },
         { key: 'topFlakiness', raw: inputs.topFlakiness, good: 0, bad: 0.3 },
+      ],
+    },
+    {
+      // Findings-based, so it only exists once a repo has been analysed.
+      // buildSubScore drops a sub-score whose inputs are all null, which is
+      // exactly the behaviour needed here: no analysis must mean "not scored",
+      // never "scored well".
+      key: 'security',
+      weight: weights.security ?? DEFAULT_WEIGHTS.security ?? 0.2,
+      inputs: [
+        // Fewer findings per 1000 changed lines is better; 0 is good, 5 is bad.
+        { key: 'openFindingDensity', raw: inputs.openFindingDensity, good: 0, bad: 5 },
+        // A single critical finding should move the score even when density is
+        // low — one exploitable bug is not offset by a tidy codebase.
+        { key: 'worstOpenSeverity', raw: inputs.worstOpenSeverity, good: 1, bad: 5 },
       ],
     },
     {
