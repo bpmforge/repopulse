@@ -1876,7 +1876,7 @@
         "⌘K palette per UX_SPEC §3.3: fuzzy nav to repos/PRs/views/report types/admin + action verbs, recents first, fully keyboard operable; keyboard-only E2E ⌘K → type repo name → Enter lands on the repo page (FR-WEB-6)"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
