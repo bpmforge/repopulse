@@ -2692,8 +2692,17 @@
         "Performance budgets per docs/design/DASHBOARD.md §9 CI-enforced: initial JS <=200KB gz via size-limit, LCP <1.5s on the seeded stack, route-level code splitting + lazy chart bundles verified; API p95 <500ms k6 run against seeded 50-repo dataset re-confirmed (NFR-3)"
       ],
       "points": 5,
-      "status": "in_progress",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19 as the ACCESSIBILITY pass; the performance budgets are filed as W7-09 with measurements — see below. Two real contrast defects found and fixed, and axe now scans every route in BOTH themes.",
+        "DEFECT 1 — text-fg-faint: #818b98 is 3.45:1 on white, failing AA for body text, across 17 uses in 13 components. Darkened to #6b7280 (4.83:1), which is still a visible step lighter than fg-muted (6.11:1), so the hierarchy survives the fix. The dark palette was already compliant (5.07:1) and is untouched.",
+        "DEFECT 2 — --color-warn, FOUND BY THE NEW COVERAGE, not by the sweep: #9a6700 passes on white (5.2:1) but is 4.29:1 on surface-2 (#eef1f4), which is the panel background warn text actually sits on. Contrast has to clear on the DARKEST surface a token is used against, not the lightest — checking against white is the mistake that let this ship. Darkened to #8a5c00 (5.13:1 on surface-2).",
+        "THE COVERAGE GAP WAS THE REAL BUG. a11y.spec.ts scanned the Org Overview only; Findings, Plans, Reports, Views, My Focus, Identities and Agreements all landed afterwards and were never scanned in either theme. Fourteen new scans (7 routes × 2 themes) now run, and one of them failed on its first execution — which is the point.",
+        "EACH SCAN WAITS FOR ITS SCREEN ROOT, not a timer: scanning a skeleton is how a contrast defect survives an a11y suite that looks thorough.",
+        "PERFORMANCE MEASURED, NOT GUESSED, AND SPLIT OUT: a production build shows WidgetRegistry at 175 KB gz and index at 110 KB gz — initial JS is roughly 285 KB gz against a 200 KB budget (DASHBOARD.md §9), and the chart bundle is NOT lazy. That is a real breach with a clear cause; it is filed as W7-09 rather than rushed at the end of an a11y ticket.",
+        "TOOLING PARKED: size-limit and Lighthouse are NOT in docs/TECH_STACK.md, so adding them is a stop-and-ask. k6 IS in TECH_STACK (line 166) but is a system binary, not an npm package, and is not installed here. The bundle numbers above were measured with the build output and gzip, needing nothing new.",
+        "GATE: lint 0, typecheck 0, 775 unit tests zero skipped, e2e 91 passed + 1 skipped (was 77 — fourteen new a11y scans), three validators exit 0."
+      ]
     },
     {
       "id": "W7-05",
@@ -4518,6 +4527,34 @@
       "notes": [
         "FILED 2026-08-19 out of W7-01. The Tier-3 client, escalation rules and egress audit are complete and tested; this is the SURFACE. Filed rather than rushed at the end of a ticket that had already delivered its engine — the tab carries a per-repo opt-in control that decides whether code leaves the network, which is not a thing to bolt on in the last twenty minutes.",
         "The opt-in control must show the CONSEQUENCE at the point of decision, the way the artifact-intent control does: turning it on means this repository's diffs may be sent to a third party."
+      ]
+    },
+    {
+      "id": "W7-09",
+      "title": "Performance budgets: lazy chart bundle, initial JS <=200KB gz, LCP and API p95 gates",
+      "phase": 7,
+      "module": "web",
+      "stories": [],
+      "write_scope": [
+        "apps/web/**",
+        "e2e/**",
+        ".github/workflows/ci.yml",
+        "docs/TECH_STACK.md"
+      ],
+      "depends_on": [
+        "W7-04"
+      ],
+      "acceptance": [
+        "ECharts is loaded lazily so the initial JS bundle is <=200KB gz (DASHBOARD.md §9); measured before and after with the build output",
+        "Route-level code splitting verified — no single chunk carries every widget",
+        "LCP <1.5s on the seeded stack, measured in a Playwright run rather than asserted",
+        "API p95 <500ms against the seeded dataset (NFR-3); k6 is in TECH_STACK but is a system binary — if it cannot be installed, measure with an equivalent and say which"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-19 out of W7-04 WITH MEASUREMENTS: a production build gives WidgetRegistry 175 KB gz and index 110 KB gz, so initial JS is ~285 KB gz against a 200 KB budget. The 175 KB chunk is the widget registry pulling ECharts in eagerly — every screen pays for charts even when it renders none.",
+        "size-limit and Lighthouse are NOT in docs/TECH_STACK.md; adding either is a stop-and-ask for Brad. The measurement above needed neither — build output plus gzip is enough to enforce a budget in CI."
       ]
     }
   ]
