@@ -104,3 +104,63 @@ describe('lifecycle', () => {
     expect(countsAsFalsePositive('resolved', 'false_positive')).toBe(false);
   });
 });
+
+describe('dedup key: the W8-02 scanner extension', () => {
+  const analysis = {
+    dimension: 'security',
+    file: 'src/a.ts',
+    evidenceQuote: "db.query('x' + id)",
+    lineStart: 12,
+  };
+
+  it('does NOT change the key of an existing analysis finding', () => {
+    // The migration hazard this test exists for. If the new fields were
+    // appended unconditionally, every finding already in the store would
+    // re-key, the next run would create a duplicate of each, and every
+    // occurrence count, triage decision and false-positive suppression would
+    // silently detach from its finding.
+    const withUndefinedExtras = dedupKey({ ...analysis, scannerKey: undefined, ruleId: undefined });
+    const withNullExtras = dedupKey({ ...analysis, scannerKey: null, ruleId: null });
+    expect(withUndefinedExtras).toBe(dedupKey(analysis));
+    expect(withNullExtras).toBe(dedupKey(analysis));
+  });
+
+  it('separates two scanners reporting the same line', () => {
+    // semgrep and a secrets scanner flagging the same line are two findings,
+    // not one — they have different rules, different fixes and different
+    // triage answers.
+    const a = dedupKey({ ...analysis, scannerKey: 'semgrep', ruleId: 'sql-injection' });
+    const b = dedupKey({ ...analysis, scannerKey: 'secrets', ruleId: 'aws-key' });
+    expect(a).not.toBe(b);
+    expect(a).not.toBe(dedupKey(analysis));
+  });
+
+  it('separates two rules from the SAME scanner', () => {
+    const a = dedupKey({ ...analysis, scannerKey: 'semgrep', ruleId: 'rule-a' });
+    const b = dedupKey({ ...analysis, scannerKey: 'semgrep', ruleId: 'rule-b' });
+    expect(a).not.toBe(b);
+  });
+
+  it('keys a repo-level finding with no file or line', () => {
+    // A dependency CVE has neither. Bucketing null as 0 would collide every
+    // repo-level finding in a repository into one key.
+    const cve = dedupKey({
+      dimension: 'dependency',
+      file: null,
+      lineStart: null,
+      evidenceQuote: 'CVE-2026-1234 in lodash@4.17.20',
+      scannerKey: 'dependency',
+      ruleId: 'CVE-2026-1234',
+    });
+    const other = dedupKey({
+      dimension: 'dependency',
+      file: null,
+      lineStart: null,
+      evidenceQuote: 'CVE-2026-9999 in express@4.0.0',
+      scannerKey: 'dependency',
+      ruleId: 'CVE-2026-9999',
+    });
+    expect(cve).not.toBe(other);
+    expect(cve).toHaveLength(64);
+  });
+});

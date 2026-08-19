@@ -121,6 +121,8 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   // until something finally created one: saved_views has an FK to users, so a
   // leftover view makes unseedWarehouse's user delete fail with a constraint
   // error from a table the caller never mentioned.
+  // SBOMs (W8-02).
+  await db.delete(security.sboms).where(eq(security.sboms.workspaceId, workspaceId));
   // Scanner config and runs (W8-01).
   await db.delete(security.scanRuns).where(eq(security.scanRuns.workspaceId, workspaceId));
   await db.delete(security.repoScannerConfig).where(eq(security.repoScannerConfig.workspaceId, workspaceId));

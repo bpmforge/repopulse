@@ -92,6 +92,13 @@
       "when": 1787172051555,
       "tag": "0012_slim_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787172481805,
+      "tag": "0013_black_pretty_boy",
+      "breakpoints": true
     }
   ]
 }

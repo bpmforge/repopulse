@@ -206,7 +206,10 @@ export async function openFindingDensity(
       ),
     )
     .groupBy(read.findings.file);
-  return new Map(rows.map((r) => [r.file, r.n]));
+  // file is nullable since W8-02 (repo-level findings have no path). Those are
+  // excluded from per-FILE density rather than bucketed under an empty key,
+  // which would invent a file named "" at the top of every hotspot list.
+  return new Map(rows.filter((r) => r.file !== null).map((r) => [r.file as string, r.n]));
 }
 
 /** analysis_false_positive_rate inputs (FR-INSIGHTS-1). */
