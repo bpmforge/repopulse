@@ -77,3 +77,59 @@ test('downloading a report that is not ready is refused, not a broken file', asy
   const res = await context.request.get('/api/v1/reports/999999/download');
   expect(res.status()).toBe(404);
 });
+
+test('two reports of the same scope diff, and an annotation reaches the cover (W5-09)', async ({
+  page,
+  context,
+}) => {
+  await loginAsFixture(page);
+
+  // Reports are created through the API so the test HOLDS THEIR IDS, then the
+  // UI is driven by those ids. The previous version identified reports by list
+  // position (.first()) in a list other tests add to and that refetches every
+  // three seconds — three separate races were fixed and it still failed inside
+  // the full file, because position is not a stable identifier here.
+  const create = async (annotation?: string): Promise<number> => {
+    const res = await context.request.post('/api/v1/reports', {
+      headers: { 'x-requested-with': 'repopulse' },
+      data: { type: 'repo_health', window_days: 30, ...(annotation ? { annotation } : {}) },
+    });
+    expect(res.status()).toBe(201);
+    return ((await res.json()) as { id: number }).id;
+  };
+
+  const waitReady = async (id: number): Promise<void> => {
+    await expect
+      .poll(
+        async () => {
+          const r = await context.request.get(`/api/v1/reports/${id}`);
+          return ((await r.json()) as { status: string }).status;
+        },
+        { timeout: 60_000, message: `report ${id} never became ready` },
+      )
+      .toBe('ready');
+  };
+
+  const first = await create();
+  const second = await create('Quarter includes the payments migration');
+  await waitReady(first);
+  await waitReady(second);
+
+  // The annotation is on the cover of the report it was captured with — and
+  // because reports are immutable, it could not have been added to the earlier
+  // one. Navigated by id, so it cannot land on the wrong report.
+  await page.goto(`/print/reports/${second}`);
+  await expect(page.getByTestId('print-annotation')).toContainText(/payments migration/);
+
+  await page.goto(`/print/reports/${first}`);
+  await expect(page.getByTestId('print-report')).toBeVisible();
+  await expect(page.getByTestId('print-annotation')).toHaveCount(0);
+
+  // Same type, same scope, same window → comparable, with real rows.
+  await page.goto('/reports');
+  await page.getByTestId(`report-compare-${first}`).check();
+  await page.getByTestId(`report-compare-${second}`).check();
+
+  await expect(page.getByTestId('diff-table')).toBeVisible();
+  await expect(page.getByTestId('diff-table').locator('tbody tr').first()).toBeVisible();
+});

@@ -53,7 +53,10 @@ export type AuditEvent =
   | 'plan.item.transitioned'
   // W5-08. An agreement threshold decides what counts as a breach on every
   // screen that reads it, so a change to one is a change to the numbers.
-  | 'agreement.configured';
+  | 'agreement.configured'
+  // W5-09. A schedule generates reports unattended from then on, so who set
+  // one and at what cadence is part of the record.
+  | 'report.scheduled';
 
 export interface AuditEntry {
   event: AuditEvent;

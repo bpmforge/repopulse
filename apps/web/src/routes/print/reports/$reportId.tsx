@@ -26,7 +26,7 @@ interface ReportSection {
 }
 
 interface ReportDataShape {
-  params: { type: string; windowDays: number; snapshotAt: string; windowEnd: string };
+  params: { type: string; windowDays: number; snapshotAt: string; windowEnd: string; annotation?: string };
   sections: ReportSection[];
   appendix: { definitions: { id: string; name: string; formula: string; unit: string }[] };
   dataQuality: { repoId: string; phase: string; partial: boolean; syncLagHours: number | null }[];
@@ -104,6 +104,13 @@ function PrintReport() {
         <p className="mt-1 text-xs text-fg-muted">
           {report.params.windowDays}-day window · generated {generatedAt}
         </p>
+        {/* R-A11: the context someone captured at generation, on the cover
+            where a reader meets it before the numbers. */}
+        {report.params.annotation && (
+          <p className="mt-2 text-sm" data-testid="print-annotation">
+            {report.params.annotation}
+          </p>
+        )}
       </header>
 
       {/* Basis box (§5.2): what the numbers are and are not built from. */}
