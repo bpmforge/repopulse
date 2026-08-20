@@ -4882,7 +4882,7 @@
         "The GitHub workflow is removed or reduced to nothing, and README/RUNNING say where CI now lives"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-19. Brad: GitHub should be repo storage only; Actions costs too much. It has also never run even once — 100 of 100 runs failed at job creation on an Actions budget — so there is no CI history to migrate, only a gate to make real for the first time.",
         "Gitea is 1.26.2, which supports Actions (1.19+). No act_runner is registered yet. Registration needs a runner token from the Gitea admin UI — a human step.",
