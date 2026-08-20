@@ -3991,8 +3991,20 @@
         "Adapter findings dedupe against any overlapping pack rules via the canonical dedup key"
       ],
       "points": 5,
-      "status": "in_progress",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "TWO of three named adapters ship: dependency-cruiser 17.4.3 (JS/TS) and grimp 3.15 (Python). Go is DEFERRED on the section 10 admission filter — go list needs module resolution and a warm module cache, i.e. an install at scan time — and the decision is written up in docs/STATUS.md for a human to make.",
+        "import-linter was rejected on purpose: it checks CONTRACTS from a config file, which is phase B. grimp, the engine it is built on, answers graph questions and is phase A exactly.",
+        "Both tools verified under the REAL sandbox profile before any adapter was written. grimp needed cache_dir=None (its default cache path is the read-only snapshot mount); fixed in the driver rather than by loosening the profile. depcruise pinned to 17.x because 18.x needs node>=22 and the Alpine 3.20 base ships node 20.",
+        "Detections are language-agnostic and live in graph.ts: cycles (iterative Tarjan, self-imports included), god modules (fan-in+fan-out vs the repo 90th percentile x2, with a min-degree floor), orphan clusters (weakly-connected components).",
+        "NULL-VS-ZERO, twice: a repo below 12 modules reports \"not enough modules for a distribution\" instead of \"no god modules\"; two equal-sized clusters report \"no main body to be orphaned from\" instead of arbitrarily labelling one the orphan.",
+        "Live tests run BOTH tools in podman over seeded fixtures: the JS cycle, god module and orphan cluster all come out of real depcruise output, and grimp graphs a package whose only third-party import is uninstalled — which is the admission filter claim in one assertion.",
+        "Acceptance item 3 (phase B provably absent) is a TEST, not a promise: it greps this directory and the rulepack for any boundary/contract surface and asserts no architecture route or widget exists.",
+        "Acceptance item 4: dedup proven against the real DB — two distinct cycles store as two findings, and a second identical pass creates zero.",
+        "Tool versions stamped on scan_runs.tool_versions (the column already existed) and mirrored into scanner_version.",
+        "Widens, each recorded: Containerfile.scan + deploy/scan-tools/{package.json,package-lock.json,grimp_graph.py} (the adapter cannot exist without the tool in the image — same reason W9-08 used), packages/security/src/index.ts (exports), apps/api/src/workers/index.ts + apps/api/test/wiring.test.ts (nightly schedule; a register nothing calls is not a feature).",
+        "Gate: lint clean, typecheck clean, 1234 unit tests pass, 75 web, 102 e2e (1 skipped), validate-arch/plan/traceability/compose all PASS."
+      ]
     },
     {
       "id": "W10-04",

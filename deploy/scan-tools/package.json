@@ -2,9 +2,10 @@
   "name": "repopulse-scan-tools",
   "version": "1.0.0",
   "private": true,
-  "description": "Node-based scan tools baked into the sandbox image (W9-02). jscpd is pinned to the 4.x line: 5.x ships platform-specific native binaries and has no linux/arm64 musl build, so it cannot run in an Alpine sandbox at all. The committed lockfile pins the whole tree, because a scanner whose transitive dependencies float at build time is a scanner whose findings are not reproducible. The commander override exists because jscpd 4.3.0 resolves commander 12+, which is ESM-only and cannot be require()d from jscpd's own CommonJS bundle \u2014 the tool crashes on --version without it.",
+  "description": "Node-based scan tools baked into the sandbox image (W9-02). jscpd is pinned to the 4.x line: 5.x ships platform-specific native binaries and has no linux/arm64 musl build, so it cannot run in an Alpine sandbox at all. The committed lockfile pins the whole tree, because a scanner whose transitive dependencies float at build time is a scanner whose findings are not reproducible. The commander override exists because jscpd 4.3.0 resolves commander 12+, which is ESM-only and cannot be require()d from jscpd's own CommonJS bundle — the tool crashes on --version without it. dependency-cruiser (W10-03) is the JS/TS import-graph adapter: it resolves local files statically, runs with --no-config, and needs no dependency install at scan time, which is what the §10 admission filter requires. It is pinned to the 17.x line because 18.x requires node >=22 and the Alpine 3.20 base ships node 20 — bumping the base image to satisfy one adapter would re-roll every other pinned tool in the image.",
   "dependencies": {
-    "jscpd": "4.3.0"
+    "jscpd": "4.3.0",
+    "dependency-cruiser": "17.4.3"
   },
   "overrides": {
     "commander": "11.1.0"
