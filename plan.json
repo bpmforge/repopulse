@@ -4026,8 +4026,20 @@
         "No coverage ingestion code exists (parked decision — grep gate in test); D12 pricing + decomposition on all fixture findings (FR-REG-7)"
       ],
       "points": 3,
-      "status": "in_progress",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Warehouse-only, as specified: one query over commit_files x commits in a 90d window, folded in memory because the co-change question is \"did the SAME COMMIT touch a test\" and pushing the path heuristics into SQL would put a regex dialect between the rules and the fixtures that prove them.",
+        "Test-file heuristics documented per ecosystem (JS/TS, Python, Go, Java/Kotlin, Ruby, Rust, C#) and fixture-proven both ways — 13 test paths recognised, 5 lookalikes (testing-utils.ts, latest.py, contest.go, protest.rb) correctly read as source.",
+        "A source file with INLINE tests reads as source. Counting it as a test would let a repo with no separate tests look fully tested, which is the failure this register exists to catch.",
+        "No-test repo: exactly ONE repo-scoped finding, basis-labelled — it states the window, the file count, and that it is not a coverage measurement. 40 changed files produce one finding, not 40.",
+        "NULL-VS-ZERO: no file above the commit floor reports \"no churn distribution to rank against\" rather than a clean result; a repo with no changes at all says \"nothing to say about tests\".",
+        "D12: priced on the confidence branch with file exposure (price.ts gained the test_gap dimension — widen, recorded). Hot file prices above the same finding in a cold one, and the cold one still scores rather than vanishing. Decomposition reproduces the stored score, proven against the real DB.",
+        "Confidence 4, not 5: the counts are exact but co-change is a PROXY for testing. A file covered by a suite nobody edits looks the same from here, and the confidence says so.",
+        "ACCEPTANCE ITEM 3 IS A GATE: git grep --untracked across packages/ and apps/ for lcov|cobertura|coverage-final|clover.xml|jacoco|codecov must return nothing, with a control assertion proving the grep can find things — a search that would return empty either way is not an assertion.",
+        "Widens, each recorded: packages/insights/src/{index.ts,risk/price.ts} and apps/api/src/workers/index.ts + apps/api/test/wiring.test.ts (nightly schedule alongside the other three registers).",
+        "E2E FLAKE RECURRED ONCE and is now named: e2e/ingest-flow.spec.ts:21, locator.click timeout after a podman-heavy unit run. The immediately following standalone run passed 102/102. NOT claimed fixed — the writeup in docs/STATUS.md now carries the spec name, the error and a reproduction recipe.",
+        "Gate: lint clean, typecheck clean, 1257 unit tests pass, 75 web, 102 e2e (1 skipped, on the second run), validate-arch/plan/traceability all PASS."
+      ]
     },
     {
       "id": "W10-05",

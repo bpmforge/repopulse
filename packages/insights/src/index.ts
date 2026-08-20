@@ -13,3 +13,5 @@ export * from './risk/price.js';
 export * from './risk/reprice.js';
 export * from './registers/knowledge/register.js';
 export * from './registers/knowledge/run.js';
+export * from './registers/test-gap/register.js';
+export * from './registers/test-gap/run.js';

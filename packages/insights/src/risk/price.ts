@@ -34,7 +34,11 @@ export type FindingDimension =
   | 'code_health'
   | 'logging'
   | 'performance'
-  | 'test_coverage';
+  | 'test_coverage'
+  // W10-04. Prices on the confidence branch with file exposure: a test gap in
+  // a hot file matters more than the same gap in a cold one, which is exactly
+  // what the hotspot percentile already expresses.
+  | 'test_gap';
 
 export type VerifyStatus = 'confirmed' | 'unverified' | 'contradicted';
 export type Reachability = 'symbol_reachable' | 'imported' | 'manifest_only' | 'proven_unreachable';
