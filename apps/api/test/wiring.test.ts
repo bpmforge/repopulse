@@ -79,6 +79,18 @@ describe('production wiring (regression gate)', () => {
     ).toEqual([]);
   });
 
+  // W10-01 shipped a register whose run() nothing called, and it was recorded
+  // as carry-forward rather than caught. This asserts the schedule exists,
+  // which is the only thing that turns a register into a product feature.
+  it('every register has a scheduled runner AND a cron entry', () => {
+    const worker = readIfPresent(join(API_SRC, 'workers/index.ts'));
+    for (const key of ['knowledge_register', 'supply_chain_register']) {
+      expect(worker, `${key} has no weekly/nightly runner`).toContain(`${key}: async`);
+      expect(worker, `${key} is never enqueued on a schedule`).toContain(`['${key}', registersCron]`);
+    }
+    expect(worker).toContain('REGISTERS_NIGHTLY_CRON');
+  });
+
   it('the e2e harness disables the nightly reconcile sweep', () => {
     // The sweep is the one thing this worker does on a WALL CLOCK rather than
     // on demand: it re-lists five entities for every `live` repo. The seeder

@@ -63,9 +63,13 @@ async function playwrightPrint(url: string, data: ReportData): Promise<Buffer> {
       printBackground: true,
       displayHeaderFooter: true,
       headerTemplate: '<div style="font-size:8px;width:100%;padding:0 12mm;color:#666"></div>',
+      // Data attribution (W10-02, Law 2). endoflife.date is MIT-licensed and
+      // asks to be named as the source; a report that quotes an EOL date
+      // without saying where it came from is a date the reader cannot check.
       footerTemplate:
-        '<div style="font-size:8px;width:100%;padding:0 12mm;color:#666;text-align:right">' +
-        '<span class="pageNumber"></span>/<span class="totalPages"></span></div>',
+        '<div style="font-size:8px;width:100%;padding:0 12mm;color:#666;display:flex;justify-content:space-between">' +
+        '<span>EOL dates from endoflife.date (MIT)</span>' +
+        '<span><span class="pageNumber"></span>/<span class="totalPages"></span></span></div>',
       margin: { top: '18mm', bottom: '18mm', left: '12mm', right: '12mm' },
     });
   } finally {

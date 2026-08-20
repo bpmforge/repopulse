@@ -18,7 +18,10 @@ import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { providerForRepo } from './forge-provider.js';
+import { runKnowledgeRegister } from '@repopulse/insights';
 import {
+  jsonFetcher,
+  readComponents,
   readSnapshotSources,
   runAntiSlopScan,
   runChainer,
@@ -28,8 +31,28 @@ import {
   runSecretsHistoryScan,
   runSecretsStreamScan,
   runSemgrepFull,
+  runSupplyChainRegisters,
   startSweeper,
+  syncEolProducts,
+  syncReleaseMeta,
 } from '@repopulse/security';
+import { security } from '@repopulse/shared';
+
+/**
+ * Products the nightly EOL sync tracks (W10-02).
+ *
+ * A FIXED list, tunable by env, rather than "every product endoflife.date
+ * has": 464 products is 464 requests a night for data about runtimes nobody
+ * here uses. A product missing from this list produces NO finding rather than
+ * a wrong one — the register is silent on what it has no data for.
+ */
+const EOL_PRODUCTS = (
+  process.env.EOL_PRODUCTS ??
+  'nodejs,python,go,ruby,php,java,dotnet,debian,ubuntu,alpine,postgresql,redis,nginx'
+)
+  .split(',')
+  .map((p) => p.trim())
+  .filter((p) => p !== '');
 
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
@@ -281,6 +304,100 @@ async function main(): Promise<void> {
               },
             );
           },
+          // The nightly register pass (W10-01/W10-02). Same injected-map slot
+          // as the weekly scanners because it is the same shape of job — a
+          // per-repo run on a schedule — and adding a second dispatch table
+          // would give the processor two ways to reach the same place.
+          //
+          // ORDER MATTERS INSIDE THIS RUNNER: the registry sync must finish
+          // before the register reads release_meta, or the first night of a
+          // new dependency reports "no data" for a package we could have
+          // asked about a second earlier.
+          supply_chain_register: async ({ workspaceId, repoId }) => {
+            const [sbom] = await db
+              .select({ document: security.sboms.document })
+              .from(security.sboms)
+              .where(and(eq(security.sboms.workspaceId, workspaceId), eq(security.sboms.repoId, repoId)))
+              .orderBy(desc(security.sboms.createdAt))
+              .limit(1);
+            // No SBOM means W8-06 has not run — it is blocked for missing
+            // syft. Reported by name so an empty Supply Chain tab never reads
+            // as "no dependency problems".
+            if (!sbom) return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_sbom' };
+
+            const fetchJson = jsonFetcher();
+            const components = readComponents(sbom.document);
+            const byPackage = new Map<string, { ecosystem: 'npm' | 'pypi'; name: string; installedVersions: string[] }>();
+            for (const component of components) {
+              const key = `${component.ecosystem}:${component.name}`;
+              const entry = byPackage.get(key) ?? {
+                ecosystem: component.ecosystem,
+                name: component.name,
+                installedVersions: [],
+              };
+              if (component.version) entry.installedVersions.push(component.version);
+              byPackage.set(key, entry);
+            }
+
+            const sync = await syncReleaseMeta({
+              db,
+              fetchJson,
+              packages: [...byPackage.values()],
+            });
+            const eol = await syncEolProducts({ db, fetchJson, products: EOL_PRODUCTS });
+
+            const resolved = await providerForRepo(
+              { db, tokenKey: credentials.loadTokenKey() },
+              workspaceId,
+              repoId,
+            );
+            const [head] = await db
+              .select({ sha: facts.commits.sha })
+              .from(facts.commits)
+              .where(eq(facts.commits.repoId, repoId))
+              .orderBy(desc(facts.commits.committedAt))
+              .limit(1);
+
+            // The EOL half needs the C1a snapshot to read Dockerfiles and
+            // manifests. Without a connection or a head SHA the other two
+            // registers still run — a partial pass that says which part was
+            // partial beats skipping the whole thing.
+            const run = async (snapshotDir?: string) =>
+              runSupplyChainRegisters({
+                db,
+                workspaceId,
+                repoId,
+                ...(snapshotDir ? { snapshotDir } : {}),
+              });
+
+            const result =
+              resolved && head?.sha
+                ? await snapshotForScan(
+                    { provider: resolved.provider, repo: resolved.repoFullName, commitSha: head.sha },
+                    async (snapshot) => run(snapshot.dir),
+                  )
+                : await run();
+
+            return {
+              scanned: result.measured,
+              findingsCreated: result.created,
+              // The denominator, carried out of the job rather than logged and
+              // lost: components with no registry answer are not healthy ones.
+              deferred: result.unmeasured + sync.failed.length + eol.failed.length,
+              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
+            };
+          },
+          // W10-01, wired here rather than left as an unreferenced export.
+          knowledge_register: async ({ workspaceId, repoId }) => {
+            const result = await runKnowledgeRegister({ db, workspaceId, repoId });
+            return {
+              scanned: result.modules,
+              findingsCreated: result.created,
+              deferred: 0,
+              ...(result.error ? { skipped: result.error } : {}),
+            };
+          },
           attack_chainer: async ({ workspaceId, repoId }) => {
             // Runs whether or not the repo has a connection: it reads findings
             // we already have and calls no forge at all.
@@ -430,6 +547,10 @@ async function main(): Promise<void> {
   // findings a full scan is about to replace is a chain about last week.
   // Chainer runs an hour later for exactly that reason.
   const weeklyCron = process.env.SECURITY_WEEKLY_CRON ?? '41 2 * * 0';
+  // NIGHTLY, not weekly (D13): a runtime crossing its EOL date and a package
+  // being deprecated are both things that happen on a date rather than on a
+  // commit, so a weekly cadence would report them up to six days late.
+  const registersCron = process.env.REGISTERS_NIGHTLY_CRON ?? '17 3 * * *';
   const chainCron = process.env.SECURITY_CHAIN_CRON ?? '41 3 * * 0';
   if (weeklyCron !== 'off') {
     for (const [scannerKey, pattern] of [
@@ -440,6 +561,8 @@ async function main(): Promise<void> {
       // same commit.
       ['anti_slop', weeklyCron],
       ['attack_chainer', chainCron],
+      ['supply_chain_register', registersCron],
+      ['knowledge_register', registersCron],
     ] as const) {
       await securityScanQueue.add(
         'weekly-sweep',

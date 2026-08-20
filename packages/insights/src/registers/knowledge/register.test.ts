@@ -131,7 +131,10 @@ describe('the plan entry', () => {
     const entry = CATALOG_V1.find((e) => e.id === 'knowledge-cluster');
     expect(entry?.verifyCriterion.windowDays).toBe(90);
     expect(entry?.verifyCriterion.target).toBe(0);
-    expect(CATALOG_VERSION).toBe('v4');
+    // v5 since W10-02 added its dependency-currency entry; this assertion is
+    // about the knowledge entry's window, and the version moves with the
+    // catalog rather than with this test's subject.
+    expect(CATALOG_VERSION).toBe('v5');
   });
 
   it('proposes nothing when the register has not run', () => {

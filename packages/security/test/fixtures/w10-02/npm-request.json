@@ -1,0 +1,21 @@
+{
+ "name": "request",
+ "dist-tags": {
+  "latest": "2.88.2"
+ },
+ "license": "Apache-2.0",
+ "time": {
+  "2.88.2": "2020-02-11T16:35:36.122Z",
+  "2.88.0": "2018-08-10T16:26:50.936Z",
+  "2.0.0": "2011-07-21T21:10:38.897Z"
+ },
+ "versions": {
+  "2.88.2": {
+   "deprecated": "request has been deprecated, see https://github.com/request/request/issues/3142",
+   "license": "Apache-2.0"
+  },
+  "2.88.0": {
+   "license": "Apache-2.0"
+  }
+ }
+}

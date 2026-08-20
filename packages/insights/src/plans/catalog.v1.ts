@@ -18,7 +18,7 @@
 // (v2 was W9-06, which added the four code-health entries.)
 //
 // v4 (W10-01) adds the knowledge-concentration entry.
-export const CATALOG_VERSION = 'v4';
+export const CATALOG_VERSION = 'v5';
 
 export type Effort = 'S' | 'M' | 'L';
 export type PlanSource = 'metric' | 'finding' | 'chain' | 'compound' | 'agreement';
@@ -335,6 +335,27 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
       target: 0,
       windowDays: 90,
       dimPath: ['knowledgeFindingCount'],
+    },
+  },
+  {
+    id: 'dependency-currency',
+    title: 'Clear the abandoned and end-of-life dependencies',
+    effort: 'M',
+    source: 'finding',
+    rankWeight: 55,
+    condition: (m) => above(dim(m, 'FINDINGS', ['dependencyHealthFindingCount']), 0),
+    evidence: (m) => ({ findingIds: m.FINDINGS?.dims.dependencyHealthFindingIds ?? [] }),
+    // The W10-02 severity ramp, documented where a reader of the plan can see
+    // it: yanked 4 · deprecated 3 · abandoned (24m no release) 3 · stale (12m)
+    // 2 · two majors behind 3 · one major behind 2 · past-EOL runtime 4 ·
+    // within 90d of EOL 2 · AGPL/SSPL prod-direct 3 · undeclared licence 2.
+    // Dev-scoped findings drop one step and never below 1.
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 30,
+      dimPath: ['dependencyHealthFindingCount'],
     },
   },
 ];
