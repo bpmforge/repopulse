@@ -3718,8 +3718,22 @@
         "Per-language perf pack per §9.1: orm-call-in-loop (prisma/drizzle/knex/sqlalchemy/activerecord variants), await-in-loop, sync-io-in-async, json-deep-clone, try-catch-in-loop, regex-compile-in-loop, string-concat-in-loop, unbounded-promise-all — each with trigger+clean fixtures per language; findings take dimension performance and ride the standard triage/verify/plan rails"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. ToolAdapter contract + registry, ruff 0.16.3 and Biome 2.5.9 pinned into the scan image and RUN there, the dedup mapping against our own pack, and the per-language perf pack (8 rules, JS + Python).",
+        "ruff SHIPS VENDOR .sha256 FILES, which is a stronger pin than anything else in this image: it is the publisher's own claim about the bytes rather than a record of what we happened to download. Biome publishes none, so its hashes were computed on 2026-08-19 and the Containerfile says so — the same honesty note opengrep carries.",
+        "THE ADAPTER CONTRACT IS CHECKED, NOT ASSERTED: a fixture adapter registered in a test participates in language routing without a single framework change (FR-CH-10). Duplicate keys throw, like the scanner registry, because the key is stamped onto every finding and a duplicate would attribute one tool's output to another.",
+        "LANGUAGE ROUTING IS THE ADAPTER'S JOB. Running Biome over a Python repository costs a container start and produces nothing; running ruff over a JavaScript one produces nothing and looks like a scanner that is broken. Asserted both ways.",
+        "BOTH TOOLS RUN WITH OUR CONFIG, NOT THE REPOSITORY'S — ruff --isolated, Biome --config-path at a read-only config baked into the image. Otherwise a repository decides what our scanner reports, findings stop being comparable between repositories, and a repo can silence us by committing a setting. Biome ALSO refuses to start when --config-path has no config in it, which is how the first version failed.",
+        "ONLY DEFECT RULES ARE KEPT. ruff: E7/F/B/S/C9. Biome: correctness and suspicious only. Style and complexity are dropped — the first is a formatting opinion the repo's own tooling should own, and the second overlaps lizard, which already measures complexity with a number rather than a rule. A findings list that reports import ordering next to a bare `except` teaches people the list is mostly noise.",
+        "DEDUP MATCHES ON RULE IDENTITY, NOT FILE AND LINE. Two tools flagging one line for different reasons are two findings, and collapsing by position would silently lose one. Where both describe the same defect, OURS wins — ruff says \"do not use bare except\", our rule says what a swallowed failure costs.",
+        "THE PERF PACK QUOTES NO SPEEDUP FIGURES, and the test enforces that over the file INCLUDING its comments — which caught the header quoting the very multiplier the rule forbids. That is exactly the number that gets copied out of a comment and into a finding.",
+        "THREE PERF RULES SHIPPED BROKEN IN THE FIRST DRAFT AND THE TOOL ERRORS CAUGHT THEM: a numeric `severity: 3` (semgrep wants keywords) failed the whole PACK to load, and `for (...) { ... $CALL ... }` does not parse as a JS pattern so three rules silently removed themselves from the run. Both are recorded in the pack. The golden test asserts zero tool errors for this reason.",
+        "THE CLEAN FIXTURE MADE THREE RULES BETTER. It does the same jobs correctly — one round trip, a hoisted regex, a bounded ten-at-a-time batch — and every rule that fired on it was refined until it did not: awaiting a bounded batch and calling a DB inside `Promise.all` are the FIXES these rules ask for, and firing on them would make the rules impossible to satisfy.",
+        "SCOPE NOTE: the ticket named deploy/Containerfile.scan; the file lives at the repo root where W8-12 put it, and moving it would break the W8-12 build documentation.",
+        "NOT DONE: the adapters are not yet CALLED by the code_health_tools scanner — its single-container run executes lizard and jscpd directly. Wiring adapters into it means a container start per applicable tool (or one combined invocation), which is a real scheduling change to a path with live tests, and it belongs with the same pass as the three other carried-forward wirings rather than being bolted on at the end of an eight-point ticket. The contract, the registry, the routing, the parsing and both live sandbox runs are proven.",
+        "GATE: lint 0, typecheck 0, 1088 unit tests (was 1068), zero skipped — ruff and Biome really run in the sandbox and the perf golden set really executes; pnpm -r test green; validate-arch, validate-compose, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+      ]
     },
     {
       "id": "W9-09",
