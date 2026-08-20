@@ -3043,3 +3043,42 @@ than deleting the assertion or reverting the design.
 
 Gate: lint clean, typecheck clean, 1,341 unit (was 1,312), 110 web (was 81),
 105 e2e (1 skipped), bundle 110.9 KB of 200 KB, four validators pass.
+
+### 2026-08-20 — the review's tail: three defects, and one the review got wrong
+
+The three minor defects logged in the interface review are fixed. Three
+agents in parallel, gate and browser verification mine.
+
+- **A bad repository id is no longer a dead end.** It read "Not Found" in
+  red with the tab bar gone. It now says "Repository not visible here —
+  this workspace cannot see a repository with id N. It may belong to
+  another workspace, or it may never have been ingested here", carries the
+  request id, and offers "Browse all repositories". A 404 and a 502 now
+  read differently, which they did not before. The 404 deliberately drops
+  the tabs (every tab would 404 too) but replaces them with a route onward.
+- **KPI tiles say why there is no delta.** A bare "—" became "not compared
+  to an earlier window", with separate wording for not-measured versus
+  unchanged. A real 0% still reads as a measurement — that distinction is
+  the whole point.
+- **The PR funnel is now a proportional bar chart.**
+
+**THE REVIEW WAS WRONG ABOUT THE FUNNEL, and the correction matters more
+than the fix.** I wrote that the middle stage rendered wider than the top,
+"which no funnel should", assuming reviewed ⊇ merged. The agent read
+ECharts' `funnelLayout.js` rather than guessing and found two things: each
+funnel band is a trapezoid whose top edge is its own value and whose
+**bottom edge is the next stage's value**, and merged is **not** a subset
+of reviewed — a pull request merged without review counts in Merged only.
+So `merged > reviewed` is ordinary, and the funnel shape was fanning
+between two stages rather than misdrawing one. `type: 'funnel'` and
+"width is proportional to this stage" are mutually exclusive in ECharts.
+The bar chart is not a workaround; it is the only shape that can be honest
+here. Each stage now carries its number, so nobody estimates from geometry.
+
+Also fixed, found by an agent reading outside its own task: My Focus
+rendered the literal string `"null"` for median PR size while the request
+was in flight, and being a non-null string it slipped past KpiTile's
+null guard and captioned itself "not compared" instead of "not measured".
+
+Gate: lint clean, typecheck clean, 1,357 unit (was 1,341), 126 web (was
+110), 105 e2e (1 skipped), bundle 110.9 KB, four validators pass.

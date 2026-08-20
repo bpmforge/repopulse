@@ -12,12 +12,28 @@ describe('TrendDelta', () => {
     expect(el).toHaveAccessibleName(/up 12% versus prior window/i);
   });
 
-  it('shows a muted em dash (not 0%) when there is no prior window', () => {
+  it('names the reason (not 0%, not a bare dash) when there is no prior window', () => {
     render(<TrendDelta deltaPct={null} />);
     const el = screen.getByTestId('trend-delta');
     expect(el).toHaveAttribute('data-trend', 'none');
-    expect(el).toHaveTextContent('—');
+    expect(el).toHaveAttribute('data-missing', 'no-prior-window');
+    expect(el).toHaveTextContent(/no prior window to compare/i);
     expect(el).toHaveAccessibleName(/no prior window/i);
+  });
+
+  it('distinguishes the absences a dash used to flatten together', () => {
+    const { rerender } = render(<TrendDelta deltaPct={null} missingReason="not-compared" />);
+    expect(screen.getByTestId('trend-delta')).toHaveTextContent(/not compared to an earlier/i);
+    rerender(<TrendDelta deltaPct={null} missingReason="not-measured" />);
+    expect(screen.getByTestId('trend-delta')).toHaveTextContent(/not measured/i);
+  });
+
+  it('reads a measured zero as a measurement, keeping digits on screen', () => {
+    render(<TrendDelta deltaPct={0} />);
+    const el = screen.getByTestId('trend-delta');
+    expect(el).toHaveAttribute('data-trend', 'flat');
+    expect(el).toHaveTextContent('0.0%');
+    expect(el).toHaveAccessibleName(/unchanged versus prior window/i);
   });
 
   it('encodes tone by polarity: a rise is critical when down-is-good', () => {
