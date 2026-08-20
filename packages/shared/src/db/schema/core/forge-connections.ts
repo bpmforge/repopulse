@@ -21,6 +21,20 @@ export const forgeConnections = pgTable(
     keyVersion: integer('key_version').notNull(),
     credentialFingerprint: text('credential_fingerprint').notNull(),
     appInstallationId: text('app_installation_id'),
+    /**
+     * This connection's forge base URL (W14-02).
+     *
+     * NULL means "whatever FORGE_BASE_URL said when this connection was made",
+     * and the resolver backfills it the first time it loads such a row — so an
+     * existing install keeps working, and an operator who later re-points
+     * FORGE_BASE_URL does not silently move connections that were created
+     * against a different host.
+     *
+     * One deployment can now serve two forges: a self-hosted Gitea and
+     * github.com in the same workspace, which a server-level env could not
+     * express at all.
+     */
+    baseUrl: text('base_url'),
     // Nullable: only set once the webhook is registered post-connection —
     // DATABASE.md doesn't mark this explicitly, but a PAT-only connection or
     // a connection mid-setup has no webhook secret yet.

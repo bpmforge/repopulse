@@ -2804,3 +2804,33 @@ register command and the launchd/systemd note.
 Reminder of the standing context: **no green check in this repository has
 ever meant anything.** Every gate this project has passed was run locally,
 and that is still true today.
+
+### 2026-08-19 — W14-02: one deployment, two forges (and a defect it exposed)
+
+`forge_connections.base_url` (migration 0022) makes the forge host a
+property of the connection. `FORGE_BASE_URL` becomes the default rather
+than the only answer, so a self-hosted Gitea and github.com can be two
+connections in one workspace.
+
+**The defect this exposed is the interesting part.** `providerForRepo` —
+the ingestion path — built a `GitHubProvider` for **every** connection
+regardless of what the row said. A Gitea connection would have ingested
+through GitHub's API shapes and failed in ways that read as a broken
+instance rather than as the wrong adapter. It has never mattered because
+no non-GitHub connection has ever existed; it would have mattered the
+moment W14-01 landed a real Gitea token.
+
+The capability gate (W12-01) caught my first fix: I added a second
+`if (kind === 'gitea')` switch in the worker, and the gate exists to
+forbid exactly that. The adapter choice now goes through the single
+construction site in `routes/connections/provider-factory.ts`, which is
+the one file allowed to branch on forge kind.
+
+Legacy connections are backfilled lazily: the first resolve stamps the
+server default onto the row, so an operator who later re-points
+`FORGE_BASE_URL` does not silently move connections made against a
+different host. Proven with a row created without one.
+
+Gitea now requires a base URL at connect time and says so by name, rather
+than storing fine and then 404ing on every call in a way that reads as a
+bad token.

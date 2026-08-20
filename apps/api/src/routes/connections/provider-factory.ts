@@ -40,6 +40,36 @@ function statusAwareClient(executor: ReturnType<typeof createGithubExecutor>): F
   };
 }
 
+export interface ProviderArgs {
+  client: ForgeHttpClient;
+  auth: ReturnType<typeof createAuthHeaderProvider>;
+  baseUrl?: string | undefined;
+}
+
+/**
+ * THE construction site (W14-02).
+ *
+ * Deciding which adapter to instantiate is the one thing a capability flag
+ * cannot express — there is no provider yet to ask — so the capability gate
+ * allows exactly this file to branch on the forge kind. The worker's ingestion
+ * path calls in here rather than growing a second switch, which is what the
+ * gate exists to prevent: two construction sites are two places for a new
+ * forge to be half-added.
+ */
+export function providerForKind(kind: ForgeKind, args: ProviderArgs): ForgeProvider {
+  const { client, auth, baseUrl } = args;
+  const withBase = { client, auth, ...(baseUrl ? { baseUrl } : {}) };
+
+  if (kind === 'gitlab') return new GitLabProvider(withBase);
+  if (kind === 'gitea') {
+    if (!baseUrl) {
+      throw new Error('Gitea is self-hosted: the connection needs its own base URL');
+    }
+    return new GiteaProvider({ client, auth, baseUrl });
+  }
+  return new GitHubProvider(withBase);
+}
+
 export function buildDiscoveryProvider(
   auth: GitHubAuth,
   baseUrl?: string,
@@ -48,20 +78,12 @@ export function buildDiscoveryProvider(
   // baseUrl is a real deployment option, not a test seam: GitHub Enterprise
   // Server lives at a customer's own host, which a self-hosted product (D1a)
   // has to support. e2e uses the same door to point at a fake forge.
-  const client = statusAwareClient(createGithubExecutor());
-  const authProvider = createAuthHeaderProvider(auth);
-
   // Selected by the connection's declared forge, never sniffed from the URL:
   // a self-managed GitLab and a self-hosted Gitea can sit on indistinguishable
   // hostnames, and guessing wrong produces 404s that read as bad credentials.
-  if (kind === 'gitlab') {
-    return new GitLabProvider({ client, auth: authProvider, ...(baseUrl ? { baseUrl } : {}) });
-  }
-  if (kind === 'gitea') {
-    if (!baseUrl) {
-      throw new Error('Gitea is self-hosted: FORGE_BASE_URL must point at the instance');
-    }
-    return new GiteaProvider({ client, auth: authProvider, baseUrl });
-  }
-  return new GitHubProvider({ client, auth: authProvider, ...(baseUrl ? { baseUrl } : {}) });
+  return providerForKind(kind, {
+    client: statusAwareClient(createGithubExecutor()),
+    auth: createAuthHeaderProvider(auth),
+    baseUrl,
+  });
 }

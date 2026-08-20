@@ -3,6 +3,8 @@
 export interface ConnectionSummary {
   id: number;
   provider: string;
+  /** Per-connection forge host (W14-02). Null = the server default. */
+  base_url: string | null;
   auth_kind: string;
   fingerprint: string;
   /** Last 4 of the credential fingerprint — never the credential itself (SC-2). */

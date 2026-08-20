@@ -4856,11 +4856,19 @@
         "Existing connections keep working after the migration (base URL backfilled from the env value they were created under)"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "FOUND 2026-08-19 while preparing W14-01. buildDiscoveryProvider takes the base URL from opts.forgeBaseUrl, which comes from a single server env. Setting it to a self-hosted Gitea therefore points EVERY connection in that deployment at that host — a GitHub connection in the same stack would be sent to git.bpmforge.com and fail.",
         "This is not hypothetical for this project: D1a is a self-hostable product and the connections UI already offers github/gitlab/gitea in one workspace, which cannot work today beyond the first forge.",
-        "The multi-tenant/multi-forge tests pass because they inject buildProvider directly, so nothing exercises the env-derived path with two different forges. Worth a test that would have caught it."
+        "The multi-tenant/multi-forge tests pass because they inject buildProvider directly, so nothing exercises the env-derived path with two different forges. Worth a test that would have caught it.",
+        "forge_connections.base_url (migration 0022). FORGE_BASE_URL becomes the default rather than the only answer, so a self-hosted Gitea and github.com coexist as two connections in one workspace — proven in an integration test that resolves both and asserts each gets its own adapter.",
+        "FOUND A REAL DEFECT: providerForRepo, the INGESTION path, built a GitHubProvider for every connection regardless of what the row said. A Gitea connection would have ingested through GitHub API shapes and failed in ways that read as a broken instance rather than the wrong adapter. It has never mattered because no non-GitHub connection has ever existed; it would have mattered the moment W14-01 landed a real token.",
+        "THE CAPABILITY GATE CAUGHT MY FIRST FIX. I added a second `if (kind === gitea)` switch in the worker; W12-01 exists to forbid exactly that, and it turned the suite red. The adapter choice now goes through the single construction site in routes/connections/provider-factory.ts — the one file allowed to branch on forge kind.",
+        "Existing connections: LAZY BACKFILL rather than a migration default. The first resolve stamps the server default onto a row with no base_url, so an operator who later re-points FORGE_BASE_URL does not silently move connections created against a different host. Proven both ways — a null row gets stamped, an explicit row is left alone.",
+        "Gitea now requires a base URL at connect time and is refused BY NAME if it is missing, rather than storing fine and 404ing on every subsequent call in a way that reads as a bad token.",
+        "Widens, each recorded: packages/ingest/src/connect/connect.ts (the insert needs the column), apps/api/src/routes/connections/{schema,provider-factory}.ts, apps/api/src/workers/forge-provider.ts, apps/web/src/widgets/admin/{Connections.tsx,contracts.ts}, e2e/connect-flow.spec.ts.",
+        "One arch-gate catch worth recording: my instance-URL placeholder contained the literal GitHub API host, which validate-arch rule 4 forbids outside packages/forge. Reworded rather than exempted — a placeholder is not worth an exemption to the rule that keeps forge hosts in one place.",
+        "Gate: lint clean, typecheck clean, 1293 unit tests pass, 81 web, 105 e2e (1 skipped), bundle 110.3 KB of 200 KB, validate-arch/plan/traceability/compose all PASS."
       ]
     },
     {

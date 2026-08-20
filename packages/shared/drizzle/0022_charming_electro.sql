@@ -1,0 +1,1 @@
+ALTER TABLE "forge_connections" ADD COLUMN "base_url" text;
