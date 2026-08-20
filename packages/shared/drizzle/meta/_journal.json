@@ -162,6 +162,13 @@
       "when": 1787196410397,
       "tag": "0022_charming_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787262845179,
+      "tag": "0023_fresh_shape",
+      "breakpoints": true
     }
   ]
 }

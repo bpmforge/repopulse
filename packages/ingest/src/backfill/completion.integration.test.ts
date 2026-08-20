@@ -50,7 +50,7 @@ describeIfLiveInfra('isHistoryBackfillComplete (W12-03)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w12-03-user', login: 'w12-03-user' })
+      .values({ authProvider: 'github', authSubject: 'w12-03-user', forgeUserId: 'w12-03-user', login: 'w12-03-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w12-03-user' } })
       .returning();
     const [conn] = await db

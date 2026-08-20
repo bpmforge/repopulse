@@ -82,7 +82,7 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w5-05-owner', login: 'w5-05-owner' })
+      .values({ authProvider: 'github', authSubject: 'w5-05-owner', forgeUserId: 'w5-05-owner', login: 'w5-05-owner' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w5-05-owner' } })
       .returning();
     const [conn] = await db

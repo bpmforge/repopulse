@@ -69,7 +69,7 @@ describeIfLiveInfra('supply-chain registers', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w10-02-user', login: 'w10-02-user' })
+      .values({ authProvider: 'github', authSubject: 'w10-02-user', forgeUserId: 'w10-02-user', login: 'w10-02-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w10-02-user' } })
       .returning();
 

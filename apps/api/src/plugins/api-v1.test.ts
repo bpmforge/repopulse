@@ -122,7 +122,7 @@ describeIfLiveInfra('api-v1 guard: session -> workspace -> role (W1-04)', () => 
     for (const forgeUserId of [ADMIN_FORGE_USER_ID, MEMBER_FORGE_USER_ID]) {
       const [user] = await db
         .insert(core.users)
-        .values({ forgeUserId, login: forgeUserId })
+        .values({ authProvider: 'github', authSubject: forgeUserId, forgeUserId, login: forgeUserId })
         .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: forgeUserId } })
         .returning();
       if (!user) throw new Error(`user upsert returned no row for ${forgeUserId}`);

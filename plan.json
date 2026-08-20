@@ -5023,6 +5023,143 @@
         "GATE: lint 0, typecheck 0, 779 unit tests zero skipped, pnpm -r test green, e2e 94 passed + 1 skipped, check:bundle 110.0/200 KB, three validators exit 0.",
         "THE GATE IS DEPENDENCY-FREE AND RED-CHECKED. scripts/check-bundle-size.mjs weighs the entry scripts and modulepreloads from dist/index.html using Node's own gzip — size-limit and Lighthouse are not in TECH_STACK, and adding a tool to weigh a file is not worth a stop-and-ask. Verified to FAIL (exit 1) with the budget lowered to 50 KB, so it is a gate rather than a print statement. Wired as pnpm check:bundle and added to CI."
       ]
+    },
+    {
+      "id": "W15-01",
+      "title": "Identity is not the forge: users keyed on (auth_provider, auth_subject)",
+      "phase": 15,
+      "module": "auth",
+      "stories": [
+        "E1.0"
+      ],
+      "write_scope": [
+        "packages/shared/src/db/schema/core/users.ts",
+        "packages/shared/drizzle/**",
+        "packages/auth/src/**"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "users gains auth_provider, auth_subject (unique together), email, password_hash (nullable); forge_user_id becomes NULLABLE — a link to a committer identity, not the identity of a person (D14)",
+        "Migration backfills every existing row to auth_provider='github' with the forge id as the subject, so no current session or user is lost",
+        "A provider-agnostic seam issues the session: the GitHub path becomes one caller of it rather than the only path",
+        "Tenancy and the route-walker suite stay green; a DB grep proves no plaintext secret in the new columns"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "D14 recorded in FOUNDING_BRIEF (supersedes D6), FR-AUTH-7/8/9 added to the SRS, story E1.0 added. The decision is written down rather than the schema quietly changing under a requirement that still said GitHub.",
+        "users gains auth_provider / auth_subject (unique together), email, password_hash, must_change_password; forge_user_id becomes NULLABLE — a LINK to a committer, not the identity of a person.",
+        "THE GENERATED MIGRATION WAS BROKEN AND WOULD HAVE FAILED ON EVERY REAL INSTALL. drizzle-kit put ADD CONSTRAINT immediately after ADD COLUMN, so every existing row took the empty-string default and collided on the second user; this database had four. Hand-edited to backfill auth_subject from forge_user_id BEFORE the constraint. Verified after applying: all four existing users kept their identity (github|tok, github|w4-20-admin, ...), nobody logged out.",
+        "One seam — findOrCreateUserForSubject — now turns an authenticated subject into a user row, and the GitHub path forwards to it instead of upserting on forge_user_id itself. Upsert is on (provider, subject) because the same human may hold both a local and an OIDC account, and merging them would assert an identity we cannot prove.",
+        "THE TYPECHECKER FOUND THE REAL CONSEQUENCE: resolveUserIdentity assumed every user has a forge id. Added identityLinkState, which separates linked / unlinked / no_activity — so a personalized view can say \"your account is not connected to a committer\" instead of rendering 0 pull requests at someone as though it were an answer about their work.",
+        "linkForgeIdentity REFUSES a forge id already claimed by another user rather than moving it: two people pointing at one committer makes \"my PRs\" wrong for both, and the loser is never told.",
+        "46 fixture insert sites were rewritten by script rather than by hand (47 files, one pattern). The script OVER-REACHED — it also rewrote two core.identities inserts, which have no such columns — caught by typecheck and reverted. Two shorthand-property sites it correctly skipped were done by hand.",
+        "Gate: lint clean, typecheck clean, 1359 unit, 128 web, 105 e2e (1 skipped), four validators pass."
+      ]
+    },
+    {
+      "id": "W15-02",
+      "title": "Local accounts: scrypt, first-admin bootstrap, forced password change",
+      "phase": 15,
+      "module": "auth",
+      "stories": [
+        "E1.0"
+      ],
+      "write_scope": [
+        "packages/auth/src/local/**",
+        "apps/api/src/routes/auth/**"
+      ],
+      "depends_on": [
+        "W15-01"
+      ],
+      "acceptance": [
+        "Email + password using Node built-in scrypt — no third-party hashing dependency (D10/D14) — with constant-time verification",
+        "First admin created on first boot from ADMIN_EMAIL/ADMIN_PASSWORD, idempotent, and the account must change its password before reaching anything else",
+        "Wrong password and unknown email are indistinguishable in both response and timing; the existing auth rate limit applies",
+        "No self-service signup exists; an admin creates users"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W15-03",
+      "title": "Generic OIDC: discovery, PKCE, ID-token verification",
+      "phase": 15,
+      "module": "auth",
+      "stories": [
+        "E1.0"
+      ],
+      "write_scope": [
+        "packages/auth/src/oidc/**",
+        "apps/api/src/routes/auth/**"
+      ],
+      "depends_on": [
+        "W15-01"
+      ],
+      "acceptance": [
+        "Discovery, authorization-code + PKCE and the code exchange are ours (plain HTTPS); ID-token verification uses jose (MIT) against the provider JWKS",
+        "Rejects, each proven separately: bad signature, wrong issuer, wrong audience, expired, alg=none",
+        "Claims map to auth_subject and email; works against a fixture IdP in tests with no network",
+        "Configured entirely from env; an unconfigured deployment simply does not offer the button"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W15-04",
+      "title": "Sign-in screen offers the configured providers; forge identity becomes a link",
+      "phase": 15,
+      "module": "web",
+      "stories": [
+        "E1.0"
+      ],
+      "write_scope": [
+        "apps/web/src/routes/signin/**",
+        "apps/web/src/widgets/auth/**",
+        "apps/api/src/routes/auth/**"
+      ],
+      "depends_on": [
+        "W15-02",
+        "W15-03"
+      ],
+      "acceptance": [
+        "The sign-in screen renders exactly the providers this deployment configured — no dead buttons for providers nobody set up",
+        "A local or OIDC user can claim a forge identity so personalized views resolve; an unlinked user is told why the view is empty rather than shown zero",
+        "Admin can create, disable and re-role users without touching the database",
+        "axe clean on every new screen; e2e covers local sign-in end to end"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W15-05",
+      "title": "Install without a forge account: docs, config and the removed assumption",
+      "phase": 15,
+      "module": "deploy",
+      "stories": [
+        "E1.0"
+      ],
+      "write_scope": [
+        "docs/INSTALL.md",
+        "docs/CONFIG.md",
+        "docs/RUNNING.md",
+        "apps/api/src/routes/setup/**"
+      ],
+      "depends_on": [
+        "W15-04"
+      ],
+      "acceptance": [
+        "INSTALL.md leads with an install that needs no forge App: set ADMIN_EMAIL/ADMIN_PASSWORD, up, sign in, then connect a forge",
+        "Every new variable documented in the generated CONFIG.md, drift gate green",
+        "The setup checklist stops implying a forge login is required, and says which auth providers are live",
+        "A grep gate proves no route outside the auth module assumes a forge identity on the session"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
     }
   ]
 }

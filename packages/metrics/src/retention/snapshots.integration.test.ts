@@ -36,7 +36,7 @@ describeIfLiveInfra('metric_snapshots retention (W3-13, FR-METRICS-13)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w3-13-snap-user', login: 'w3-13-snap-user' })
+      .values({ authProvider: 'github', authSubject: 'w3-13-snap-user', forgeUserId: 'w3-13-snap-user', login: 'w3-13-snap-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w3-13-snap-user' } })
       .returning();
     userId = user!.id;

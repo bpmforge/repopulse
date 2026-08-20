@@ -57,7 +57,7 @@ describeIfLiveInfra('secrets stream mode (W8-04)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w8-04-user', login: 'w8-04-user' })
+      .values({ authProvider: 'github', authSubject: 'w8-04-user', forgeUserId: 'w8-04-user', login: 'w8-04-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w8-04-user' } })
       .returning();
     userId = user!.id;

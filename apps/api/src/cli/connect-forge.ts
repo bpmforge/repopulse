@@ -121,7 +121,7 @@ if (!workspace) fail(`No workspace with slug "${args.workspace}". Run the migrat
 // there is worse than one naming the process that did it.
 const [operator] = await db
   .insert(core.users)
-  .values({ forgeUserId: 'repopulse:bootstrap', login: 'repopulse-bootstrap' })
+  .values({ authProvider: 'github', authSubject: 'repopulse:bootstrap', forgeUserId: 'repopulse:bootstrap', login: 'repopulse-bootstrap' })
   .onConflictDoUpdate({
     target: core.users.forgeUserId,
     set: { login: 'repopulse-bootstrap' },

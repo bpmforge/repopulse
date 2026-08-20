@@ -61,8 +61,13 @@ for (const t of plan.tickets) {
 
   // W13 is the local-first-run wave (clone -> running app), filed 2026-08-18.
   // W14 is the run-it-for-real wave (first real forge ingestion, CI off GitHub).
-  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-4])-(\d{2})$/);
-  if (!m) { err(`${label}: id must match W<0-12>-<nn>`); continue; }
+  // W15 is the standalone-auth wave (D14): the forge stops being the identity
+  // provider, so a customer can deploy this without registering an App with a
+  // vendor they may not use.
+  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-5])-(\d{2})$/);
+  // The message names the CURRENT range rather than a range that was true two
+  // waves ago — a stale error message sends the next person to the wrong fix.
+  if (!m) { err(`${label}: id must match W<0-15>-<nn>`); continue; }
   if (byId.has(t.id)) err(`${t.id}: duplicate id`);
   byId.set(t.id, t);
 

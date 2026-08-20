@@ -27,7 +27,7 @@ describeIfLiveInfra('metrics snapshot compute driver (W3-10, FR-METRICS-13)', ()
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w3-10-user', login: 'w3-10-user' })
+      .values({ authProvider: 'github', authSubject: 'w3-10-user', forgeUserId: 'w3-10-user', login: 'w3-10-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w3-10-user' } })
       .returning();
     const [conn] = await db

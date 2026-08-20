@@ -23,7 +23,7 @@ describeIfLiveInfra('sync status model (W2-05, INGESTION §7, FR-INGEST-8)', () 
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w2-05-user', login: 'w2-05-user' })
+      .values({ authProvider: 'github', authSubject: 'w2-05-user', forgeUserId: 'w2-05-user', login: 'w2-05-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w2-05-user' } })
       .returning();
     const [conn] = await db

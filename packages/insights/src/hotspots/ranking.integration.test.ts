@@ -60,7 +60,7 @@ describeIfLiveInfra('cross-repo hotspot ranking (W3-11, FR-INSIGHTS-5)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w3-11-hot-user', login: 'w3-11-hot-user' })
+      .values({ authProvider: 'github', authSubject: 'w3-11-hot-user', forgeUserId: 'w3-11-hot-user', login: 'w3-11-hot-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w3-11-hot-user' } })
       .returning();
     const [conn] = await db

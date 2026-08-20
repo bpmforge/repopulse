@@ -45,7 +45,7 @@ describeIfLiveInfra('plans.verify', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w5-06-user', login: 'w5-06-user' })
+      .values({ authProvider: 'github', authSubject: 'w5-06-user', forgeUserId: 'w5-06-user', login: 'w5-06-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w5-06-user' } })
       .returning();
     const [conn] = await db

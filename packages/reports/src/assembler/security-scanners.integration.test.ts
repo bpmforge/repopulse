@@ -50,7 +50,7 @@ describeIfLiveInfra('security posture — scanner sections', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w8-11-user', login: 'w8-11-user' })
+      .values({ authProvider: 'github', authSubject: 'w8-11-user', forgeUserId: 'w8-11-user', login: 'w8-11-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w8-11-user' } })
       .returning();
     userId = user!.id;

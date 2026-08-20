@@ -57,7 +57,7 @@ describeIfLiveInfra('snapshot processor reads workspace settings (W4-09)', () =>
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w4-09-snap', login: 'w4-09-snap' })
+      .values({ authProvider: 'github', authSubject: 'w4-09-snap', forgeUserId: 'w4-09-snap', login: 'w4-09-snap' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w4-09-snap' } })
       .returning();
 

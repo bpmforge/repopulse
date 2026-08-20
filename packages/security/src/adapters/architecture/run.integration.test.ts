@@ -49,7 +49,7 @@ describeIfLiveInfra('architecture findings', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w10-03-user', login: 'w10-03-user' })
+      .values({ authProvider: 'github', authSubject: 'w10-03-user', forgeUserId: 'w10-03-user', login: 'w10-03-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w10-03-user' } })
       .returning();
 

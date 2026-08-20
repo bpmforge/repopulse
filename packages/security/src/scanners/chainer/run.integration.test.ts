@@ -68,7 +68,7 @@ describeIfLiveInfra('chainer pass (W8-09)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w8-09-user', login: 'w8-09-user' })
+      .values({ authProvider: 'github', authSubject: 'w8-09-user', forgeUserId: 'w8-09-user', login: 'w8-09-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w8-09-user' } })
       .returning();
     userId = user!.id;

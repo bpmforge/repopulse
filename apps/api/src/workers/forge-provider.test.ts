@@ -75,7 +75,7 @@ describeIfLiveInfra('providerForRepo', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w14-02-user', login: 'w14-02-user' })
+      .values({ authProvider: 'github', authSubject: 'w14-02-user', forgeUserId: 'w14-02-user', login: 'w14-02-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w14-02-user' } })
       .returning();
 

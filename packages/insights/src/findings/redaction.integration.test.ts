@@ -37,7 +37,7 @@ describeIfLiveInfra('secrets never reach the database (SC-29)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w8-02-user', login: 'w8-02-user' })
+      .values({ authProvider: 'github', authSubject: 'w8-02-user', forgeUserId: 'w8-02-user', login: 'w8-02-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w8-02-user' } })
       .returning();
 

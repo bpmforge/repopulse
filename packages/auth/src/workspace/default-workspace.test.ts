@@ -15,7 +15,7 @@ describeIfDb('ensureMembership (live Postgres)', () => {
   async function makeUser(login: string) {
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: `${testLoginPrefix}${login}`, login })
+      .values({ authProvider: 'github', authSubject: `${testLoginPrefix}${login}`, forgeUserId: `${testLoginPrefix}${login}`, login })
       .returning();
     if (!user) throw new Error('user insert returned no row');
     createdUserIds.push(user.id);

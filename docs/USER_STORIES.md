@@ -8,6 +8,19 @@ Personas: P1 Engineering Lead · P2 Developer · P3 Security Engineer · P4 EM/E
 
 ## Epic E1 — Connect + Ingest (forge, ingest, auth) [MVP wave]
 
+### E1.0 Sign in without a forge account [MVP] — 8 pts — FR-AUTH-7, FR-AUTH-8, FR-AUTH-9
+
+**As** an operator who has just deployed RepoPulse in my own environment,
+**I want** to sign in with an account this product owns, or with my company's
+identity provider, **so that** standing up the tool does not require me to
+register an application with a third party I may not even use.
+
+Acceptance: a fresh install with `ADMIN_EMAIL`/`ADMIN_PASSWORD` set lets that
+admin sign in and forces a password change; an install configured for OIDC
+offers exactly that button; no deployment is required to configure a forge to
+let a human through the door. Connecting a Gitea organisation never requires a
+GitHub App (D14).
+
 ### E1.1 Sign in with GitHub [MVP] — 3 pts — FR-AUTH-1, FR-AUTH-2, FR-AUTH-6
 As P2, I want to sign in with my GitHub account so that RepoPulse knows who I am and can personalize my views.
 - OAuth round-trip creates my user linked to my GitHub login/avatar

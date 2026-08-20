@@ -138,7 +138,7 @@ describeIfReady('logging_hygiene scan (W9-04)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w9-04-user', login: 'w9-04-user' })
+      .values({ authProvider: 'github', authSubject: 'w9-04-user', forgeUserId: 'w9-04-user', login: 'w9-04-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w9-04-user' } })
       .returning();
     userId = user!.id;

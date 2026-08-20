@@ -30,7 +30,7 @@ describeIfLiveInfra('knowledge register', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w10-01-user', login: 'w10-01-user' })
+      .values({ authProvider: 'github', authSubject: 'w10-01-user', forgeUserId: 'w10-01-user', login: 'w10-01-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w10-01-user' } })
       .returning();
     userId = user!.id;

@@ -103,7 +103,7 @@ describeIfLiveInfra('views routes (W5-01)', () => {
 
     const [ghost] = await db
       .insert(core.users)
-      .values({ forgeUserId: GHOST_FORGE_USER_ID, login: GHOST_FORGE_USER_ID })
+      .values({ authProvider: 'github', authSubject: GHOST_FORGE_USER_ID, forgeUserId: GHOST_FORGE_USER_ID, login: GHOST_FORGE_USER_ID })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: GHOST_FORGE_USER_ID } })
       .returning();
     if (!ghost) throw new Error('ghost user upsert returned no row');
