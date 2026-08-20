@@ -9,11 +9,14 @@
 // because the same inputs must produce the same plan: a recommendation that
 // appears and disappears between runs teaches people to ignore the screen.
 
-// v2 since W9-06: the four code-health entries below were added and no
-// existing entry changed. The version is bumped rather than edited in place so
-// a plan created under v1 still says what it said — a catalog is an asset with
-// the same versioning discipline as a checklist.
-export const CATALOG_VERSION = 'v2';
+// v3 since W9-10: no entry was added or removed, but the RANK INPUT changed
+// from raw rankWeight to rankWeight × the effective_risk of the breaching
+// findings (FR-RISK-5). That reorders plans generated from identical data,
+// which is exactly the kind of change a version exists to record — a plan
+// created under v2 was ranked by a different rule and still says what it said.
+//
+// (v2 was W9-06, which added the four code-health entries.)
+export const CATALOG_VERSION = 'v3';
 
 export type Effort = 'S' | 'M' | 'L';
 export type PlanSource = 'metric' | 'finding' | 'chain' | 'compound' | 'agreement';
@@ -37,6 +40,16 @@ export interface VerifyCriterion {
 
 export interface CatalogEntry {
   id: string;
+  /**
+   * Pinned entries rank on rankWeight ALONE (W9-10).
+   *
+   * A known-exploited or chained finding goes first regardless of what the
+   * pricing arithmetic says — the same reasoning as the risk model's `act`
+   * overrides. Multiplying a pin by a risk score would let a low-priced KEV
+   * finding slide below a tidy-up item, which is the one ordering nobody would
+   * accept.
+   */
+  pinned?: boolean;
   title: string;
   effort: Effort;
   source: PlanSource;
@@ -213,6 +226,7 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     effort: 'L',
     source: 'chain',
     // Pinned first (IMPROVEMENT_PLANS.md §2): everything else waits.
+    pinned: true,
     rankWeight: 1000,
     condition: (m) => above(dim(m, 'FINDINGS', ['kevOrChainOpen']), 0),
     evidence: (m) => ({ findingIds: m.FINDINGS?.dims.kevFindingIds ?? [] }),

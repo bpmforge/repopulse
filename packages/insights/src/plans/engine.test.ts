@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { CATALOG_V1, evaluateCriterion, generatePlanItems, verifyTransition } from './engine.js';
+import {
+  CATALOG_VERSION,
+  CATALOG_V1,
+  evaluateCriterion,
+  generatePlanItems,
+  rankInputFor,
+  riskOfBreachingSet,
+  verifyTransition,
+} from './engine.js';
 import type { MetricSet } from './catalog.v1.js';
 
 // Plans engine (W5-06, IMPROVEMENT_PLANS.md §1/§2/§3).
@@ -164,5 +172,82 @@ describe('code-health catalog entries (W9-06, FR-PLANS-3)', () => {
     expect(dup?.condition({ ch_duplication_pct: { value: 7, dims: {} } })).toBe(true);
     // At the ceiling is not over it.
     expect(dup?.condition({ ch_duplication_pct: { value: 5, dims: {} } })).toBe(false);
+  });
+});
+
+describe('rank input is effective_risk, not raw severity (W9-10, FR-RISK-5)', () => {
+  const withRisk = (dims: Record<string, unknown>) => ({
+    FINDINGS: { value: 1, dims },
+  });
+
+  it('reorders when RISK changes, with severity untouched', () => {
+    // The whole point of the swap. Raw severity used to decide this order, and
+    // it is exactly the input the risk engine replaces: a critical finding in a
+    // file nobody touches outranked a high one in the hot path.
+    const slop = CATALOG_V1.find((e) => e.id === 'slop-density-high')!;
+    const cluster = CATALOG_V1.find((e) => e.id === 'act-band-cluster')!;
+
+    const slopHot = rankInputFor(slop, withRisk({ slopRiskSum: 90 }));
+    const slopCold = rankInputFor(slop, withRisk({ slopRiskSum: 5 }));
+    expect(slopHot).toBeGreaterThan(slopCold);
+
+    // And across entries: a low-weight entry with high risk can overtake a
+    // high-weight entry with low risk, which is the reordering the acceptance
+    // asks for.
+    const clusterCold = rankInputFor(cluster, withRisk({ actBandRiskSum: 3 }));
+    expect(slopHot).toBeGreaterThan(clusterCold);
+  });
+
+  it('leaves METRIC-only entries on rankWeight alone', () => {
+    // There are no findings to price; multiplying by a risk that does not
+    // exist would either zero the entry or require inventing a number.
+    const metricEntry = CATALOG_V1.find((e) => e.source === 'metric')!;
+    expect(rankInputFor(metricEntry, withRisk({ riskSum: 5 }))).toBe(metricEntry.rankWeight);
+  });
+
+  it('keeps the KEV/chain PIN first whatever the arithmetic says', () => {
+    const pin = CATALOG_V1.find((e) => e.id === 'kev-or-chain-open')!;
+    expect(pin.pinned).toBe(true);
+    // Even priced at the bottom of the scale, it outranks everything.
+    expect(rankInputFor(pin, withRisk({ riskSum: 1 }))).toBe(1000);
+    const best = Math.max(
+      ...CATALOG_V1.filter((e) => e.id !== 'kev-or-chain-open').map((e) =>
+        rankInputFor(e, withRisk({ actBandRiskSum: 100, slopRiskSum: 100, riskSum: 100 })),
+      ),
+    );
+    expect(rankInputFor(pin, withRisk({ riskSum: 1 }))).toBeGreaterThan(best);
+  });
+
+  it('falls back to rankWeight when nothing has been priced yet', () => {
+    // A finding set nobody has priced is not a finding set that does not
+    // matter — falling to zero would hide it until the nightly reprice ran.
+    const cluster = CATALOG_V1.find((e) => e.id === 'act-band-cluster')!;
+    expect(rankInputFor(cluster, {})).toBe(cluster.rankWeight);
+    expect(rankInputFor(cluster, withRisk({}))).toBe(cluster.rankWeight);
+  });
+
+  it('sums risk across a cluster rather than taking the worst', () => {
+    // Three act-band findings in one module is a bigger job than one, and the
+    // plan is a list of jobs.
+    const cluster = CATALOG_V1.find((e) => e.id === 'act-band-cluster')!;
+    expect(riskOfBreachingSet(cluster, withRisk({ actBandRiskSum: 180 }))).toBe(180);
+  });
+
+  it('act-band-cluster closes when the set resolves OR reprices below act', () => {
+    // One criterion covers both: the count is of ACT-BAND findings, so a
+    // reprice out of act empties it exactly as a fix would.
+    const cluster = CATALOG_V1.find((e) => e.id === 'act-band-cluster')!;
+    expect(cluster.verifyCriterion).toMatchObject({
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      dimPath: ['actBandClusterCount'],
+    });
+  });
+
+  it('stamps a bumped catalog version, because the ORDER rule changed', () => {
+    // No entry was added or removed — but plans generated from identical data
+    // now come out in a different order, which is what a version records.
+    expect(CATALOG_VERSION).toBe('v3');
   });
 });
