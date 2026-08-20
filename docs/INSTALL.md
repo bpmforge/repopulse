@@ -204,12 +204,13 @@ deploy/scan-db-sync.sh
 0 3 * * * /opt/repopulse/deploy/scan-db-sync.sh >> /var/log/repopulse-scan-sync.log 2>&1
 ```
 
-> **Set aside 4 GB of disk under `SCAN_RULES_DIR`.** The vulnerability database
-> is **~1.9 GB**, and a refresh briefly keeps the new copy beside the one in use,
-> so the peak is roughly double. The first run downloads all of it and takes a
-> minute or two on a fast connection. The script checks free space and refuses
-> to start if there is not enough, rather than filling the disk your database is
-> on at three in the morning.
+> **Provision 5 GB of disk under `SCAN_RULES_DIR`.** The vulnerability database
+> is **~1.9 GiB**, and a refresh stages the new copy beside the live one before
+> swapping them by rename, so a sync briefly holds two — which a 4 GB volume
+> cannot do. The first run downloads all of it and takes a minute or two on a
+> fast connection. The script checks free space first and refuses to start if
+> there is not enough, rather than filling the disk your database is on at three
+> in the morning.
 
 The database is downloaded from Anchore by *your* install rather than shipped
 inside our image, because it aggregates 26 upstream feeds (NVD, GitHub

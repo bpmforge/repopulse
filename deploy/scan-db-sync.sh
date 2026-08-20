@@ -16,10 +16,11 @@
 # scanner running against a stale rulepack still reports findings and still
 # looks green.
 #
-# DISK: BUDGET 4 GB FOR THIS, NOT 2.
-# The grype vulnerability database is ~1.9 GB unpacked, and the swap at the end
+# DISK: PROVISION 5 GB FOR THIS, NOT 2.
+# The grype vulnerability database is ~1.9 GiB unpacked, and the swap at the end
 # is deliberately non-destructive — the new copy is staged alongside the live
-# one and only then renamed — so the peak is roughly double the steady state.
+# one and only then renamed into place — so a refresh briefly holds two of them,
+# ~3.9 GiB. A 4 GB volume does not fit that, which is why the number here is 5.
 # An operator who sized the volume for "some rule files" will otherwise meet
 # this as a full disk at 03:00. The check below refuses to start rather than
 # filling the filesystem the rest of the install is sitting on.
@@ -79,9 +80,13 @@ fi
 # customer source, rather than anywhere near the scan container.
 VULN_DB_DIR="$DEST/vuln-db"
 SCAN_IMAGE="${SCAN_IMAGE:-localhost/repopulse/scan:dev}"
-# Free space is measured in KiB blocks by POSIX df -P. 4 GiB, because the stage
-# and the live copy coexist for the length of one rename.
-REQUIRED_KB=4194304
+# Free space needed to RUN a sync, in the KiB blocks POSIX df -P reports. This
+# is 2.2 GiB, not the 5 GB the volume should be provisioned at, and the two
+# numbers are different on purpose: the swap below is a rename within $DEST,
+# not a copy, so a refresh only ever needs room for ONE more database beside
+# the one already there. Requiring the full provisioned size here would refuse
+# to run on exactly the volume the docs told the operator to build.
+REQUIRED_KB=2306867
 
 if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
   runtime=""
@@ -96,9 +101,9 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
   else
     available_kb="$(df -Pk "$DEST" | awk 'NR==2 {print $4}')"
     if [ "${available_kb:-0}" -lt "$REQUIRED_KB" ]; then
-      log "ERROR: $DEST has ${available_kb}KB free; the grype database needs about"
-      log "       ${REQUIRED_KB}KB during sync (~1.9GB live, staged alongside the"
-      log "       copy already in use). Refusing to start rather than filling the disk."
+      log "ERROR: $DEST has ${available_kb}KB free, and one sync needs ${REQUIRED_KB}KB"
+      log "       (~1.9GiB, staged beside the copy already in use). Provision 5GB for"
+      log "       this directory. Refusing to start rather than filling the disk."
       FAILED=1
     else
       log "syncing grype vulnerability database (~1.9GB — this is not quick)"
