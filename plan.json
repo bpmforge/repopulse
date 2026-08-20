@@ -4239,9 +4239,12 @@
         "Result, date, host shape and every doc gap found are appended to docs/STATUS.md"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "blocked",
       "notes": [
-        "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference — that is its job."
+        "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference — that is its job.",
+        "BLOCKED 2026-08-19 — this ticket is a HUMAN acceptance test by design and cannot be honestly performed from here. Its three acceptance items each need something I do not have: (1) a machine with no repo checkout, and a person following only the docs — I am the wrong reader, because I wrote them and would fill gaps from memory without noticing; (2) a real forge App registered against a real org, which is the same blocker as W7-07 and decision (d); (3) a customer-supplied LM Studio endpoint for the Tier-2 half.",
+        "WHAT IS ALREADY PROVEN AND WHAT IS NOT: the compose path itself is exercised (W13-06 runs it from a fresh .env with fresh volumes), backup/restore/upgrade/rollback were executed against a live populated stack (W11-03), and the config reference cannot drift from the code (W11-02). What none of that establishes is the thing this ticket exists for: that a person who has never seen the repo can get from docs/INSTALL.md to a working install and a generated report.",
+        "TO UNBLOCK, from Brad: a spare host (a VM is fine), a throwaway GitHub App on a scratch org, and an hour following docs/INSTALL.md top to bottom WITHOUT reading the code — recording every place the docs were wrong, ambiguous or silent. The doc gaps it finds are the deliverable, not the install."
       ]
     },
     {
@@ -4785,7 +4788,7 @@
         "Deviations are fixed or written down; no step is reported as working because it looked right"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-19 from W13-05. The container path is documented in docs/RUNNING.md from reading compose.yaml and from the stack that has been running on this machine for days — but NO clean from-scratch run has been done, so the docs are inference, not verification.",
         "The dev path had five defects when it was finally run end to end on a clean clone, three of which were invisible on a machine that already worked. There is no reason to assume the container path is cleaner: it has more required secrets (POSTGRES_PASSWORD, REDIS_PASSWORD, all the GITHUB_APP_* values), a build step, and a migrate job whose ordering nothing has tested.",
