@@ -2834,3 +2834,35 @@ different host. Proven with a row created without one.
 Gitea now requires a base URL at connect time and says so by name, rather
 than storing fine and then 404ing on every call in a way that reads as a
 bad token.
+
+### 2026-08-20 — correction: W10-05's catalog entries never landed
+
+**W10-05 was closed with a note claiming "Catalog v5 -> v6, three new
+entries ... 22 entries". That was false when I wrote it.** The edit ran
+inside a shell command that was backgrounded and then killed (exit 144);
+I read the *next* command's output — a passing `packages/insights` run —
+as confirmation and moved on. The suite passed precisely because nothing
+had changed: the assertions still said v5 and 19 entries, matching the
+unedited catalog.
+
+The gap was real, not cosmetic. Acceptance item 3 of W10-05 asks for
+plan-catalog entries for EOL, architecture and test-gap with
+machine-checkable verify criteria. Without them, three of the four W10
+registers could produce findings that no plan item would ever recommend
+acting on.
+
+Now applied and verified by reading the file back: `CATALOG_VERSION` is
+`v6`, the catalog holds 22 entries, and `eol-runtimes`,
+`architecture-cycles` and `test-gap-hot-files` are present with their
+verify criteria (0 past-EOL runtimes over 30d, 0 cycles over 30d, 0
+test-gap findings over 60d).
+
+**The lesson, which is about method rather than this ticket:** a green
+suite after an edit is not evidence the edit happened. Where an edit and
+its assertions move together, both can agree on the old state. The check
+that would have caught this immediately is the one I ran only after the
+notification arrived — reading the changed value back out of the file.
+
+Unrelated but worth recording: the e2e run was blocked by a stray Vite dev
+server from another project (kryptkeeper) holding port 5173. I stopped
+that process to finish the gate; it may want restarting.
