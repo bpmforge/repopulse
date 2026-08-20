@@ -47,6 +47,29 @@ export interface RepoRef {
 const canonicalIdentity = alias(core.identities, 'canonical_identity');
 
 /** M1 churn / M2 hotspots / M3 ownership — one read feeds all three. */
+/**
+ * Commit-level flags for M14 (W9-06).
+ *
+ * A separate read from readChurnTouches because that one joins commit_files —
+ * a commit touching twelve files appears twelve times there, and counting
+ * reverts off it would weight a revert by how much it changed.
+ */
+export async function readCommitFlags(
+  db: Database,
+  repoId: number,
+  windowStart: Date,
+): Promise<{ sha: string; isMerge: boolean; isRevertHeuristic: boolean }[]> {
+  const rows = await db
+    .select({
+      sha: facts.commits.sha,
+      isMerge: facts.commits.isMerge,
+      isRevertHeuristic: facts.commits.isRevertHeuristic,
+    })
+    .from(facts.commits)
+    .where(and(eq(facts.commits.repoId, repoId), gte(facts.commits.authoredAt, windowStart)));
+  return rows;
+}
+
 export async function readChurnTouches(
   db: Database,
   repoId: number,

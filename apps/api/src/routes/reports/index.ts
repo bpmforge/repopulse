@@ -35,7 +35,14 @@ export interface ReportsRoutesOptions {
   };
 }
 
-const TYPES: ReportType[] = ['repo_health', 'org_exec', 'security_posture', 'delivery_dora'];
+const TYPES: ReportType[] = [
+  'repo_health',
+  'org_exec',
+  'security_posture',
+  'delivery_dora',
+  // W9-06 (FR-REPORTS-8).
+  'code_health',
+];
 const WINDOWS = [7, 30, 90, 365];
 
 function fail(

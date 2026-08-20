@@ -6,6 +6,7 @@ export * from './snapshot/tar.js';
 export * from './snapshot/extract.js';
 export * from './snapshot/snapshot.js';
 export * from './snapshot/fetch.js';
+export * from './snapshot/sources.js';
 // The sandbox lives outside src/ because it is a trust boundary, not a module:
 // validate-arch rule 7 keys on the directory when it checks that nothing else
 // spawns a scan tool.

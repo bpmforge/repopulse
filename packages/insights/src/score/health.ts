@@ -56,6 +56,10 @@ export const DEFAULT_WEIGHTS: Record<string, number> = {
   // renormalize to 1.0 and the score is labelled "Tier-1 only" — the mechanism
   // METRICS.md §3 already specifies, now with something real to put in it.
   security: 0.2,
+  // W9-06. Absent for any repo the code-health scanners have never run on, in
+  // which case the others renormalize — the same mechanism as `security`, and
+  // for the same reason: unmeasured must never score as good.
+  codeHealth: 0.15,
 };
 
 interface EvaluatedSub {
@@ -108,7 +112,9 @@ export function computeHealthScore(defs: SubScoreDef[]): HealthScore {
   // repository — including ones nobody has analysed. What the label means is
   // "this score contains non-Tier-1 evidence", and only a scored sub-score
   // does.
-  const tier1Only = !subScores.some((e) => e.key === 'security' || e.key === 'supplyChain');
+  const tier1Only = !subScores.some(
+    (e) => e.key === 'security' || e.key === 'supplyChain' || e.key === 'codeHealth',
+  );
 
   return { score, subScores, renormalized, tier1Only };
 }
@@ -138,6 +144,17 @@ export interface HealthMetricInputs {
   openFindingDensity: number | null;
   /** Highest open severity (1-5), or null when nothing has been analysed. */
   worstOpenSeverity: number | null;
+  /**
+   * W9-06 (FR-CH-6). All four NULL until the W9 scanners have run on the repo.
+   * Null is load-bearing here exactly as it is for findings: a repository
+   * nobody has measured must be excluded from the mean, never scored as clean.
+   */
+  duplicationPct: number | null;
+  complexityP90: number | null;
+  /** Slop findings per 1000 lines changed in the window. */
+  slopDensity: number | null;
+  /** M13 rework-14d, 0-1. */
+  rework14d: number | null;
 }
 
 export function buildHealthSubScores(
@@ -183,6 +200,25 @@ export function buildHealthSubScores(
         // A single critical finding should move the score even when density is
         // low — one exploitable bug is not offset by a tidy codebase.
         { key: 'worstOpenSeverity', raw: inputs.worstOpenSeverity, good: 1, bad: 5 },
+      ],
+    },
+    {
+      // W9-06. Same construction as `security`: all-null inputs drop the whole
+      // sub-score, so "we have not measured this repository" and "this
+      // repository is clean" are different scores rather than the same one.
+      key: 'codeHealth',
+      weight: weights.codeHealth ?? DEFAULT_WEIGHTS.codeHealth ?? 0.15,
+      inputs: [
+        // 0% duplication is good; the canon gate is 5%, and 15% is where a
+        // codebase has a copy-paste habit rather than an incident.
+        { key: 'duplicationPct', raw: inputs.duplicationPct, good: 0, bad: 15 },
+        // p90 cyclomatic complexity: 5 is unremarkable, 20 is the canon
+        // critical threshold for a single function.
+        { key: 'complexityP90', raw: inputs.complexityP90, good: 5, bad: 20 },
+        { key: 'slopDensity', raw: inputs.slopDensity, good: 0, bad: 5 },
+        // Rework is a debt signal, not a verdict (M13's catalog note) — which
+        // is why it is one input of four rather than a score of its own.
+        { key: 'rework14d', raw: inputs.rework14d, good: 0.05, bad: 0.4 },
       ],
     },
     {

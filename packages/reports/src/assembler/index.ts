@@ -17,6 +17,7 @@ import type {
 import { readReportRepos, readSnapshotsAsOf, type BoundedSnapshot } from './read.js';
 import { planSections } from './plans.js';
 import { securityPostureSections } from './security-posture.js';
+import { codeHealthSections } from './code-health.js';
 import { readPreviousSnapshotAt } from './previous.js';
 
 // Report assembler (W5-03, REPORTS.md §1/§2/§5/§6).
@@ -311,6 +312,11 @@ export function createReportAssembler(db: Database): ReportAssembler {
     });
   }
 
+  async function codeHealthReport(params: ReportParams): Promise<ReportSection[]> {
+    const { workspaceId, repoIds, snapshotAt } = await common(params);
+    return codeHealthSections(db, { workspaceId, repoIds, snapshotAt });
+  }
+
   async function deliveryDoraReport(params: ReportParams): Promise<ReportSection[]> {
     const { workspaceId, repoIds, snapshotAt, window } = await common(params);
     const orgSnapshots = await readSnapshotsAsOf(db, {
@@ -412,7 +418,9 @@ export function createReportAssembler(db: Database): ReportAssembler {
             ? await orgExecReport(params)
             : params.type === 'delivery_dora'
               ? await deliveryDoraReport(params)
-              : await securityPostureReport(params);
+              : params.type === 'code_health'
+                ? await codeHealthReport(params)
+                : await securityPostureReport(params);
 
       const { workspaceId, repoIds, snapshotAt, windowEnd, repos, window } = await common(params);
 

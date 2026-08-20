@@ -24,6 +24,7 @@ const TYPES = [
   { id: 'org_exec', label: 'Organisation Executive Summary' },
   { id: 'delivery_dora', label: 'Delivery / DORA' },
   { id: 'security_posture', label: 'Security Posture' },
+  { id: 'code_health', label: 'Code Health' },
 ] as const;
 
 /** Paired glyph + word, never colour alone (UX_SPEC §7). */

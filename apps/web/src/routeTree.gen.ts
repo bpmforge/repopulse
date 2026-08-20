@@ -30,6 +30,7 @@ import { Route as ViewsViewIdRouteImport } from './routes/views/$viewId'
 import { Route as PrintReportsReportIdRouteImport } from './routes/print/reports/$reportId'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
 import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
+import { Route as ReposRepoIdCodeHealthRouteImport } from './routes/repos/$repoId/code-health'
 import { Route as ReposRepoIdFindingsRouteImport } from './routes/repos/$repoId/findings'
 import { Route as ReposRepoIdHotspotsRouteImport } from './routes/repos/$repoId/hotspots'
 import { Route as ReposRepoIdPrFlowRouteImport } from './routes/repos/$repoId/pr-flow'
@@ -143,6 +144,11 @@ const ReposRepoIdCiRoute = ReposRepoIdCiRouteImport.update({
   path: '/ci',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
+const ReposRepoIdCodeHealthRoute = ReposRepoIdCodeHealthRouteImport.update({
+  id: '/code-health',
+  path: '/code-health',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
 const ReposRepoIdFindingsRoute = ReposRepoIdFindingsRouteImport.update({
   id: '/findings',
   path: '/findings',
@@ -200,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
+  '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/views': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
+  '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
@@ -259,6 +267,7 @@ export interface FileRoutesById {
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
+  '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
+    | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
@@ -319,6 +329,7 @@ export interface FileRouteTypes {
     | '/views'
     | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
+    | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
+    | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
     | '/repos/$repoId/pr-flow'
@@ -523,6 +535,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReposRepoIdCiRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
+    '/repos/$repoId/code-health': {
+      id: '/repos/$repoId/code-health'
+      path: '/code-health'
+      fullPath: '/repos/$repoId/code-health'
+      preLoaderRoute: typeof ReposRepoIdCodeHealthRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
     '/repos/$repoId/findings': {
       id: '/repos/$repoId/findings'
       path: '/findings'
@@ -601,6 +620,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 
 interface ReposRepoIdRouteRouteChildren {
   ReposRepoIdCiRoute: typeof ReposRepoIdCiRoute
+  ReposRepoIdCodeHealthRoute: typeof ReposRepoIdCodeHealthRoute
   ReposRepoIdFindingsRoute: typeof ReposRepoIdFindingsRoute
   ReposRepoIdHotspotsRoute: typeof ReposRepoIdHotspotsRoute
   ReposRepoIdPrFlowRoute: typeof ReposRepoIdPrFlowRoute
@@ -613,6 +633,7 @@ interface ReposRepoIdRouteRouteChildren {
 
 const ReposRepoIdRouteRouteChildren: ReposRepoIdRouteRouteChildren = {
   ReposRepoIdCiRoute: ReposRepoIdCiRoute,
+  ReposRepoIdCodeHealthRoute: ReposRepoIdCodeHealthRoute,
   ReposRepoIdFindingsRoute: ReposRepoIdFindingsRoute,
   ReposRepoIdHotspotsRoute: ReposRepoIdHotspotsRoute,
   ReposRepoIdPrFlowRoute: ReposRepoIdPrFlowRoute,

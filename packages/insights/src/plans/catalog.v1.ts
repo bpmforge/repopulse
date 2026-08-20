@@ -9,7 +9,11 @@
 // because the same inputs must produce the same plan: a recommendation that
 // appears and disappears between runs teaches people to ignore the screen.
 
-export const CATALOG_VERSION = 'v1';
+// v2 since W9-06: the four code-health entries below were added and no
+// existing entry changed. The version is bumped rather than edited in place so
+// a plan created under v1 still says what it said — a catalog is an asset with
+// the same versioning discipline as a checklist.
+export const CATALOG_VERSION = 'v2';
 
 export type Effort = 'S' | 'M' | 'L';
 export type PlanSource = 'metric' | 'finding' | 'chain' | 'compound' | 'agreement';
@@ -228,6 +232,73 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
       target: 0,
       windowDays: 1,
       dimPath: ['actBandClusterCount'],
+    },
+  },
+  // ---- Code health, v2 additions (W9-06, FR-PLANS-3) --------------------
+  //
+  // Every one of these verifies off a ch_* snapshot the W9-02 scanner writes,
+  // so the nightly verifier can close them WITHOUT anyone reporting progress.
+  // A plan item whose completion depends on someone remembering to tick it is
+  // a to-do list, not a plan.
+  {
+    id: 'duplication-over-ceiling',
+    title: 'Bring duplication under the 5% ceiling',
+    effort: 'M',
+    source: 'metric',
+    rankWeight: 55,
+    condition: (m) => above(num(m, 'ch_duplication_pct'), 5),
+    evidence: (m) => ({
+      metricKeys: ['ch_duplication_pct'],
+      value: num(m, 'ch_duplication_pct'),
+    }),
+    verifyCriterion: { metricKey: 'ch_duplication_pct', op: 'lte', target: 5, windowDays: 14 },
+  },
+  {
+    id: 'complexity-worst-functions',
+    title: 'Split the functions past the critical complexity threshold',
+    effort: 'L',
+    source: 'metric',
+    rankWeight: 58,
+    condition: (m) => above(num(m, 'ch_worst_fn_count'), 0),
+    evidence: (m) => ({
+      metricKeys: ['ch_worst_fn_count', 'ch_complexity_p90'],
+      worstFunctions: num(m, 'ch_worst_fn_count'),
+    }),
+    // Zero functions past the CRITICAL threshold, held for a fortnight. Not
+    // "reduce p90", which a single deleted file can achieve without anyone
+    // touching the functions that are actually hard to read.
+    verifyCriterion: { metricKey: 'ch_worst_fn_count', op: 'lte', target: 0, windowDays: 14 },
+  },
+  {
+    id: 'slop-density-high',
+    title: 'Clear the structural-slop backlog in the worst files',
+    effort: 'M',
+    source: 'finding',
+    rankWeight: 45,
+    condition: (m) => above(dim(m, 'FINDINGS', ['slopDensity']), 3),
+    evidence: (m) => ({ findingIds: m.FINDINGS?.dims.slopFindingIds ?? [] }),
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 3,
+      windowDays: 14,
+      dimPath: ['slopDensity'],
+    },
+  },
+  {
+    id: 'logging-hygiene-adoption',
+    title: 'Adopt the structured logger on the request path',
+    effort: 'S',
+    source: 'finding',
+    rankWeight: 40,
+    condition: (m) => above(dim(m, 'FINDINGS', ['loggingFindingCount']), 5),
+    evidence: (m) => ({ findingIds: m.FINDINGS?.dims.loggingFindingIds ?? [] }),
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 14,
+      dimPath: ['loggingFindingCount'],
     },
   },
 ];

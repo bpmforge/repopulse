@@ -12,8 +12,10 @@ import { computeIssueThroughput } from '../metrics/issues.js';
 import { computeReleaseCadence } from '../metrics/releases.js';
 import { computeDeploymentFrequency } from '../metrics/dora.js';
 import { writeMetricSnapshot } from './writer.js';
+import { computeRework14d, computeRevertRate } from '../metrics/debt.js';
 import {
   readChurnTouches,
+  readCommitFlags,
   readCiRuns,
   readCyclePrs,
   readDoraInputs,
@@ -58,7 +60,8 @@ export interface ComputeSnapshotParams {
 }
 
 interface Reduced {
-  value: number;
+  /** null = no measurement for this window; the row is skipped (see below). */
+  value: number | null;
   numerator?: number | null;
   denominator?: number | null;
   dims?: Record<string, unknown>;
@@ -76,7 +79,7 @@ async function writeOne(
     repoId: base.repoId,
     metricKey,
     window,
-    value: r.value,
+    value: r.value as number,
     numerator: r.numerator ?? null,
     denominator: r.denominator ?? null,
     ...(r.dims ? { dims: r.dims } : {}),
@@ -102,6 +105,12 @@ export async function computeRepoSnapshots(
     // --- churn family (one read → M1/M2/M3) ---
     const touches = await readChurnTouches(db, params.repoId, windowStart);
     const churn = computeChurn(touches, botGlobs);
+    // M13/M14 (W9-05): computed from reads already in hand — the touches above
+    // and the commit rows the churn read returned.
+    const rework14 = computeRework14d(touches);
+    const revertRate = computeRevertRate(
+      await readCommitFlags(db, params.repoId, windowStart),
+    );
     const hotspots = computeHotspots(touches, asOf, botGlobs);
     const ownership = computeOwnership(touches, asOf, botGlobs);
 
@@ -231,9 +240,41 @@ export async function computeRepoSnapshots(
           dims: { basis: deployFreq.basis, caveat: deployFreq.caveat },
         },
       ],
+      // W9-06 wiring for W9-05's debt signals. They ride the SAME per-window
+      // loop as everything else, from the churn read that is already in hand —
+      // a separate nightly job for two numbers would be a second thing to
+      // schedule, a second thing to fail, and a second place for the window
+      // definition to drift.
+      [
+        'M13',
+        {
+          value: rework14.rate,
+          dims: {
+            reworkLines: rework14.reworkLines,
+            totalLines: rework14.totalLines,
+            lookbackDays: 14,
+          },
+        },
+      ],
+      [
+        'M14',
+        {
+          value: revertRate.rate,
+          dims: {
+            reverts: revertRate.reverts,
+            eligibleCommits: revertRate.eligibleCommits,
+            heuristic: 'commit-message shape (is_revert_heuristic)',
+          },
+        },
+      ],
     ];
 
     for (const [key, reduced] of rows) {
+      // A NULL-valued metric writes NO ROW. metric_snapshots.value is NOT NULL
+      // and storing 0 would be a lie — a 0% rework rate for a week with no
+      // commits reads as a perfect week. An absent row makes the trend show a
+      // GAP, which is what "we did not measure this" looks like on a chart.
+      if (reduced.value === null) continue;
       await writeOne(db, base, key, w.key, reduced);
       written++;
     }

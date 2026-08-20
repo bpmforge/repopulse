@@ -23,6 +23,7 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/repos/$repoId/ci', label: 'CI' },
   { to: '/repos/$repoId/findings', label: 'Findings' },
   { to: '/repos/$repoId/security', label: 'Security' },
+  { to: '/repos/$repoId/code-health', label: 'Code Health' },
 ];
 
 function RepoLayout() {

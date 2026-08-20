@@ -34,6 +34,20 @@ const perfectInputs: HealthMetricInputs = {
   m12Cfr: 0.05,
   openFindingDensity: null,
   worstOpenSeverity: null,
+  // W9-06: null by default, exactly like the findings inputs above — the
+  // fixture describes a repo nobody has scanned, which is the common case.
+  duplicationPct: null,
+  complexityP90: null,
+  slopDensity: null,
+  rework14d: null,
+};
+
+/** All four W9 code-health inputs at their "good" ends. */
+const perfectCodeHealth = {
+  duplicationPct: 0,
+  complexityP90: 5,
+  slopDensity: 0,
+  rework14d: 0.05,
 };
 
 describe('computeHealthScore (FR-INSIGHTS-2/3)', () => {
@@ -57,10 +71,16 @@ describe('computeHealthScore (FR-INSIGHTS-2/3)', () => {
   it('scores security once a repo has actually been analysed (W6-03)', () => {
     const analysed = { ...perfectInputs, openFindingDensity: 0, worstOpenSeverity: 1 };
     const result = computeHealthScore(buildHealthSubScores(analysed));
+    // Five: the four Tier-1 subs plus security. codeHealth is still absent
+    // here because this fixture has never been scanned by the W9 scanners.
     expect(result.subScores).toHaveLength(5);
     // No longer Tier-1 only: there IS non-Tier-1 evidence in the score now.
     expect(result.tier1Only).toBe(false);
-    expect(result.renormalized).toBe(false);
+    // TRUE since W9-06: the codeHealth sub-score is offered but absent for this
+    // fixture, so the remaining weights renormalize. That is the flag doing its
+    // job — it means "this score is not the full weight set", which is exactly
+    // what a repo with security data and no code-health data deserves.
+    expect(result.renormalized).toBe(true);
     expect(result.score).toBeCloseTo(100, 5);
   });
 
@@ -115,5 +135,53 @@ describe('computeHealthScore (FR-INSIGHTS-2/3)', () => {
     expect(scoreLetter(53.4)).toBe('C');
     expect(scoreLetter(30)).toBe('D');
     expect(scoreLetter(10)).toBe('E');
+  });
+});
+
+describe('the code-health sub-score (W9-06, FR-CH-6)', () => {
+  it('is ABSENT until the scanners have run', () => {
+    // The same rule as `security`, and the reason is the same: if unmeasured
+    // scored as clean, a repository nobody has scanned would outrank one that
+    // honestly reported its duplication.
+    const unscanned = computeHealthScore(buildHealthSubScores(perfectInputs));
+    expect(unscanned.subScores.some((s) => s.key === 'codeHealth')).toBe(false);
+    expect(unscanned.tier1Only).toBe(true);
+  });
+
+  it('appears and scores once the ch_* numbers exist', () => {
+    const scanned = computeHealthScore(
+      buildHealthSubScores({ ...perfectInputs, ...perfectCodeHealth }),
+    );
+    const sub = scanned.subScores.find((s) => s.key === 'codeHealth');
+    expect(sub?.normalized).toBeCloseTo(100, 5);
+    // Non-Tier-1 evidence is in the score now, so the label must drop.
+    expect(scanned.tier1Only).toBe(false);
+  });
+
+  it('reproduces its documented formula by hand', () => {
+    // duplication 7.5% of a 0..15 ramp = 50; complexity 12.5 of 5..20 = 50;
+    // slop 2.5 of 0..5 = 50; rework 0.225 of 0.05..0.4 = 50. Equal-weight mean
+    // of four inputs = 50.
+    const half = computeHealthScore(
+      buildHealthSubScores({
+        ...perfectInputs,
+        duplicationPct: 7.5,
+        complexityP90: 12.5,
+        slopDensity: 2.5,
+        rework14d: 0.225,
+      }),
+    );
+    expect(half.subScores.find((s) => s.key === 'codeHealth')?.normalized).toBeCloseTo(50, 5);
+  });
+
+  it('scores on the inputs it HAS when only some scanners have run', () => {
+    // Duplication measured, complexity not: the sub-score exists on the one
+    // real number rather than being dropped or padded with a zero.
+    const partial = computeHealthScore(
+      buildHealthSubScores({ ...perfectInputs, duplicationPct: 0 }),
+    );
+    const sub = partial.subScores.find((s) => s.key === 'codeHealth');
+    expect(sub?.inputs).toHaveLength(1);
+    expect(sub?.normalized).toBeCloseTo(100, 5);
   });
 });

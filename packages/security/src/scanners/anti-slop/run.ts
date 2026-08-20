@@ -27,7 +27,16 @@ export const ANTI_SLOP_SCANNER_KEY = 'anti_slop';
 
 export interface AntiSlopDeps {
   db: Database;
-  gateway: AnalysisGateway;
+  /**
+   * Absent = deterministic layer only (W9-06).
+   *
+   * The weekly snapshot pass runs without a model on purpose: LDR and
+   * docstring inflation are arithmetic and need no gateway, while the
+   * judgement layer needs a T2 host, a budget and an initiator — which is a
+   * wiring decision about LLM scheduling, not something to improvise inside a
+   * cron. A run with no gateway reports judgment: 0 and says why.
+   */
+  gateway?: AnalysisGateway;
   workspaceId: number;
   repoId: number;
   commitSha: string;
@@ -151,11 +160,11 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     const deterministic = findings.length;
 
     // ---- Judgement layer -----------------------------------------------
-    const chunked = chunkDiff(deps.files, 'code_health');
+    const chunked = deps.gateway ? chunkDiff(deps.files, 'code_health') : { chunks: [] };
     let judgment = 0;
 
     for (const chunk of chunked.chunks) {
-      const result = await deps.gateway.complete(buildChecklistPrompt(checklist, chunk.text), {
+      const result = await deps.gateway!.complete(buildChecklistPrompt(checklist, chunk.text), {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,

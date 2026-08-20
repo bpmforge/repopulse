@@ -19,8 +19,12 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { providerForRepo } from './forge-provider.js';
 import {
+  readSnapshotSources,
+  runAntiSlopScan,
   runChainer,
   runCodeHealthScan,
+  runLoggingScan,
+  snapshotForScan,
   runSecretsHistoryScan,
   runSecretsStreamScan,
   runSemgrepFull,
@@ -213,6 +217,70 @@ async function main(): Promise<void> {
               ...(result.error ? { skipped: result.error } : {}),
             };
           },
+          // W9-06: the weekly deterministic pass for the two scanners whose
+          // judgement halves need a gateway. LDR, docstring inflation and the
+          // logging pack are arithmetic and patterns — they need a snapshot,
+          // not a model — so they run here and the judgement layer stays on
+          // the pull-request path where a gateway already exists.
+          anti_slop: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(
+              { db, tokenKey: credentials.loadTokenKey() },
+              workspaceId,
+              repoId,
+            );
+            if (!resolved) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            }
+            const [head] = await db
+              .select({ sha: facts.commits.sha })
+              .from(facts.commits)
+              .where(eq(facts.commits.repoId, repoId))
+              .orderBy(desc(facts.commits.committedAt))
+              .limit(1);
+            if (!head?.sha) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
+            }
+
+            return snapshotForScan(
+              {
+                provider: resolved.provider,
+                repo: resolved.repoFullName,
+                commitSha: head.sha,
+              },
+              async (snapshot) => {
+                const sources = readSnapshotSources(snapshot.dir);
+                const [slop, logging] = [
+                  await runAntiSlopScan({
+                    db,
+                    workspaceId,
+                    repoId,
+                    commitSha: head.sha,
+                    files: [],
+                    sources: sources.files,
+                    trigger: 'schedule',
+                  }),
+                  await runLoggingScan({
+                    db,
+                    workspaceId,
+                    repoId,
+                    commitSha: head.sha,
+                    files: [],
+                    targetDir: snapshot.dir,
+                    trigger: 'schedule',
+                  }),
+                ];
+                return {
+                  scanned: sources.files.length,
+                  findingsCreated: slop.findingsCreated + logging.findingsCreated,
+                  // Files the reader never saw, surfaced rather than swallowed:
+                  // a slop density over an unstated fraction of a repository is
+                  // a number with no denominator.
+                  deferred: sources.skipped,
+                  ...(sources.truncated ? { skipped: 'source_cap_reached' } : {}),
+                };
+              },
+            );
+          },
           attack_chainer: async ({ workspaceId, repoId }) => {
             // Runs whether or not the repo has a connection: it reads findings
             // we already have and calls no forge at all.
@@ -367,6 +435,10 @@ async function main(): Promise<void> {
     for (const [scannerKey, pattern] of [
       ['semgrep', weeklyCron],
       ['code_health_tools', weeklyCron],
+      // W9-06: one entry drives both deterministic code-health scanners; they
+      // share a snapshot, and taking two would double the forge cost of the
+      // same commit.
+      ['anti_slop', weeklyCron],
       ['attack_chainer', chainCron],
     ] as const) {
       await securityScanQueue.add(

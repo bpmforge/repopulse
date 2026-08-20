@@ -3630,8 +3630,22 @@
         "Tenancy walker + axe green over all new routes"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. Repo Code Health tab, org rollup endpoint, the code_health health sub-score, the Code Health report type, four plan-catalog v2 entries — AND the wiring that three previous tickets deliberately left for one pass.",
+        "THE CARRY-FORWARD IS DONE IN ONE PASS, as intended: M13/M14 now snapshot nightly from the SAME per-window loop as the other twelve (a separate job for two numbers would be a second thing to schedule, a second thing to fail, and a second place for the window definition to drift), and anti_slop + logging_hygiene now run weekly over a shared snapshot through a new readSnapshotSources path.",
+        "A NULL-VALUED METRIC WRITES NO ROW. metric_snapshots.value is NOT NULL, so M13/M14 over an empty window would have had to store 0 — a 0% rework rate for a week with no commits reads as a perfect week. An absent row makes the trend show a GAP, which is what \"not measured\" looks like on a chart. Three existing tests correctly failed on the new row counts and were updated with that reasoning.",
+        "THE WEEKLY PASS RUNS THE DETERMINISTIC HALVES ONLY, and the code says why: LDR and the logging pack are arithmetic and patterns and need a snapshot, while the judgement halves need a T2 host, a budget and an initiator — an LLM scheduling decision, not something to improvise inside a cron. The gateway is now OPTIONAL on both runners, and a run without one reports judgment: 0 rather than pretending.",
+        "ONE WEEKLY ENTRY DRIVES BOTH code-health scanners: they share a snapshot, and taking two would double the forge cost of the same commit.",
+        "readSnapshotSources REPORTS WHAT IT SKIPPED AND WHETHER IT TRUNCATED. A slop density over 500 of 5,000 files is a number with no denominator unless the caller can say so. Its ordering is deterministic, tested — otherwise a truncated weekly scan would cover a different subset each week and the trend would move on its own.",
+        "THE CODE-HEALTH SUB-SCORE IS ABSENT UNTIL THE SCANNERS RUN, exactly like `security`: if unmeasured scored as clean, a repository nobody scanned would outrank one that honestly reported its duplication. The documented formula is reproduced by hand in a test (four ramps, equal-weight mean = 50 at the midpoints). One existing assertion flipped — a repo with security data and no code-health data now renormalizes — and that is the flag doing its job.",
+        "THE REPORT SAYS WHICH RENDERING IT IS, FIRST. Enriched vs \"debt signals only — no scanner has run\", stated in the opening section rather than left to be inferred from empty ones, because a report that hid the difference would let \"no complexity findings\" read as \"no complex functions\". It footnotes what is NOT measured (cognitive complexity, nesting depth) and that thresholds are defaults rather than laws.",
+        "THE PLAN ENTRIES VERIFY OFF ch_* SNAPSHOTS so the nightly verifier can close them with nobody reporting progress. complexity-worst-functions verifies on ch_worst_fn_count rather than p90: a single deleted file moves a percentile without anyone touching the functions that are actually hard to read. The catalog version is bumped to v2 rather than edited in place — a plan created under v1 still says what it said.",
+        "EVERY NUMBER ON THE TAB IS MEASURED OR EXPLICITLY ABSENT: headlines read \"not measured\", scanner counts read \"—\" when nothing has looked, and the complexity panel says an empty list is not a measurement of a tidy codebase. Asserted in e2e and axe-clean.",
+        "AN E2E FLAKE, CHASED AND RECORDED RATHER THAN RE-RUN AWAY: two runs (hours apart, both chained straight after the unit suite) reported one failure each and the name scrolled past my grep. Eight consecutive clean runs since, including one deliberately chained to reproduce the conditions. docs/STATUS.md records the lead — capture to a file rather than piping to grep — and explicitly does NOT claim it is fixed.",
+        "SCOPE WIDENED, WITH REASON: packages/metrics/src/snapshots/** and metrics/src/index.ts (the nightly wiring the ticket carries forward), packages/security/src/snapshot/sources.ts + the two scanner runners (the snapshot source path all three tickets needed), apps/api/src/workers/index.ts (weekly fan-out), apps/api/src/routes/reports + apps/web/src/routes/reports (the new report type has to be selectable), and packages/insights/src/plans/catalog.v1.ts (v2 entries).",
+        "GATE: lint 0, typecheck 0, 1044 unit tests (was 1025), zero skipped; pnpm -r test green; 100 e2e passed (was 97; 1 skipped real-forge smoke); bundle 110.2 KB of 200; validate-arch, validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W9-07",

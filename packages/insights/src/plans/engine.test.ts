@@ -12,11 +12,12 @@ const healthy: MetricSet = {
   M9: { value: 0.98, dims: { topFlakiness: 0.01, duration: { p90: 10, median: 9 } } },
 };
 
-describe('catalog v1', () => {
+describe('catalog v2', () => {
   it('carries every seed entry, each with a verify criterion', () => {
     // An entry with no criterion is advice, not a plan item — nothing could
     // ever mark it done, so it would sit on the board forever.
-    expect(CATALOG_V1.length).toBe(13);
+    // 13 until W9-06 added the four code-health entries.
+    expect(CATALOG_V1.length).toBe(17);
     for (const entry of CATALOG_V1) {
       expect(entry.verifyCriterion.metricKey, `${entry.id} criterion`).toBeTruthy();
       expect(entry.id).toMatch(/^[a-z0-9-]+$/);
@@ -121,5 +122,47 @@ describe('verification', () => {
     // The snapshot VALUE is 99 and would fail; reading the wrong field would
     // regress an item that is actually fine.
     expect(evaluateCriterion({ M4: { value: 1, dims: {} } }, p90)).toBe('unknown');
+  });
+});
+
+describe('code-health catalog entries (W9-06, FR-PLANS-3)', () => {
+  it('verifies off the ch_* snapshots the scanner writes', () => {
+    // The property that makes these plan items rather than advice: the nightly
+    // verifier can close them from measured numbers, with nobody reporting
+    // progress.
+    const dup = CATALOG_V1.find((e) => e.id === 'duplication-over-ceiling');
+    expect(dup?.verifyCriterion).toMatchObject({
+      metricKey: 'ch_duplication_pct',
+      op: 'lte',
+      target: 5,
+    });
+    const complexity = CATALOG_V1.find((e) => e.id === 'complexity-worst-functions');
+    // ch_worst_fn_count, not p90: a single deleted file moves a percentile
+    // without anyone touching the functions that are actually hard to read.
+    expect(complexity?.verifyCriterion.metricKey).toBe('ch_worst_fn_count');
+    expect(complexity?.verifyCriterion.target).toBe(0);
+  });
+
+  it('proposes NOTHING when the scanners have not run', () => {
+    // The null-vs-zero rule this catalog already states: a condition on a
+    // metric we do not have must be false. Otherwise every unscanned repo
+    // gets a duplication plan for a number nobody measured.
+    const empty = {} as never;
+    for (const id of [
+      'duplication-over-ceiling',
+      'complexity-worst-functions',
+      'slop-density-high',
+      'logging-hygiene-adoption',
+    ]) {
+      const entry = CATALOG_V1.find((e) => e.id === id);
+      expect(entry?.condition(empty), id).toBe(false);
+    }
+  });
+
+  it('fires once a measurement crosses its threshold', () => {
+    const dup = CATALOG_V1.find((e) => e.id === 'duplication-over-ceiling');
+    expect(dup?.condition({ ch_duplication_pct: { value: 7, dims: {} } })).toBe(true);
+    // At the ceiling is not over it.
+    expect(dup?.condition({ ch_duplication_pct: { value: 5, dims: {} } })).toBe(false);
   });
 });
