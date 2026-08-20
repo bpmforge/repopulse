@@ -16,7 +16,9 @@
 // created under v2 was ranked by a different rule and still says what it said.
 //
 // (v2 was W9-06, which added the four code-health entries.)
-export const CATALOG_VERSION = 'v3';
+//
+// v4 (W10-01) adds the knowledge-concentration entry.
+export const CATALOG_VERSION = 'v4';
 
 export type Effort = 'S' | 'M' | 'L';
 export type PlanSource = 'metric' | 'finding' | 'chain' | 'compound' | 'agreement';
@@ -313,6 +315,26 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
       target: 0,
       windowDays: 14,
       dimPath: ['loggingFindingCount'],
+    },
+  },
+  // ---- Structural registers, v4 (W10-01, FR-REG-1) ----------------------
+  {
+    id: 'knowledge-cluster',
+    title: 'Bring a second maintainer into the concentrated module',
+    effort: 'M',
+    source: 'finding',
+    rankWeight: 50,
+    condition: (m) => above(dim(m, 'FINDINGS', ['knowledgeFindingCount']), 0),
+    evidence: (m) => ({ findingIds: m.FINDINGS?.dims.knowledgeFindingIds ?? [] }),
+    // Ninety days, not thirty: a second maintainer who reviewed one PR in a
+    // quiet week has not learned a module. The criterion is the count of
+    // concentrated modules falling to zero and STAYING there.
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 90,
+      dimPath: ['knowledgeFindingCount'],
     },
   },
 ];

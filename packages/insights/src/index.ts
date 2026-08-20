@@ -11,3 +11,5 @@ export * from './intents/index.js';
 export * from './risk/model.js';
 export * from './risk/price.js';
 export * from './risk/reprice.js';
+export * from './registers/knowledge/register.js';
+export * from './registers/knowledge/run.js';
