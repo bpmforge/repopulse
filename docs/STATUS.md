@@ -2622,3 +2622,25 @@ drafting pass, all three of which need an analysis gateway in the worker;
 and W9-08's ruff/Biome adapters, which are proven in the sandbox but not
 called by code_health_tools. None of the remaining W10/W11 tickets owns
 that surface.
+
+### 2026-08-19 — W11-01 parked: the remaining half is a decision, not work
+
+Acceptances 2 and 3 have been met and verified by running the stack since
+2026-08-14 — the portable compose artifact, the one-shot migration job,
+and slim runtime images. What is left cannot be closed from here:
+
+- **Acceptance 1** (multi-arch images built in CI, published to a public
+  registry with immutable digests) is now *contrary* to W11-04's founder
+  decision — proprietary, no distribution, nothing public until a clean
+  self-hosted install is proven. Writing the publish workflow anyway is
+  exactly what the earlier pass warned against: an unused pipeline aimed at
+  a public registry is what gets switched on by accident. CI has also never
+  run on this repo (Actions billing), so "builds in CI" is undemonstrable
+  regardless.
+- **Acceptance 4** (verification on a machine that has never built the
+  repo) needs a second physical machine and is W11-05 by design.
+
+**Needed from Brad:** either reverse the no-publish decision and name a
+registry, or confirm acceptance 1 should be rewritten to "images build
+reproducibly for both arches locally, publishing deferred". That is a
+scope change, so it is his call.
