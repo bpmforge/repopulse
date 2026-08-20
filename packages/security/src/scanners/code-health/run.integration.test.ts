@@ -158,11 +158,25 @@ describeIfReady('code_health_tools scan (W9-02)', () => {
     const rules = new Set(findings.map((f) => f.ruleId));
     expect([...rules].some((r) => r?.startsWith('complexity.'))).toBe(true);
     expect([...rules].some((r) => r?.startsWith('duplication.'))).toBe(true);
-    // Measurements, not opinions: confidence 5, and the evidence carries the
-    // number and the threshold so a reader can argue with the threshold rather
-    // than with the tool.
-    expect(findings.every((f) => f.confidence === 5)).toBe(true);
-    expect(findings[0]?.evidence).toMatch(/measured \d+, threshold \d+/);
+    // Measurements, not opinions: OUR findings are confidence 5, and the
+    // evidence carries the number and the threshold so a reader can argue with
+    // the threshold rather than with the tool.
+    //
+    // Tool-adapter findings (ruff, Biome) live in the same dimension but are
+    // confidence 4 and namespaced `tool.<key>.<rule>` — a lint rule is a
+    // heuristic about a pattern where a cyclomatic complexity of 23 is a
+    // count, and the stored confidence should say which one a reader is
+    // looking at.
+    const ours = findings.filter((f) => !f.ruleId?.startsWith('tool.'));
+    const fromTools = findings.filter((f) => f.ruleId?.startsWith('tool.'));
+    expect(ours.every((f) => f.confidence === 5)).toBe(true);
+    expect(fromTools.every((f) => f.confidence === 4)).toBe(true);
+    // The adapters RAN and were counted, whether or not this particular
+    // fixture trips one of their rules — an `every()` over an empty list is
+    // vacuously true, and that is exactly how a wiring regression would hide.
+    expect(result.adapterErrors).toEqual([]);
+    expect(result.adapterFindings).toBeGreaterThanOrEqual(0);
+    expect(ours[0]?.evidence).toMatch(/measured \d+, threshold \d+/);
     // Nothing here feeds the chainer: complexity hands an attacker nothing.
     expect(findings.every((f) => f.yields === null)).toBe(true);
 

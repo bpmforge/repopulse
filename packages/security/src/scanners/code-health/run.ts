@@ -4,6 +4,8 @@ import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
 import { runCodeHealthTools, CODE_HEALTH_SCANNER_KEY, type CodeHealthFinding } from './tools.js';
+import { dedupeAgainstPack } from './adapters/registry.js';
+import type { AdapterFinding } from './adapters/types.js';
 import type { CodeHealthThresholds } from './thresholds.js';
 
 // code_health_tools run modes (W9-02, FR-CH-2, FR-SEC-9).
@@ -32,6 +34,11 @@ export interface CodeHealthRunResult {
   findingsCreated: number;
   findingsTotal: number;
   metricsWritten: number;
+  /** Tool-adapter findings kept after dedup, and those a pack rule already had. */
+  adapterFindings?: number;
+  adapterDropped?: number;
+  /** Adapters that applied but could not be read — surfaced, never swallowed. */
+  adapterErrors?: { adapter: string; reason: string }[];
   error?: string;
 }
 
@@ -58,6 +65,33 @@ function toIncoming(findings: readonly CodeHealthFinding[]): IncomingFinding[] {
     // No yields: complexity hands an attacker nothing. A rule that claimed
     // otherwise would put noise into the chainer, and a chain built on
     // "this function is long" is the kind nobody believes twice.
+    yields: null,
+  }));
+}
+
+/**
+ * Tool-adapter findings, as stored findings (W9-08 wiring).
+ *
+ * CONFIDENCE 4, not the 5 our own measurements carry: a lint rule is a
+ * heuristic about a pattern, where a cyclomatic complexity of 23 is a count.
+ * The rule id keeps the tool's namespace (`tool.ruff.E722`) so a reader can
+ * tell whose opinion they are reading, and so the FP rate accumulates against
+ * the tool rather than against us.
+ */
+export function adapterToIncoming(findings: readonly AdapterFinding[]): IncomingFinding[] {
+  return findings.map((f) => ({
+    dimension: f.dimension === 'correctness' ? 'code_health' : f.dimension,
+    severity: f.severity,
+    confidence: 4,
+    file: f.file,
+    lineStart: f.lineStart,
+    lineEnd: f.lineEnd,
+    title: f.title,
+    evidenceQuote: `${f.file}:${f.lineStart} — ${f.message}`,
+    rationale: f.message,
+    suggestedFix: null,
+    scannerKey: CODE_HEALTH_SCANNER_KEY,
+    ruleId: f.ruleId,
     yields: null,
   }));
 }
@@ -101,7 +135,22 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           };
         }
 
-        const findings = toIncoming(tools.findings);
+        // DEDUPE AGAINST THE PACK RULES ALREADY OPEN FOR THIS REPO, not just
+        // against this run: the mapping that matters is ruff's E722 losing to
+        // our bpm-ch-empty-catch, and that rule belongs to a different scanner
+        // whose findings are already stored. Deduping against this run alone
+        // would keep both and hand a reader two rows for one defect.
+        const openRuleIds = (
+          await deps.db
+            .select({ ruleId: read.findings.ruleId })
+            .from(read.findings)
+            .where(eq(read.findings.repoId, deps.repoId))
+        )
+          .map((row) => row.ruleId)
+          .filter((id): id is string => id !== null);
+
+        const { kept, dropped } = dedupeAgainstPack(tools.adapterFindings, openRuleIds);
+        const findings = [...toIncoming(tools.findings), ...adapterToIncoming(kept)];
         const persisted = await persistFindings(deps.db, {
           workspaceId: deps.workspaceId,
           repoId: deps.repoId,
@@ -147,6 +196,9 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           findingsCreated: persisted.created,
           findingsTotal: findings.length,
           metricsWritten: metricRows.length,
+          adapterFindings: kept.length,
+          adapterDropped: dropped.length,
+          adapterErrors: tools.adapterErrors,
         };
       },
     );
