@@ -5079,7 +5079,7 @@
         "No self-service signup exists; an admin creates users"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
@@ -5104,7 +5104,7 @@
         "Configured entirely from env; an unconfigured deployment simply does not offer the button"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
