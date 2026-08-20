@@ -25,8 +25,9 @@ describe('catalog v4', () => {
     // An entry with no criterion is advice, not a plan item — nothing could
     // ever mark it done, so it would sit on the board forever.
     // 13 until W9-06 added the four code-health entries; 18 with W10-01's
-    // knowledge entry, 19 with W10-02's dependency-currency one.
-    expect(CATALOG_V1.length).toBe(19);
+    // knowledge entry, 19 with W10-02's dependency-currency one, 22 once
+    // W10-05 gave EOL, architecture and test-gap their own entries.
+    expect(CATALOG_V1.length).toBe(22);
     for (const entry of CATALOG_V1) {
       expect(entry.verifyCriterion.metricKey, `${entry.id} criterion`).toBeTruthy();
       expect(entry.id).toMatch(/^[a-z0-9-]+$/);
@@ -250,6 +251,6 @@ describe('rank input is effective_risk, not raw severity (W9-10, FR-RISK-5)', ()
     // No entry was added or removed — but plans generated from identical data
     // now come out in a different order, which is what a version records.
     // v3 was the rank-rule change; v4 and v5 add the W10 register entries.
-    expect(CATALOG_VERSION).toBe('v5');
+    expect(CATALOG_VERSION).toBe('v6');
   });
 });

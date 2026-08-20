@@ -18,7 +18,7 @@
 // (v2 was W9-06, which added the four code-health entries.)
 //
 // v4 (W10-01) adds the knowledge-concentration entry.
-export const CATALOG_VERSION = 'v5';
+export const CATALOG_VERSION = 'v6';
 
 export type Effort = 'S' | 'M' | 'L';
 export type PlanSource = 'metric' | 'finding' | 'chain' | 'compound' | 'agreement';
@@ -356,6 +356,61 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
       target: 0,
       windowDays: 30,
       dimPath: ['dependencyHealthFindingCount'],
+    },
+  },
+  {
+    id: 'eol-runtimes',
+    title: 'Move off the end-of-life runtimes',
+    effort: 'L',
+    source: 'finding',
+    rankWeight: 70,
+    // A runtime past EOL stops receiving security fixes entirely, which is why
+    // this outranks the currency entry above it and why the target is zero
+    // rather than a reduction.
+    condition: (m) => above(dim(m, 'FINDINGS', ['eolRuntimeCount']), 0),
+    evidence: (m) => ({ findingIds: m.FINDINGS?.dims.dependencyHealthFindingIds ?? [] }),
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 30,
+      dimPath: ['eolRuntimeCount'],
+    },
+  },
+  {
+    id: 'architecture-cycles',
+    title: 'Break the import cycles',
+    effort: 'M',
+    source: 'finding',
+    rankWeight: 45,
+    condition: (m) => above(dim(m, 'FINDINGS', ['architectureFindingCount']), 0),
+    evidence: (m) => ({ findingIds: m.FINDINGS?.dims.architectureFindingIds ?? [] }),
+    // Thirty days, not ninety: a cycle either got broken or it did not, and the
+    // graph says which on the next scan.
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 30,
+      dimPath: ['architectureFindingCount'],
+    },
+  },
+  {
+    id: 'test-gap-hot-files',
+    title: 'Put the hot files under test',
+    effort: 'M',
+    source: 'finding',
+    rankWeight: 40,
+    condition: (m) => above(dim(m, 'FINDINGS', ['testGapFindingCount']), 0),
+    evidence: (m) => ({ findingIds: m.FINDINGS?.dims.testGapFindingIds ?? [] }),
+    // Sixty days: the criterion is that the co-change habit changed, and one
+    // sprint of good intentions does not prove that.
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 60,
+      dimPath: ['testGapFindingCount'],
     },
   },
 ];
