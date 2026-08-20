@@ -48,3 +48,8 @@ export * from './registers/eol.js';
 export * from './registers/license.js';
 export * from './registers/manifests.js';
 export * from './registers/run.js';
+export * from './adapters/architecture/pack.js';
+export * from './adapters/architecture/graph.js';
+export * from './adapters/architecture/adapters.js';
+export * from './adapters/architecture/tools.js';
+export * from './adapters/architecture/run.js';

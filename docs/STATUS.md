@@ -2530,3 +2530,35 @@ inside W10-05 (which owns the score/plan surface).
 
 Tools still absent, unchanged: syft, grype, trivy, osv-scanner,
 govulncheck, cosign. No ANTHROPIC_API_KEY, so no live Tier-3.
+
+### 2026-08-19 — W10-03: architecture register ships two languages, not three
+
+Phase A is done for JS/TS and Python. **Go is deferred**, and the reason is
+the §10 admission filter rather than anything about Go: `go list` needs
+module resolution and a populated module cache, i.e. an install at scan
+time, and the sandbox image has no Go toolchain. Adding one plus a warm
+cache is precisely what the filter forbids. (Go's compiler already bans
+import cycles, but god modules and orphan clusters would still have been
+worth finding — the filter is what stopped it, not the language.)
+
+`import-linter` was also rejected, deliberately: it checks CONTRACTS from a
+config file, which is phase B. `grimp` — the graph engine import-linter is
+built on — was admitted instead, and verified to build a graph with an
+uninstalled third-party import present, which is what lets it run with
+`--network=none` and nothing installed.
+
+dependency-cruiser is pinned to **17.4.3**, not 18.x: 18 requires node >=22
+and the Alpine 3.20 base ships node 20. Bumping the base to satisfy one
+adapter would re-roll every other pinned tool in the image.
+
+Both tools were run under the real profile before any adapter was written.
+grimp needed one fix — `cache_dir=None`, because its default cache path is
+the read-only snapshot mount. Fixed in the driver, not by giving the
+sandbox a writable mount it does not otherwise need.
+
+**Someone should decide on Go coverage.** Options: (a) leave phase A at two
+languages, (b) a Go adapter that parses import statements ourselves — which
+is a library-shaped reimplementation and would need its own justification,
+(c) a separate image with a Go toolchain and a vendored module cache, which
+is a real piece of work and a new trust surface. Not a decision I should
+make silently.

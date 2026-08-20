@@ -1,0 +1,42 @@
+# RepoPulse architecture rulepack v1 (W10-03, SRS FR-REG-5).
+#
+# PHASE A ONLY: every rule here is CONFIG-FREE — it is answered by the shape of
+# the import graph alone. Declared-boundary checking ("module X may not import
+# Y") is phase B and deliberately ships nothing here: no contract schema, no
+# route, no UI. A boundary rule needs a team to state its intent, and inventing
+# that intent from the graph would produce findings about an architecture
+# nobody agreed to.
+#
+# The thresholds are in this file rather than in code so a change to what
+# counts as a god module is a reviewable diff with a version on it, the same
+# reason the secrets and code-health packs are assets.
+version: 1
+rules:
+  - id: architecture.cycle
+    description: Import cycle between modules
+    severity: 3
+    # A two-module cycle is a refactor; a six-module cycle is a component that
+    # was never designed. Severity rises with size rather than with a guess.
+    escalate_at_size: 5
+    escalated_severity: 4
+
+  - id: architecture.god_module
+    description: Module with outlier fan-in and fan-out
+    severity: 3
+    # OUTLIER AGAINST THIS REPO, not against a number someone liked: a module
+    # is a god module when its (fan-in + fan-out) exceeds the repo's own
+    # 90th percentile by this multiple. A repo has to be big enough to have a
+    # distribution at all, hence min_modules — below it the register reports
+    # "not enough modules to say", never "clean".
+    percentile: 0.9
+    multiple: 2.0
+    min_modules: 12
+    min_degree: 8
+
+  - id: architecture.orphan_cluster
+    description: Cluster of modules disconnected from the rest of the tree
+    severity: 2
+    # A single orphan file is usually an entrypoint, a script or a test
+    # helper — reporting those is how a register teaches people to ignore it.
+    # A CLUSTER of them that imports only itself is dead architecture.
+    min_cluster_size: 3

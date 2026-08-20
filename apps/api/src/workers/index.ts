@@ -30,6 +30,7 @@ import {
   snapshotForScan,
   runSecretsHistoryScan,
   runSecretsStreamScan,
+  runArchitectureScan,
   runSemgrepFull,
   runSupplyChainRegisters,
   startSweeper,
@@ -388,6 +389,44 @@ async function main(): Promise<void> {
               ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
             };
           },
+          // W10-03. Needs a snapshot like the other tool scanners, so it
+          // carries the same no-connection / no-head-sha guards: a register
+          // that cannot fetch a tree reports why rather than reporting clean.
+          architecture_register: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(
+              { db, tokenKey: credentials.loadTokenKey() },
+              workspaceId,
+              repoId,
+            );
+            if (!resolved) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            }
+            const [head] = await db
+              .select({ sha: facts.commits.sha })
+              .from(facts.commits)
+              .where(eq(facts.commits.repoId, repoId))
+              .orderBy(desc(facts.commits.committedAt))
+              .limit(1);
+            if (!head?.sha) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
+            }
+            const result = await runArchitectureScan({
+              db,
+              provider: resolved.provider,
+              workspaceId,
+              repoId,
+              repo: resolved.repoFullName,
+              commitSha: head.sha,
+            });
+            return {
+              scanned: result.moduleCount,
+              findingsCreated: result.findingsCreated,
+              // Detections that could not run — too few modules for a
+              // distribution — carried out rather than logged and lost.
+              deferred: result.notRun.length,
+              ...(result.error ? { skipped: result.error } : {}),
+            };
+          },
           // W10-01, wired here rather than left as an unreferenced export.
           knowledge_register: async ({ workspaceId, repoId }) => {
             const result = await runKnowledgeRegister({ db, workspaceId, repoId });
@@ -562,6 +601,7 @@ async function main(): Promise<void> {
       ['anti_slop', weeklyCron],
       ['attack_chainer', chainCron],
       ['supply_chain_register', registersCron],
+      ['architecture_register', registersCron],
       ['knowledge_register', registersCron],
     ] as const) {
       await securityScanQueue.add(

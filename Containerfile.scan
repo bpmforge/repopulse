@@ -54,6 +54,23 @@ ARG RUFF_SHA256_X86=d67c9b5949981698c48915abf65e0b3406ba9184ad73521cdf20a926bc88
 ARG BIOME_VERSION=2.5.9
 ARG BIOME_SHA256_AARCH64=37c70ee8614af49c0332930e1190ee59c0a5c5518ef19c6c55ac041c5093f313
 ARG BIOME_SHA256_X86=593eed8e3db3220cc1be7380e5a001fbeec75d8fe522af472e985da4b4bafde8
+# W10-03 architecture-drift adapters.
+#
+# grimp is the Python import-graph engine import-linter is built on. It is
+# admitted here and import-linter is NOT, for a reason worth writing down:
+# import-linter checks CONTRACTS from a config file, which is phase B of this
+# register and a config surface this ticket must not ship. grimp builds the
+# graph and answers questions about it, which is phase A exactly.
+#
+# It parses source rather than importing it — verified against a fixture whose
+# only third-party import is uninstalled, which grimp records as an external
+# module rather than failing. That is what lets it run with --network=none and
+# nothing installed, i.e. pass the §10 admission filter.
+ARG GRIMP_VERSION=3.15
+ARG GRIMP_SHA256_AARCH64=017e493fee9962d50db6f7a8b5d49ad2ae508484a06078d700adbef30f1ff1f0
+ARG GRIMP_SHA256_X86=ba25002e92b1792f13391295a1f805d2e09781b846d92ec1a791ff9ed89298b6
+ARG GRIMP_URL_AARCH64=https://files.pythonhosted.org/packages/d6/02/fabd5ae2b12276530f4bae038ffcf3a556ac2c9b9fa271f83fbeb4036a08/grimp-3.15-cp312-cp312-musllinux_1_2_aarch64.whl
+ARG GRIMP_URL_X86=https://files.pythonhosted.org/packages/33/53/ad27750eb8b4a0c3ecb5ca7d78c7230f0f5e814515ed6f8986be527117ff/grimp-3.15-cp312-cp312-musllinux_1_2_x86_64.whl
 ARG PYGMENTS_URL=https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl
 # musllinux builds, because the base is alpine. Both arches are listed so the
 # image builds on an arm64 laptop and an x86 server from the same file.
@@ -94,7 +111,9 @@ RUN set -eux; \
     apk del .fetch-lizard; \
     lizard --version
 
-# jscpd (duplication, MIT). `npm ci` from a COMMITTED lockfile, not `npm i`:
+# jscpd (duplication, MIT) and dependency-cruiser (import graph, MIT — W10-03,
+# pinned to 17.x because 18.x requires node >=22 and this base ships node 20).
+# `npm ci` from a COMMITTED lockfile, not `npm i`:
 # the lockfile pins every transitive dependency with its integrity hash, and a
 # scanner whose dependency tree floats at image build time is a scanner whose
 # findings are not reproducible.
@@ -104,7 +123,9 @@ RUN set -eux; \
     cd /opt/scan-tools; \
     npm ci --omit=dev --ignore-scripts; \
     ln -s /opt/scan-tools/node_modules/.bin/jscpd /usr/local/bin/jscpd; \
-    jscpd --version
+    ln -s /opt/scan-tools/node_modules/.bin/depcruise /usr/local/bin/depcruise; \
+    jscpd --version; \
+    depcruise --version
 
 # ruff (Python lint, MIT) and Biome (JS/TS lint, MIT/Apache-2.0).
 RUN set -eux; \
@@ -133,6 +154,34 @@ RUN set -eux; \
     apk del .fetch-adapters; \
     ruff --version; \
     biome --version
+
+# grimp + the driver that turns it into a graph document.
+#
+# The wheel is arch-specific (a Rust extension), so both are pinned. cp312
+# because the base image ships Python 3.12 — a wheel for the wrong minor
+# version installs and then fails to import, which would look like a broken
+# scan rather than a broken build.
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch-grimp curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) grimp_url="$GRIMP_URL_AARCH64"; grimp_sha="$GRIMP_SHA256_AARCH64" ;; \
+      x86_64) grimp_url="$GRIMP_URL_X86"; grimp_sha="$GRIMP_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    whl="/tmp/$(basename "$grimp_url")"; \
+    curl -fsSL -o "$whl" "$grimp_url"; \
+    echo "${grimp_sha}  $whl" | sha256sum -c -; \
+    pip install --no-cache-dir --break-system-packages --no-deps "$whl"; \
+    rm "$whl"; \
+    apk del .fetch-grimp; \
+    python3 -c 'import grimp; print(grimp.__name__)'
+
+# The driver lives in the IMAGE, read-only, for the same reason the Biome
+# config does: a script read out of the snapshot would let a repository decide
+# what our scanner runs.
+COPY deploy/scan-tools/grimp_graph.py /opt/scan-tools/grimp_graph.py
+RUN chmod 0444 /opt/scan-tools/grimp_graph.py
 
 # OUR Biome config, baked in read-only.
 #
