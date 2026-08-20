@@ -178,7 +178,7 @@ export async function seedWarehouse(
   // first-login state rather than a mock of it.
   const [fixtureUser] = await db
     .insert(core.users)
-    .values({ forgeUserId: FIXTURE_LOGIN, login: FIXTURE_LOGIN, persona: 'lead' })
+    .values({ authProvider: 'github', authSubject: FIXTURE_LOGIN, forgeUserId: FIXTURE_LOGIN, login: FIXTURE_LOGIN, persona: 'lead' })
     .onConflictDoUpdate({
       target: core.users.forgeUserId,
       set: { login: FIXTURE_LOGIN, persona: 'lead' },

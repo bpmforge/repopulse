@@ -80,7 +80,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w9-03-user', login: 'w9-03-user' })
+      .values({ authProvider: 'github', authSubject: 'w9-03-user', forgeUserId: 'w9-03-user', login: 'w9-03-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w9-03-user' } })
       .returning();
     userId = user!.id;

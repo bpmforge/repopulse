@@ -135,7 +135,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     ] as const) {
       const [u] = await db
         .insert(core.users)
-        .values({ forgeUserId, login: forgeUserId })
+        .values({ authProvider: 'github', authSubject: forgeUserId, forgeUserId, login: forgeUserId })
         .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: forgeUserId } })
         .returning();
       await db

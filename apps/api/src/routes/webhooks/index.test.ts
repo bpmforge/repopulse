@@ -40,7 +40,7 @@ describeIfLiveInfra('webhook receiver (W2-04, SC-3/SC-4, FR-INGEST-5/6)', () => 
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w2-04-hook-user', login: 'w2-04-hook-user' })
+      .values({ authProvider: 'github', authSubject: 'w2-04-hook-user', forgeUserId: 'w2-04-hook-user', login: 'w2-04-hook-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w2-04-hook-user' } })
       .returning();
     const [conn] = await db

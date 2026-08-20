@@ -108,7 +108,7 @@ describeIfLiveInfra('backfill entity ingest (W2-03, FR-INGEST-2/3/4)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w2-03-user', login: 'w2-03-user' })
+      .values({ authProvider: 'github', authSubject: 'w2-03-user', forgeUserId: 'w2-03-user', login: 'w2-03-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w2-03-user' } })
       .returning();
     const [conn] = await db

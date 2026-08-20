@@ -89,7 +89,7 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
       .returning();
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w3-12-conn-user', login: 'w3-12-conn-user' })
+      .values({ authProvider: 'github', authSubject: 'w3-12-conn-user', forgeUserId: 'w3-12-conn-user', login: 'w3-12-conn-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w3-12-conn-user' } })
       .returning();
     const [conn] = await db

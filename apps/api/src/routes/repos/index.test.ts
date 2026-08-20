@@ -89,7 +89,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     const wsId = ws!.id;
     const [connUser] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w4-01-conn', login: 'w4-01-conn' })
+      .values({ authProvider: 'github', authSubject: 'w4-01-conn', forgeUserId: 'w4-01-conn', login: 'w4-01-conn' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w4-01-conn' } })
       .returning();
     const [conn] = await db

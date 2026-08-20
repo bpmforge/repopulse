@@ -13,7 +13,7 @@ bpmforge family (ThreatForge sibling). All downstream docs trace to this brief.
 | D3 | Forge scope | GitHub v1 behind a `ForgeProvider` interface; Gitea adapter is a v1.x ticket. **D3a amendment (2026-08-13, founder): MULTI-FORGE IS PART OF THE MVP, not a v1.x follow-on.** The MVP is defined as *a customer runs RepoPulse in their own container system and points it at their own repositories — GitHub, GitLab or Gitea*. That makes the Gitea adapter (W7-02) MVP scope and **graduates N-6 for GitLab**, which now needs an adapter and a ticket (W12-01). Bitbucket stays a non-goal. The `ForgeProvider` interface and its capability flags are unchanged — this is adapter work plus the contract suite, not a redesign. |
 | D4 | Name | RepoPulse (`~/Code/repopulse`, dual remotes Gitea origin + GitHub). |
 | D5 | MVP slice | Health dashboard first: connect org → backfill 12 months → Tier-1 metrics dashboard with drill-down (org → repo → PR/file → detail). LLM review is roadmap wave 2, not MVP. |
-| D6 | Auth | GitHub OAuth; login identity powers personalized views ("my PRs", "my review load"). |
+| D6 | Auth | ~~GitHub OAuth; login identity powers personalized views.~~ **SUPERSEDED by D14 (2026-08-20).** |
 | D7 | Reports | In-app report center with history + exportable audit-ready PDF packs. Email digests / Slack push are explicitly deferred (non-goals v1). |
 | D8 | Security suite (added 2026-07-07) | Wave W8: productize the bpmforge security tooling — diff-stream + full-history secrets scanning, SBOM/CVE audit (syft/grype/OSV, KEV, slopsquatting), semgrep SAST runs, OWASP checklists + attack chaining — behind a **pluggable scanner framework** so capabilities still maturing in the bpm-opencode-experts go-forward plan (IaC checker, cloud security, anti-slop auditor, …) land as drop-in scanners. MVP (W0–W4) unchanged. |
 | D9 | Improvement Plans + quality loops (added 2026-07-14) | Metrics→action pillar: **rules-first recommendation catalog** → ranked, evidence-linked plan items with machine-checkable verify criteria auto-evaluated off nightly snapshots ("3 of 7 done / 1 regressed"); **working agreements** (threshold + the actual exception list, never a gameable score); **artifact-bound goals** on files/hotspots (refactor/supervise/acknowledged). T2 narration passes (Weekly Pulse, plan summaries) may order and narrate but NEVER invent items. Analysis quality loops ported from bpm-opencode-experts: **verify pass with maker≠verifier across the two LAN hosts, challenger gate before any severity≥4 finding surfaces, FP-suppression memory, compound-risk detector** — hard caps, no-progress halts. Journey pack: persona picker, onboarding checklist, rail badges, triage queue, report diff/schedule/annotations. Design: docs/design/IMPROVEMENT_PLANS.md + docs/work/UX_AGENTS_IMPROVEMENT_PLANS.md. Slack/email digests stay deferred (N-4 unchanged). **D9a clarification (2026-08-12, founder): "fixes" in the product goal means THIS — recommend and verify, not write.** RepoPulse produces ranked, evidence-linked plan items with machine-checkable verify criteria and a nightly job that marks each done or regressed; it never opens a branch, never writes a patch, never posts a PR comment. **N-3 is NOT graduated and C5/SC-25 read-only App scopes stand.** Recorded because "reports and fixes" is ambiguous and the two richer readings — advisory PR comments (S-25) and generated fix PRs — each require a brief amendment plus write scopes, and neither is in scope. A ticket that writes to a customer repo is invalid under this decision; reject at review. |
@@ -97,3 +97,39 @@ added.
 
 This is a decision recorded by its author, not legal advice. A lawyer should
 review before the first actual distribution, whichever direction it goes.
+
+## D14 — Authentication is standalone; the forge is not the identity provider (founder, 2026-08-20, supersedes D6)
+
+**Decision.** RepoPulse authenticates users with its OWN accounts (local
+password) or with the customer's OWN identity provider (generic OIDC). Signing
+in with a forge is ONE option among several, never a requirement.
+
+**Why this had to change.** D6 made a GitHub account the only way through the
+front door. That is wrong for a product a customer self-hosts, and it produced
+an absurdity we hit in practice: an operator could not connect a **Gitea**
+organisation — which has nothing to do with GitHub — without first registering
+a GitHub App, because the Connections screen sits behind GitHub sign-in. A
+product whose first setup step depends on a second vendor's approval cannot be
+bootstrapped by the person who bought it.
+
+**What follows.**
+- A person is identified by `(auth_provider, auth_subject)`.
+  `users.forge_user_id` stops being the identity of a person and becomes a
+  LINK — nullable, set when someone connects their forge identity so "my PRs"
+  resolves.
+- Forge OAuth stays as a provider, because it is the one case that can
+  auto-link that identity. Demoted, not deleted.
+- The first admin on a fresh install comes from `ADMIN_EMAIL` /
+  `ADMIN_PASSWORD` on first boot, with a forced password change.
+  First-visitor-claims-the-instance was rejected: on a LAN or a cloud box it
+  hands the install to whoever finds the URL first.
+
+**Dependency licensing.** Every dependency this adds must be usable and
+REDISTRIBUTABLE inside a proprietary product (D10). Password hashing therefore
+uses Node's built-in `scrypt` — no dependency, no native build, no licence
+question. OIDC token verification uses `jose` (MIT), and only for the
+cryptography: discovery, PKCE and the code exchange are ours, because they are
+plain HTTPS. Hand-rolling JWKS handling and signature verification was
+considered and REJECTED — `alg` confusion and key-rotation bugs are a known
+source of critical auth vulnerabilities, and a licence inconvenience would
+never justify writing that ourselves.

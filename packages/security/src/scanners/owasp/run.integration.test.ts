@@ -90,7 +90,7 @@ describeIfLiveInfra('owasp checklist runs (W8-08)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w8-08-user', login: 'w8-08-user' })
+      .values({ authProvider: 'github', authSubject: 'w8-08-user', forgeUserId: 'w8-08-user', login: 'w8-08-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w8-08-user' } })
       .returning();
     userId = user!.id;

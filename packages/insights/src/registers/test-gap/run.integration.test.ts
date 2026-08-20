@@ -28,7 +28,7 @@ describeIfLiveInfra('test-gap register', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ forgeUserId: 'w10-04-user', login: 'w10-04-user' })
+      .values({ authProvider: 'github', authSubject: 'w10-04-user', forgeUserId: 'w10-04-user', login: 'w10-04-user' })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w10-04-user' } })
       .returning();
 
