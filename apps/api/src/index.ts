@@ -2,9 +2,25 @@ import 'dotenv/config';
 import { createDb } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { buildApp } from './app.js';
+import { formatEnvProblems, validateEnv } from './routes/setup/env-registry.js';
+
+// W11-02, acceptance 4: wrong or missing config fails HERE, with a message
+// naming every variable at fault — not a stack trace, and not a half-booted
+// app serving errors from a screen the operator has to guess their way to.
+//
+// EVERY problem at once, deliberately: filling in a .env one restart per
+// variable is a bad first hour with a product, and the customer is doing it on
+// their own machine where we cannot see what they typed.
+const envProblems = validateEnv(process.env, ['api', 'shared']);
+if (envProblems.length > 0) {
+  console.error(formatEnvProblems(envProblems));
+  process.exit(1);
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name];
+  // Unreachable after validateEnv above; kept so this file still fails loudly
+  // rather than passing `undefined` on if the registry and the reads drift.
   if (!value) throw new Error(`missing required env var ${name}`);
   return value;
 }

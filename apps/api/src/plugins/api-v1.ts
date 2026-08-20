@@ -24,6 +24,8 @@ import intentsRoutes from '../routes/intents/index.js';
 import analysisAdminRoutes from '../routes/admin/analysis/index.js';
 import scannersRoutes from '../routes/scanners/index.js';
 import securityRoutes from '../routes/security/index.js';
+// W11-02: the setup status endpoints (admin only, values never returned).
+import setupRoutes from '../routes/setup/index.js';
 import codeHealthRoutes from '../routes/code-health/index.js';
 import rulesRoutes from '../routes/rules/index.js';
 import riskRoutes from '../routes/risk/index.js';
@@ -157,6 +159,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // Scanner enablement (W8-01).
   await app.register(scannersRoutes, { db: opts.db });
   await app.register(securityRoutes, { db: opts.db });
+  await app.register(setupRoutes, { db: opts.db });
   await app.register(codeHealthRoutes, { db: opts.db });
   await app.register(rulesRoutes, { db: opts.db });
   await app.register(riskRoutes, { db: opts.db });

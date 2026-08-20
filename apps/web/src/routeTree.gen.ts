@@ -26,6 +26,7 @@ import { Route as PlansIndexRouteImport } from './routes/plans/index'
 import { Route as ReportsIndexRouteImport } from './routes/reports/index'
 import { Route as ReposIndexRouteImport } from './routes/repos/index'
 import { Route as ReposRepoIdRouteRouteImport } from './routes/repos/$repoId/route'
+import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as ViewsIndexRouteImport } from './routes/views/index'
 import { Route as ViewsViewIdRouteImport } from './routes/views/$viewId'
 import { Route as PrintReportsReportIdRouteImport } from './routes/print/reports/$reportId'
@@ -125,6 +126,11 @@ const ReposRepoIdRouteRoute = ReposRepoIdRouteRouteImport.update({
   path: '/repos/$repoId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupIndexRoute = SetupIndexRouteImport.update({
+  id: '/setup/',
+  path: '/setup/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ViewsIndexRoute = ViewsIndexRouteImport.update({
   id: '/views/',
   path: '/views/',
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/plans/': typeof PlansIndexRoute
   '/reports/': typeof ReportsIndexRoute
   '/repos/': typeof ReposIndexRoute
+  '/setup/': typeof SetupIndexRoute
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
@@ -240,6 +247,7 @@ export interface FileRoutesByTo {
   '/plans': typeof PlansIndexRoute
   '/reports': typeof ReportsIndexRoute
   '/repos': typeof ReposIndexRoute
+  '/setup': typeof SetupIndexRoute
   '/views': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/plans/': typeof PlansIndexRoute
   '/reports/': typeof ReportsIndexRoute
   '/repos/': typeof ReposIndexRoute
+  '/setup/': typeof SetupIndexRoute
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/plans/'
     | '/reports/'
     | '/repos/'
+    | '/setup/'
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/plans'
     | '/reports'
     | '/repos'
+    | '/setup'
     | '/views'
     | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/plans/'
     | '/reports/'
     | '/repos/'
+    | '/setup/'
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/ci'
@@ -394,6 +406,7 @@ export interface RootRouteChildren {
   PlansIndexRoute: typeof PlansIndexRoute
   ReportsIndexRoute: typeof ReportsIndexRoute
   ReposIndexRoute: typeof ReposIndexRoute
+  SetupIndexRoute: typeof SetupIndexRoute
   ViewsIndexRoute: typeof ViewsIndexRoute
   PrintReportsReportIdRoute: typeof PrintReportsReportIdRoute
 }
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/repos/$repoId'
       fullPath: '/repos/$repoId'
       preLoaderRoute: typeof ReposRepoIdRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/': {
+      id: '/setup/'
+      path: '/setup'
+      fullPath: '/setup/'
+      preLoaderRoute: typeof SetupIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/views/': {
@@ -679,6 +699,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlansIndexRoute: PlansIndexRoute,
   ReportsIndexRoute: ReportsIndexRoute,
   ReposIndexRoute: ReposIndexRoute,
+  SetupIndexRoute: SetupIndexRoute,
   ViewsIndexRoute: ViewsIndexRoute,
   PrintReportsReportIdRoute: PrintReportsReportIdRoute,
 }

@@ -263,3 +263,31 @@ test('the rule workbench shows shadow evidence and blocks an unready promotion',
 
   await expectNoA11yViolations(page);
 });
+
+test('the setup checklist says what is outstanding without echoing a secret', async ({ page }) => {
+  // W11-02, E1.2. The operator's question is "which step have I not done", and
+  // the answer must never include a value — a setup screen that echoes secrets
+  // back is a credential leak wearing a helpful face.
+  await loginAsFixture(page);
+  await page.goto('/setup');
+
+  await expect(page.getByTestId('setup')).toBeVisible();
+  const checklist = page.getByTestId('setup-checklist');
+  await expect(checklist).toHaveAttribute('data-state', /ready|empty/);
+
+  if ((await checklist.getAttribute('data-state')) === 'ready') {
+    // Every row carries a next action, not just a status light.
+    await expect(checklist).toContainText(/INSTALL\.md|CONFIG\.md/);
+  }
+
+  const config = page.getByTestId('setup-config');
+  await expect(config).toHaveAttribute('data-state', /ready|empty/);
+  if ((await config.getAttribute('data-state')) === 'ready') {
+    // The encryption key is 32 bytes of hex; if one ever reached the page this
+    // would catch it.
+    await expect(page.getByTestId('setup-config')).not.toContainText(/\b[0-9a-f]{64}\b/);
+    await expect(page.getByTestId('config-TOKEN_ENC_KEY-set')).toBeVisible();
+  }
+
+  await expectNoA11yViolations(page);
+});
