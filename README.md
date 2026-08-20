@@ -14,7 +14,7 @@ fake forge and seeded data:
 ```bash
 pnpm install
 pnpm bootstrap          # containers, .env, generated secrets, migrate, seed
-DEMO_MODE=1 pnpm dev    # then open http://localhost:5173
+DEMO_MODE=1 pnpm dev    # then open http://localhost:5273
 ```
 
 `pnpm bootstrap`, **not** `pnpm setup` — the latter is a built-in pnpm command

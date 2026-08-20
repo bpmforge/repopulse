@@ -4,6 +4,7 @@
 // gives it cwd=apps/api, its own dotenv/config finds no .env to recover from.
 import 'dotenv/config';
 import { defineConfig, devices } from '@playwright/test';
+import { PORTS } from './ports.config.mjs';
 
 // Playwright e2e (docs/TESTING.md §6). Runs against the compose dev stack
 // (real API + DB, seeded by `pnpm seed`) with OAuth mocked at the boundary.
@@ -13,7 +14,7 @@ import { defineConfig, devices } from '@playwright/test';
 // (random), which is fine when only the in-process API talks to it, but the
 // worker is a separate process and needs a URL up front. One constant feeds
 // both.
-const FAKE_FORGE_PORT = process.env.E2E_FAKE_FORGE_PORT ?? '9099';
+const FAKE_FORGE_PORT = String(PORTS.e2eFakeForge);
 // SMOKE_REAL_FORGE=1 points the API and the worker at api.github.com instead of
 // the fake. The SC-12 loopback hatch is deliberately NOT set in that mode: it
 // exists only so a loopback fake is reachable, and it must never be active
@@ -25,7 +26,7 @@ const workerForgeEnv = REAL_FORGE
       FORGE_BASE_URL: `http://127.0.0.1:${FAKE_FORGE_PORT}`,
       FORGE_ALLOW_INSECURE_LOOPBACK: '1',
     };
-const WORKER_HEALTH_PORT = process.env.E2E_WORKER_HEALTH_PORT ?? '3098';
+const WORKER_HEALTH_PORT = String(PORTS.e2eWorkerHealth);
 
 export default defineConfig({
   testDir: './e2e',
@@ -45,7 +46,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
+    baseURL: process.env.E2E_BASE_URL ?? `http://localhost:${PORTS.web}`,
     // Session established once in globalSetup — see the SC-11 note there.
     storageState: 'e2e/.auth/state.json',
     trace: 'on-first-retry',
@@ -59,11 +60,15 @@ export default defineConfig({
     : [
         {
           command: 'pnpm exec tsx e2e/server.ts',
-          url: `http://localhost:${process.env.E2E_API_PORT ?? 3000}/healthz`,
+          url: `http://localhost:${PORTS.e2eApi}/healthz`,
           // Spread process.env: Playwright REPLACES the environment rather than
           // extending it, so an `env` block silently drops DATABASE_URL et al.
           env: {
             ...process.env,
+            // Explicit, so the API under test binds the e2e port even when the
+            // shell has no E2E_API_PORT set — the whole point of moving these
+            // defaults into ports.config.mjs.
+            E2E_API_PORT: String(PORTS.e2eApi),
             E2E_FAKE_FORGE_PORT: FAKE_FORGE_PORT,
             ...(REAL_FORGE ? { SMOKE_FORGE_BASE_URL: 'https://api.github.com' } : {}),
           },
@@ -95,12 +100,12 @@ export default defineConfig({
         },
         {
           command: 'pnpm --filter @repopulse/web dev',
-          url: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
+          url: process.env.E2E_BASE_URL ?? `http://localhost:${PORTS.web}`,
           // W4-11: point the dev proxy at whatever port the e2e API bound, so
           // one env var moves the whole stack. Without this the run only works
           // where 3000 is free, and W4-00 could only be verified through an
           // uncommitted edit — which is not a verification.
-          env: { API_PROXY_TARGET: `http://localhost:${process.env.E2E_API_PORT ?? 3000}` },
+          env: { API_PROXY_TARGET: `http://localhost:${PORTS.e2eApi}` },
           reuseExistingServer: false,
           timeout: 60_000,
         },

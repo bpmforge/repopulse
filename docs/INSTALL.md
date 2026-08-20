@@ -125,7 +125,7 @@ recorded, so an already-migrated database is left alone.
 Check it:
 
 ```bash
-curl -f http://127.0.0.1:8080/healthz && echo OK
+curl -f http://127.0.0.1:8099/healthz && echo OK
 ```
 
 Then open `PUBLIC_BASE_URL` and sign in with GitHub.

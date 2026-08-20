@@ -2866,3 +2866,44 @@ notification arrived — reading the changed value back out of the file.
 Unrelated but worth recording: the e2e run was blocked by a stray Vite dev
 server from another project (kryptkeeper) holding port 5173. I stopped
 that process to finish the gate; it may want restarting.
+
+### 2026-08-20 — RepoPulse moved off the framework default ports
+
+This machine runs more than one project and RepoPulse was colliding on
+three ports, not one: Vite's `5173` (held by kryptkeeper's dev server),
+`3000` (a Next server) and `3001` (another dev script). The 5173 collision
+cost a full e2e run — Playwright found the port occupied and refused to
+start — and I resolved it at the time by killing the other project's
+process, which is not a fix.
+
+RepoPulse now owns its own block, defined once in **`ports.config.mjs`**
+and imported by the dev runner, the Vite config and the Playwright config:
+
+| What | Was | Now | Override |
+|---|---|---|---|
+| API (dev) | 3000 | **3300** | `PORT` |
+| Worker healthz | 3001 | **3301** | `WORKER_HEALTH_PORT` |
+| Web dev server | 5173 | **5273** | `WEB_PORT` |
+| e2e API | 3000 | **3310** | `E2E_API_PORT` |
+| e2e worker healthz | 3098 | **3311** | `E2E_WORKER_HEALTH_PORT` |
+| Container stack | 8080 | **8099** | `REPOPULSE_PORT` |
+
+Three things worth noting about the change rather than the numbers:
+
+- **The e2e ports are deliberately not the dev ports.** A `pnpm dev` left
+  running in another terminal must not be mistaken for the API under test.
+  `pnpm e2e` now needs no `E2E_API_PORT=` prefix — every run in this
+  session had been carrying one.
+- **`strictPort` on the web dev server.** Vite's default is to slide to
+  5274 on a collision, which leaves every documented URL quietly wrong.
+  Failing is better.
+- **Demo mode had its own `3000` literal**, so `pnpm dev` would have moved
+  the real API and left the demo one on the contested port. Found by
+  running it, not by grepping — the API answered on nothing while the
+  worker and web came up fine.
+
+8080 was already overridden to 8099 in this machine's `deploy/.env`; it is
+now the shipped default, since 8080 is as contested a port as 3000.
+
+Verified: `DEMO_MODE=1 pnpm dev` serves API healthz on 3300, worker healthz
+on 3301 and the SPA on 5273; the full gate passes with no port overrides.

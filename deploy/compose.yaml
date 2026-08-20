@@ -160,7 +160,7 @@ services:
       # Bind to loopback by default. Put your own TLS terminator in front;
       # publishing 0.0.0.0 by default would ship an unencrypted public listener
       # to anyone who runs `up` without reading further.
-      - "${REPOPULSE_BIND:-127.0.0.1}:${REPOPULSE_PORT:-8080}:8080"
+      - "${REPOPULSE_BIND:-127.0.0.1}:${REPOPULSE_PORT:-8099}:8080"
 
 volumes:
   pgdata:

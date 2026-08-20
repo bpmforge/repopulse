@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { chromium } from '@playwright/test';
 import { createRedisConnection } from '@repopulse/ingest';
 import { createDb, seedWarehouse } from '@repopulse/shared';
+import { PORTS } from '../ports.config.mjs';
 
 export const STORAGE_STATE = 'e2e/.auth/state.json';
 
@@ -51,7 +52,7 @@ export default async function globalSetup(): Promise<void> {
   // waitForURL timeout, not as a 429. Reusing the session is also simply
   // faster; the OAuth round trip itself is still covered, by the one spec in
   // auth.spec.ts that deliberately logs in with a fresh context.
-  const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
+  const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${PORTS.web}`;
   const browser = await chromium.launch();
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();

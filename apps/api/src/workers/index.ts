@@ -522,7 +522,7 @@ async function main(): Promise<void> {
       [QUEUE.reports]: reportProcessor({
         db,
         dataDir: process.env.DATA_DIR ?? './.data',
-        printBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:5173',
+        printBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:5273',
       }),
     },
     onError: (err) => console.error('[worker] DLQ/error:', err),
@@ -636,7 +636,9 @@ async function main(): Promise<void> {
     `[worker] weekly security pass: ${weeklyCron === 'off' ? 'disabled' : `${weeklyCron} (semgrep), ${chainCron} (chains)`}`,
   );
 
-  const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
+  // 3301 — see the note beside the API port; 3001 is the neighbour every 3000
+// picks and was already taken on this machine.
+const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
   const healthServer = startWorkerHealthServer({
     db,
     redis: healthRedis,

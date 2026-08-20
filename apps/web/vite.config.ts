@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import { PORTS } from '../../ports.config.mjs';
 
 // Tailwind 4 is CSS-first — the @tailwindcss/vite plugin processes the @theme
 // tokens in src/styles/theme.css (no tailwind.config.js). In dev, /api and
@@ -11,7 +12,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 // `pnpm dev` is unchanged. Hardcoding it meant e2e could only run where port
 // 3000 happened to be free — which blocks concurrent runs and any CI box with
 // something else on 3000. playwright.config.ts sets this from E2E_API_PORT.
-const apiProxyTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';
+const apiProxyTarget = process.env.API_PROXY_TARGET ?? `http://localhost:${PORTS.api}`;
 
 export default defineConfig({
   // W4-03: the router plugin MUST come before @vitejs/plugin-react — it rewrites
@@ -31,6 +32,14 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
+    // OUR port, not Vite's default. 5173 is what every Vite project picks, so
+    // on a machine running two of them the second one silently lands on 5174
+    // and every documented URL is wrong — or, as happened here, Playwright
+    // finds 5173 occupied by a different app and refuses to start.
+    // strictPort so a collision FAILS rather than drifting to a port nothing
+    // else knows about.
+    port: PORTS.web,
+    strictPort: true,
     proxy: {
       '/api': { target: apiProxyTarget, changeOrigin: true },
       '/auth': { target: apiProxyTarget, changeOrigin: true },

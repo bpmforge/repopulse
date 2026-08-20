@@ -36,7 +36,10 @@ if (!demoRequested(process.env)) {
   process.exit(1);
 }
 
-const port = Number(process.env.PORT ?? 3000);
+// 3300 — the same block as the API's own default (ports.config.mjs). Demo
+// mode had its own 3000 literal, so `pnpm dev` moved the real API and left the
+// demo one on the port another project was already using.
+const port = Number(process.env.PORT ?? 3300);
 // Derived from PORT, NOT from API_BASE_URL. The OAuth redirect_uri is built
 // from this, and .env ships API_BASE_URL=http://localhost:3000 — so running
 // the demo on any other port sent the callback to whatever was listening on
@@ -45,7 +48,7 @@ const port = Number(process.env.PORT ?? 3000);
 // to say why. Demo mode is local by definition, so the port it actually bound
 // is the only honest answer here.
 const apiBaseUrl = `http://localhost:${port}`;
-const webBaseUrl = process.env.PUBLIC_BASE_URL ?? 'http://localhost:5173';
+const webBaseUrl = process.env.PUBLIC_BASE_URL ?? 'http://localhost:5273';
 
 const db = createDb(requireEnv('DATABASE_URL'));
 
