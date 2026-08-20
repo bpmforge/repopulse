@@ -2907,3 +2907,47 @@ now the shipped default, since 8080 is as contested a port as 3000.
 
 Verified: `DEMO_MODE=1 pnpm dev` serves API healthz on 3300, worker healthz
 on 3301 and the SPA on 5273; the full gate passes with no port overrides.
+
+### 2026-08-20 — carry-forward 4 of 4 closed: the tool adapters are called
+
+`code_health_tools` now runs its §10 adapters. Until today ruff and Biome
+were proven to work in the sandbox and **invoked by nothing** — their own
+tests drove the adapters directly, so they passed throughout while no ruff
+or Biome finding had ever reached the database.
+
+Proven by a new live test rather than by reading the code: one scanner run
+over a mixed Python/JS tree returns ruff's `E722` and a Biome `lint/…`
+rule, stamps all four tool versions (`lizard`, `jscpd`, `ruff`, `biome`),
+still returns our own complexity measurements, and runs **only** ruff on a
+Python-only tree.
+
+Three decisions inside it worth stating:
+
+- **One container, not one per tool.** Each adapter appends its output to
+  the same stdout behind its own marker. A container start per adapter
+  multiplies the slowest part of a scan by the number of tools.
+- **Adapter findings are confidence 4, ours are 5**, and adapter rule ids
+  keep their `tool.<key>.<rule>` namespace. A lint rule is a heuristic
+  about a pattern; a cyclomatic complexity of 23 is a count. The stored
+  confidence should say which one a reader is looking at, and the FP rate
+  should accumulate against the tool rather than against us.
+- **Dedup runs against the pack rules already OPEN for the repo**, not just
+  against this run. The mapping that matters is ruff's `E722` losing to our
+  `bpm-ch-empty-catch`, which belongs to a different scanner whose findings
+  are already stored — deduping within the run would keep both and hand a
+  reader two rows for one defect.
+
+An adapter that applies but produces no output is reported as an error, not
+read as a clean tree: "ruff found nothing" and "ruff did not run" must not
+look the same.
+
+The existing integration test caught the change honestly — it asserted
+every code_health finding was confidence 5, which adapter findings are not.
+It now asserts the distinction, plus that the adapters ran at all: an
+`every()` over an empty list is vacuously true, and that is exactly how a
+wiring regression would hide.
+
+**Still open (3 of the 4 carry-forwards):** the anti_slop and
+logging_hygiene judgement halves and W9-07's scheduled T2 drafting pass all
+need an analysis gateway in the worker. That is a larger piece of work than
+a wiring fix and still has no ticket.

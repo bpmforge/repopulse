@@ -2,6 +2,9 @@ import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
 import { runInSandbox } from '../../../sandbox/run.js';
 import type { ScanBudget } from '../../framework/types.js';
 import { resolveThresholds, verdictsForFunction, type CodeHealthThresholds } from './thresholds.js';
+import { adaptersFor } from './adapters/registry.js';
+import type { AdapterContext, AdapterFinding, ToolAdapter } from './adapters/types.js';
+import { listSnapshotFiles } from '../../adapters/architecture/tools.js';
 
 // code_health_tools (W9-02, CODE_HEALTH_SUITE.md §2/§10, FR-CH-2).
 //
@@ -147,6 +150,18 @@ export interface ToolRunResult {
   findings: CodeHealthFinding[];
   metrics: PostureMetrics;
   toolVersions: Record<string, string>;
+  /**
+   * Findings from the §10 TOOL ADAPTERS (ruff, Biome), kept separate from our
+   * own rule findings so the caller can dedupe them against the pack rules
+   * before storing (W9-08 wiring).
+   *
+   * They were proven to run in the sandbox when the adapters landed and then
+   * called by nothing — the scanner never invoked them, so no ruff or Biome
+   * finding has ever reached the database.
+   */
+  adapterFindings: AdapterFinding[];
+  /** Adapters that applied but whose output could not be read — never silent. */
+  adapterErrors: { adapter: string; reason: string }[];
   error?: string;
 }
 
@@ -156,6 +171,34 @@ export interface RunToolsArgs {
   budget: Pick<ScanBudget, 'wallClockMs'> & Partial<ScanBudget>;
   thresholds?: Partial<CodeHealthThresholds>;
   runtime?: string;
+  /** Test seam. Production uses the registry's language routing. */
+  adapters?: readonly ToolAdapter[];
+}
+
+/** argv -> a single-quoted shell word list, so no argument can be re-parsed. */
+function shellQuote(argv: readonly string[]): string {
+  return argv.map((arg) => `'${arg.replace(/'/g, `'\\''`)}'`).join(' ');
+}
+
+/** Splits one stdout into our half plus one section per adapter, in order. */
+export function splitSections(stdout: string, adapters: readonly ToolAdapter[]): string[] {
+  let rest = stdout;
+  const out: string[] = [];
+  for (const adapter of adapters) {
+    const marker = `===ADAPTER:${adapter.key}===`;
+    const at = rest.indexOf(marker);
+    if (at === -1) {
+      // The marker is echoed unconditionally, so its absence means the shell
+      // never got that far — truncated output, not an empty result.
+      out.push(rest);
+      rest = '';
+      continue;
+    }
+    out.push(rest.slice(0, at));
+    rest = rest.slice(at + marker.length);
+  }
+  out.push(rest);
+  return out;
 }
 
 /** p90 of a numeric series, or null when there is nothing to rank. */
@@ -181,6 +224,14 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
     ch_worst_fn_count: 0,
   };
 
+  // Language routing is the ADAPTER's decision (§10), so the file list has to
+  // be gathered before the container starts.
+  const ctx: AdapterContext = {
+    mountPath: SCAN_MOUNT_PATH,
+    files: listSnapshotFiles(args.targetDir),
+  };
+  const adapters = args.adapters ?? adaptersFor(ctx);
+
   const result = await runInSandbox({
     image: args.image,
     snapshotDir: args.targetDir,
@@ -201,11 +252,21 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
         `jscpd --min-lines ${thresholds.minLines} --min-tokens ${thresholds.minTokens} ` +
           `--reporters json --output ${JSCPD_OUT} --silent ${SCAN_MOUNT_PATH} >/dev/null 2>&1 || true`,
         `cat ${JSCPD_OUT}/jscpd-report.json 2>/dev/null || echo '{}'`,
+        // Each adapter appends its own section to the SAME stdout, behind its
+        // own marker. Still one container: adding a start per tool would
+        // multiply the slowest part of a scan by the number of adapters.
+        // `|| true` because a linter exits non-zero when it finds something,
+        // which is a successful run.
+        ...adapters.flatMap((adapter) => [
+          `echo '===ADAPTER:${adapter.key}==='`,
+          `${shellQuote(adapter.command(ctx))} 2>/dev/null || true`,
+        ]),
       ].join('; '),
     ],
   });
 
-  const toolVersions = { lizard: '1.24.0', jscpd: '4.3.0' };
+  const toolVersions: Record<string, string> = { lizard: '1.24.0', jscpd: '4.3.0' };
+  for (const adapter of adapters) toolVersions[adapter.key] = adapter.version;
 
   if (result.status !== 'succeeded' || result.rawStdout === undefined) {
     return {
@@ -213,12 +274,36 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
       findings: [],
       metrics: emptyMetrics,
       toolVersions,
+      adapterFindings: [],
+      adapterErrors: [],
       error: result.error ?? result.status,
     };
   }
 
-  const [lizardCsv = '', jscpdJson = '{}'] = result.rawStdout.split('===JSCPD===');
+  const [ourHalf = '', ...adapterSections] = splitSections(result.rawStdout, adapters);
+  const [lizardCsv = '', jscpdJson = '{}'] = ourHalf.split('===JSCPD===');
   const functions = parseLizardCsv(lizardCsv);
+
+  const adapterFindings: AdapterFinding[] = [];
+  const adapterErrors: ToolRunResult['adapterErrors'] = [];
+  adapters.forEach((adapter, index) => {
+    const section = adapterSections[index] ?? '';
+    if (section.trim() === '') {
+      // An adapter that applied and produced nothing at all is reported, not
+      // read as a clean tree: "ruff found no problems" and "ruff did not run"
+      // must never look the same.
+      adapterErrors.push({ adapter: adapter.key, reason: 'produced no output' });
+      return;
+    }
+    try {
+      adapterFindings.push(...adapter.parse(section, ctx));
+    } catch (error) {
+      adapterErrors.push({
+        adapter: adapter.key,
+        reason: error instanceof Error ? error.message.slice(0, 200) : String(error),
+      });
+    }
+  });
 
   let duplication: DuplicationReport = { percentage: 0, clones: [] };
   try {
@@ -289,6 +374,8 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
   return {
     status: 'succeeded',
     findings,
+    adapterFindings,
+    adapterErrors,
     metrics: {
       ch_duplication_pct: duplication.percentage,
       // null when the tree has no functions at all — a p90 over an empty set
