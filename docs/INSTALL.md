@@ -41,25 +41,76 @@ set `PUBLIC_BASE_URL` / `API_BASE_URL` to the URL your users will open.
 > key without a dump is harmless. Losing it means every connected organisation
 > must be re-authorised.
 
-## 2. Register a GitHub App
+Every variable is documented in [CONFIG.md](CONFIG.md) — purpose, default, and
+what breaks if it is wrong. Wrong or missing configuration fails at startup with
+a message naming each variable; the API will not half-boot.
 
-RepoPulse authenticates as **your** GitHub App, in your organisation. Create one
-at **Settings → Developer settings → GitHub Apps → New GitHub App**:
+## 2. Connect your forge
+
+RepoPulse authenticates as **your** App against **your** organisation. There is
+no shared RepoPulse App and no RepoPulse-hosted anything: your source, your
+tokens and your findings never leave your install.
+
+### GitHub
+
+Create an App at **Settings → Developer settings → GitHub Apps → New GitHub
+App** (an *organisation* App if the repositories belong to an org):
 
 | Field | Value |
 |---|---|
+| GitHub App name | anything; it is shown to your users when they authorise |
 | Homepage URL | your `PUBLIC_BASE_URL` |
-| Callback URL | `<PUBLIC_BASE_URL>/auth/callback` |
+| Callback URL | `<API_BASE_URL>/auth/callback` |
+| Request user authorization (OAuth) during installation | ticked |
 | Webhook URL | `<PUBLIC_BASE_URL>/api/v1/webhooks/github` |
 | Webhook secret | the `WEBHOOK_SECRET` from your `.env` |
 
-Repository permissions — **read-only, all of them**:
-Contents, Metadata, Pull requests, Checks, Issues. RepoPulse never writes to
-your repositories: it does not open branches, push commits, or comment on pull
-requests.
+**Repository permissions — read-only, every one of them** (C5 / SC-25):
 
-Copy the App ID, Client ID, Client secret and a generated private key into
-`deploy/.env`.
+| Permission | Access | Why RepoPulse needs it |
+|---|---|---|
+| Contents | Read-only | Commit history and the ephemeral tarball the scanners read |
+| Metadata | Read-only | Repository list, default branch, archived flag (mandatory on every App) |
+| Pull requests | Read-only | PR flow, review coverage, cycle time |
+| Checks | Read-only | CI pass rate and flakiness |
+
+Subscribe to these events: **Push**, **Pull request**, **Pull request review**,
+**Check suite**, **Check run**.
+
+RepoPulse never writes to your repositories. It opens no branches, pushes no
+commits, comments on no pull requests, and **never clones** — analysis reads an
+API tarball into an ephemeral scratch directory that is deleted after the scan.
+If you are ever asked to grant write access, something is wrong.
+
+**The private key.** Generate one at the bottom of the App page; the browser
+downloads a `.pem` once and GitHub never shows it again. Put the file somewhere
+the containers can read it and point `GITHUB_APP_PRIVATE_KEY_PATH` at it, or
+paste its contents into `GITHUB_APP_PRIVATE_KEY`. Treat it like a password: it
+authenticates as the App to every repository the App is installed on. If it
+leaks, delete it on the App page and generate a new one — old keys keep working
+until you do.
+
+Copy the **App ID**, **Client ID** and **Client secret** into `deploy/.env`,
+then **Install App** on the organisation and choose the repositories.
+
+### Gitea
+
+Gitea has no App concept, so a token stands in for one.
+
+1. As a user with read access to the repositories you want tracked, go to
+   **Settings → Applications → Generate New Token**.
+2. Scopes: **`read:repository`**, **`read:organization`**, **`read:user`** —
+   read-only, same rule as GitHub.
+3. Set `FORGE_BASE_URL` to your Gitea base URL (`https://gitea.example.com`)
+   and paste the token when you add the connection in **Admin → Connections**.
+   The token is encrypted at rest with `TOKEN_ENC_KEY` before it is stored.
+4. Webhooks: **Repository settings → Webhooks → Add webhook → Gitea**, target
+   `<PUBLIC_BASE_URL>/api/v1/webhooks/gitea`, secret = your `WEBHOOK_SECRET`,
+   events **Push**, **Pull request**, **Pull request review**.
+
+A self-hosted Gitea over plain `http://` is rejected unless it is a loopback
+address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape hatch,
+not a deployment option.
 
 ## 3. Start
 
@@ -84,11 +135,28 @@ so nothing is exposed before you have put TLS in front of it. Postgres and Redis
 are reachable only on the internal network. To expose the web port on a LAN
 interface, set `REPOPULSE_BIND=0.0.0.0` — **after** your terminator is in place.
 
-## 4. Connect your organisation
+## 4. Select repositories
 
 Sign in, go to **Admin → Connections**, and connect the organisation your App is
-installed on. Backfill starts immediately; the Org Overview shows per-repo
+installed on. Then choose which repositories to track — nothing is ingested
+until you do. Backfill starts immediately; the Org Overview shows per-repo
 progress while it runs and fills in as history lands.
+
+**Admin → Setup** lists what is still outstanding: configuration problems, a
+missing connection, no repositories selected, and whether any webhook delivery
+has arrived yet. It reports whether each variable is *set*, never its value.
+
+### Webhooks
+
+Webhook deliveries are how RepoPulse notices a push without polling. Until your
+first push after connecting, "no delivery yet" is expected — it is not evidence
+the webhook is wrong, and not evidence it is right. After a push, the setup
+screen shows the timestamp of the most recent delivery. If nothing arrives:
+
+- your forge must be able to reach `PUBLIC_BASE_URL` (a private install behind
+  a firewall cannot receive them; ingestion still works on the reconcile cron),
+- the webhook secret must match `WEBHOOK_SECRET` exactly,
+- deliveries with a bad signature are rejected and logged, not silently dropped.
 
 ## Upgrading
 

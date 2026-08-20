@@ -23,6 +23,11 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/admin/rules', label: 'Rules' },
   { to: '/admin/analysis', label: 'Analysis' },
   { to: '/admin/settings', label: 'Settings' },
+  // W11-02. Its own top-level route rather than an /admin child — the setup
+  // checklist is what an operator opens when something is not working yet, and
+  // burying it under a tab group they are already lost in helps nobody. The
+  // link lives here because this is where they look first.
+  { to: '/setup', label: 'Setup' },
 ];
 
 function AdminLayout() {

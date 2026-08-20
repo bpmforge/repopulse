@@ -2644,3 +2644,30 @@ and slim runtime images. What is left cannot be closed from here:
 registry, or confirm acceptance 1 should be rewritten to "images build
 reproducibly for both arches locally, publishing deferred". That is a
 scope change, so it is his call.
+
+### 2026-08-19 — W11-02: config that cannot drift, and one honest gap
+
+Done, with one acceptance item partially met and named below.
+
+`docs/CONFIG.md` is GENERATED from a registry in
+`apps/api/src/routes/setup/env-registry.ts`, and a test fails if any env
+var read in shipped source is missing from that registry or from the doc.
+That is the acceptance's "checked against the actual call sites so it
+cannot silently drift", implemented as a gate rather than a habit. 26
+variables, each with the column that actually helps at 2am: what breaks
+when it is wrong.
+
+Startup now validates the whole environment and reports EVERY problem at
+once, naming each variable, then exits 1. Filling in a `.env` one restart
+per variable is a bad first hour with a product, and the customer is doing
+it on their own machine where we cannot see what they typed.
+
+**The gap, stated plainly: the GitHub App walkthrough has still never been
+run against real GitHub.** The permission set, callback URL, webhook
+target and private-key handling are written from the code that consumes
+them and from GitHub's documented App model — they are not transcribed
+from a successful registration. The connect flow's never-run-for-real risk
+(recorded 2026-08-12) lands exactly here, on a customer's infrastructure.
+**What is needed, and from whom:** Brad registering one throwaway GitHub
+App against a scratch org and walking the doc top to bottom, correcting it
+where reality differs. That is W7-07, which is blocked for the same reason.

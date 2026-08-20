@@ -4143,9 +4143,17 @@
         "Wrong/missing config fails at startup with a message naming the variable, never a stack trace or a half-booted app"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "The connect flow has never run against real GitHub (see docs/STATUS.md 2026-08-12) — that risk lands HERE for a customer, on their infra, where we cannot debug it. This ticket is why that spike should happen early."
+        "The connect flow has never run against real GitHub (see docs/STATUS.md 2026-08-12) — that risk lands HERE for a customer, on their infra, where we cannot debug it. This ticket is why that spike should happen early.",
+        "docs/CONFIG.md is GENERATED from apps/api/src/routes/setup/env-registry.ts (26 variables), and apps/api/test/config-doc.test.ts fails if a variable is read in shipped source but missing from the registry, or if the doc is stale, or if a secret is documented without its marker. That is acceptance 3 as a gate rather than a habit. Fixtures and e2e are excluded from the scan with a stated reason: a deliberately-vulnerable sample app reading JWT_KEY is not a RepoPulse knob.",
+        "Acceptance 4: startup validates the whole environment, reports EVERY problem at once naming each variable, and exits 1 — no stack trace, no half-booted app. Format checks catch the realistic mistakes: a URL without a scheme, a TOKEN_ENC_KEY that is not 32 bytes of hex (with the openssl command in the message), an empty FOO= line, a cron that is neither five fields nor \"off\".",
+        "INSTALL.md now carries the exact GitHub App permission table (Contents, Metadata, Pull requests, Checks — read-only, C5/SC-25), the event subscriptions, the callback and webhook URLs, and a private-key section that says what to do when it leaks. The Gitea walkthrough is written too (W7-02 shipped the adapter): token scopes, FORGE_BASE_URL, webhook target, and the loopback-only http exception.",
+        "Setup surface: GET /setup/status (admin-only) reports env problems, forge connection, repositories selected, and last webhook delivery; GET /setup/config lists every variable with whether it is SET and never its value. \"No webhook yet\" is its own state, not a fault — it is a fact about history, and rendering it as a failure sends operators hunting for nothing.",
+        "HONEST GAP, recorded in docs/STATUS.md and not papered over: the GitHub App walkthrough has never been run against real GitHub. It is written from the code that consumes the values and from GitHub's documented App model, not transcribed from a successful registration. Needs Brad to register a throwaway App against a scratch org and walk the doc — the same blocker as W7-07.",
+        "Widens, each recorded: apps/api/src/index.ts (the startup check is acceptance 4), apps/api/src/plugins/api-v1.ts (mounting the routes), apps/api/test/config-doc.test.ts (the drift gate), scripts/generate-config-doc.mjs (the generator), apps/web/src/routes/admin/route.tsx (a Setup link where operators actually look), apps/web/src/routeTree.gen.ts (generated), e2e/admin.spec.ts.",
+        "One a11y defect found and fixed by the gate rather than by review: the config table scrolled without a focusable region, so a keyboard user could not read its right-hand side. axe caught it in e2e.",
+        "Gate: lint clean, typecheck clean, 1289 unit tests pass, 81 web, 104 e2e (1 skipped), bundle 110.3 KB of 200 KB, validate-arch/plan/traceability PASS."
       ]
     },
     {
