@@ -3677,8 +3677,23 @@
         "Admin workbench (admin-only, FR-AUTH-4): proposal queue with provenance/fixtures/shadow stats, promote/demote/deprecate actions; per-rule fp_rate computed from dispositions; tenancy walker + axe green"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. HealthRule schema + pack validator, the rule_registry table (migration 0018) with findings.experimental, the proposed→candidate→active→deprecated lifecycle with its promotion gate, FP-cluster intake with LLM drafting, and the admin workbench.",
+        "A RULE WITHOUT PROVENANCE OR FIXTURES DOES NOT EXIST, and the validator is what makes that true rather than a convention. Provenance because a rule with no recorded source cannot be licence-checked later — this product already refuses registry rules on exactly those grounds. Both fixtures because a rule with no CLEAN fixture has never been shown NOT to fire, and the failure mode of a static analyser is not \"misses things\", it is \"cries wolf until people turn it off\".",
+        "RULE CONTENT STAYS IN VERSIONED PACK ASSETS, NEVER THE DB. The registry holds per-workspace lifecycle state only: a rule whose text sat in a row could be edited without a review, a diff or a version, and the first anyone would know is a findings list that changed shape overnight.",
+        "THE VALIDATOR REPORTS EVERY FAILURE IN A PACK, not the first — otherwise someone fixes one rule, re-runs, fixes the next, and gives up before the third.",
+        "THE LICENCE GATE IS DENY-BY-DEFAULT AND REFUSES RATHER THAN QUEUES: a rule that runs while someone decides has already run. \"UNLICENSED-REPOPULSE\" is spelled out as an allowed value rather than inferred from an empty field, so \"no licence recorded\" can never be read as \"ours\".",
+        "proposed → active IS NOT A LEGAL TRANSITION. The gate needs evidence and evidence needs the rule to have run, so everything goes through shadow. A deprecated rule returning must earn shadow again rather than resuming where it left off.",
+        "SHADOW FINDINGS ARE REAL BUT WEIGHTLESS, and the predicate that decides it is exported ONCE (countsTowardsScores) so scores, banners, plans and reports cannot drift apart on what \"shadow\" means. An ABSENT experimental flag counts — treating unknown as shadow would silently drop every finding written before the column existed.",
+        "THE GATE REFUSES AN UNTRIAGED RULE AND SAYS THAT IS WHY. Not \"the rate is bad\" — nobody has looked, so the gate would be measuring nothing. Same null-vs-zero rule for fp_rate itself: null over zero dispositions, because a 0% false-positive rate across nothing reads as a flawless rule, and that is precisely the rule nobody has checked. Demotion never fires on null either — auto-demoting on absence would punish a quiet week.",
+        "THE PROMOTION BUTTON STAYS VISIBLE AND DISABLED WITH ITS REASONS LISTED. \"Why can I not do this\" is the question an admin actually has, and every unmet condition is returned at once so they know whether to wait a week or fix the rule.",
+        "A DRAFT NEVER NAMES ITS OWN STATUS OR PROVENANCE. Both are set by acceptDraft: a draft that could name its status could propose itself active, and one that could name its provenance could claim to be ours. A draft that fails validation is DISCARDED rather than queued — a half-formed rule in the queue is one an admin eventually approves without reading. Clusters below three dismissals are ignored: two is a disagreement, not a pattern, and drafting from it would encode one reviewer's Tuesday into the product.",
+        "EVERY TRANSITION IS AUDITED (SC-22) with four new audit events. A rule going live changes what EVERY future scan says about someone's code — closer to a settings change than to a finding — and shadow→active is the moment it starts moving health scores.",
+        "SCOPE WIDENED, WITH REASON: packages/shared/src/logger/audit.ts (four lifecycle events; the audit type is a closed union by design) and apps/web/src/routes/admin/route.tsx (a workbench nobody can navigate to is the built-but-never-wired defect in its UI form).",
+        "NOT DONE, RECORDED: the scheduled T2 drafting pass has its prompt, its clustering and its acceptance path, but no cron — it needs the same gateway-in-the-worker decision that W9-03/W9-04's judgement halves are waiting on, and wiring a third half-path would be worse than wiring one whole one. External pack SYNC is likewise unbuilt: the licence gate it depends on is here and tested, but the db-sync side belongs with W8-12's parked vulnerability-database half.",
+        "GATE: lint 0, typecheck 0, 1068 unit tests (was 1044), zero skipped; pnpm -r test green; 101 e2e passed (was 100; 1 skipped real-forge smoke) including axe over the new admin route; bundle 110.2 KB of 200; validate-arch, validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W9-08",

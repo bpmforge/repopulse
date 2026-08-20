@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   check,
   jsonb,
   index,
@@ -84,6 +85,14 @@ export const findings = pgTable(
     /** What an attacker gains from it — matched against another finding's preconditions. */
     yields: jsonb('yields').$type<Record<string, unknown>>(),
     scanRunId: bigint('scan_run_id', { mode: 'number' }).references(() => scanRuns.id),
+    /**
+     * W9-07 shadow mode (§8.2). True when the rule that produced this finding
+     * is a CANDIDATE: the finding is real and triageable, and is excluded from
+     * health scores, org banners, plan generation and reports. Default false,
+     * because a finding from a live rule counts — and a nullable flag would
+     * make "unknown" a third state nobody would handle.
+     */
+    experimental: boolean('experimental').notNull().default(false),
   },
   (t) => [
     unique('findings_workspace_repo_dedup_key').on(t.workspaceId, t.repoId, t.dedupKey),

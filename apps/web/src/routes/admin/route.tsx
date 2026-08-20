@@ -20,6 +20,7 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/admin/members', label: 'Members' },
   { to: '/admin/identities', label: 'Identities' },
   { to: '/admin/agreements', label: 'Agreements' },
+  { to: '/admin/rules', label: 'Rules' },
   { to: '/admin/analysis', label: 'Analysis' },
   { to: '/admin/settings', label: 'Settings' },
 ];

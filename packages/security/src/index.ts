@@ -34,3 +34,6 @@ export * from './scanners/code-health/run.js';
 export * from './scanners/anti-slop/ldr.js';
 export * from './scanners/anti-slop/run.js';
 export * from './scanners/logging/run.js';
+export * from './rules/schema.js';
+export * from './rules/lifecycle.js';
+export * from './rules/intake.js';

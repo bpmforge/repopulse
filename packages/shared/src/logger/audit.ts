@@ -69,7 +69,15 @@ export type AuditEvent =
   | 'repo.tier3_opt_in_changed'
   // W8-01. Turning a scanner off is a decision about what this workspace stops
   // looking for, which is exactly the kind of change an audit exists for.
-  | 'scanner.enablement_changed';
+  | 'scanner.enablement_changed'
+  // W9-07. A rule going live changes what EVERY future scan says about
+  // someone's code — it is closer to a settings change than to a finding — so
+  // each lifecycle step carries who made it. The shadow→active step matters
+  // most: that is the moment a rule starts moving health scores.
+  | 'rule.proposed'
+  | 'rule.candidate'
+  | 'rule.active'
+  | 'rule.deprecated';
 
 export interface AuditEntry {
   event: AuditEvent;

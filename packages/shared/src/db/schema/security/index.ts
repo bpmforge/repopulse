@@ -100,3 +100,42 @@ export const sboms = pgTable(
     unique('sboms_workspace_repo_sha_key').on(t.workspaceId, t.repoId, t.commitSha),
   ],
 );
+
+// Rule registry (W9-07, CODE_HEALTH_SUITE.md §8.1, DATABASE.md D11).
+//
+// PER-WORKSPACE LIFECYCLE STATE ONLY. The rule's content — its pattern, its
+// message, its fixtures — lives in a versioned rulepack asset, never here: a
+// rule whose text sat in a row could be edited without a review, a diff or a
+// version, and the first anyone would know is a findings list that changed
+// shape overnight.
+export const ruleRegistry = pgTable(
+  'rule_registry',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    /** '{domain}.{slug}', matching the pack asset. */
+    ruleId: text('rule_id').notNull(),
+    status: text('status').notNull().default('proposed'),
+    /** Where it came from and under what licence — required by the validator. */
+    provenance: jsonb('provenance').$type<Record<string, unknown>>().notNull(),
+    /** Set when it entered shadow, so the promotion gate can count days. */
+    shadowStartedAt: timestamp('shadow_started_at', { withTimezone: true }),
+    /** Last computed FP rate; NULL means nothing has been triaged. */
+    fpRate: text('fp_rate'),
+    /** True once trailing FP passed the demotion threshold (§8.2). */
+    demotionCandidate: boolean('demotion_candidate').notNull().default(false),
+    updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('rule_registry_workspace_status_idx').on(t.workspaceId, t.status),
+    unique('rule_registry_workspace_rule_key').on(t.workspaceId, t.ruleId),
+    check(
+      'rule_registry_status_check',
+      sql`${t.status} in ('proposed', 'candidate', 'active', 'deprecated')`,
+    ),
+  ],
+);

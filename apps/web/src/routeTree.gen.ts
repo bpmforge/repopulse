@@ -18,6 +18,7 @@ import { Route as AdminAgreementsRouteImport } from './routes/admin/agreements'
 import { Route as AdminAnalysisRouteImport } from './routes/admin/analysis'
 import { Route as AdminIdentitiesRouteImport } from './routes/admin/identities'
 import { Route as AdminMembersRouteImport } from './routes/admin/members'
+import { Route as AdminRulesRouteImport } from './routes/admin/rules'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSyncRouteImport } from './routes/admin/sync'
 import { Route as FindingsIndexRouteImport } from './routes/findings/index'
@@ -82,6 +83,11 @@ const AdminIdentitiesRoute = AdminIdentitiesRouteImport.update({
 const AdminMembersRoute = AdminMembersRouteImport.update({
   id: '/members',
   path: '/members',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminRulesRoute = AdminRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
@@ -195,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
+  '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
+  '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
+  '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
   '/views/$viewId': typeof ViewsViewIdRoute
@@ -289,6 +298,7 @@ export interface FileRouteTypes {
     | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
+    | '/admin/rules'
     | '/admin/settings'
     | '/admin/sync'
     | '/views/$viewId'
@@ -318,6 +328,7 @@ export interface FileRouteTypes {
     | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
+    | '/admin/rules'
     | '/admin/settings'
     | '/admin/sync'
     | '/views/$viewId'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
+    | '/admin/rules'
     | '/admin/settings'
     | '/admin/sync'
     | '/views/$viewId'
@@ -449,6 +461,13 @@ declare module '@tanstack/react-router' {
       path: '/members'
       fullPath: '/admin/members'
       preLoaderRoute: typeof AdminMembersRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/rules': {
+      id: '/admin/rules'
+      path: '/rules'
+      fullPath: '/admin/rules'
+      preLoaderRoute: typeof AdminRulesRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/settings': {
@@ -599,6 +618,7 @@ interface AdminRouteRouteChildren {
   AdminAnalysisRoute: typeof AdminAnalysisRoute
   AdminIdentitiesRoute: typeof AdminIdentitiesRoute
   AdminMembersRoute: typeof AdminMembersRoute
+  AdminRulesRoute: typeof AdminRulesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSyncRoute: typeof AdminSyncRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -609,6 +629,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAnalysisRoute: AdminAnalysisRoute,
   AdminIdentitiesRoute: AdminIdentitiesRoute,
   AdminMembersRoute: AdminMembersRoute,
+  AdminRulesRoute: AdminRulesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSyncRoute: AdminSyncRoute,
   AdminIndexRoute: AdminIndexRoute,
