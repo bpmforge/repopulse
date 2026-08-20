@@ -158,6 +158,8 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         number: facts.pullRequests.number,
         title: facts.pullRequests.title,
         repoId: facts.pullRequests.repoId,
+        repoOrg: core.repos.org,
+        repoName: core.repos.name,
         state: facts.pullRequests.state,
         additions: facts.pullRequests.additions,
         deletions: facts.pullRequests.deletions,
@@ -165,6 +167,11 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         mergedAt: facts.pullRequests.mergedAt,
       })
       .from(facts.pullRequests)
+      // Every My Focus list spans repositories, and PR numbers restart per
+      // repository — "#5 feature 5" appearing twice is two different pull
+      // requests, so the repo has to travel with the row. The join cannot drop
+      // rows: repo_id is a NOT NULL foreign key into repos.
+      .innerJoin(core.repos, eq(facts.pullRequests.repoId, core.repos.id))
       .where(eq(facts.pullRequests.authorIdentityId, ctx.identityId))
       .orderBy(desc(facts.pullRequests.updatedAt));
     return reply.send({
@@ -172,6 +179,7 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         number: p.number,
         title: p.title,
         repo_id: p.repoId,
+        repo: { id: p.repoId, org: p.repoOrg, name: p.repoName },
         state: p.state,
         size_bucket: prSizeBucket(p.additions + p.deletions),
         opened_at: p.createdAt.toISOString(),
@@ -191,11 +199,14 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         number: facts.pullRequests.number,
         title: facts.pullRequests.title,
         repoId: facts.pullRequests.repoId,
+        repoOrg: core.repos.org,
+        repoName: core.repos.name,
         createdAt: facts.pullRequests.createdAt,
         author: core.identities.forgeLogin,
       })
       .from(facts.pullRequests)
       .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
+      .innerJoin(core.repos, eq(facts.pullRequests.repoId, core.repos.id))
       .where(
         and(
           eq(facts.pullRequests.workspaceId, ctx.workspaceId),
@@ -209,6 +220,7 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         number: p.number,
         title: p.title,
         repo_id: p.repoId,
+        repo: { id: p.repoId, org: p.repoOrg, name: p.repoName },
         author: p.author,
         opened_at: p.createdAt.toISOString(),
         links: { self: `/api/v1/repos/${p.repoId}/prs/${p.number}` },
@@ -224,11 +236,14 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     const rows = await db
       .select({
         repoId: facts.commitFiles.repoId,
+        repoOrg: core.repos.org,
+        repoName: core.repos.name,
         path: facts.commitFiles.path,
         myLines: sql<number>`sum(${facts.commitFiles.additions} + ${facts.commitFiles.deletions})::int`,
       })
       .from(facts.commitFiles)
       .innerJoin(facts.commits, eq(facts.commitFiles.commitId, facts.commits.id))
+      .innerJoin(core.repos, eq(facts.commitFiles.repoId, core.repos.id))
       .where(
         and(
           eq(facts.commitFiles.workspaceId, ctx.workspaceId),
@@ -236,12 +251,16 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
           eq(facts.commits.isMerge, false),
         ),
       )
-      .groupBy(facts.commitFiles.repoId, facts.commitFiles.path)
+      // org/name are grouped rather than aggregated: they are functionally
+      // dependent on repo_id, but Postgres only infers that through the repos
+      // primary key, and naming them keeps the grouping obvious to a reader.
+      .groupBy(facts.commitFiles.repoId, core.repos.org, core.repos.name, facts.commitFiles.path)
       .orderBy(desc(sql`sum(${facts.commitFiles.additions} + ${facts.commitFiles.deletions})`))
       .limit(50);
     return reply.send({
       items: rows.map((r) => ({
         repo_id: r.repoId,
+        repo: { id: r.repoId, org: r.repoOrg, name: r.repoName },
         path: r.path,
         my_lines: r.myLines ?? 0,
         links: { file: `/api/v1/repos/${r.repoId}/files/${encodeURIComponent(r.path)}` },
@@ -276,7 +295,8 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
    */
   app.get('/me/since', async (request, reply) => {
     const ctx = await myIdentity(request);
-    if (!ctx || request.workspace === undefined) return fail(request, reply, 401, 'No active session');
+    if (!ctx || request.workspace === undefined)
+      return fail(request, reply, 401, 'No active session');
 
     const me = await readUser(request);
     const rawSince = (me?.prefs as Record<string, unknown> | undefined)?.lastVisitAt;
@@ -286,12 +306,24 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     // to a window: "3 new review requests" on someone's first ever load is a
     // number about nothing.
     if (since === null || Number.isNaN(since.getTime())) {
-      return reply.send({ since: null, first_visit: true, review_requests: 0, findings_on_my_prs: 0, prs_advanced: 0 });
+      return reply.send({
+        since: null,
+        first_visit: true,
+        review_requests: 0,
+        findings_on_my_prs: 0,
+        prs_advanced: 0,
+      });
     }
 
     const identityId = ctx.identityId;
     if (identityId === null) {
-      return reply.send({ since: since.toISOString(), first_visit: false, review_requests: 0, findings_on_my_prs: 0, prs_advanced: 0 });
+      return reply.send({
+        since: since.toISOString(),
+        first_visit: false,
+        review_requests: 0,
+        findings_on_my_prs: 0,
+        prs_advanced: 0,
+      });
     }
 
     const [reviewRequests] = await db

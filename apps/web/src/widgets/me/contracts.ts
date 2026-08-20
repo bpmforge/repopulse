@@ -1,9 +1,16 @@
 // My Focus contracts (W4-07). Source: apps/api/src/routes/me/index.ts.
 
+import type { RepoRef } from '../org/contracts.js';
+
+// Every list on this screen is cross-repo, so `repo` is part of a row's
+// identity, not decoration: PR numbers and file paths both repeat across
+// repositories, and two rows reading "#5 feature 5" are two different PRs.
+
 export interface MyPr {
   number: number;
   title: string;
   repo_id: number;
+  repo: RepoRef;
   state: string;
   size_bucket: string;
   opened_at: string;
@@ -19,6 +26,7 @@ export interface ReviewQueueItem {
   number: number;
   title: string;
   repo_id: number;
+  repo: RepoRef;
   author: string;
   opened_at: string;
   links: { self: string };
@@ -30,6 +38,7 @@ export interface ReviewQueue {
 
 export interface MyHotspot {
   repo_id: number;
+  repo: RepoRef;
   path: string;
   my_lines: number;
   links: { file: string };

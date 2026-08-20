@@ -177,17 +177,28 @@ test('the risk axes card shows a letter or says it was not measured', async ({ p
   await expect(card).toHaveAttribute('data-state', /ready|empty/);
 
   if ((await card.getAttribute('data-state')) === 'ready') {
-    // Supply Chain is the axis W10-05 adds; it must be listed even when no
-    // register has run, because a missing row hides that the axis exists.
-    const supply = page.getByTestId('axis-supplyChain');
-    await expect(supply).toBeVisible();
-    const letter = await page.getByTestId('axis-letter-supplyChain').innerText();
-    const basis = await page.getByTestId('axis-basis-supplyChain').innerText();
-    expect(basis.length).toBeGreaterThan(0);
-    if (letter.trim() === '—') {
-      expect(basis).toMatch(/not measured|no sub-score/i);
+    // Supply Chain must never be SILENTLY absent. Since the review, unmeasured
+    // axes collapse into one summary line rather than four repetitions of the
+    // same sentence — so the guarantee moved rather than weakened: the summary
+    // NAMES every axis it speaks for, and each axis keeps its own basis one
+    // click away. A row that simply vanished would still be a bug.
+    const summary = page.getByTestId('axis-unmeasured-summary');
+    const measuredRow = page.getByTestId('axis-supplyChain');
+
+    if (await summary.isVisible()) {
+      await expect(summary).toContainText('Supply Chain');
+      // Expanding must reveal the axis AND the reason it carries no letter.
+      await summary.click();
+      await expect(measuredRow).toBeVisible();
+      await expect(page.getByTestId('axis-basis-supplyChain')).not.toBeEmpty();
+      expect((await page.getByTestId('axis-letter-supplyChain').innerText()).trim()).toBe('—');
     } else {
-      expect(letter.trim()).toMatch(/^[A-E]$/);
+      // Measured: a real letter, and still a basis beside it.
+      await expect(measuredRow).toBeVisible();
+      expect((await page.getByTestId('axis-letter-supplyChain').innerText()).trim()).toMatch(
+        /^[A-E]$/,
+      );
+      await expect(page.getByTestId('axis-basis-supplyChain')).not.toBeEmpty();
     }
   }
 

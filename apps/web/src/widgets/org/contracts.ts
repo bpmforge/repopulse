@@ -30,9 +30,30 @@ export interface AttentionItems {
   items: { repo_id: number; name: string; kind: string; band: string }[];
 }
 
+/**
+ * The repository a cross-repo row belongs to. Same shape the Findings explorer
+ * carries (widgets/findings/contracts.ts) so every list names a repository the
+ * same way; `org` travels with `name` because two connected orgs may both have
+ * a repo called `api`, and the disambiguating half must not be the one dropped.
+ */
+export interface RepoRef {
+  id: number;
+  org: string;
+  name: string;
+}
+
+/**
+ * True when these rows come from more than one repository — the only case in
+ * which a Repository column earns its width. A repo-scoped list would otherwise
+ * grow a column repeating the repo the user already navigated into.
+ */
+export function spansMultipleRepos(rows: readonly { repo: RepoRef }[]): boolean {
+  return new Set(rows.map((r) => r.repo.id)).size > 1;
+}
+
 /** GET /hotspots?window=&limit= */
 export interface HotspotItems {
-  items: { repoId: number; path: string; score: number }[];
+  items: { repoId: number; repo: RepoRef; path: string; score: number }[];
   /**
    * W6-09. Acknowledged files are hidden from the LIST, never from the data —
    * so the count travels with it. A leaderboard that omits rows without saying
