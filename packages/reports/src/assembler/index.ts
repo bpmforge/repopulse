@@ -18,6 +18,7 @@ import { readReportRepos, readSnapshotsAsOf, type BoundedSnapshot } from './read
 import { planSections } from './plans.js';
 import { securityPostureSections } from './security-posture.js';
 import { codeHealthSections } from './code-health.js';
+import { riskSections } from './risk.js';
 import { readPreviousSnapshotAt } from './previous.js';
 
 // Report assembler (W5-03, REPORTS.md §1/§2/§5/§6).
@@ -432,6 +433,17 @@ export function createReportAssembler(db: Database): ReportAssembler {
       const previousSnapshotAt = await readPreviousSnapshotAt(db, params);
       const planned = await planSections(db, { workspaceId, snapshotAt, previousSnapshotAt });
 
+      // W9-12: the risk opener leads repo_health, org_exec and
+      // security_posture. Not delivery_dora or code_health — those answer a
+      // different question, and a top-risks table at the head of a DORA report
+      // would be the product deciding what the reader came for.
+      const risk =
+        params.type === 'repo_health' ||
+        params.type === 'org_exec' ||
+        params.type === 'security_posture'
+          ? await riskSections(db, { workspaceId, repoIds, snapshotAt, previousSnapshotAt })
+          : [];
+
       const qualitySnapshots = await readSnapshotsAsOf(db, {
         workspaceId,
         repoIds,
@@ -442,7 +454,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
 
       return {
         params,
-        sections: [...sections, ...planned],
+        sections: [...risk, ...sections, ...planned],
         appendix: {
           // Appendix A comes from the catalog (FR-METRICS-15), never from
           // prose in this file: a definition that disagrees with the tooltip
