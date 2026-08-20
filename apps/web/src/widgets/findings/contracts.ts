@@ -11,6 +11,15 @@ export const ALL_DIMENSIONS = [
   'sast',
   'iac',
   'chain',
+  'compound',
+  'logging',
+  'slop',
+  // W10-05 register dimensions. This list is the FACET; a dimension missing
+  // here is a finding a user cannot filter to.
+  'knowledge',
+  'dependency_health',
+  'architecture',
+  'test_gap',
 ] as const;
 
 export interface Finding {

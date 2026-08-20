@@ -25,7 +25,7 @@ import {
   type SyncStreamEvent,
 } from '@repopulse/ingest';
 import { computeRepoSnapshots } from '@repopulse/metrics';
-import { hotspotPercentiles, repriceFindings } from '@repopulse/insights';
+import { hotspotPercentiles, repriceFindings, writeFindingsMetric } from '@repopulse/insights';
 import { providerForRepo, type WorkerProviderDeps } from './forge-provider.js';
 
 // The queue processors (W12-03).
@@ -508,7 +508,18 @@ export function snapshotProcessor(deps: ProcessorDeps) {
       ruleFpRates,
     });
 
-    return { written, repriced: repriced.priced, bandChanges: repriced.bandChanges.length };
+    // W10-05: the FINDINGS row, LAST — it summarises effective_risk, so a
+    // version that ran before the reprice would publish yesterday's risk under
+    // today's timestamp. Every finding-sourced plan-catalog entry reads this
+    // row; until it existed they were all inert in production.
+    const findingsMetric = await writeFindingsMetric(deps.db, data.workspaceId, data.repoId);
+
+    return {
+      written,
+      repriced: repriced.priced,
+      bandChanges: repriced.bandChanges.length,
+      findingsSummarised: findingsMetric.dims.openCount,
+    };
   };
 }
 

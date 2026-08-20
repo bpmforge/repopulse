@@ -4066,8 +4066,19 @@
         "Tenancy + axe green on changed surfaces"
       ],
       "points": 3,
-      "status": "in_progress",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "supply_chain sub-score: weight 0.10, two inputs — dependency_health findings weighted by effective_risk (ramp 0..10) and a separate past-EOL runtime count, because EOL is a date rather than an opinion and one past-EOL runtime should move the axis on its own. Absent-and-renormalized until a register has run, per FR-INSIGHTS-3.",
+        "Axis mapping: knowledge, architecture and test_gap roll into Code Health (six axes of one finding each is a dashboard nobody reads); dependency_health gets its own axis because its inputs come from outside the repo and it moves on days nobody committed.",
+        "THE BIG ONE: nothing in the product wrote a FINDINGS metric_snapshots row, so every finding-sourced catalog entry back to W5 was inert in production while its unit tests passed against hand-built metric sets. writeFindingsMetric now runs at the end of the snapshot job, AFTER the reprice because it summarises effective_risk, and repoHealth reads it — which also gives the security and codeHealth sub-scores the findings inputs that route never passed.",
+        "Two more built-but-never-called items closed: axisSection (W9-12) was unit-tested and called by nothing, so no report printed an axis letter; and the letters were missing from the repo header. Both wired.",
+        "A LETTER NEVER SHIPS WITHOUT ITS BASIS: /risk/axes serves letter, score and basis together, an absent sub-score gives a NULL letter plus the reason, and the card and header strip both render the dash and the sentence at the same size. Asserted in a web unit test, an a11y label test and an e2e.",
+        "Findings explorer facets gained knowledge/dependency_health/architecture/test_gap plus compound/logging/slop, which were also storable-but-unfilterable — the same defect W8-10 fixed for the scanner dimensions.",
+        "Catalog v5 -> v6, three new entries (eol-runtimes, architecture-cycles, test-gap-hot-files) each with a machine-checkable verify criterion; dependency-currency came in W10-02. 22 entries.",
+        "Widens, each recorded: apps/api/src/routes/{risk,findings,org/health}/index.ts (the axes endpoint had to serve letters, and a letter needs sub-scores), apps/api/src/workers/processors.ts (the FINDINGS producer), packages/insights/src/plans/catalog.v1.ts + tests, packages/reports/src/assembler/index.ts (calling axisSection), apps/web/src/{routes/repos/$repoId/route.tsx,widgets/org/OrgOverview.tsx,widgets/findings/contracts.ts,components/widget/types.ts} — a widget nobody mounts is the defect class this codebase keeps rediscovering.",
+        "HONEST LIMIT: the Supply Chain axis will read \"not measured\" on every real repo until W8-06 is unblocked, because no SBOM exists for the registers to read. That renders as an absent axis with its basis line, which is the correct behaviour and not a bug.",
+        "Gate: lint clean, typecheck clean, 1272 unit tests pass, 78 web, 103 e2e (1 skipped), bundle 110.2 KB of 200 KB, validate-arch/plan/traceability PASS. a11y assertions run inside the e2e (expectNoA11yViolations on the changed org screen)."
+      ]
     },
     {
       "id": "W11-01",

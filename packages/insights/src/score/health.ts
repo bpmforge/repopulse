@@ -60,6 +60,12 @@ export const DEFAULT_WEIGHTS: Record<string, number> = {
   // which case the others renormalize — the same mechanism as `security`, and
   // for the same reason: unmeasured must never score as good.
   codeHealth: 0.15,
+  // W10-05, METRICS.md section 3. Absent for any repo with no dependency_health
+  // findings — which today means every repo, because the SBOM generator
+  // (W8-06) is blocked for missing syft. Same mechanism as the two above: the
+  // sub-score drops and the rest renormalize, so a repo nobody could measure
+  // is not a repo that scored well.
+  supplyChain: 0.1,
 };
 
 interface EvaluatedSub {
@@ -155,6 +161,15 @@ export interface HealthMetricInputs {
   slopDensity: number | null;
   /** M13 rework-14d, 0-1. */
   rework14d: number | null;
+  /**
+   * Open dependency_health findings weighted by effective_risk (W10-05).
+   *
+   * NULL until the registers have run. Zero would mean "measured, and clean",
+   * which is the one thing we cannot say while no SBOM exists.
+   */
+  supplyChainRisk: number | null;
+  /** Runtimes past end-of-life. A count, because one is already too many. */
+  eolRuntimeCount: number | null;
 }
 
 export function buildHealthSubScores(
@@ -219,6 +234,23 @@ export function buildHealthSubScores(
         // Rework is a debt signal, not a verdict (M13's catalog note) — which
         // is why it is one input of four rather than a score of its own.
         { key: 'rework14d', raw: inputs.rework14d, good: 0.05, bad: 0.4 },
+      ],
+    },
+    {
+      // W10-05. Findings-based like `security` and `codeHealth`, and absent
+      // for the same reason: no register run means no sub-score, never a
+      // clean one.
+      key: 'supplyChain',
+      weight: weights.supplyChain ?? DEFAULT_WEIGHTS.supplyChain ?? 0.1,
+      inputs: [
+        // Risk-weighted rather than a raw count: ten libyear notices are not
+        // the same problem as one past-EOL runtime, and the ramp should not
+        // pretend they are. 0 is good; 10 is where the register is describing
+        // a dependency set nobody is maintaining.
+        { key: 'supplyChainRisk', raw: inputs.supplyChainRisk, good: 0, bad: 10 },
+        // A separate input because EOL is a DATE, not an opinion: one runtime
+        // past end-of-life should move the axis on its own.
+        { key: 'eolRuntimeCount', raw: inputs.eolRuntimeCount, good: 0, bad: 3 },
       ],
     },
     {

@@ -30,9 +30,16 @@ export interface TopRisksResponse {
 export interface RiskAxis {
   axis: string;
   dimensions: string[];
+  /** null when the sub-score is absent — an axis nobody measured (W10-05). */
   letter: string | null;
+  score?: number | null;
   basis: string;
   top: { finding_id: number; title: string; severity: number; effective_risk: number | null }[];
+}
+
+export interface RiskAxesResponse {
+  axes: RiskAxis[];
+  letter_bands: Record<string, number>;
 }
 
 /** Verbs, not adjectives: people act on verbs (RISK_MODEL §3). */

@@ -25,6 +25,16 @@ const DIMENSIONS = [
   'sast',
   'iac',
   'chain',
+  'compound',
+  'logging',
+  'slop',
+  // W10-05: the register dimensions. Stored, listed and counted since W10-01
+  // and NOT filterable until now — the same defect W8-10 fixed for the
+  // scanner dimensions, which is why they are added here as a set.
+  'knowledge',
+  'dependency_health',
+  'architecture',
+  'test_gap',
 ] as const;
 
 /** Reasons a dismissal may carry. false_positive is the one the FP rate reads. */

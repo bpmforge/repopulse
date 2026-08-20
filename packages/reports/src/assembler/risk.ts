@@ -116,6 +116,19 @@ export async function riskSections(
 
   sections.push(await movementSection(db, params, scope));
 
+  // Data attribution (W10-02/W10-05, Law 2). endoflife.date is MIT-licensed
+  // and asks to be named; a report that quotes an EOL date without saying
+  // where it came from is a date the reader cannot check.
+  if (top.some((f) => f.dimension === 'dependency_health')) {
+    sections.push({
+      kind: 'summary',
+      id: 'risk_sources',
+      markdown:
+        'Supply-chain findings draw on public registry metadata (npm, PyPI) and ' +
+        'end-of-life dates from [endoflife.date](https://endoflife.date) (MIT).',
+    });
+  }
+
   return sections;
 }
 
@@ -211,6 +224,9 @@ export function axisSection(
   const AXES: { key: string; label: string }[] = [
     { key: 'security', label: 'Security' },
     { key: 'codeHealth', label: 'Code Health' },
+    // W10-05. Its own axis because its inputs come from outside the repo — a
+    // registry and an EOL calendar — and it moves on days nobody committed.
+    { key: 'supplyChain', label: 'Supply Chain' },
     { key: 'reviewHygiene', label: 'Review' },
     { key: 'ciHealth', label: 'CI' },
     { key: 'delivery', label: 'Delivery' },
