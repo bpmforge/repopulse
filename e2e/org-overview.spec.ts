@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { installEgressGuard } from './helpers/egress-guard.js';
+import { expectNoA11yViolations } from './helpers/axe.js';
 
 // W4-03 acceptance 2: the landing screen renders tiles + sparklines from the
 // fixture warehouse, and every number is a door to its evidence (UX_SPEC §1.3).
@@ -142,4 +143,24 @@ test('the org overview composes through WidgetGrid with 2x2 heroes (W4-21, R-D2)
   await expect(page.getByTestId('health-tile-grid')).toBeVisible();
   await expect(page.getByTestId('hotspot-leaderboard')).toBeVisible();
   await expect(page.getByText(/widget is not available yet/i)).toHaveCount(0);
+});
+
+test('the Top Risks card shows its denominator, not just a top five (W9-11)', async ({ page }) => {
+  // "200 open → 12 act" is the same credibility story as the CVE funnel. A
+  // top-5 card without its denominator implies the other 195 do not exist.
+  await loginAsFixture(page);
+  await page.goto('/?window=90d');
+
+  const card = page.getByTestId('top-risks');
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute('data-state', /ready|empty/);
+
+  if ((await card.getAttribute('data-state')) === 'empty') {
+    // The empty state says WHY, rather than implying there is no risk.
+    await expect(card).toContainText(/nothing has been scanned or nothing has been priced/i);
+  } else {
+    await expect(page.getByTestId('top-risks-counts')).toContainText(/open findings →/);
+  }
+
+  await expectNoA11yViolations(page);
 });

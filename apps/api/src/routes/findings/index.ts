@@ -80,6 +80,10 @@ export default async function findingsRoutes(
       in_chain?: string;
       /** 'true' restricts to CISA KEV-listed CVEs. */
       kev?: string;
+      /** W9-11: act | schedule | track. */
+      risk_band?: string;
+      /** W9-11: 'risk' (default) or 'severity'. */
+      sort?: string;
       cursor?: string;
     };
   }>('/findings', async (request, reply) => {
@@ -115,6 +119,9 @@ export default async function findingsRoutes(
     if (q.scanner_key) filters.push(eq(read.findings.scannerKey, q.scanner_key));
     if (q.cve_id) filters.push(eq(read.findings.cveId, q.cve_id));
     if (q.in_chain === 'true') filters.push(isNotNull(read.findings.chainId));
+    if (q.risk_band && ['act', 'schedule', 'track'].includes(q.risk_band)) {
+      filters.push(eq(read.findings.riskBand, q.risk_band));
+    }
     if (q.kev === 'true') {
       // KEV lives in the finding's payload rather than a column: it is a fact
       // about the CVE, set by the dependency scanner (W8-06, parked), and a
@@ -160,6 +167,10 @@ export default async function findingsRoutes(
         firstSeenAt: read.findings.firstSeenAt,
         lastSeenAt: read.findings.lastSeenAt,
         tier: read.findings.tier,
+        effectiveRisk: read.findings.effectiveRisk,
+        riskBand: read.findings.riskBand,
+        riskFactors: read.findings.riskFactors,
+        experimental: read.findings.experimental,
         scannerKey: read.findings.scannerKey,
         ruleId: read.findings.ruleId,
         cveId: read.findings.cveId,
@@ -170,7 +181,23 @@ export default async function findingsRoutes(
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
       .where(and(...filters))
-      .orderBy(desc(read.findings.severity), desc(read.findings.id))
+      // W9-11: effective_risk by DEFAULT, severity on request. Severity alone
+      // put a critical finding in a file nobody touches above a high one in the
+      // hot path — the ordering the risk engine exists to replace. The severity
+      // sort is retained because "show me everything critical" is a real
+      // question, just not the default one.
+      .orderBy(
+        ...(q.sort === 'severity'
+          ? [desc(read.findings.severity), desc(read.findings.id)]
+          : [
+              // NULLS LAST: an unpriced finding has not been judged low-risk,
+              // it has not been judged at all, and sorting it to the top or
+              // silently to the bottom would both be claims.
+              sql`${read.findings.effectiveRisk} desc nulls last`,
+              desc(read.findings.severity),
+              desc(read.findings.id),
+            ]),
+      )
       .limit(PAGE_SIZE + 1);
 
     const page = rows.slice(0, PAGE_SIZE);
@@ -203,6 +230,12 @@ export default async function findingsRoutes(
         chain_id: r.chainId,
         scan_run_id: r.scanRunId,
         kev: r.yields?.['kev'] === true,
+        // null, not 0: the nightly reprice may not have reached it, and a 0
+        // would read as "judged, and judged harmless".
+        effective_risk: r.effectiveRisk === null ? null : Number(r.effectiveRisk),
+        risk_band: r.riskBand,
+        risk_factors: r.riskFactors,
+        experimental: r.experimental,
       })),
       next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.severity, last.id) : null,
     });

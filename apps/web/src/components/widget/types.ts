@@ -25,6 +25,8 @@ export type WidgetType =
   | 'weekly-pulse'
   // W8-10. Its own type, for the same reason as the two above.
   | 'security-rollup'
+  // W9-11.
+  | 'top-risks'
   | 'my-prs'
   | 'my-queue'
   | 'text';
