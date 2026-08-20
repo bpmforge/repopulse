@@ -18,7 +18,7 @@ import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { providerForRepo } from './forge-provider.js';
-import { runKnowledgeRegister } from '@repopulse/insights';
+import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import {
   jsonFetcher,
   readComponents,
@@ -437,6 +437,19 @@ async function main(): Promise<void> {
               ...(result.error ? { skipped: result.error } : {}),
             };
           },
+          // W10-04. Warehouse-only, so it needs neither a connection nor a
+          // snapshot — it reads the commits we already have.
+          test_gap_register: async ({ workspaceId, repoId }) => {
+            const result = await runTestGapRegister({ db, workspaceId, repoId });
+            return {
+              scanned: result.files,
+              findingsCreated: result.created,
+              // Detections that could not run, carried out rather than logged
+              // and lost: "no churn distribution" is not "no test gaps".
+              deferred: result.notRun.length,
+              ...(result.error ? { skipped: result.error } : {}),
+            };
+          },
           attack_chainer: async ({ workspaceId, repoId }) => {
             // Runs whether or not the repo has a connection: it reads findings
             // we already have and calls no forge at all.
@@ -602,6 +615,7 @@ async function main(): Promise<void> {
       ['attack_chainer', chainCron],
       ['supply_chain_register', registersCron],
       ['architecture_register', registersCron],
+      ['test_gap_register', registersCron],
       ['knowledge_register', registersCron],
     ] as const) {
       await securityScanQueue.add(

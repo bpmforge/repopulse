@@ -84,7 +84,12 @@ describe('production wiring (regression gate)', () => {
   // which is the only thing that turns a register into a product feature.
   it('every register has a scheduled runner AND a cron entry', () => {
     const worker = readIfPresent(join(API_SRC, 'workers/index.ts'));
-    for (const key of ['knowledge_register', 'supply_chain_register', 'architecture_register']) {
+    for (const key of [
+      'knowledge_register',
+      'supply_chain_register',
+      'architecture_register',
+      'test_gap_register',
+    ]) {
       expect(worker, `${key} has no weekly/nightly runner`).toContain(`${key}: async`);
       expect(worker, `${key} is never enqueued on a schedule`).toContain(`['${key}', registersCron]`);
     }

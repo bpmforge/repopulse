@@ -2476,6 +2476,21 @@ spec name and its error context survive. The suspicion is resource contention
 with the dev stack when a heavy suite has just finished, not a product defect —
 but that is a hypothesis, not a finding.
 
+**UPDATE 2026-08-19 (W10-04), and this time the file capture worked.** The
+flake recurred once, and it now has a name:
+`e2e/ingest-flow.spec.ts:21 — an operator can connect and then select
+repositories to track`, failing on `locator.click` after 30s with "waiting for
+element to be visible, enabled and stable" — 58 retries on the last wait. The
+run immediately before it was the full unit suite including every podman
+scanner test, which is the resource-contention shape the hypothesis predicted.
+The very next run, standalone, passed 102/102.
+
+Still NOT claimed as fixed. What the next person needs: run that spec alone in
+a loop (`pnpm exec playwright test e2e/ingest-flow.spec.ts --repeat-each=20`)
+while a podman-heavy suite runs alongside it. If it reproduces, the fix is
+probably an explicit wait on the repo list having loaded rather than on the
+button being clickable — the button exists before its list does.
+
 #### W8-14 and W8-15 parked — same root cause as W8-13 (2026-08-19)
 
 Both operate on dependency findings, and none can exist while W8-06 is blocked
@@ -2562,3 +2577,21 @@ is a library-shaped reimplementation and would need its own justification,
 (c) a separate image with a Go toolchain and a vendored module cache, which
 is a real piece of work and a new trust surface. Not a decision I should
 make silently.
+
+### 2026-08-19 — W10-04: test-gap register, and what co-change does not prove
+
+Done. Hot files whose changes never ship with a test, out of the warehouse
+only — no coverage feed, no snapshot, no forge call. Coverage×churn stays
+PARKED pending the forge-budget review (Law 7), and its absence is now a
+GATE rather than a promise: a `git grep --untracked` in the register's own
+test suite fails if a coverage parser, uploader or ingestion path appears
+anywhere in `packages/` or `apps/`, with a control assertion proving the
+grep can actually find things.
+
+The honest limit is written into the finding itself: co-change is a proxy.
+A file covered thoroughly by a suite nobody edits looks identical from
+here, which is why these findings carry confidence 4 rather than 5 and why
+the no-tests finding says out loud that it is not a coverage measurement.
+
+Four registers are now wired to the nightly cron (knowledge, supply chain,
+architecture, test gap) and the wiring gate covers all four.
