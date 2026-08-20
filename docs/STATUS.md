@@ -3082,3 +3082,46 @@ null guard and captioned itself "not compared" instead of "not measured".
 
 Gate: lint clean, typecheck clean, 1,357 unit (was 1,341), 126 web (was
 110), 105 e2e (1 skipped), bundle 110.9 KB, four validators pass.
+
+### 2026-08-20 — handoff: what "connect a real repository" actually needs
+
+Recommendation 3 from the interface review is the only one I cannot do, and
+trying to make it one step revealed that it is **two**, not one. I had been
+telling Brad it needed "a Gitea token". That was incomplete.
+
+**The chain, in order:**
+
+1. **A real GitHub App — because it gates SIGN-IN, not just GitHub.**
+   `/auth/login` is the only way into the product; it redirects to GitHub's
+   OAuth authorize URL and there is no second path (demo mode swaps in a
+   fake GitHub, which is why it works without one). So even connecting a
+   **Gitea** organisation requires a working GitHub App first, just to get
+   past the front door. The values in `deploy/.env` are 12 characters and do
+   not match GitHub's client-id format, so they are almost certainly
+   placeholders. I could not confirm that by finishing a sign-in — that
+   needs a browser session with GitHub, which is Brad's to give.
+2. **Then the forge credential** — a Gitea token (Settings → Applications,
+   read scopes) or a GitHub App installation.
+
+**What is ready, verified today:**
+
+- `git.bpmforge.com` answers `{"version":"1.26.2"}` from this host.
+- The deployed stack at `127.0.0.1:8099` was rebuilt on today's code —
+  confirmed by the new migrate line (`up to date (23 migration(s) already
+  applied)`) and the new worker line (`analysis gateway: NOT CONFIGURED
+  (LMSTUDIO_BASE_URLS and LMSTUDIO_MODEL are unset)`). Before the rebuild it
+  was running yesterday's image, which lacked the per-connection base-URL
+  field the Gitea connection needs.
+- `FORGE_BASE_URL=https://git.bpmforge.com` reaches the api container.
+- Since W14-02 the connection carries its **own** base URL, so a Gitea
+  connection and a GitHub one can coexist; the server-level env is now just
+  the default.
+- A backup was taken before the rebuild.
+
+**I am not entering the token.** Putting an API token into a field is a
+thing I will not do regardless of who asks, so this step ends with Brad
+either way — that is a boundary, not a capability gap.
+
+**The whole point, restated:** every number this product has ever displayed
+came from fixtures. Until step 2 completes, that stays true, and no amount
+of interface work changes it.
