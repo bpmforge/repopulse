@@ -1,4 +1,4 @@
-import { Chart, WidgetFrame, frameState } from '../../components/index.js';
+import { Chart, WidgetFrame, frameState, type ChartProps } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { SIZE_BUCKETS, type RepoPrs, type RepoReviewLoad } from './contracts.js';
 
@@ -19,6 +19,53 @@ import { SIZE_BUCKETS, type RepoPrs, type RepoReviewLoad } from './contracts.js'
 interface Props {
   repoId: string;
   window: string;
+}
+
+/** One stage of the open→reviewed→merged flow, top of the chart first. */
+export interface PrStage {
+  name: string;
+  value: number;
+}
+
+/**
+ * The stage chart is a horizontal bar chart, NOT an ECharts `funnel` series.
+ *
+ * The funnel we shipped drew its middle stage wider than its top one. ECharts'
+ * funnel layout (funnelLayout.js) builds each band from `getLinePoints(idx, y)`
+ * to `getLinePoints(nextIdx, y + height)`: only the band's TOP edge encodes its
+ * own value, and the bottom edge is the NEXT stage's value. So the band labelled
+ * "Reviewed" is drawn fanning from `reviewed` out to `merged`, and every repo
+ * that merges PRs without review — the common case, see the stage comment below
+ * — renders a funnel that bulges in the middle. `min`/`max` and `gap` were
+ * innocent: the value→width map is linear and correct, the band simply is not
+ * the stage. There is no per-item way to make a funnel band's bottom edge equal
+ * its top, so proportional-per-stage and `type: 'funnel'` cannot both hold.
+ *
+ * A bar length IS the stage's value, which is the whole requirement.
+ */
+export function prStageChartOption(stages: PrStage[]): ChartProps['option'] {
+  return {
+    grid: { left: 72, right: 44, top: 8, bottom: 24 },
+    // The value axis is deliberately left to auto-scale. The old funnel pinned
+    // `max: opened`, which would clamp any stage that exceeded Opened down to a
+    // full-width bar — drawing a number that is out of range as though it were
+    // exactly in range is the one outcome worse than an odd-looking chart.
+    xAxis: { type: 'value', minInterval: 1 },
+    // `inverse` because a category axis counts up from the bottom: without it
+    // the first stage renders LAST, putting Merged above Opened and re-telling
+    // the same lie about ordering in a different shape.
+    yAxis: { type: 'category', data: stages.map((s) => s.name), inverse: true },
+    tooltip: { trigger: 'item' },
+    series: [
+      {
+        type: 'bar',
+        data: stages.map((s) => s.value),
+        // The count sits beside every bar, including a zero-length one, so the
+        // reader takes the number from the label and not from the geometry.
+        label: { show: true, position: 'right', formatter: '{c}' },
+      },
+    ],
+  };
 }
 
 export function PrFlow({ repoId, window }: Props) {
@@ -46,16 +93,25 @@ export function PrFlow({ repoId, window }: Props) {
     isEmpty: data !== undefined && items.length === 0,
   });
 
-  // Funnel stages are cumulative and must be monotonically non-increasing, so
-  // each stage counts PRs that reached AT LEAST that far.
+  // These stages are NOT cumulative, whatever the funnel shape suggests. Both
+  // Reviewed and Merged are subsets of Opened, but neither is a subset of the
+  // other: a PR merged without a review counts in Merged and not in Reviewed,
+  // so Merged > Reviewed is ordinary and gets no warning.
   const opened = items.length;
   const reviewed = items.filter((p) => p.review_covered).length;
   const merged = items.filter((p) => p.state === 'merged').length;
-  const funnel = [
+  const stages: PrStage[] = [
     { name: 'Opened', value: opened },
     { name: 'Reviewed', value: reviewed },
     { name: 'Merged', value: merged },
   ];
+
+  // A later stage exceeding Opened is impossible while all three are filters of
+  // one array, and would mean the window that bounded the list stopped matching
+  // the window that produced the counts (a PR reviewed inside the window but
+  // opened before it). Show the real number and name the contradiction rather
+  // than clamping the bar to look like a well-formed funnel.
+  const exceedsOpened = stages.slice(1).filter((s) => s.value > opened);
 
   const sizeCounts = SIZE_BUCKETS.map(
     (bucket) => items.filter((p) => p.size_bucket === bucket).length,
@@ -72,14 +128,20 @@ export function PrFlow({ repoId, window }: Props) {
       >
         <Chart
           testId="pr-funnel"
-          ariaLabel={`Pull request funnel, last ${window}`}
+          ariaLabel={`Pull request stages, last ${window}`}
           height={220}
-          tableData={{ columns: ['Stage', 'PRs'], rows: funnel.map((f) => [f.name, f.value]) }}
-          option={{
-            tooltip: { trigger: 'item' },
-            series: [{ type: 'funnel', sort: 'none', data: funnel, min: 0, max: opened || 1 }],
-          }}
+          // Table and chart are built from the same `stages` array so the
+          // fallback cannot drift away from what the bars show.
+          tableData={{ columns: ['Stage', 'PRs'], rows: stages.map((s) => [s.name, s.value]) }}
+          option={prStageChartOption(stages)}
         />
+        {exceedsOpened.length > 0 && (
+          <p className="text-xs text-warn" data-testid="pr-funnel-anomaly">
+            {exceedsOpened.map((s) => s.name).join(' and ')} exceeds Opened in this window — the
+            counts and the PR list are not bounded by the same dates. Read these as three separate
+            counts, not as a flow.
+          </p>
+        )}
       </WidgetFrame>
 
       <WidgetFrame

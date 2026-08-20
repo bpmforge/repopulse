@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { TrendDelta, type TrendPolarity } from './TrendDelta.js';
+import { TrendDelta, type MissingDeltaReason, type TrendPolarity } from './TrendDelta.js';
 
 // KpiTile (UX §2.2 / §4.a): a headline metric — label, big tabular value with
 // unit, and the vs-prior-window delta. The value uses tabular-nums + the KPI
@@ -10,6 +10,12 @@ export interface KpiTileProps {
   /** Preformatted value (e.g. "4.1"); null renders an em dash, never "0". */
   value: string | null;
   unit?: string;
+  /**
+   * Signed percent change vs the prior window. Omit it for metrics that are
+   * never compared across windows (My Focus counts); pass null when the metric
+   * is compared but this is the earliest window we hold. The two are different
+   * facts and the caption says which.
+   */
   deltaPct?: number | null;
   polarity?: TrendPolarity;
   /** Optional inline sparkline / definition link slot. */
@@ -17,11 +23,26 @@ export interface KpiTileProps {
   className?: string;
 }
 
+// Order matters: a missing value outranks everything, because "no prior window"
+// printed under a dashed value would explain the wrong absence — we never got a
+// number this window at all, so no comparison was ever on the table.
+function missingReasonFor(
+  value: string | null,
+  deltaPct: number | null | undefined,
+): MissingDeltaReason {
+  if (value === null) return 'not-measured';
+  if (deltaPct === undefined) return 'not-compared';
+  return 'no-prior-window';
+}
+
 export function KpiTile({
   label,
   value,
   unit,
-  deltaPct = null,
+  // Deliberately not defaulted to null: the destructure default would erase the
+  // difference between "this caller does not compare windows" and "there was no
+  // earlier window", which is the whole point of the caption below.
+  deltaPct,
   polarity = 'up-good',
   aside,
   className = '',
@@ -41,7 +62,12 @@ export function KpiTile({
         </span>
         {unit && value !== null && <span className="text-sm text-fg-muted">{unit}</span>}
       </div>
-      <TrendDelta deltaPct={deltaPct} polarity={polarity} className="text-xs" />
+      <TrendDelta
+        deltaPct={deltaPct ?? null}
+        polarity={polarity}
+        missingReason={missingReasonFor(value, deltaPct)}
+        className="text-xs"
+      />
     </div>
   );
 }

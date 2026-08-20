@@ -208,7 +208,14 @@ export function MyFocus({ search }: Props) {
         />
         <KpiTile
           label="Median PR size"
-          value={stats.data?.median_size === null ? null : String(stats.data?.median_size ?? null)}
+          // `?? null` inside String() rendered the literal text "null" while
+          // the request was still in flight — and a non-null string also slips
+          // past KpiTile's value === null guard, so the tile captioned itself
+          // "not compared" rather than "not measured". Found by an agent
+          // reading the tile's own null handling.
+          value={
+            typeof stats.data?.median_size === 'number' ? String(stats.data.median_size) : null
+          }
           unit="lines"
           polarity="neutral"
         />
