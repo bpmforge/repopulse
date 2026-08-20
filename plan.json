@@ -3800,8 +3800,18 @@
         "Suppression/dismissal behavior identical to sev-findings-cluster (catalog id × scope mirror); catalog version bumped and stamped"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. Plan rank input swapped from raw rankWeight to rankWeight × the effective_risk of the breaching findings, with the KEV/chain pin preserved and the catalog bumped to v3.",
+        "RAW SEVERITY IS EXACTLY THE INPUT THE RISK ENGINE EXISTS TO REPLACE. Under the old rule a critical finding in a file nobody touches outranked a high one in the hot path — which is not how anyone actually chooses what to fix. The fixture test reorders on RISK with severity untouched, which is the acceptance stated as an assertion.",
+        "A PIN OUTRANKS ARITHMETIC. kev-or-chain-open carries an explicit `pinned` flag rather than relying on its weight being large: multiplying a pin by a risk score would let a low-priced KEV finding slide below a tidy-up item, and that is the one ordering nobody would accept. Same reasoning as the risk model’s own `act` overrides.",
+        "METRIC-ONLY ENTRIES KEEP rankWeight ALONE. There are no findings to price, and multiplying by a risk that does not exist would either zero the entry or require inventing a number for it.",
+        "AN UNPRICED FINDING SET FALLS BACK TO rankWeight, NOT TO ZERO. A finding nobody has priced yet is not a finding that does not matter — zeroing it would hide the item until the nightly reprice happened to run.",
+        "RISK IS SUMMED ACROSS A CLUSTER, NOT MAXED: three act-band findings in one module is a bigger job than one, and a plan is a list of jobs.",
+        "act-band-cluster ALREADY CLOSES BOTH WAYS, and the test says why: its criterion counts ACT-BAND findings, so a reprice out of act empties the set exactly as a fix would. That is the \"resolved or repriced below act\" the acceptance asks for, without a second criterion to keep in sync.",
+        "THE VERSION BUMP IS THE POINT OF THIS TICKET, not bookkeeping: no entry was added or removed, but plans generated from identical data now come out in a different order. A plan created under v2 was ranked by a different rule and still says what it said.",
+        "GATE: lint 0, typecheck 0, 1122 unit tests (was 1115), zero skipped; pnpm -r test green; 101 e2e passed (1 skipped real-forge smoke); validate-arch, validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W9-11",

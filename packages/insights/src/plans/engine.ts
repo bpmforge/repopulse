@@ -25,9 +25,59 @@ export interface GenerateParams {
 }
 
 /**
+ * The rank input for one entry (W9-10, FR-RISK-5, IMPROVEMENT_PLANS §2).
+ *
+ * `rankWeight × effective_risk of the breaching findings`, when the entry is
+ * about findings. Raw severity used to decide this order, and raw severity is
+ * exactly the input the risk engine exists to replace: a critical finding in a
+ * file nobody touches outranked a high one in the hot path, which is not how
+ * anyone actually chooses what to fix.
+ *
+ * METRIC-ONLY entries keep rankWeight alone. There are no findings to price —
+ * multiplying by a risk that does not exist would either zero the entry or
+ * require inventing a number for it.
+ */
+export function rankInputFor(entry: CatalogEntry, metrics: MetricSet): number {
+  // A pin outranks arithmetic. See CatalogEntry.pinned.
+  if (entry.pinned) return entry.rankWeight;
+  if (entry.source === 'metric') return entry.rankWeight;
+
+  const risk = riskOfBreachingSet(entry, metrics);
+  // No priced findings behind a finding-sourced entry: fall back to rankWeight
+  // rather than to zero. A finding set nobody has priced yet is not a finding
+  // set that does not matter.
+  if (risk === null) return entry.rankWeight;
+  // Normalised by 100 so a rankWeight stays comparable in magnitude: an entry
+  // whose findings price at the top of the scale keeps its weight, and one
+  // whose findings price low is pushed down rather than annihilated.
+  return entry.rankWeight * (risk / 100);
+}
+
+/**
+ * Summed effective_risk of the findings an entry is about, or null.
+ *
+ * SUMMED rather than maxed for the cluster entries: three act-band findings in
+ * one module is a bigger job than one, and the plan is a list of jobs.
+ */
+export function riskOfBreachingSet(entry: CatalogEntry, metrics: MetricSet): number | null {
+  const dims = metrics.FINDINGS?.dims as Record<string, unknown> | undefined;
+  if (!dims) return null;
+
+  const byEntry: Record<string, string> = {
+    'act-band-cluster': 'actBandRiskSum',
+    'sev-findings-cluster': 'clusterRiskSum',
+    'slop-density-high': 'slopRiskSum',
+    'logging-hygiene-adoption': 'loggingRiskSum',
+  };
+  const key = byEntry[entry.id];
+  const value = key ? dims[key] : dims.riskSum;
+  return typeof value === 'number' ? value : null;
+}
+
+/**
  * Evaluates the catalog over one scope and returns ranked items.
  *
- * Ranking is by rankWeight descending, then catalog id — a total order with no
+ * Ranking is by rank INPUT descending, then catalog id — a total order with no
  * ties, so two generations from the same warehouse produce the same list in the
  * same sequence. A plan whose order wobbles is a plan people stop trusting.
  */
@@ -38,7 +88,11 @@ export function generatePlanItems(params: GenerateParams): ProposedItem[] {
   return catalog
     .filter((entry) => !dismissed.has(entry.id))
     .filter((entry) => entry.condition(params.metrics))
-    .sort((a, b) => b.rankWeight - a.rankWeight || a.id.localeCompare(b.id))
+    .sort(
+      (a, b) =>
+        rankInputFor(b, params.metrics) - rankInputFor(a, params.metrics) ||
+        a.id.localeCompare(b.id),
+    )
     .map((entry, index) => ({
       catalogId: entry.id,
       rank: index + 1,
