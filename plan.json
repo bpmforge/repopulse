@@ -3324,8 +3324,13 @@
         "Funnel UI per FR-SEC-15 on Security tab + Explorer + Security Posture report: raw→deduped→scoped→affected/not_affected/under_investigation with per-justification breakdown; counts reconcile to finding rows; default sort effective_risk; raw count never hidden"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "blocked",
+      "notes": [
+        "BLOCKED 2026-08-19 — same root cause as W8-13: VEX statements are assertions ABOUT DEPENDENCY FINDINGS, and none can exist while W8-06 is blocked for missing syft/grype/osv-scanner. Every acceptance item here is written in terms of them: \"triage on dependency findings\", \"re-scan at a covered version creates 0 new rows\", \"a version outside version_range reopens the finding\", \"the funnel raw→deduped→scoped→affected reconciles to finding rows\".",
+        "WHY NOT BUILD THE TABLE AND THE EXPORT ANYWAY: the vex_statements schema is keyed (repo, purl, vuln, version_range), and every one of those four columns is a shape that comes OUT of the dependency scanner. Designing the key around imagined purls and version ranges is how it gets rewritten on first contact with grype output — and an OpenVEX export validated only against documents I wrote myself proves the validator, not the export.",
+        "WHAT IS ALREADY HERE FOR IT: the audit-event union (SC-22) takes new events cheaply, the findings lifecycle already supports dismissal with a reason, and the Security tab has the funnel's shape in its scanner-status section.",
+        "ORDER WHEN IT UNBLOCKS: install syft + grype → W8-12's db-sync vulnerability half → W8-06 → W8-13 → this."
+      ]
     },
     {
       "id": "W8-15",
@@ -3351,8 +3356,12 @@
         "Gateway rules hold: mocked in CI, token budget from ScanBudget, one call per finding hard cap; runs recorded with parent_run_id chain"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "blocked",
+      "notes": [
+        "BLOCKED 2026-08-19 — the V5 adversarial verify prices and re-judges DEPENDENCY findings, which cannot exist while W8-06 is blocked. It also sits at the END of the V0–V4 funnel (W8-13, blocked): its prompt is \"advisory summary + the V2/V3 evidence\", and with no V2 import scan and no V3 reachability there is no evidence to ground it in.",
+        "A T2 PASS WITH NOTHING TO GROUND IT IN IS THE FAILURE MODE THIS PRODUCT KEEPS DESIGNING AGAINST — an unfalsifiable judgement about a package nobody has scanned. The maker≠verifier machinery it would use (FR-ANALYSIS-9) is built and proven in W6-05 and used by W9-03/W9-04, so this is wiring plus a prompt once the funnel exists.",
+        "ORDER WHEN IT UNBLOCKS: after W8-13, which produces the evidence this pass reads."
+      ]
     },
     {
       "id": "W8-12",

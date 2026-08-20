@@ -2475,3 +2475,25 @@ in ten runs is exactly the kind that reappears in CI at the worst moment.
 spec name and its error context survive. The suspicion is resource contention
 with the dev stack when a heavy suite has just finished, not a product defect —
 but that is a hypothesis, not a finding.
+
+#### W8-14 and W8-15 parked — same root cause as W8-13 (2026-08-19)
+
+Both operate on dependency findings, and none can exist while W8-06 is blocked
+for missing `syft`/`grype`/`osv-scanner`.
+
+- **W8-14 (VEX)**: the `vex_statements` key is (repo, purl, vuln, version_range)
+  — all four are shapes that come *out* of the dependency scanner. Designing
+  that key around imagined purls is how it gets rewritten on first contact with
+  real grype output, and an OpenVEX export validated only against documents I
+  wrote myself proves the validator, not the export.
+- **W8-15 (T2 adversarial CVE verify)**: it sits at the end of the V0–V4 funnel
+  and its prompt is "advisory summary + the V2/V3 evidence". With no import scan
+  and no reachability data there is nothing to ground it in — and an
+  unfalsifiable judgement about a package nobody has scanned is the failure mode
+  this product keeps designing against.
+
+**Order when they unblock:** install syft + grype → W8-12's db-sync
+vulnerability half → W8-06 → W8-13 → W8-14 → W8-15.
+
+Phase 9 is complete (12/12) as of this date; the remaining open waves are W10,
+W11 and the stragglers W12-10, W13-06, W14-02, W14-03.
