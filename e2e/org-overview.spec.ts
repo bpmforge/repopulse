@@ -164,3 +164,32 @@ test('the Top Risks card shows its denominator, not just a top five (W9-11)', as
 
   await expectNoA11yViolations(page);
 });
+
+test('the risk axes card shows a letter or says it was not measured', async ({ page }) => {
+  // W10-05, FR-INSIGHTS-3: a letter without its basis is a fake grade. This
+  // asserts the pair — every axis row carries either a letter AND a basis, or
+  // a dash AND the sentence explaining why nothing was measured.
+  await loginAsFixture(page);
+  await page.goto('/?window=90d');
+
+  const card = page.getByTestId('risk-axes');
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute('data-state', /ready|empty/);
+
+  if ((await card.getAttribute('data-state')) === 'ready') {
+    // Supply Chain is the axis W10-05 adds; it must be listed even when no
+    // register has run, because a missing row hides that the axis exists.
+    const supply = page.getByTestId('axis-supplyChain');
+    await expect(supply).toBeVisible();
+    const letter = await page.getByTestId('axis-letter-supplyChain').innerText();
+    const basis = await page.getByTestId('axis-basis-supplyChain').innerText();
+    expect(basis.length).toBeGreaterThan(0);
+    if (letter.trim() === '—') {
+      expect(basis).toMatch(/not measured|no sub-score/i);
+    } else {
+      expect(letter.trim()).toMatch(/^[A-E]$/);
+    }
+  }
+
+  await expectNoA11yViolations(page);
+});

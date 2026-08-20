@@ -3,6 +3,10 @@ import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { WidgetFrame } from '../../../components/index.js';
 import { useApiQuery } from '../../../api/useApiQuery.js';
 import { HealthWhy } from '../../../widgets/repo/HealthWhy.js';
+// W10-05: the axis letters belong beside the health grade, which is here.
+// Widened out of the ticket's write_scope on purpose — a widget nobody mounts
+// is the defect class this codebase keeps rediscovering.
+import { RiskAxisStrip } from '../../../widgets/risk/RiskAxisStrip.js';
 import type { RepoDetail } from '../../../widgets/repo/contracts.js';
 
 // Repo Detail layout (UX_SPEC §4.b). Each tab is its OWN route, not local state
@@ -52,7 +56,10 @@ function RepoLayout() {
         <h1 className="text-lg font-semibold" data-testid="repo-name">
           {data ? `${data.org}/${data.name}` : (isLoading ? 'Loading…' : repoId)}
         </h1>
-        {data && <HealthWhy health={data.health} />}
+        <div className="flex flex-wrap items-center gap-4">
+          <RiskAxisStrip repoId={repoId} />
+          {data && <HealthWhy health={data.health} />}
+        </div>
       </header>
 
       <nav className="flex gap-1 border-b border-border" data-testid="repo-tabs" aria-label="Repository sections">

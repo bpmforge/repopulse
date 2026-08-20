@@ -40,6 +40,11 @@ const perfectInputs: HealthMetricInputs = {
   complexityP90: null,
   slopDensity: null,
   rework14d: null,
+  // W10-05: absent, like every other findings-based input in this fixture —
+  // the point of "perfect" here is the Tier-1 metrics, and an unmeasured
+  // supply chain must drop its sub-score rather than score full marks.
+  supplyChainRisk: null,
+  eolRuntimeCount: null,
 };
 
 /** All four W9 code-health inputs at their "good" ends. */

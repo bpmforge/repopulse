@@ -5,6 +5,7 @@ import '../plans/PlanTile.js';
 import '../security/SecurityRollupTile.js';
 // W9-11: side-effect import, same pattern.
 import '../risk/TopRisksCard.js';
+import '../risk/RiskAxesCard.js';
 import '../pulse/PulseCard.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import type { GlobalSearch } from '../../api/urlState.js';
@@ -62,7 +63,10 @@ function orgWidgets(window: string, search: Record<string, string>): Widget[] {
     { id: 'org-security', type: 'security-rollup', layout: { x: 0, y: 5, w: 4, h: 2 }, options },
     // W9-11: beside the security tile — the two answer different questions
     // ("what is open" vs "what should we do first").
-    { id: 'org-top-risks', type: 'top-risks', layout: { x: 4, y: 5, w: 8, h: 2 }, options },
+    { id: 'org-top-risks', type: 'top-risks', layout: { x: 4, y: 5, w: 4, h: 2 }, options },
+    // W10-05. Beside Top Risks: one says what to fix first, the other says
+    // which axis it belongs to and how that axis is doing.
+    { id: 'org-risk-axes', type: 'risk-axes', layout: { x: 8, y: 5, w: 4, h: 2 }, options },
   ];
 }
 

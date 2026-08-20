@@ -18,7 +18,7 @@ import { readReportRepos, readSnapshotsAsOf, type BoundedSnapshot } from './read
 import { planSections } from './plans.js';
 import { securityPostureSections } from './security-posture.js';
 import { codeHealthSections } from './code-health.js';
-import { riskSections } from './risk.js';
+import { axisSection, riskSections } from './risk.js';
 import { readPreviousSnapshotAt } from './previous.js';
 
 // Report assembler (W5-03, REPORTS.md §1/§2/§5/§6).
@@ -106,7 +106,13 @@ export function createReportAssembler(db: Database): ReportAssembler {
     snapshots: Map<string, BoundedSnapshot>,
     repo: { id: number; pushedAt: Date | null },
     windowEnd: Date,
-  ): { rows: ScoreBreakdownRow[]; score: number; letter: string; tier1Only: boolean } {
+  ): {
+    rows: ScoreBreakdownRow[];
+    score: number;
+    letter: string;
+    tier1Only: boolean;
+    subScores: { key: string; normalized: number }[];
+  } {
     const inputs = healthInputsFromSnapshots(
       {
         M4: snap(snapshots, repo.id, 'M4') ?? { value: null, dims: {} },
@@ -134,7 +140,17 @@ export function createReportAssembler(db: Database): ReportAssembler {
         });
       }
     }
-    return { rows, score: Math.round(score.score), letter: scoreLetter(score.score), tier1Only: score.renormalized };
+    return {
+      rows,
+      score: Math.round(score.score),
+      letter: scoreLetter(score.score),
+      tier1Only: score.renormalized,
+      // W10-05: carried out so the report can print the AXIS LETTERS from the
+      // same sub-scores this breakdown was built from. axisSection existed
+      // since W9-12 and nothing called it — the letters were in the design and
+      // in a unit test, and in no report anyone received.
+      subScores: score.subScores.map((sub) => ({ key: sub.key, normalized: sub.normalized })),
+    };
   }
 
   async function repoHealthReport(params: ReportParams): Promise<ReportSection[]> {
@@ -169,6 +185,10 @@ export function createReportAssembler(db: Database): ReportAssembler {
         ? { kind: 'score_breakdown', rows: health.rows }
         : noData('score_breakdown', 'No health-input metrics have been computed for this repository yet.'),
     );
+
+    // W10-05: the axis letters, from the sub-scores above. An axis with no
+    // sub-score prints "not measured" rather than a grade (FR-INSIGHTS-3).
+    sections.push(axisSection(health.subScores, scoreLetter));
 
     // Hotspots (M2) — the dims carry the ranked file list.
     const m2 = snap(snapshots, repo.id, 'M2');

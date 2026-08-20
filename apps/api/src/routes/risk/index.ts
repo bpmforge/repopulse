@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, read, type Database } from '@repopulse/shared';
 import { scoreLetter } from '@repopulse/insights';
 import { sendProblem } from '../../lib/problem.js';
+import { repoHealth } from '../org/health.js';
 
 // Risk surfaces API (W9-11, RISK_MODEL.md §4/§5, FR-RISK-5/6).
 //
@@ -18,7 +19,15 @@ export interface RiskRoutesOptions {
 /** RISK_MODEL §4: which finding dimensions roll up into which axis. */
 export const AXIS_DIMENSIONS: Record<string, string[]> = {
   security: ['security', 'secrets', 'sast', 'iac', 'dependency', 'chain', 'compound'],
-  codeHealth: ['code_health', 'logging'],
+  // W10-05: the three warehouse registers roll into Code Health rather than
+  // getting axes of their own. A bus factor, an import cycle and a test gap
+  // are all statements about how maintainable this code is, and six axes of
+  // one finding each is a dashboard nobody reads.
+  codeHealth: ['code_health', 'logging', 'slop', 'knowledge', 'architecture', 'test_gap'],
+  // Supply Chain is its own axis because its inputs come from outside the
+  // repository — a registry and an EOL calendar — and it moves on days when
+  // nobody committed anything.
+  supplyChain: ['dependency_health'],
   performance: ['performance'],
 };
 
@@ -144,20 +153,46 @@ export default async function riskRoutes(
       .orderBy(desc(read.findings.effectiveRisk))
       .limit(500);
 
+    // W10-05: the letters, served WITH their basis.
+    //
+    // They come from the health sub-scores — the same numbers the repo screen
+    // shows — rather than being derived from findings here, which would be a
+    // second scoring system wearing the first one's name. A sub-score that is
+    // absent yields a NULL letter and a basis line saying why; FR-INSIGHTS-3
+    // forbids showing a grade nobody measured.
+    let subScores: { key: string; normalized: number }[] = [];
+    if (Number.isInteger(repoId)) {
+      const [repo] = await db
+        .select({ pushedAt: core.repos.pushedAt })
+        .from(core.repos)
+        .where(and(eq(core.repos.workspaceId, workspaceId), eq(core.repos.id, repoId)));
+      if (repo) {
+        const health = await repoHealth(
+          db,
+          workspaceId,
+          repoId,
+          '30d',
+          repo.pushedAt ?? null,
+          Date.now(),
+        );
+        subScores = health.subScores.map((s) => ({ key: s.key, normalized: s.normalized }));
+      }
+    }
+
     const axes = Object.entries(AXIS_DIMENSIONS).map(([axis, dimensions]) => {
       const mine = findings.filter((f) => dimensions.includes(f.dimension));
+      const sub = subScores.find((s) => s.key === axis);
       return {
         axis,
         dimensions,
-        // The letter comes from the SUB-SCORE, which the caller supplies from
-        // the health endpoint — an axis letter derived from findings alone
-        // would be a second scoring system with the same name.
-        letter: null as string | null,
+        letter: sub ? scoreLetter(sub.normalized) : null,
+        score: sub ? Math.round(sub.normalized * 10) / 10 : null,
         // Absent sub-score ⇒ absent axis ⇒ this basis line, never a grade.
-        basis:
-          mine.length === 0
-            ? 'no findings in this axis — that is not a grade, and no scanner may have run'
-            : `${mine.length} open findings`,
+        basis: sub
+          ? `${mine.length} open findings, sub-score ${Math.round(sub.normalized)}`
+          : mine.length === 0
+            ? 'not measured for this scope — no inputs available, which is not a grade'
+            : `${mine.length} open findings, but no sub-score could be computed for this axis`,
         top: mine.slice(0, 3).map((f) => ({
           finding_id: f.id,
           title: f.title,

@@ -27,6 +27,8 @@ export type WidgetType =
   | 'security-rollup'
   // W9-11.
   | 'top-risks'
+  // W10-05.
+  | 'risk-axes'
   | 'my-prs'
   | 'my-queue'
   | 'text';

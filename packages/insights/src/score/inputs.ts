@@ -44,6 +44,10 @@ export interface HealthFindingInputs {
   slopDensity?: number | null;
   openFindingDensity: number | null;
   worstOpenSeverity: number | null;
+  /** W10-05: dependency_health findings weighted by effective_risk. */
+  supplyChainRisk?: number | null;
+  /** W10-05: open eol.past findings. */
+  eolRuntimeCount?: number | null;
 }
 
 /** Reads a nested numeric dim, or null when any hop is missing. */
@@ -100,5 +104,9 @@ export function healthInputsFromSnapshots(
     complexityP90: snapshots.ch_complexity_p90?.value ?? null,
     slopDensity: findings.slopDensity ?? null,
     rework14d: snapshots.M13?.value ?? null,
+    // W10-05: same rule again — null until a register has run, so the whole
+    // supply-chain sub-score drops rather than scoring an unmeasured repo.
+    supplyChainRisk: findings.supplyChainRisk ?? null,
+    eolRuntimeCount: findings.eolRuntimeCount ?? null,
   };
 }

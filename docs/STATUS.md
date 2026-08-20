@@ -2595,3 +2595,30 @@ the no-tests finding says out loud that it is not a coverage measurement.
 
 Four registers are now wired to the nightly cron (knowledge, supply chain,
 architecture, test gap) and the wiring gate covers all four.
+
+### 2026-08-19 — W10-05: the axis letters, and the row nothing was writing
+
+Done. Supply Chain is now a real axis (weight 0.10, absent-and-renormalized
+until a register has run), the three warehouse registers roll into Code
+Health, and all four W10 dimensions are filterable in the explorer.
+
+**The carry-forward that mattered is closed.** Nothing in the product ever
+wrote a `FINDINGS` metric_snapshots row, so every finding-sourced catalog
+entry back to W5 was inert in production while its unit tests passed
+against hand-built metric sets. `writeFindingsMetric` now runs at the end
+of the snapshot job — after the reprice, because it summarises
+effective_risk — and the repo-health route reads it. That also means the
+`security` and `codeHealth` sub-scores, which had no findings inputs at
+all from that route, now have them.
+
+Two more built-but-never-called items closed in passing: `axisSection`
+(W9-12) was written, unit-tested and called by nothing, so no report ever
+printed an axis letter; and the axis letters were absent from the repo
+header for the same reason. Both are wired now.
+
+Still open from the carry-forward list, and now needing an owner: the
+anti_slop and logging_hygiene judgement halves and W9-07's scheduled T2
+drafting pass, all three of which need an analysis gateway in the worker;
+and W9-08's ruff/Biome adapters, which are proven in the sandbox but not
+called by code_health_tools. None of the remaining W10/W11 tickets owns
+that surface.
