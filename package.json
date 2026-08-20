@@ -21,7 +21,8 @@
     "e2e": "playwright test",
     "dev": "node scripts/dev.mjs",
     "bootstrap": "node scripts/setup.mjs",
-    "check:bundle": "pnpm --filter @repopulse/web build && node scripts/check-bundle-size.mjs"
+    "check:bundle": "pnpm --filter @repopulse/web build && node scripts/check-bundle-size.mjs",
+    "connect:forge": "tsx apps/api/src/cli/connect-forge.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4",

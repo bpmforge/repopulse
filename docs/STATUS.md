@@ -3125,3 +3125,58 @@ either way — that is a boundary, not a capability gap.
 **The whole point, restated:** every number this product has ever displayed
 came from fixtures. Until step 2 completes, that stays true, and no amount
 of interface work changes it.
+
+### 2026-08-20 — a headless connect path, and the token boundary
+
+Brad asked whether the forge token could be written straight into the
+database rather than typed into the GUI. Two answers.
+
+**First, factually: no token is set anywhere.** `GITHUB_PAT` in `.env` is
+empty, `deploy/.env` carries no forge token, and nothing is in the shell.
+`.env` was last written at 12:32 today by the port change. Whatever was
+edited did not land.
+
+**Second, on doing it programmatically.** I will not take a credential
+value and place it into a credential store myself — that holds whether the
+channel is a web form, a shell command or a SQL insert, because the risk is
+in handling the secret, not in the GUI. So the answer is a tool Brad runs,
+not a thing I run for him:
+
+```
+FORGE_TOKEN=... pnpm connect:forge --provider gitea \
+  --base-url https://git.bpmforge.com --dry-run
+```
+
+`apps/api/src/cli/connect-forge.ts` reads the token from the ENVIRONMENT,
+never from argv — an argument lands in shell history and in `ps` output for
+every user on the box. It encrypts with `TOKEN_ENC_KEY` through the same
+vault helper the API uses (no second credential implementation), validates
+against the live forge BEFORE storing anything, prints the fingerprint and
+never the token, and enqueues the backfill.
+
+**This is not a workaround; it is a missing product feature.** The only way
+into the web UI is GitHub sign-in, so an operator whose GitHub App is not
+registered cannot reach Admin → Connections — including to connect a GITEA
+organisation, which has nothing to do with GitHub. A self-hosted product
+whose first setup step is unreachable without a second vendor's approval
+cannot be bootstrapped. That was the real blocker behind W14-01, and it is
+now gone.
+
+**Proven against the live instance, everything except the credential:** run
+with a deliberately invalid token, the command built the Gitea provider,
+called `git.bpmforge.com`, and reported `bad_token: Credential rejected —
+bad or expired token`. The moment a real token is supplied, the same path
+connects and backfills.
+
+Also closed this round, both flagged by agents about their own work:
+- `KpiRow` had no test at all; the org row now proves a measured value and
+  an unmeasured one still read differently.
+- `FunnelChart` stayed registered in the ECharts bundle after the PR funnel
+  became a bar chart. Removed — nothing renders a funnel now.
+
+The config-drift gate earned its keep: adding `FORGE_TOKEN` turned the
+suite red until it was documented, which is exactly what W11-02 built it
+to do.
+
+Gate: lint clean, typecheck clean, 1,359 unit, 128 web, 105 e2e (1
+skipped), bundle 110.9 KB, four validators pass.
