@@ -3180,3 +3180,55 @@ to do.
 
 Gate: lint clean, typecheck clean, 1,359 unit, 128 web, 105 e2e (1
 skipped), bundle 110.9 KB, four validators pass.
+
+### 2026-08-20 — W15-02/03: the product can be installed without GitHub
+
+Local accounts and generic OIDC both land, and the thing that proves D14 is
+delivered is this: the API now BOOTS AND SIGNS A USER IN with no GitHub
+App configured anywhere. Verified end to end against real Postgres and
+Redis — boot logs `bootstrap: created`, `/auth/login` returns 404 because
+forge sign-in is not offered, local login returns
+`must_change_password: true`, that session gets 401 from
+`/api/v1/me/context`, and after the password change the same session reads
+200 as `admin`.
+
+**The startup validator caught the real gap, and it was mine.** After both
+providers were written the API still refused to start:
+`GITHUB_APP_CLIENT_ID is required`. The W11-02 boot check was enforcing a
+requirement D14 had just removed. Both variables are now optional, the
+GitHub routes only mount when they are set, and `authRoutes` still
+registers regardless because it owns the session all three providers share.
+Without that fix everything else here would have been theatre.
+
+Agent decisions worth knowing about, both recorded in their own files:
+
+- **Local**: scrypt with the parameters stored IN the hash string
+  (`scrypt$N=32768,r=8,p=1,...`), so cost can be raised later without
+  invalidating anyone — and a correct password against weaker params
+  reports `needsRehash` and upgrades silently on login. N=2^15 needs
+  `maxmem` raised above node's 32 MB default; that was verified by running
+  it, not assumed. Unknown email, wrong password, and a federated account
+  whose address was guessed all do one full derivation against a decoy hash
+  and return the same reason-free failure — timing asserted, not claimed.
+- **Local**: the forced-change gate is the SHAPE of the session, not a
+  preHandler — a pending user holds `pendingPasswordChangeUserId` instead
+  of `userId`, so every guarded route rejects it without knowing the gate
+  exists. Honest limit stated by its author: it cannot revoke an
+  already-issued session, so setting `must_change_password` on a live user
+  does nothing until their next login.
+- **OIDC**: the five required rejects each have their own test, and
+  `alg=none` is built with `UnsecuredJWT` because `SignJWT` refuses to
+  produce one — a test that used `SignJWT` would have proved nothing. The
+  subject is the IdP's `sub`, never the email, because email is reassignable
+  at most companies and a new employee would inherit a departed one's
+  account.
+- **OIDC**: the author listed what is NOT implemented rather than letting
+  silence imply conformance — `at_hash`, UserInfo, refresh tokens,
+  logout, request objects, JWE, `max_age`/`acr`, hybrid and implicit flows.
+
+Gate: lint clean, typecheck clean, 1,435 unit (was 1,359), 128 web, 105 e2e
+(1 skipped), four validators pass. 38 documented env variables.
+
+Still open in W15: the sign-in screen (W15-04) and the install docs
+(W15-05). Until W15-04 lands, local and OIDC sign-in exist as endpoints
+with no UI in front of them.

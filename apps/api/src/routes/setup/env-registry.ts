@@ -116,15 +116,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
   {
     name: 'GITHUB_APP_CLIENT_ID',
     scope: 'api',
-    required: true,
-    purpose: 'OAuth client id of YOUR GitHub App (see docs/INSTALL.md).',
-    ifWrong: 'Login fails at the forge with an unhelpful "application not found".',
+    required: false,
+    purpose:
+      'OAuth client id of YOUR GitHub App. OPTIONAL since D14 — set it only if you want "Sign in with GitHub" offered alongside local accounts and OIDC.',
+    ifWrong: 'Forge sign-in is not offered at all when it is absent, which is a supported deployment. Set but wrong, login fails at GitHub with an unhelpful "application not found".',
   },
   {
     name: 'GITHUB_APP_CLIENT_SECRET',
     scope: 'api',
-    required: true,
-    purpose: 'OAuth client secret of your GitHub App.',
+    required: false,
+    purpose: 'OAuth client secret of your GitHub App. Required only alongside GITHUB_APP_CLIENT_ID.',
     ifWrong: 'Login fails at the token exchange, after the user has already approved.',
     secret: true,
   },
@@ -142,6 +143,72 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     purpose: 'Self-hosted Gitea base URL. Absent means github.com.',
     ifWrong: 'Gitea connections point at the wrong host and every sync fails with 404s.',
     validate: isUrl,
+  },
+  {
+    name: 'ADMIN_EMAIL',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Email of the first admin account, created on first boot (D14). Without it — and with no other local account — a fresh install has no way in.',
+    ifWrong:
+      'A typo creates an admin nobody can sign in as. The bootstrap is idempotent on "any local account with a password exists", so correcting the value later does NOT create a second admin; use the admin user-creation route instead.',
+  },
+  {
+    name: 'ADMIN_PASSWORD',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Password for that first admin. It must be changed at first sign-in before anything else is reachable.',
+    ifWrong:
+      'Boot FAILS on a password below the minimum length rather than creating a weak admin. Leaving it set afterwards is inert — bootstrap never overwrites a password that has been changed — but remove it anyway; a live credential in a file is a live credential.',
+    secret: true,
+  },
+  {
+    name: 'OIDC_ISSUER',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Issuer URL of your identity provider, e.g. https://keycloak.example.com/realms/main. Setting the OIDC group at all makes single sign-on the offered option.',
+    ifWrong:
+      'Boot fails if the group is half-configured — on purpose. A partially configured IdP fails at the callback instead, after the user has already authenticated, which is the worst moment to find out.',
+  },
+  {
+    name: 'OIDC_CLIENT_ID',
+    scope: 'api',
+    required: false,
+    purpose: 'Client id your IdP issued for RepoPulse.',
+    ifWrong: 'The IdP rejects the authorization request before the user can approve anything.',
+  },
+  {
+    name: 'OIDC_CLIENT_SECRET',
+    scope: 'api',
+    required: false,
+    purpose: 'Client secret for the token exchange.',
+    ifWrong: 'Sign-in fails at the code exchange, after the user has already approved.',
+    secret: true,
+  },
+  {
+    name: 'OIDC_REDIRECT_URI',
+    scope: 'api',
+    required: false,
+    purpose: 'Callback URL registered with the IdP — <PUBLIC_BASE_URL>/auth/oidc/callback.',
+    ifWrong: 'The IdP refuses to redirect back; most report this as an unregistered redirect URI.',
+  },
+  {
+    name: 'OIDC_SCOPES',
+    scope: 'api',
+    required: false,
+    purpose: 'Scopes requested at sign-in.',
+    ifWrong: 'Dropping `openid` means no ID token comes back and sign-in cannot complete.',
+    default: 'openid profile email',
+  },
+  {
+    name: 'OIDC_DISPLAY_NAME',
+    scope: 'api',
+    required: false,
+    purpose: 'Label on the sign-in button, so it can read "Log in with Acme SSO".',
+    ifWrong: 'Only cosmetic — the button falls back to a generic label.',
+    default: 'Single sign-on',
   },
   {
     name: 'FORGE_TOKEN',

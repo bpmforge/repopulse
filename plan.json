@@ -5079,8 +5079,15 @@
         "No self-service signup exists; an admin creates users"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "scrypt from node:crypto — no hashing dependency to licence or redistribute (D10/D14) and no native module to build. Parameters live IN the stored hash, so cost can be raised later without invalidating anyone; a correct password against weaker params reports needsRehash and upgrades on login. N=2^15 needs maxmem above node default 32 MB — verified by running it, not assumed.",
+        "Unknown email, wrong password, and a federated account whose address was guessed all perform one full derivation against a decoy hash and return the same reason-free failure. Timing asserted in a test, not asserted in prose.",
+        "The forced-change gate is the SHAPE of the session: a pending user holds pendingPasswordChangeUserId instead of userId, so every guarded route rejects it without having heard of the gate. Stated limit: it cannot revoke an already-issued session.",
+        "ensureBootstrapAdmin is idempotent on \"any local account with a password exists\" rather than on the email, so editing ADMIN_EMAIL later does not mint a second admin. It THROWS on a weak ADMIN_PASSWORD — a fresh install whose only credential is \"admin\" should stop and say so.",
+        "PROVEN END TO END with no GitHub App configured: boot logs bootstrap:created, /auth/login 404s, local login returns must_change_password, the gated session gets 401 from /api/v1/me/context, and after the change the same session reads 200 as admin.",
+        "THE STARTUP VALIDATOR CAUGHT MY OWN GAP: the API still refused to boot because W11-02 marked GITHUB_APP_CLIENT_ID required — a requirement D14 had removed. Both are now optional and the GitHub routes only mount when set; authRoutes still registers because it owns the shared session."
+      ]
     },
     {
       "id": "W15-03",
@@ -5104,8 +5111,15 @@
         "Configured entirely from env; an unconfigured deployment simply does not offer the button"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Discovery, PKCE (S256 only) and the code exchange are ours — plain HTTPS, the same shape as the existing GitHub flow. jose (MIT, verified) does only the cryptography: JWKS and signature verification. That split is D14 written down.",
+        "The five rejects each have their own test. alg=none is built with UnsecuredJWT because SignJWT refuses to emit one — a test using SignJWT would have proved nothing, and the test asserts the header really says none.",
+        "auth_subject is the IdP sub, never the email: email is reassignable at most companies, and using it would let a new employee inherit a departed one account.",
+        "Zero network in the suite — an in-process fixture IdP mints tokens against a generated keypair, and the route test exercises the real remote-JWKS path over loopback.",
+        "The author listed what is NOT implemented rather than letting silence imply conformance: at_hash/c_hash, UserInfo, refresh tokens, RP-initiated and channel logout, request objects, JWE, max_age/acr/amr, hybrid and implicit flows, PKCE plain (rejected on purpose).",
+        "Registered only when configured; a PARTIAL configuration throws at boot on purpose, because the alternative is failing at the callback after the user has already authenticated with their IdP."
+      ]
     },
     {
       "id": "W15-04",
