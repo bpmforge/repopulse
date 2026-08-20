@@ -4177,7 +4177,7 @@
         "Every step runnable by a customer admin with no repo checkout and no bpmforge access"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "SC-21 restore drill exists for OUR install (W7-06). This is the customer-facing equivalent: they cannot ssh to bpmforge infra or read plan.json."
       ]
