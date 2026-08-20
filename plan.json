@@ -4177,9 +4177,17 @@
         "Every step runnable by a customer admin with no repo checkout and no bpmforge access"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "SC-21 restore drill exists for OUR install (W7-06). This is the customer-facing equivalent: they cannot ssh to bpmforge infra or read plan.json."
+        "SC-21 restore drill exists for OUR install (W7-06). This is the customer-facing equivalent: they cannot ssh to bpmforge infra or read plan.json.",
+        "ALL FOUR procedures EXECUTED against the running compose stack, not written from the compose file. The install was populated first (workspace, connection, 3 repos) so the assertions are about data that existed.",
+        "Upgrade was a genuine N->N+1: the running install was 5 migrations behind, so the drill applied 5->22 with data preserved. Downtime measured at 44 seconds from `down` to /healthz 200 on a warm image cache.",
+        "Restore verified into a scratch Postgres container: dump loaded, migrations applied, and the TENANCY SUITE ran green against the restored database (5 passed). Rollback executed: pre-upgrade dump restored, schema back to 26 tables and 5 migrations with data intact, then rolled forward to 22.",
+        "THREE DEFECTS FOUND BY RUNNING IT, each of which would have hit a customer. (1) pg_dump --clean cannot restore an OLDER dump into a NEWER schema — it fails part-way on constraints added by later migrations and leaves the database half-restored; restore.sh now drops public and drizzle outright. (2) The rollback silently un-rolled itself: `compose up -d` starts the one-shot migrate service as a dependency of the API, so the migrations just skipped re-applied within seconds and reported success; fixed with --no-deps and named services. (3) The worker could not be recreated at all — the scratch tmpfs long form renders as mode=448 under podman-compose and crun rejects it; switched to the short form. Also: SCAN_RULES_DIR must be ABSOLUTE and its directory must exist before up, so deploy/scan-rules now ships empty with a README.",
+        "MY OWN DRILL HAD A BUG, recorded because the number would otherwise be wrong: the first downtime measurement polled port 8080, which is a different application on this machine, so it answered 200 instantly. RepoPulse is on 8099 here. The 44s figure is the re-run against the correct port.",
+        "ACCEPTANCE 3 IS PARTIAL AND SAYS SO: rolling the DATA back is proven; rolling the CODE back needs versioned image tags, which W11-01 is blocked on. The runbook states this and tells the operator to tag images before upgrading.",
+        "Acceptance 4: every command in docs/RUNBOOK.md runs from deploy/compose.yaml, deploy/.env and a container runtime — no repo checkout, no bpmforge access, docker/podman interchangeable. Container discovery uses the compose LABEL rather than `compose ps -q`, which podman-compose does not accept.",
+        "Gate: lint clean, typecheck clean, 1289 unit tests pass, 81 web, 104 e2e (1 skipped), validate-arch/plan/traceability/compose all PASS."
       ]
     },
     {
