@@ -3761,8 +3761,22 @@
         "Nightly risk.reprice job (after metrics.snapshot) re-prices open findings for EPSS/hotspot/precision drift; band crossings write exactly one finding_events row (reason='reprice'); job idempotent (FR-RISK-4)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. effective_risk = 100·H·L·X as a pure function, catalog-versioned constants, the decomposition persisted per finding, act/schedule/track bands, migration 0019 (risk_factors + risk_band + effective_risk with the D12 index), and the nightly reprice.",
+        "NO MODEL IS INVOLVED ANYWHERE IN PRICING, and that is the point rather than an omission: this number decides what a team works on next, and a score a model produced could not be reproduced, defended or argued with.",
+        "THE DECOMPOSITION IS STORED BESIDE THE SCORE, NOT DERIVED ON READ, and a test proves recompute-from-served-factors reproduces the stored number exactly. That is what the UI popover rests on — if the two ever diverged, the arithmetic shown to a user would not be the arithmetic that produced their number. Absent inputs are stored as explicit nulls: a null EPSS says \"no feed\", an omitted key would say nothing.",
+        "FLOORS ARE LOAD-BEARING, NOT DECORATION. Cold-file exposure floors at 0.25 so a critical finding in a file nobody touches ranks below the same finding in a hot one and STAYS ON THE LIST. proven_unreachable is 0.2 rather than 0 because a proof of unreachability is a proof about today's call graph, and the next refactor is what makes it wrong. A dev-scoped proven-unreachable CVE therefore lands in `track` with a real, non-zero score — the acceptance asked for exactly that.",
+        "A RULE WITH NO LIFECYCLE STATS PRICES AT 0.7, NOT 1.0. Unmeasured is not perfect, and pricing it as perfect would float every brand-new rule to the top of the list on its first day — which is precisely what W9-07 shadow mode exists to prevent.",
+        "UNKNOWN IS NOT ZERO, THREE TIMES OVER: a dependency with no EPSS and no KEV gets the 0.05 floor (we do not KNOW it is exploited); unknown reachability is priced as manifest_only, never as proven; and a file with no hotspot snapshot is priced at FULL exposure, because \"we have not measured this file\" must not quietly discount a real finding.",
+        "OVERRIDES GO STRAIGHT TO `act` WHATEVER THE ARITHMETIC SAYS — KEV, verified secret, chain, compound. In each case the score is a summary of an argument that has already been made.",
+        "BAND CROSSINGS ARE AUDITED, SCORE WOBBLES ARE NOT. \"This climbed into Act overnight\" is a question someone will ask; \"41.2 became 41.7\" is noise, and an event for it would bury the transitions that matter. The reprice is idempotent — a second run over unchanged inputs writes no events, asserted.",
+        "THE REPRICE RUNS INSIDE THE SNAPSHOT JOB, not as a separate cron: the hotspot percentiles it reads are the ones that snapshot just wrote, and a separate job would race the write it depends on — a scoreboard lagging a day behind its own inputs. The precision prior is one grouped query per pass rather than one per finding.",
+        "HOTSPOT PERCENTILE IS WITHIN THE REPO, because a raw hotspot score means nothing across repositories of different sizes.",
+        "THE DEPENDENCY HALF IS BUILT AND CORRECTLY INERT. EPSS, KEV, dep_scope and reachability are all priced per RISK_MODEL §2 and fixture-proven, but no dependency findings exist while W8-06/W8-13 are parked — so today those inputs resolve to their documented floors. When the feed lands, the pricer starts returning real numbers with nothing else changing. That is the D10-parity requirement met honestly rather than by pretending to have data.",
+        "SCOPE NOTE: the reprice wiring lives in apps/api/src/workers/processors.ts (outside the ticket's write_scope) because a nightly job nobody calls is the defect this codebase has shipped most often.",
+        "GATE: lint 0, typecheck 0, 1115 unit tests (was 1088), zero skipped; pnpm -r test green; 101 e2e passed (1 skipped real-forge smoke); validate-arch, validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W9-10",

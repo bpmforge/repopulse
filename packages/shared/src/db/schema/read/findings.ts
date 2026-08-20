@@ -4,6 +4,7 @@ import {
   check,
   jsonb,
   index,
+  numeric,
   integer,
   pgTable,
   smallint,
@@ -93,9 +94,27 @@ export const findings = pgTable(
      * make "unknown" a third state nobody would handle.
      */
     experimental: boolean('experimental').notNull().default(false),
+    /**
+     * W9-09 risk pricing (RISK_MODEL.md §2, DATABASE.md D12).
+     *
+     * effective_risk is 100·H·L·X. The DECOMPOSITION is stored beside it, not
+     * derived on read: the number decides what a team works on next, and a
+     * score whose inputs are gone cannot be argued with — only obeyed.
+     */
+    effectiveRisk: numeric('effective_risk', { precision: 6, scale: 2 }),
+    riskFactors: jsonb('risk_factors').$type<Record<string, unknown>>(),
+    riskBand: text('risk_band'),
   },
   (t) => [
     unique('findings_workspace_repo_dedup_key').on(t.workspaceId, t.repoId, t.dedupKey),
+    // W9-09 (DATABASE.md D12): every risk surface sorts by effective_risk
+    // within a workspace/repo/status scope, and that is the whole index.
+    index('findings_workspace_repo_risk_idx').on(
+      t.workspaceId,
+      t.repoId,
+      t.status,
+      t.effectiveRisk.desc(),
+    ),
     // Findings filters (DATABASE.md §3 hot-path index)
     index('findings_workspace_repo_dimension_severity_status_idx').on(
       t.workspaceId,
