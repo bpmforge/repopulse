@@ -3873,8 +3873,19 @@
         "Section data resolved at snapshotAt (FR-REPORTS-1 determinism); band chips + raw severity both present in the PDF"
       ],
       "points": 3,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. repo_health, org_exec and security_posture now open with top risks, the band denominators, and movement since the previous same-scope report; the axis letter row is built and fixture-proven.",
+        "MOVEMENT IS READ FROM finding_events BETWEEN THE TWO PINS — the same mechanism the plans movement section uses, and for the same reason: the events are what the product recorded AT THE TIME, so the comparison is reproducible rather than recomputed from today's data against a remembered number. An event after the pin is ignored, asserted.",
+        "A TOP-5 THAT LOOKS IDENTICAL EVERY MONTH TEACHES PEOPLE TO SKIP THE FIRST PAGE, which is why movement is half the section rather than a footnote. \"Nothing crossed a band\" is rendered as a RESULT with that wording, not as an empty section.",
+        "THE DENOMINATOR HAS ITS OWN SECTION so it cannot be cropped away from the table above it, and unpriced findings are counted separately with the words \"not judged low-risk\" attached — folding them into `track` would be the product claiming a judgement the nightly job has not made.",
+        "SHADOW-RULE FINDINGS ARE EXCLUDED EVEN AT RISK 99, asserted with a fixture: a document sent to an auditor must not carry findings from a rule still being trialled (W9-07).",
+        "BAND AND RAW SEVERITY ARE BOTH IN THE PDF ROW. The composite never appears without the number a reader already understands.",
+        "THE AXIS ROW TAKES SUB-SCORES RATHER THAN DERIVING THEM. A letter computed in the report would be a second scoring system with the same name as the first. An absent sub-score renders \"—\" with \"not measured for this scope\" beside it, and an entirely unscored scope renders NOTHING rather than a grid of dashes — FR-INSIGHTS-3's fake-grade rule, twice.",
+        "THE OPENER LEADS THREE REPORT TYPES, NOT ALL FIVE: delivery_dora and code_health answer a different question, and a top-risks table at the head of a DORA report would be the product deciding what the reader came for.",
+        "NOT DONE, RECORDED: axisSection is built, tested and exported but not yet CALLED by the assembler — it needs the health sub-scores in the report path, which the assembler does not currently compute. That is the same missing piece as W9-11's header letters (carry-forward item 5), and wiring one half of it here would put a letter row in a PDF while the screen beside it has none.",
+        "GATE: lint 0, typecheck 0, 1138 unit tests (was 1128), zero skipped; pnpm -r test green; 102 e2e passed (1 skipped real-forge smoke); validate-arch, validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W10-01",
