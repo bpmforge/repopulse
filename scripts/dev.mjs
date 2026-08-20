@@ -21,6 +21,7 @@
 // every other entrypoint works. playwright.config.ts carries the same note for
 // the same reason.
 import 'dotenv/config';
+import { PORTS, urlFor } from '../ports.config.mjs';
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { createInterface } from 'node:readline';
@@ -36,9 +37,9 @@ const DEMO = (() => {
 })();
 
 const PROCS = [
-  { name: 'api', color: '\x1b[36m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', DEMO ? 'demo' : 'dev'], port: Number(process.env.PORT ?? 3000) },
+  { name: 'api', color: '\x1b[36m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', DEMO ? 'demo' : 'dev'], port: PORTS.api },
   { name: 'worker', color: '\x1b[35m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', 'dev:worker'] },
-  { name: 'web', color: '\x1b[32m', cmd: 'pnpm', args: ['--filter', '@repopulse/web', 'dev'], port: 5173 },
+  { name: 'web', color: '\x1b[32m', cmd: 'pnpm', args: ['--filter', '@repopulse/web', 'dev'], port: PORTS.web },
 ];
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
@@ -81,9 +82,12 @@ if (missingEnv.length > 0) {
 }
 
 // Preflight every port first. Starting the stack and letting the third process
-// die on EADDRINUSE leaves two orphans running and a confusing error; a compose
-// dev stack already holds 3000 on at least one machine here, which is exactly
-// what E2E_API_PORT exists to work around.
+// die on EADDRINUSE leaves two orphans running and a confusing error.
+//
+// The ports themselves live in ports.config.mjs, deliberately outside the
+// framework defaults: 5173, 3000 and 3001 are what every other project on a
+// machine also picks, and sharing a machine with one is enough to lose an e2e
+// run to a port conflict.
 const taken = [];
 for (const p of PROCS) {
   if (p.port && (await portInUse(p.port))) taken.push(`${p.name} (:${p.port})`);
@@ -94,13 +98,13 @@ if (taken.length > 0) {
       `  Something is already listening. Common cause: the deploy/compose.yaml\n` +
       `  stack, or a previous \`pnpm dev\` that did not shut down.\n\n` +
       `    podman ps                 # see what is running\n` +
-      `    PORT=3010 pnpm dev        # or move the API out of the way\n`,
+      `    PORT=3320 pnpm dev        # or move the API out of the way\n`,
   );
   process.exit(1);
 }
 
 // The web dev server proxies /api and /auth to API_PROXY_TARGET, which
-// defaults to :3000. So `PORT=3010 pnpm dev` — the workaround this script
+// defaults to the api port. So `PORT=3320 pnpm dev` — the workaround this script
 // itself prints on a port conflict — moved the API but left the browser
 // talking to whatever was still on 3000. Found by running the documented
 // quickstart on a clean clone (W13-05). Setting it from PORT here makes the
@@ -152,7 +156,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => shutdown(0));
 console.log(
   (DEMO ? `\n  \x1b[33mDEMO MODE\x1b[0m — fake forge, mocked sign-in, seeded data\n` : '') +
     `\n  api    http://localhost:${PROCS[0].port}\n` +
-    `  web    http://localhost:5173\n` +
+    `  web    ${urlFor('web')}\n` +
     `  worker (ingestion queues)\n\n` +
     `  Ctrl-C stops all three.\n`,
 );

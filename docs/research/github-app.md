@@ -102,8 +102,8 @@ would just mean GitHub failing every webhook delivery against a dead host.
 ### 2b. Localhost dev OAuth app (local login; registerable independently, no prod domain)
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**.
-2. **Homepage URL**: `http://localhost:5173`
-3. **Authorization callback URL**: `http://localhost:3000/auth/callback` (matches
+2. **Homepage URL**: `http://localhost:5273`
+3. **Authorization callback URL**: `http://localhost:3300/auth/callback` (matches
    `API_BASE_URL` in `.env.example`).
 4. Register, generate a **Client secret**. Note the **Client ID** + **Client secret**.
 
@@ -119,7 +119,7 @@ would just mean GitHub failing every webhook delivery against a dead host.
 | Webhook URL | `https://repopulse.bpmforge.com/webhooks/github` |
 | Webhook events | pull_request, push, check_run, check_suite, issues, deployment |
 | Dev OAuth app Client ID | _pending_ |
-| Dev OAuth app callback | `http://localhost:3000/auth/callback` |
+| Dev OAuth app callback | `http://localhost:3300/auth/callback` |
 
 Non-secret values (ids) go in the table above. Secrets (Client secrets, private key,
 webhook secret) go only into the gitignored `.env`, never here.

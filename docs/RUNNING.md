@@ -24,7 +24,7 @@ pnpm bootstrap          # NOT `pnpm setup` — see below
 DEMO_MODE=1 pnpm dev
 ```
 
-Open <http://localhost:5173> and sign in. The sign-in is mocked: any login
+Open <http://localhost:5273> and sign in. The sign-in is mocked: any login
 lands you as the fixture user.
 
 Everything you see is fake — a seeded warehouse of three invented repositories,
@@ -52,13 +52,39 @@ at the login screen instead of here.
 
 ---
 
+## Ports
+
+RepoPulse deliberately does not use the framework defaults. `5173` (Vite),
+`3000` and `3001` are what every other project on a machine also picks, and
+sharing a machine with one of them is enough to lose a test run — Playwright
+found `5173` held by an unrelated app and refused to start.
+
+| What | Port | Override |
+|---|---|---|
+| API (dev) | 3300 | `PORT` |
+| Worker healthz | 3301 | `WORKER_HEALTH_PORT` |
+| Web dev server | 5273 | `WEB_PORT` |
+| e2e API | 3310 | `E2E_API_PORT` |
+| e2e worker healthz | 3311 | `E2E_WORKER_HEALTH_PORT` |
+| e2e fake forge | 9099 | `E2E_FAKE_FORGE_PORT` |
+| Container stack (web) | 8099 | `REPOPULSE_PORT` in `deploy/.env` |
+
+The defaults live in **`ports.config.mjs`**, which the dev runner, the Vite
+config and the Playwright config all import — one file, so they cannot drift
+apart and leave a documented URL pointing at nothing. The e2e ports are
+separate from the dev ports on purpose: a `pnpm dev` left running in another
+terminal must not be mistaken for the API under test.
+
+The web dev server uses `strictPort`, so a collision fails loudly instead of
+silently sliding to 5274 and making every documented URL wrong.
+
 ## Dev stack
 
 Same as above, plus a GitHub OAuth app so you can connect a real organisation.
 
 1. Register an OAuth app at <https://github.com/settings/developers>:
-   - **Homepage URL** `http://localhost:5173`
-   - **Authorization callback URL** `http://localhost:3000/auth/callback`
+   - **Homepage URL** `http://localhost:5273`
+   - **Authorization callback URL** `http://localhost:3300/auth/callback`
 2. Put the client id and secret in `.env`:
    ```
    GITHUB_APP_CLIENT_ID=Iv1.xxxxxxxxxxxx
@@ -72,9 +98,9 @@ fill and nothing drains, which looks like ingestion being broken.
 
 | | |
 |---|---|
-| web | <http://localhost:5173> |
-| api | <http://localhost:3000> |
-| worker healthz | <http://localhost:3001/healthz> |
+| web | <http://localhost:5273> |
+| api | <http://localhost:3300> |
+| worker healthz | <http://localhost:3301/healthz> |
 
 Ctrl-C stops all three.
 
@@ -94,7 +120,7 @@ cp deploy/.env.example deploy/.env
 podman compose -f deploy/compose.yaml up -d
 ```
 
-Then open `http://localhost:8080` (`REPOPULSE_PORT`).
+Then open `http://localhost:8099` (`REPOPULSE_PORT`).
 
 Generate each secret with `openssl rand -hex 32`. `deploy/.env` is gitignored
 and must stay that way: `TOKEN_ENC_KEY` decrypts every stored forge credential,
@@ -208,7 +234,7 @@ REQUIRE_LIVE_INFRA=1 pnpm test
 
 ## Troubleshooting
 
-**`Port already in use: api (:3000)`** — something else is listening, commonly
+**`Port already in use: api (:3300)`** — something else is listening, commonly
 the `deploy/compose.yaml` stack. `podman ps` to see, then either stop it or
 `PORT=3010 pnpm dev`. In demo mode the OAuth callback follows whatever port you
 choose.

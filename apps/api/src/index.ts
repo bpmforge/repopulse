@@ -54,7 +54,11 @@ const app = buildApp({
   loginRedirectUrl: `${publicBaseUrl}/`,
 });
 
-const port = Number(process.env.PORT ?? 3000);
+// 3300, not 3000: 3000 is what every Node project defaults to, and sharing a
+// machine with one more of them is enough to lose an afternoon. See
+// ports.config.mjs — this literal is the same block, spelled here because the
+// shipped container must not import a dev-tooling file.
+const port = Number(process.env.PORT ?? 3300);
 
 app.listen({ port, host: '0.0.0.0' }).catch((err) => {
   app.log.error(err);

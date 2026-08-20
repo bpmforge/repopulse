@@ -5,6 +5,7 @@ import { createDb } from '@repopulse/shared';
 // is e2e/** for exactly this reason.
 import { buildApp } from '../apps/api/src/app.js';
 import { startFakeForge, startFakeGithub } from '@repopulse/shared';
+import { PORTS } from '../ports.config.mjs';
 
 // e2e API server (W4-00, docs/TESTING.md §6).
 //
@@ -21,9 +22,9 @@ function requireEnv(name: string): string {
   return value;
 }
 
-const port = Number(process.env.E2E_API_PORT ?? 3000);
+const port = Number(process.env.E2E_API_PORT ?? PORTS.e2eApi);
 const apiBaseUrl = process.env.E2E_API_BASE_URL ?? `http://localhost:${port}`;
-const webBaseUrl = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
+const webBaseUrl = process.env.E2E_BASE_URL ?? `http://localhost:${PORTS.web}`;
 
 const github = await startFakeGithub(Number(process.env.E2E_FAKE_GITHUB_PORT ?? 0));
 // Data-plane fake: the connect flow and ingestion talk to this instead of

@@ -157,7 +157,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     required: false,
     purpose: 'API listen port.',
     ifWrong: 'The reverse proxy cannot reach the API.',
-    default: '3000',
+    default: '3300',
   },
   {
     name: 'NODE_ENV',
@@ -173,7 +173,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     required: false,
     purpose: 'Port for the worker /healthz endpoint.',
     ifWrong: 'Container health checks fail and the orchestrator restarts a healthy worker.',
-    default: '3001',
+    default: '3301',
   },
   {
     name: 'DATA_DIR',
@@ -258,7 +258,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     required: false,
     purpose: 'Dev-server proxy target for /api. Not used in a container install.',
     ifWrong: 'The dev server cannot reach the API; production uses nginx instead.',
-    default: 'http://localhost:3000',
+    default: 'http://localhost:3300',
   },
   {
     name: 'DEMO_GITHUB_PORT',

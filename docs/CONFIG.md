@@ -38,7 +38,7 @@ every variable at fault. The API will not half-boot.
 | `GITHUB_APP_ID` | no | — | Numeric App id, used for App-authenticated (installation) calls. | App-token flows are unavailable; PAT connections still work. |
 | `FORGE_BASE_URL` | no | — | Self-hosted Gitea base URL. Absent means github.com. | Gitea connections point at the wrong host and every sync fails with 404s. |
 | `FORGE_ALLOW_INSECURE_LOOPBACK` | no | `unset` | Permits an http:// loopback forge URL. FOR LOCAL DEVELOPMENT ONLY. | Set in production, it allows an unencrypted forge connection. |
-| `PORT` | no | `3000` | API listen port. | The reverse proxy cannot reach the API. |
+| `PORT` | no | `3300` | API listen port. | The reverse proxy cannot reach the API. |
 | `DEMO_GITHUB_PORT` | no | `4010` | Port for the demo-mode fake GitHub. Development only. | Demo mode fails to start. Not read in a normal install. |
 | `DEMO_FORGE_PORT` | no | `4011` | Port for the demo-mode fake forge. Development only. | Demo mode fails to start. Not read in a normal install. |
 
@@ -46,7 +46,7 @@ every variable at fault. The API will not half-boot.
 
 | Variable | Required | Default | Purpose | If it is wrong |
 | --- | --- | --- | --- | --- |
-| `WORKER_HEALTH_PORT` | no | `3001` | Port for the worker /healthz endpoint. | Container health checks fail and the orchestrator restarts a healthy worker. |
+| `WORKER_HEALTH_PORT` | no | `3301` | Port for the worker /healthz endpoint. | Container health checks fail and the orchestrator restarts a healthy worker. |
 | `SNAPSHOT_ROOT` | no | `the system temp directory` | Scratch directory for C1a scan snapshots. Cleared by the sweeper. | Scans fail to extract; a non-ephemeral path retains customer source longer than intended. |
 | `SCAN_IMAGE` | no | `localhost/repopulse/scan:dev` | Container image the sandboxed scanners run in. | Every tool-based scan fails to start; findings silently stop appearing. |
 | `RECONCILE_CRON` | no | `17 3 * * *` | Nightly reconcile sweep schedule. 'off' disables it. | Drift between the forge and the warehouse is never corrected. |
@@ -60,7 +60,7 @@ every variable at fault. The API will not half-boot.
 
 | Variable | Required | Default | Purpose | If it is wrong |
 | --- | --- | --- | --- | --- |
-| `API_PROXY_TARGET` | no | `http://localhost:3000` | Dev-server proxy target for /api. Not used in a container install. | The dev server cannot reach the API; production uses nginx instead. |
+| `API_PROXY_TARGET` | no | `http://localhost:3300` | Dev-server proxy target for /api. Not used in a container install. | The dev server cannot reach the API; production uses nginx instead. |
 
 ## Generating the secrets
 
