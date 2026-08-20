@@ -4026,7 +4026,7 @@
         "No coverage ingestion code exists (parked decision — grep gate in test); D12 pricing + decomposition on all fixture findings (FR-REG-7)"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
