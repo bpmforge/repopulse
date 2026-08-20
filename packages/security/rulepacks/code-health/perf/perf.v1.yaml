@@ -1,0 +1,195 @@
+# bpm-rulepacks — performance v1 (W9-08, CODE_HEALTH_SUITE.md §9.1).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# These are STRUCTURAL patterns, not benchmarks. None of them claims a speedup:
+# the checklist that came before this pack (performance.v2, W9-05) explicitly
+# forbids quoting the widely-cited try/catch multiplier, and a rule cannot know an
+# engine version either. Each message says what the SHAPE costs and leaves the
+# measurement to whoever profiles it.
+#
+# Severity tops out at WARNING (3 in our scale — see output.ts). A performance
+# shape is not exploitable, and a rule that outranks a real vulnerability in a
+# sorted list is a mis-sorted list. Semgrep takes keywords here, not numbers:
+# a numeric severity fails the whole PACK to load, which is the failure W8-07
+# built tool-error surfacing for.
+rules:
+  - id: bpm-perf-orm-call-in-loop
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      A database call inside a loop. N rows means N round trips, and the cost
+      grows with data nobody controls — this is the shape behind most "it was
+      fast in staging" reports.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    # pattern-inside + pattern, not one big block pattern: a JS `for (...) { ...
+    # $CALL ... }` does not parse as a semgrep pattern (the body ellipsis needs
+    # statements around it), and the whole RULE fails to load rather than the
+    # match failing — which is silent unless someone reads the tool errors.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+      # `for await (...)` is NOT here: semgrep's JS parser rejects it as a
+      # pattern, and a rule that fails to parse takes the whole rule down
+      # silently. An async iteration over a cursor is also the one loop where a
+      # per-item DB call is often correct.
+      - pattern: $DB.$M(...)
+      # A call inside a BOUNDED batch is the fix, not the defect — same
+      # reasoning as await-in-loop above, and again the clean fixture is what
+      # caught it.
+      - pattern-not-inside: Promise.all(...)
+      - metavariable-regex:
+          metavariable: $M
+          # The ORM surfaces this codebase and its customers actually use.
+          regex: ^(query|execute|findUnique|findFirst|findMany|select|insert|update|delete|raw|get|all|one)$
+
+  - id: bpm-perf-await-in-loop
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      An await inside a loop serialises work that may be independent. If the
+      iterations do not depend on each other, the loop is N times its own
+      latency for no reason — and if they do, a comment saying so saves the
+      next reader the analysis.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+      - pattern: await $X
+      # A transaction genuinely has to be awaited in sequence.
+      - pattern-not: await $DB.transaction(...)
+      # Awaiting a BOUNDED batch inside a loop is the fix this rule asks for —
+      # firing on it would make the rule impossible to satisfy. The clean
+      # fixture is what caught that.
+      - pattern-not: await Promise.all(...)
+
+  - id: bpm-perf-sync-io-in-async
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Synchronous filesystem work inside an async function. It blocks the event
+      loop, so every other request waits — including the health check that would
+      have told you.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-inside: |
+          async function $F(...) { ... }
+      - pattern-either:
+          - pattern: readFileSync(...)
+          - pattern: writeFileSync(...)
+          - pattern: readdirSync(...)
+          - pattern: existsSync(...)
+          - pattern: $FS.readFileSync(...)
+          - pattern: $FS.writeFileSync(...)
+
+  - id: bpm-perf-json-deep-clone
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      JSON.parse(JSON.stringify(x)) as a deep clone. It allocates the whole
+      structure twice, drops undefined, Dates, Maps and Sets, and throws on a
+      cycle — structuredClone does the job without the surprises.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern: JSON.parse(JSON.stringify($X))
+
+  - id: bpm-perf-regex-compile-in-loop
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      A regular expression constructed inside a loop. Each iteration compiles it
+      again; hoisting it out is a one-line change and the only reason not to is
+      that the pattern itself varies per iteration.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+      - pattern: new RegExp(...)
+
+  - id: bpm-perf-string-concat-in-loop
+    languages: [javascript, typescript]
+    severity: INFO
+    message: >-
+      Building a string by repeated concatenation in a loop. Modern engines
+      optimise the simple case well, so this is a note rather than a problem —
+      push to an array and join when the loop is large or hot.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+      - pattern: $S += $X
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?i).*(str|text|html|sql|query|out|buf|result|body|message|content).*
+
+  - id: bpm-perf-unbounded-promise-all
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Promise.all over a mapped collection with no concurrency limit. One
+      promise per element means the fan-out is whatever the data happens to be —
+      fine for ten rows, an outage for ten thousand.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: await Promise.all($ROWS.map(...))
+          - pattern: Promise.all($ROWS.map(...))
+      # A slice IS the bound. The clean fixture caught this: batching ten at a
+      # time is the fix this rule asks for, and firing on it would make the
+      # rule impossible to satisfy.
+      - pattern-not: await Promise.all($X.slice(...).map(...))
+      - pattern-not: Promise.all($X.slice(...).map(...))
+
+  - id: bpm-perf-orm-call-in-loop-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A database call inside a loop. N rows means N round trips, and the cost
+      grows with data nobody controls.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              for $ROW in $ROWS:
+                  ...
+                  $DB.$M(...)
+      - metavariable-regex:
+          metavariable: $M
+          # SQLAlchemy / Django / raw DB-API surfaces.
+          regex: ^(execute|query|get|filter|all|first|one|fetchone|fetchall|save)$
