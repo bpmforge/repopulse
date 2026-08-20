@@ -2766,3 +2766,41 @@ W7-07 blocker), and a customer LM Studio endpoint for the Tier-2 half.
 scratch org, and an hour following `docs/INSTALL.md` top to bottom without
 reading the code — recording every place the docs are wrong, ambiguous or
 silent. The doc gaps are the deliverable, not the install.
+
+### 2026-08-19 — W14-03 parked: the workflow exists, the runner cannot
+
+`.gitea/workflows/gate.yaml` is written and mirrors the GitHub gate step
+for step — lint, typecheck, `pnpm test` with `REQUIRE_LIVE_INFRA=1`
+against Postgres + Redis services, the bundle budget, and the four
+validators. Its structure was parsed and diffed against
+`.github/workflows/ci.yml`; the only difference in the gate job is one
+step's display name.
+
+**It has never run, and I am not able to make it run.** Two of the four
+acceptance items need things only Brad can provide:
+
+- **A runner registration token**, minted by a Gitea admin. Without it
+  `act_runner register` cannot complete.
+- **Permission to install a persistent daemon** on a host, since the
+  acceptance requires the runner to survive a reboot. Installing a
+  background service that outlives the session is not something I should
+  do silently on someone's machine.
+
+Acceptance 3 — "a deliberately broken commit turns the gate RED, proven,
+not assumed" — is therefore unreachable from here, and it is the item that
+matters most. A CI system nobody has seen fail is a CI system nobody has
+tested.
+
+**The GitHub workflow is deliberately still in place** (acceptance 4 says
+remove it). Deleting it before the replacement is proven would leave the
+repository with no CI definition at all. That is a sequencing judgement,
+not an oversight: remove it in the same change that first shows a red
+Gitea run.
+
+**Needed from Brad:** the registration token, a host to run the daemon on,
+and a yes to installing it. `docs/RUNNING.md` now carries the exact
+register command and the launchd/systemd note.
+
+Reminder of the standing context: **no green check in this repository has
+ever meant anything.** Every gate this project has passed was run locally,
+and that is still true today.

@@ -4882,12 +4882,18 @@
         "The GitHub workflow is removed or reduced to nothing, and README/RUNNING say where CI now lives"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "blocked",
       "notes": [
         "FILED 2026-08-19. Brad: GitHub should be repo storage only; Actions costs too much. It has also never run even once — 100 of 100 runs failed at job creation on an Actions budget — so there is no CI history to migrate, only a gate to make real for the first time.",
         "Gitea is 1.26.2, which supports Actions (1.19+). No act_runner is registered yet. Registration needs a runner token from the Gitea admin UI — a human step.",
         "Port the W12-10 job as-is: it already carries the postgres/redis services, the migrate step and REQUIRE_LIVE_INFRA=1. Do not re-derive it.",
-        "THE RED CHECK IS THE ACCEPTANCE CRITERION THAT MATTERS. A CI system nobody has seen fail is indistinguishable from one that cannot fail — which is exactly the state GitHub Actions was in here for four months."
+        "THE RED CHECK IS THE ACCEPTANCE CRITERION THAT MATTERS. A CI system nobody has seen fail is indistinguishable from one that cannot fail — which is exactly the state GitHub Actions was in here for four months.",
+        "BLOCKED 2026-08-19. The workflow is written (.gitea/workflows/gate.yaml) and mirrors the GitHub gate step for step — parsed and diffed against .github/workflows/ci.yml, the only difference in the gate job being one step display name. What cannot be done here is everything that makes it real.",
+        "Acceptance 2 needs a RUNNER REGISTRATION TOKEN, which only a Gitea admin can mint, and permission to install a persistent daemon on a host — the acceptance requires surviving a reboot, and installing a background service that outlives the session is not something to do silently on someone machine.",
+        "Acceptance 3 — a deliberately broken commit turns the gate RED, proven not assumed — is unreachable without a runner, and it is the item that matters most. A CI system nobody has seen fail is a CI system nobody has tested.",
+        "Acceptance 4 (remove the GitHub workflow) is deliberately NOT done, as a sequencing judgement rather than an oversight: deleting it before the replacement is proven would leave the repo with no CI definition at all. Remove it in the same change that first shows a red Gitea run.",
+        "TO UNBLOCK, from Brad: a registration token, a host for the daemon, and a yes to installing it. docs/RUNNING.md now carries the exact `act_runner register` command with labels, the launchd/systemd note, and the instruction to prove RED before trusting green.",
+        "Standing context restated in docs/RUNNING.md because it keeps mattering: no green check in this repository has ever meant anything. GitHub Actions has never run (no billing); every gate this project has passed was run locally."
       ]
     },
     {

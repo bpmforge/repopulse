@@ -1,0 +1,106 @@
+# RepoPulse gate on Gitea Actions (W14-03).
+#
+# THIS WORKFLOW HAS NEVER RUN. There is no runner registered against
+# git.bpmforge.com yet, and registering one needs a token only a Gitea admin
+# can mint plus a decision about installing a persistent daemon on a machine.
+# Both are recorded in docs/STATUS.md. Treat every step below as written but
+# unexecuted until that changes — the point of moving CI here is to have a
+# gate that actually runs, and a green badge from a workflow nobody has
+# executed would be the opposite.
+#
+# The GitHub workflow is deliberately still in place. Removing it before this
+# one is proven would leave the repository with no CI at all, which is worse
+# than having one that has never been billed.
+#
+# Gitea Actions is act-based and reads GitHub's schema, so the shapes here
+# mirror .github/workflows/ci.yml on purpose: two files that drift are two
+# different definitions of "the gate passed".
+
+name: gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gate:
+    name: lint / typecheck / test / validators
+    # act_runner labels decide this. `ubuntu-latest` maps to whatever image the
+    # runner was registered with; a self-hosted runner registered with the
+    # `host` label runs directly on the machine instead, which is what a local
+    # runner with podman available wants.
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: repopulse
+          POSTGRES_PASSWORD: repopulse_ci_password
+          POSTGRES_DB: repopulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U repopulse -d repopulse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7.2
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://repopulse:repopulse_ci_password@localhost:5432/repopulse
+      REDIS_URL: redis://localhost:6379
+      # Without this a missing data tier turns 37 test files into skips and the
+      # run exits 0 over a subset nobody declared. If this line goes, the gate
+      # goes back to lying.
+      REQUIRE_LIVE_INFRA: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: migrate
+        run: pnpm db:migrate
+
+      - name: lint
+        run: pnpm lint
+
+      - name: typecheck
+        run: pnpm typecheck
+
+      - name: test
+        run: pnpm test
+
+      - name: check:bundle (initial JS <= 200KB gz)
+        run: pnpm check:bundle
+
+      - name: validate-arch (module boundary law)
+        run: bash scripts/validate-arch.sh
+
+      - name: validate-compose (SC-20 baseline + customer env documentation)
+        run: bash scripts/validate-compose.sh
+
+      - name: validate-plan (ticket board schema/deps/gates)
+        run: node scripts/validate-plan.mjs
+
+      - name: validate-traceability (FR/story/doc linkage)
+        run: node scripts/validate-traceability.mjs
