@@ -20,12 +20,13 @@ const healthy: MetricSet = {
   M9: { value: 0.98, dims: { topFlakiness: 0.01, duration: { p90: 10, median: 9 } } },
 };
 
-describe('catalog v2', () => {
+describe('catalog v4', () => {
   it('carries every seed entry, each with a verify criterion', () => {
     // An entry with no criterion is advice, not a plan item — nothing could
     // ever mark it done, so it would sit on the board forever.
-    // 13 until W9-06 added the four code-health entries.
-    expect(CATALOG_V1.length).toBe(17);
+    // 13 until W9-06 added the four code-health entries; 18 since W10-01
+    // added the knowledge-concentration one.
+    expect(CATALOG_V1.length).toBe(18);
     for (const entry of CATALOG_V1) {
       expect(entry.verifyCriterion.metricKey, `${entry.id} criterion`).toBeTruthy();
       expect(entry.id).toMatch(/^[a-z0-9-]+$/);
@@ -248,6 +249,7 @@ describe('rank input is effective_risk, not raw severity (W9-10, FR-RISK-5)', ()
   it('stamps a bumped catalog version, because the ORDER rule changed', () => {
     // No entry was added or removed — but plans generated from identical data
     // now come out in a different order, which is what a version records.
-    expect(CATALOG_VERSION).toBe('v3');
+    // v3 was the rank-rule change; v4 adds the W10-01 register entry.
+    expect(CATALOG_VERSION).toBe('v4');
   });
 });

@@ -129,6 +129,12 @@ export const findings = pgTable(
       // ONE store. A separate scanner_findings table was the alternative and
       // would have doubled every query, every facet and every report section —
       // and made "all findings for this file" a union nobody remembers to write.
+      // W10 (D13, FR-REG-1..6) adds the four STRUCTURAL registers. They are
+      // not security findings and not code-health findings: a module with one
+      // maintainer is a fact about a team, an abandoned dependency is a fact
+      // about the ecosystem, and both need their own facet rather than being
+      // filed under something they are not.
+      //
       // 'logging' joins them in W9-04 (FR-CH-4): a missing or dangerous log
       // line is neither a security finding nor general code health — it is the
       // thing that makes an incident unreconstructable, and it gets filtered
@@ -137,7 +143,7 @@ export const findings = pgTable(
       // 'compound' joins them in W8-09: a file flagged by three different
       // scanners is a finding in its own right (FR-INSIGHTS-6, D9), and it is
       // not a chain — a chain is a path, this is a concentration.
-      sql`${t.dimension} in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain', 'compound', 'logging')`,
+      sql`${t.dimension} in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain', 'compound', 'logging', 'knowledge', 'dependency_health', 'architecture', 'test_gap')`,
     ),
     check('findings_severity_check', sql`${t.severity} between 1 and 5`),
     check('findings_confidence_check', sql`${t.confidence} between 1 and 5`),

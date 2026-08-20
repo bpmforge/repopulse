@@ -3917,8 +3917,16 @@
         "Plan-catalog entry (knowledge-cluster) generates a remediation item with verify criterion = maintainer count above threshold for 90d"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Knowledge register: registers/knowledge/{register,run}.ts — pure SQL over commit_files x commits x identities, 180d window, module = first 2 path segments. Findings carry counts and shares only.",
+        "N-9 proven by test, not by intent: FORBIDDEN_IDENTITY_KEYS grepped across every generated title/evidence/recommendation string.",
+        "D12: exposure comes from the module hotspot percentile via the existing repricer — hot single-maintainer module bands schedule, same concentration cold bands track.",
+        "write_scope widened (recorded): packages/insights/src/plans/catalog.v1.ts (knowledge-cluster entry, CATALOG_VERSION v3->v4, 17->18 entries), packages/insights/src/index.ts (exports), packages/shared/src/db/schema/read/findings.ts + migration 0020 (dimension check needed knowledge/dependency_health/architecture/test_gap). The register cannot store a finding without the dimension being legal.",
+        "engine.test.ts catalog assertions updated 17->18 and v3->v4 with the reason in-comment.",
+        "NOT WIRED: run.ts is not yet called by the nightly worker — no W10 ticket has claimed the scheduler edit yet; flagged in the carry-forward list rather than silently left.",
+        "Gate: lint clean, typecheck clean, unit 1156 pass, apps/web 75 pass, e2e 102 pass 1 skipped, validate-arch/plan/traceability all PASS."
+      ]
     },
     {
       "id": "W10-02",
