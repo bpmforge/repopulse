@@ -93,6 +93,36 @@ until you do.
 Copy the **App ID**, **Client ID** and **Client secret** into `deploy/.env`,
 then **Install App** on the organisation and choose the repositories.
 
+### Connecting without the web UI
+
+The web UI is reached through GitHub sign-in, so if your GitHub App is not
+registered yet you cannot open **Admin → Connections** — including to connect a
+**Gitea** organisation, which has nothing to do with GitHub. There is a headless
+door for exactly that case:
+
+```bash
+# --dry-run first: connects, lists what the token can see, selects nothing
+FORGE_TOKEN=<your token> pnpm connect:forge \
+  --provider gitea --base-url https://git.example.com --dry-run
+
+# then select everything it found, or name repositories explicitly
+FORGE_TOKEN=<your token> pnpm connect:forge \
+  --provider gitea --base-url https://git.example.com --all
+```
+
+**The token is read from the environment, never from an argument** — an
+argument is visible in your shell history and in `ps` output for every user on
+the machine. It is encrypted with `TOKEN_ENC_KEY` through the same code path the
+API uses, and the command prints its fingerprint, never the token.
+
+A rejected credential is reported by name — `bad_token`, `bad_scope` or
+`no_repos` — rather than as a stack trace, so you can tell "wrong token" from
+"right token, wrong scopes" from "this account can see nothing".
+
+Backfill is enqueued for each selected repository; the worker drains it.
+Webhook registration is skipped in this path (a bootstrap host usually cannot
+receive deliveries anyway) and the nightly reconcile covers the gap.
+
 ### Gitea
 
 Gitea has no App concept, so a token stands in for one.

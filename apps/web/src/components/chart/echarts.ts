@@ -1,6 +1,6 @@
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { BarChart, FunnelChart, LineChart, TreemapChart } from 'echarts/charts';
+import { BarChart, LineChart, TreemapChart } from 'echarts/charts';
 import { DatasetComponent, GridComponent, TooltipComponent } from 'echarts/components';
 
 // Register ONLY the renderers/charts/components RepoPulse uses (DASHBOARD §5
@@ -12,11 +12,15 @@ import { DatasetComponent, GridComponent, TooltipComponent } from 'echarts/compo
 // type at RUNTIME with a console error and draws nothing, so the repo Hotspots
 // and PR Flow tabs rendered an empty box that still passed a visibility
 // assertion. Any new series type must be added here.
+//
+// FunnelChart was dropped again once the PR funnel became a bar chart: an
+// ECharts funnel band's bottom edge is the NEXT stage's value, so it cannot
+// draw a stage whose width is that stage's own number. Nothing renders a
+// funnel now, and a registration nobody uses is dead weight in the bundle.
 echarts.use([
   CanvasRenderer,
   LineChart,
   BarChart,
-  FunnelChart,
   TreemapChart,
   GridComponent,
   TooltipComponent,

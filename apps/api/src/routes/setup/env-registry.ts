@@ -144,6 +144,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     validate: isUrl,
   },
   {
+    name: 'FORGE_TOKEN',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Read ONLY by the headless `pnpm connect:forge` bootstrap, never by the running server. Supply it on that one command line, not in a file.',
+    ifWrong:
+      'The bootstrap refuses to run without it and prints where to generate one. A wrong token is reported by name (bad_token / bad_scope / no_repos) before anything is stored, so a bad credential never reaches the database.',
+    secret: true,
+  },
+  {
     name: 'FORGE_ALLOW_INSECURE_LOOPBACK',
     scope: 'api',
     required: false,

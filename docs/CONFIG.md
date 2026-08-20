@@ -37,6 +37,7 @@ every variable at fault. The API will not half-boot.
 | `GITHUB_APP_CLIENT_SECRET` 🔒 | yes | — | OAuth client secret of your GitHub App. | Login fails at the token exchange, after the user has already approved. |
 | `GITHUB_APP_ID` | no | — | Numeric App id, used for App-authenticated (installation) calls. | App-token flows are unavailable; PAT connections still work. |
 | `FORGE_BASE_URL` | no | — | Self-hosted Gitea base URL. Absent means github.com. | Gitea connections point at the wrong host and every sync fails with 404s. |
+| `FORGE_TOKEN` 🔒 | no | — | Read ONLY by the headless `pnpm connect:forge` bootstrap, never by the running server. Supply it on that one command line, not in a file. | The bootstrap refuses to run without it and prints where to generate one. A wrong token is reported by name (bad_token / bad_scope / no_repos) before anything is stored, so a bad credential never reaches the database. |
 | `FORGE_ALLOW_INSECURE_LOOPBACK` | no | `unset` | Permits an http:// loopback forge URL. FOR LOCAL DEVELOPMENT ONLY. | Set in production, it allows an unencrypted forge connection. |
 | `PORT` | no | `3300` | API listen port. | The reverse proxy cannot reach the API. |
 | `DEMO_GITHUB_PORT` | no | `4010` | Port for the demo-mode fake GitHub. Development only. | Demo mode fails to start. Not read in a normal install. |
