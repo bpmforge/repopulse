@@ -52,6 +52,11 @@ export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult>
       verifyStatus: (row.verifyStatus as PricingInput['verifyStatus']) ?? 'unverified',
       ruleFpRate: row.ruleId ? (deps.ruleFpRates?.get(row.ruleId) ?? null) : null,
       kev: yields['kev'] === true,
+      // The dependency registers record which scope a component sits in, and
+      // the D12 exposure factors ramp on exactly that (W10-02). Absent means
+      // absent: exposureFor defaults to prod-direct rather than guessing dev,
+      // which would silently discount a shipped dependency.
+      depScope: readDepScope(yields),
       // A repo-level finding has no file; a file-bound one with no hotspot
       // snapshot yet is priced at the top of the file range rather than the
       // bottom, because "we have not measured this file" must not quietly
@@ -92,6 +97,26 @@ export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult>
   }
 
   return { priced, bandChanges };
+}
+
+/** `{kind, depth}` out of a finding's yields, defensively. */
+function readDepScope(
+  yields: Record<string, unknown>,
+): { kind: 'prod-direct' | 'prod-transitive' | 'dev'; depth?: number } | null {
+  const raw = yields['dep_scope'];
+  if (raw === null || typeof raw !== 'object') return null;
+  const record = raw as { kind?: unknown; depth?: unknown };
+  if (
+    record.kind !== 'prod-direct' &&
+    record.kind !== 'prod-transitive' &&
+    record.kind !== 'dev'
+  ) {
+    return null;
+  }
+  return {
+    kind: record.kind,
+    ...(typeof record.depth === 'number' ? { depth: record.depth } : {}),
+  };
 }
 
 async function db_select(db: Database, scope: ReturnType<typeof eq>[]) {

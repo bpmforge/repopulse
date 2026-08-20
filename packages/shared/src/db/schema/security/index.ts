@@ -139,3 +139,67 @@ export const ruleRegistry = pgTable(
     ),
   ],
 );
+
+// Nightly db-sync tables (W10-02, DATABASE.md D13 delta, FR-REG-2/3).
+//
+// These exist so the SCAN SANDBOX never needs a network. The registers run
+// against rows, the sync job runs in the worker, and the `--network=none`
+// container keeps knowing nothing about the internet. Neither table is
+// workspace-scoped: "when was express last released" is a fact about the
+// world, identical for every tenant, and copying it per workspace would give
+// two tenants different answers to the same question depending on when each
+// one last synced.
+export const releaseMeta = pgTable(
+  'release_meta',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    /** 'npm' | 'pypi' — the ecosystems whose registries we read today. */
+    ecosystem: text('ecosystem').notNull(),
+    package: text('package').notNull(),
+    latestVersion: text('latest_version'),
+    latestReleaseAt: timestamp('latest_release_at', { withTimezone: true }),
+    deprecated: boolean('deprecated').notNull().default(false),
+    /**
+     * NULL, not false, where the ecosystem has no such concept.
+     *
+     * npm has no yank: a package is unpublished and disappears entirely, so
+     * `false` there would be a claim we cannot make. PyPI does have yanking
+     * (PEP 592) and sets a real boolean.
+     */
+    yanked: boolean('yanked'),
+    /** SPDX-ish string as the registry reports it; unparsed on purpose. */
+    license: text('license'),
+    /**
+     * version -> ISO release date, for the versions we have been asked about.
+     *
+     * A DOCUMENTED DELTA from the D13 column list, and the reason is the
+     * definition of libyear: it is the age gap between the version you have
+     * installed and the newest one, so it needs the INSTALLED version's
+     * release date, which no column in D13 holds. Without this the register
+     * could only report "the latest release is old", which is abandonment —
+     * a different signal wearing libyear's name.
+     */
+    versionDates: jsonb('version_dates').$type<Record<string, string>>().notNull().default({}),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('release_meta_ecosystem_package_key').on(t.ecosystem, t.package),
+    check('release_meta_ecosystem_check', sql`${t.ecosystem} in ('npm', 'pypi')`),
+  ],
+);
+
+export const eolProducts = pgTable(
+  'eol_products',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    /** endoflife.date product name, e.g. 'nodejs', 'python', 'debian'. */
+    product: text('product').notNull(),
+    /** Release cycle as the source names it: '22', '3.11', 'bookworm'. */
+    cycle: text('cycle').notNull(),
+    eolDate: timestamp('eol_date', { withTimezone: true }),
+    supportUntil: timestamp('support_until', { withTimezone: true }),
+    latestVersion: text('latest_version'),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique('eol_products_product_cycle_key').on(t.product, t.cycle)],
+);

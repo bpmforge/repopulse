@@ -21,6 +21,12 @@ export type FindingDimension =
   | 'security'
   | 'secrets'
   | 'dependency'
+  // Non-CVE supply-chain health (W10-02). It prices on the CONFIDENCE branch
+  // like every other finder — there is no EPSS for "this package is
+  // abandoned" — but its EXPOSURE reuses the dependency scope factors,
+  // because a dev-only abandoned package is exactly as much less exposed as a
+  // dev-only CVE is.
+  | 'dependency_health'
   | 'sast'
   | 'iac'
   | 'chain'
@@ -123,7 +129,7 @@ export function exposureFor(
   input: PricingInput,
   constants: RiskModelConstants = RISK_MODEL_V1,
 ): number {
-  if (input.dimension === 'dependency') {
+  if (input.dimension === 'dependency' || input.dimension === 'dependency_health') {
     const scope = input.depScope;
     let scopeMultiplier = constants.depScope.prodDirect;
     if (scope?.kind === 'dev') scopeMultiplier = constants.depScope.dev;

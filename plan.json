@@ -3953,8 +3953,20 @@
         "License posture: SPDX per dep from the SBOM vs workspace policy jsonb (defaults flag AGPL/SSPL/unknown in prod scope; allow/warn tunable); AGPL prod-direct fixture flags, same dep dev-scoped stays silent; findings only — no gating surface exists (FR-REG-4)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE, not parked — and the reasoning is recorded in docs/STATUS.md: W8-13/14/15 act ON dependency findings (none can exist); W10-02 PRODUCES findings from a stored CycloneDX document plus two db-sync tables, and all four acceptance items name fixtures as the verification method.",
+        "db-sync: release_meta (npm + pypi) and eol_products (endoflife.date API v1). Field mappings verified against LIVE payloads 2026-08-19 per Law 2, and the test fixtures are captured responses, not invented ones. Two honest nulls fell out of that: npm has no yank concept so yanked stays NULL there (false would be a claim about a mechanism npm lacks), and PyPI has no deprecation flag.",
+        "release_meta carries a documented delta from the D13 column list — version_dates jsonb — because libyear is the gap between the INSTALLED version release and the newest, and no D13 column holds the installed date. Without it the register could only report abandonment wearing libyear's name.",
+        "Three registers, one scan_run: dependency-health (libyear per-dep + repo aggregate, abandonment, stale, deprecated, yanked, major lag), EOL (Dockerfile base images, engines, .nvmrc, requires-python vs eol_products), license posture (SPDX vs workspace policy, prod scope only).",
+        "D12: exposure reuses the dep_scope factors. price.ts gained the dependency_health dimension on the EXPOSURE branch only (it prices on the confidence branch — there is no EPSS for abandoned), scope travels in yields, and reprice.ts reads it back. Integration test proves the dev-scoped copy of the same abandonment prices below the prod one and that the served decomposition reproduces the stored score.",
+        "BUG FOUND BY THE INTEGRATION TEST: two packages sharing a release date produced byte-identical evidence, which collided on the findings dedup key and failed the whole write. Evidence now names its subject; a regression test asserts uniqueness.",
+        "WIRING (widen, recorded): apps/api/src/workers/index.ts gained a nightly REGISTERS_NIGHTLY_CRON carrying supply_chain_register AND knowledge_register — W10-01 shipped unreferenced and is now called. wiring.test.ts fails if a register has no runner or no cron entry.",
+        "Other widens, each recorded: packages/insights/src/plans/catalog.v1.ts (dependency-currency entry, v4->v5, 18->19 — the severity ramp is documented there per acceptance), engine.test.ts + knowledge register.test.ts catalog assertions, packages/insights/src/risk/{price,reprice}.ts (D12 exposure), packages/reports/src/pipeline/render.ts (endoflife.date MIT attribution in the PDF footer — an acceptance item that lives in reports).",
+        "HONEST LIMIT: until W8-06 is unblocked nothing generates an SBOM, so the run returns skipped:no_sbom on every real repo. No lockfile parser was written to fill that — it would be reimplementing syft.",
+        "Sandbox unchanged and asserted: --network=none still in the profile, and a test proves no scanner imports the fetch module or calls fetch().",
+        "Gate: lint clean, typecheck clean, 1204 unit tests pass, 75 web, 102 e2e (1 skipped), validate-arch/plan/traceability/compose PASS."
+      ]
     },
     {
       "id": "W10-03",

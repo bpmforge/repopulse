@@ -2497,3 +2497,36 @@ vulnerability half → W8-06 → W8-13 → W8-14 → W8-15.
 
 Phase 9 is complete (12/12) as of this date; the remaining open waves are W10,
 W11 and the stragglers W12-10, W13-06, W14-02, W14-03.
+
+### 2026-08-19 — W10-02: supply-chain registers, and a board gap worth naming
+
+W10-02 is DONE, not parked, and the distinction matters. W8-13/14/15 are
+blocked because they operate *on* dependency findings, and none can exist
+while W8-06 waits for syft. W10-02 *produces* findings from a stored
+CycloneDX document plus two db-sync tables — its input is an `sboms` row,
+not a tool — and all four acceptance items name fixtures as the
+verification method. The missing tool blocks production DATA, not the code
+or its proof.
+
+What that means in practice, stated plainly: **until W8-06 is unblocked,
+`runSupplyChainRegisters` returns `skipped: no_sbom` on every real repo.**
+The nightly job is scheduled and the registers are tested end to end, but
+nothing generates SBOMs. No lockfile parser was written to fill the gap —
+that would be reimplementing syft under another name.
+
+Both W10 registers are now WIRED (nightly `REGISTERS_NIGHTLY_CRON`,
+default `17 3 * * *`), including W10-01's, which shipped unreferenced
+yesterday. `apps/api/test/wiring.test.ts` now fails if a register has no
+runner or no cron entry.
+
+**Board gap — needs a decision, not a ticket I can claim.** Nothing in the
+codebase ever writes a `FINDINGS` metric_snapshots row. Every
+finding-sourced catalog entry reads `metrics.FINDINGS.dims.*` — the W5
+clusters, W8's KEV entry, W9's slop and logging entries, and both W10
+register entries. All of them are inert in production for the same reason:
+the producer was never built. This is not W10-02's regression; it predates
+it by three waves. It needs either a ticket of its own or an owner named
+inside W10-05 (which owns the score/plan surface).
+
+Tools still absent, unchanged: syft, grype, trivy, osv-scanner,
+govulncheck, cosign. No ANTHROPIC_API_KEY, so no live Tier-3.
