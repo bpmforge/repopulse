@@ -7,6 +7,12 @@ import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
 import authRoutes from './routes/auth/index.js';
+// W15-02 / W15-03 (D14). Both register AFTER authRoutes and in the same scope:
+// its sessionPlugin is fp-wrapped, so its decorators land on the enclosing
+// scope and all three providers share one session. Registering @fastify/session
+// twice throws on the duplicate cookie decorator.
+import localAuthRoutes from './routes/auth/local.js';
+import oidcRoutes from './routes/auth/oidc.js';
 import healthRoutes from './routes/health/index.js';
 import errorEnvelopePlugin from './plugins/error-envelope.js';
 import securityHeadersPlugin from './plugins/security-headers.js';
@@ -23,7 +29,7 @@ export interface BuildAppOptions {
   idleTimeoutMs: number;
   absoluteLifetimeMs: number;
   cookieSecure: boolean;
-  githubOAuth: oauth.GithubOAuthConfig;
+  githubOAuth?: oauth.GithubOAuthConfig | undefined;
   githubEndpoints?: oauth.GithubOAuthEndpoints;
   /** AES key for forge credentials at rest (FR-AUTH-5) — auth.loadTokenKey(). */
   tokenKey: Buffer;
@@ -34,6 +40,8 @@ export interface BuildAppOptions {
   /** Injectable queue lookup for DLQ replay (W4-20) — tests replay without Redis. */
   adminQueueFor?: (queue: string) => import('bullmq').Queue | undefined;
   loginRedirectUrl: string;
+  /** Resolved OIDC config, or undefined when this deployment has none. */
+  oidc?: import('@repopulse/auth').oidc.OidcConfig | undefined;
   /**
    * Demo mode (W13-02). Surfaced to the SPA via /me/context so the UI can say
    * plainly that this is fake data — a demo that looks identical to the real
@@ -79,10 +87,27 @@ export function buildApp(opts: BuildAppOptions) {
     idleTimeoutMs: opts.idleTimeoutMs,
     absoluteLifetimeMs: opts.absoluteLifetimeMs,
     cookieSecure: opts.cookieSecure,
-    githubOAuth: opts.githubOAuth,
+    ...(opts.githubOAuth ? { githubOAuth: opts.githubOAuth } : {}),
     loginRedirectUrl: opts.loginRedirectUrl,
     ...(opts.githubEndpoints ? { githubEndpoints: opts.githubEndpoints } : {}),
   });
+
+  // Local accounts are always available: they are what makes this product
+  // installable without registering an App with anybody (D14).
+  app.register(localAuthRoutes, { db: opts.db });
+
+  // OIDC only when it is actually configured. A deployment that has not set it
+  // up offers no button rather than a door that leads nowhere — and a PARTIAL
+  // configuration throws here on purpose, because half-configured SSO fails at
+  // the callback, which is the worst possible moment to find out.
+  if (opts.oidc) {
+    app.register(oidcRoutes, {
+      db: opts.db,
+      config: opts.oidc,
+      loginRedirectUrl: opts.loginRedirectUrl,
+      cookieSecure: opts.cookieSecure,
+    });
+  }
 
   // Unauthenticated (API_DESIGN.md §1 exemption list + §5 liveness note).
   app.register(healthRoutes, { db: opts.db, redisUrl: opts.redisUrl });

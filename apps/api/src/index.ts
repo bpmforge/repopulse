@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createDb } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { buildApp } from './app.js';
+import { local, oidc } from '@repopulse/auth';
 import { formatEnvProblems, validateEnv } from './routes/setup/env-registry.js';
 
 // W11-02, acceptance 4: wrong or missing config fails HERE, with a message
@@ -30,8 +31,12 @@ const redisUrl = requireEnv('REDIS_URL');
 const sessionSecret = requireEnv('SESSION_SECRET');
 const apiBaseUrl = requireEnv('API_BASE_URL');
 const publicBaseUrl = requireEnv('PUBLIC_BASE_URL');
-const githubClientId = requireEnv('GITHUB_APP_CLIENT_ID');
-const githubClientSecret = requireEnv('GITHUB_APP_CLIENT_SECRET');
+// NOT requireEnv any more (W15-02, D14). Demanding a GitHub App to start is
+// exactly what made this product un-installable without one: a customer could
+// not even reach the screen that connects their own Gitea organisation. When
+// both are absent, forge sign-in is simply not offered.
+const githubClientId = process.env.GITHUB_APP_CLIENT_ID;
+const githubClientSecret = process.env.GITHUB_APP_CLIENT_SECRET;
 
 const app = buildApp({
   // Real AES key, validated at boot: loadTokenKey throws unless TOKEN_ENC_KEY is
@@ -46,13 +51,31 @@ const app = buildApp({
   idleTimeoutMs: 15 * 60 * 1000,
   absoluteLifetimeMs: 12 * 60 * 60 * 1000,
   cookieSecure: process.env.NODE_ENV === 'production',
-  githubOAuth: {
-    clientId: githubClientId,
-    clientSecret: githubClientSecret,
-    redirectUri: `${apiBaseUrl}/auth/callback`,
-  },
+  ...(githubClientId && githubClientSecret
+    ? {
+        githubOAuth: {
+          clientId: githubClientId,
+          clientSecret: githubClientSecret,
+          redirectUri: `${apiBaseUrl}/auth/callback`,
+        },
+      }
+    : {}),
   loginRedirectUrl: `${publicBaseUrl}/`,
+  // Throws here if OIDC is half-configured — deliberately, because the
+  // alternative is discovering it at the callback, after a user has already
+  // authenticated with their IdP.
+  ...(oidc.oidcConfigFromEnv(process.env) ? { oidc: oidc.oidcConfigFromEnv(process.env)! } : {}),
 });
+
+// The first admin (W15-02, D14). Runs on every boot and is idempotent: it
+// creates the account only when no local account with a password exists, and
+// never overwrites a password that has since been changed. Without this call
+// a fresh install has no way in at all — which is the whole point of D14.
+const bootstrap = await local.ensureBootstrapAdmin(createDb(databaseUrl), {
+  email: process.env.ADMIN_EMAIL,
+  password: process.env.ADMIN_PASSWORD,
+});
+app.log.info({ bootstrap: bootstrap.status }, 'local admin bootstrap');
 
 // 3300, not 3000: 3000 is what every Node project defaults to, and sharing a
 // machine with one more of them is enough to lose an afternoon. See

@@ -7,7 +7,14 @@ import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
 
 export interface AuthRoutesOptions extends sessionModule.SessionPluginOptions {
   db: Database;
-  githubOAuth: oauth.GithubOAuthConfig;
+  /**
+   * Absent on a deployment that does not offer forge sign-in (W15-02, D14).
+   *
+   * This plugin still registers — it owns the session that local and OIDC both
+   * use — but /auth/login and /auth/callback simply do not exist. A dead button
+   * that redirects to a vendor nobody configured is worse than no button.
+   */
+  githubOAuth?: oauth.GithubOAuthConfig | undefined;
   /** Test-only override to point at a mocked GitHub instead of the real one. */
   githubEndpoints?: oauth.GithubOAuthEndpoints;
   /** Where to send the browser after a successful login (the SPA). */
@@ -33,6 +40,9 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
     cookieSecure: opts.cookieSecure,
   });
 
+  if (!opts.githubOAuth) return;
+  const githubOAuth = opts.githubOAuth;
+
   app.get(
     '/auth/login',
     { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
@@ -46,7 +56,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
         path: '/auth/callback',
         maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
       });
-      const authorizeUrl = oauth.buildAuthorizeUrl(opts.githubOAuth, state, opts.githubEndpoints);
+      const authorizeUrl = oauth.buildAuthorizeUrl(githubOAuth, state, opts.githubEndpoints);
       return reply.redirect(authorizeUrl);
     },
   );
@@ -91,7 +101,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
       let accessToken: string;
       try {
         accessToken = await oauth.exchangeCodeForToken(
-          opts.githubOAuth,
+          githubOAuth,
           code,
           opts.githubEndpoints,
         );
