@@ -1,6 +1,6 @@
 import type { Job, Queue } from 'bullmq';
-import { and, eq } from 'drizzle-orm';
-import { core } from '@repopulse/shared';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { core, read } from '@repopulse/shared';
 import { readWorkspaceSettings } from '../lib/workspace-settings.js';
 import {
   commitsNeedingChurn,
@@ -25,6 +25,7 @@ import {
   type SyncStreamEvent,
 } from '@repopulse/ingest';
 import { computeRepoSnapshots } from '@repopulse/metrics';
+import { hotspotPercentiles, repriceFindings } from '@repopulse/insights';
 import { providerForRepo, type WorkerProviderDeps } from './forge-provider.js';
 
 // The queue processors (W12-03).
@@ -493,6 +494,50 @@ export function snapshotProcessor(deps: ProcessorDeps) {
       botGlobs: effective.botLoginGlobs,
       staleThresholdDays: effective.stalePrDays,
     });
-    return { written };
+    // W9-09: reprice AFTER the snapshot, in the same job, because the hotspot
+    // percentiles the pricer reads are the ones this snapshot just wrote. A
+    // separate nightly job would race the write it depends on, and the failure
+    // would be a scoreboard that lags a day behind its own inputs.
+    const hotspots = await hotspotPercentiles(deps.db, data.workspaceId, data.repoId);
+    const ruleFpRates = await ruleFpRatesFor(deps.db, data.workspaceId);
+    const repriced = await repriceFindings({
+      db: deps.db,
+      workspaceId: data.workspaceId,
+      repoId: data.repoId,
+      hotspots,
+      ruleFpRates,
+    });
+
+    return { written, repriced: repriced.priced, bandChanges: repriced.bandChanges.length };
   };
+}
+
+/**
+ * Per-rule false-positive rates, the pricer's precision prior (W9-07 stats).
+ *
+ * Computed once per repo pass rather than per finding: it is one grouped query
+ * against dispositions, and doing it inside the loop would issue one per row.
+ */
+async function ruleFpRatesFor(
+  db: ProcessorDeps['db'],
+  workspaceId: number,
+): Promise<Map<string, number | null>> {
+  const rows = await db
+    .select({
+      ruleId: read.findings.ruleId,
+      triaged: sql<number>`count(*) filter (where ${read.findings.status} in ('confirmed','dismissed','resolved','wont_fix'))::int`,
+      fp: sql<number>`count(*) filter (where ${read.findings.status} = 'dismissed' and ${read.findings.dismissReason} = 'false_positive')::int`,
+    })
+    .from(read.findings)
+    .where(and(eq(read.findings.workspaceId, workspaceId), isNotNull(read.findings.ruleId)))
+    .groupBy(read.findings.ruleId);
+
+  const out = new Map<string, number | null>();
+  for (const row of rows) {
+    if (!row.ruleId) continue;
+    // null over an untriaged rule, never 0 — the pricer treats null as "no
+    // stats" (0.7) rather than as a perfect rule.
+    out.set(row.ruleId, row.triaged === 0 ? null : row.fp / row.triaged);
+  }
+  return out;
 }

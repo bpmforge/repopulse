@@ -72,4 +72,18 @@ describe('delta -> secrets stream (W8-04)', () => {
     expect(entry).toContain('runCodeHealthScan');
     expect(entry).toContain("'code_health_tools'");
   });
+
+  it('the nightly reprice runs INSIDE the snapshot job (W9-09)', () => {
+    // Not a separate cron: the hotspot percentiles the pricer reads are the
+    // ones the snapshot just wrote, and a separate job would race the write it
+    // depends on — a scoreboard lagging a day behind its own inputs.
+    const processors = readFileSync(
+      new URL('./processors.ts', import.meta.url).pathname,
+      'utf8',
+    );
+    expect(processors).toContain('repriceFindings');
+    expect(processors).toContain('hotspotPercentiles');
+    // The precision prior is one grouped query per pass, not one per finding.
+    expect(processors).toContain('ruleFpRatesFor');
+  });
 });
