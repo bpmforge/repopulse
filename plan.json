@@ -3523,7 +3523,8 @@
         "THE CHECKLIST LOADER IS SHARED with the OWASP scanners rather than copied: a second implementation of \"find the highest version of a checklist\" is a second place for a pinned version to be got wrong.",
         "THE GATEWAY IS FAKED IN TESTS, ON PURPOSE. What needs proving is the verify gate and the layer split; what a local model happens to say about a wrapper is not part of this contract, and a live call would make every assertion flaky while proving nothing extra.",
         "NOT DONE: the weekly snapshot mode is present as worstByLdr (worst-density files first) but is not yet wired to a schedule — the weekly fan-out currently carries semgrep, code_health_tools and the chainer. Adding anti_slop to it needs the snapshot source-reading path that W9-04/W9-05 also want; recorded rather than half-wired.",
-        "GATE: lint 0, typecheck 0, 996 unit tests (was 979), zero skipped; pnpm -r test green; validate-arch, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+        "GATE: lint 0, typecheck 0, 996 unit tests (was 979), zero skipped; pnpm -r test green; validate-arch, validate-plan, validate-traceability PASS. No e2e — no screen changed.",
+        "CARRY-FORWARD CLOSED 2026-08-20: the judgement half now receives a real gateway. It had none — nothing in the product built one — so every scheduled run reported judgment: 0, which is also what a clean repository reports."
       ]
     },
     {
@@ -3560,7 +3561,8 @@
         "REFUTED JUDGEMENTS NEVER REACH THE STORE, same gate as W9-03: \"this log line is inadequate\" is an opinion about someone's code, and the product has to be able to be talked out of one. FP dismissals feed the existing falsePositiveRate tuning metric — no new plumbing.",
         "SCOPE WIDENED, WITH REASON: packages/shared schema + migration 0017 (the acceptance names dimension `logging`, which the check constraint did not allow).",
         "NOT DONE: the weekly schedule. Same carry-forward as W9-03 — anti_slop and logging_hygiene both want a snapshot source-reading path in the weekly fan-out, and wiring two half-paths would be worse than wiring one whole one.",
-        "GATE: lint 0, typecheck 0, 1001 unit tests (was 996), zero skipped — the live pack run executes; pnpm -r test green; validate-arch, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+        "GATE: lint 0, typecheck 0, 1001 unit tests (was 996), zero skipped — the live pack run executes; pnpm -r test green; validate-arch, validate-plan, validate-traceability PASS. No e2e — no screen changed.",
+        "CARRY-FORWARD CLOSED 2026-08-20: same as W9-03 — the logging judgement half now receives a gateway built at the worker entrypoint."
       ]
     },
     {
@@ -3701,7 +3703,8 @@
         "EVERY TRANSITION IS AUDITED (SC-22) with four new audit events. A rule going live changes what EVERY future scan says about someone's code — closer to a settings change than to a finding — and shadow→active is the moment it starts moving health scores.",
         "SCOPE WIDENED, WITH REASON: packages/shared/src/logger/audit.ts (four lifecycle events; the audit type is a closed union by design) and apps/web/src/routes/admin/route.tsx (a workbench nobody can navigate to is the built-but-never-wired defect in its UI form).",
         "NOT DONE, RECORDED: the scheduled T2 drafting pass has its prompt, its clustering and its acceptance path, but no cron — it needs the same gateway-in-the-worker decision that W9-03/W9-04's judgement halves are waiting on, and wiring a third half-path would be worse than wiring one whole one. External pack SYNC is likewise unbuilt: the licence gate it depends on is here and tested, but the db-sync side belongs with W8-12's parked vulnerability-database half.",
-        "GATE: lint 0, typecheck 0, 1068 unit tests (was 1044), zero skipped; pnpm -r test green; 101 e2e passed (was 100; 1 skipped real-forge smoke) including axe over the new admin route; bundle 110.2 KB of 200; validate-arch, validate-plan, validate-traceability PASS."
+        "GATE: lint 0, typecheck 0, 1068 unit tests (was 1044), zero skipped; pnpm -r test green; 101 e2e passed (was 100; 1 skipped real-forge smoke) including axe over the new admin route; bundle 110.2 KB of 200; validate-arch, validate-plan, validate-traceability PASS.",
+        "CARRY-FORWARD CLOSED 2026-08-20: the scheduled drafting pass has a runner (packages/security/src/rules/draft-run.ts) and a weekly schedule. Workspace-scoped rather than per-repo, drafts to proposed only, and skips by name when no Tier-2 host is configured."
       ]
     },
     {
@@ -3741,7 +3744,8 @@
         "THE CLEAN FIXTURE MADE THREE RULES BETTER. It does the same jobs correctly — one round trip, a hoisted regex, a bounded ten-at-a-time batch — and every rule that fired on it was refined until it did not: awaiting a bounded batch and calling a DB inside `Promise.all` are the FIXES these rules ask for, and firing on them would make the rules impossible to satisfy.",
         "SCOPE NOTE: the ticket named deploy/Containerfile.scan; the file lives at the repo root where W8-12 put it, and moving it would break the W8-12 build documentation.",
         "NOT DONE: the adapters are not yet CALLED by the code_health_tools scanner — its single-container run executes lizard and jscpd directly. Wiring adapters into it means a container start per applicable tool (or one combined invocation), which is a real scheduling change to a path with live tests, and it belongs with the same pass as the three other carried-forward wirings rather than being bolted on at the end of an eight-point ticket. The contract, the registry, the routing, the parsing and both live sandbox runs are proven.",
-        "GATE: lint 0, typecheck 0, 1088 unit tests (was 1068), zero skipped — ruff and Biome really run in the sandbox and the perf golden set really executes; pnpm -r test green; validate-arch, validate-compose, validate-plan, validate-traceability PASS. No e2e — no screen changed."
+        "GATE: lint 0, typecheck 0, 1088 unit tests (was 1068), zero skipped — ruff and Biome really run in the sandbox and the perf golden set really executes; pnpm -r test green; validate-arch, validate-compose, validate-plan, validate-traceability PASS. No e2e — no screen changed.",
+        "CARRY-FORWARD CLOSED 2026-08-20: code_health_tools now calls the ruff and Biome adapters; proven by a live test over a mixed Python/JS tree."
       ]
     },
     {

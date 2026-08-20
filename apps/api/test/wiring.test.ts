@@ -89,9 +89,15 @@ describe('production wiring (regression gate)', () => {
       'supply_chain_register',
       'architecture_register',
       'test_gap_register',
+      // W9-07's drafting pass and the two judgement halves are the last of the
+      // carry-forward wirings; the schedule is what makes them real.
+      'rule_draft_pass',
     ]) {
       expect(worker, `${key} has no weekly/nightly runner`).toContain(`${key}: async`);
-      expect(worker, `${key} is never enqueued on a schedule`).toContain(`['${key}', registersCron]`);
+      expect(
+        worker,
+        `${key} is never enqueued on a schedule`,
+      ).toMatch(new RegExp(`\\['${key}', (registersCron|weeklyCron)\\]`));
     }
     expect(worker).toContain('REGISTERS_NIGHTLY_CRON');
   });

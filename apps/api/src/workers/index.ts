@@ -19,6 +19,7 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
+import { buildWorkerGateway, reportGatewayHealth } from './gateway.js';
 import {
   jsonFetcher,
   readComponents,
@@ -31,6 +32,7 @@ import {
   runSecretsHistoryScan,
   runSecretsStreamScan,
   runArchitectureScan,
+  runRuleDraftPass,
   runSemgrepFull,
   runSupplyChainRegisters,
   startSweeper,
@@ -55,6 +57,9 @@ const EOL_PRODUCTS = (
   .map((p) => p.trim())
   .filter((p) => p !== '');
 
+/** Passes that run once per WORKSPACE rather than once per repository. */
+const WORKSPACE_SCOPED_PASSES = new Set(['rule_draft_pass']);
+
 export { createWorkerRuntime, type WorkerRuntime } from './runtime.js';
 export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
 
@@ -68,6 +73,14 @@ async function main(): Promise<void> {
   if (!databaseUrl || !redisUrl) throw new Error('DATABASE_URL and REDIS_URL are required');
 
   const db = createDb(databaseUrl);
+
+  // ONE gateway for the whole worker, built here and passed down. Null when no
+  // Tier-2 host is configured, which is a supported deployment rather than a
+  // fault — the scheduled passes then skip and say `no_gateway` rather than
+  // reporting a clean repository they never looked at.
+  const analysisGateway = buildWorkerGateway(db);
+  console.log(`[worker] ${await reportGatewayHealth(analysisGateway)}`);
+
   const connection = createRedisConnection(redisUrl);
   const healthRedis = createRedisConnection(redisUrl);
 
@@ -282,6 +295,12 @@ async function main(): Promise<void> {
                     files: [],
                     sources: sources.files,
                     trigger: 'schedule',
+                    // THE JUDGEMENT HALF, finally reachable. It was written,
+                    // tested against a stub and shipped with no gateway to
+                    // call — `deps.gateway ? ... : { chunks: [] }` meant every
+                    // scheduled run reported judgment: 0 and nobody noticed,
+                    // because that is also what a clean repository looks like.
+                    ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
                   }),
                   await runLoggingScan({
                     db,
@@ -291,6 +310,7 @@ async function main(): Promise<void> {
                     files: [],
                     targetDir: snapshot.dir,
                     trigger: 'schedule',
+                    ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
                   }),
                 ];
                 return {
@@ -437,6 +457,27 @@ async function main(): Promise<void> {
               ...(result.error ? { skipped: result.error } : {}),
             };
           },
+          // W9-07's scheduled drafting pass, wired here rather than left as
+          // three exported functions nothing called. Workspace-scoped, so it
+          // runs once per workspace rather than once per repo — it clusters
+          // dismissals across the whole workspace, and running it per repo
+          // would draft the same rule N times.
+          rule_draft_pass: async ({ workspaceId }) => {
+            const result = await runRuleDraftPass({
+              db,
+              workspaceId,
+              ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
+            });
+            return {
+              scanned: result.clusters,
+              findingsCreated: result.drafted,
+              // Drafts the validator threw out, carried rather than logged:
+              // a pass that rejected everything must not read as a quiet one.
+              deferred: result.rejected,
+              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
+            };
+          },
           // W10-04. Warehouse-only, so it needs neither a connection nor a
           // snapshot — it reads the commits we already have.
           test_gap_register: async ({ workspaceId, repoId }) => {
@@ -466,6 +507,30 @@ async function main(): Promise<void> {
           const workspaces = await db.select({ id: core.workspaces.id }).from(core.workspaces);
           const week = `${new Date().getUTCFullYear()}w${Math.ceil(new Date().getUTCDate() / 7)}`;
           let enqueued = 0;
+
+          // WORKSPACE-SCOPED passes fan out once per workspace, not once per
+          // repo. The drafting pass clusters dismissals across the whole
+          // workspace; per-repo it would draft the same rule N times and an
+          // admin would open the workbench to N copies of one suggestion.
+          if (WORKSPACE_SCOPED_PASSES.has(scannerKey)) {
+            for (const ws of workspaces) {
+              await securityScanQueue.add(
+                'weekly',
+                {
+                  workspaceId: ws.id,
+                  repoId: 0,
+                  scannerKey,
+                  commitSha: '',
+                  trigger: 'schedule' as const,
+                  mode: 'weekly' as const,
+                },
+                { jobId: `sec-weekly-${scannerKey}-ws${ws.id}-${week}` },
+              );
+              enqueued += 1;
+            }
+            return { enqueued };
+          }
+
           for (const ws of workspaces) {
             const live = await db
               .select({ id: core.repos.id })
@@ -616,6 +681,10 @@ async function main(): Promise<void> {
       ['supply_chain_register', registersCron],
       ['architecture_register', registersCron],
       ['test_gap_register', registersCron],
+      // Weekly, not nightly: it drafts from a 30-day window of dismissals, and
+      // a nightly pass would re-draft the same clusters six times before
+      // anyone had opened the workbench.
+      ['rule_draft_pass', weeklyCron],
       ['knowledge_register', registersCron],
     ] as const) {
       await securityScanQueue.add(

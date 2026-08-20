@@ -253,6 +253,32 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: 'nodejs,python,go,ruby,php,java,dotnet,debian,ubuntu,alpine,postgresql,redis,nginx',
   },
   {
+    name: 'LMSTUDIO_BASE_URLS',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'Comma-separated LM Studio endpoints for Tier-2 analysis (http://host:1234/v1). Absent means no Tier-2: the whole Tier-1 product still works.',
+    ifWrong:
+      'Scheduled judgement passes skip with reason no_gateway. Pointing at an unreachable host is worse than leaving it unset — the passes then FAIL rather than skip, which is deliberate: a host you configured and cannot reach is a fault, not a choice.',
+  },
+  {
+    name: 'LMSTUDIO_MODEL',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'The loaded model id to request, e.g. qwen3.8-27b. Required whenever LMSTUDIO_BASE_URLS is set.',
+    ifWrong:
+      'LM Studio answers 400 "Invalid model identifier" on every call. There is no default because a guessed model name is a guess about your machine; with it unset the gateway refuses to build and says which variable is missing.',
+  },
+  {
+    name: 'LMSTUDIO_CONCURRENCY',
+    scope: 'worker',
+    required: false,
+    purpose: 'Per-host concurrent Tier-2 request cap (FR-ANALYSIS-8).',
+    ifWrong: 'Set too high, a local model thrashes and calls time out; the scheduler parks instead of queueing invisibly.',
+    default: '1',
+  },
+  {
     name: 'API_PROXY_TARGET',
     scope: 'web',
     required: false,

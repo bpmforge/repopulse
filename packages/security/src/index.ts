@@ -37,6 +37,7 @@ export * from './scanners/logging/run.js';
 export * from './rules/schema.js';
 export * from './rules/lifecycle.js';
 export * from './rules/intake.js';
+export * from './rules/draft-run.js';
 export * from './scanners/code-health/adapters/types.js';
 export * from './scanners/code-health/adapters/registry.js';
 export * from './sync/fetch-json.js';

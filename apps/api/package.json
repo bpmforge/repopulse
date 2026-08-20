@@ -16,11 +16,14 @@
     "@fastify/helmet": "^13.1.0",
     "@fastify/rate-limit": "^11.1.0",
     "@fastify/swagger": "^9.8.1",
+    "@repopulse/analysis": "workspace:*",
     "@repopulse/auth": "workspace:*",
     "@repopulse/forge": "workspace:^",
     "@repopulse/ingest": "workspace:^",
     "@repopulse/insights": "workspace:^",
     "@repopulse/metrics": "workspace:^",
+    "@repopulse/reports": "workspace:*",
+    "@repopulse/security": "workspace:*",
     "@repopulse/shared": "workspace:*",
     "bullmq": "^5",
     "dotenv": "^17.4.2",
@@ -30,9 +33,7 @@
     "fastify-type-provider-zod": "^4.0.2",
     "ioredis": "^5.11.1",
     "prom-client": "^15",
-    "zod": "^3.25.76",
-    "@repopulse/reports": "workspace:*",
-    "@repopulse/security": "workspace:*"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
