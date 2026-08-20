@@ -3839,8 +3839,18 @@
         "API: findings endpoints gain risk_band filter + effective_risk sort; score endpoint gains axes[]; tenancy + axe green on all new surfaces (FR-RISK-5/6)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-08-19. RiskBandChip and RiskDecompositionPopover as shared primitives, the Top Risks card on the org grid, effective_risk as the findings default sort with a risk_band filter, and the risk/axes endpoint.",
+        "THE POPOVER MULTIPLIES THE SERVED FACTORS rather than re-deriving them, which makes it the thing that would REVEAL a divergence between what the engine stored and what a reader is shown. A number nobody can take apart is one people either obey or ignore, and both are worse than a number they can argue with.",
+        "RAW SEVERITY TRAVELS BESIDE EVERY RISK NUMBER, and the counts line travels under every top-5: \"200 open → 12 act, 40 schedule, 148 track\". A top-5 card without its denominator implies the other 195 do not exist — the same credibility story as the CVE funnel.",
+        "UNPRICED IS ITS OWN ANSWER, THREE TIMES: the chip says \"not yet priced\" rather than showing a band, the counts line reports unpriced separately rather than folding it into `track` (which would claim the job had judged them low risk), and the sort puts NULLS LAST rather than at either extreme — sorting an unjudged finding to the top or silently to the bottom are both claims.",
+        "SEVERITY SORT IS RETAINED, NOT REMOVED. \"Show me everything critical\" is a real question — just not the default one, because severity alone put a critical finding in a cold file above a high one in the hot path.",
+        "SHADOW FINDINGS ARE EXCLUDED from Top Risks and from the axes, through the W9-07 predicate. They remain visible in the explorer, which is the surface that is meant to show everything.",
+        "THE AXIS LETTER IS NULL FROM THIS ENDPOINT, DELIBERATELY. RISK_MODEL §4 says the letters come from the FR-INSIGHTS-2 sub-scores, and deriving a letter from findings here would be a second scoring system wearing the same name. The endpoint serves the dimension mapping, the top-3 contributors and a basis line; the caller supplies the sub-score. An axis with no findings says so in words rather than showing a grade.",
+        "NOT DONE, RECORDED: the axis letters are not yet rendered on the repo header or the org grid — that needs the health endpoint to serve axes[] alongside its sub-scores, which is a change to the score payload every existing header reads. Wiring it half-way (a letter with no basis label) is exactly the \"fake grade\" FR-INSIGHTS-3 forbids, so the mapping ships and the header does not.",
+        "GATE: lint 0, typecheck 0, 1128 unit tests (was 1122), zero skipped; pnpm -r test green (web 75, was 69); 102 e2e passed (was 101; 1 skipped real-forge smoke) with axe over the new card; bundle 110.2 KB of 200; validate-arch, validate-plan, validate-traceability PASS."
+      ]
     },
     {
       "id": "W9-12",
