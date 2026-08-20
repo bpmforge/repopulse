@@ -113,17 +113,30 @@ services:
       # a customer's source in a volume backup. Sized for one snapshot at a
       # time plus headroom; raise SCAN_SCRATCH_SIZE for large monorepos rather
       # than pointing SCAN_SCRATCH_ROOT at a disk.
-      - type: tmpfs
-        target: /var/tmp/repopulse-scan
-        tmpfs:
-          size: ${SCAN_SCRATCH_SIZE:-2g}
-          mode: 0o700
+      # SIZE IN BYTES, not "2g": podman-compose passes the string straight to
+      # the runtime, which rejects it — "mount tmpfs to var/tmp/repopulse-scan:
+      # Invalid argument" — and the worker never starts. Docker accepts bytes
+      # too, so bytes is the portable spelling. Found by recreating the worker
+      # during the W11-03 drill; the previously-running container had been
+      # created before this stanza changed, so nothing had re-read it since.
       # The scan tool's rulepacks and vulnerability databases, refreshed
       # HOST-SIDE by deploy/scan-db-sync.sh and mounted read-only. The scan
       # container itself has --network=none and could not fetch them: that is
       # the point — the thing with the network is not the thing running
       # third-party code over customer source.
-      - ${SCAN_RULES_DIR:-./scan-rules}:/var/lib/repopulse/scan-rules:ro
+      # ABSOLUTE PATH REQUIRED. podman-compose does not resolve a relative
+      # source against the compose file's directory, so `./scan-rules` becomes
+      # whatever the caller's working directory happens to be — or nothing at
+      # all, and the worker fails to start with a statfs error naming the
+      # CONTAINER path, which sends you looking in the wrong place entirely.
+      - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
+    # SHORT-FORM tmpfs, not the long `type: tmpfs` volume entry: podman-compose
+    # renders the long form's options as `mode=448` (the YAML octal, decimalised)
+    # and crun rejects the mount outright — "mount tmpfs to
+    # var/tmp/repopulse-scan: Invalid argument" — so the worker never starts.
+    # The short form is passed through verbatim and both runtimes accept it.
+    tmpfs:
+      - /var/tmp/repopulse-scan:size=${SCAN_SCRATCH_SIZE:-2g},mode=0700
     environment:
       SNAPSHOT_ROOT: /var/tmp/repopulse-scan
       SCAN_IMAGE: ${SCAN_IMAGE:-repopulse/scan:dev}

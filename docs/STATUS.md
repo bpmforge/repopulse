@@ -2671,3 +2671,49 @@ from a successful registration. The connect flow's never-run-for-real risk
 **What is needed, and from whom:** Brad registering one throwaway GitHub
 App against a scratch org and walking the doc top to bottom, correcting it
 where reality differs. That is W7-07, which is blocked for the same reason.
+
+### 2026-08-19 — W11-03: the drill found three real deploy defects
+
+Upgrade, backup, restore and rollback are documented in `docs/RUNBOOK.md`
+and every one of them was **executed against the running compose stack**,
+not written from the compose file. The install was populated first (a
+workspace, a connection, three repos) so the numbers below are about data
+that existed.
+
+- **Backup**: 80 KB dump, trailer-checked so a truncated dump cannot
+  report success.
+- **Restore verification**: loaded into a scratch Postgres container,
+  migrations applied, and the **tenancy suite ran green against the
+  restored database** (5 passed).
+- **Upgrade**: the install was 5 migrations behind, so this was a genuine
+  N→N+1 — 5→22 migrations applied, 3 repos and 1 workspace preserved,
+  **44 seconds of downtime** measured from `down` to `/healthz` 200.
+- **Rollback**: pre-upgrade dump restored, schema back to 26 tables and 5
+  migrations with data intact, then rolled forward again to 22.
+
+**Three defects the drill found, each of which would have hit a customer:**
+
+1. `pg_dump --clean` cannot restore an OLDER dump into a NEWER schema — it
+   fails part-way on constraints from later migrations and leaves the
+   database half-restored. The restore script now drops `public` and
+   `drizzle` outright.
+2. A rollback silently un-rolled itself: `compose up -d` starts the
+   one-shot migrate service as a dependency of the API, so the migrations
+   just skipped re-applied within seconds, reporting success. Fixed with
+   `--no-deps` and named services.
+3. The worker could not be recreated at all: the scratch tmpfs used the
+   long `type: tmpfs` form, which podman-compose renders as `mode=448` and
+   crun rejects (`Invalid argument`). The previously-running container
+   predated that stanza, so nothing had re-read it since it was written.
+   Also fixed: `SCAN_RULES_DIR` must be absolute, and the directory must
+   exist before `up` — it now ships empty with a README.
+
+**A mistake in my own drill, recorded because the number would otherwise be
+wrong:** the first downtime measurement polled port 8080, which on this
+machine is a different application entirely, so it returned 200 instantly.
+RepoPulse is on 8099 here. The 44s figure is the re-run against the right
+port.
+
+Not covered, and it is acceptance 3's remaining half: rolling the CODE
+back needs versioned image tags, which W11-01 is blocked on. The runbook
+says so and tells the operator to tag before upgrading.
