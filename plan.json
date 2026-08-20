@@ -3991,7 +3991,7 @@
         "Adapter findings dedupe against any overlapping pack rules via the canonical dedup key"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
