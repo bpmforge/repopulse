@@ -8,7 +8,7 @@ import {
   type DataTableColumn,
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import type { MeContext } from '../org/contracts.js';
+import { spansMultipleRepos, type MeContext, type RepoRef } from '../org/contracts.js';
 import {
   REVIEW_SLA_DAYS,
   formatAge,
@@ -62,6 +62,28 @@ export function MyFocus({ search }: Props) {
     );
   }
 
+  // Each list is fetched separately, so each decides its own Repository column
+  // from its OWN rows: a developer whose PRs are all in one repo but whose
+  // review queue spans four should see the column on exactly one of them.
+  const prItems = prs.data?.items ?? [];
+  const queueItems = queue.data?.items ?? [];
+  const hotspotItems = hotspots.data?.items ?? [];
+
+  // PR numbers and file paths both repeat across repositories — "#5 feature 5"
+  // twice is two pull requests, not a duplicated row — so the repository is
+  // part of a row's identity on every cross-repo list here.
+  function repoColumn<T extends { repo: RepoRef }>(): DataTableColumn<T> {
+    return {
+      id: 'repo',
+      header: 'Repository',
+      cell: (row) => (
+        <span className="text-xs whitespace-nowrap text-fg-muted">
+          {row.repo.org}/{row.repo.name}
+        </span>
+      ),
+    };
+  }
+
   const prColumns: DataTableColumn<MyPr>[] = [
     {
       id: 'pr',
@@ -77,6 +99,7 @@ export function MyFocus({ search }: Props) {
         </Link>
       ),
     },
+    ...(spansMultipleRepos(prItems) ? [repoColumn<MyPr>()] : []),
     { id: 'state', header: 'State', cell: (row) => row.state },
     { id: 'size', header: 'Size', cell: (row) => row.size_bucket },
     {
@@ -111,6 +134,7 @@ export function MyFocus({ search }: Props) {
         </Link>
       ),
     },
+    ...(spansMultipleRepos(queueItems) ? [repoColumn<ReviewQueueItem>()] : []),
     { id: 'author', header: 'Author', cell: (row) => row.author },
     {
       id: 'age',
@@ -146,6 +170,7 @@ export function MyFocus({ search }: Props) {
         </Link>
       ),
     },
+    ...(spansMultipleRepos(hotspotItems) ? [repoColumn<MyHotspot>()] : []),
     {
       id: 'lines',
       header: 'My lines',
@@ -160,7 +185,8 @@ export function MyFocus({ search }: Props) {
       {/* Since-last-visit strip. Rendered only when there IS a previous visit
           and something changed: a strip that says "0 new" every load is
           furniture people learn to skip. */}
-      {since.data && !since.data.first_visit &&
+      {since.data &&
+        !since.data.first_visit &&
         (since.data.review_requests > 0 ||
           since.data.prs_advanced > 0 ||
           since.data.findings_on_my_prs > 0) && (
@@ -169,9 +195,9 @@ export function MyFocus({ search }: Props) {
             data-testid="since-strip"
           >
             Since your last visit: {since.data.review_requests} review
-            {since.data.review_requests === 1 ? ' request' : ' requests'},{' '}
-            {since.data.prs_advanced} of your pull requests advanced,{' '}
-            {since.data.findings_on_my_prs} new findings on your work.
+            {since.data.review_requests === 1 ? ' request' : ' requests'}, {since.data.prs_advanced}{' '}
+            of your pull requests advanced, {since.data.findings_on_my_prs} new findings on your
+            work.
           </div>
         )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="my-stats">
@@ -186,12 +212,8 @@ export function MyFocus({ search }: Props) {
           unit="lines"
           polarity="neutral"
         />
-        <KpiTile label="Open PRs" value={String(prs.data?.items.length ?? 0)} polarity="neutral" />
-        <KpiTile
-          label="To review"
-          value={String(queue.data?.items.length ?? 0)}
-          polarity="neutral"
-        />
+        <KpiTile label="Open PRs" value={String(prItems.length)} polarity="neutral" />
+        <KpiTile label="To review" value={String(queueItems.length)} polarity="neutral" />
       </div>
 
       <WidgetFrame
@@ -199,7 +221,7 @@ export function MyFocus({ search }: Props) {
         state={frameState({
           isLoading: prs.isLoading,
           isError: prs.isError,
-          isEmpty: prs.data !== undefined && prs.data.items.length === 0,
+          isEmpty: prs.data !== undefined && prItems.length === 0,
         })}
         {...(prs.error ? { errorMessage: prs.error.message } : {})}
         onRetry={() => void prs.refetch()}
@@ -209,7 +231,7 @@ export function MyFocus({ search }: Props) {
           <DataTable
             name="my-prs"
             columns={prColumns}
-            data={prs.data?.items ?? []}
+            data={prItems}
             getRowId={(row) => `${row.repo_id}:${row.number}`}
           />
         </div>
@@ -220,7 +242,7 @@ export function MyFocus({ search }: Props) {
         state={frameState({
           isLoading: queue.isLoading,
           isError: queue.isError,
-          isEmpty: queue.data !== undefined && queue.data.items.length === 0,
+          isEmpty: queue.data !== undefined && queueItems.length === 0,
         })}
         {...(queue.error ? { errorMessage: queue.error.message } : {})}
         onRetry={() => void queue.refetch()}
@@ -230,7 +252,7 @@ export function MyFocus({ search }: Props) {
           <DataTable
             name="review-queue"
             columns={queueColumns}
-            data={queue.data?.items ?? []}
+            data={queueItems}
             getRowId={(row) => `${row.repo_id}:${row.number}`}
           />
         </div>
@@ -241,7 +263,7 @@ export function MyFocus({ search }: Props) {
         state={frameState({
           isLoading: hotspots.isLoading,
           isError: hotspots.isError,
-          isEmpty: hotspots.data !== undefined && hotspots.data.items.length === 0,
+          isEmpty: hotspots.data !== undefined && hotspotItems.length === 0,
         })}
         {...(hotspots.error ? { errorMessage: hotspots.error.message } : {})}
         onRetry={() => void hotspots.refetch()}
@@ -251,7 +273,7 @@ export function MyFocus({ search }: Props) {
           <DataTable
             name="my-hotspots"
             columns={hotspotColumns}
-            data={hotspots.data?.items ?? []}
+            data={hotspotItems}
             getRowId={(row) => `${row.repo_id}:${row.path}`}
           />
         </div>

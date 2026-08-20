@@ -3000,3 +3000,46 @@ exists to prevent. Asserted in the live test: T3 is refused, never
 downgraded to T2.
 
 All four carry-forward wirings are now closed.
+
+### 2026-08-20 — the interface review's findings, fixed and re-verified
+
+Four of the five recommendations from the product review are done. The fifth
+— connect a real repository — is W14-01 and still needs a Gitea token from
+Brad; nothing here substitutes for it.
+
+Four agents worked in parallel on disjoint files; I ran the gate and
+re-verified every fix in a browser, which none of them could do.
+
+- **The score explainer** was the priority and is fixed. It now opens
+  inward from the right edge with a shrinkable max-width, so containment
+  does not depend on where the trigger sits, and the axis labels are stated
+  (Activity, Review, CI, Delivery) rather than derived from camelCase keys.
+  Verified on screen: `Activity 93 × 0.2 = 18.7` through
+  `Delivery 33 × 0.25 = 8.3`, all four rows and their arithmetic fully
+  visible. Before, the numbers were off-screen entirely.
+- **Cross-repo rows carry their repository.** Org Hotspots and all three My
+  Focus tables gained a Repository column, shown only when the rows actually
+  span more than one repo. The API did not have the data — `/hotspots` and
+  the three `/me` endpoints were widened to return `{id, org, name}`.
+  `/me/hotspots` needed `org`/`name` in its GROUP BY, which is the one
+  non-mechanical change. Tenancy suite still green.
+- **Unmeasured axes collapse.** Four repetitions of one sentence became one
+  line that NAMES every axis it speaks for, plus the route out, with each
+  per-axis basis one click away. The repo header strip reads
+  "▶ 4 not measured" instead of four dashes.
+- **Signed out, the app now shows a sign-in card** instead of the full shell
+  with eight red "No active session" errors.
+- **Charts paint immediately.** The gap was never a missing skeleton —
+  WidgetFrame has one — it was the window between `ready` and ECharts'
+  first paint.
+
+**One test conflict worth recording.** My own W10-05 e2e asserted the Supply
+Chain row is always VISIBLE, so collapsing unmeasured axes turned it red.
+The guarantee it was protecting — an axis must never be silently absent —
+still holds, differently: the summary names every axis it speaks for and the
+row is one click away. I rewrote the test to assert the new guarantee
+(summary names it, expanding reveals the basis, letter is a dash) rather
+than deleting the assertion or reverting the design.
+
+Gate: lint clean, typecheck clean, 1,341 unit (was 1,312), 110 web (was 81),
+105 e2e (1 skipped), bundle 110.9 KB of 200 KB, four validators pass.

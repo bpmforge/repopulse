@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import {
   keepPreviousData,
   useMutation,
@@ -28,6 +29,76 @@ export function queryKeyFor(d: QueryDescriptor): readonly unknown[] {
   return [d.endpoint, d.path ?? {}, d.query ?? {}];
 }
 
+/**
+ * The endpoint that answers "is anyone signed in here". Every /api/v1 route is
+ * behind the same session preHandler (apps/api/src/plugins/api-v1.ts), so this
+ * one query stands in for all of them and the app needs exactly one place that
+ * knows about 401 — not a check per widget.
+ */
+export const SESSION_ENDPOINT = '/me/context';
+const SESSION_KEY = queryKeyFor({ endpoint: SESSION_ENDPOINT });
+
+/**
+ * True ONLY for an explicit 401. A network failure or a 502 from the proxy is
+ * not evidence that the visitor is signed out, and treating it as such would
+ * make the product blame the user for its own outage. Those keep flowing to the
+ * widgets, which report them honestly with a request id and a retry.
+ *
+ * Reads `.status` off the error the way queryClient.ts does, rather than
+ * `instanceof ApiError`: a duplicated module identity would silently break it.
+ */
+export function isUnauthenticated(error: unknown): boolean {
+  return (error as { status?: number } | null | undefined)?.status === 401;
+}
+
+/**
+ * A 401 on ANY query means the session ended — most often it expired mid-use.
+ * Re-check the session query so the shell can react once, centrally, instead of
+ * every widget discovering it separately. N widgets failing in the same tick
+ * dedupe into a single refetch.
+ */
+function useSessionExpiryWatch(endpoint: string, error: unknown): void {
+  const queryClient = useQueryClient();
+  // Never from the session query itself: it would invalidate itself in a loop.
+  const expired = endpoint !== SESSION_ENDPOINT && isUnauthenticated(error);
+  useEffect(() => {
+    if (!expired) return;
+    void queryClient.invalidateQueries({ queryKey: SESSION_KEY });
+  }, [expired, queryClient]);
+}
+
+/** 'unknown' = we could not find out (not asked, or the API is unreachable). */
+export type SessionStatus = 'loading' | 'authenticated' | 'anonymous' | 'unknown';
+
+/**
+ * The one place the app decides whether it has a session (W-FIX). Signed out,
+ * the shell used to render every widget's 401 as a red error card with a Retry
+ * button — eight failure states describing something that is not a failure.
+ */
+export function useSession(options: { enabled?: boolean } = {}): { status: SessionStatus } {
+  const { data, error, isError } = useApiQuery<unknown>({ endpoint: SESSION_ENDPOINT }, options);
+
+  // Order matters. `keepPreviousData` means an expired session holds its old
+  // `data` alongside the fresh 401, so checking data first would keep a
+  // logged-out user inside the shell forever — exactly the mid-use case.
+  const current: SessionStatus = isUnauthenticated(error)
+    ? 'anonymous'
+    : data !== undefined
+      ? 'authenticated'
+      : isError || options.enabled === false
+        ? 'unknown'
+        : 'loading';
+
+  // Once the question has been answered it stays answered until a LATER answer
+  // replaces it. Any refetch of this query passes back through 'pending', and
+  // without this the shell would unmount itself mid-session and remount on the
+  // next tick — a loop, because remounting is what triggers the refetch. The
+  // probe screen is for the first round-trip only.
+  const settled = useRef<SessionStatus | null>(null);
+  if (current !== 'loading') settled.current = current;
+  return { status: settled.current ?? 'loading' };
+}
+
 export function useApiQuery<T>(
   descriptor: QueryDescriptor,
   // `refetchInterval` (W5-04): report generation is asynchronous, and the
@@ -36,13 +107,15 @@ export function useApiQuery<T>(
   // would fight the very cache it is meant to refresh.
   options: { enabled?: boolean; refetchInterval?: number } = {},
 ): UseQueryResult<T, Error> {
-  return useQuery<T, Error>({
+  const query = useQuery<T, Error>({
     queryKey: queryKeyFor(descriptor),
     queryFn: () => apiFetch<T>(buildUrl(descriptor.endpoint, descriptor)),
     placeholderData: keepPreviousData,
     enabled: options.enabled ?? true,
     ...(options.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
   });
+  useSessionExpiryWatch(descriptor.endpoint, query.error);
+  return query;
 }
 
 /** A cursor-paginated list response (FR-API-3): `{ items, nextCursor }`. */
@@ -55,7 +128,7 @@ export function useApiInfiniteQuery<Item>(
   descriptor: QueryDescriptor,
   options: { enabled?: boolean } = {},
 ): UseInfiniteQueryResult<{ pages: CursorPage<Item>[]; pageParams: unknown[] }, Error> {
-  return useInfiniteQuery<CursorPage<Item>, Error>({
+  const query = useInfiniteQuery<CursorPage<Item>, Error>({
     queryKey: [...queryKeyFor(descriptor), 'infinite'],
     queryFn: ({ pageParam }) =>
       apiFetch<CursorPage<Item>>(
@@ -69,6 +142,8 @@ export function useApiInfiniteQuery<Item>(
     placeholderData: keepPreviousData,
     enabled: options.enabled ?? true,
   });
+  useSessionExpiryWatch(descriptor.endpoint, query.error);
+  return query;
 }
 
 /**
@@ -81,7 +156,7 @@ export function useApiMutation<TBody, TResult>(
   options: { invalidate?: readonly (readonly unknown[])[] } = {},
 ): UseMutationResult<TResult, Error, TBody> {
   const queryClient = useQueryClient();
-  return useMutation<TResult, Error, TBody>({
+  const mutation = useMutation<TResult, Error, TBody>({
     mutationFn: (body: TBody) =>
       apiFetch<TResult>(buildUrl(descriptor.endpoint, descriptor), {
         method: descriptor.method ?? 'POST',
@@ -93,4 +168,7 @@ export function useApiMutation<TBody, TResult>(
       }
     },
   });
+  // A write rejected with 401 is the same news as a read rejected with 401.
+  useSessionExpiryWatch(descriptor.endpoint, mutation.error);
+  return mutation;
 }

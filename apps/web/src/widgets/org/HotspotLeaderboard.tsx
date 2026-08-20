@@ -6,7 +6,7 @@ import {
   type DataTableColumn,
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import type { HotspotItems } from './contracts.js';
+import { spansMultipleRepos, type HotspotItems } from './contracts.js';
 
 // UX_SPEC §4.a: cross-repo hotspot leaderboard, click → file drill-down
 // (W4-06's /repos/$repoId/files/$). The file path is a splat param, so it is
@@ -27,6 +27,10 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
   });
 
   const items = data?.items ?? [];
+  // src/index.ts is hot in three repositories and the leaderboard listed it
+  // three times, identically — the score told you something was wrong without
+  // telling you where. The repository is part of the row's identity here.
+  const showRepo = spansMultipleRepos(items);
   const columns: DataTableColumn<Row>[] = [
     {
       id: 'path',
@@ -43,6 +47,21 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
         </Link>
       ),
     },
+    ...(showRepo
+      ? [
+          {
+            id: 'repo',
+            header: 'Repository',
+            // Findings' weight: secondary to the linked path, never competing
+            // with it, and never wide enough to push the score off the row.
+            cell: (row: Row) => (
+              <span className="text-xs whitespace-nowrap text-fg-muted">
+                {row.repo.org}/{row.repo.name}
+              </span>
+            ),
+          } satisfies DataTableColumn<Row>,
+        ]
+      : []),
     {
       id: 'score',
       header: 'Hotspot score',

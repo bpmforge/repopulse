@@ -41,10 +41,15 @@ export default async function hotspotsRoutes(
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
     const { window, limit } = request.query;
 
+    // org/name come back with the id because the leaderboard is CROSS-repo:
+    // three repositories can each have a hot src/index.ts, and a row that says
+    // only "src/index.ts" is one a reader cannot act on. Widening this existing
+    // select costs nothing — no extra query, no join.
     const repos = await opts.db
-      .select({ id: core.repos.id })
+      .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
       .from(core.repos)
       .where(eq(core.repos.workspaceId, workspaceId));
+    const repoById = new Map(repos.map((r) => [r.id, r]));
 
     const ranked = await rankHotspots(opts.db, {
       repoIds: repos.map((r) => r.id),
@@ -73,7 +78,9 @@ export default async function hotspotsRoutes(
       intents.map((i) => ({ ...i, intent: i.intent as 'refactor' | 'supervise' | 'acknowledged' })),
     );
     return reply.send({
-      items: suppression.visible,
+      // The lookup cannot miss: rankHotspots was handed repoIds drawn from this
+      // very list, so every ranked row names a repo we already selected.
+      items: suppression.visible.map((h) => ({ ...h, repo: repoById.get(h.repoId)! })),
       suppressed_count: suppression.suppressedCount,
       suppressed_paths: suppression.suppressedPaths,
     });
