@@ -4143,7 +4143,7 @@
         "Wrong/missing config fails at startup with a message naming the variable, never a stack trace or a half-booted app"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "The connect flow has never run against real GitHub (see docs/STATUS.md 2026-08-12) — that risk lands HERE for a customer, on their infra, where we cannot debug it. This ticket is why that spike should happen early."
       ]
