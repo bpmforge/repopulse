@@ -36,7 +36,11 @@ export interface ConnectionsRoutesOptions {
   /** App-mode app id (env); only needed for auth_kind='app'. */
   appId?: string | number;
   /** Injectable so tests supply a deterministic provider (default: real forge). */
-  buildProvider?: (auth: GitHubAuth, kind?: 'github' | 'gitea' | 'gitlab') => ForgeProvider;
+  buildProvider?: (
+    auth: GitHubAuth,
+    kind?: 'github' | 'gitea' | 'gitlab',
+    baseUrl?: string,
+  ) => ForgeProvider;
   /** Forge API base URL — GitHub Enterprise Server, or a fake in e2e. */
   forgeBaseUrl?: string;
 }
@@ -66,10 +70,12 @@ export default async function connectionsRoutes(
   opts: ConnectionsRoutesOptions,
 ): Promise<void> {
   const { db, tokenKey } = opts;
+  // baseUrl is now a PER-CONNECTION argument (W14-02); opts.forgeBaseUrl is
+  // the fallback rather than the only answer.
   const buildProvider =
     opts.buildProvider ??
-    ((auth: GitHubAuth, kind?: 'github' | 'gitea' | 'gitlab') =>
-      buildDiscoveryProvider(auth, opts.forgeBaseUrl, kind ?? 'github'));
+    ((auth: GitHubAuth, kind?: 'github' | 'gitea' | 'gitlab', baseUrl?: string) =>
+      buildDiscoveryProvider(auth, baseUrl ?? opts.forgeBaseUrl, kind ?? 'github'));
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   function authFor(kind: 'pat' | 'app', credential: string, installationId?: string): GitHubAuth {
@@ -109,7 +115,21 @@ export default async function connectionsRoutes(
     async (request, reply) => {
       const ctx = ctxOf(request);
       if (!ctx) return fail(request, reply, 401, 'No active session');
-      const { provider, auth_kind, credential, installation_id } = request.body;
+      const { provider, auth_kind, credential, installation_id, base_url } = request.body;
+
+      // Gitea is self-hosted and has no host worth guessing. Refusing here, by
+      // name, beats the alternative: a connection that stores fine and then
+      // 404s on every call, which reads as a bad token.
+      const baseUrl = base_url ?? opts.forgeBaseUrl;
+      if (provider === 'gitea' && !baseUrl) {
+        return fail(
+          request,
+          reply,
+          400,
+          'base_url is required for Gitea',
+          'Gitea is self-hosted, so there is no default instance to connect to. Give the connection its own base URL (or set FORGE_BASE_URL as the server-wide default).',
+        );
+      }
 
       let auth: GitHubAuth;
       try {
@@ -117,7 +137,7 @@ export default async function connectionsRoutes(
       } catch (err) {
         return fail(request, reply, 400, 'Invalid credential', (err as Error).message);
       }
-      const forge = buildProvider(auth, provider);
+      const forge = buildProvider(auth, provider, baseUrl);
 
       try {
         const result = await createConnection(
@@ -133,6 +153,10 @@ export default async function connectionsRoutes(
             credential,
             createdBy: ctx.userId,
             ...(installation_id ? { appInstallationId: installation_id } : {}),
+            // Resolved at creation, not read from the env later: an operator
+            // who re-points FORGE_BASE_URL must not silently move connections
+            // that were made against a different host.
+            ...(baseUrl ? { baseUrl } : {}),
           },
         );
         return reply.code(201).send({
@@ -170,6 +194,7 @@ export default async function connectionsRoutes(
           authKind: core.forgeConnections.authKind,
           fingerprint: core.forgeConnections.credentialFingerprint,
           status: core.forgeConnections.status,
+          baseUrl: core.forgeConnections.baseUrl,
           repoCount: sql<number>`(select count(*)::int from ${core.repos} where ${core.repos.connectionId} = ${core.forgeConnections.id})`,
         })
         .from(core.forgeConnections)
@@ -183,6 +208,7 @@ export default async function connectionsRoutes(
           last4: credentials.fingerprintLast4(r.fingerprint),
           status: r.status,
           repo_count: r.repoCount,
+          base_url: r.baseUrl,
         })),
       });
     },

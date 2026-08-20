@@ -1,12 +1,12 @@
 import {
   BudgetedClient,
   DEFAULT_GITHUB_BASE_URL,
-  GitHubProvider,
   createAuthHeaderProvider,
   createGithubExecutor,
   type ForgeProvider,
   type GitHubAuth,
 } from '@repopulse/forge';
+import { providerForKind, type ForgeKind } from '../routes/connections/provider-factory.js';
 import { credentials } from '@repopulse/auth';
 import { core, type Database } from '@repopulse/shared';
 import { eq } from 'drizzle-orm';
@@ -86,7 +86,22 @@ export async function providerForRepo(
           installationId: conn.appInstallationId ?? '',
         };
 
-  const base = deps.forgeBaseUrl ?? DEFAULT_GITHUB_BASE_URL;
+  // PER-CONNECTION base URL (W14-02), falling back to the server default only
+  // when the row has none. FORGE_BASE_URL becomes the default, not the only
+  // answer — a self-hosted Gitea and github.com can now be two connections in
+  // one workspace, which a server-level env could not express.
+  const base = conn.baseUrl ?? deps.forgeBaseUrl ?? DEFAULT_GITHUB_BASE_URL;
+
+  // LAZY BACKFILL. An existing connection was created under whatever
+  // FORGE_BASE_URL said at the time; writing that value onto the row the first
+  // time we resolve it means a later change to the env does not silently move
+  // connections that were made against a different host.
+  if (!conn.baseUrl) {
+    await deps.db
+      .update(core.forgeConnections)
+      .set({ baseUrl: base })
+      .where(eq(core.forgeConnections.id, conn.id));
+  }
   const client = new BudgetedClient({
     connectionId: conn.id,
     workspaceId,
@@ -101,7 +116,15 @@ export async function providerForRepo(
   });
 
   return {
-    provider: new GitHubProvider({
+    // BY THE CONNECTION'S DECLARED FORGE, not always GitHub. Until W14-02 this
+    // built a GitHubProvider for every connection, so a Gitea connection would
+    // have ingested through GitHub's API shapes and failed in ways that read
+    // as a broken instance rather than as the wrong adapter.
+    // Through the SINGLE construction site in routes/connections rather than a
+    // second switch here: the capability gate allows exactly one file to
+    // branch on the forge kind, and two construction sites are two places for
+    // a new forge to be half-added.
+    provider: providerForKind(conn.provider as ForgeKind, {
       client,
       auth: createAuthHeaderProvider(auth),
       baseUrl: base,

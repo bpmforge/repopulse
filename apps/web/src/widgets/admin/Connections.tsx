@@ -24,13 +24,17 @@ export function Connections() {
   // The provider was hardcoded here, so GitLab and Gitea were unreachable from
   // the UI no matter what the API accepted.
   const [provider, setProvider] = useState<'github' | 'gitlab' | 'gitea'>('github');
+  // W14-02: per connection, not per deployment. A self-hosted Gitea and
+  // github.com can now be two connections in one workspace; the server-level
+  // FORGE_BASE_URL is the default, not the only answer.
+  const [baseUrl, setBaseUrl] = useState('');
   const [submitted, setSubmitted] = useState<string | null>(null);
   const pushToasts = useUiStore((s) => s.pushToasts);
 
   const { data, isLoading, isError, error, refetch } = useApiQuery<ConnectionList>(LIST);
 
   const create = useApiMutation<
-    { provider: string; auth_kind: string; credential: string },
+    { provider: string; auth_kind: string; credential: string; base_url?: string },
     { id: number; status: string; fingerprint: string }
   >({ endpoint: '/connections' }, { invalidate: [queryKeyFor(LIST)] });
 
@@ -38,6 +42,17 @@ export function Connections() {
 
   const columns: DataTableColumn<Row>[] = [
     { id: 'provider', header: 'Provider', cell: (row) => row.provider },
+    {
+      id: 'host',
+      header: 'Instance',
+      // The HOST, not the whole URL: the column exists so two connections to
+      // two forges are told apart at a glance, and a full URL crowds that out.
+      cell: (row) => (
+        <span className="text-fg-muted">
+          {row.base_url ? new URL(row.base_url).host : 'server default'}
+        </span>
+      ),
+    },
     { id: 'kind', header: 'Auth', cell: (row) => row.auth_kind },
     {
       id: 'cred',
@@ -73,7 +88,12 @@ export function Connections() {
             e.preventDefault();
             if (!credential.trim()) return;
             create.mutate(
-              { provider, auth_kind: 'pat', credential: credential.trim() },
+              {
+                provider,
+                auth_kind: 'pat',
+                credential: credential.trim(),
+                ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+              },
               {
                 onSuccess: (res) => {
                   // Clear immediately: a token left in a form field survives in
@@ -102,6 +122,25 @@ export function Connections() {
             <option value="gitlab">GitLab</option>
             <option value="gitea">Gitea</option>
           </select>
+          <label className="text-xs text-fg-muted" htmlFor="connection-base-url">
+            {provider === 'gitea'
+              ? 'Instance URL (required — Gitea is self-hosted)'
+              : 'Instance URL (optional — blank uses the server default)'}
+          </label>
+          <input
+            id="connection-base-url"
+            type="url"
+            autoComplete="off"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            // Deliberately NOT the real GitHub API host: validate-arch rule 4
+            // forbids that literal outside packages/forge, and a placeholder is
+            // not worth an exemption to the rule that keeps forge hosts in one
+            // place.
+            placeholder={provider === 'gitea' ? 'https://git.example.com' : 'leave blank for GitHub'}
+            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            data-testid="connection-base-url"
+          />
           <label className="text-xs text-fg-muted" htmlFor="connection-credential">
             {provider === 'github'
               ? 'GitHub token or installation credential'

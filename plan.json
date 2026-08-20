@@ -4822,7 +4822,7 @@
         "STATUS.md records that the GiteaProvider has now run against a real instance, replacing the W4 carried unknown"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "blocked",
       "notes": [
         "FILED 2026-08-19. THE POINT OF THE PROJECT: deploy/compose.yaml has been up for days and its database holds 0 connections, 0 repos, 0 commits, 0 snapshots. The product is deployed and has never been pointed at anything.",
         "CLOSES A W4 CARRIED UNKNOWN. GiteaProvider (W7-02) passes the shared contract suite against recorded fixtures and has NEVER touched a real Gitea instance. W4 could not gate partly because of this. A contract suite proves the adapter matches our recording; it does not prove the recording matches Gitea 1.26.2.",
@@ -4830,7 +4830,9 @@
         "VERIFIED REACHABLE: the deployed api container resolves and reaches https://git.bpmforge.com/api/v1/version (1.26.2). Anonymous API reads return 404 for the repos, so a token is genuinely required — this cannot be done credential-free.",
         "HUMAN STEP: a Gitea access token (Settings -> Applications) with read scopes, entered through the Connections UI. It is encrypted at rest (FR-AUTH-5) and never touches git (Law 9).",
         "PREP DONE 2026-08-19, WAITING ON A HUMAN. FORGE_BASE_URL=https://git.bpmforge.com is set in deploy/.env and documented in deploy/.env.example; api and worker were force-recreated and both now carry it (verified with printenv inside each container); the stack answers /healthz 200 on :8099. The only remaining step is a Gitea token, which only Brad can mint.",
-        "CORRECTION TO AN EARLIER CLAIM IN THIS SESSION: I said deploy/compose.yaml does not pass FORGE_BASE_URL through. It does — api and worker both declare env_file: [.env], so every variable in that file reaches them. The grep that produced the claim looked for an explicit environment: entry and missed the env_file line. No compose change was needed."
+        "CORRECTION TO AN EARLIER CLAIM IN THIS SESSION: I said deploy/compose.yaml does not pass FORGE_BASE_URL through. It does — api and worker both declare env_file: [.env], so every variable in that file reaches them. The grep that produced the claim looked for an explicit environment: entry and missed the env_file line. No compose change was needed.",
+        "BLOCKED 2026-08-19 (was in_progress). Everything that can be done without a credential is done and verified: FORGE_BASE_URL is set and reaching the containers, the deployed api resolves git.bpmforge.com and reads its version endpoint (1.26.2), and the stack answers /healthz on :8099. The remaining step is a Gitea access token with read scopes, entered through the Connections UI — anonymous API reads return 404 for these repositories, so this genuinely cannot be done credential-free.",
+        "MOVED FROM in_progress TO blocked so the board stops showing work in flight that nobody can advance. What is needed from Brad: a Gitea token (Settings -> Applications, read scopes) pasted into Admin -> Connections against https://git.bpmforge.com. Everything after that is automatic — discovery, backfill, snapshots — and whatever the first real instance breaks is what this ticket exists to find."
       ]
     },
     {
@@ -4854,11 +4856,19 @@
         "Existing connections keep working after the migration (base URL backfilled from the env value they were created under)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "FOUND 2026-08-19 while preparing W14-01. buildDiscoveryProvider takes the base URL from opts.forgeBaseUrl, which comes from a single server env. Setting it to a self-hosted Gitea therefore points EVERY connection in that deployment at that host — a GitHub connection in the same stack would be sent to git.bpmforge.com and fail.",
         "This is not hypothetical for this project: D1a is a self-hostable product and the connections UI already offers github/gitlab/gitea in one workspace, which cannot work today beyond the first forge.",
-        "The multi-tenant/multi-forge tests pass because they inject buildProvider directly, so nothing exercises the env-derived path with two different forges. Worth a test that would have caught it."
+        "The multi-tenant/multi-forge tests pass because they inject buildProvider directly, so nothing exercises the env-derived path with two different forges. Worth a test that would have caught it.",
+        "forge_connections.base_url (migration 0022). FORGE_BASE_URL becomes the default rather than the only answer, so a self-hosted Gitea and github.com coexist as two connections in one workspace — proven in an integration test that resolves both and asserts each gets its own adapter.",
+        "FOUND A REAL DEFECT: providerForRepo, the INGESTION path, built a GitHubProvider for every connection regardless of what the row said. A Gitea connection would have ingested through GitHub API shapes and failed in ways that read as a broken instance rather than the wrong adapter. It has never mattered because no non-GitHub connection has ever existed; it would have mattered the moment W14-01 landed a real token.",
+        "THE CAPABILITY GATE CAUGHT MY FIRST FIX. I added a second `if (kind === gitea)` switch in the worker; W12-01 exists to forbid exactly that, and it turned the suite red. The adapter choice now goes through the single construction site in routes/connections/provider-factory.ts — the one file allowed to branch on forge kind.",
+        "Existing connections: LAZY BACKFILL rather than a migration default. The first resolve stamps the server default onto a row with no base_url, so an operator who later re-points FORGE_BASE_URL does not silently move connections created against a different host. Proven both ways — a null row gets stamped, an explicit row is left alone.",
+        "Gitea now requires a base URL at connect time and is refused BY NAME if it is missing, rather than storing fine and 404ing on every subsequent call in a way that reads as a bad token.",
+        "Widens, each recorded: packages/ingest/src/connect/connect.ts (the insert needs the column), apps/api/src/routes/connections/{schema,provider-factory}.ts, apps/api/src/workers/forge-provider.ts, apps/web/src/widgets/admin/{Connections.tsx,contracts.ts}, e2e/connect-flow.spec.ts.",
+        "One arch-gate catch worth recording: my instance-URL placeholder contained the literal GitHub API host, which validate-arch rule 4 forbids outside packages/forge. Reworded rather than exempted — a placeholder is not worth an exemption to the rule that keeps forge hosts in one place.",
+        "Gate: lint clean, typecheck clean, 1293 unit tests pass, 81 web, 105 e2e (1 skipped), bundle 110.3 KB of 200 KB, validate-arch/plan/traceability/compose all PASS."
       ]
     },
     {

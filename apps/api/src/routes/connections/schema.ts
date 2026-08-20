@@ -8,6 +8,14 @@ export const createConnectionBodySchema = z.object({
   auth_kind: z.enum(['pat', 'app']),
   credential: z.string().min(1),
   installation_id: z.string().optional(),
+  /**
+   * This connection's forge base URL (W14-02).
+   *
+   * Required for Gitea, which is self-hosted and has no default host worth
+   * guessing. Optional elsewhere: absent means api.github.com, or whatever
+   * FORGE_BASE_URL says for a GitHub Enterprise install.
+   */
+  base_url: z.string().url().optional(),
 });
 
 export const connectionSummarySchema = z.object({
@@ -18,6 +26,8 @@ export const connectionSummarySchema = z.object({
   last4: z.string(),
   status: z.string(),
   repo_count: z.number(),
+  /** Null on a connection created before W14-02 and not yet resolved. */
+  base_url: z.string().nullable(),
 });
 
 export const createConnectionResponseSchema = z.object({

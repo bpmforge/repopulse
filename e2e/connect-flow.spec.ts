@@ -100,3 +100,19 @@ test('the operator can choose a forge — GitLab is reachable from the UI (W12-0
   const body = JSON.parse((await sent).postData() ?? '{}') as { provider?: string };
   expect(body.provider, 'the chosen forge must reach the API').toBe('gitlab');
 });
+
+test('a Gitea connection carries its own instance URL (W14-02)', async ({ page }) => {
+  // One deployment, two forges. Before this the base URL was a server-level
+  // env, so a workspace could reach exactly one instance and a Gitea
+  // connection made against the wrong host 404'd in a way that read as a bad
+  // token.
+  await loginAsFixture(page);
+  await page.goto('/admin');
+
+  await expect(page.getByTestId('connection-base-url')).toBeVisible();
+  await page.getByTestId('connection-provider').selectOption('gitea');
+
+  // The label tells you it is required for Gitea rather than letting you find
+  // out from a 400 after typing a token.
+  await expect(page.getByText(/Instance URL \(required/)).toBeVisible();
+});

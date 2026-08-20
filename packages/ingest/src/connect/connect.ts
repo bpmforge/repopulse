@@ -81,6 +81,8 @@ export interface CreateConnectionParams {
   credential: string;
   createdBy: number;
   appInstallationId?: string;
+  /** This connection's forge base URL. Null = the server default (W14-02). */
+  baseUrl?: string | null;
 }
 
 export interface CreateConnectionResult {
@@ -118,6 +120,8 @@ export async function createConnection(
       keyVersion: enc.keyVersion,
       credentialFingerprint: enc.fingerprint,
       appInstallationId: params.appInstallationId ?? null,
+      // W14-02: stored per connection, so one deployment can serve two forges.
+      baseUrl: params.baseUrl ?? null,
       status: 'active',
       createdBy: params.createdBy,
     })
