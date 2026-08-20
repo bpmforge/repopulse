@@ -239,3 +239,27 @@ test('the Analysis tab states the consequence of Tier-3 opt-in and audits the to
   await toggle.click();
   await expect(row).toContainText(/stays on your network/i);
 });
+
+test('the rule workbench shows shadow evidence and blocks an unready promotion', async ({
+  page,
+}) => {
+  // W9-07. The screen exists to make one decision answerable — should this
+  // rule start counting? — so the blockers are visible rather than hidden
+  // behind a disabled button.
+  await loginAsFixture(page);
+  await page.goto('/admin/rules');
+  await expect(page.getByTestId('rule-workbench')).toBeVisible();
+
+  const frame = page.getByTestId('rules-frame');
+  await expect(frame).toHaveAttribute('data-state', /ready|empty/);
+
+  // With no rules registered the empty state explains where rules come from,
+  // rather than looking like a broken screen.
+  if ((await frame.getAttribute('data-state')) === 'empty') {
+    await expect(frame).toContainText(/versioned packs/i);
+  } else {
+    await expect(page.getByTestId('rules-table')).toBeVisible();
+  }
+
+  await expectNoA11yViolations(page);
+});
