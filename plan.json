@@ -3953,7 +3953,7 @@
         "License posture: SPDX per dep from the SBOM vs workspace policy jsonb (defaults flag AGPL/SSPL/unknown in prod scope; allow/warn tunable); AGPL prod-direct fixture flags, same dep dev-scoped stays silent; findings only — no gating surface exists (FR-REG-4)"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "in_progress",
       "notes": []
     },
     {
