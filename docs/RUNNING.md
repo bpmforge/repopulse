@@ -141,6 +141,53 @@ Both rules were checked by breaking them deliberately.
 
 ---
 
+## CI
+
+**There is no CI running today, and there never has been.** Every gate this
+project has ever passed was run locally. GitHub Actions is configured
+(`.github/workflows/ci.yml`) but has never executed — the account has no
+Actions billing — so no green check in this repository has ever meant anything.
+
+`.gitea/workflows/gate.yaml` is the replacement, aimed at the self-hosted Gitea
+at `git.bpmforge.com`. It mirrors the GitHub gate step for step: lint,
+typecheck, `pnpm test` with `REQUIRE_LIVE_INFRA=1` against Postgres + Redis
+services, the bundle budget, and the four validators.
+
+**It has never run either.** It needs a registered runner, which needs two
+things I cannot produce:
+
+1. **A runner registration token**, minted by a Gitea admin at
+   *Site Administration → Actions → Runners → Create new Runner*, or per-repo
+   at *Settings → Actions → Runners*.
+2. **A decision to install a persistent daemon** on whichever machine hosts the
+   runner, since acceptance requires it to survive a reboot.
+
+Once both exist:
+
+```bash
+# On the runner host (macOS example; Linux is the same binary plus a systemd unit)
+brew install act_runner        # or download from gitea.com/gitea/act_runner/releases
+
+act_runner register --no-interactive \
+  --instance https://git.bpmforge.com \
+  --token <REGISTRATION_TOKEN> \
+  --name repopulse-local \
+  --labels ubuntu-latest:docker://catthehacker/ubuntu:act-22.04,host:host
+
+# Survive a reboot (macOS): a launchd agent running `act_runner daemon`
+# in the directory holding .runner. On Linux, the packaged systemd unit.
+```
+
+Then prove it goes **red** before trusting it green — push a commit with a
+deliberate type error and confirm the gate fails. A CI system nobody has seen
+fail is a CI system nobody has tested.
+
+Until that is done the GitHub workflow stays in place. Deleting it would leave
+the repository with no CI definition at all, which is worse than having one
+that has never been billed.
+
+---
+
 ## Tests
 
 ```bash
