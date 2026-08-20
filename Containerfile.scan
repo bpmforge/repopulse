@@ -72,6 +72,32 @@ ARG GRIMP_SHA256_X86=ba25002e92b1792f13391295a1f805d2e09781b846d92ec1a791ff9ed89
 ARG GRIMP_URL_AARCH64=https://files.pythonhosted.org/packages/d6/02/fabd5ae2b12276530f4bae038ffcf3a556ac2c9b9fa271f83fbeb4036a08/grimp-3.15-cp312-cp312-musllinux_1_2_aarch64.whl
 ARG GRIMP_URL_X86=https://files.pythonhosted.org/packages/33/53/ad27750eb8b4a0c3ecb5ca7d78c7230f0f5e814515ed6f8986be527117ff/grimp-3.15-cp312-cp312-musllinux_1_2_x86_64.whl
 ARG PYGMENTS_URL=https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl
+# W8-06 dependency tools: syft (SBOM) and grype (vulnerability match), both
+# Apache-2.0.
+#
+# These are the first tools here that need DATA as well as a binary, and the
+# data is precisely why grype's database is NOT baked into this image: it
+# aggregates two dozen upstream feeds (nvd, github, kev, epss, debian, rhel,
+# alpine, ...) each carrying its own terms, so we are not entitled to
+# redistribute it. It is fetched host-side by deploy/scan-db-sync.sh and
+# mounted read-only, exactly like the rulepacks.
+#
+# Anchore publishes a VENDOR checksums.txt per release, so these are the same
+# class of pin as ruff above — the publisher's own claim about the bytes,
+# not a record of what we happened to download.
+#
+# There is no musl-specific asset for either tool, and none is needed: the
+# linux_<arch>.tar.gz is a CGO-disabled static Go binary, which is why it runs
+# on alpine at all. That is verified rather than assumed — the stanza ends by
+# running both binaries, so an image that cannot execute them fails the build
+# instead of failing the first scan.
+ARG SYFT_VERSION=1.51.0
+ARG SYFT_SHA256_AARCH64=6c0466811541ea03add5213a60a1562f0851e4c0b0ecfdee1a694a9455285900
+ARG SYFT_SHA256_X86=2a2e837a2c8d59ec9af5472ee22d3b04ee463c4e44476ecf993fd1e5ab6ebc7f
+ARG GRYPE_VERSION=0.117.0
+ARG GRYPE_SHA256_AARCH64=935f628bdf9331ffdd946931ea5fdb50045d3970ba52670cbeb44a88f127291b
+ARG GRYPE_SHA256_X86=38525dab1e06f162ebaa02f94d82d1f807076b011a44180cf2777edf1a7b9c26
+
 # musllinux builds, because the base is alpine. Both arches are listed so the
 # image builds on an arm64 laptop and an x86 server from the same file.
 ARG OPENGREP_SHA256_AARCH64=06e7de74ba49e6e619f5109c68a8d235357dff143f18a0a6296a416f47c90924
@@ -222,9 +248,41 @@ RUN set -eux; \
     mkdir -p "$OPENGREP_CACHE/.opengrep"; \
     chown -R 65534:65534 "$OPENGREP_CACHE/.opengrep"
 
+# syft + grype. One stanza because they are one pipeline: syft produces the
+# CycloneDX document, grype matches it against the mounted database, and a
+# version skew between them is a bug that only shows up as missing findings.
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch-sbom curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) goarch=arm64; syft_sha="$SYFT_SHA256_AARCH64"; grype_sha="$GRYPE_SHA256_AARCH64" ;; \
+      x86_64) goarch=amd64; syft_sha="$SYFT_SHA256_X86"; grype_sha="$GRYPE_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/syft.tar.gz \
+      "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_${goarch}.tar.gz"; \
+    echo "${syft_sha}  /tmp/syft.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/syft.tar.gz -C /tmp syft; \
+    mv /tmp/syft /usr/local/bin/syft; \
+    curl -fsSL -o /tmp/grype.tar.gz \
+      "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_${goarch}.tar.gz"; \
+    echo "${grype_sha}  /tmp/grype.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/grype.tar.gz -C /tmp grype; \
+    mv /tmp/grype /usr/local/bin/grype; \
+    chmod 0755 /usr/local/bin/syft /usr/local/bin/grype; \
+    rm -f /tmp/syft.tar.gz /tmp/grype.tar.gz; \
+    apk del .fetch-sbom; \
+    rm -rf /var/cache/apk/*; \
+    syft version; \
+    grype version
+
 # The mount points the profile uses. Created at build time so the container
-# never needs to mkdir anything on a read-only root.
-RUN mkdir -p /scan /rules && chown -R 65534:65534 /scan /rules
+# never needs to mkdir anything on a read-only root. /vuln-db is its own mount
+# rather than a subdirectory of /rules because the two arrive separately: the
+# rulepack mount is a rulepack DIRECTORY chosen per scan (see RULES_MOUNT_PATH
+# in the semgrep scanner), and nesting the database inside it would make one
+# scanner's mount decide whether another scanner has a database.
+RUN mkdir -p /scan /rules /vuln-db && chown -R 65534:65534 /scan /rules /vuln-db
 
 USER 65534:65534
 WORKDIR /scan
@@ -236,6 +294,36 @@ ENV HOME=/opt/opengrep \
     XDG_CACHE_HOME=/opt/opengrep \
     TMPDIR=/tmp \
     OPENGREP_VERSION=${OPENGREP_VERSION}
+
+# syft and grype are configured HERE, in the image, and nowhere else. That is
+# forced rather than chosen: buildSandboxArgs gives the container no environment
+# from the calling process, so an env var set beside the scan would simply not
+# arrive, and adding env-passing to the profile to suit a tool would be trading
+# the trust boundary for convenience.
+#
+# Every setting below turns off something that wants the network, because both
+# tools default to reaching for it and a tool that silently degrades under
+# --network=none is worse than one that fails:
+#   - both check for their own new release on startup (check-for-app-update);
+#   - grype auto-updates its database on every run, which under --network=none
+#     is a guaranteed failure, so the mounted copy is declared the only one;
+#   - syft's disk cache is unnecessary here — an empty SYFT_CACHE_DIR selects
+#     its in-memory cache, so it needs no writable path at all rather than
+#     needing a tmpfs we would then have to justify.
+#
+# GRYPE_DB_CACHE_DIR is a CONTRACT with deploy/scan-db-sync.sh: the host
+# directory it fills is mounted read-only at /vuln-db, and grype finds the
+# database at /vuln-db/<schema>/vulnerability.db. Validation of the database's
+# age and hash is deliberately left ON (grype's defaults): a scan against a
+# database that quietly stopped being refreshed reports "no vulnerabilities"
+# and looks exactly like good news.
+ENV SYFT_CHECK_FOR_APP_UPDATE=false \
+    SYFT_CACHE_DIR="" \
+    GRYPE_CHECK_FOR_APP_UPDATE=false \
+    GRYPE_DB_AUTO_UPDATE=false \
+    GRYPE_DB_CACHE_DIR=/vuln-db \
+    SYFT_VERSION=${SYFT_VERSION} \
+    GRYPE_VERSION=${GRYPE_VERSION}
 
 # No ENTRYPOINT on purpose: the sandbox runner passes the whole command, and an
 # entrypoint here would be a second place that decides what runs.

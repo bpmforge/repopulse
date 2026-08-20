@@ -188,6 +188,61 @@ screen shows the timestamp of the most recent delivery. If nothing arrives:
 - the webhook secret must match `WEBHOOK_SECRET` exactly,
 - deliveries with a bad signature are rejected and logged, not silently dropped.
 
+## 5. Scan data
+
+Security and code scanning run in a container with **no network at all**. That
+is the control, not an inconvenience: a binary pointed at your source cannot
+phone anywhere. The consequence is that everything those tools need — our
+rulepacks and a vulnerability database — has to be put in front of them from
+outside, which is what `deploy/scan-db-sync.sh` does.
+
+Run it once now, then nightly:
+
+```bash
+deploy/scan-db-sync.sh
+# then, in root's crontab:
+0 3 * * * /opt/repopulse/deploy/scan-db-sync.sh >> /var/log/repopulse-scan-sync.log 2>&1
+```
+
+> **Set aside 4 GB of disk under `SCAN_RULES_DIR`.** The vulnerability database
+> is **~1.9 GB**, and a refresh briefly keeps the new copy beside the one in use,
+> so the peak is roughly double. The first run downloads all of it and takes a
+> minute or two on a fast connection. The script checks free space and refuses
+> to start if there is not enough, rather than filling the disk your database is
+> on at three in the morning.
+
+The database is downloaded from Anchore by *your* install rather than shipped
+inside our image, because it aggregates 26 upstream feeds (NVD, GitHub
+Advisories, CISA KEV, EPSS, and the distributions) that are each licensed on
+their own terms and are not ours to redistribute. You get CISA KEV and EPSS
+scores as part of it — no extra feed, no API key, no account.
+
+The host doing the sync needs outbound HTTPS to `grype.anchore.io`. It does
+**not** need any scanner installed: the fetch runs inside the RepoPulse scan
+image using the same pinned binary that will later read the database, so the
+two can never disagree about its format. If your egress is filtered, that one
+hostname is the only thing to allow — and it is allowed for the *host*, never
+for the scan container.
+
+**If you skip this step**, dependency scanning does not fail — it reports
+nothing. A repository with no findings then looks exactly like a repository
+that is clean, which is the one failure mode worth going out of your way to
+avoid. `SCAN_SYNC_VULN_DB=0` turns the download off deliberately; the script
+says so on every run when it is set.
+
+Check what the scanners can currently see:
+
+```bash
+ls "$SCAN_RULES_DIR"                 # expect: rulepacks  rulepacks.sha256  vuln-db
+podman run --rm --network=none -v "$SCAN_RULES_DIR/vuln-db:/vuln-db:ro" \
+  localhost/repopulse/scan:dev grype db status
+```
+
+`Status: valid` with a `Built:` timestamp from your last sync means the offline
+database is readable exactly as the scanner will read it. A build date that
+stops moving means your cron entry is not running — and stale vulnerability
+data is quietly wrong rather than loudly broken, so it is worth an alert.
+
 ## Upgrading
 
 ```bash
