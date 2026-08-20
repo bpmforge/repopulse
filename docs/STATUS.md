@@ -2717,3 +2717,52 @@ port.
 Not covered, and it is acceptance 3's remaining half: rolling the CODE
 back needs versioned image tags, which W11-01 is blocked on. The runbook
 says so and tells the operator to tag before upgrading.
+
+### 2026-08-19 — W13-06: the clean compose path, run for real
+
+Executed from a **fresh `.env` and empty volumes** under its own compose
+project (`repopulse-clean`) so it touched no existing install. macOS 15,
+Podman 5, arm64. **37 seconds** from `up --build` to `/healthz` answering
+200: six containers healthy, 22 migrations applied to an empty database,
+SPA served, deep link 200 through the history fallback, `/me/context` 401
+unauthenticated.
+
+Two defects found and fixed, both customer-facing:
+
+- **The migrate job could not tell you whether it had done anything.** It
+  printed `[migrate] up to date` identically whether it had just built the
+  whole schema from nothing or done nothing at all. It now reports the
+  count it applied.
+- **Its output looked like a crash.** Postgres NOTICEs printed as
+  multi-line objects (`severity: 'NOTICE', message: 'relation
+  "__drizzle_migrations" already exists, skipping'`) in the output the
+  install guide tells an operator to read. Suppressed by default;
+  `createDb` takes an `onnotice` handler for anyone who wants them.
+
+`scripts/validate-compose.sh` gained two rules so this cannot regress:
+every variable `deploy/compose.yaml` reads must appear in `.env.example`,
+and no secret may ship with a value. Both were verified by deliberately
+breaking them — the second turns the gate red on a planted `SESSION_SECRET
+=hunter2`.
+
+Four compose variables were undocumented and now are:
+`REPOPULSE_IMAGE_PREFIX`, `REPOPULSE_VERSION`, `SCAN_IMAGE`,
+`API_UPSTREAM`. `REPOPULSE_VERSION` matters more than the others — it is
+how you roll an image back, which W11-03's runbook depends on.
+
+**What this is NOT:** a clean *host*. Podman, the base images and the
+build cache were all present. Proving a person can go from nothing to a
+working install by following the docs alone is W11-05, which is parked and
+needs Brad.
+
+### 2026-08-19 — W11-05 parked: it is a human acceptance test
+
+Its three acceptance items each need something unavailable here: a machine
+with no checkout **and a reader who did not write the docs** (I would fill
+gaps from memory without noticing), a real forge App on a real org (the
+W7-07 blocker), and a customer LM Studio endpoint for the Tier-2 half.
+
+**Needed from Brad:** a spare host or VM, a throwaway GitHub App on a
+scratch org, and an hour following `docs/INSTALL.md` top to bottom without
+reading the code — recording every place the docs are wrong, ambiguous or
+silent. The doc gaps are the deliverable, not the install.

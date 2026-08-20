@@ -93,6 +93,37 @@ else
   fail "requirepass" "redis service missing --requirepass"
 fi
 
+# ---- W13-06: the CUSTOMER compose file and its .env.example -----------------
+#
+# Acceptance: "every secret the compose file requires is documented with how to
+# generate it, and none has a working default". A variable the compose file
+# reads but .env.example never mentions is a knob a customer meets for the
+# first time when something breaks; a secret with a default is a password
+# everyone has.
+DEPLOY_COMPOSE="deploy/compose.yaml"
+DEPLOY_ENV="deploy/.env.example"
+
+if [ -f "$DEPLOY_COMPOSE" ] && [ -f "$DEPLOY_ENV" ]; then
+  UNDOCUMENTED=""
+  for var in $(grep -oE '\$\{[A-Z_0-9]+' "$DEPLOY_COMPOSE" | sed 's/\${//' | sort -u); do
+    grep -qE "(^|#[[:space:]]+)${var}([=[:space:]]|$)" "$DEPLOY_ENV" || UNDOCUMENTED="$UNDOCUMENTED $var"
+  done
+  [ -z "$UNDOCUMENTED" ] \
+    && pass "env-documented" "every deploy/compose.yaml variable appears in .env.example" \
+    || fail "env-documented" "compose reads these, .env.example never mentions them:$UNDOCUMENTED"
+
+  SECRET_WITH_DEFAULT=""
+  for var in POSTGRES_PASSWORD REDIS_PASSWORD SESSION_SECRET TOKEN_ENC_KEY WEBHOOK_SECRET \
+             GITHUB_APP_CLIENT_SECRET GITHUB_APP_PRIVATE_KEY ANTHROPIC_API_KEY; do
+    grep -qE "^${var}=.+" "$DEPLOY_ENV" && SECRET_WITH_DEFAULT="$SECRET_WITH_DEFAULT $var"
+  done
+  [ -z "$SECRET_WITH_DEFAULT" ] \
+    && pass "no-default-secrets" "every secret in deploy/.env.example is blank" \
+    || fail "no-default-secrets" "these ship with a value:$SECRET_WITH_DEFAULT"
+else
+  pass "env-documented" "deploy/compose.yaml or its .env.example is absent (skipped)"
+fi
+
 echo
 if [ "$FAIL" = 0 ]; then
   echo "validate-compose: all rules PASS"

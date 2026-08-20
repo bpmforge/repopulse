@@ -101,6 +101,44 @@ and must stay that way: `TOKEN_ENC_KEY` decrypts every stored forge credential,
 so back it up separately and never rotate it casually — losing it means every
 connection must be re-entered.
 
+`SCAN_RULES_DIR` **must be an absolute path** and the directory must exist
+before `up`. `deploy/scan-rules` ships empty for that reason; it is filled by
+`deploy/scan-db-sync.sh`, host-side, because the scan container has no network.
+
+### Verified clean run (W13-06, 2026-08-19)
+
+This exact path was run from a **fresh `.env` and empty volumes** on macOS 15 /
+Podman 5 (arm64), under its own compose project so it touched no existing
+install:
+
+```bash
+cp deploy/.env.example deploy/.env      # fill every blank; none has a default
+podman compose -p repopulse-clean -f deploy/compose.yaml up -d --build
+curl -f http://127.0.0.1:${REPOPULSE_PORT}/healthz
+```
+
+**Result: 37 seconds** from `up` to `/healthz` answering 200, with a warm image
+cache. All six containers healthy, 22 migrations applied to the empty database,
+`/` served the SPA, a pasted deep link (`/repos/1/ci`) returned 200 through the
+history fallback, and `/api/v1/me/context` correctly returned 401 unauthenticated.
+
+Two things this run found and fixed, both of which a customer would have hit:
+
+- **The migrate job could not tell you whether it had done anything.** It
+  printed `[migrate] up to date` identically whether it had just built the
+  entire schema from nothing or done nothing at all. It now prints
+  `[migrate] applied 22 migration(s); 22 total` on a first run and
+  `up to date (22 migration(s) already applied)` afterwards.
+- **The migration output looked like a crash.** Postgres NOTICEs were printed
+  as multi-line objects — `severity: 'NOTICE', message: 'relation
+  "__drizzle_migrations" already exists, skipping'` — in a shape
+  indistinguishable from an error, in the output the install guide tells you to
+  read. Notices are now suppressed by default.
+
+`scripts/validate-compose.sh` now also asserts that every variable the compose
+file reads appears in `.env.example`, and that no secret ships with a value.
+Both rules were checked by breaking them deliberately.
+
 ---
 
 ## Tests

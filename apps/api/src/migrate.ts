@@ -23,9 +23,34 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required (see .env.example)')
 // here fails to resolve in a --prod install (found by running the image).
 const db = createDb(databaseUrl);
 
+/** Migrations recorded as applied, or 0 when the ledger does not exist yet. */
+async function appliedCount(): Promise<number> {
+  try {
+    const rows = (await db.$client`select count(*)::int as n from drizzle.__drizzle_migrations`) as unknown as {
+      n: number;
+    }[];
+    return rows[0]?.n ?? 0;
+  } catch {
+    // No ledger means nothing has ever been applied — a first run, not a fault.
+    return 0;
+  }
+}
+
 try {
+  const before = await appliedCount();
   await migrate(db, { migrationsFolder: 'packages/shared/drizzle' });
-  console.log('[migrate] up to date');
+  const after = await appliedCount();
+
+  // SAY WHICH IT WAS. "[migrate] up to date" printed identically whether it
+  // had just built a schema from nothing or done nothing at all, so an
+  // operator following the install guide could not tell a working first run
+  // from a silently skipped one. Found by running the clean-install path
+  // (W13-06) against an empty database.
+  console.log(
+    after > before
+      ? `[migrate] applied ${after - before} migration(s); ${after} total`
+      : `[migrate] up to date (${after} migration(s) already applied)`,
+  );
 } finally {
   await db.$client.end();
 }

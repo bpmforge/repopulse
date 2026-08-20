@@ -4239,9 +4239,12 @@
         "Result, date, host shape and every doc gap found are appended to docs/STATUS.md"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "blocked",
       "notes": [
-        "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference — that is its job."
+        "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference — that is its job.",
+        "BLOCKED 2026-08-19 — this ticket is a HUMAN acceptance test by design and cannot be honestly performed from here. Its three acceptance items each need something I do not have: (1) a machine with no repo checkout, and a person following only the docs — I am the wrong reader, because I wrote them and would fill gaps from memory without noticing; (2) a real forge App registered against a real org, which is the same blocker as W7-07 and decision (d); (3) a customer-supplied LM Studio endpoint for the Tier-2 half.",
+        "WHAT IS ALREADY PROVEN AND WHAT IS NOT: the compose path itself is exercised (W13-06 runs it from a fresh .env with fresh volumes), backup/restore/upgrade/rollback were executed against a live populated stack (W11-03), and the config reference cannot drift from the code (W11-02). What none of that establishes is the thing this ticket exists for: that a person who has never seen the repo can get from docs/INSTALL.md to a working install and a generated report.",
+        "TO UNBLOCK, from Brad: a spare host (a VM is fine), a throwaway GitHub App on a scratch org, and an hour following docs/INSTALL.md top to bottom WITHOUT reading the code — recording every place the docs were wrong, ambiguous or silent. The doc gaps it finds are the deliverable, not the install."
       ]
     },
     {
@@ -4785,11 +4788,18 @@
         "Deviations are fixed or written down; no step is reported as working because it looked right"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "FILED 2026-08-19 from W13-05. The container path is documented in docs/RUNNING.md from reading compose.yaml and from the stack that has been running on this machine for days — but NO clean from-scratch run has been done, so the docs are inference, not verification.",
         "The dev path had five defects when it was finally run end to end on a clean clone, three of which were invisible on a machine that already worked. There is no reason to assume the container path is cleaner: it has more required secrets (POSTGRES_PASSWORD, REDIS_PASSWORD, all the GITHUB_APP_* values), a build step, and a migrate job whose ordering nothing has tested.",
-        "Do NOT verify it against the already-running stack on this machine. That stack was started from a deploy/.env that already exists, which is precisely the state a newcomer does not have."
+        "Do NOT verify it against the already-running stack on this machine. That stack was started from a deploy/.env that already exists, which is precisely the state a newcomer does not have.",
+        "EXECUTED from a fresh .env and EMPTY VOLUMES under its own compose project (repopulse-clean), so it proved the first-run path rather than re-proving a stack that was already working. 37 seconds from `up --build` to /healthz 200; six containers healthy; 22 migrations applied to an empty database; SPA served; deep link 200; /me/context 401.",
+        "TWO DEFECTS FOUND AND FIXED, both customer-facing. (1) The migrate job printed \"[migrate] up to date\" whether it had just built the entire schema from nothing or done nothing at all — an operator following the install guide could not tell a working first run from a silently skipped one. It now prints the count applied. (2) Postgres NOTICEs were printed as multi-line objects in that same output, in a shape indistinguishable from an error; suppressed by default, with createDb taking an onnotice handler for anyone who wants them.",
+        "Acceptance 2 is now a GATE, not a claim: validate-compose.sh asserts every variable deploy/compose.yaml reads appears in .env.example, and that no secret ships with a value. Both rules were verified by deliberately breaking them — a planted SESSION_SECRET=hunter2 turns the gate red.",
+        "Four compose variables were undocumented and now are: REPOPULSE_IMAGE_PREFIX, REPOPULSE_VERSION, SCAN_IMAGE, API_UPSTREAM. REPOPULSE_VERSION is the one that matters — it is how an operator rolls an image back, which W11-03 runbook depends on.",
+        "WHAT THIS IS NOT, stated so it is not read as more than it is: a clean HOST. Podman, base images and the build cache were all present on this machine. Proving a person can go from nothing to a working install from the docs alone is W11-05, which is parked for Brad.",
+        "Widens, each recorded: apps/api/src/migrate.ts and packages/shared/src/db/index.ts (the migrate job is a documented step of the clean run, and its output was misleading), scripts/validate-compose.sh (acceptance 2 as a gate).",
+        "Gate: lint clean, typecheck clean, 1289 unit tests pass, 81 web, 104 e2e (1 skipped), validate-arch/plan/traceability/compose all PASS."
       ]
     },
     {
