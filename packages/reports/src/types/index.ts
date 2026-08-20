@@ -4,7 +4,15 @@ import type { MetricCatalogEntry } from '@repopulse/metrics';
 // REPORTS.md is law here the way METRICS.md is law for the numbers: if a shape
 // needs to change, the doc changes in the same PR.
 
-export type ReportType = 'repo_health' | 'org_exec' | 'security_posture' | 'delivery_dora';
+export type ReportType =
+  | 'repo_health'
+  | 'org_exec'
+  | 'security_posture'
+  | 'delivery_dora'
+  // W9-06 (FR-REPORTS-8). Renders enriched when the W9 scanners have run and
+  // degrades to debt signals when they have not — saying which, rather than
+  // letting the reader infer it from empty sections.
+  | 'code_health';
 
 export interface ReportParams {
   type: ReportType;

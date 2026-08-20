@@ -24,6 +24,7 @@ import intentsRoutes from '../routes/intents/index.js';
 import analysisAdminRoutes from '../routes/admin/analysis/index.js';
 import scannersRoutes from '../routes/scanners/index.js';
 import securityRoutes from '../routes/security/index.js';
+import codeHealthRoutes from '../routes/code-health/index.js';
 import agreementsRoutes from '../routes/agreements/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
 
@@ -154,6 +155,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // Scanner enablement (W8-01).
   await app.register(scannersRoutes, { db: opts.db });
   await app.register(securityRoutes, { db: opts.db });
+  await app.register(codeHealthRoutes, { db: opts.db });
   // Admin Analysis (W7-08).
   await app.register(analysisAdminRoutes, { db: opts.db });
   // Artifact intents (W6-07).

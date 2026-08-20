@@ -21,7 +21,17 @@ export interface HealthSnapshotValue {
   dims: Record<string, unknown>;
 }
 
-export type HealthSnapshotSet = Partial<Record<'M4' | 'M5' | 'M8' | 'M9' | 'M11', HealthSnapshotValue>>;
+export type HealthSnapshotSet = Partial<
+  Record<
+    // W9-06 adds the code-health series (M13 rework, and the ch_* posture
+    // numbers the scanner writes). They are OPTIONAL members of the same set
+    // rather than a second parameter: a caller that has not run the scanners
+    // simply does not have the keys, which is the same shape as every other
+    // absent metric here.
+    'M4' | 'M5' | 'M8' | 'M9' | 'M11' | 'M13' | 'ch_duplication_pct' | 'ch_complexity_p90',
+    HealthSnapshotValue
+  >
+>;
 
 export interface HealthContext {
   pushedAt: Date | null;
@@ -30,6 +40,8 @@ export interface HealthContext {
 
 /** Findings inputs, supplied by callers that have analysed the repo (W6-03). */
 export interface HealthFindingInputs {
+  /** W9-06: slop findings per 1000 changed lines, null until scanned. */
+  slopDensity?: number | null;
   openFindingDensity: number | null;
   worstOpenSeverity: number | null;
 }
@@ -81,5 +93,12 @@ export function healthInputsFromSnapshots(
     // which drops the security sub-score and renormalizes — never "secure".
     openFindingDensity: findings.openFindingDensity,
     worstOpenSeverity: findings.worstOpenSeverity,
+    // W9-06: read from the ch_* snapshots the code-health scanner writes, and
+    // null until it has run. Same rule as the findings inputs above — a repo
+    // nobody has measured drops the sub-score rather than scoring well on it.
+    duplicationPct: snapshots.ch_duplication_pct?.value ?? null,
+    complexityP90: snapshots.ch_complexity_p90?.value ?? null,
+    slopDensity: findings.slopDensity ?? null,
+    rework14d: snapshots.M13?.value ?? null,
   };
 }

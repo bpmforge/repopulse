@@ -2454,3 +2454,24 @@ tool, not from me.
 
 **Order when it unblocks:** install syft + grype (+ govulncheck) → finish
 W8-12's db-sync → W8-06 → W8-13.
+
+#### An e2e flake I could not reproduce (2026-08-19, seen during W8-09 and W9-06)
+
+Two full e2e runs, hours apart, reported exactly one failure each. Both times
+the run was chained immediately after the full unit suite in the same shell
+command, and both times the failing test name was lost because the summary line
+scrolled past the grep I was using.
+
+**What I did about it:** eight consecutive clean runs since — four standalone,
+three back-to-back, and one deliberately chained after `pnpm -r test` to
+reproduce the conditions. All 100 passed, 1 skipped (the real-forge smoke).
+
+**What I am NOT claiming:** that it is fixed, or that it was never real. It is
+recorded here rather than re-run until green, because a flake that appears once
+in ten runs is exactly the kind that reappears in CI at the worst moment.
+
+**If it recurs, the lead is:** capture the run to a file
+(`pnpm e2e > /tmp/e2e.log 2>&1`) rather than piping to grep, so the failing
+spec name and its error context survive. The suspicion is resource contention
+with the dev stack when a heavy suite has just finished, not a product defect —
+but that is a hypothesis, not a finding.

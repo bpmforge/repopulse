@@ -258,17 +258,20 @@ describeIfLiveInfra('metrics snapshot compute driver (W3-10, FR-METRICS-13)', ()
     return db.select().from(read.metricSnapshots).where(eq(read.metricSnapshots.repoId, repoId));
   }
 
-  it('writes one row per metric × window (12 × 1) and repeats append-only', async () => {
+  it('writes one row per metric × window (14 × 1) and repeats append-only', async () => {
     const written = await computeRepoSnapshots(db, {
       workspaceId,
       repoId,
       asOf: ASOF,
       windows: [{ key: '365d', days: 365 }],
     });
-    expect(written).toBe(12);
+    expect(written).toBe(14);
     const rows = await snapshots();
-    expect(rows).toHaveLength(12);
-    expect(new Set(rows.map((r) => r.metricKey)).size).toBe(12); // M1..M12
+    // 14 since W9-06 wired M13/M14 into the same loop. A metric whose value is
+    // null for the window writes NO row at all, so this count is also the
+    // assertion that both debt signals had something to measure in the fixture.
+    expect(rows).toHaveLength(14);
+    expect(new Set(rows.map((r) => r.metricKey)).size).toBe(14); // M1..M14
 
     // Two nightly runs → two rows per metric (FR-METRICS-13 append-only).
     await computeRepoSnapshots(db, {
@@ -277,7 +280,7 @@ describeIfLiveInfra('metrics snapshot compute driver (W3-10, FR-METRICS-13)', ()
       asOf: ASOF,
       windows: [{ key: '365d', days: 365 }],
     });
-    expect(await snapshots()).toHaveLength(24);
+    expect(await snapshots()).toHaveLength(28);
   });
 
   it('EXCLUDES the merge commit from churn (M1) — the whole point of is_merge', async () => {

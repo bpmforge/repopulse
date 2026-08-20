@@ -88,7 +88,8 @@ export function globToRegExp(glob: string): RegExp {
 
 export interface LoggingRunDeps {
   db: Database;
-  gateway: AnalysisGateway;
+  /** Absent = deterministic pack layer only (W9-06); see anti-slop/run.ts. */
+  gateway?: AnalysisGateway;
   workspaceId: number;
   repoId: number;
   commitSha: string;
@@ -191,11 +192,11 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
     const scannable = deps.files.filter((f) => !isExcluded(f.path, globs));
     excluded += deps.files.length - scannable.length;
 
-    const chunked = chunkDiff(scannable, 'code_health');
+    const chunked = deps.gateway ? chunkDiff(scannable, 'code_health') : { chunks: [] };
     let judgment = 0;
 
     for (const chunk of chunked.chunks) {
-      const result = await deps.gateway.complete(buildChecklistPrompt(checklist, chunk.text), {
+      const result = await deps.gateway!.complete(buildChecklistPrompt(checklist, chunk.text), {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,
