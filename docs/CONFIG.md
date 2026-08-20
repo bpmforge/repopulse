@@ -55,6 +55,9 @@ every variable at fault. The API will not half-boot.
 | `SECURITY_CHAIN_CRON` | no | `41 3 * * 0` | Attack-chain recompute, deliberately an hour after the weekly pass. | Chains are built from findings the weekly scan is about to replace. |
 | `REGISTERS_NIGHTLY_CRON` | no | `17 3 * * *` | Nightly W10 register pass (knowledge, supply chain, architecture, test gap). 'off' disables it. | Register findings never refresh; EOL dates in particular go stale silently. |
 | `EOL_PRODUCTS` | no | `nodejs,python,go,ruby,php,java,dotnet,debian,ubuntu,alpine,postgresql,redis,nginx` | Comma-separated endoflife.date products the nightly sync tracks. | A runtime you use is not tracked, so no EOL finding is ever raised for it. |
+| `LMSTUDIO_BASE_URLS` | no | — | Comma-separated LM Studio endpoints for Tier-2 analysis (http://host:1234/v1). Absent means no Tier-2: the whole Tier-1 product still works. | Scheduled judgement passes skip with reason no_gateway. Pointing at an unreachable host is worse than leaving it unset — the passes then FAIL rather than skip, which is deliberate: a host you configured and cannot reach is a fault, not a choice. |
+| `LMSTUDIO_MODEL` | no | — | The loaded model id to request, e.g. qwen3.8-27b. Required whenever LMSTUDIO_BASE_URLS is set. | LM Studio answers 400 "Invalid model identifier" on every call. There is no default because a guessed model name is a guess about your machine; with it unset the gateway refuses to build and says which variable is missing. |
+| `LMSTUDIO_CONCURRENCY` | no | `1` | Per-host concurrent Tier-2 request cap (FR-ANALYSIS-8). | Set too high, a local model thrashes and calls time out; the scheduler parks instead of queueing invisibly. |
 
 ## Web (build/dev only)
 

@@ -2951,3 +2951,52 @@ wiring regression would hide.
 logging_hygiene judgement halves and W9-07's scheduled T2 drafting pass all
 need an analysis gateway in the worker. That is a larger piece of work than
 a wiring fix and still has no ticket.
+
+### 2026-08-20 — the analysis gateway existed and nothing had ever built one
+
+The last three carry-forwards were one defect, deeper than the list said.
+`createAnalysisGateway` was called by exactly one thing in this repository:
+its own unit test. `apps/api` did not even depend on `@repopulse/analysis`.
+
+So Law 8 — "all LLM calls go through the analysis gateway" — held
+vacuously. Every LLM call went through the gateway, and the number of
+calls was zero. The judgement halves of anti_slop and logging_hygiene were
+written, tested against stubs and shipped behind
+`deps.gateway ? … : { chunks: [] }`, which reports `judgment: 0` — the same
+number a clean repository reports.
+
+Now: one gateway built at the worker entrypoint, passed to both judgement
+halves and to a new runner for W9-07's drafting pass. **A real Tier-2
+completion has now been made through it** — against LM Studio on this
+machine, asserted in a live test that skips (loudly) when no host answers.
+
+**Found by making that call, not by reading code:** `modelSlot` is sent as
+LM Studio's model identifier, and my first version defaulted it to
+`'default'`. LM Studio answers `Invalid model identifier "default"` — a 400
+on every request. There is now **no default**: `LMSTUDIO_MODEL` must name a
+loaded model, and the gateway refuses to build without it, saying which
+variable is missing. A guessed model name is a guess about someone else's
+machine.
+
+Three states, three different messages at boot, because they need
+different responses:
+
+- **not configured** — supported. Passes skip with reason `no_gateway`.
+- **half configured** (hosts, no model) — looks configured, 400s on every
+  call. Named explicitly.
+- **configured but unreachable** — the passes FAIL rather than skip. That
+  is deliberate: a host you configured and cannot reach is a fault, not a
+  choice.
+
+The drafting pass is workspace-scoped, not per-repo — it clusters
+dismissals across the workspace, and a per-repo fan-out would draft the
+same rule N times and fill the workbench with copies of one suggestion.
+It drafts to `proposed` and can promote nothing.
+
+**Tier-3 is deliberately not wired into the worker.** It needs a per-repo
+opt-in and an egress audit row; a scheduled pass that could reach a
+third-party API without a human having asked is precisely what that opt-in
+exists to prevent. Asserted in the live test: T3 is refused, never
+downgraded to T2.
+
+All four carry-forward wirings are now closed.
