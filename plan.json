@@ -2737,7 +2737,8 @@
       "points": 3,
       "status": "blocked",
       "notes": [
-        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md."
+        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md.",
+        "BLOCKER CORRECTED 2026-08-21. The 2026-08-19 note was batch-applied across W7-05/06/07 and over-states this one: it claimed a GitHub App under the bpmforge org is required. Nothing in this ticket's acceptance mentions GitHub — it is quadlets, TLS, secrets, migrations, SC-20 hardening and backups. The only real blocker is a deploy target with DNS and TLS. Under D14 (2026-08-20) a standalone install needs no forge at all to run or to sign in."
       ]
     },
     {
@@ -2765,7 +2766,9 @@
       "points": 2,
       "status": "blocked",
       "notes": [
-        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md."
+        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md.",
+        "BLOCKER CORRECTED 2026-08-21, same batch-applied error as W7-05: no GitHub App is required to execute a deploy runbook, verify observability or run a restore drill. The real blocker is a deploy target with DNS and TLS.",
+        "ACCEPTANCE 2 IS STALE AGAINST D14 (2026-08-20, which post-dates this ticket). It reads 'Prod smoke on https://repopulse.bpmforge.com: OAuth login, connect an org, ...'. Under D14 authentication is standalone — a local account or generic OIDC — and forge OAuth is one option among several, never a requirement. The smoke should sign in with a LOCAL admin account, which is also the path a self-hosting customer takes. Rewrite when the ticket is claimed; do not quietly satisfy it with GitHub OAuth."
       ]
     },
     {
@@ -2791,7 +2794,8 @@
       "status": "blocked",
       "notes": [
         "Created 2026-07-18 as the production-side split-off of the original W0-05. Holds the parts that genuinely require a live deploy (prod OAuth callback + real webhook delivery at repopulse.bpmforge.com) — none of which gate any W1/W2 CODE ticket, all of which are fixture/synthetic-payload tested. This is a deploy-milestone human task, sequenced after W7-05 (containers/TLS) and naturally before/with W7-06 (prod deploy runbook execution).",
-        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md."
+        "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md.",
+        "SCOPE CLARIFIED 2026-08-21. Under D14 this ticket is OPTIONAL for a standalone deployment: nobody needs a GitHub App to install RepoPulse, to sign in, or to connect a Gitea organisation — that absurdity is precisely what D14 was written to remove. It is required only to INGEST GitHub repositories. On the Gitea-first path Brad is actually on, this can stay parked indefinitely without blocking anything else."
       ]
     },
     {
@@ -4581,7 +4585,7 @@
     },
     {
       "id": "W12-10",
-      "title": "Provision Postgres + Redis in CI and turn the live-infra gate on",
+      "title": "Provision Postgres + Redis in CI and turn the live-infra gate on (SUPERSEDED by W14-03)",
       "phase": 12,
       "module": "infra",
       "stories": [],
@@ -4607,7 +4611,8 @@
         "CANNOT BE CLOSED: acceptance asks that the skipped-suite count be zero IN CI, and no GitHub Actions job in this repository has ever started. 100 of 100 runs since 2026-07-18 failed at job creation with an Actions budget annotation. Marked blocked rather than done, because marking it done would assert a verification that has not happened — which is the same defect class this whole wave has been closing.",
         "VERIFIED AS FAR AS IS POSSIBLE OFFLINE: the workflow parses and the job carries both services, both healthchecks, all three env vars and the migrate step in the right order. More usefully, the CI condition was SIMULATED locally — a brand-new empty database (repopulse_cisim), migrated from scratch, then the full suite run against it with REQUIRE_LIVE_INFRA=1: 122 files, 589 tests, zero skipped, zero failures. The expected fallout from running 37 never-in-CI suites did not materialise on a fresh DB. That is a strong proxy for the CI environment, not a substitute for it.",
         "ALSO OBSERVED, NOT FIXED: the nightly-e2e job has no data tier either and would fail the moment the budget is restored, since `pnpm e2e` needs a seeded stack. Out of scope here (it needs the API and web servers plus the seeder in CI, not two service containers) — worth its own ticket.",
-        "USER ACTION REQUIRED: the Actions budget/spending limit on the bpmforge org has to be raised before any of this executes. Until then every gate in this repo is a local gate, and the validators, lint, typecheck and test steps in ci.yml are decorative."
+        "USER ACTION REQUIRED: the Actions budget/spending limit on the bpmforge org has to be raised before any of this executes. Until then every gate in this repo is a local gate, and the validators, lint, typecheck and test steps in ci.yml are decorative.",
+        "SUPERSEDED 2026-08-21 by W14-03, and this ticket should NOT be read as 'raise the GitHub Actions spending limit'. W14-03 records the actual decision, filed 2026-08-19: 'Brad: GitHub should be repo storage only; Actions costs too much.' Raising the Actions budget spends money on the vendor we are moving off. The ci.yml job written here is still correct and still wanted — postgres:16 + redis:7.2 services, db:migrate before lint, REQUIRE_LIVE_INFRA=1 — but its destination is a Gitea act_runner, which is what W14-03 exists to do. Kept blocked rather than closed because the live-infra gate genuinely is not on anywhere yet; it unblocks THROUGH W14-03, not through billing."
       ]
     },
     {

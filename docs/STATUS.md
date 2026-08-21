@@ -3683,3 +3683,39 @@ generate and apply a drizzle migration"*, naming the value.
 Gate: lint clean, typecheck clean, **1,659 passed / 8 skipped** (was 1,657).
 
 Board: 149 tickets (141 done), **0 claimable**, 8 blocked on Brad.
+
+### 2026-08-21 — board reconciled with D14 and the CI pivot (correcting my own rundown)
+
+Brad asked why the remaining work still points at GitHub Actions when we pivoted
+away, and why a standalone product needs a GitHub App. Both challenges are
+right, and the board was stale in four places.
+
+**W12-10 is superseded by W14-03 and must not be read as "raise the Actions
+spending limit."** W14-03's own note records the decision, filed 2026-08-19:
+*"Brad: GitHub should be repo storage only; Actions costs too much."* Raising
+the budget spends money on the vendor we are leaving. The `ci.yml` job W12-10
+wrote is still correct and still wanted — postgres:16 + redis:7.2 services,
+`db:migrate` before lint, `REQUIRE_LIVE_INFRA=1` — but its destination is a
+Gitea `act_runner`. It unblocks THROUGH W14-03, not through billing.
+
+**W7-05 and W7-06 do not need a GitHub App.** The 2026-08-19 blocker note was
+batch-applied to all three W7 tickets and over-states two of them. Neither
+mentions GitHub anywhere in its acceptance: W7-05 is quadlets, TLS, secrets,
+migrations, SC-20 hardening and backups; W7-06 is runbook execution,
+observability and a restore drill. Their only real blocker is a deploy target
+with DNS and TLS.
+
+**W7-06 acceptance 2 is stale against D14** (2026-08-20, which post-dates the
+ticket). It asks the prod smoke to verify "OAuth login". Under D14
+authentication is standalone and forge OAuth is one option among several, never
+a requirement — the smoke should sign in with a local admin account, which is
+also the path a self-hosting customer takes.
+
+**W7-07 is optional for a standalone deployment.** Nobody needs a GitHub App to
+install RepoPulse, sign in, or connect a Gitea organisation — that absurdity is
+exactly what D14 removed. It is required only to ingest GitHub repositories, so
+on the Gitea-first path it can stay parked without blocking anything.
+
+Recorded because the same staleness reached Brad as advice: my own rundown told
+him to raise the Actions billing limit, which is the opposite of the decision he
+had already made. A stale ticket read aloud is still a stale ticket.
