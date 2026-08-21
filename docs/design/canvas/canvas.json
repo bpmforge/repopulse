@@ -47,6 +47,22 @@
       "w": 1440,
       "h": 1000,
       "title": "My Focus — /me (shipped)"
+    },
+    {
+      "file": "Views.dc.html",
+      "x": 0,
+      "y": 2880,
+      "w": 1440,
+      "h": 900,
+      "title": "Custom Views — /views (shipped)"
+    },
+    {
+      "file": "Reports.dc.html",
+      "x": 1560,
+      "y": 2880,
+      "w": 1440,
+      "h": 1000,
+      "title": "Report Center — /reports (shipped)"
     }
   ],
   "annotations": [
@@ -98,6 +114,20 @@
       "y": 2460,
       "w": 620,
       "text": "My Focus. N-9 forbids cross-person comparison, so there is no leaderboard and no 'you vs the team' framing anywhere — every number is the caller's own. §4.f's personal-cycle-time-vs-repo-median chart is NOT shipped; four count tiles stand in its place, and they are captioned 'not compared to an earlier window' rather than showing a delta they never computed.\n\nTwo states the screen keeps apart: identity-unlinked (fixable — re-authorize) and nothing-to-do. Both render empty lists, and telling someone they have no work when we simply cannot find them is the worse failure. The since-last-visit strip appears only when something actually changed."
+    },
+    {
+      "id": "views-note",
+      "x": 0,
+      "y": 3800,
+      "w": 620,
+      "text": "Custom Views. The starter-template gallery stays on screen even once views exist — the SECOND view is harder to design than the first, and the templates are the only place the widget vocabulary is visible outside edit mode. Templates are filtered by the viewer's persona (§6).\n\nNot drawn, because it is a separate route rather than part of this screen: the drag-resize edit mode on /views/:id. 'home' and 'shared' are marked with a glyph AND a word — never colour alone (§7)."
+    },
+    {
+      "id": "reports-note",
+      "x": 1560,
+      "y": 3900,
+      "w": 620,
+      "text": "Report Center. FIVE report types ship, not the four §4.h lists — Code Health (D11) was added in W9. Two things the spec never had: a free-text 'Context' annotation stored WITH the report, and a compare mode that diffs two runs when exactly two rows are ticked.\n\nStatus is a glyph plus a word (◷ queued / ◐ running / ✓ ready / ✕ failed), never colour alone. The list polls every 3s rather than opening an SSE channel: a report takes seconds, and a dedicated event stream would be more moving parts than the problem deserves. PDF is a plain link, not fetch() — the download streams behind the session check and never lands in JS memory."
     }
   ],
   "launch": {

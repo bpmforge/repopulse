@@ -17,6 +17,8 @@ verbatim.
 | `docs/design/canvas/FileDetail.dc.html` | File drill-down (`/repos/:repo/files/*path`) |
 | `docs/design/canvas/Findings.dc.html` | Findings Explorer (`/findings`) |
 | `docs/design/canvas/MyFocus.dc.html` | My Focus (`/me`) |
+| `docs/design/canvas/Views.dc.html` | Custom Views (`/views`) |
+| `docs/design/canvas/Reports.dc.html` | Report Center (`/reports`) |
 | `docs/design/canvas/canvas.json` | Layout: positions, titles, sticky notes |
 | `docs/design/canvas/repopulse-ui-canvas.html` | **Generated.** The seeded page that gets published. Never hand-edit it. |
 
@@ -31,7 +33,8 @@ node "<design skill base>/seed-canvas.mjs" \
   --out repopulse-ui-canvas.html --title "RepoPulse UI" \
   --artboard Main.dc.html --artboard RepoDetail.dc.html \
   --artboard PrDetail.dc.html --artboard FileDetail.dc.html \
-  --artboard Findings.dc.html --artboard MyFocus.dc.html [--artboard …] \
+  --artboard Findings.dc.html --artboard MyFocus.dc.html \
+  --artboard Views.dc.html --artboard Reports.dc.html [--artboard …] \
   --canvas canvas.json
 ```
 
@@ -49,8 +52,8 @@ discarded.
 - [x] §4.d File drill-down — shipped
 - [x] §4.e Findings Explorer — **shipped in full** (W6-04); the spec's "teaser" note is stale
 - [x] §4.f My Focus — shipped
-- [ ] §4.g Custom Views
-- [ ] §4.h Report Center
+- [x] §4.g Custom Views — shipped
+- [x] §4.h Report Center — shipped
 - [ ] §4.h2 Plans — D9
 - [ ] §4.i Admin
 
@@ -87,6 +90,10 @@ the canvas as sticky notes:
   its place, captioned "not compared to an earlier window" rather than showing a
   delta never computed. The screen keeps identity-unlinked and nothing-to-do as
   distinct states: both render empty, but only one is fixable by the user.
+- **Report Center ships five report types, not §4.h's four** — Code Health
+  (D11) was added in W9. It also gained a free-text "Context" annotation stored
+  *with* the report, and a compare mode that diffs two runs when exactly two
+  rows are ticked. Neither is in the spec.
 - **File drill-down gained two things the spec never had** — the Intent control
   (Refactor / Supervise / Acknowledged, W6-09) sits first, and the history
   banner reports "last seen" and previous paths without claiming deletion,
