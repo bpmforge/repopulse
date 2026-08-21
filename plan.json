@@ -5365,7 +5365,7 @@
         "A test fails if a dimension is added to one and not the others — the drift that hid `slop` for a whole wave"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-21 from W9-16. `slop` was in the API facet and the web facet and MISSING from the findings_dimension_check constraint from W9-03 until W9-16 — filterable in two layers, unstorable in the third, and nothing failed until something tried to store one.",
         "The three copies: packages/shared/src/db/schema/read/findings.ts (CHECK), apps/api/src/routes/findings/index.ts (DIMENSIONS), apps/web/src/widgets/findings/contracts.ts (ALL_DIMENSIONS). The constraint is the only one that fails loudly, and it fails at write time — long after the facet has been offered to a user.",
