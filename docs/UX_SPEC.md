@@ -153,7 +153,7 @@ id + retry button. Listed states below only note screen-specific copy.
 
 ```
 │ Org ▸ repo-b                    [window][person]        health 61 ▼ (why?) │
-│ [Pulse] [Hotspots] [PR Flow] [CI] [Findings]                               │
+│ [Pulse] [Hotspots] [PR Flow] [CI] [Findings] [Security] [Code Health]      │
 │ Pulse: KPI row (repo-scoped) + trend charts grid (cycle time, churn,       │
 │   review coverage, throughput, release cadence) + stale-PR list            │
 │ Hotspots: directory treemap (size=churn, intensity=hotspot score) ─ click  │
@@ -222,7 +222,13 @@ id + retry button. Listed states below only note screen-specific copy.
 - **States:** deleted/renamed file → banner with last-seen date + rename chain
   link; no findings → single quiet line, not an empty card.
 
-### 4.e Findings Explorer (`/findings`) — P3 home, v1.x (shell ships in MVP as teaser)
+### 4.e Findings Explorer (`/findings`) — P3 home
+
+> **Shipped in full (W6-04).** This section previously read "v1.x (shell ships
+> in MVP as teaser)". That was true when written and is not now: the explorer
+> ships with six URL-synced filters (the scanner facet driven by the registry),
+> bulk confirm/dismiss behind a required note, and the FP-rate widget. What is
+> still a teaser is the repo-level Findings **tab** in §4.b, a different surface.
 
 ```
 │ Findings   [dimension ▾][severity ▾][confidence ▾][status ▾][repo ▾]       │
@@ -284,7 +290,7 @@ id + retry button. Listed states below only note screen-specific copy.
 ### 4.h Report Center (`/reports`) — P4/P3, E5
 
 ```
-│ Reports   [Generate ▾: Repo Health · Org Exec · Delivery/DORA · Security]  │
+│ Reports [Generate ▾: Repo Health·Org Exec·Delivery/DORA·Security·Code Hlth]│
 │ history: type · scope · window · by · at · status      [open][PDF ⬇]      │
 │ ▸ Org Exec Summary · all repos · Q2 · brad · 07-01 · ● ready              │
 │ ▸ Repo Health · repo-b · 30d · kim · 06-28 · ● ready                      │
@@ -319,7 +325,9 @@ id + retry button. Listed states below only note screen-specific copy.
 
 ### 4.i Admin (`/admin`) — E1/E9, admin role only
 
-- **Tabs:** **Connections** (org credential fingerprint/last-4, repo picker,
+- **Tabs** (eight ship; the four below were specified, and **Identities**,
+  **Agreements**, **Rules** and **Settings** were added by later waves):
+  **Connections** (org credential fingerprint/last-4, repo picker,
   pause/remove with purge option), **Sync** (per-repo table: phase, %, rate-
   budget gauge, lag, last webhook; DLQ list with retry, E9.3), **Analysis**
   (v1.x: Tier-2 policy, Tier-3 opt-in flags per repo with per-PR override +

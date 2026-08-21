@@ -200,7 +200,11 @@ describeIfLiveInfra('report assembler', () => {
   });
 });
 
-describe('security posture report (W7-03, FR-REPORTS-4)', () => {
+// Gated like the suite above it. This block was a bare `describe`, so without
+// DATABASE_URL it did not skip — it RAN, and `createDb(undefined as string)`
+// took its beforeAll down with it. Invisible locally, where .env always has the
+// variable; it would have failed the first CI run this repository ever gets.
+describeIfLiveInfra('security posture report (W7-03, FR-REPORTS-4)', () => {
   const db2: Database = createDb(databaseUrl as string);
   let wsId = 0;
 

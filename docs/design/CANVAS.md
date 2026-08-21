@@ -107,12 +107,9 @@ remembers which document to trust.
 - **§4.c's PR Detail furniture** — the horizontal stage bar (shipped as a
   vertical list), risk badges, the findings accordion with evidence quotes,
   per-file hotspot badges, the GitHub ↗ link.
-- **§4.d's "recent PRs touching this file"** table.
 - **§4.f's personal cycle-time-vs-repo-median chart.** Four count tiles stand
   in its place, captioned "not compared to an earlier window" rather than
   showing a delta nobody computed.
-- **The Code Health tab's content.** `widgets/code-health/` holds only
-  `contracts.ts` — the tab is spec, not shipped code.
 
 ### Decisions the canvas makes visible
 
@@ -136,9 +133,28 @@ and that a redesign should not casually undo:
   stacking would read as double the churn that happened.
 - **Status is always a glyph plus a word,** never colour alone (§7).
 
-### One thing worth changing
+### Corrections to this document, 2026-08-21
 
-The left rail's icons are text glyphs (`◈ ▤ ⇄ ◎ ⚑ ◷ ▦ ❏ ⚙`), drawn here as
-they ship. They are the one element on these ten boards that reads as
-placeholder rather than designed. Replacing them with a real icon set is the
-clearest single visual upgrade available, and it touches one component.
+Two claims in the first version of this list were **wrong**, both from reading
+a component only as far as the screen I was drawing:
+
+- It said the Code Health tab was "spec, not shipped code" because
+  `widgets/code-health/` holds only `contracts.ts`. The tab is fully
+  implemented — its components live in
+  `apps/web/src/routes/repos/$repoId/code-health.tsx`.
+- It said §4.d's "recent PRs touching this file" table was not shipped.
+  `FileDetail.tsx:217` renders it. The artboard was missing the panel and has
+  been redrawn.
+
+Recorded rather than quietly edited: this canvas exists to stop documents from
+drifting away from the app, and it drifted first.
+
+### Done, 2026-08-21: the rail icons
+
+The rail's icons were text glyphs (`◈ ▤ ⇄ ◎ ⚑ ◷ ▦ ❏ ⚙`) — the one element
+across the ten boards that read as placeholder rather than design, and shapes
+that were never really ours since they rendered at the mercy of font fallback.
+They are now inline stroke SVGs on a 24px grid in `currentColor`, so they
+inherit the active/muted nav colour with no per-state variant. Nine icons did
+not justify an icon package. The artboards were re-seeded in the same commit —
+a canvas that contradicts the app is the one failure this document forbids.

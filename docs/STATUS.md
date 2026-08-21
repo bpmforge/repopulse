@@ -2158,6 +2158,56 @@ files" and "433 of 586 tests" — figures true at W12-08 and stale now (61 and
 right and only the prose was wrong. It now says so instead of restating a number
 it does not measure.
 
+### 2026-08-21 — rail icons, spec reconciliation, and two gate defects the canvas surfaced
+
+**The rail's icons were text glyphs** (`◈ ▤ ⇄ ◎ ⚑ ◷ ▦ ❏ ⚙`) — shapes rendered at
+the mercy of font fallback, never actually ours. Now inline stroke SVGs on a
+24px grid in `currentColor`, so they inherit the active/muted nav colour with no
+per-state variant. Nine icons did not justify an icon package. The ten canvas
+artboards were re-seeded in the same commit: a canvas that contradicts the app
+is the one thing docs/design/CANVAS.md forbids.
+
+**UX_SPEC reconciled where it was countably stale** — §4.e's "v1.x teaser" line
+(the Findings Explorer shipped in full in W6-04), §4.b's five tabs (seven ship),
+§4.h's four report types (five), §4.i's four admin tabs (eight). The screen
+sketches were deliberately NOT rewritten to match the code: that would erase the
+record of intent, and the features the spec drew that were never built are drift
+worth keeping visible.
+
+**Two real defects, both the "the check does not check what it claims" shape
+this codebase keeps rediscovering:**
+
+1. `check-live-infra.mjs` counted gated files by grepping for the literal string
+   `describeIfLiveInfra` — the naming convention, not the behaviour. Six files
+   gate on live infra under other names (`describeIfRedis`,
+   `describeIfReady` ×4, and default-workspace) and were invisible to the count
+   the script exists to report. It now matches an env read plus a
+   `describe.skip`, which raised 61 → 67 with no file dropped. The env read is
+   matched through the `databaseUrl`/`redisUrl` binding as well as
+   `process.env`, because packages/forge's client suites import it from
+   test-fixtures — a rule matching only the direct read would have traded one
+   miscount for another.
+
+2. **`assembler.integration.test.ts:203` was a latent CI-breaker.**
+   `describeIfLiveInfra` gated the first suite in that file; the
+   security-posture suite below it was a bare `describe` that still called
+   `createDb(databaseUrl as string)`. Without `DATABASE_URL` it did not skip —
+   it ran and threw in `beforeAll`. Invisible locally, where `.env` always has
+   the variable, and it would have failed the first CI run this repository ever
+   gets. Found by running `DOTENV_CONFIG_PATH=/dev/null pnpm test`, which is the
+   only way to reproduce the CI condition. Offline now: 172 passed, 59 skipped,
+   zero failed (was one failed).
+
+**A claim in this ledger was itself wrong and is corrected here:** W12-08's note
+said the preflight's count "agrees independently with vitest's own skip count".
+It does not, and cannot — a file with one gated and one ungated block still
+RUNS, so vitest never counts it skipped while the gated suite goes unexercised.
+The two measure different things. The preflight's wording now says "gate suites
+… and will not exercise them" rather than "will skip".
+
+Gate: lint clean, typecheck clean, 1,645 unit passed / 8 skipped with the data
+tier up; 1,337 passed / 316 skipped / **0 failed** with it unset.
+
 **W12-10 (implemented, BLOCKED — on billing, not on code).** `ci.yml` now runs
 `postgres:16` and `redis:7.2` as services with healthchecks, exports
 `DATABASE_URL`/`REDIS_URL`, runs `pnpm db:migrate` before lint, and sets
