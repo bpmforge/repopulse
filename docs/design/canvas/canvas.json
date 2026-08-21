@@ -29,7 +29,7 @@
       "x": 0,
       "y": 1440,
       "w": 1440,
-      "h": 1080,
+      "h": 1240,
       "title": "File drill-down — /repos/:repo/files/*path (shipped)"
     },
     {
@@ -101,7 +101,7 @@
       "x": 1560,
       "y": 940,
       "w": 620,
-      "text": "Repo Detail ships SEVEN routed tabs, not the five in §4.b — Security (W8) and Code Health (W9) were added later. Each tab is its own URL, so it is linkable and back-button-able. The 'why?' popover is shown open: the score is never displayed without its basis label and formula breakdown."
+      "text": "Repo Detail ships SEVEN routed tabs, not the five in §4.b — Security (W8) and Code Health (W9) were added later. Each tab is its own URL, so it is linkable and back-button-able. The 'why?' popover is shown open: the score is never displayed without its basis label and formula breakdown.\n\nThe Code Health tab IS fully implemented — its components live in routes/repos/$repoId/code-health.tsx, which is why widgets/code-health/ holds only contracts.ts. Same discipline as Security: an unrun scanner reads 'not measured', never 0, because a zero is a claim about the repository that an unrun scanner has not earned."
     },
     {
       "id": "pr-note",
@@ -115,7 +115,7 @@
       "x": 0,
       "y": 2560,
       "w": 620,
-      "text": "File drill-down. Two things the spec did not have: the Intent control (Refactor / Supervise / Acknowledged, W6-09) sits FIRST because what a team means to do about a file is context for every number under it, and the history banner reports 'last seen' and previous paths WITHOUT claiming the file was deleted — ingestion cannot tell a deletion from a quiet file. §4.d's 'recent PRs touching this file' table is NOT shipped. Churn bars are grouped, not stacked: rework is a subset of gross, and stacking would read as double the churn."
+      "text": "File drill-down. Two things the spec did not have: the Intent control (Refactor / Supervise / Acknowledged, W6-09) sits FIRST because what a team means to do about a file is context for every number under it, and the history banner reports 'last seen' and previous paths WITHOUT claiming the file was deleted — ingestion cannot tell a deletion from a quiet file.\n\nChurn bars are grouped, not stacked: rework is a subset of gross, and stacking would read as double the churn that actually happened."
     },
     {
       "id": "findings-note",

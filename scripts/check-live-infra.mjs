@@ -46,7 +46,38 @@ import { join } from 'node:path';
 import net from 'node:net';
 
 const ROOTS = ['apps', 'packages'];
-const MARKER = 'describeIfLiveInfra';
+
+/**
+ * A file gates itself on live infra when it BOTH reads one of the connection
+ * variables and skips a describe block on the result.
+ *
+ * This used to match the literal string `describeIfLiveInfra`, which counted
+ * the convention rather than the behaviour — and six files gate on live infra
+ * under a different local name (`describeIfRedis` in packages/auth's
+ * redis-store, `describeIfReady` in four security scanner suites, and
+ * packages/auth's default-workspace). They skipped exactly as silently as the
+ * rest while this script reported a number that excluded them, which is the
+ * same defect W12-08 was written to fix, one level up.
+ *
+ * The env read is matched either directly or through the `databaseUrl` /
+ * `redisUrl` binding, because packages/forge's client suites import that from
+ * a shared test-fixtures module and never touch `process.env` themselves. A
+ * rule that only matched the direct read would have dropped those two while
+ * picking up six others — a different miscount, not a fix.
+ *
+ * Both halves are required: a file that merely mentions DATABASE_URL is not
+ * gating on it, and a `describe.skip` with no env read is skipped for some
+ * other reason entirely.
+ *
+ * This count is deliberately NOT vitest's "N skipped" figure and will read
+ * higher: a file with one gated block and one ungated block still RUNS, so
+ * vitest never calls it skipped, while the gated suite inside it goes
+ * unexercised all the same. The wording below says "gate suites … and will not
+ * exercise them" rather than "will skip" for exactly that reason. An earlier
+ * note in STATUS.md claimed the two agreed; they measure different things.
+ */
+const ENV_READ = /process\.env\.(DATABASE_URL|REDIS_URL)|\b(databaseUrl|redisUrl)\b/;
+const SKIPS = /describe\.skip/;
 
 /** Test files that gate themselves on live infra — counted, not assumed. */
 function gatedTestFiles(dir, found = []) {
@@ -55,8 +86,9 @@ function gatedTestFiles(dir, found = []) {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) {
       gatedTestFiles(path, found);
-    } else if (/\.test\.ts$/.test(entry) && readFileSync(path, 'utf8').includes(MARKER)) {
-      found.push(path);
+    } else if (/\.test\.ts$/.test(entry)) {
+      const src = readFileSync(path, 'utf8');
+      if (ENV_READ.test(src) && SKIPS.test(src)) found.push(path);
     }
   }
   return found;
@@ -149,7 +181,8 @@ if (required) {
     `\nREQUIRE_LIVE_INFRA is set, but ${missing.join(' and ')} ${
       missing.length > 1 ? 'are' : 'is'
     } not.\n\n` +
-      `  ${gated.length} test files would silently skip:\n${list}\n\n` +
+      `  ${gated.length} test files gate suites on live infra and would not\n` +
+      `  exercise them:\n${list}\n\n` +
       `  Start the data tier with scripts/dev-up.sh, or unset REQUIRE_LIVE_INFRA\n` +
       `  to run the offline subset knowingly.\n`,
   );
