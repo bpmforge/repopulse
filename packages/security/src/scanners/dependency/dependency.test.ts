@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { dedupKey } from '@repopulse/insights';
 import { cveIdFor, parseGrypeMatches, severityFromLabel } from './matches.js';
+import { resolveScopes } from '../../registers/sbom.js';
 import { dependencyFindings, manifestPaths, DEPENDENCY_SCANNER_KEY } from './findings.js';
 import { checkVulnDb, runDependencyTools } from './tools.js';
 
@@ -147,6 +148,37 @@ describe('matches -> findings', () => {
     expect(finding.yields?.['dep_scope']).toEqual({ kind: 'prod-direct', depth: 1 });
   });
 
+  it('scopes EVERY component prod-direct today, transitive ones included', () => {
+    // A LIMITATION, PINNED — not a property anyone wants. The fixture's real
+    // dependency graph is `root -> debug -> ms`, so `ms` is transitive at depth
+    // 2, and the SBOM says so. resolveScopes still returns depth 1 for it,
+    // because syft's CycloneDX root component is the scanned DIRECTORY
+    // (type 'file', name '/scan') and that bom-ref appears nowhere in
+    // `dependencies[]` — the walk starts from a node with no edges and every
+    // component falls through to its default.
+    //
+    // Consequence worth stating plainly: D12's depth ramp is dead code for
+    // dependency findings, and prod-direct/prod-transitive/dev have collapsed
+    // into one value. The fix is in registers/sbom.ts, outside this ticket.
+    // Asserted so that fixing it fails this test instead of silently changing
+    // every dependency score overnight.
+    const graph = sbom['dependencies'] as { ref: string; dependsOn: string[] }[];
+    expect(graph.some((n) => n.ref.includes('debug') && n.dependsOn[0]?.includes('ms'))).toBe(true);
+
+    const scopes = resolveScopes(sbom);
+    expect(scopes.find((c) => c.name === 'ms')).toMatchObject({ scope: 'prod-direct', depth: 1 });
+  });
+
+  it('reports the syncable component count next to the document\'s own', () => {
+    // The document counts the root project and a file entry per manifest, so
+    // its count reads as far too many for one dependency. Both numbers are
+    // reported; neither is silently substituted for the other.
+    expect(funnel.syncableComponents).toBeLessThan(
+      (sbom['components'] as unknown[]).length,
+    );
+    expect(funnel.syncableComponents).toBeGreaterThan(0);
+  });
+
   it('emits the chainer term as a boolean key, and nothing else the chainer reads', () => {
     // The chainer takes only keys whose value is `true`. That is why the
     // pricing inputs can share this column: a number or a string is invisible
@@ -281,7 +313,7 @@ describe('a tool that did not run fails the scan', () => {
       `SYFT_EXIT=0\n===SBOM===\n${JSON.stringify(sbom)}\n===GRYPE===\n${grypeJson}\nGRYPE_EXIT=0\n`,
     );
     expect(result.status, result.error ?? '').toBe('succeeded');
-    expect(result.componentCount).toBe(3);
+    expect(result.componentCount).toBe(5);
     expect(result.matches).toHaveLength(2);
     expect(result.matchFunnel?.rawMatches).toBe(2);
     // Versions read off the tools' OWN output, so what is stamped on the run is

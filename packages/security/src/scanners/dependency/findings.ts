@@ -1,5 +1,5 @@
 import type { IncomingFinding } from '@repopulse/insights';
-import { resolveScopes, type ResolvedComponent } from '../../registers/sbom.js';
+import { readComponents, resolveScopes, type ResolvedComponent } from '../../registers/sbom.js';
 import type { DependencyMatch } from './matches.js';
 
 // Vulnerability matches -> stored findings (W8-06, FR-SEC-5, D12).
@@ -13,6 +13,14 @@ export const DEPENDENCY_SCANNER_KEY = 'dependency_cve';
 export interface FindingFunnel {
   /** Matches handed to this mapper. */
   matches: number;
+  /**
+   * Components the scope index could actually read — npm and pypi purls only.
+   *
+   * Reported next to the document's own component count because the two are
+   * different numbers and a reader comparing them would otherwise have no way
+   * to tell an ecosystem we cannot scope from one that is not there.
+   */
+  syncableComponents: number;
   /** Findings produced. Equal to `matches` unless something below dropped one. */
   findings: number;
   /**
@@ -85,6 +93,16 @@ export function manifestPaths(document: Record<string, unknown>): string[] {
  * Setting it explicitly rather than leaving it undefined costs nothing and puts
  * the claim into riskFactors.inputs, where a reader can see which claim was
  * made instead of inferring it from a default.
+ *
+ * SCOPE IS ALWAYS 'prod-direct' TODAY, and that is a limitation of the reader
+ * rather than of the SBOM. syft's CycloneDX root component is the SCANNED
+ * DIRECTORY (`type: 'file'`, name `/scan`), and its bom-ref never appears in
+ * `dependencies[]`, so resolveScopes' walk starts from a node with no edges
+ * and every component falls through to its depth-1 default. The graph is
+ * genuinely there — `debug -> ms` is in the fixture — and the fix is one line
+ * in registers/sbom.js (start from the ref that appears in no `dependsOn`),
+ * which is outside this ticket's write scope. Pinned by a test so it cannot be
+ * "fixed" without someone noticing the depth ramp start working.
  */
 export function dependencyFindings(
   matches: readonly DependencyMatch[],
@@ -93,6 +111,7 @@ export function dependencyFindings(
   const scopes = indexScopes(sbomDocument);
   const funnel: FindingFunnel = {
     matches: matches.length,
+    syncableComponents: readComponents(sbomDocument).length,
     findings: 0,
     withoutScope: 0,
     kevFloored: 0,
@@ -131,7 +150,15 @@ export function dependencyFindings(
       // The lockfile the component was catalogued from. A CVE has no line, but
       // it does have a manifest, and pointing at it beats pointing nowhere —
       // it is also what lets the stale sweep close this finding once the
-      // dependency is upgraded.
+      // dependency is upgraded, since persistFindings can only auto-resolve
+      // findings on files a run says it reviewed.
+      //
+      // THE COST, chosen with eyes open: openFindingDensity groups open
+      // findings by file for hotspot ranking (FR-INSIGHTS-5), so a repository
+      // with two hundred CVEs makes its lockfile the hottest file it has. That
+      // is a wrong-looking hotspot list; the alternative is a null file, which
+      // means no sweep, which means real CVEs staying open after they are
+      // fixed. A misleading chart loses to findings that never close.
       file: match.locations[0]?.replace(/^\/+/, '') ?? null,
       lineStart: null,
       lineEnd: null,

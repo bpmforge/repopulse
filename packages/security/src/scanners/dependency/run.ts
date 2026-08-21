@@ -17,6 +17,15 @@ import type { MatchFunnel } from './matches.js';
 //
 // WHAT THIS DELIBERATELY DOES NOT CLAIM: reachability is 'manifest_only' on
 // every finding. See findings.ts — an SBOM cannot support more.
+//
+// WHAT IS STORED BUT NOT YET READ: every finding carries `epss` in its yields,
+// in the shape priceFinding takes, and repriceFindings does not pass it — it
+// builds its PricingInput from `kev` and `dep_scope` only, so a non-KEV
+// dependency finding is priced at the likelihood FLOOR today rather than at its
+// exploit-prediction score. One line in packages/insights/src/risk/reprice.ts
+// (`epss: yields['epss']`) turns it on; that file is outside this ticket's
+// write scope, so the data is written and the gap is stated instead of a
+// number quietly being wrong.
 
 export interface DependencyRunDeps {
   db: Database;
@@ -43,8 +52,16 @@ export interface DependencyRunDeps {
 export interface DependencyRunResult {
   status: 'succeeded' | 'failed';
   scanRunId: number | null;
-  /** Components in the stored SBOM. */
+  /** Components in the stored SBOM — the document's own count. */
   componentsScanned: number;
+  /**
+   * Of those, the ones our own reader can scope: npm and pypi purls.
+   *
+   * Reported separately because the document count includes the root project
+   * and a file entry per manifest, so "3 components" for one dependency is a
+   * true number that reads as a wrong one.
+   */
+  syncableComponents: number;
   /** Raw grype matches, before de-duplication. */
   matchesFound: number;
   /** (package, CVE) rows collapsed because two providers reported the same one. */
@@ -68,6 +85,7 @@ const DEFAULT_WALL_CLOCK_MS = 15 * 60 * 1000;
 
 const emptyFunnel = {
   componentsScanned: 0,
+  syncableComponents: 0,
   matchesFound: 0,
   duplicatesCollapsed: 0,
   withoutCveId: 0,
@@ -214,8 +232,10 @@ function funnelNumbers(
   | 'unknownSeverity'
   | 'withoutScope'
   | 'kevFloored'
+  | 'syncableComponents'
 > {
   return {
+    syncableComponents: findings.syncableComponents,
     matchesFound: match?.rawMatches ?? 0,
     duplicatesCollapsed: match?.duplicatesCollapsed ?? 0,
     withoutCveId: match?.withoutCveId ?? 0,
