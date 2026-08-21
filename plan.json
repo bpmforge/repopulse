@@ -5221,6 +5221,64 @@
         "THE MIGRATION SHIPPED WITH THE FIX because it had to: dedup_key is stored and the next scan recomputes it, so changing the normaliser would have made affected rows unreachable — duplicate inserted, original swept as resolved, occurrence counts and triage decisions detached. rekeyFindings recomputes in place, proven against live Postgres to preserve the row id, a confirmed status and an occurrence count of 7.",
         "It REPORTS collisions rather than resolving them: when two rows now key identically, choosing a survivor is a decision about someone triage history, not something a migration should do quietly."
       ]
+    },
+    {
+      "id": "W9-13",
+      "title": "Wire the performance pack: findings must take dimension `performance`",
+      "phase": 9,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/**",
+        "packages/security/rulepacks/code-health/perf/**",
+        "packages/security/fixtures/perf/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A scanner OWNS the perf pack and emits its findings with dimension 'performance' — W9-08's fourth acceptance criterion, which is currently unmet",
+        "An integration test proves a bpm-perf-* rule fires on the perf fixtures and lands as a STORED finding with dimension 'performance'",
+        "The Findings Explorer's performance facet returns those findings, and the performance risk axis grades instead of reading 'not measured'",
+        "The logging scanner no longer pays semgrep to evaluate rules whose findings it discards, or that cost is documented as deliberate"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-21 from a product-gap review. W9-08 is marked DONE and its fourth acceptance criterion reads: 'findings take dimension performance and ride the standard triage/verify/plan rails'. They do not.",
+        "EVIDENCE, all grep-verifiable. (1) rulepacks/code-health/perf/perf.v1.yaml holds 8 bpm-perf-* rules. (2) The ONLY runtime loader of that directory is scanners/logging/run.ts:152, which points semgrep at the whole code-health pack dir. (3) At run.ts:164 it does `if (!finding.ruleId.startsWith('bpm-log-')) continue;` — so every perf finding semgrep produces is evaluated and then DISCARDED. (4) The only other reference to `bpm-perf-` in apps/ or packages/ is perf-pack.test.ts, which reads the YAML off disk and asserts its contents; it never runs a scan through the product's pipeline.",
+        "CONSEQUENCES: no scanner emits dimension 'performance' (the chainer passes it through but can only chain findings that already exist), so the Findings Explorer's performance facet is permanently empty and the performance risk axis at apps/api/src/routes/risk/index.ts:31 can never grade. VISION.md names performance as one of four review dimensions; three of the four ship.",
+        "The rules are NOT the problem: written for RepoPulse with per-rule provenance, trigger and clean fixtures, and messages that deliberately refuse to quote speedup multipliers. This is wiring, not authoring.",
+        "This is the disconnected-pipeline defect (anti-slop R-26) inside the codebase of the product built to find it."
+      ]
+    },
+    {
+      "id": "W9-14",
+      "title": "Three filter facets have no producer: slop, iac, test_coverage",
+      "phase": 9,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/findings/**",
+        "apps/web/src/widgets/findings/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Each of slop, iac and test_coverage is either given a producer or removed from the filterable set — decided per dimension, not as a batch",
+        "No facet in the UI can be selected and return empty for the structural reason that nothing writes it",
+        "If a facet is retained ahead of its producer, the UI says so where a user meets it rather than silently showing an empty result"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-21 from the same review as W9-13. Verified by grepping every `dimension: '<name>'` literal in packages/*/src and apps/api/src: slop 0 producers, iac 0 producers, test_coverage 0 producers.",
+        "slop: the anti_slop scanner exists and runs, but writes dimension 'code_health' (scanners/anti-slop/run.ts:123,144,174,218). The facet is dead even though the findings are real — possibly a one-word mapping fix, which is why it needs a decision rather than a guess.",
+        "iac: no IaC scanner exists at all. The facet is aspirational.",
+        "test_coverage: coverage ingestion is parked, so this facet waits on parked work and should probably say so.",
+        "NOT the same bug as W8-10/W10-05, worth stating so nobody fixes it twice: those were dimensions that WERE produced and were not filterable. This is the mirror image — filterable dimensions nothing produces. The symptom differs too: that bug showed you everything, this one shows you nothing."
+      ]
     }
   ]
 }
