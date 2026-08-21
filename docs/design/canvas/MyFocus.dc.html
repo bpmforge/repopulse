@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; background: #0d1117; color: #e6edf3; }
+    a { color: #6e7bff; text-decoration: none; }
+    a:hover { color: #8f99ff; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }
+    .card { border: 1px solid #30363d; border-radius: 10px; background: #161b22; }
+    .card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px; }
+    .card h3 { margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3; }
+    .card > .body { padding: 12px; }
+    .kpi { display: flex; flex-direction: column; gap: 4px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 16px; }
+    .kpi .lbl { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9da7b3; }
+    .kpi .val { font-size: 28px; font-weight: 600; line-height: 1; color: #e6edf3; }
+    .kpi .cap { font-size: 12px; color: #7d8590; }
+    .th { text-align: left; padding: 6px 4px; font-size: 12px; font-weight: 500; color: #9da7b3; }
+    .td { padding: 8px 4px; font-size: 14px; border-top: 1px solid #30363d; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 1000px; background: #0d1117;">
+
+  <nav style="display: flex; flex-direction: column; width: 64px; flex-shrink: 0; border-right: 1px solid #30363d; background: #161b22;">
+    <div style="display: flex; align-items: center; justify-content: center; padding: 12px;"><span style="font-size: 14px; color: #9da7b3;">&raquo;</span></div>
+    <ul style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px; margin: 0; list-style: none; flex-grow: 1;">
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9672;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9636;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#8644;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid #6e7bff; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px;">&#9678;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9873;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9719;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9638;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#10063;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9881;</div></li>
+    </ul>
+    <div style="display: flex; justify-content: center; border-top: 1px solid #30363d; padding: 8px;"><span style="width: 8px; height: 8px; border-radius: 999px; background: #3fb950;"></span></div>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #30363d;">
+      <span style="font-size: 14px; color: #9da7b3;">My Focus</span>
+      <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #e6edf3; font-size: 13px; padding: 4px 10px;">window 30d &#9662;</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+
+      <!-- Rendered only when there IS a previous visit and something changed:
+           a strip that says "0 new" every load is furniture people skip -->
+      <div style="border: 1px solid #30363d; border-radius: 10px; background: #1c2129; padding: 8px 12px; font-size: 12px;">
+        Since your last visit: 2 review requests, 1 of your pull requests advanced, 3 new findings on your work.
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+        <div class="kpi"><span class="lbl">PRs merged</span><span class="val">7</span><span class="cap">not compared to an earlier window</span></div>
+        <div class="kpi"><span class="lbl">Median PR size</span><span class="val">148</span><span class="cap">not compared to an earlier window</span></div>
+        <div class="kpi"><span class="lbl">Open PRs</span><span class="val">2</span><span class="cap">not compared to an earlier window</span></div>
+        <div class="kpi"><span class="lbl">To review</span><span class="val">3</span><span class="cap">not compared to an earlier window</span></div>
+      </div>
+
+      <section class="card">
+        <header><h3>My pull requests</h3></header>
+        <div class="body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th class="th">Pull request</th><th class="th">Repository</th><th class="th">State</th><th class="th">Size</th><th class="th" style="text-align: right;">Open for</th></tr></thead>
+            <tbody>
+              <tr><td class="td"><a href="#">#412 Extract the rate-limit budgeter</a></td><td class="td" style="font-size: 12px; color: #9da7b3;">bpmforge/ingest</td><td class="td" style="color: #9da7b3;">open</td><td class="td" style="color: #9da7b3;">L</td><td class="td" style="text-align: right; color: #d29922;">3d</td></tr>
+              <tr><td class="td"><a href="#">#418 Tighten the dedup key</a></td><td class="td" style="font-size: 12px; color: #9da7b3;">bpmforge/insights</td><td class="td" style="color: #9da7b3;">open</td><td class="td" style="color: #9da7b3;">S</td><td class="td" style="text-align: right;">14h</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <header><h3>Review queue (over 2d flagged)</h3></header>
+        <div class="body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th class="th">Awaiting my review</th><th class="th">Repository</th><th class="th">Author</th><th class="th" style="text-align: right;">Waiting</th></tr></thead>
+            <tbody>
+              <tr><td class="td"><a href="#">#388 Rework the reconcile pass</a></td><td class="td" style="font-size: 12px; color: #9da7b3;">bpmforge/api</td><td class="td" style="color: #9da7b3;">kim</td><td class="td" style="text-align: right; color: #d29922;">4d</td></tr>
+              <tr><td class="td"><a href="#">#401 Add the VEX justification gate</a></td><td class="td" style="font-size: 12px; color: #9da7b3;">bpmforge/insights</td><td class="td" style="color: #9da7b3;">lee</td><td class="td" style="text-align: right;">1d</td></tr>
+              <tr><td class="td"><a href="#">#404 Split the scanner registry</a></td><td class="td" style="font-size: 12px; color: #9da7b3;">bpmforge/api</td><td class="td" style="color: #9da7b3;">sam</td><td class="td" style="text-align: right;">6h</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <header><h3>Hotspots I own</h3></header>
+        <div class="body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th class="th">File</th><th class="th">Repository</th><th class="th" style="text-align: right;">My lines</th></tr></thead>
+            <tbody>
+              <tr><td class="td"><a href="#" class="mono">src/ingest/budgeter.ts</a></td><td class="td" style="font-size: 12px; color: #9da7b3;">bpmforge/ingest</td><td class="td" style="text-align: right;">2184</td></tr>
+              <tr><td class="td"><a href="#" class="mono">src/findings/dedup.ts</a></td><td class="td" style="font-size: 12px; color: #9da7b3;">bpmforge/insights</td><td class="td" style="text-align: right;">640</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
