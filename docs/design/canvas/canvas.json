@@ -63,6 +63,22 @@
       "w": 1440,
       "h": 1000,
       "title": "Report Center — /reports (shipped)"
+    },
+    {
+      "file": "Plans.dc.html",
+      "x": 3120,
+      "y": 2880,
+      "w": 1440,
+      "h": 1000,
+      "title": "Plans — /plans (shipped, D9)"
+    },
+    {
+      "file": "Admin.dc.html",
+      "x": 0,
+      "y": 4320,
+      "w": 1440,
+      "h": 1080,
+      "title": "Admin — /admin (shipped)"
     }
   ],
   "annotations": [
@@ -128,6 +144,20 @@
       "y": 3900,
       "w": 620,
       "text": "Report Center. FIVE report types ship, not the four §4.h lists — Code Health (D11) was added in W9. Two things the spec never had: a free-text 'Context' annotation stored WITH the report, and a compare mode that diffs two runs when exactly two rows are ticked.\n\nStatus is a glyph plus a word (◷ queued / ◐ running / ✓ ready / ✕ failed), never colour alone. The list polls every 3s rather than opening an SSE channel: a report takes seconds, and a dedicated event stream would be more moving parts than the problem deserves. PDF is a plain link, not fetch() — the download streams behind the session check and never lands in JS memory."
+    },
+    {
+      "id": "plans-note",
+      "x": 3120,
+      "y": 3900,
+      "w": 620,
+      "text": "Plans (D9). The detail that defines this screen: there is NO 'mark done' button anywhere. An item closes when its metric actually moves, verified nightly (W5-06) — a human cannot declare victory over a number. Every item shows its verify criterion in plain language BEFORE anyone commits to it, and cites evidence keys rather than copying the data, so a reader can go and check.\n\nRegressed items are styled warn and pinned. The T2 summary uses the quiet-accent AI card family (R-D3): a provenance chip reading 'T2 · local — reworded, numbers computed', no gradient, no sparkle. On a Tier-1-only install plans work fully and this card is simply absent."
+    },
+    {
+      "id": "admin-note",
+      "x": 0,
+      "y": 5420,
+      "w": 620,
+      "text": "Admin ships EIGHT tabs, not §4.i's four. Connections, Sync, Members and Analysis were specified; Identities, Agreements, Rules and Settings arrived with later waves.\n\nTwo things worth seeing drawn. The credential column shows a fingerprint and the last 4 only — the API returns exactly that for this display, because showing more would put a token in the DOM (SC-2). And the per-repo table surfaces the rate-limit budget as a column: budget is law (Law 7), so an operator has to see a repo approaching its limit BEFORE it goes paused_budget, not after."
     }
   ],
   "launch": {
