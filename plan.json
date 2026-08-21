@@ -5333,7 +5333,7 @@
         "The `slop` facet is removed from DIMENSIONS_AWAITING_PRODUCER once it has a producer"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-21 from W9-14. The spec is unambiguous in two places: SRS FR-CH-3 says 'anti_slop scanner (dimension `slop`)' and the CODE_HEALTH_SUITE.md §2 roster table gives anti_slop the dimension `slop`. The scanner writes 'code_health' at scanners/anti-slop/run.ts:123,144,174,218. The findings are real; they are filed under the wrong name, so the `slop` facet returns nothing while the rows sit in Code Health.",
         "NOT a one-word fix, which is why it is its own ticket rather than part of W9-14. dedupKey() hashes the dimension, so changing it re-keys every stored anti_slop finding. Without a migration the next scan finds no match, inserts a duplicate, and the sweep resolves the original — taking its occurrence count and triage decisions with it. That is exactly the harm dedup.ts warns about and W8-16 had to build rekeyFindings for; the same helper should carry this.",
