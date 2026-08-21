@@ -5243,7 +5243,7 @@
         "The logging scanner no longer pays semgrep to evaluate rules whose findings it discards, or that cost is documented as deliberate"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-21 from a product-gap review. W9-08 is marked DONE and its fourth acceptance criterion reads: 'findings take dimension performance and ride the standard triage/verify/plan rails'. They do not.",
         "EVIDENCE, all grep-verifiable. (1) rulepacks/code-health/perf/perf.v1.yaml holds 8 bpm-perf-* rules. (2) The ONLY runtime loader of that directory is scanners/logging/run.ts:152, which points semgrep at the whole code-health pack dir. (3) At run.ts:164 it does `if (!finding.ruleId.startsWith('bpm-log-')) continue;` — so every perf finding semgrep produces is evaluated and then DISCARDED. (4) The only other reference to `bpm-perf-` in apps/ or packages/ is perf-pack.test.ts, which reads the YAML off disk and asserts its contents; it never runs a scan through the product's pipeline.",
