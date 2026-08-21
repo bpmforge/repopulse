@@ -143,7 +143,15 @@ export const findings = pgTable(
       // 'compound' joins them in W8-09: a file flagged by three different
       // scanners is a finding in its own right (FR-INSIGHTS-6, D9), and it is
       // not a chain — a chain is a path, this is a concentration.
-      sql`${t.dimension} in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain', 'compound', 'logging', 'knowledge', 'dependency_health', 'architecture', 'test_gap')`,
+      //
+      // 'slop' joins them in W9-16, LATE. FR-CH-3 and CODE_HEALTH_SUITE.md §2
+      // gave the anti_slop scanner this dimension in W9-03, but it was never
+      // added here — so the value was filterable in the API and the UI and
+      // NOT STORABLE, and the scanner wrote 'code_health' instead. Three copies
+      // of this list (here, apps/api/src/routes/findings, apps/web's
+      // ALL_DIMENSIONS) had drifted apart; a value missing from this one is the
+      // copy that fails loudest, and it took a migration to notice.
+      sql`${t.dimension} in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain', 'compound', 'logging', 'slop', 'knowledge', 'dependency_health', 'architecture', 'test_gap')`,
     ),
     check('findings_severity_check', sql`${t.severity} between 1 and 5`),
     check('findings_confidence_check', sql`${t.confidence} between 1 and 5`),

@@ -120,7 +120,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     const sources = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
     for (const ldr of ldrFindings(sources)) {
       findings.push({
-        dimension: 'code_health',
+        dimension: 'slop',
         severity: 1,
         // 5: the ratio is arithmetic. What is arguable is the floor, and the
         // finding carries the counts so that is what gets argued with.
@@ -141,7 +141,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     for (const source of sources) {
       for (const inflation of docstringInflation(source.path, source.source)) {
         findings.push({
-          dimension: 'code_health',
+          dimension: 'slop',
           severity: 1,
           confidence: 5,
           file: inflation.file,
@@ -171,6 +171,11 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         meta: {
           repoId: String(deps.repoId),
           prNumber: 0,
+          // NOT 'slop' (W9-16). This is the GATEWAY's dimension — which Tier-2
+          // checklist family the model is being asked to apply — and its union
+          // is the four review dimensions, not the finding taxonomy. The
+          // findings this call produces are stored as `slop`; the checklist
+          // driving it is the code-health one.
           dimension: 'code_health',
           checklistVersion: checklist.version,
           initiator: `scanner:${ANTI_SLOP_SCANNER_KEY}`,
@@ -215,7 +220,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
         judgment += 1;
         findings.push({
-          dimension: 'code_health',
+          dimension: 'slop',
           // Capped at 3 regardless of what the model said. Structural slop is
           // not exploitable, and a severity-4 wrapper would outrank a real
           // vulnerability in every list that sorts by severity.

@@ -1,0 +1,2 @@
+ALTER TABLE "findings" DROP CONSTRAINT "findings_dimension_check";--> statement-breakpoint
+ALTER TABLE "findings" ADD CONSTRAINT "findings_dimension_check" CHECK ("findings"."dimension" in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain', 'compound', 'logging', 'slop', 'knowledge', 'dependency_health', 'architecture', 'test_gap'));

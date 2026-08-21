@@ -37,11 +37,6 @@ export const ALL_DIMENSIONS = [
  * nothing.
  */
 export const DIMENSIONS_AWAITING_PRODUCER: Record<string, string> = {
-  // FR-CH-3 and CODE_HEALTH_SUITE.md §2 both specify the anti_slop scanner as
-  // emitting `slop`. It writes `code_health` instead, so its findings are real
-  // but unreachable under this name. Tracked as W9-16 — the fix re-keys stored
-  // rows (dimension is part of the dedup key), so it ships with a migration.
-  slop: 'The anti-slop scanner currently files these under Code Health (W9-16).',
   // SECURITY_SUITE.md §7 lists the IaC Checker as a backlog scanner and
   // reserves this dimension for it. Reserved, not forgotten.
   iac: 'No IaC scanner yet — the dimension is reserved for one (SECURITY_SUITE §7).',
