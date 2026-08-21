@@ -22,6 +22,41 @@ export const ALL_DIMENSIONS = [
   'test_gap',
 ] as const;
 
+/**
+ * Dimensions a user can select that NOTHING currently writes (W9-14).
+ *
+ * Every one of these is in the facet on purpose — each is specified, none is a
+ * leftover — but a facet that returns an empty list without saying why is
+ * indistinguishable from "your code is clean here", and that is the reading
+ * this codebase keeps having to stamp out. The value is what the UI says when
+ * a viewer picks one.
+ *
+ * This is the MIRROR of the defect W8-10 and W10-05 fixed: those were
+ * dimensions that WERE produced and could not be filtered, and they showed you
+ * everything. These are filterable and never produced, and they show you
+ * nothing.
+ */
+export const DIMENSIONS_AWAITING_PRODUCER: Record<string, string> = {
+  // FR-CH-3 and CODE_HEALTH_SUITE.md §2 both specify the anti_slop scanner as
+  // emitting `slop`. It writes `code_health` instead, so its findings are real
+  // but unreachable under this name. Tracked as W9-16 — the fix re-keys stored
+  // rows (dimension is part of the dedup key), so it ships with a migration.
+  slop: 'The anti-slop scanner currently files these under Code Health (W9-16).',
+  // SECURITY_SUITE.md §7 lists the IaC Checker as a backlog scanner and
+  // reserves this dimension for it. Reserved, not forgotten.
+  iac: 'No IaC scanner yet — the dimension is reserved for one (SECURITY_SUITE §7).',
+  // FR-ANALYSIS-4 makes this a v1.x Tier-2 checklist dimension, and FR-REG-6
+  // parks coverage ingestion outright. `test_gap` is the register dimension
+  // that ships today and is a different question.
+  test_coverage:
+    'Coverage ingestion is parked (FR-REG-6). Test-gap findings file under Test Gap.',
+};
+
+/** True when a dimension is selectable but cannot yet return anything. */
+export function awaitingProducer(dimension: string): boolean {
+  return dimension in DIMENSIONS_AWAITING_PRODUCER;
+}
+
 export interface Finding {
   id: number;
   repo: { id: number; org: string; name: string };

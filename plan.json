@@ -5265,22 +5265,25 @@
         "apps/api/src/routes/findings/**",
         "apps/web/src/widgets/findings/**",
         "docs/STATUS.md",
-        "plan.json"
+        "plan.json",
+        "apps/web/src/routes/findings/**"
       ],
       "depends_on": [],
       "acceptance": [
-        "Each of slop, iac and test_coverage is either given a producer or removed from the filterable set — decided per dimension, not as a batch",
+        "Each of slop, iac and test_coverage is decided PER DIMENSION against the spec, not as a batch: all three turn out to be specified rather than spurious, so none is removed — slop is a defect against FR-CH-3 (filed W9-16), iac is reserved for a backlog scanner (SECURITY_SUITE §7), test_coverage is a v1.x checklist dimension with ingestion parked (FR-REG-6)",
         "No facet in the UI can be selected and return empty for the structural reason that nothing writes it",
         "If a facet is retained ahead of its producer, the UI says so where a user meets it rather than silently showing an empty result"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "FILED 2026-08-21 from the same review as W9-13. Verified by grepping every `dimension: '<name>'` literal in packages/*/src and apps/api/src: slop 0 producers, iac 0 producers, test_coverage 0 producers.",
         "slop: the anti_slop scanner exists and runs, but writes dimension 'code_health' (scanners/anti-slop/run.ts:123,144,174,218). The facet is dead even though the findings are real — possibly a one-word mapping fix, which is why it needs a decision rather than a guess.",
         "iac: no IaC scanner exists at all. The facet is aspirational.",
         "test_coverage: coverage ingestion is parked, so this facet waits on parked work and should probably say so.",
-        "NOT the same bug as W8-10/W10-05, worth stating so nobody fixes it twice: those were dimensions that WERE produced and were not filterable. This is the mirror image — filterable dimensions nothing produces. The symptom differs too: that bug showed you everything, this one shows you nothing."
+        "NOT the same bug as W8-10/W10-05, worth stating so nobody fixes it twice: those were dimensions that WERE produced and were not filterable. This is the mirror image — filterable dimensions nothing produces. The symptom differs too: that bug showed you everything, this one shows you nothing.",
+        "ACCEPTANCE 1 REWRITTEN, not quietly satisfied. It was filed as 'given a producer OR removed from the filterable set'. The spec makes that binary wrong: all three dimensions are specified, and removing a reserved facet would delete a decision someone already made. What the audit actually found was one defect (slop) and two reservations. Acceptance 3 already contemplated retaining a facet ahead of its producer, which is the outcome for the two reservations.",
+        "WRITE_SCOPE WIDENED to apps/web/src/routes/findings/** — the dimension select and the empty-state message live in the route, and metadata in widgets/ with no renderer would be another component wired to nothing, which is the defect class this whole sequence has been about."
       ]
     },
     {
@@ -5308,6 +5311,33 @@
         "ROOT CAUSE, packages/insights/src/findings/store.ts:113 — byKey is built ONLY from rows already in the database. The loop then inserts every batch finding whose key is not already stored, so the first of an in-batch pair inserts and the second violates findings_workspace_repo_dedup_key. The catch marks the scan run failed and NOTHING is stored.",
         "THIS IS NOT A NEW-SCANNER PROBLEM. Verified against the SHIPPED logging_hygiene scanner (W9-04) on a three-line file containing two console.log calls: status failed, findingsCreated 0, same constraint error. Every deterministic scanner builds evidenceQuote as `<file>:<line> — <ruleId>`, and dedupKey buckets lines by ten, so two hits of one rule in one file collide whenever they fall in the same ten-line window. NOT every pair in a file — the first draft of this note said that and it is wrong — but a cluster of matching lines a few apart is the ordinary case, and it is the one that fails.",
         "The dedup keys own semantics say the fold is correct: same key means same finding. What must NOT happen is inflating occurrenceCount by the number of duplicate lines — that field counts sightings across runs."
+      ]
+    },
+    {
+      "id": "W9-16",
+      "title": "anti_slop writes dimension `code_health`; FR-CH-3 says `slop` — needs a re-key migration",
+      "phase": 9,
+      "module": "security",
+      "stories": [],
+      "write_scope": [
+        "packages/security/src/scanners/anti-slop/**",
+        "packages/insights/src/findings/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "anti_slop findings are stored with dimension 'slop', matching FR-CH-3 and CODE_HEALTH_SUITE.md §2",
+        "The change ships WITH its migration: dimension is part of the dedup key, so existing anti_slop rows must be re-keyed in place or the next scan inserts duplicates and sweeps the originals as resolved",
+        "A test proves an existing anti_slop row keeps its id, triage status and occurrence count across the change",
+        "The `slop` facet is removed from DIMENSIONS_AWAITING_PRODUCER once it has a producer"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-21 from W9-14. The spec is unambiguous in two places: SRS FR-CH-3 says 'anti_slop scanner (dimension `slop`)' and the CODE_HEALTH_SUITE.md §2 roster table gives anti_slop the dimension `slop`. The scanner writes 'code_health' at scanners/anti-slop/run.ts:123,144,174,218. The findings are real; they are filed under the wrong name, so the `slop` facet returns nothing while the rows sit in Code Health.",
+        "NOT a one-word fix, which is why it is its own ticket rather than part of W9-14. dedupKey() hashes the dimension, so changing it re-keys every stored anti_slop finding. Without a migration the next scan finds no match, inserts a duplicate, and the sweep resolves the original — taking its occurrence count and triage decisions with it. That is exactly the harm dedup.ts warns about and W8-16 had to build rekeyFindings for; the same helper should carry this.",
+        "W9-14 left the facet visible and labelled rather than hiding it, because the findings exist and hiding the name would make them harder to find rather than easier."
       ]
     }
   ]
