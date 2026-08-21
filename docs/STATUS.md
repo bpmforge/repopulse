@@ -2136,6 +2136,28 @@ because that is what was measured. RED-checked all six modes (live, dead port,
 default port, both unset, unset+REQUIRE, unparseable URL); gate green at 1,645
 unit passed / 8 skipped.
 
+**Follow-up, same day — the remediation the message gave was a dead end.** It
+said "start the data tier with scripts/dev-up.sh", but `dev-up.sh` went straight
+to `podman compose`, and the crash had stopped the Podman *VM*, not a container.
+Following the pointer produced a second, less obvious error ("Cannot connect to
+Podman"), which reads like a compose fault and is not one. `dev-up.sh` now
+starts the machine first; on Linux, where podman is native and `podman info`
+already succeeds, the block is a no-op.
+
+Verified cold rather than assumed: VM stopped, then `dev-up.sh` taken from that
+state through to both containers healthy, and re-run warm to confirm it is
+idempotent. The first cold attempt FAILED and is the reason the guard is written
+the way it is — `podman machine stop` returns before the VM has settled, so a
+start issued immediately after exits 1 with "already running" while genuinely
+bringing it up, and under `set -e` that killed the script before the `podman
+info` recheck could arbitrate. The start is now non-fatal; the recheck decides.
+
+Also corrected in `check-live-infra.mjs`: the header comment asserted "37 test
+files" and "433 of 586 tests" — figures true at W12-08 and stale now (61 and
+1,653). The script has always counted from the source marker, so behaviour was
+right and only the prose was wrong. It now says so instead of restating a number
+it does not measure.
+
 **W12-10 (implemented, BLOCKED — on billing, not on code).** `ci.yml` now runs
 `postgres:16` and `redis:7.2` as services with healthchecks, exports
 `DATABASE_URL`/`REDIS_URL`, runs `pnpm db:migrate` before lint, and sets

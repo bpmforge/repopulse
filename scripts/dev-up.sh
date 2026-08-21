@@ -7,6 +7,33 @@ cd "$ROOT" || exit 1
 
 COMPOSE_FILE="compose.dev.yaml"
 
+# The Podman VM has to be up before `podman compose` means anything. On macOS
+# and Windows a crashed or rebooted host leaves the machine stopped, and every
+# compose command then fails with "Cannot connect to Podman" — which reads like
+# a compose problem and is not one. On Linux podman is native, there is no
+# machine, and this block is a no-op because `podman info` already succeeds.
+if ! podman info >/dev/null 2>&1; then
+  if podman machine list --format '{{.Name}}' 2>/dev/null | grep -q .; then
+    echo "Podman VM is not running. Starting it..."
+    # NOT fatal on non-zero. `podman machine stop` returns before the VM has
+    # fully settled, so a start issued right after it can exit 1 with "already
+    # running" while genuinely bringing the machine up. The `podman info`
+    # recheck below is the arbiter; under `set -e` an unguarded start would
+    # kill this script before that recheck ever ran.
+    podman machine start || true
+  else
+    echo "FAIL: cannot reach Podman, and there is no machine to start." >&2
+    echo "      On macOS/Windows: podman machine init && podman machine start" >&2
+    echo "      On Linux: check the podman service is installed and running." >&2
+    exit 1
+  fi
+
+  if ! podman info >/dev/null 2>&1; then
+    echo "FAIL: Podman is still unreachable after starting the machine." >&2
+    exit 1
+  fi
+fi
+
 echo "Starting dev data tier ($COMPOSE_FILE)..."
 podman compose -f "$COMPOSE_FILE" up -d
 
