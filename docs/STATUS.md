@@ -2113,6 +2113,29 @@ has no data tier yet, and a permanently-red gate is not an improvement on a
 dishonest one. The 37 is counted from the source marker, not hardcoded, and
 agrees independently with vitest's own skip count. RED-checked all three modes.
 
+**W12-08 amended 2026-08-21 — the preflight now probes, not just reads.** It
+checked that `DATABASE_URL`/`REDIS_URL` were *set*, never that anything answered
+on them. Both come from `.env`, so a stopped data tier passed the preflight and
+the gated suites then ran and failed: 40 `ECONNREFUSED` traces, ~200s, no cause
+named. (Found exactly that way after a crash took the Podman VM down overnight.)
+A 2s TCP connect per URL now fails that case immediately with the address it
+tried — the address matters because ci.yml's vars will not look like a dev
+machine's, and that job has still never run.
+
+It fails **unconditionally**, `REQUIRE_LIVE_INFRA` or not, because a set-but-dead
+var does not make the suites skip; it makes them fail. Proceeding buys a slower,
+less legible red. This does not resurrect the permanently-red gate W12-08
+rejected: the probe only runs against variables that are SET, and the documented
+offline run (`DOTENV_CONFIG_PATH=/dev/null pnpm test`) leaves both unset.
+
+**What it deliberately does not prove:** a TCP connect means something is
+*listening*, not that Postgres will answer a query — a container still in `Up
+(starting)` passes it. Readiness needs a handshake, which needs a client, which
+does not belong in a preflight. The failure text says "nothing is listening"
+because that is what was measured. RED-checked all six modes (live, dead port,
+default port, both unset, unset+REQUIRE, unparseable URL); gate green at 1,645
+unit passed / 8 skipped.
+
 **W12-10 (implemented, BLOCKED — on billing, not on code).** `ci.yml` now runs
 `postgres:16` and `redis:7.2` as services with healthchecks, exports
 `DATABASE_URL`/`REDIS_URL`, runs `pnpm db:migrate` before lint, and sets
