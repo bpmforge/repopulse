@@ -54,3 +54,7 @@ export * from './adapters/architecture/graph.js';
 export * from './adapters/architecture/adapters.js';
 export * from './adapters/architecture/tools.js';
 export * from './adapters/architecture/run.js';
+export * from './scanners/dependency/matches.js';
+export * from './scanners/dependency/findings.js';
+export * from './scanners/dependency/tools.js';
+export * from './scanners/dependency/run.js';

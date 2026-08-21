@@ -57,6 +57,7 @@ every variable at fault. The API will not half-boot.
 | --- | --- | --- | --- | --- |
 | `WORKER_HEALTH_PORT` | no | `3301` | Port for the worker /healthz endpoint. | Container health checks fail and the orchestrator restarts a healthy worker. |
 | `SNAPSHOT_ROOT` | no | `the system temp directory` | Scratch directory for C1a scan snapshots. Cleared by the sweeper. | Scans fail to extract; a non-ephemeral path retains customer source longer than intended. |
+| `SCAN_RULES_DIR` | no | `/var/lib/repopulse/scan-rules` | Host directory holding the scan rulepacks and the grype vulnerability database, mounted read-only into the --network=none scan container. Filled by deploy/scan-db-sync.sh on the host, on your schedule. | Dependency scanning has no CVE data and fails rather than reporting a clean tree. MUST BE ABSOLUTE — a relative path is not resolved against the compose file and the worker will not start. Budget ~2 GB: the grype database alone is 1.9 GB, which is also why we fetch it here instead of shipping it. |
 | `SCAN_IMAGE` | no | `localhost/repopulse/scan:dev` | Container image the sandboxed scanners run in. | Every tool-based scan fails to start; findings silently stop appearing. |
 | `RECONCILE_CRON` | no | `17 3 * * *` | Nightly reconcile sweep schedule. 'off' disables it. | Drift between the forge and the warehouse is never corrected. |
 | `SECRETS_HISTORY_CRON` | no | `23 4 1 * *` | Monthly secrets history sweep. 'off' disables it. | Credentials committed and later deleted are never found. |

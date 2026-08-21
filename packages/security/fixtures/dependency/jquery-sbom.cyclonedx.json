@@ -1,0 +1,229 @@
+{
+ "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+ "bomFormat": "CycloneDX",
+ "specVersion": "1.7",
+ "serialNumber": "urn:uuid:1712c666-be97-416a-bd3e-1830d31af528",
+ "version": 1,
+ "metadata": {
+  "timestamp": "2026-08-21T00:11:03Z",
+  "tools": {
+   "components": [
+    {
+     "type": "application",
+     "author": "anchore",
+     "name": "syft",
+     "version": "1.51.0"
+    }
+   ]
+  },
+  "component": {
+   "bom-ref": "fd54646600e396d3",
+   "type": "file",
+   "name": "/scan"
+  }
+ },
+ "components": [
+  {
+   "bom-ref": "pkg:npm/debug@4.3.4?package-id=a4e4575f9d22de8e",
+   "type": "library",
+   "name": "debug",
+   "version": "4.3.4",
+   "cpe": "cpe:2.3:a:debug_project:debug:4.3.4:*:*:*:*:node.js:*:*",
+   "purl": "pkg:npm/debug@4.3.4",
+   "properties": [
+    {
+     "name": "syft:package:foundBy",
+     "value": "javascript-lock-cataloger"
+    },
+    {
+     "name": "syft:package:language",
+     "value": "javascript"
+    },
+    {
+     "name": "syft:package:type",
+     "value": "npm"
+    },
+    {
+     "name": "syft:package:metadataType",
+     "value": "javascript-npm-package-lock-entry"
+    },
+    {
+     "name": "syft:location:0:path",
+     "value": "/package-lock.json"
+    }
+   ]
+  },
+  {
+   "bom-ref": "pkg:npm/jquery@3.4.1?package-id=da202c98087ef85a",
+   "type": "library",
+   "name": "jquery",
+   "version": "3.4.1",
+   "cpe": "cpe:2.3:a:jquery:jquery:3.4.1:*:*:*:*:node.js:*:*",
+   "purl": "pkg:npm/jquery@3.4.1",
+   "properties": [
+    {
+     "name": "syft:package:foundBy",
+     "value": "javascript-lock-cataloger"
+    },
+    {
+     "name": "syft:package:language",
+     "value": "javascript"
+    },
+    {
+     "name": "syft:package:type",
+     "value": "npm"
+    },
+    {
+     "name": "syft:package:metadataType",
+     "value": "javascript-npm-package-lock-entry"
+    },
+    {
+     "name": "syft:location:0:path",
+     "value": "/package-lock.json"
+    }
+   ]
+  },
+  {
+   "bom-ref": "pkg:npm/ms@2.1.2?package-id=d2075ca3c5a9446b",
+   "type": "library",
+   "name": "ms",
+   "version": "2.1.2",
+   "cpe": "cpe:2.3:a:vercel:ms:2.1.2:*:*:*:*:node.js:*:*",
+   "purl": "pkg:npm/ms@2.1.2",
+   "properties": [
+    {
+     "name": "syft:package:foundBy",
+     "value": "javascript-lock-cataloger"
+    },
+    {
+     "name": "syft:package:language",
+     "value": "javascript"
+    },
+    {
+     "name": "syft:package:type",
+     "value": "npm"
+    },
+    {
+     "name": "syft:package:metadataType",
+     "value": "javascript-npm-package-lock-entry"
+    },
+    {
+     "name": "syft:location:0:path",
+     "value": "/package-lock.json"
+    }
+   ]
+  },
+  {
+   "bom-ref": "pkg:npm/w8-06-vulnerable-fixture@1.0.0?package-id=62ff5b1039d1c3a0",
+   "type": "library",
+   "name": "w8-06-vulnerable-fixture",
+   "version": "1.0.0",
+   "cpe": "cpe:2.3:a:w8-06-vulnerable-fixture:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*",
+   "purl": "pkg:npm/w8-06-vulnerable-fixture@1.0.0",
+   "properties": [
+    {
+     "name": "syft:package:foundBy",
+     "value": "javascript-lock-cataloger"
+    },
+    {
+     "name": "syft:package:language",
+     "value": "javascript"
+    },
+    {
+     "name": "syft:package:type",
+     "value": "npm"
+    },
+    {
+     "name": "syft:package:metadataType",
+     "value": "javascript-npm-package-lock-entry"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06-vulnerable-fixture:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable_fixture:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable_fixture:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06-vulnerable:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06-vulnerable:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:location:0:path",
+     "value": "/package-lock.json"
+    }
+   ]
+  },
+  {
+   "bom-ref": "fd71c2238fc07657",
+   "type": "file",
+   "name": "/scan/package-lock.json",
+   "hashes": [
+    {
+     "alg": "SHA-1",
+     "content": "5e4f5bea21667134f7ca6bdb502a0043d678f0a4"
+    },
+    {
+     "alg": "SHA-256",
+     "content": "7d2f6f76209a025a79fd4e549d14e9cfdea785c8fbb3bf06b4ce2a71b0b8e99b"
+    }
+   ]
+  }
+ ],
+ "dependencies": [
+  {
+   "ref": "pkg:npm/debug@4.3.4?package-id=a4e4575f9d22de8e",
+   "dependsOn": [
+    "pkg:npm/ms@2.1.2?package-id=d2075ca3c5a9446b"
+   ]
+  },
+  {
+   "ref": "pkg:npm/w8-06-vulnerable-fixture@1.0.0?package-id=62ff5b1039d1c3a0",
+   "dependsOn": [
+    "pkg:npm/debug@4.3.4?package-id=a4e4575f9d22de8e",
+    "pkg:npm/jquery@3.4.1?package-id=da202c98087ef85a"
+   ]
+  }
+ ]
+}

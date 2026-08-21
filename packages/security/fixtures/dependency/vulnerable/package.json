@@ -1,0 +1,12 @@
+{
+  "name": "w8-06-vulnerable-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "jquery": "3.4.1",
+    "debug": "4.3.4"
+  },
+  "devDependencies": {
+    "minimist": "1.2.0"
+  }
+}

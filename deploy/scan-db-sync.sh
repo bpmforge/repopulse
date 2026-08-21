@@ -15,6 +15,15 @@
 # reported loudly rather than left to look like a successful one, because a
 # scanner running against a stale rulepack still reports findings and still
 # looks green.
+#
+# DISK: PROVISION 5 GB FOR THIS, NOT 2.
+# The grype vulnerability database is ~1.9 GiB unpacked, and the swap at the end
+# is deliberately non-destructive — the new copy is staged alongside the live
+# one and only then renamed into place — so a refresh briefly holds two of them,
+# ~3.9 GiB. A 4 GB volume does not fit that, which is why the number here is 5.
+# An operator who sized the volume for "some rule files" will otherwise meet
+# this as a full disk at 03:00. The check below refuses to start rather than
+# filling the filesystem the rest of the install is sitting on.
 set -euo pipefail
 
 DEST="${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}"
@@ -48,22 +57,124 @@ else
   FAILED=1
 fi
 
-# ---- 2. Vulnerability databases -------------------------------------------
-# NOT IMPLEMENTED, and deliberately noisy about it. grype/OSV/KEV are what the
-# dependency scanner (W8-06) needs, and W8-06 is blocked because none of those
-# tools are installed. Writing a fetch here for a tool nobody can run would be
-# code that has never executed, pretending to be a control.
+# ---- 2. Vulnerability database (grype, W8-06) ------------------------------
+# WHY THIS IS FETCHED RATHER THAN SHIPPED: grype's database is not one feed, it
+# is an aggregate of 26 of them (nvd, github, kev, epss, debian, rhel, alpine,
+# ...), each carrying its own terms. We are not entitled to redistribute that
+# inside our own image, so the customer's install fetches it from Anchore
+# directly and we never become a distributor of it. The happy side effect is
+# that the database is as fresh as this cron job, instead of as fresh as the
+# last image tag someone happened to pull.
 #
-# When W8-06 unblocks, this is where the pinned, checksum-verified downloads
-# go — into "$DEST/vuln-db" — and the scan container gets them the same way it
-# gets the rulepacks: read-only, host-fetched, never over its own network.
-if [ "${SCAN_SYNC_VULN_DB:-0}" = "1" ]; then
-  log "ERROR: vulnerability-database sync is not implemented (W8-06 is blocked:"
-  log "       syft/grype/osv-scanner are not installed). Unset SCAN_SYNC_VULN_DB."
-  FAILED=1
+# ON BY DEFAULT, and that is the deliberate choice: with no database the
+# dependency scanner does not error, it reports nothing, and a repository with
+# no findings is indistinguishable from a repository nobody checked. Set
+# SCAN_SYNC_VULN_DB=0 to opt out with your eyes open.
+#
+# THE FETCH RUNS IN THE SCAN IMAGE, not on the host. Three things fall out of
+# that and all three are the reason for it: the host needs no grype installed
+# (podman is already a hard requirement, one more is not free); the grype doing
+# the downloading is byte-for-byte the pinned binary that will later read the
+# database, so it cannot fetch a schema its reader does not support; and the
+# network access lives in this short-lived sync container, which never sees
+# customer source, rather than anywhere near the scan container.
+VULN_DB_DIR="$DEST/vuln-db"
+SCAN_IMAGE="${SCAN_IMAGE:-localhost/repopulse/scan:dev}"
+# Free space needed to RUN a sync, in the KiB blocks POSIX df -P reports. This
+# is 2.2 GiB, not the 5 GB the volume should be provisioned at, and the two
+# numbers are different on purpose: the swap below is a rename within $DEST,
+# not a copy, so a refresh only ever needs room for ONE more database beside
+# the one already there. Requiring the full provisioned size here would refuse
+# to run on exactly the volume the docs told the operator to build.
+REQUIRED_KB=2306867
+
+if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
+  runtime=""
+  for candidate in podman docker; do
+    if command -v "$candidate" >/dev/null 2>&1; then runtime="$candidate"; break; fi
+  done
+
+  if [ -z "$runtime" ]; then
+    log "ERROR: no podman or docker on PATH — the grype database is fetched by"
+    log "       running $SCAN_IMAGE, so a container runtime is required here."
+    FAILED=1
+  else
+    available_kb="$(df -Pk "$DEST" | awk 'NR==2 {print $4}')"
+    if [ "${available_kb:-0}" -lt "$REQUIRED_KB" ]; then
+      log "ERROR: $DEST has ${available_kb}KB free, and one sync needs ${REQUIRED_KB}KB"
+      log "       (~1.9GiB, staged beside the copy already in use). Provision 5GB for"
+      log "       this directory. Refusing to start rather than filling the disk."
+      FAILED=1
+    else
+      log "syncing grype vulnerability database (~1.9GB — this is not quick)"
+      stage="$DEST/vuln-db.stage"
+      # A previous run killed mid-download leaves a stage directory behind, and
+      # grype would then resume into a half-populated cache. Start clean; u+w
+      # first because a stage that got as far as the chmod below is read-only,
+      # and rm cannot unlink out of a directory it cannot write.
+      [ -e "$stage" ] && chmod -R u+w "$stage" && rm -rf "$stage"
+      mkdir -p "$stage"
+
+      # --user 0:0: under rootless podman the container's root maps to the
+      # invoking user, so the files land owned by whoever runs this cron entry
+      # and are readable afterwards. The image's own user (65534) maps to a
+      # subuid that does not own $stage and could not write into it.
+      #
+      # GRYPE_DB_AUTO_UPDATE is false in the image — that is the setting the
+      # SCAN container must have — and `grype db update` is an explicit command
+      # that overrides it (verified by running: it downloads regardless).
+      if "$runtime" run --rm --user 0:0 \
+           -e GRYPE_DB_CACHE_DIR=/db \
+           -v "$stage:/db:rw" \
+           "$SCAN_IMAGE" grype db update; then
+        # Read-only for everyone, matching the rulepacks: the scan container
+        # mounts this ro anyway, and defence in depth costs one chmod.
+        find "$stage" -type d -exec chmod 0555 {} +
+        find "$stage" -type f -exec chmod 0444 {} +
+
+        # PROVE IT BEFORE PUBLISHING IT. This is the exact thing the scanner
+        # will do — read the database, offline, unprivileged — and doing it
+        # here means a database that cannot be opened fails the sync loudly
+        # instead of turning into an empty findings list tomorrow.
+        if "$runtime" run --rm --network=none --read-only --user=65534:65534 \
+             -v "$stage:/vuln-db:ro" \
+             "$SCAN_IMAGE" grype db status >/dev/null; then
+          # Swap last, and by rename: until this line the live database is
+          # untouched, so a sync that fails at any point above leaves the
+          # scanners working with yesterday's copy rather than with nothing.
+          if [ -e "$VULN_DB_DIR" ]; then
+            chmod -R u+w "$VULN_DB_DIR"
+            rm -rf "$VULN_DB_DIR.old"
+            mv "$VULN_DB_DIR" "$VULN_DB_DIR.old"
+          fi
+          mv "$stage" "$VULN_DB_DIR"
+          rm -rf "$VULN_DB_DIR.old"
+          log "grype database synced: $(du -sh "$VULN_DB_DIR" | awk '{print $1}') at $VULN_DB_DIR"
+        else
+          log "ERROR: the freshly downloaded database failed 'grype db status'"
+          log "       under the read-only, no-network profile. Keeping the previous"
+          log "       copy; the staged one is at $stage for inspection."
+          FAILED=1
+        fi
+      else
+        log "ERROR: 'grype db update' failed inside $SCAN_IMAGE. This host needs"
+        log "       outbound HTTPS to grype.anchore.io, and $SCAN_IMAGE must exist"
+        log "       (podman compose ... build scan)."
+        chmod -R u+w "$stage" 2>/dev/null || true
+        rm -rf "$stage"
+        FAILED=1
+      fi
+    fi
+  fi
 else
-  log "vulnerability-database sync: skipped (not implemented — see W8-06)"
+  log "grype database sync: skipped (SCAN_SYNC_VULN_DB=0)"
+  log "  the dependency scanner reports NOTHING without it — that is silence, not a clean bill"
 fi
+
+# OSV and CISA KEV need no sync of their own, which is worth stating so nobody
+# adds one: grype's database already carries both. The copy synced above was
+# measured at 1,671 KEV entries and 362,257 EPSS scores, and the D12 risk model
+# reads them straight off each match.
 
 if [ "$FAILED" -ne 0 ]; then
   log "FAILED — the scan mount may be stale or incomplete"
