@@ -19,6 +19,7 @@ import { users } from '../core/users.js';
 import { pullRequests } from '../facts/pull-requests.js';
 import { analysisRuns } from './analysis-runs.js';
 import { scanRuns } from '../security/index.js';
+import { dimensionSqlList } from '../../../dimensions.js';
 
 // Base shape only (ANALYSIS_TIERS.md §4/§5) — the W8/D9/D10/D11/D12/D13
 // delta columns (scanner_key, verify_status, risk_factors, reachability,
@@ -151,7 +152,12 @@ export const findings = pgTable(
       // of this list (here, apps/api/src/routes/findings, apps/web's
       // ALL_DIMENSIONS) had drifted apart; a value missing from this one is the
       // copy that fails loudest, and it took a migration to notice.
-      sql`${t.dimension} in ('code_health', 'security', 'performance', 'test_coverage', 'secrets', 'dependency', 'sast', 'iac', 'chain', 'compound', 'logging', 'slop', 'knowledge', 'dependency_health', 'architecture', 'test_gap')`,
+      // W9-17: derived from FINDING_DIMENSIONS, which is now the only place
+      // this list is written. It is still DDL, so adding a value here needs a
+      // generated migration — dimensions.integration.test.ts compares the
+      // constant against the LIVE constraint and fails when one has moved
+      // without the other.
+      sql`${t.dimension} in (${sql.raw(dimensionSqlList())})`,
     ),
     check('findings_severity_check', sql`${t.severity} between 1 and 5`),
     check('findings_confidence_check', sql`${t.confidence} between 1 and 5`),

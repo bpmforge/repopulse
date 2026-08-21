@@ -1,26 +1,18 @@
+import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
 // Findings wire contracts (W6-04). Source of truth: apps/api/src/routes/findings.
 
 /** Every dimension the store can hold — analysis (W6) plus scanners (W8). */
-export const ALL_DIMENSIONS = [
-  'code_health',
-  'security',
-  'performance',
-  'test_coverage',
-  'secrets',
-  'dependency',
-  'sast',
-  'iac',
-  'chain',
-  'compound',
-  'logging',
-  'slop',
-  // W10-05 register dimensions. This list is the FACET; a dimension missing
-  // here is a finding a user cannot filter to.
-  'knowledge',
-  'dependency_health',
-  'architecture',
-  'test_gap',
-] as const;
+/**
+ * Every dimension the store can hold — analysis (W6), scanners (W8/W9) and the
+ * structural registers (W10).
+ *
+ * W9-17: re-exported from @repopulse/shared/dimensions rather than kept in
+ * step by hand. This copy and the API's agreed with each other while both
+ * disagreed with the database, which is the drift that hid `slop` for a wave.
+ * The subpath is dependency-free on purpose — the shared package index pulls
+ * in postgres and pino, which must not reach a browser bundle.
+ */
+export const ALL_DIMENSIONS = FINDING_DIMENSIONS;
 
 /**
  * Dimensions a user can select that NOTHING currently writes (W9-14).

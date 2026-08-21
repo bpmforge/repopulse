@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
 import { sendProblem } from '../../lib/problem.js';
+import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
 
 // Findings API (W6-04, API_DESIGN.md §2, FR-API-3 / FR-INSIGHTS-1).
 
@@ -15,27 +16,10 @@ const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as c
 // finding was stored, listed and counted but could not be FILTERED — the facet
 // silently dropped an unknown dimension, so asking for the thing you wanted
 // showed you everything instead.
-const DIMENSIONS = [
-  'code_health',
-  'security',
-  'performance',
-  'test_coverage',
-  'secrets',
-  'dependency',
-  'sast',
-  'iac',
-  'chain',
-  'compound',
-  'logging',
-  'slop',
-  // W10-05: the register dimensions. Stored, listed and counted since W10-01
-  // and NOT filterable until now — the same defect W8-10 fixed for the
-  // scanner dimensions, which is why they are added here as a set.
-  'knowledge',
-  'dependency_health',
-  'architecture',
-  'test_gap',
-] as const;
+// W9-17: the facet IS the schema's list. It was a hand-kept copy, and `slop`
+// sat here while missing from the CHECK constraint for a whole wave — offered
+// to users in this layer and unwritable in the one below.
+const DIMENSIONS = FINDING_DIMENSIONS;
 
 /** Reasons a dismissal may carry. false_positive is the one the FP rate reads. */
 const DISMISS_REASONS = ['false_positive', 'accepted_risk', 'not_applicable', 'duplicate'] as const;
