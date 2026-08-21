@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; background: #0d1117; color: #e6edf3; }
+    a { color: #6e7bff; text-decoration: none; }
+    a:hover { color: #8f99ff; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }
+    .card { border: 1px solid #30363d; border-radius: 10px; background: #161b22; }
+    .card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px; }
+    .card h3 { margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3; }
+    .card > .body { padding: 12px; }
+    .fl { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9da7b3; }
+    .sel { border: 1px solid #30363d; border-radius: 10px; background: #161b22; color: #e6edf3; font-size: 14px; padding: 4px 8px; }
+    .th { text-align: left; font-size: 12px; font-weight: 400; color: #9da7b3; padding: 4px 6px 4px 0; }
+    .td { padding: 4px 6px 4px 0; font-size: 14px; border-top: 1px solid #30363d; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 1000px; background: #0d1117;">
+
+  <nav style="display: flex; flex-direction: column; width: 64px; flex-shrink: 0; border-right: 1px solid #30363d; background: #161b22;">
+    <div style="display: flex; align-items: center; justify-content: center; padding: 12px;"><span style="font-size: 14px; color: #9da7b3;">&raquo;</span></div>
+    <ul style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px; margin: 0; list-style: none; flex-grow: 1;">
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9672;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9636;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#8644;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9678;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid #6e7bff; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px;">&#9873;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9719;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9638;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#10063;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9881;</div></li>
+    </ul>
+    <div style="display: flex; justify-content: center; border-top: 1px solid #30363d; padding: 8px;"><span style="width: 8px; height: 8px; border-radius: 999px; background: #3fb950;"></span></div>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #30363d;">
+      <span style="font-size: 14px; color: #9da7b3;">Findings</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+
+      <div style="display: flex; justify-content: flex-end;">
+        <span style="border: 1px solid #6e7bff; border-radius: 10px; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px; padding: 6px 12px;">Triage queue (18)</span>
+      </div>
+
+      <!-- Six filters. The scanner facet is driven by the registry, so a
+           scanner added in a later wave becomes filterable with no edit here. -->
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;">
+        <label class="fl">Dimension<span class="sel">Any &#9662;</span></label>
+        <label class="fl">Status<span class="sel">open &#9662;</span></label>
+        <label class="fl">Min severity<span class="sel">&#9679; high and above &#9662;</span></label>
+        <label class="fl">Scanner<span class="sel">Any source &#9662;</span></label>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #9da7b3;"><span style="display: inline-block; width: 13px; height: 13px; border: 1px solid #444c56; border-radius: 3px; background: #0d1117;"></span>In an attack chain</label>
+        <label class="fl">Verification<span class="sel">Any &#9662;</span></label>
+      </div>
+
+      <!-- FR-INSIGHTS-1: an untriaged corpus shows an em dash, never 0% —
+           "no findings triaged yet" must not read as a flawless model. -->
+      <section class="card">
+        <header><h3>Analysis quality</h3></header>
+        <div class="body">
+          <div style="display: flex; flex-wrap: wrap; gap: 24px;">
+            <div>
+              <p style="margin: 0; font-size: 28px; line-height: 1;">8%</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">dismissed as false positive</p>
+            </div>
+            <div>
+              <p style="margin: 0; font-size: 28px; line-height: 1;">147</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">findings total</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bulk bar appears only with a selection; the note is REQUIRED -->
+      <section class="card">
+        <header><h3>3 selected</h3></header>
+        <div class="body">
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;">
+            <label class="fl">Note (required)<span style="width: 288px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; color: #7d8590; font-size: 14px; padding: 4px 8px;">&nbsp;</span></label>
+            <span style="border: 1px solid #30363d; border-radius: 10px; padding: 4px 8px; font-size: 12px; color: #e6edf3;">Mark confirmed</span>
+            <span style="border: 1px solid #30363d; border-radius: 10px; padding: 4px 8px; font-size: 12px; color: #e6edf3;">Mark dismissed</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <header><h3>Findings</h3></header>
+        <div class="body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th class="th" style="width: 24px;"></th>
+                <th class="th">Severity</th>
+                <th class="th">Finding</th>
+                <th class="th">Repository</th>
+                <th class="th">File</th>
+                <th class="th">Status</th>
+                <th class="th">Verification</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td"><span style="display: inline-block; width: 13px; height: 13px; border: 1px solid #6e7bff; border-radius: 3px; background: rgba(110,123,255,0.35);"></span></td>
+                <td class="td" style="white-space: nowrap; color: #ff7b72;">&#9679; critical</td>
+                <td class="td"><a href="#">Prototype pollution in a transitive dependency</a></td>
+                <td class="td" style="font-size: 12px;">web</td>
+                <td class="td mono" style="font-size: 12px;">package-lock.json:1</td>
+                <td class="td" style="font-size: 12px;">open</td>
+                <td class="td" style="font-size: 12px; color: #9da7b3;">Verified by a second model</td>
+              </tr>
+              <tr>
+                <td class="td"><span style="display: inline-block; width: 13px; height: 13px; border: 1px solid #6e7bff; border-radius: 3px; background: rgba(110,123,255,0.35);"></span></td>
+                <td class="td" style="white-space: nowrap; color: #f0883e;">&#9679; high</td>
+                <td class="td"><a href="#">Access token written to the request log</a></td>
+                <td class="td" style="font-size: 12px;">api</td>
+                <td class="td mono" style="font-size: 12px;">src/plugins/logging.ts:88</td>
+                <td class="td" style="font-size: 12px;">open</td>
+                <td class="td" style="font-size: 12px; color: #9da7b3;">Not independently verified</td>
+              </tr>
+              <tr>
+                <td class="td"><span style="display: inline-block; width: 13px; height: 13px; border: 1px solid #444c56; border-radius: 3px; background: #0d1117;"></span></td>
+                <td class="td" style="white-space: nowrap; color: #d29922;">&#9679; medium</td>
+                <td class="td"><a href="#">Duplicated retry logic across three modules</a></td>
+                <td class="td" style="font-size: 12px;">ingest</td>
+                <td class="td mono" style="font-size: 12px;">src/ingest/retry.ts:24</td>
+                <td class="td" style="font-size: 12px;">confirmed</td>
+                <td class="td" style="font-size: 12px; color: #9da7b3;">Contradicted on review</td>
+              </tr>
+              <tr>
+                <td class="td"><span style="display: inline-block; width: 13px; height: 13px; border: 1px solid #444c56; border-radius: 3px; background: #0d1117;"></span></td>
+                <td class="td" style="white-space: nowrap; color: #58a6ff;">&#9675; low</td>
+                <td class="td"><a href="#">Empty catch block swallows the parse error</a></td>
+                <td class="td" style="font-size: 12px;">insights</td>
+                <td class="td mono" style="font-size: 12px;">src/findings/dedup.ts:61</td>
+                <td class="td" style="font-size: 12px;">open</td>
+                <td class="td" style="font-size: 12px; color: #9da7b3;">Not independently verified</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
