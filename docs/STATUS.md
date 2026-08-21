@@ -3568,3 +3568,43 @@ Gate: lint clean, typecheck clean, **1,651 passed / 8 skipped** (was 1,645 —
 six new tests).
 
 Board: 148 tickets, 1 claimable (W9-14), 8 blocked on Brad.
+
+### 2026-08-21 — W9-14: three dead facets, decided per dimension against the spec
+
+The audit found `slop`, `iac` and `test_coverage` selectable in the Findings
+Explorer with zero producers. The ticket was filed as "give it a producer or
+remove it". **The spec makes that binary wrong**, and the acceptance criterion
+was rewritten rather than quietly satisfied: all three are specified, and
+removing a reserved facet would delete a decision someone already made.
+
+- **`slop` is a defect.** SRS FR-CH-3 says "anti_slop scanner (dimension
+  `slop`)" and the CODE_HEALTH_SUITE.md §2 roster says the same. The scanner
+  writes `code_health`. The findings are real and filed under the wrong name.
+  Filed as **W9-16** rather than fixed here, because `dedupKey` hashes the
+  dimension: changing it re-keys every stored anti_slop row, and without a
+  migration the next scan inserts duplicates and sweeps the originals as
+  resolved — the harm `dedup.ts` warns about and W8-16 built `rekeyFindings`
+  for.
+- **`iac` is reserved.** SECURITY_SUITE.md §7 lists the IaC Checker as a
+  backlog scanner and reserves this dimension for it.
+- **`test_coverage` is v1.x.** FR-ANALYSIS-4 makes it a Tier-2 checklist
+  dimension and FR-REG-6 parks coverage ingestion outright. `test_gap` is the
+  register dimension that ships today and answers a different question.
+
+So none was removed and none was given a producer here. What shipped is
+honesty: each is labelled "— not yet produced" in the select, so the cost of
+choosing it is visible before the click, and picking one returns a sentence
+naming the actual reason instead of the generic "findings appear once an
+analysis run completes", which reads as though one more run would fix it. A
+test pins that every marked dimension is a real facet, that the three are the
+three, and that no dimension with a live producer is ever marked — including
+`performance`, so that if a later refactor unwires the W9-13 scanner, that
+assertion is what starts failing.
+
+`write_scope` widened to `apps/web/src/routes/findings/**`: the select and the
+empty state live in the route, and metadata with no renderer would be one more
+component wired to nothing.
+
+Gate: lint clean, typecheck clean, **1,654 passed / 8 skipped** (was 1,651).
+
+Board: 149 tickets, 1 claimable (W9-16), 8 blocked on Brad.

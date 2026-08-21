@@ -6,6 +6,8 @@ import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
 import {
   ALL_DIMENSIONS as DIMENSIONS,
+  DIMENSIONS_AWAITING_PRODUCER,
+  awaitingProducer,
   SEVERITY_LABEL,
   VERIFY_LABEL,
   type Finding,
@@ -100,7 +102,11 @@ function FindingsExplorer() {
             <option value="">Any</option>
             {DIMENSIONS.map((d) => (
               <option key={d} value={d}>
+                {/* Marked in the option itself, so the cost of choosing it is
+                    visible BEFORE the click rather than as an empty table
+                    afterwards (W9-14). */}
                 {d.replace('_', ' ')}
+                {awaitingProducer(d) ? ' — not yet produced' : ''}
               </option>
             ))}
           </select>
@@ -248,7 +254,14 @@ function FindingsExplorer() {
         })}
         {...(error ? { errorMessage: error.message } : {})}
         onRetry={() => void refetch()}
-        emptyMessage="No findings match these filters. Findings appear once an analysis run completes for a repository."
+        // A dimension nothing writes yet is not a clean repository, and the
+        // generic line ("findings appear once an analysis run completes") reads
+        // as though one more run would fix it. Name the actual reason instead.
+        emptyMessage={
+          awaitingProducer(dimension)
+            ? `Nothing writes ${dimension.replace('_', ' ')} findings yet, so this filter cannot return anything. ${DIMENSIONS_AWAITING_PRODUCER[dimension]}`
+            : 'No findings match these filters. Findings appear once an analysis run completes for a repository.'
+        }
       >
         <table className="w-full text-sm">
           <caption className="sr-only">Findings across every analysed repository</caption>
