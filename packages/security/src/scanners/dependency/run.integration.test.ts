@@ -189,6 +189,29 @@ describeIfReady('dependency scan (W8-06)', () => {
     expect((kev!.yields as Record<string, unknown>)['kev']).toBe(true);
     // The UI facet and the API filter both query `yields ->> 'kev' = 'true'`.
     expect((kev!.yields as Record<string, unknown>)[`vuln-dependency:${kev!.cveId}`]).toBe(true);
+
+    // W8-13: the funnel is reported, and it dismissed nothing.
+    expect(result.validation?.raw).toBeGreaterThan(0);
+    expect(result.validation?.deduped).toBe(findings.length);
+    expect(result.validation?.dismissed).toBe(0);
+    // The snapshot here holds only the two manifest files (see tarball()), so
+    // V2 has no sources to read and says so by leaving jquery unproven rather
+    // than by claiming it is unused — the fail-safe direction.
+    expect((kev!.yields as Record<string, unknown>)['usage']).toBe('not_imported');
+    expect((kev!.yields as Record<string, unknown>)['reachability']).toBe('manifest_only');
+
+    // V3 was not run and says why, instead of leaving silence to be read as
+    // proof that nothing is reachable.
+    expect(result.reachabilityNote).toMatch(/Go vulnerability database|go\.mod/);
+
+    // V4: the scan PRICED what it stored. Before W8-13 a dependency finding
+    // had a null effective_risk until the nightly reprice ran.
+    expect(result.findingsPriced).toBe(findings.length);
+    expect(kev!.effectiveRisk).not.toBeNull();
+    expect(kev!.riskBand).toBe('act');
+    expect((kev!.riskFactors as { inputs?: Record<string, unknown> }).inputs?.['epss']).toBeTypeOf(
+      'number',
+    );
   }, 300_000);
 
   it('re-running the same commit creates NO new rows', async () => {
@@ -224,6 +247,13 @@ describeIfReady('dependency scan (W8-06)', () => {
   it('prices a KEV finding into the act band', async () => {
     // The D12 half: `kev: true` in yields is what repriceFindings reads, and it
     // stops predicting — likelihood 1 and the band forced.
+    //
+    // W8-13 NOTE, because this test is where it will be noticed: reprice builds
+    // its PricingInput from `kev` and `dep_scope` only, so it DROPS the `epss`
+    // and `reachability` the scan wrote. A KEV finding is unaffected (kev
+    // forces L=1 either way); a non-KEV one is re-priced down to the likelihood
+    // floor overnight. The two-line fix is in packages/insights, outside this
+    // ticket's write scope, and validation.test.ts pins the divergence.
     await repriceFindings({ db, workspaceId, repoId });
     const [kev] = await db
       .select()

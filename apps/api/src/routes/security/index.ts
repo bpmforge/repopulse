@@ -1,8 +1,9 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, read, security, type Database } from '@repopulse/shared';
-import { SCANNER_DEFAULTS, isEnabled, listScanners } from '@repopulse/security';
+import { SCANNER_DEFAULTS, emptyVexFunnel, isEnabled, listScanners } from '@repopulse/security';
 import { sendProblem } from '../../lib/problem.js';
+import vexRoutes from './vex.js';
 
 // Security posture API (W8-10, SECURITY_SUITE.md §5, FR-SEC-10 / NFR-15).
 //
@@ -46,6 +47,11 @@ export default async function securityRoutes(
   opts: SecurityRoutesOptions,
 ): Promise<void> {
   const { db } = opts;
+
+  // Registered here rather than in the api-v1 plugin: VEX is part of the
+  // security surface, and keeping its registration beside the payload it feeds
+  // means the two cannot drift into being wired from different places.
+  await app.register(vexRoutes, { db });
 
   /** GET /repos/:repoId/security — the Security tab's whole payload. */
   app.get<{ Params: { repoId: string } }>('/repos/:repoId/security', async (request, reply) => {
@@ -173,6 +179,40 @@ export default async function securityRoutes(
       chains.set(id, chain);
     }
 
+    // The CVE validation + VEX funnel (W8-13/W8-14, FR-SEC-15). Read off the
+    // LAST DEPENDENCY RUN, because `raw` is grype's pre-dedup match count and
+    // exists nowhere else — de-duplication is precisely what the findings table
+    // stores the far side of.
+    const dependencyRun = latestByKey.get('dependency_cve');
+    const storedFunnel = dependencyRun?.validationFunnel ?? null;
+
+    const vexRows = await db
+      .select({
+        status: security.vexStatements.status,
+        justification: security.vexStatements.justification,
+      })
+      .from(security.vexStatements)
+      .where(
+        and(
+          eq(security.vexStatements.workspaceId, workspaceId),
+          eq(security.vexStatements.repoId, repoId),
+        ),
+      );
+
+    const byJustification = { ...emptyVexFunnel().byJustification };
+    let notAffected = 0;
+    let affectedStatements = 0;
+    let fixedStatements = 0;
+    for (const row of vexRows) {
+      if (row.status === 'not_affected') {
+        notAffected += 1;
+        if (row.justification && row.justification in byJustification) {
+          byJustification[row.justification as keyof typeof byJustification] += 1;
+        }
+      } else if (row.status === 'affected') affectedStatements += 1;
+      else if (row.status === 'fixed') fixedStatements += 1;
+    }
+
     const secretsRuns = runs.filter((r) => r.scannerKey === 'secrets');
     const lastStream = secretsRuns.find((r) => r.trigger === 'pr_synced' || r.trigger === 'push');
     const lastHistory = secretsRuns.find((r) => r.trigger === 'schedule' || r.trigger === 'manual');
@@ -199,6 +239,20 @@ export default async function securityRoutes(
       // empty state rather than a missing section — an absent panel reads as a
       // broken page, and a broken security page reads as no problems.
       cves: [] as { cve_id: string; package: string; severity: number; kev: boolean }[],
+      validation_funnel: storedFunnel,
+      // NULL, not zero, when the last dependency run predates the column or
+      // never happened. The honesty rule (FR-SEC-15) says the raw count is
+      // never hidden, and a zero here would say "no advisories" when it means
+      // "nobody wrote the number down" — the same failure the scanner states
+      // above exist to prevent.
+      validation_funnel_recorded: storedFunnel !== null,
+      vex: {
+        statements: vexRows.length,
+        not_affected: notAffected,
+        affected: affectedStatements,
+        fixed: fixedStatements,
+        by_justification: byJustification,
+      },
       chains: [...chains.values()].sort((a, b) => b.severity - a.severity),
       // Distinguishes "no chains" from "chain analysis has never run" — W8-09
       // computes chains, and until it lands the empty list means the latter.

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { runDependencyTools, checkVulnDb, vulnDbDir } from './tools.js';
 import { dependencyFindings } from './findings.js';
+import { validateVulnerabilities } from '../../validation/index.js';
 
 // THE LIVE HALF (W8-06).
 //
@@ -50,16 +51,41 @@ describeIfScannable('syft + grype over a real tree', () => {
       budget,
     });
 
+  /**
+   * The whole pipeline, tools -> funnel -> findings (W8-13).
+   *
+   * Findings are built from VALIDATED vulnerabilities now, so a live test that
+   * skipped the funnel would be exercising a path production does not take.
+   */
+  const findingsFor = (fixture: string, tools: Awaited<ReturnType<typeof run>>) => {
+    const validation = validateVulnerabilities({
+      matches: tools.matches,
+      snapshotDir: path.join(FIXTURES, fixture),
+      goReachability: null,
+    });
+    return {
+      validation,
+      ...dependencyFindings(validation.vulnerabilities, tools.document!),
+    };
+  };
+
   it('reports CVE-2020-11023 on jquery 3.4.1, flagged as known-exploited', async () => {
     const tools = await run('vulnerable');
     expect(tools.status, tools.error ?? '').toBe('succeeded');
 
-    const { findings } = dependencyFindings(tools.matches, tools.document!);
+    const { findings, validation } = findingsFor('vulnerable', tools);
     const kev = findings.find((f) => f.cveId === 'CVE-2020-11023');
     expect(kev, `findings: ${findings.map((f) => f.cveId).join(', ')}`).toBeDefined();
     expect(kev!.yields?.['kev']).toBe(true);
     // The KEV floor, on real data rather than on a fixture.
     expect(kev!.severity).toBeGreaterThanOrEqual(4);
+
+    // W8-13, on live output: jquery is imported by the fixture's own source and
+    // resolved by its own lockfile, so the tiers say so rather than defaulting.
+    expect(kev!.yields?.['usage']).toBe('imported');
+    expect(kev!.yields?.['reachability']).toBe('imported');
+    expect(kev!.yields?.['dep_scope']).toEqual({ kind: 'prod-direct', depth: 1 });
+    expect(validation.funnel.dismissed).toBe(0);
   }, 300_000);
 
   it('produces an SBOM worth storing — the thing security.sboms has never had', async () => {
@@ -77,7 +103,7 @@ describeIfScannable('syft + grype over a real tree', () => {
     expect(tools.status, tools.error ?? '').toBe('succeeded');
     expect(tools.componentCount).toBeGreaterThan(0);
 
-    const { findings } = dependencyFindings(tools.matches, tools.document!);
+    const { findings } = findingsFor('clean', tools);
     expect(findings.map((f) => `${f.title}`)).toEqual([]);
   }, 300_000);
 

@@ -74,6 +74,18 @@ export type AuditEvent =
   // someone's code — it is closer to a settings change than to a finding — so
   // each lifecycle step carries who made it. The shadow→active step matters
   // most: that is the moment a rule starts moving health scores.
+  // W8-14. A VEX statement STOPS A VULNERABILITY BEING REPORTED, which makes
+  // it the most consequential thing anyone can do on a security screen: the
+  // finding does not move to a quieter list, it stops being created. Who
+  // decided that, about which versions, and on what justification is the
+  // record the whole suppression design rests on — and withdrawing one is
+  // equally auditable, because it changes what future scans say.
+  //
+  // OUT OF W8-14'S DECLARED WRITE SCOPE and added anyway: the union is closed,
+  // so a route cannot log a new audit event without a member here. Declared in
+  // the handoff.
+  | 'vex.statement_recorded'
+  | 'vex.statement_withdrawn'
   | 'rule.proposed'
   | 'rule.candidate'
   | 'rule.active'

@@ -16,6 +16,8 @@ import { useUiStore } from '../components/store/uiStore.js';
 import { useSyncStream } from '../sse/useSyncStream.js';
 import { useApiQuery, useSession } from '../api/useApiQuery.js';
 import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
+import { SignedOut } from '../widgets/auth/SignedOut.js';
+import { ForgeLinkBanner } from '../widgets/auth/ForgeLinkBanner.js';
 import { mergeGlobalSearch, validateGlobalSearch, type GlobalSearch } from '../api/urlState.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 
@@ -89,7 +91,14 @@ function RootShell() {
 
   if (isPrint) return <Outlet />;
   if (status === 'loading') return <SessionProbe />;
-  if (status === 'anonymous') return <SignIn expired={hadSession} />;
+  // 'anonymous' covers TWO states the session probe cannot separate: nobody is
+  // signed in, and someone holds a session that must change its password before
+  // it may do anything (it carries no `userId`, so /me/context 401s for it too).
+  // SignedOut asks /auth/local/session which one it is. The forced change is
+  // decided HERE rather than at a /signin URL on purpose — a route can be
+  // navigated away from, and "cannot reach anything else until it is done" has
+  // to be a property of the shell.
+  if (status === 'anonymous') return <SignedOut expired={hadSession} />;
   // 'unknown' — the probe itself failed with something that is NOT a 401 (the
   // API is down, the proxy returned 502). That is not evidence anyone is signed
   // out, so the app renders and each widget reports its own error honestly,
@@ -110,39 +119,9 @@ function SessionProbe() {
   );
 }
 
-/**
- * The whole app for a visitor without a session. GitHub OAuth is the only way
- * in (apps/api/src/routes/auth), so this is a link and not a form; it must be a
- * full-page navigation to /auth/login, which is why it is an <a> rather than a
- * router Link, and why it does not go through the typed /api/v1 client.
- */
-function SignIn({ expired }: { expired: boolean }) {
-  return (
-    <div className="flex h-screen w-screen items-center justify-center bg-bg p-6 text-fg">
-      <main
-        className="w-full max-w-sm rounded-md border border-border bg-surface p-6"
-        data-testid="signin"
-      >
-        <h1 className="text-base font-medium">RepoPulse</h1>
-        <p className="mt-2 text-sm text-fg-muted">
-          {expired
-            ? 'Your session ended. Sign in again to pick up where you left off — nothing was lost.'
-            : 'Sign in to see your organisation’s delivery, code health, and risk.'}
-        </p>
-        <a
-          href="/auth/login"
-          className="mt-5 inline-flex w-full items-center justify-center rounded-sm border border-border bg-surface-2 px-3 py-2 text-sm text-fg hover:text-fg"
-          data-testid="signin-github"
-        >
-          Sign in with GitHub
-        </a>
-        <p className="mt-4 text-xs text-fg-faint">
-          RepoPulse only reads what your GitHub account can already see.
-        </p>
-      </main>
-    </div>
-  );
-}
+// The sign-in and forced-password-change screens live in widgets/auth (W15-04).
+// The version that used to be inline here offered one hardcoded GitHub link,
+// which since D14 is a button most deployments should not show at all.
 
 function AppShell() {
   const search = Route.useSearch();
@@ -182,6 +161,10 @@ function AppShell() {
       <Rail search={preservedSearch} badges={railBadges} />
       <div className="flex min-w-0 flex-1 flex-col">
         <DemoBanner />
+        {/* Says why personalized views are empty for someone whose account is
+            not connected to a committer — at the shell, because that is true on
+            every personalized screen and not just one of them. */}
+        <ForgeLinkBanner />
         {/* Global: ⌘K works from every screen (UX_SPEC §3.3). */}
         <CommandPalette />
         <Topbar value={search} onChange={onFilterChange} />

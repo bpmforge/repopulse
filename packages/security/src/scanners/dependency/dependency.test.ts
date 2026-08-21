@@ -8,6 +8,7 @@ import { dedupKey } from '@repopulse/insights';
 import { cveIdFor, parseGrypeMatches, severityFromLabel } from './matches.js';
 import { resolveScopes } from '../../registers/sbom.js';
 import { dependencyFindings, manifestPaths, DEPENDENCY_SCANNER_KEY } from './findings.js';
+import { validateVulnerabilities } from '../../validation/index.js';
 import { checkVulnDb, runDependencyTools } from './tools.js';
 
 // The dependency scanner (W8-06, FR-SEC-5, D12).
@@ -93,7 +94,15 @@ describe('reading grype output', () => {
 
 describe('matches -> findings', () => {
   const { matches } = parseGrypeMatches(grypeJson);
-  const { findings, funnel, reviewedFiles } = dependencyFindings(matches, sbom);
+  // W8-13: findings are built from VALIDATED vulnerabilities, so this goes
+  // through the funnel the way production does. The fixture directory IS the
+  // snapshot — it holds the lockfile V1 reads and the sources V2 scans.
+  const validated = validateVulnerabilities({
+    matches,
+    snapshotDir: path.join(FIXTURES, 'vulnerable'),
+    goReachability: null,
+  });
+  const { findings, funnel, reviewedFiles } = dependencyFindings(validated.vulnerabilities, sbom);
 
   it('produces one finding per (package, CVE), carrying the CVE id', () => {
     expect(findings).toHaveLength(2);
@@ -141,11 +150,20 @@ describe('matches -> findings', () => {
     expect(notKev?.severity).toBe(3);
   });
 
-  it('carries the D12 pricing inputs and claims no more than manifest_only', () => {
+  it('carries the D12 pricing inputs and claims no more than the tiers proved', () => {
+    // W8-06 stamped 'manifest_only' on everything because an SBOM cannot
+    // support more. W8-13's V2 CAN: jquery is required in src/index.js, so the
+    // claim rises to 'imported' — which still says nothing about whether the
+    // vulnerable FUNCTION is called, and never becomes 'symbol_reachable'
+    // without a call-graph proof that no JavaScript tool here can produce.
     const finding = findings[0]!;
-    expect(finding.yields?.['reachability']).toBe('manifest_only');
+    expect(finding.yields?.['reachability']).toBe('imported');
+    expect(finding.yields?.['usage']).toBe('imported');
     expect(finding.yields?.['epss']).toBeTypeOf('number');
     expect(finding.yields?.['dep_scope']).toEqual({ kind: 'prod-direct', depth: 1 });
+    expect(
+      findings.every((f) => f.yields?.['reachability'] !== 'symbol_reachable'),
+    ).toBe(true);
   });
 
   it('scopes EVERY component prod-direct today, transitive ones included', () => {
@@ -186,6 +204,9 @@ describe('matches -> findings', () => {
     const terms = Object.entries(findings[0]!.yields ?? {})
       .filter(([, v]) => v === true)
       .map(([k]) => k);
+    // W8-13 added aliases, usage, evidence and VEX proposals to this column;
+    // none of them may become chain vocabulary, which is what this asserts.
+
     expect(terms).toContain(`vuln-dependency:${findings[0]!.cveId}`);
     expect(terms.every((t) => t === 'kev' || t.startsWith('vuln-dependency:'))).toBe(true);
   });
@@ -199,18 +220,27 @@ describe('matches -> findings', () => {
     // resolveScopes admits only pkg:npm and pkg:pypi; grype matches maven, go
     // and every OS package too. Dropping those would make a Java repository
     // look clean.
-    const maven = [
-      {
-        ...matches[0]!,
-        packageType: 'java-archive',
-        packageName: 'log4j-core',
-        purl: 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1',
-      },
-    ];
-    const result = dependencyFindings(maven, sbom);
+    const maven = validateVulnerabilities({
+      matches: [
+        {
+          ...matches[0]!,
+          packageType: 'java-archive',
+          packageName: 'log4j-core',
+          purl: 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1',
+        },
+      ],
+      snapshotDir: path.join(FIXTURES, 'vulnerable'),
+      goReachability: null,
+    });
+    const result = dependencyFindings(maven.vulnerabilities, sbom);
     expect(result.findings).toHaveLength(1);
     expect(result.funnel.withoutScope).toBe(1);
     expect(result.findings[0]!.yields?.['dep_scope']).toBeUndefined();
+    // AND it is reported as an ecosystem we cannot read, not as a package that
+    // is absent — the two would propose very different things to a triager.
+    expect(maven.funnel.scoped.unreadable).toBe(1);
+    expect(maven.funnel.scoped.notInResolvedSet).toBe(0);
+    expect(maven.vulnerabilities[0]!.proposals).toEqual([]);
   });
 
   it('reads the manifest paths out of the SBOM, not out of the matches', () => {

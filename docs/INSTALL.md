@@ -2,24 +2,33 @@
 
 RepoPulse runs as five containers on one host: a web front end, an API, a
 background worker, PostgreSQL and Redis. It reads your repositories through the
-GitHub API and **never clones them** — nothing of your source is stored beyond
+forge's API and **never clones them** — nothing of your source is stored beyond
 the metrics and findings you see in the dashboard.
+
+**You do not need an account with GitHub, or with us, to install this.** You
+fill in a file, start the stack, and sign in with an administrator account this
+install creates for you. Connecting a forge is a later step, done from inside
+the product by someone who is already signed in — and until you do it, the
+product runs, it just has nothing to measure yet.
 
 ## What you need
 
 - A container runtime: Podman 5+ or Docker 24+, with the `compose` subcommand
 - ~4 GB of disk for images, plus room for your warehouse (a few hundred MB for
   most orgs)
-- A GitHub account that can register an App in your organisation
 - A hostname you will reach this install at, and a TLS terminator in front of it
   (nginx, Caddy, Traefik, a cloud load balancer — RepoPulse does not terminate
   TLS itself)
+
+Later, when you want repository data, you will also need an account on your
+forge that can register a GitHub App or mint a Gitea token — see
+[Connect your forge](#connect-your-forge). Nothing before that step requires it.
 
 An LLM is **optional**. Tier-1 metrics — health scores, hotspots, PR cycle time,
 review coverage, CI trends, DORA — need no model at all. Tiers 2 and 3 are
 opt-in and point at your own LM Studio host or your own Anthropic API key.
 
-## 1. Configure
+## Configure
 
 ```bash
 cp deploy/.env.example deploy/.env
@@ -36,6 +45,21 @@ openssl rand -hex 32   # SESSION_SECRET, TOKEN_ENC_KEY
 Then paste the two database passwords into `DATABASE_URL` and `REDIS_URL`, and
 set `PUBLIC_BASE_URL` / `API_BASE_URL` to the URL your users will open.
 
+Add the first administrator. These two lines are what let you in the first
+time; without them — and with no other account — a fresh install has no door:
+
+```bash
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=<at least 12 characters>
+```
+
+The API creates that account on its first boot and marks it **must change
+password**, so the value above is a one-use credential, not a standing one. A
+password shorter than the minimum fails the boot rather than creating a weak
+administrator. The bootstrap is idempotent on "a local account with a password
+exists", so editing `ADMIN_EMAIL` afterwards creates nothing — add further
+people from **Admin → Members** instead.
+
 > **Back up `TOKEN_ENC_KEY` separately from your database dump.** It decrypts the
 > forge credentials stored in Postgres. A dump without the key is unusable; the
 > key without a dump is harmless. Losing it means every connected organisation
@@ -45,11 +69,67 @@ Every variable is documented in [CONFIG.md](CONFIG.md) — purpose, default, and
 what breaks if it is wrong. Wrong or missing configuration fails at startup with
 a message naming each variable; the API will not half-boot.
 
-## 2. Connect your forge
+`GITHUB_APP_*` and the `OIDC_*` group are **not** required and can stay blank.
+Each one you fill in adds a way to sign in; leaving them all blank leaves
+password accounts, which is a complete configuration, not a degraded one.
+
+## Start
+
+```bash
+podman compose -f deploy/compose.yaml up -d     # or: docker compose
+```
+
+The first run builds the images (several minutes) and applies database
+migrations before the API starts. Re-running `up` later is safe — migrations are
+recorded, so an already-migrated database is left alone.
+
+Check it:
+
+```bash
+curl -f http://127.0.0.1:8099/healthz && echo OK
+```
+
+Only the web container publishes a port, and it binds to `127.0.0.1` by default
+so nothing is exposed before you have put TLS in front of it. Postgres and Redis
+are reachable only on the internal network. To expose the web port on a LAN
+interface, set `REPOPULSE_BIND=0.0.0.0` — **after** your terminator is in place.
+
+## Sign in
+
+Open `PUBLIC_BASE_URL`. The sign-in screen offers exactly the doors this
+deployment configured — that is why it is worth looking at rather than
+guessing: with nothing but the two `ADMIN_*` lines you get an email and
+password form, and nothing else.
+
+Sign in as `ADMIN_EMAIL`. You are asked to set a new password before anything
+else is reachable, because the one in `deploy/.env` has been sitting in a file
+on disk since you typed it. Once that is done, remove `ADMIN_PASSWORD` from
+`deploy/.env`: it is inert — the bootstrap never overwrites a password that has
+been changed — but a live credential in a file is a live credential.
+
+You are now an administrator of a working install with no data in it. **Admin →
+Setup** lists what is outstanding; the forge rows on it are what stands between
+you and real numbers, not between you and a usable product.
+
+The other two doors, if you want them:
+
+- **Single sign-on (OIDC).** Set the `OIDC_*` group in `deploy/.env` and
+  restart. RepoPulse offers your IdP as a button; a half-configured group fails
+  the boot on purpose, because the alternative is discovering it at the
+  callback, after someone has already authenticated.
+- **GitHub sign-in.** Comes with registering a GitHub App, below. It lets people
+  sign in with their forge account instead of a password — and, because the
+  account then carries a forge identity, personalized screens ("my open PRs")
+  can find their work without anyone linking it by hand.
+
+## Connect your forge
 
 RepoPulse authenticates as **your** App against **your** organisation. There is
 no shared RepoPulse App and no RepoPulse-hosted anything: your source, your
 tokens and your findings never leave your install.
+
+You do this from **Admin → Connections**, signed in as the administrator you
+just created.
 
 ### GitHub
 
@@ -91,14 +171,36 @@ leaks, delete it on the App page and generate a new one — old keys keep workin
 until you do.
 
 Copy the **App ID**, **Client ID** and **Client secret** into `deploy/.env`,
-then **Install App** on the organisation and choose the repositories.
+then **Install App** on the organisation and choose the repositories. Filling in
+`GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` also turns on GitHub
+sign-in, which is why the button appears after this restart and not before.
+
+### Gitea
+
+Gitea has no App concept, so a token stands in for one.
+
+1. As a user with read access to the repositories you want tracked, go to
+   **Settings → Applications → Generate New Token**.
+2. Scopes: **`read:repository`**, **`read:organization`**, **`read:user`** —
+   read-only, same rule as GitHub.
+3. Set `FORGE_BASE_URL` to your Gitea base URL (`https://gitea.example.com`)
+   and paste the token when you add the connection in **Admin → Connections**.
+   The token is encrypted at rest with `TOKEN_ENC_KEY` before it is stored.
+4. Webhooks: **Repository settings → Webhooks → Add webhook → Gitea**, target
+   `<PUBLIC_BASE_URL>/api/v1/webhooks/gitea`, secret = your `WEBHOOK_SECRET`,
+   events **Push**, **Pull request**, **Pull request review**.
+
+A self-hosted Gitea over plain `http://` is rejected unless it is a loopback
+address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape hatch,
+not a deployment option.
 
 ### Connecting without the web UI
 
-The web UI is reached through GitHub sign-in, so if your GitHub App is not
-registered yet you cannot open **Admin → Connections** — including to connect a
-**Gitea** organisation, which has nothing to do with GitHub. There is a headless
-door for exactly that case:
+**Admin → Connections** is reachable with the administrator account above, so
+this is no longer the only way to connect a forge on a fresh install. It stays
+because two things still want it: scripting an install that is built rather than
+clicked, and a bootstrap host that cannot receive webhook deliveries at all, for
+which the browser flow's webhook registration would only fail.
 
 ```bash
 # --dry-run first: connects, lists what the token can see, selects nothing
@@ -120,61 +222,20 @@ A rejected credential is reported by name — `bad_token`, `bad_scope` or
 "right token, wrong scopes" from "this account can see nothing".
 
 Backfill is enqueued for each selected repository; the worker drains it.
-Webhook registration is skipped in this path (a bootstrap host usually cannot
-receive deliveries anyway) and the nightly reconcile covers the gap.
+Webhook registration is skipped in this path and the nightly reconcile covers
+the gap.
 
-### Gitea
+## Select repositories
 
-Gitea has no App concept, so a token stands in for one.
+In **Admin → Connections**, connect the organisation your App is installed on.
+Then choose which repositories to track — nothing is ingested until you do.
+Backfill starts immediately; the Org Overview shows per-repo progress while it
+runs and fills in as history lands.
 
-1. As a user with read access to the repositories you want tracked, go to
-   **Settings → Applications → Generate New Token**.
-2. Scopes: **`read:repository`**, **`read:organization`**, **`read:user`** —
-   read-only, same rule as GitHub.
-3. Set `FORGE_BASE_URL` to your Gitea base URL (`https://gitea.example.com`)
-   and paste the token when you add the connection in **Admin → Connections**.
-   The token is encrypted at rest with `TOKEN_ENC_KEY` before it is stored.
-4. Webhooks: **Repository settings → Webhooks → Add webhook → Gitea**, target
-   `<PUBLIC_BASE_URL>/api/v1/webhooks/gitea`, secret = your `WEBHOOK_SECRET`,
-   events **Push**, **Pull request**, **Pull request review**.
-
-A self-hosted Gitea over plain `http://` is rejected unless it is a loopback
-address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape hatch,
-not a deployment option.
-
-## 3. Start
-
-```bash
-podman compose -f deploy/compose.yaml up -d     # or: docker compose
-```
-
-The first run builds the images (several minutes) and applies database
-migrations before the API starts. Re-running `up` later is safe — migrations are
-recorded, so an already-migrated database is left alone.
-
-Check it:
-
-```bash
-curl -f http://127.0.0.1:8099/healthz && echo OK
-```
-
-Then open `PUBLIC_BASE_URL` and sign in with GitHub.
-
-Only the web container publishes a port, and it binds to `127.0.0.1` by default
-so nothing is exposed before you have put TLS in front of it. Postgres and Redis
-are reachable only on the internal network. To expose the web port on a LAN
-interface, set `REPOPULSE_BIND=0.0.0.0` — **after** your terminator is in place.
-
-## 4. Select repositories
-
-Sign in, go to **Admin → Connections**, and connect the organisation your App is
-installed on. Then choose which repositories to track — nothing is ingested
-until you do. Backfill starts immediately; the Org Overview shows per-repo
-progress while it runs and fills in as history lands.
-
-**Admin → Setup** lists what is still outstanding: configuration problems, a
-missing connection, no repositories selected, and whether any webhook delivery
-has arrived yet. It reports whether each variable is *set*, never its value.
+**Admin → Setup** lists what is still outstanding: which sign-in methods are
+live, configuration problems, whether a forge is connected, whether any
+repositories are selected, and whether any webhook delivery has arrived yet. It
+reports whether each variable is *set*, never its value.
 
 ### Webhooks
 
@@ -188,7 +249,7 @@ screen shows the timestamp of the most recent delivery. If nothing arrives:
 - the webhook secret must match `WEBHOOK_SECRET` exactly,
 - deliveries with a bad signature are rejected and logged, not silently dropped.
 
-## 5. Scan data
+## Scan data
 
 Security and code scanning run in a container with **no network at all**. That
 is the control, not an inconvenience: a binary pointed at your source cannot
@@ -284,5 +345,18 @@ edited it, do not drop `CAP_SETUID`/`CAP_SETGID` without also setting
 API address at startup. It defaults to the `api` service; if you run the API
 elsewhere, set `API_UPSTREAM` to its address.
 
-**Login redirects then fails.** The Callback URL on your GitHub App must match
-`<PUBLIC_BASE_URL>/auth/callback` exactly, including scheme and port.
+**The sign-in screen offers no password form.** It should always offer one, so
+this means the browser could not read the API's list of providers — check that
+the web container is reaching the API (`API_UPSTREAM`) before looking at
+anything to do with authentication.
+
+**"Invalid email or password" for `ADMIN_EMAIL`.** The account is created on the
+API's first boot, so it does not exist if that boot failed or if a local account
+with a password already existed when you added the variables. `podman logs` on
+the api container prints the bootstrap outcome on every start. Setting
+`ADMIN_EMAIL` to a second address later does *not* create a second admin.
+
+**GitHub sign-in redirects then fails.** The Callback URL on your GitHub App
+must match `<API_BASE_URL>/auth/callback` exactly, including scheme and port.
+Password and OIDC sign-in are unaffected, so this is not a reason to be locked
+out — sign in with your administrator account and fix the App.

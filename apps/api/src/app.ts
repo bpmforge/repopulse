@@ -13,6 +13,11 @@ import authRoutes from './routes/auth/index.js';
 // twice throws on the duplicate cookie decorator.
 import localAuthRoutes from './routes/auth/local.js';
 import oidcRoutes from './routes/auth/oidc.js';
+// W15-04. Tells the sign-in screen which providers this deployment actually
+// offers. Without it the screen falls back to local-only — so an install that
+// HAS a GitHub App would show no GitHub button, which is a regression rather
+// than a dormant feature.
+import authProviderRoutes from './routes/auth/providers.js';
 import healthRoutes from './routes/health/index.js';
 import errorEnvelopePlugin from './plugins/error-envelope.js';
 import securityHeadersPlugin from './plugins/security-headers.js';
@@ -95,6 +100,12 @@ export function buildApp(opts: BuildAppOptions) {
   // Local accounts are always available: they are what makes this product
   // installable without registering an App with anybody (D14).
   app.register(localAuthRoutes, { db: opts.db });
+
+  app.register(authProviderRoutes, {
+    db: opts.db,
+    ...(opts.oidc ? { oidc: { displayName: opts.oidc.displayName } } : {}),
+    github: opts.githubOAuth !== undefined,
+  });
 
   // OIDC only when it is actually configured. A deployment that has not set it
   // up offers no button rather than a door that leads nowhere — and a PARTIAL

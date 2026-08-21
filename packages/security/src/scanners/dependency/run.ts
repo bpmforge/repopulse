@@ -1,10 +1,21 @@
-import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { and, eq } from 'drizzle-orm';
+import { read, security, type Database } from '@repopulse/shared';
 import { persistFindings } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
+import {
+  goReachability,
+  goVulnDbDir,
+  validateVulnerabilities,
+  type ValidationFunnel,
+} from '../../validation/index.js';
 import { runDependencyTools, vulnDbDir } from './tools.js';
-import { dependencyFindings, DEPENDENCY_SCANNER_KEY, type FindingFunnel } from './findings.js';
+import {
+  dependencyFindings,
+  DEPENDENCY_SCANNER_KEY,
+  type FindingFunnel,
+  type PricedIncomingFinding,
+} from './findings.js';
 import type { MatchFunnel } from './matches.js';
 
 // The dependency scanner, end to end (W8-06, SECURITY_SUITE.md §3.2, FR-SEC-5).
@@ -15,17 +26,23 @@ import type { MatchFunnel } from './matches.js';
 // 'no_sbom' for every repository and the supply-chain registers skip every run.
 // This is the producer both of them were waiting for.
 //
-// WHAT THIS DELIBERATELY DOES NOT CLAIM: reachability is 'manifest_only' on
-// every finding. See findings.ts — an SBOM cannot support more.
+// W8-13 ADDED THE VALIDATION FUNNEL between the tools and the store. grype's
+// raw output is a wall of CVEs; V0 merges the ones that are one vulnerability
+// reported twice, V1 asks the lockfile whether the package ships, V2 asks
+// whether anything imports it, V3 asks whether a call graph reaches it, and V4
+// prices the result. Every tier's counts come back on the result object, so the
+// funnel is reportable rather than a number that shrank for unstated reasons.
 //
-// WHAT IS STORED BUT NOT YET READ: every finding carries `epss` in its yields,
-// in the shape priceFinding takes, and repriceFindings does not pass it — it
-// builds its PricingInput from `kev` and `dep_scope` only, so a non-KEV
-// dependency finding is priced at the likelihood FLOOR today rather than at its
-// exploit-prediction score. One line in packages/insights/src/risk/reprice.ts
-// (`epss: yields['epss']`) turns it on; that file is outside this ticket's
-// write scope, so the data is written and the gap is stated instead of a
-// number quietly being wrong.
+// SCORING HAPPENS HERE, AT CREATION (V4). persistFindings does not price, and
+// repriceFindings — the nightly job that does — builds its PricingInput from
+// `kev` and `dep_scope` ONLY. It ignores `epss` and `reachability`, so a
+// non-KEV dependency finding would sit at the likelihood FLOOR with its EPSS
+// score stored beside it and unread. So this run writes effective_risk itself,
+// through the same pure priceFinding, and a test pins the divergence: the
+// one-line fix lives in packages/insights/src/risk/reprice.ts, which is outside
+// this ticket's write scope, and until it lands the nightly job will flatten
+// these scores back. Stated rather than left for someone to discover from a
+// score that moved overnight.
 
 export interface DependencyRunDeps {
   db: Database;
@@ -37,6 +54,8 @@ export interface DependencyRunDeps {
   image?: string;
   /** Host directory holding the grype database. Defaults to vulnDbDir(). */
   vulnDb?: string;
+  /** Host directory holding the Go vulnerability database (V3). */
+  goVulnDb?: string;
   trigger?: 'schedule' | 'manual' | 'push';
   wallClockMs?: number;
 }
@@ -70,12 +89,25 @@ export interface DependencyRunResult {
   withoutCveId: number;
   /** Matches whose severity grype could not score; filed at 3, not at 1. */
   unknownSeverity: number;
-  /** Matches whose package the SBOM scope index does not cover (non-npm/pypi). */
+  /** Vulnerabilities V1 could not place in any resolved dependency set. */
   withoutScope: number;
   /** KEV matches whose severity was floored to 4. */
   kevFloored: number;
+  /**
+   * The V0-V4 funnel (W8-13, FR-SEC-15).
+   *
+   * Returned whole rather than flattened into this object: `raw → deduped` is a
+   * narrowing and everything after it is a BREAKDOWN of the same population,
+   * and mixing the two into one list of numbers is how a reader concludes the
+   * scanner dropped findings it never dropped.
+   */
+  validation: ValidationFunnel | null;
+  /** Why V3 proved nothing, when it proved nothing. Never silent. */
+  reachabilityNote: string | null;
   findingsCreated: number;
   findingsTotal: number;
+  /** Findings whose effective_risk this run wrote (V4). */
+  findingsPriced: number;
   sbomStored: boolean;
   error?: string;
 }
@@ -92,8 +124,11 @@ const emptyFunnel = {
   unknownSeverity: 0,
   withoutScope: 0,
   kevFloored: 0,
+  validation: null,
+  reachabilityNote: null,
   findingsCreated: 0,
   findingsTotal: 0,
+  findingsPriced: 0,
   sbomStored: false,
 };
 
@@ -172,7 +207,29 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
             },
           });
 
-        const mapped = dependencyFindings(tools.matches, tools.document);
+        // V3 runs BEFORE the funnel because its proof is an input to it. It
+        // preflights for a Go vulnerability database and a vendored go.mod and
+        // returns a stated reason when either is missing, rather than starting
+        // a container that would fail — so a JavaScript repository costs
+        // nothing here and a Go one says why it was not proven.
+        const reachability = await goReachability({
+          targetDir: snapshot.dir,
+          image: deps.image ?? DEFAULT_IMAGE,
+          goVulnDb: deps.goVulnDb ?? goVulnDbDir(),
+          budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
+        });
+
+        const validation = validateVulnerabilities({
+          matches: tools.matches,
+          snapshotDir: snapshot.dir,
+          goReachability: reachability,
+          // grype's OWN count, so `raw → deduped` is the whole narrowing rather
+          // than the part of it that happened after the reader had already
+          // merged the (purl, CVE) duplicates.
+          rawMatchCount: tools.matchFunnel?.rawMatches ?? tools.matches.length,
+        });
+
+        const mapped = dependencyFindings(validation.vulnerabilities, tools.document);
 
         const persisted = await persistFindings(deps.db, {
           workspaceId: deps.workspaceId,
@@ -190,14 +247,12 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           sweepScannerKey: DEPENDENCY_SCANNER_KEY,
         });
 
-        await closeRun(
-          deps.db,
-          runId,
-          'succeeded',
-          mapped.findings.length,
-          null,
-          tools.toolVersions,
-        );
+        const findingsPriced = await priceStoredFindings(deps, mapped.priced);
+
+        await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
+          ...tools.toolVersions,
+          ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
+        });
 
         return {
           status: 'succeeded' as const,
@@ -205,8 +260,11 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           sbomStored: true,
           componentsScanned: tools.componentCount,
           ...funnelNumbers(tools.matchFunnel, mapped.funnel),
+          validation: validation.funnel,
+          reachabilityNote: reachability.reason,
           findingsCreated: persisted.created,
           findingsTotal: mapped.findings.length,
+          findingsPriced,
         };
       },
     );
@@ -219,6 +277,45 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
       error: (err as Error).message,
     };
   }
+}
+
+/**
+ * V4 — writes the score each finding was created with.
+ *
+ * BY DEDUP KEY, not by scan_run_id. persistFindings returns counts rather than
+ * ids, and a finding this run merely BUMPED (seen before, still open) keeps the
+ * scan_run_id of the run that created it — so keying on this run would leave
+ * every pre-existing finding unpriced, which is most of them on every run after
+ * the first.
+ *
+ * The update is deliberately narrow: effective_risk, its band and its
+ * decomposition, and nothing else. Status, triage and occurrence counts belong
+ * to persistFindings and to whoever triaged the row.
+ */
+async function priceStoredFindings(
+  deps: DependencyRunDeps,
+  priced: readonly PricedIncomingFinding[],
+): Promise<number> {
+  let updated = 0;
+  for (const entry of priced) {
+    const rows = await deps.db
+      .update(read.findings)
+      .set({
+        effectiveRisk: String(entry.pricing.effectiveRisk),
+        riskBand: entry.pricing.band,
+        riskFactors: entry.pricing.riskFactors as unknown as Record<string, unknown>,
+      })
+      .where(
+        and(
+          eq(read.findings.workspaceId, deps.workspaceId),
+          eq(read.findings.repoId, deps.repoId),
+          eq(read.findings.dedupKey, entry.key),
+        ),
+      )
+      .returning({ id: read.findings.id });
+    updated += rows.length;
+  }
+  return updated;
 }
 
 function funnelNumbers(

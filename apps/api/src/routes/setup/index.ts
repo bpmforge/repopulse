@@ -1,18 +1,27 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { eq, sql } from 'drizzle-orm';
+import { oidc } from '@repopulse/auth';
 import { core, type Database } from '@repopulse/shared';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 import { ENV_REGISTRY, validateEnv } from './env-registry.js';
 
-// Setup status (W11-02, E1.2).
+// Setup status (W11-02, E1.2; reframed by W15-05 for D14).
 //
 // What this is FOR: an operator has the stack running and needs to know which
-// of the remaining steps — forge App registration, a connection, a webhook —
-// is not done yet. It is deliberately not a pre-boot wizard: the variables the
-// app cannot run without are checked at STARTUP and named there, because a
-// half-booted app serving a friendly setup page is a worse failure than one
-// that refuses to start.
+// of the remaining steps is not done yet. It is deliberately not a pre-boot
+// wizard: the variables the app cannot run without are checked at STARTUP and
+// named there, because a half-booted app serving a friendly setup page is a
+// worse failure than one that refuses to start.
+//
+// WHAT CHANGED IN W15-05. This list used to read as though a forge connection
+// were a precondition for having a working install — every row was weighed
+// equally into `ready`, so an operator who had signed in and was looking at
+// the product was told it was not set up. Since D14 you sign in with a local
+// account and a forge App is something you add when you want repository data,
+// not something you register before you can get in. Two rows therefore carry
+// `blocking: false`: they are what stands between you and REAL DATA, not
+// between you and a usable install.
 //
 // IT NEVER RETURNS A VALUE. Only whether something is set, and what breaks if
 // it is wrong. A setup screen that echoes secrets back is a credential leak
@@ -29,6 +38,51 @@ export interface SetupCheck {
   detail: string;
   /** Where the operator goes to fix it. */
   docs: string;
+  /**
+   * Whether `ready` is allowed to hinge on this row. False means "you can sign
+   * in and use the product without it" — it gates data, not the install.
+   */
+  blocking: boolean;
+}
+
+/**
+ * Which sign-in doors this deployment actually offers (D14, FR-AUTH-*).
+ *
+ * Pure and exported so it can be tested without a database: the whole point of
+ * the row is what it says on an install that has no forge and no IdP, which is
+ * exactly the install that has the least infrastructure to test against.
+ *
+ * It can never report a fault. Local password accounts are always registered,
+ * so there is always at least one way in — and saying so IS the content here.
+ * The row exists because the old checklist implied the opposite, and an
+ * operator who believes they need a GitHub App before they can log in will go
+ * and register one.
+ */
+export function authProvidersCheck(env: NodeJS.ProcessEnv): SetupCheck {
+  const doors = ['local password accounts'];
+
+  // Asked of the same function the server boots from rather than re-derived
+  // from variable names here, so the checklist cannot claim SSO is live on a
+  // configuration the app would not have accepted. A half-configured IdP
+  // cannot reach this code: it throws at boot.
+  const oidcConfig = oidc.oidcConfigFromEnv(env);
+  if (oidcConfig) doors.push(`OIDC (${oidcConfig.displayName})`);
+
+  const github = Boolean(env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_CLIENT_SECRET);
+  if (github) doors.push('GitHub sign-in');
+
+  return {
+    id: 'auth',
+    label: 'Sign-in',
+    status: 'ok',
+    detail:
+      `Live: ${doors.join(', ')}. ` +
+      (github
+        ? 'A forge App is not required to sign in — it is what lets people use their forge account instead of a password.'
+        : 'No forge App is configured, and none is needed to sign in. Everyone signs in with an account created here.'),
+    docs: 'docs/INSTALL.md#sign-in',
+    blocking: true,
+  };
 }
 
 function problem(
@@ -52,7 +106,7 @@ export default async function setupRoutes(
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return problem(request, reply, 401, 'No active session');
 
-    const checks: SetupCheck[] = [];
+    const checks: SetupCheck[] = [authProvidersCheck(process.env)];
 
     // Optional-but-important variables. The required ones cannot be missing —
     // the process would not have started — so listing them here as "ok" would
@@ -67,10 +121,15 @@ export default async function setupRoutes(
           ? `All required variables are set and well-formed (${ENV_REGISTRY.filter((e) => e.required).length} required, ${ENV_REGISTRY.length} documented).`
           : problems.map((p) => `${p.name} ${p.reason}`).join('; '),
       docs: 'docs/CONFIG.md',
+      blocking: true,
     });
 
     const [connection] = await db
-      .select({ id: core.forgeConnections.id, provider: core.forgeConnections.provider, status: core.forgeConnections.status })
+      .select({
+        id: core.forgeConnections.id,
+        provider: core.forgeConnections.provider,
+        status: core.forgeConnections.status,
+      })
       .from(core.forgeConnections)
       .where(eq(core.forgeConnections.workspaceId, workspaceId))
       .limit(1);
@@ -81,8 +140,9 @@ export default async function setupRoutes(
       status: connection ? 'ok' : 'missing',
       detail: connection
         ? `Connected to ${connection.provider} (status ${connection.status}).`
-        : 'No forge connection yet. Register your own GitHub App (or a Gitea token) and connect it — RepoPulse never uses a shared App.',
+        : 'No forge connection yet — so there is nothing to measure, and every dashboard will be empty. It is not needed to sign in or to administer this install. Register your own GitHub App (or a Gitea token) and connect it; RepoPulse never uses a shared App.',
       docs: 'docs/INSTALL.md#connect-your-forge',
+      blocking: false,
     });
 
     const [repoCount] = await db
@@ -99,6 +159,7 @@ export default async function setupRoutes(
           ? `${repoCount!.count} repositories selected.`
           : 'No repositories selected yet. Nothing is ingested until you pick some.',
       docs: 'docs/INSTALL.md#select-repositories',
+      blocking: false,
     });
 
     // Webhook delivery is a fact about the LAST delivery, not about config: a
@@ -119,10 +180,16 @@ export default async function setupRoutes(
         ? `Last delivery received ${delivery.receivedAt.toISOString()}.`
         : 'No webhook delivery has arrived yet. That is expected before your first push — it is not proof the webhook is wrong, and not proof it is right.',
       docs: 'docs/INSTALL.md#webhooks',
+      blocking: false,
     });
 
+    // Only the blocking rows. Weighing all of them made this flag permanently
+    // false: the webhook row reports 'unknown' until a delivery arrives, so
+    // `every(status === 'ok')` could not be true on a correct install that had
+    // simply not been pushed to yet. A readiness flag that is never true is
+    // read once and then ignored, which is worse than not shipping one.
     return reply.send({
-      ready: checks.every((check) => check.status === 'ok'),
+      ready: checks.every((check) => !check.blocking || check.status === 'ok'),
       checks,
     });
   });

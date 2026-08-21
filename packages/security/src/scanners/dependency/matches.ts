@@ -28,6 +28,17 @@ const CVE_ID = /^CVE-\d{4}-\d{4,}$/i;
 export interface DependencyMatch {
   /** grype's own id — a GHSA more often than not. Stamped as the rule id. */
   vulnerabilityId: string;
+  /**
+   * EVERY id this match names for one vulnerability — its own, its related
+   * ones, and the CVEs the KEV and EPSS rows are keyed by (W8-13 V0).
+   *
+   * Collected because the collapse below throws the losing record away, and
+   * with it the id that record was filed under. grype reports the same
+   * vulnerability from two providers as `CVE-2020-14343` (nvd:cpe) and
+   * `GHSA-8q59-q68h-6hv4` (github) — captured, not supposed — and a reader who
+   * searches for the id in their advisory email must find our finding under it.
+   */
+  ids: string[];
   /** The CVE, recovered from wherever this match carries one. Null is honest. */
   cveId: string | null;
   /** grype's severity word, kept verbatim for the evidence line. */
@@ -121,6 +132,35 @@ export function cveIdFor(
   return null;
 }
 
+/**
+ * Every vulnerability id this match names, de-duplicated and sorted.
+ *
+ * The same four places cveIdFor reads, minus its CVE filter: an id that is not
+ * a CVE is still an id this vulnerability is known by, and dropping it is what
+ * would make a GHSA-only advisory unsearchable in our own store.
+ */
+export function idsFor(vulnerability: Record<string, unknown>, related: unknown[]): string[] {
+  // VERBATIM, not upper-cased. A GHSA id is published in lower case and is the
+  // string a reader will paste into a search box; rewriting its case here would
+  // put `GHSA-8Q59-Q68H-6HV4` in front of them, which matches nothing anywhere
+  // else. Case-insensitive COMPARISON is the alias grouper's job (aliases.ts),
+  // and that is a different thing from case-insensitive storage.
+  const ids = new Set<string>();
+  const own = asString(vulnerability['id']);
+  if (own) ids.add(own);
+  for (const entry of related) {
+    const id = asString(asRecord(entry)['id']);
+    if (id) ids.add(id);
+  }
+  for (const key of ['knownExploited', 'epss']) {
+    for (const entry of asArray(vulnerability[key])) {
+      const cve = asString(asRecord(entry)['cve']);
+      if (cve) ids.add(cve.toUpperCase());
+    }
+  }
+  return [...ids].sort();
+}
+
 /** The EPSS probability for this match's CVE, or the first one on offer. */
 function epssFor(vulnerability: Record<string, unknown>, cveId: string | null): number | null {
   const rows = asArray(vulnerability['epss']).map(asRecord);
@@ -177,6 +217,7 @@ export function parseGrypeMatches(json: string): ParsedMatches {
 
     const record: DependencyMatch = {
       vulnerabilityId,
+      ids: idsFor(vulnerability, related),
       cveId,
       severityLabel: label,
       severity,
@@ -208,7 +249,12 @@ export function parseGrypeMatches(json: string): ParsedMatches {
     // Keep the WORSE of the two. Two providers disagreeing about severity is
     // ordinary, and taking whichever arrived first would make our answer depend
     // on the order grype happened to walk its database.
-    if (record.severity > prior.severity || (record.kev && !prior.kev)) byKey.set(key, record);
+    const winner = record.severity > prior.severity || (record.kev && !prior.kev) ? record : prior;
+    // The id sets are UNIONED across the collapse regardless of which record
+    // won (W8-13 V0). Keeping only the winner's ids would lose the provider id
+    // the other half was filed under — which is the id half our readers have.
+    winner.ids = [...new Set([...prior.ids, ...record.ids])].sort();
+    byKey.set(key, winner);
   }
 
   return {
