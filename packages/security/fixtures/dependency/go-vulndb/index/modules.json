@@ -1,0 +1,1 @@
+[{"path":"github.com/dgrijalva/jwt-go","vulns":[{"id":"GO-2020-0017","modified":"2024-05-20T16:03:47Z"}]},{"path":"github.com/dgrijalva/jwt-go/v4","vulns":[{"id":"GO-2020-0017","modified":"2024-05-20T16:03:47Z"}]}]

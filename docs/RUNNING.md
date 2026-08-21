@@ -4,9 +4,12 @@ Three ways to run it, in order of how much you need first:
 
 | | What you need | What you get |
 |---|---|---|
-| [Demo mode](#demo-mode) | nothing but Docker/Podman | the whole product, fake data, no GitHub account |
-| [Dev stack](#dev-stack) | a GitHub OAuth app | your own org's real data, hot reload |
-| [Containers](#containers) | a GitHub App | the customer-hostable stack |
+| [Demo mode](#demo-mode) | nothing but Docker/Podman | the whole product, fake data, no forge account |
+| [Dev stack](#dev-stack) | a forge token or App, for real data | your own org's real data, hot reload |
+| [Containers](#containers) | nothing but Docker/Podman | the customer-hostable stack |
+
+**None of these needs a GitHub account to start.** Since D14 you sign in with a
+local account, so a forge credential buys you repository *data*, not entry.
 
 Everything runs locally. RepoPulse never clones a repository (CONSTRAINTS.md
 C1) and the web app never calls a forge — it reads only our own Postgres.
@@ -48,7 +51,22 @@ secret you already have.
 
 It does **not** invent `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` —
 those identify an OAuth app only you can register, and a fake value would fail
-at the login screen instead of here.
+at the login screen instead of here. Since D14 their absence is no longer fatal:
+the API starts without them and simply offers no GitHub button.
+
+It also does not invent `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Demo mode does not
+need them (the login boundary is mocked), but a real sign-in does — add them to
+`.env` yourself before starting the API:
+
+```
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=<at least 12 characters>
+```
+
+The API creates that account on its first boot and forces a password change at
+first sign-in. Generating one here would mean writing a working password into
+every developer's `.env` with a value we chose, which is the same mistake as a
+default credential.
 
 ---
 
@@ -80,7 +98,13 @@ silently sliding to 5274 and making every documented URL wrong.
 
 ## Dev stack
 
-Same as above, plus a GitHub OAuth app so you can connect a real organisation.
+Same as above against real data instead of the seeded warehouse.
+
+Sign-in itself needs nothing new: set `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`
+(above), run `pnpm dev`, and log in with them. Register an OAuth app only if you
+want the **GitHub sign-in button** as well — connecting an organisation to pull
+its data is done from Admin → Connections once you are signed in, and on a
+self-hosted forge takes a Gitea token rather than any of this.
 
 1. Register an OAuth app at <https://github.com/settings/developers>:
    - **Homepage URL** `http://localhost:5273`
@@ -116,11 +140,15 @@ put your own TLS terminator in front of it.
 ```bash
 cp deploy/.env.example deploy/.env
 # fill in POSTGRES_PASSWORD, REDIS_PASSWORD, SESSION_SECRET, TOKEN_ENC_KEY,
-# WEBHOOK_SECRET and the GITHUB_APP_* values — none have defaults on purpose
+# WEBHOOK_SECRET — none have defaults on purpose — and add ADMIN_EMAIL /
+# ADMIN_PASSWORD, which are how you get in the first time. The GITHUB_APP_*
+# values are optional and can stay blank.
 podman compose -f deploy/compose.yaml up -d
 ```
 
-Then open `http://localhost:8099` (`REPOPULSE_PORT`).
+Then open `http://localhost:8099` (`REPOPULSE_PORT`) and sign in as
+`ADMIN_EMAIL`. [INSTALL.md](INSTALL.md) is the same path written for someone
+who did not write the code.
 
 Generate each secret with `openssl rand -hex 32`. `deploy/.env` is gitignored
 and must stay that way: `TOKEN_ENC_KEY` decrypts every stored forge credential,
@@ -239,8 +267,17 @@ the `deploy/compose.yaml` stack. `podman ps` to see, then either stop it or
 `PORT=3010 pnpm dev`. In demo mode the OAuth callback follows whatever port you
 choose.
 
-**`missing required env var GITHUB_APP_CLIENT_ID`** — you have no OAuth app
-configured. Either register one (above) or run `DEMO_MODE=1 pnpm dev`.
+**The login screen shows no GitHub button** — you have no OAuth app configured,
+which since D14 is a supported state rather than an error. Sign in with
+`ADMIN_EMAIL` / `ADMIN_PASSWORD`, or register an app (above) if you want the
+button back. It is no longer a startup failure: the API used to refuse to boot
+without `GITHUB_APP_CLIENT_ID`, and that is exactly what made the product
+un-installable for anyone who did not already have one.
+
+**`Invalid email or password` with the credentials you just set** — the account
+is created on the API's *first* boot after the variables appear, and only when
+no local account with a password exists yet. The API logs the bootstrap outcome
+on every start; check that line before re-typing the password.
 
 **`TOKEN_ENC_KEY is required (32-byte hex)`** — run `pnpm bootstrap`, which
 generates it. Copying `.env.example` by hand does not: the secrets ship blank

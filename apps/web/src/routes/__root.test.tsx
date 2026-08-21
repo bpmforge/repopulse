@@ -29,11 +29,26 @@ let respond: (url: string) => { status: number; body: unknown };
 function signedIn(url: string) {
   if (url.includes('/me/review-queue')) return { status: 200, body: { items: [] } };
   if (url.includes('/me/context')) return { status: 200, body: ME_CONTEXT };
+  // W15-04: the shell asks why personalized views would be empty. 'linked' is
+  // the quiet answer, so these tests see no forge banner.
+  if (url.includes('/auth/identity')) {
+    return { status: 200, body: { state: 'linked', identity_id: 7 } };
+  }
   return { status: 200, body: {} };
 }
 
-/** What the API actually answers with no session: RFC 7807, 401. */
-function signedOut() {
+/**
+ * What the API actually answers with no session: RFC 7807, 401 on everything
+ * behind the session — but NOT on the two /auth endpoints the sign-in screen
+ * needs, which exist precisely for people who have no session (W15-04).
+ */
+function signedOut(url: string) {
+  if (url.includes('/auth/providers')) {
+    return { status: 200, body: { local: true, oidc: null, github: false } };
+  }
+  if (url.includes('/auth/local/session')) {
+    return { status: 200, body: { pending_password_change: false } };
+  }
   return {
     status: 401,
     body: { type: 'about:blank', title: 'No active session', status: 401 },
@@ -139,7 +154,12 @@ describe('unauthenticated visitor (W-FIX)', () => {
     renderAt('/');
 
     expect(await screen.findByTestId('signin')).toBeInTheDocument();
-    expect(screen.getByTestId('signin-github')).toHaveAttribute('href', '/auth/login');
+    // W15-04: local sign-in is what every deployment has. The GitHub link is
+    // absent here because this stub's deployment has no GitHub App, and a
+    // button that leads to an unregistered /auth/login is the defect
+    // /auth/providers exists to prevent.
+    expect(await screen.findByTestId('signin-local')).toBeInTheDocument();
+    expect(screen.queryByTestId('signin-github')).not.toBeInTheDocument();
     // None of the authenticated chrome, and — the actual defect — no failure
     // state anywhere describing something that is not a failure.
     expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
@@ -153,6 +173,58 @@ describe('unauthenticated visitor (W-FIX)', () => {
     respond = signedOut;
     renderAt('/');
     expect(await screen.findByTestId('signin')).toHaveTextContent(/Sign in to see/i);
+  });
+
+  // W15-04: the two transitions the sign-in screen exists to make. Both are
+  // asserted at the SHELL rather than inside the widget, because "you are now
+  // in the app" and "you may not leave this screen yet" are decisions RootShell
+  // makes — the screens themselves only invalidate the session query.
+  it('local sign-in mounts the app in place — no redirect, no reload', async () => {
+    const user = userEvent.setup();
+    let authenticated = false;
+    respond = (url: string) => {
+      if (url.includes('/auth/local/login')) {
+        authenticated = true;
+        return { status: 200, body: { must_change_password: false } };
+      }
+      return authenticated ? signedIn(url) : signedOut(url);
+    };
+    renderAt('/');
+
+    await user.type(await screen.findByTestId('signin-email'), 'admin@example.com');
+    await user.type(screen.getByTestId('signin-password'), 'a good long password');
+    await user.click(screen.getByTestId('signin-submit'));
+
+    // Unlike OIDC and GitHub, which are full-page navigations, this login's
+    // answer is JSON: the shell has to re-ask who the visitor is by itself.
+    expect(await screen.findByTestId('rail')).toBeInTheDocument();
+    expect(screen.queryByTestId('signin')).not.toBeInTheDocument();
+  });
+
+  it('a bootstrap admin is held on the password change, not let into the shell', async () => {
+    const user = userEvent.setup();
+    let pending = false;
+    respond = (url: string) => {
+      if (url.includes('/auth/local/login')) {
+        pending = true;
+        return { status: 200, body: { must_change_password: true } };
+      }
+      if (url.includes('/auth/local/session')) {
+        return { status: 200, body: { pending_password_change: pending } };
+      }
+      // Everything else still 401s, because that session carries no `userId` —
+      // the gate is the API's, and this screen is the only thing it can reach.
+      return signedOut(url);
+    };
+    renderAt('/');
+
+    await user.type(await screen.findByTestId('signin-email'), 'admin@example.com');
+    await user.type(screen.getByTestId('signin-password'), 'the bootstrap password');
+    await user.click(screen.getByTestId('signin-submit'));
+
+    expect(await screen.findByTestId('password-change')).toBeInTheDocument();
+    expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('main')).not.toBeInTheDocument();
   });
 
   it('a 401 on ANY widget query flips the whole shell to sign-in, once', async () => {

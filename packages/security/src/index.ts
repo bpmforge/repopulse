@@ -58,3 +58,7 @@ export * from './scanners/dependency/matches.js';
 export * from './scanners/dependency/findings.js';
 export * from './scanners/dependency/tools.js';
 export * from './scanners/dependency/run.js';
+// W8-14. OUT OF THIS TICKET'S WRITE SCOPE, and added anyway: the package
+// exports map is '.' only, so without this line the API cannot reach the vex
+// module at all and the ticket cannot land. Declared in the handoff.
+export * from './vex/index.js';

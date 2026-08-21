@@ -1,0 +1,1349 @@
+{
+  "matches": [
+    {
+      "vulnerability": {
+        "id": "GHSA-jpcq-cgw6-v4j6",
+        "dataSource": "https://github.com/advisories/GHSA-jpcq-cgw6-v4j6",
+        "namespace": "github:language:javascript",
+        "severity": "Medium",
+        "urls": [
+          "https://github.com/jquery/jquery/security/advisories/GHSA-jpcq-cgw6-v4j6",
+          "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released",
+          "https://nvd.nist.gov/vuln/detail/CVE-2020-11023",
+          "https://www.drupal.org/sa-core-2020-002",
+          "https://www.debian.org/security/2020/dsa-4693",
+          "https://www.oracle.com/security-alerts/cpujul2020.html",
+          "http://lists.opensuse.org/opensuse-security-announce/2020-07/msg00067.html",
+          "https://security.gentoo.org/glsa/202007-03",
+          "http://lists.opensuse.org/opensuse-security-announce/2020-07/msg00085.html",
+          "https://lists.apache.org/thread.html/r0593393ca1e97b1e7e098fe69d414d6bd0a467148e9138d07e86ebbb@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r094f435595582f6b5b24b66fedf80543aa8b1d57a3688fbcc21f06ec@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r1fed19c860a0d470f2a3eded12795772c8651ff583ef951ddac4918c@%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r4aadb98086ca72ed75391f54167522d91489a0d0ae25b12baa8fc7c5@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r6c4df3b33e625a44471009a172dabe6865faec8d8f21cac2303463b1@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r6e97b37963926f6059ecc1e417721608723a807a76af41d4e9dbed49@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r9c5fda81e4bca8daee305b4c03283dddb383ab8428a151d4cb0b3b15@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/ra32c7103ded9041c7c1cb8c12c8d125a6b2f3f3270e2937ef8417fac@%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/ra374bb0299b4aa3e04edde01ebc03ed6f90cf614dad40dd428ce8f72@%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/ra3c9219fcb0b289e18e9ec5a5ebeaa5c17d6b79a201667675af6721c@%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/ra406b3adfcffcb5ce8707013bdb7c35e3ffc2776a8a99022f15274c6@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rab82dd040f302018c85bd07d33f5604113573514895ada523c3401d9@%3Ccommits.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/radcb2aa874a79647789f3563fcbbceaf1045a029ee8806b59812a8ea@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rb25c3bc7418ae75cba07988dafe1b6912f76a9dd7d94757878320d61@%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rb69b7d8217c1a6a2100247a5d06ce610836b31e3f5d73fc113ded8e7@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rd38b4185a797b324c8dd940d9213cf99fcdc2dbf1fc5a63ba7dee8c9@%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rda99599896c3667f2cc9e9d34c7b6ef5d2bbed1f4801e1d75a2b0679@%3Ccommits.nifi.apache.org%3E",
+          "https://lists.apache.org/thread.html/rf1ba79e564fe7efc56aef7c986106f1cf67a3427d08e997e088e7a93@%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rf661a90a15da8da5922ba6127b3f5f8194d4ebec8855d60a0dd13248@%3Cdev.hive.apache.org%3E",
+          "https://www.oracle.com/security-alerts/cpuoct2020.html",
+          "https://lists.apache.org/thread.html/r706cfbc098420f7113968cc377247ec3d1439bce42e679c11c609e2d@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rbb448222ba62c430e21e13f940be4cb5cfc373cd3bce56b48c0ffa67@%3Cdev.flink.apache.org%3E",
+          "http://lists.opensuse.org/opensuse-security-announce/2020-11/msg00039.html",
+          "https://lists.apache.org/thread.html/r49ce4243b4738dd763caeb27fa8ad6afb426ae3e8c011ff00b8b1f48@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r07ab379471fb15644bf7a92e4a98cbc7df3cf4e736abae0cc7625fe6@%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r2c85121a47442036c7f8353a3724aa04f8ecdfda1819d311ba4f5330@%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r3702ede0ff83a29ba3eb418f6f11c473d6e3736baba981a8dbd9c9ef@%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r4dba67be3239b34861f1b9cfdf9dfb3a90272585dcce374112ed6e16@%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r55f5e066cc7301e3630ce90bbbf8d28c82212ae1f2d4871012141494@%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r9006ad2abf81d02a0ef2126bab5177987e59095b7194a487c4ea247c@%3Ccommits.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r9e0bd31b7da9e7403478d22652b8760c946861f8ebd7bd750844898e@%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/rf0f8939596081d84be1ae6a91d6248b96a02d8388898c372ac807817@%3Cdev.felix.apache.org%3E",
+          "https://www.oracle.com/security-alerts/cpujan2021.html",
+          "https://lists.apache.org/thread.html/r564585d97bc069137e64f521e68ba490c7c9c5b342df5d73c49a0760@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r8f70b0f65d6bedf316ecd899371fd89e65333bc988f6326d2956735c@%3Cissues.flink.apache.org%3E",
+          "https://www.tenable.com/security/tns-2021-02",
+          "https://lists.debian.org/debian-lts-announce/2021/03/msg00033.html",
+          "http://packetstormsecurity.com/files/162160/jQuery-1.0.3-Cross-Site-Scripting.html",
+          "https://lists.apache.org/thread.html/rede9cfaa756e050a3d83045008f84a62802fc68c17f2b4eabeaae5e4@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/ree3bd8ddb23df5fa4e372d11c226830ea3650056b1059f3965b3fce2@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r54565a8f025c7c4f305355fdfd75b68eca442eebdb5f31c2e7d977ae@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/re4ae96fa5c1a2fe71ccbb7b7ac1538bd0cb677be270a2bf6e2f8d108@%3Cissues.flink.apache.org%3E",
+          "https://www.tenable.com/security/tns-2021-10",
+          "https://www.oracle.com/security-alerts/cpuApr2021.html",
+          "https://www.oracle.com//security-alerts/cpujul2021.html",
+          "https://www.oracle.com/security-alerts/cpuoct2021.html",
+          "https://lists.apache.org/thread.html/r0483ba0072783c2e1bfea613984bfb3c86e73ba8879d780dc1cc7d36@%3Cissues.flink.apache.org%3E",
+          "https://github.com/jquery/jquery/releases/tag/3.5.0",
+          "https://www.oracle.com/security-alerts/cpujan2022.html",
+          "https://www.oracle.com/security-alerts/cpuapr2022.html",
+          "https://www.oracle.com/security-alerts/cpujul2022.html",
+          "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/jquery-rails/CVE-2020-11023.yml",
+          "https://security.snyk.io/vuln/SNYK-DOTNET-JQUERY-565440",
+          "https://lists.debian.org/debian-lts-announce/2023/08/msg00040.html",
+          "https://github.com/jquery/jquery/commit/1d61fd9407e6fbe82fe55cb0b938307aa0791f77",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/SFP4UK4EGP4AFH2MWYJ5A5Z4I7XVFQ6B",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/SAPQVX3XDNPGFT26QAQ6AJIXZZBZ4CD4",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/QPN2L2XVQGUA2V5HNQJWHK3APSK3VN7K",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/AVKYXLWCLZBV2N7M46KYK4LVA5OXWPBY",
+          "https://snyk.io/vuln/SNYK-JS-JQUERY-565129",
+          "https://security.netapp.com/advisory/ntap-20230725-0003",
+          "https://security.netapp.com/advisory/ntap-20200511-0006",
+          "https://jquery.com/upgrade-guide/3.5",
+          "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/jquery-rails/CVE-2020-23064.yml",
+          "https://github.com/rails/jquery-rails/blob/v4.4.0/vendor/assets/javascripts/jquery3.js#L6162",
+          "https://github.com/rails/jquery-rails/blob/v4.3.5/vendor/assets/javascripts/jquery3.js#L5979",
+          "https://github.com/rails/jquery-rails/blob/master/CHANGELOG.md#440",
+          "https://github.com/rails/jquery-rails/blob/master/CHANGELOG.md#410",
+          "https://lists.apache.org/thread.html/rda99599896c3667f2cc9e9d34c7b6ef5d2bbed1f4801e1d75a2b0679%40%3Ccommits.nifi.apache.org%3E",
+          "https://lists.apache.org/thread.html/re4ae96fa5c1a2fe71ccbb7b7ac1538bd0cb677be270a2bf6e2f8d108%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rede9cfaa756e050a3d83045008f84a62802fc68c17f2b4eabeaae5e4%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/ree3bd8ddb23df5fa4e372d11c226830ea3650056b1059f3965b3fce2%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rf0f8939596081d84be1ae6a91d6248b96a02d8388898c372ac807817%40%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/rf1ba79e564fe7efc56aef7c986106f1cf67a3427d08e997e088e7a93%40%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rf661a90a15da8da5922ba6127b3f5f8194d4ebec8855d60a0dd13248%40%3Cdev.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rd38b4185a797b324c8dd940d9213cf99fcdc2dbf1fc5a63ba7dee8c9%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rbb448222ba62c430e21e13f940be4cb5cfc373cd3bce56b48c0ffa67%40%3Cdev.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rb69b7d8217c1a6a2100247a5d06ce610836b31e3f5d73fc113ded8e7%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rb25c3bc7418ae75cba07988dafe1b6912f76a9dd7d94757878320d61%40%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/radcb2aa874a79647789f3563fcbbceaf1045a029ee8806b59812a8ea%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/rab82dd040f302018c85bd07d33f5604113573514895ada523c3401d9%40%3Ccommits.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/ra406b3adfcffcb5ce8707013bdb7c35e3ffc2776a8a99022f15274c6%40%3Cissues.hive.apache.org%3E",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/SFP4UK4EGP4AFH2MWYJ5A5Z4I7XVFQ6B",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/SAPQVX3XDNPGFT26QAQ6AJIXZZBZ4CD4",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/QPN2L2XVQGUA2V5HNQJWHK3APSK3VN7K",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/AVKYXLWCLZBV2N7M46KYK4LVA5OXWPBY",
+          "https://lists.apache.org/thread.html/r4aadb98086ca72ed75391f54167522d91489a0d0ae25b12baa8fc7c5%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r49ce4243b4738dd763caeb27fa8ad6afb426ae3e8c011ff00b8b1f48%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r3702ede0ff83a29ba3eb418f6f11c473d6e3736baba981a8dbd9c9ef%40%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r2c85121a47442036c7f8353a3724aa04f8ecdfda1819d311ba4f5330%40%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r1fed19c860a0d470f2a3eded12795772c8651ff583ef951ddac4918c%40%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r094f435595582f6b5b24b66fedf80543aa8b1d57a3688fbcc21f06ec%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r07ab379471fb15644bf7a92e4a98cbc7df3cf4e736abae0cc7625fe6%40%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r0593393ca1e97b1e7e098fe69d414d6bd0a467148e9138d07e86ebbb%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r0483ba0072783c2e1bfea613984bfb3c86e73ba8879d780dc1cc7d36%40%3Cissues.flink.apache.org%3E",
+          "https://github.com/github/advisory-database/blob/99afa6fdeaf5d1d23e1021ff915a5e5dbc82c1f1/advisories/github-reviewed/2020/04/GHSA-jpcq-cgw6-v4j6/GHSA-jpcq-cgw6-v4j6.json#L20-L37",
+          "https://lists.apache.org/thread.html/ra3c9219fcb0b289e18e9ec5a5ebeaa5c17d6b79a201667675af6721c%40%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/ra374bb0299b4aa3e04edde01ebc03ed6f90cf614dad40dd428ce8f72%40%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/ra32c7103ded9041c7c1cb8c12c8d125a6b2f3f3270e2937ef8417fac%40%3Cgitbox.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r9e0bd31b7da9e7403478d22652b8760c946861f8ebd7bd750844898e%40%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r9c5fda81e4bca8daee305b4c03283dddb383ab8428a151d4cb0b3b15%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r9006ad2abf81d02a0ef2126bab5177987e59095b7194a487c4ea247c%40%3Ccommits.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r8f70b0f65d6bedf316ecd899371fd89e65333bc988f6326d2956735c%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r706cfbc098420f7113968cc377247ec3d1439bce42e679c11c609e2d%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r6e97b37963926f6059ecc1e417721608723a807a76af41d4e9dbed49%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r6c4df3b33e625a44471009a172dabe6865faec8d8f21cac2303463b1%40%3Cissues.hive.apache.org%3E",
+          "https://lists.apache.org/thread.html/r564585d97bc069137e64f521e68ba490c7c9c5b342df5d73c49a0760%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r55f5e066cc7301e3630ce90bbbf8d28c82212ae1f2d4871012141494%40%3Cdev.felix.apache.org%3E",
+          "https://lists.apache.org/thread.html/r54565a8f025c7c4f305355fdfd75b68eca442eebdb5f31c2e7d977ae%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r4dba67be3239b34861f1b9cfdf9dfb3a90272585dcce374112ed6e16%40%3Cdev.felix.apache.org%3E",
+          "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2020-11023"
+        ],
+        "description": "Potential XSS vulnerability in jQuery",
+        "cvss": [
+          {
+            "type": "Secondary",
+            "version": "3.1",
+            "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:L/A:N/E:H",
+            "metrics": {
+              "baseScore": 6.9,
+              "exploitabilityScore": 1.7,
+              "impactScore": 4.8
+            },
+            "vendorMetadata": {}
+          }
+        ],
+        "knownExploited": [
+          {
+            "cve": "CVE-2020-11023",
+            "vendorProject": "JQuery",
+            "product": "JQuery",
+            "dateAdded": "2025-01-23",
+            "requiredAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.",
+            "dueDate": "2025-02-13",
+            "knownRansomwareCampaignUse": "unknown",
+            "notes": "This vulnerability could affect an open-source component, third-party library, protocol, or proprietary implementation that could be used by different products. For more information, please see: https://github.com/jquery/jquery/security/advisories/GHSA-jpcq-cgw6-v4j6",
+            "urls": [
+              "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
+              "https://nvd.nist.gov/vuln/detail/CVE-2020-11023"
+            ],
+            "cwes": [
+              "CWE-79"
+            ]
+          }
+        ],
+        "epss": [
+          {
+            "cve": "CVE-2020-11023",
+            "epss": 0.8383,
+            "percentile": 0.99668,
+            "date": "2026-08-19"
+          }
+        ],
+        "cwes": [
+          {
+            "cve": "CVE-2020-11023",
+            "cwe": "CWE-79",
+            "source": "security-advisories@github.com",
+            "type": "Secondary"
+          },
+          {
+            "cve": "CVE-2020-11023",
+            "cwe": "CWE-79",
+            "source": "nvd@nist.gov",
+            "type": "Primary"
+          }
+        ],
+        "fix": {
+          "versions": [
+            "3.5.0"
+          ],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "3.5.0",
+              "date": "2020-07-28",
+              "kind": "first-observed"
+            }
+          ]
+        },
+        "advisories": [],
+        "risk": 62.475
+      },
+      "relatedVulnerabilities": [
+        {
+          "id": "CVE-2020-11023",
+          "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2020-11023",
+          "namespace": "nvd:cpe",
+          "severity": "Medium",
+          "urls": [
+            "http://lists.opensuse.org/opensuse-security-announce/2020-07/msg00067.html",
+            "http://lists.opensuse.org/opensuse-security-announce/2020-07/msg00085.html",
+            "http://lists.opensuse.org/opensuse-security-announce/2020-11/msg00039.html",
+            "http://packetstormsecurity.com/files/162160/jQuery-1.0.3-Cross-Site-Scripting.html",
+            "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released",
+            "https://github.com/jquery/jquery/security/advisories/GHSA-jpcq-cgw6-v4j6",
+            "https://jquery.com/upgrade-guide/3.5/",
+            "https://lists.apache.org/thread.html/r0483ba0072783c2e1bfea613984bfb3c86e73ba8879d780dc1cc7d36%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r0593393ca1e97b1e7e098fe69d414d6bd0a467148e9138d07e86ebbb%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/r07ab379471fb15644bf7a92e4a98cbc7df3cf4e736abae0cc7625fe6%40%3Cdev.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/r094f435595582f6b5b24b66fedf80543aa8b1d57a3688fbcc21f06ec%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/r1fed19c860a0d470f2a3eded12795772c8651ff583ef951ddac4918c%40%3Cgitbox.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/r2c85121a47442036c7f8353a3724aa04f8ecdfda1819d311ba4f5330%40%3Cdev.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/r3702ede0ff83a29ba3eb418f6f11c473d6e3736baba981a8dbd9c9ef%40%3Cdev.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/r49ce4243b4738dd763caeb27fa8ad6afb426ae3e8c011ff00b8b1f48%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r4aadb98086ca72ed75391f54167522d91489a0d0ae25b12baa8fc7c5%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/r4dba67be3239b34861f1b9cfdf9dfb3a90272585dcce374112ed6e16%40%3Cdev.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/r54565a8f025c7c4f305355fdfd75b68eca442eebdb5f31c2e7d977ae%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r55f5e066cc7301e3630ce90bbbf8d28c82212ae1f2d4871012141494%40%3Cdev.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/r564585d97bc069137e64f521e68ba490c7c9c5b342df5d73c49a0760%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r6c4df3b33e625a44471009a172dabe6865faec8d8f21cac2303463b1%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/r6e97b37963926f6059ecc1e417721608723a807a76af41d4e9dbed49%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/r706cfbc098420f7113968cc377247ec3d1439bce42e679c11c609e2d%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r8f70b0f65d6bedf316ecd899371fd89e65333bc988f6326d2956735c%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r9006ad2abf81d02a0ef2126bab5177987e59095b7194a487c4ea247c%40%3Ccommits.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/r9c5fda81e4bca8daee305b4c03283dddb383ab8428a151d4cb0b3b15%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/r9e0bd31b7da9e7403478d22652b8760c946861f8ebd7bd750844898e%40%3Cdev.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/ra32c7103ded9041c7c1cb8c12c8d125a6b2f3f3270e2937ef8417fac%40%3Cgitbox.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/ra374bb0299b4aa3e04edde01ebc03ed6f90cf614dad40dd428ce8f72%40%3Cgitbox.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/ra3c9219fcb0b289e18e9ec5a5ebeaa5c17d6b79a201667675af6721c%40%3Cgitbox.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/ra406b3adfcffcb5ce8707013bdb7c35e3ffc2776a8a99022f15274c6%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/rab82dd040f302018c85bd07d33f5604113573514895ada523c3401d9%40%3Ccommits.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/radcb2aa874a79647789f3563fcbbceaf1045a029ee8806b59812a8ea%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/rb25c3bc7418ae75cba07988dafe1b6912f76a9dd7d94757878320d61%40%3Cgitbox.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/rb69b7d8217c1a6a2100247a5d06ce610836b31e3f5d73fc113ded8e7%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/rbb448222ba62c430e21e13f940be4cb5cfc373cd3bce56b48c0ffa67%40%3Cdev.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rd38b4185a797b324c8dd940d9213cf99fcdc2dbf1fc5a63ba7dee8c9%40%3Cissues.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/rda99599896c3667f2cc9e9d34c7b6ef5d2bbed1f4801e1d75a2b0679%40%3Ccommits.nifi.apache.org%3E",
+            "https://lists.apache.org/thread.html/re4ae96fa5c1a2fe71ccbb7b7ac1538bd0cb677be270a2bf6e2f8d108%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rede9cfaa756e050a3d83045008f84a62802fc68c17f2b4eabeaae5e4%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/ree3bd8ddb23df5fa4e372d11c226830ea3650056b1059f3965b3fce2%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rf0f8939596081d84be1ae6a91d6248b96a02d8388898c372ac807817%40%3Cdev.felix.apache.org%3E",
+            "https://lists.apache.org/thread.html/rf1ba79e564fe7efc56aef7c986106f1cf67a3427d08e997e088e7a93%40%3Cgitbox.hive.apache.org%3E",
+            "https://lists.apache.org/thread.html/rf661a90a15da8da5922ba6127b3f5f8194d4ebec8855d60a0dd13248%40%3Cdev.hive.apache.org%3E",
+            "https://lists.debian.org/debian-lts-announce/2021/03/msg00033.html",
+            "https://lists.debian.org/debian-lts-announce/2023/08/msg00040.html",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/AVKYXLWCLZBV2N7M46KYK4LVA5OXWPBY/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/QPN2L2XVQGUA2V5HNQJWHK3APSK3VN7K/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/SAPQVX3XDNPGFT26QAQ6AJIXZZBZ4CD4/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/SFP4UK4EGP4AFH2MWYJ5A5Z4I7XVFQ6B/",
+            "https://security.gentoo.org/glsa/202007-03",
+            "https://security.netapp.com/advisory/ntap-20200511-0006/",
+            "https://www.debian.org/security/2020/dsa-4693",
+            "https://www.drupal.org/sa-core-2020-002",
+            "https://www.oracle.com//security-alerts/cpujul2021.html",
+            "https://www.oracle.com/security-alerts/cpuApr2021.html",
+            "https://www.oracle.com/security-alerts/cpuapr2022.html",
+            "https://www.oracle.com/security-alerts/cpujan2021.html",
+            "https://www.oracle.com/security-alerts/cpujan2022.html",
+            "https://www.oracle.com/security-alerts/cpujul2020.html",
+            "https://www.oracle.com/security-alerts/cpujul2022.html",
+            "https://www.oracle.com/security-alerts/cpuoct2020.html",
+            "https://www.oracle.com/security-alerts/cpuoct2021.html",
+            "https://www.tenable.com/security/tns-2021-02",
+            "https://www.tenable.com/security/tns-2021-10",
+            "https://github.com/github/advisory-database/blob/99afa6fdeaf5d1d23e1021ff915a5e5dbc82c1f1/advisories/github-reviewed/2020/04/GHSA-jpcq-cgw6-v4j6/GHSA-jpcq-cgw6-v4j6.json#L20-L37",
+            "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2020-11023"
+          ],
+          "description": "In jQuery versions greater than or equal to 1.0.3 and before 3.5.0, passing HTML containing <option> elements from untrusted sources - even after sanitizing it - to one of jQuery's DOM manipulation methods (i.e. .html(), .append(), and others) may execute untrusted code. This problem is patched in jQuery 3.5.0.",
+          "cvss": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "version": "3.1",
+              "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "metrics": {
+                "baseScore": 6.1,
+                "exploitabilityScore": 2.9,
+                "impactScore": 2.8
+              },
+              "vendorMetadata": {}
+            },
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "version": "2.0",
+              "vector": "AV:N/AC:M/Au:N/C:N/I:P/A:N",
+              "metrics": {
+                "baseScore": 4.3,
+                "exploitabilityScore": 8.6,
+                "impactScore": 2.9
+              },
+              "vendorMetadata": {}
+            },
+            {
+              "source": "security-advisories@github.com",
+              "type": "Secondary",
+              "version": "3.1",
+              "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:L/A:N",
+              "metrics": {
+                "baseScore": 6.9,
+                "exploitabilityScore": 1.7,
+                "impactScore": 4.8
+              },
+              "vendorMetadata": {}
+            }
+          ],
+          "knownExploited": [
+            {
+              "cve": "CVE-2020-11023",
+              "vendorProject": "JQuery",
+              "product": "JQuery",
+              "dateAdded": "2025-01-23",
+              "requiredAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.",
+              "dueDate": "2025-02-13",
+              "knownRansomwareCampaignUse": "unknown",
+              "notes": "This vulnerability could affect an open-source component, third-party library, protocol, or proprietary implementation that could be used by different products. For more information, please see: https://github.com/jquery/jquery/security/advisories/GHSA-jpcq-cgw6-v4j6",
+              "urls": [
+                "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
+                "https://nvd.nist.gov/vuln/detail/CVE-2020-11023"
+              ],
+              "cwes": [
+                "CWE-79"
+              ]
+            }
+          ],
+          "epss": [
+            {
+              "cve": "CVE-2020-11023",
+              "epss": 0.8383,
+              "percentile": 0.99668,
+              "date": "2026-08-19"
+            }
+          ],
+          "cwes": [
+            {
+              "cve": "CVE-2020-11023",
+              "cwe": "CWE-79",
+              "source": "security-advisories@github.com",
+              "type": "Secondary"
+            },
+            {
+              "cve": "CVE-2020-11023",
+              "cwe": "CWE-79",
+              "source": "nvd@nist.gov",
+              "type": "Primary"
+            }
+          ]
+        }
+      ],
+      "matchDetails": [
+        {
+          "type": "exact-direct-match",
+          "matcher": "javascript-matcher",
+          "searchedBy": {
+            "language": "javascript",
+            "namespace": "github:language:javascript",
+            "package": {
+              "name": "jquery",
+              "version": "3.3.1"
+            }
+          },
+          "found": {
+            "vulnerabilityID": "GHSA-jpcq-cgw6-v4j6",
+            "versionConstraint": ">=1.0.3,<3.5.0 (semantic)"
+          },
+          "fix": {
+            "suggestedVersion": "3.5.0"
+          }
+        }
+      ],
+      "artifact": {
+        "id": "pkg:npm/jquery@3.3.1?package-id=887ae2aa2422d73d",
+        "name": "jquery",
+        "version": "3.3.1",
+        "type": "npm",
+        "locations": [
+          {
+            "path": "/package-lock.json",
+            "accessPath": ""
+          }
+        ],
+        "language": "javascript",
+        "licenses": [],
+        "cpes": [
+          "cpe:2.3:a:jquery:jquery:3.3.1:*:*:*:*:node.js:*:*"
+        ],
+        "purl": "pkg:npm/jquery@3.3.1",
+        "upstreams": []
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "GHSA-gxr4-xjj5-5px2",
+        "dataSource": "https://github.com/advisories/GHSA-gxr4-xjj5-5px2",
+        "namespace": "github:language:javascript",
+        "severity": "Medium",
+        "urls": [
+          "https://github.com/jquery/jquery/security/advisories/GHSA-gxr4-xjj5-5px2",
+          "https://github.com/jquery/jquery/commit/1d61fd9407e6fbe82fe55cb0b938307aa0791f77",
+          "https://nvd.nist.gov/vuln/detail/CVE-2020-11022",
+          "https://www.drupal.org/sa-core-2020-002",
+          "https://www.debian.org/security/2020/dsa-4693",
+          "https://www.oracle.com/security-alerts/cpujul2020.html",
+          "https://security.gentoo.org/glsa/202007-03",
+          "https://lists.apache.org/thread.html/rdf44341677cf7eec7e9aa96dcf3f37ed709544863d619cca8c36f133@%3Ccommits.airflow.apache.org%3E",
+          "https://www.oracle.com/security-alerts/cpuoct2020.html",
+          "https://lists.apache.org/thread.html/r706cfbc098420f7113968cc377247ec3d1439bce42e679c11c609e2d@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rbb448222ba62c430e21e13f940be4cb5cfc373cd3bce56b48c0ffa67@%3Cdev.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r49ce4243b4738dd763caeb27fa8ad6afb426ae3e8c011ff00b8b1f48@%3Cissues.flink.apache.org%3E",
+          "https://www.tenable.com/security/tns-2020-10",
+          "https://www.tenable.com/security/tns-2020-11",
+          "https://www.oracle.com/security-alerts/cpujan2021.html",
+          "https://lists.apache.org/thread.html/r564585d97bc069137e64f521e68ba490c7c9c5b342df5d73c49a0760@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r8f70b0f65d6bedf316ecd899371fd89e65333bc988f6326d2956735c@%3Cissues.flink.apache.org%3E",
+          "https://www.tenable.com/security/tns-2021-02",
+          "https://lists.debian.org/debian-lts-announce/2021/03/msg00033.html",
+          "https://lists.apache.org/thread.html/rede9cfaa756e050a3d83045008f84a62802fc68c17f2b4eabeaae5e4@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/ree3bd8ddb23df5fa4e372d11c226830ea3650056b1059f3965b3fce2@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r54565a8f025c7c4f305355fdfd75b68eca442eebdb5f31c2e7d977ae@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/re4ae96fa5c1a2fe71ccbb7b7ac1538bd0cb677be270a2bf6e2f8d108@%3Cissues.flink.apache.org%3E",
+          "https://www.tenable.com/security/tns-2021-10",
+          "https://www.oracle.com/security-alerts/cpuApr2021.html",
+          "https://www.oracle.com//security-alerts/cpujul2021.html",
+          "https://www.oracle.com/security-alerts/cpuoct2021.html",
+          "https://lists.apache.org/thread.html/r0483ba0072783c2e1bfea613984bfb3c86e73ba8879d780dc1cc7d36@%3Cissues.flink.apache.org%3E",
+          "https://github.com/jquery/jquery/releases/tag/3.5.0",
+          "https://www.oracle.com/security-alerts/cpujan2022.html",
+          "https://www.oracle.com/security-alerts/cpuapr2022.html",
+          "https://www.oracle.com/security-alerts/cpujul2022.html",
+          "https://lists.debian.org/debian-lts-announce/2023/08/msg00040.html",
+          "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/jquery-rails/CVE-2020-11022.yml",
+          "https://github.com/maximebf/php-debugbar/issues/447",
+          "https://github.com/maximebf/php-debugbar/commit/847216e60544258c881f2733d699bbcfeefac0fc",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/SFP4UK4EGP4AFH2MWYJ5A5Z4I7XVFQ6B",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/VOE7P7APPRQKD4FGNHBKJPDY6FFCOH3W",
+          "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released",
+          "https://jquery.com/upgrade-guide/3.5",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/AVKYXLWCLZBV2N7M46KYK4LVA5OXWPBY",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/QPN2L2XVQGUA2V5HNQJWHK3APSK3VN7K",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/SAPQVX3XDNPGFT26QAQ6AJIXZZBZ4CD4",
+          "https://lists.opensuse.org/opensuse-security-announce/2020-07/msg00067.html",
+          "https://lists.opensuse.org/opensuse-security-announce/2020-07/msg00085.html",
+          "https://lists.opensuse.org/opensuse-security-announce/2020-11/msg00039.html",
+          "https://packetstormsecurity.com/files/162159/jQuery-1.2-Cross-Site-Scripting.html",
+          "http://security.netapp.com/advisory/ntap-20200511-0006",
+          "https://github.com/Athlon1600/youtube-downloader/releases/tag/v4.0.1"
+        ],
+        "description": "Potential XSS vulnerability in jQuery",
+        "cvss": [
+          {
+            "type": "Secondary",
+            "version": "3.1",
+            "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:L/A:N",
+            "metrics": {
+              "baseScore": 6.9,
+              "exploitabilityScore": 1.7,
+              "impactScore": 4.8
+            },
+            "vendorMetadata": {}
+          }
+        ],
+        "epss": [
+          {
+            "cve": "CVE-2020-11022",
+            "epss": 0.99019,
+            "percentile": 0.99927,
+            "date": "2026-08-19"
+          }
+        ],
+        "cwes": [
+          {
+            "cve": "CVE-2020-11022",
+            "cwe": "CWE-79",
+            "source": "security-advisories@github.com",
+            "type": "Secondary"
+          },
+          {
+            "cve": "CVE-2020-11022",
+            "cwe": "CWE-79",
+            "source": "nvd@nist.gov",
+            "type": "Primary"
+          }
+        ],
+        "fix": {
+          "versions": [
+            "3.5.0"
+          ],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "3.5.0",
+              "date": "2020-07-28",
+              "kind": "first-observed"
+            }
+          ]
+        },
+        "advisories": [],
+        "risk": 58.916305
+      },
+      "relatedVulnerabilities": [
+        {
+          "id": "CVE-2020-11022",
+          "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2020-11022",
+          "namespace": "nvd:cpe",
+          "severity": "Medium",
+          "urls": [
+            "http://security.netapp.com/advisory/ntap-20200511-0006",
+            "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released",
+            "https://github.com/jquery/jquery/commit/1d61fd9407e6fbe82fe55cb0b938307aa0791f77",
+            "https://github.com/jquery/jquery/releases/tag/3.5.0",
+            "https://github.com/jquery/jquery/security/advisories/GHSA-gxr4-xjj5-5px2",
+            "https://github.com/maximebf/php-debugbar/commit/847216e60544258c881f2733d699bbcfeefac0fc",
+            "https://github.com/maximebf/php-debugbar/issues/447",
+            "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/jquery-rails/CVE-2020-11022.yml",
+            "https://jquery.com/upgrade-guide/3.5",
+            "https://lists.apache.org/thread.html/r0483ba0072783c2e1bfea613984bfb3c86e73ba8879d780dc1cc7d36@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r49ce4243b4738dd763caeb27fa8ad6afb426ae3e8c011ff00b8b1f48@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r54565a8f025c7c4f305355fdfd75b68eca442eebdb5f31c2e7d977ae@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r564585d97bc069137e64f521e68ba490c7c9c5b342df5d73c49a0760@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r706cfbc098420f7113968cc377247ec3d1439bce42e679c11c609e2d@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r8f70b0f65d6bedf316ecd899371fd89e65333bc988f6326d2956735c@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rbb448222ba62c430e21e13f940be4cb5cfc373cd3bce56b48c0ffa67@%3Cdev.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rdf44341677cf7eec7e9aa96dcf3f37ed709544863d619cca8c36f133@%3Ccommits.airflow.apache.org%3E",
+            "https://lists.apache.org/thread.html/re4ae96fa5c1a2fe71ccbb7b7ac1538bd0cb677be270a2bf6e2f8d108@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rede9cfaa756e050a3d83045008f84a62802fc68c17f2b4eabeaae5e4@%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/ree3bd8ddb23df5fa4e372d11c226830ea3650056b1059f3965b3fce2@%3Cissues.flink.apache.org%3E",
+            "https://lists.debian.org/debian-lts-announce/2021/03/msg00033.html",
+            "https://lists.debian.org/debian-lts-announce/2023/08/msg00040.html",
+            "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/AVKYXLWCLZBV2N7M46KYK4LVA5OXWPBY",
+            "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/QPN2L2XVQGUA2V5HNQJWHK3APSK3VN7K",
+            "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/SAPQVX3XDNPGFT26QAQ6AJIXZZBZ4CD4",
+            "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/SFP4UK4EGP4AFH2MWYJ5A5Z4I7XVFQ6B",
+            "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/VOE7P7APPRQKD4FGNHBKJPDY6FFCOH3W",
+            "https://lists.opensuse.org/opensuse-security-announce/2020-07/msg00067.html",
+            "https://lists.opensuse.org/opensuse-security-announce/2020-07/msg00085.html",
+            "https://lists.opensuse.org/opensuse-security-announce/2020-11/msg00039.html",
+            "https://packetstormsecurity.com/files/162159/jQuery-1.2-Cross-Site-Scripting.html",
+            "https://security.gentoo.org/glsa/202007-03",
+            "https://www.debian.org/security/2020/dsa-4693",
+            "https://www.drupal.org/sa-core-2020-002",
+            "https://www.oracle.com/security-alerts/cpuApr2021.html",
+            "https://www.oracle.com/security-alerts/cpuapr2022.html",
+            "https://www.oracle.com/security-alerts/cpujan2021.html",
+            "https://www.oracle.com/security-alerts/cpujan2022.html",
+            "https://www.oracle.com/security-alerts/cpujul2020.html",
+            "https://www.oracle.com/security-alerts/cpujul2021.html",
+            "https://www.oracle.com/security-alerts/cpujul2022.html",
+            "https://www.oracle.com/security-alerts/cpuoct2020.html",
+            "https://www.oracle.com/security-alerts/cpuoct2021.html",
+            "https://www.tenable.com/security/tns-2020-10",
+            "https://www.tenable.com/security/tns-2020-11",
+            "https://www.tenable.com/security/tns-2021-02",
+            "https://www.tenable.com/security/tns-2021-10",
+            "http://lists.opensuse.org/opensuse-security-announce/2020-07/msg00067.html",
+            "http://lists.opensuse.org/opensuse-security-announce/2020-07/msg00085.html",
+            "http://lists.opensuse.org/opensuse-security-announce/2020-11/msg00039.html",
+            "http://packetstormsecurity.com/files/162159/jQuery-1.2-Cross-Site-Scripting.html",
+            "https://blog.jquery.com/2020/04/10/jquery-3-5-0-released/",
+            "https://jquery.com/upgrade-guide/3.5/",
+            "https://lists.apache.org/thread.html/r0483ba0072783c2e1bfea613984bfb3c86e73ba8879d780dc1cc7d36%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r49ce4243b4738dd763caeb27fa8ad6afb426ae3e8c011ff00b8b1f48%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r54565a8f025c7c4f305355fdfd75b68eca442eebdb5f31c2e7d977ae%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r564585d97bc069137e64f521e68ba490c7c9c5b342df5d73c49a0760%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r706cfbc098420f7113968cc377247ec3d1439bce42e679c11c609e2d%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r8f70b0f65d6bedf316ecd899371fd89e65333bc988f6326d2956735c%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rbb448222ba62c430e21e13f940be4cb5cfc373cd3bce56b48c0ffa67%40%3Cdev.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rdf44341677cf7eec7e9aa96dcf3f37ed709544863d619cca8c36f133%40%3Ccommits.airflow.apache.org%3E",
+            "https://lists.apache.org/thread.html/re4ae96fa5c1a2fe71ccbb7b7ac1538bd0cb677be270a2bf6e2f8d108%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rede9cfaa756e050a3d83045008f84a62802fc68c17f2b4eabeaae5e4%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/ree3bd8ddb23df5fa4e372d11c226830ea3650056b1059f3965b3fce2%40%3Cissues.flink.apache.org%3E",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/AVKYXLWCLZBV2N7M46KYK4LVA5OXWPBY/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/QPN2L2XVQGUA2V5HNQJWHK3APSK3VN7K/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/SAPQVX3XDNPGFT26QAQ6AJIXZZBZ4CD4/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/SFP4UK4EGP4AFH2MWYJ5A5Z4I7XVFQ6B/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/VOE7P7APPRQKD4FGNHBKJPDY6FFCOH3W/",
+            "https://security.netapp.com/advisory/ntap-20200511-0006/",
+            "https://www.oracle.com//security-alerts/cpujul2021.html"
+          ],
+          "description": "In jQuery starting with 1.12.0 and before 3.5.0, passing HTML from untrusted sources - even after sanitizing it - to one of jQuery's DOM manipulation methods (i.e. .html(), .append(), and others) may execute untrusted code. This problem is patched in jQuery 3.5.0.",
+          "cvss": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "version": "3.1",
+              "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "metrics": {
+                "baseScore": 6.1,
+                "exploitabilityScore": 2.9,
+                "impactScore": 2.8
+              },
+              "vendorMetadata": {}
+            },
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "version": "2.0",
+              "vector": "AV:N/AC:M/Au:N/C:N/I:P/A:N",
+              "metrics": {
+                "baseScore": 4.3,
+                "exploitabilityScore": 8.6,
+                "impactScore": 2.9
+              },
+              "vendorMetadata": {}
+            },
+            {
+              "source": "security-advisories@github.com",
+              "type": "Secondary",
+              "version": "3.1",
+              "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:L/A:N",
+              "metrics": {
+                "baseScore": 6.9,
+                "exploitabilityScore": 1.7,
+                "impactScore": 4.8
+              },
+              "vendorMetadata": {}
+            }
+          ],
+          "epss": [
+            {
+              "cve": "CVE-2020-11022",
+              "epss": 0.99019,
+              "percentile": 0.99927,
+              "date": "2026-08-19"
+            }
+          ],
+          "cwes": [
+            {
+              "cve": "CVE-2020-11022",
+              "cwe": "CWE-79",
+              "source": "security-advisories@github.com",
+              "type": "Secondary"
+            },
+            {
+              "cve": "CVE-2020-11022",
+              "cwe": "CWE-79",
+              "source": "nvd@nist.gov",
+              "type": "Primary"
+            }
+          ]
+        }
+      ],
+      "matchDetails": [
+        {
+          "type": "exact-direct-match",
+          "matcher": "javascript-matcher",
+          "searchedBy": {
+            "language": "javascript",
+            "namespace": "github:language:javascript",
+            "package": {
+              "name": "jquery",
+              "version": "3.3.1"
+            }
+          },
+          "found": {
+            "vulnerabilityID": "GHSA-gxr4-xjj5-5px2",
+            "versionConstraint": ">=1.12.0,<3.5.0 (semantic)"
+          },
+          "fix": {
+            "suggestedVersion": "3.5.0"
+          }
+        }
+      ],
+      "artifact": {
+        "id": "pkg:npm/jquery@3.3.1?package-id=887ae2aa2422d73d",
+        "name": "jquery",
+        "version": "3.3.1",
+        "type": "npm",
+        "locations": [
+          {
+            "path": "/package-lock.json",
+            "accessPath": ""
+          }
+        ],
+        "language": "javascript",
+        "licenses": [],
+        "cpes": [
+          "cpe:2.3:a:jquery:jquery:3.3.1:*:*:*:*:node.js:*:*"
+        ],
+        "purl": "pkg:npm/jquery@3.3.1",
+        "upstreams": []
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "GHSA-6c3j-c64m-qhgq",
+        "dataSource": "https://github.com/advisories/GHSA-6c3j-c64m-qhgq",
+        "namespace": "github:language:javascript",
+        "severity": "Medium",
+        "urls": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2019-11358",
+          "https://backdropcms.org/security/backdrop-sa-core-2019-009",
+          "https://github.com/jquery/jquery/commit/753d591aea698e57d6db58c9f722cd0808619b1b",
+          "https://github.com/jquery/jquery/pull/4333",
+          "https://snyk.io/vuln/SNYK-JS-JQUERY-174006",
+          "https://www.drupal.org/sa-core-2019-006",
+          "https://access.redhat.com/errata/RHSA-2019:3023",
+          "https://access.redhat.com/errata/RHSA-2019:3024",
+          "https://lists.apache.org/thread.html/08720ef215ee7ab3386c05a1a90a7d1c852bf0706f176a7816bf65fc@%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/519eb0fd45642dcecd9ff74cb3e71c20a4753f7d82e2f07864b5108f@%3Cdev.drill.apache.org%3E",
+          "https://lists.apache.org/thread.html/5928aa293e39d248266472210c50f176cac1535220f2486e6a7fa844@%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/6097cdbd6f0a337bedd9bb5cc441b2d525ff002a96531de367e4259f@%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/88fb0362fd40e5b605ea8149f63241537b8b6fb5bfa315391fc5cbb7@%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/b0656d359c7d40ec9f39c8cc61bca66802ef9a2a12ee199f5b0c1442@%3Cdev.drill.apache.org%3E",
+          "https://lists.apache.org/thread.html/b736d0784cf02f5a30fbb4c5902762a15ad6d47e17e2c5a17b7d6205@%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/ba79cf1658741e9f146e4c59b50aee56656ea95d841d358d006c18b6@%3Ccommits.roller.apache.org%3E",
+          "https://lists.apache.org/thread.html/bcce5a9c532b386c68dab2f6b3ce8b0cc9b950ec551766e76391caa3@%3Ccommits.nifi.apache.org%3E",
+          "https://lists.apache.org/thread.html/f9bc3e55f4e28d1dcd1a69aae6d53e609a758e34d2869b4d798e13cc@%3Cissues.drill.apache.org%3E",
+          "https://lists.apache.org/thread.html/r38f0d1aa3c923c22977fe7376508f030f22e22c1379fbb155bf29766@%3Cdev.syncope.apache.org%3E",
+          "https://lists.apache.org/thread.html/r7aac081cbddb6baa24b75e74abf0929bf309b176755a53e3ed810355@%3Cdev.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rac25da84ecdcd36f6de5ad0d255f4e967209bbbebddb285e231da37d@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rca37935d661f4689cb4119f1b3b224413b22be161b678e6e6ce0c69b@%3Ccommits.nifi.apache.org%3E",
+          "https://lists.debian.org/debian-lts-announce/2019/05/msg00006.html",
+          "https://lists.debian.org/debian-lts-announce/2019/05/msg00029.html",
+          "https://lists.debian.org/debian-lts-announce/2020/02/msg00024.html",
+          "https://www.debian.org/security/2019/dsa-4434",
+          "https://www.debian.org/security/2019/dsa-4460",
+          "https://www.synology.com/security/advisory/Synology_SA_19_19",
+          "https://www.tenable.com/security/tns-2019-08",
+          "https://www.tenable.com/security/tns-2020-02",
+          "http://lists.opensuse.org/opensuse-security-announce/2019-08/msg00006.html",
+          "http://lists.opensuse.org/opensuse-security-announce/2019-08/msg00025.html",
+          "http://packetstormsecurity.com/files/152787/dotCMS-5.1.1-Vulnerable-Dependencies.html",
+          "http://packetstormsecurity.com/files/153237/RetireJS-CORS-Issue-Script-Execution.html",
+          "http://packetstormsecurity.com/files/156743/OctoberCMS-Insecure-Dependencies.html",
+          "http://www.openwall.com/lists/oss-security/2019/06/03/2",
+          "https://lists.apache.org/thread.html/r2041a75d3fc09dec55adfd95d598b38d22715303f65c997c054844c9@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r2baacab6e0acb5a2092eb46ae04fd6c3e8277b4fd79b1ffb7f3254fa@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r41b5bfe009c845f67d4f68948cc9419ac2d62e287804aafd72892b08@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r7e8ebccb7c022e41295f6fdb7b971209b83702339f872ddd8cf8bf73@%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r7d64895cc4dff84d0becfc572b20c0e4bf9bfa7b10c6f5f73e783734@%3Cdev.storm.apache.org%3E",
+          "https://kb.pulsesecure.net/articles/Pulse_Security_Advisories/SA44601",
+          "https://github.com/rails/jquery-rails/blob/master/CHANGELOG.md#434",
+          "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/jquery-rails/CVE-2019-11358.yml",
+          "https://security.snyk.io/vuln/SNYK-DOTNET-JQUERY-450226",
+          "https://access.redhat.com/errata/RHBA-2019:1570",
+          "https://access.redhat.com/errata/RHSA-2019:1456",
+          "https://access.redhat.com/errata/RHSA-2019:2587",
+          "https://seclists.org/bugtraq/2019/Apr/32",
+          "https://seclists.org/bugtraq/2019/Jun/12",
+          "https://seclists.org/bugtraq/2019/May/18",
+          "https://www.oracle.com//security-alerts/cpujul2021.html",
+          "https://www.oracle.com/security-alerts/cpuApr2021.html",
+          "https://www.oracle.com/security-alerts/cpuapr2020.html",
+          "https://www.oracle.com/security-alerts/cpujan2020.html",
+          "https://www.oracle.com/security-alerts/cpujan2021.html",
+          "https://www.oracle.com/security-alerts/cpujan2022.html",
+          "https://www.oracle.com/security-alerts/cpujul2020.html",
+          "https://www.oracle.com/security-alerts/cpuoct2020.html",
+          "https://www.oracle.com/security-alerts/cpuoct2021.html",
+          "https://www.oracle.com/technetwork/security-advisory/cpujul2019-5072835.html",
+          "https://www.oracle.com/technetwork/security-advisory/cpuoct2019-5072832.html",
+          "http://seclists.org/fulldisclosure/2019/May/10",
+          "http://seclists.org/fulldisclosure/2019/May/11",
+          "http://seclists.org/fulldisclosure/2019/May/13",
+          "https://supportportal.juniper.net/s/article/2021-07-Security-Bulletin-Junos-OS-Multiple-J-Web-vulnerabilities-resolved-in-Junos-OS-21-2R1",
+          "https://web.archive.org/web/20190824065237/http://www.securityfocus.com/bid/108023",
+          "https://github.com/django/django/commit/34ec52269ade54af31a021b12969913129571a3f",
+          "https://github.com/django/django/commit/95649bc08547a878cebfa1d019edec8cb1b80829",
+          "https://github.com/django/django/commit/baaf187a4e354bf3976c51e2c83a0d2f8ee6e6ad",
+          "https://lists.debian.org/debian-lts-announce/2023/08/msg00040.html",
+          "http://www.securityfocus.com/bid/108023",
+          "https://blog.jquery.com/2019/04/10/jquery-3-4-0-released",
+          "https://lists.apache.org/thread.html/08720ef215ee7ab3386c05a1a90a7d1c852bf0706f176a7816bf65fc%40%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/519eb0fd45642dcecd9ff74cb3e71c20a4753f7d82e2f07864b5108f%40%3Cdev.drill.apache.org%3E",
+          "https://lists.apache.org/thread.html/5928aa293e39d248266472210c50f176cac1535220f2486e6a7fa844%40%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/6097cdbd6f0a337bedd9bb5cc441b2d525ff002a96531de367e4259f%40%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/88fb0362fd40e5b605ea8149f63241537b8b6fb5bfa315391fc5cbb7%40%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/b0656d359c7d40ec9f39c8cc61bca66802ef9a2a12ee199f5b0c1442%40%3Cdev.drill.apache.org%3E",
+          "https://lists.apache.org/thread.html/b736d0784cf02f5a30fbb4c5902762a15ad6d47e17e2c5a17b7d6205%40%3Ccommits.airflow.apache.org%3E",
+          "https://lists.apache.org/thread.html/ba79cf1658741e9f146e4c59b50aee56656ea95d841d358d006c18b6%40%3Ccommits.roller.apache.org%3E",
+          "https://lists.apache.org/thread.html/bcce5a9c532b386c68dab2f6b3ce8b0cc9b950ec551766e76391caa3%40%3Ccommits.nifi.apache.org%3E",
+          "https://lists.apache.org/thread.html/f9bc3e55f4e28d1dcd1a69aae6d53e609a758e34d2869b4d798e13cc%40%3Cissues.drill.apache.org%3E",
+          "https://lists.apache.org/thread.html/r2041a75d3fc09dec55adfd95d598b38d22715303f65c997c054844c9%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r2baacab6e0acb5a2092eb46ae04fd6c3e8277b4fd79b1ffb7f3254fa%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r38f0d1aa3c923c22977fe7376508f030f22e22c1379fbb155bf29766%40%3Cdev.syncope.apache.org%3E",
+          "https://lists.apache.org/thread.html/r41b5bfe009c845f67d4f68948cc9419ac2d62e287804aafd72892b08%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r7aac081cbddb6baa24b75e74abf0929bf309b176755a53e3ed810355%40%3Cdev.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/r7d64895cc4dff84d0becfc572b20c0e4bf9bfa7b10c6f5f73e783734%40%3Cdev.storm.apache.org%3E",
+          "https://lists.apache.org/thread.html/r7e8ebccb7c022e41295f6fdb7b971209b83702339f872ddd8cf8bf73%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rac25da84ecdcd36f6de5ad0d255f4e967209bbbebddb285e231da37d%40%3Cissues.flink.apache.org%3E",
+          "https://lists.apache.org/thread.html/rca37935d661f4689cb4119f1b3b224413b22be161b678e6e6ce0c69b%40%3Ccommits.nifi.apache.org%3E",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/4UOAZIFCSZ3ENEFOR5IXX6NFAD3HV7FA",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/5IABSKTYZ5JUGL735UKGXL5YPRYOPUYI",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/KYH3OAGR2RTCHRA5NOKX2TES7SNQMWGO",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/QV3PKZC3PQCO3273HAT76PAQZFBEO4KP",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/RLXRX23725JL366CNZGJZ7AQQB7LHQ6F",
+          "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/WZW27UCJ5CYFL4KFFFMYMIBNMIU2ALG5",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/4UOAZIFCSZ3ENEFOR5IXX6NFAD3HV7FA",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/5IABSKTYZ5JUGL735UKGXL5YPRYOPUYI",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/KYH3OAGR2RTCHRA5NOKX2TES7SNQMWGO",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/QV3PKZC3PQCO3273HAT76PAQZFBEO4KP",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/RLXRX23725JL366CNZGJZ7AQQB7LHQ6F",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/WZW27UCJ5CYFL4KFFFMYMIBNMIU2ALG5",
+          "https://security.netapp.com/advisory/ntap-20190919-0001",
+          "https://www.djangoproject.com/weblog/2019/jun/03/security-releases",
+          "https://www.privacy-wise.com/mitigating-cve-2019-11358-in-old-versions-of-jquery",
+          "https://github.com/maximebf/php-debugbar/issues/447",
+          "https://github.com/maximebf/php-debugbar/commit/847216e60544258c881f2733d699bbcfeefac0fc"
+        ],
+        "description": "XSS in jQuery as used in Drupal, Backdrop CMS, and other products",
+        "cvss": [
+          {
+            "type": "Secondary",
+            "version": "3.1",
+            "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+            "metrics": {
+              "baseScore": 6.1,
+              "exploitabilityScore": 2.9,
+              "impactScore": 2.8
+            },
+            "vendorMetadata": {}
+          }
+        ],
+        "epss": [
+          {
+            "cve": "CVE-2019-11358",
+            "epss": 0.87218,
+            "percentile": 0.99737,
+            "date": "2026-08-19"
+          }
+        ],
+        "cwes": [
+          {
+            "cve": "CVE-2019-11358",
+            "cwe": "CWE-1321",
+            "source": "nvd@nist.gov",
+            "type": "Primary"
+          }
+        ],
+        "fix": {
+          "versions": [
+            "3.4.0"
+          ],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "3.4.0",
+              "date": "2020-07-28",
+              "kind": "first-observed"
+            }
+          ]
+        },
+        "advisories": [],
+        "risk": 48.405989999999996
+      },
+      "relatedVulnerabilities": [
+        {
+          "id": "CVE-2019-11358",
+          "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2019-11358",
+          "namespace": "nvd:cpe",
+          "severity": "Medium",
+          "urls": [
+            "http://lists.opensuse.org/opensuse-security-announce/2019-08/msg00006.html",
+            "http://lists.opensuse.org/opensuse-security-announce/2019-08/msg00025.html",
+            "http://packetstormsecurity.com/files/152787/dotCMS-5.1.1-Vulnerable-Dependencies.html",
+            "http://packetstormsecurity.com/files/153237/RetireJS-CORS-Issue-Script-Execution.html",
+            "http://packetstormsecurity.com/files/156743/OctoberCMS-Insecure-Dependencies.html",
+            "http://seclists.org/fulldisclosure/2019/May/10",
+            "http://seclists.org/fulldisclosure/2019/May/11",
+            "http://seclists.org/fulldisclosure/2019/May/13",
+            "http://www.openwall.com/lists/oss-security/2019/06/03/2",
+            "http://www.securityfocus.com/bid/108023",
+            "https://access.redhat.com/errata/RHBA-2019:1570",
+            "https://access.redhat.com/errata/RHSA-2019:1456",
+            "https://access.redhat.com/errata/RHSA-2019:2587",
+            "https://access.redhat.com/errata/RHSA-2019:3023",
+            "https://access.redhat.com/errata/RHSA-2019:3024",
+            "https://backdropcms.org/security/backdrop-sa-core-2019-009",
+            "https://blog.jquery.com/2019/04/10/jquery-3-4-0-released/",
+            "https://github.com/jquery/jquery/commit/753d591aea698e57d6db58c9f722cd0808619b1b",
+            "https://github.com/jquery/jquery/pull/4333",
+            "https://kb.pulsesecure.net/articles/Pulse_Security_Advisories/SA44601",
+            "https://lists.apache.org/thread.html/08720ef215ee7ab3386c05a1a90a7d1c852bf0706f176a7816bf65fc%40%3Ccommits.airflow.apache.org%3E",
+            "https://lists.apache.org/thread.html/519eb0fd45642dcecd9ff74cb3e71c20a4753f7d82e2f07864b5108f%40%3Cdev.drill.apache.org%3E",
+            "https://lists.apache.org/thread.html/5928aa293e39d248266472210c50f176cac1535220f2486e6a7fa844%40%3Ccommits.airflow.apache.org%3E",
+            "https://lists.apache.org/thread.html/6097cdbd6f0a337bedd9bb5cc441b2d525ff002a96531de367e4259f%40%3Ccommits.airflow.apache.org%3E",
+            "https://lists.apache.org/thread.html/88fb0362fd40e5b605ea8149f63241537b8b6fb5bfa315391fc5cbb7%40%3Ccommits.airflow.apache.org%3E",
+            "https://lists.apache.org/thread.html/b0656d359c7d40ec9f39c8cc61bca66802ef9a2a12ee199f5b0c1442%40%3Cdev.drill.apache.org%3E",
+            "https://lists.apache.org/thread.html/b736d0784cf02f5a30fbb4c5902762a15ad6d47e17e2c5a17b7d6205%40%3Ccommits.airflow.apache.org%3E",
+            "https://lists.apache.org/thread.html/ba79cf1658741e9f146e4c59b50aee56656ea95d841d358d006c18b6%40%3Ccommits.roller.apache.org%3E",
+            "https://lists.apache.org/thread.html/bcce5a9c532b386c68dab2f6b3ce8b0cc9b950ec551766e76391caa3%40%3Ccommits.nifi.apache.org%3E",
+            "https://lists.apache.org/thread.html/f9bc3e55f4e28d1dcd1a69aae6d53e609a758e34d2869b4d798e13cc%40%3Cissues.drill.apache.org%3E",
+            "https://lists.apache.org/thread.html/r2041a75d3fc09dec55adfd95d598b38d22715303f65c997c054844c9%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r2baacab6e0acb5a2092eb46ae04fd6c3e8277b4fd79b1ffb7f3254fa%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r38f0d1aa3c923c22977fe7376508f030f22e22c1379fbb155bf29766%40%3Cdev.syncope.apache.org%3E",
+            "https://lists.apache.org/thread.html/r41b5bfe009c845f67d4f68948cc9419ac2d62e287804aafd72892b08%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r7aac081cbddb6baa24b75e74abf0929bf309b176755a53e3ed810355%40%3Cdev.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/r7d64895cc4dff84d0becfc572b20c0e4bf9bfa7b10c6f5f73e783734%40%3Cdev.storm.apache.org%3E",
+            "https://lists.apache.org/thread.html/r7e8ebccb7c022e41295f6fdb7b971209b83702339f872ddd8cf8bf73%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rac25da84ecdcd36f6de5ad0d255f4e967209bbbebddb285e231da37d%40%3Cissues.flink.apache.org%3E",
+            "https://lists.apache.org/thread.html/rca37935d661f4689cb4119f1b3b224413b22be161b678e6e6ce0c69b%40%3Ccommits.nifi.apache.org%3E",
+            "https://lists.debian.org/debian-lts-announce/2019/05/msg00006.html",
+            "https://lists.debian.org/debian-lts-announce/2019/05/msg00029.html",
+            "https://lists.debian.org/debian-lts-announce/2020/02/msg00024.html",
+            "https://lists.debian.org/debian-lts-announce/2023/08/msg00040.html",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/4UOAZIFCSZ3ENEFOR5IXX6NFAD3HV7FA/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/5IABSKTYZ5JUGL735UKGXL5YPRYOPUYI/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/KYH3OAGR2RTCHRA5NOKX2TES7SNQMWGO/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/QV3PKZC3PQCO3273HAT76PAQZFBEO4KP/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/RLXRX23725JL366CNZGJZ7AQQB7LHQ6F/",
+            "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/WZW27UCJ5CYFL4KFFFMYMIBNMIU2ALG5/",
+            "https://seclists.org/bugtraq/2019/Apr/32",
+            "https://seclists.org/bugtraq/2019/Jun/12",
+            "https://seclists.org/bugtraq/2019/May/18",
+            "https://security.netapp.com/advisory/ntap-20190919-0001/",
+            "https://snyk.io/vuln/SNYK-JS-JQUERY-174006",
+            "https://supportportal.juniper.net/s/article/2021-07-Security-Bulletin-Junos-OS-Multiple-J-Web-vulnerabilities-resolved-in-Junos-OS-21-2R1",
+            "https://www.debian.org/security/2019/dsa-4434",
+            "https://www.debian.org/security/2019/dsa-4460",
+            "https://www.drupal.org/sa-core-2019-006",
+            "https://www.oracle.com//security-alerts/cpujul2021.html",
+            "https://www.oracle.com/security-alerts/cpuApr2021.html",
+            "https://www.oracle.com/security-alerts/cpuapr2020.html",
+            "https://www.oracle.com/security-alerts/cpujan2020.html",
+            "https://www.oracle.com/security-alerts/cpujan2021.html",
+            "https://www.oracle.com/security-alerts/cpujan2022.html",
+            "https://www.oracle.com/security-alerts/cpujul2020.html",
+            "https://www.oracle.com/security-alerts/cpuoct2020.html",
+            "https://www.oracle.com/security-alerts/cpuoct2021.html",
+            "https://www.oracle.com/technetwork/security-advisory/cpujul2019-5072835.html",
+            "https://www.oracle.com/technetwork/security-advisory/cpuoct2019-5072832.html",
+            "https://www.privacy-wise.com/mitigating-cve-2019-11358-in-old-versions-of-jquery/",
+            "https://www.synology.com/security/advisory/Synology_SA_19_19",
+            "https://www.tenable.com/security/tns-2019-08",
+            "https://www.tenable.com/security/tns-2020-02"
+          ],
+          "description": "jQuery before 3.4.0, as used in Drupal, Backdrop CMS, and other products, mishandles jQuery.extend(true, {}, ...) because of Object.prototype pollution. If an unsanitized source object contained an enumerable __proto__ property, it could extend the native Object.prototype.",
+          "cvss": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "version": "3.1",
+              "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "metrics": {
+                "baseScore": 6.1,
+                "exploitabilityScore": 2.9,
+                "impactScore": 2.8
+              },
+              "vendorMetadata": {}
+            },
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "version": "2.0",
+              "vector": "AV:N/AC:M/Au:N/C:N/I:P/A:N",
+              "metrics": {
+                "baseScore": 4.3,
+                "exploitabilityScore": 8.6,
+                "impactScore": 2.9
+              },
+              "vendorMetadata": {}
+            }
+          ],
+          "epss": [
+            {
+              "cve": "CVE-2019-11358",
+              "epss": 0.87218,
+              "percentile": 0.99737,
+              "date": "2026-08-19"
+            }
+          ],
+          "cwes": [
+            {
+              "cve": "CVE-2019-11358",
+              "cwe": "CWE-1321",
+              "source": "nvd@nist.gov",
+              "type": "Primary"
+            }
+          ]
+        }
+      ],
+      "matchDetails": [
+        {
+          "type": "exact-direct-match",
+          "matcher": "javascript-matcher",
+          "searchedBy": {
+            "language": "javascript",
+            "namespace": "github:language:javascript",
+            "package": {
+              "name": "jquery",
+              "version": "3.3.1"
+            }
+          },
+          "found": {
+            "vulnerabilityID": "GHSA-6c3j-c64m-qhgq",
+            "versionConstraint": ">=1.1.4,<3.4.0 (semantic)"
+          },
+          "fix": {
+            "suggestedVersion": "3.4.0"
+          }
+        }
+      ],
+      "artifact": {
+        "id": "pkg:npm/jquery@3.3.1?package-id=887ae2aa2422d73d",
+        "name": "jquery",
+        "version": "3.3.1",
+        "type": "npm",
+        "locations": [
+          {
+            "path": "/package-lock.json",
+            "accessPath": ""
+          }
+        ],
+        "language": "javascript",
+        "licenses": [],
+        "cpes": [
+          "cpe:2.3:a:jquery:jquery:3.3.1:*:*:*:*:node.js:*:*"
+        ],
+        "purl": "pkg:npm/jquery@3.3.1",
+        "upstreams": []
+      }
+    }
+  ],
+  "source": {
+    "type": "file",
+    "target": "/scan"
+  },
+  "distro": {
+    "name": "",
+    "version": "",
+    "idLike": null
+  },
+  "descriptor": {
+    "name": "grype",
+    "version": "0.117.0",
+    "configuration": {
+      "output": [
+        "json"
+      ],
+      "file": "",
+      "pretty": false,
+      "distro": "",
+      "add-cpes-if-none": false,
+      "output-template-file": "",
+      "check-for-app-update": true,
+      "only-fixed": false,
+      "only-notfixed": false,
+      "ignore-wontfix": "",
+      "platform": "",
+      "search": {
+        "scope": "squashed",
+        "unindexed-archives": false,
+        "indexed-archives": true
+      },
+      "ignore": [
+        {
+          "vulnerability": "",
+          "include-aliases": false,
+          "reason": "",
+          "namespace": "",
+          "fix-state": "",
+          "package": {
+            "name": "kernel-headers",
+            "version": "",
+            "language": "",
+            "type": "rpm",
+            "location": "",
+            "upstream-name": "kernel"
+          },
+          "vex-status": "",
+          "vex-justification": "",
+          "match-type": "exact-indirect-match"
+        },
+        {
+          "vulnerability": "",
+          "include-aliases": false,
+          "reason": "",
+          "namespace": "",
+          "fix-state": "",
+          "package": {
+            "name": "linux(-.*)?-headers-.*",
+            "version": "",
+            "language": "",
+            "type": "deb",
+            "location": "",
+            "upstream-name": "linux.*"
+          },
+          "vex-status": "",
+          "vex-justification": "",
+          "match-type": "exact-indirect-match"
+        },
+        {
+          "vulnerability": "",
+          "include-aliases": false,
+          "reason": "",
+          "namespace": "",
+          "fix-state": "",
+          "package": {
+            "name": "linux-libc-dev",
+            "version": "",
+            "language": "",
+            "type": "deb",
+            "location": "",
+            "upstream-name": "linux"
+          },
+          "vex-status": "",
+          "vex-justification": "",
+          "match-type": "exact-indirect-match"
+        },
+        {
+          "vulnerability": "",
+          "include-aliases": false,
+          "reason": "",
+          "namespace": "",
+          "fix-state": "",
+          "package": {
+            "name": "linux-kbuild-.*",
+            "version": "",
+            "language": "",
+            "type": "deb",
+            "location": "",
+            "upstream-name": "linux.*"
+          },
+          "vex-status": "",
+          "vex-justification": "",
+          "match-type": "exact-indirect-match"
+        }
+      ],
+      "exclude": [],
+      "externalSources": {
+        "enable": false,
+        "maven": {
+          "searchUpstreamBySha1": true,
+          "baseUrl": "https://search.maven.org/solrsearch/select",
+          "rateLimit": 300000000
+        }
+      },
+      "match": {
+        "java": {
+          "using-cpes": false
+        },
+        "jvm": {
+          "using-cpes": true
+        },
+        "dotnet": {
+          "using-cpes": false
+        },
+        "golang": {
+          "using-cpes": false,
+          "always-use-cpe-for-stdlib": false,
+          "allow-main-module-pseudo-version-comparison": false
+        },
+        "javascript": {
+          "using-cpes": false
+        },
+        "python": {
+          "using-cpes": false
+        },
+        "ruby": {
+          "using-cpes": false
+        },
+        "rust": {
+          "using-cpes": false
+        },
+        "hex": {
+          "using-cpes": false
+        },
+        "stock": {
+          "using-cpes": true
+        },
+        "dpkg": {
+          "using-cpes": false,
+          "missing-epoch-strategy": "zero",
+          "use-cpes-for-eol": false
+        },
+        "rpm": {
+          "using-cpes": false,
+          "missing-epoch-strategy": "auto",
+          "use-cpes-for-eol": false
+        }
+      },
+      "fail-on-severity": "",
+      "registry": {
+        "insecure-skip-tls-verify": false,
+        "insecure-use-http": false,
+        "ca-cert": ""
+      },
+      "show-suppressed": false,
+      "by-cve": false,
+      "SortBy": {
+        "sort-by": "risk"
+      },
+      "name": "",
+      "default-image-pull-source": "",
+      "from": null,
+      "vex-documents": [],
+      "vex-add": [],
+      "match-upstream-kernel-headers": false,
+      "fix-channel": {
+        "redhat-eus": {
+          "apply": "auto",
+          "versions": ">= 8.0"
+        },
+        "ubuntu-esm": {
+          "apply": "auto",
+          "versions": ""
+        }
+      },
+      "timestamp": true,
+      "alerts": {
+        "enable-eol-distro-warnings": true
+      },
+      "db": {
+        "cache-dir": "/Users/bmatthews/Library/Caches/grype/db",
+        "update-url": "https://grype.anchore.io/databases",
+        "ca-cert": "",
+        "auto-update": true,
+        "validate-by-hash-on-start": true,
+        "validate-age": true,
+        "max-allowed-built-age": 432000000000000,
+        "require-update-check": false,
+        "update-available-timeout": 30000000000,
+        "update-download-timeout": 300000000000,
+        "max-update-check-frequency": 7200000000000
+      },
+      "exp": {},
+      "dev": {
+        "db": {
+          "debug": false
+        }
+      }
+    },
+    "db": {
+      "status": {
+        "schemaVersion": "v6.1.9",
+        "from": "https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.9_2026-08-20T00:15:42Z_1787206628.tar.zst?checksum=sha256%3A39324b8b1e4ec165a873541afb91a9c1f06b090354d5461f2e7da15569dbd0fd",
+        "built": "2026-08-20T06:17:08Z",
+        "path": "/Users/bmatthews/Library/Caches/grype/db/6/vulnerability.db",
+        "valid": true
+      },
+      "providers": {
+        "alma": {
+          "captured": "2026-08-20T00:15:53Z",
+          "input": "xxh64:7cdf9dc1780d01c1"
+        },
+        "alpine": {
+          "captured": "2026-08-20T00:15:54Z",
+          "input": "xxh64:0cef9746ff7a66d3"
+        },
+        "amazon": {
+          "captured": "2026-08-20T00:15:50Z",
+          "input": "xxh64:3a54489e6226c5d7"
+        },
+        "arch": {
+          "captured": "2026-08-20T00:15:46Z",
+          "input": "xxh64:1f56acb5d7cd25dc"
+        },
+        "bitnami": {
+          "captured": "2026-08-20T00:16:12Z",
+          "input": "xxh64:bb71d52bc1f44332"
+        },
+        "chainguard": {
+          "captured": "2026-08-20T00:16:32Z",
+          "input": "xxh64:a30da719f6e9baa9"
+        },
+        "chainguard-libraries": {
+          "captured": "2026-08-20T00:15:48Z",
+          "input": "xxh64:e45b3cbda779034d"
+        },
+        "debian": {
+          "captured": "2026-08-20T00:16:02Z",
+          "input": "xxh64:ce0e0883a4ab9e8e"
+        },
+        "echo": {
+          "captured": "2026-08-20T00:15:49Z",
+          "input": "xxh64:1f146ed66b84b284"
+        },
+        "eol": {
+          "captured": "2026-08-20T00:16:03Z",
+          "input": "xxh64:0e62c054cc0ccdce"
+        },
+        "epss": {
+          "captured": "2026-08-20T00:16:11Z",
+          "input": "xxh64:52987ac9885044ab"
+        },
+        "fedora": {
+          "captured": "2026-08-20T00:16:24Z",
+          "input": "xxh64:9f934463b83dae7c"
+        },
+        "github": {
+          "captured": "2026-08-20T00:16:27Z",
+          "input": "xxh64:3a720cc1f8f983bd"
+        },
+        "govulndb": {
+          "captured": "2026-08-20T00:16:44Z",
+          "input": "xxh64:d103cca6150d783d"
+        },
+        "hummingbird": {
+          "captured": "2026-08-20T00:17:52Z",
+          "input": "xxh64:85d76688ce5958b0"
+        },
+        "kev": {
+          "captured": "2026-08-20T00:15:42Z",
+          "input": "xxh64:fb7524e2439f246a"
+        },
+        "mariner": {
+          "captured": "2026-08-20T00:16:31Z",
+          "input": "xxh64:f3e5d1a89a404603"
+        },
+        "minimos": {
+          "captured": "2026-08-20T00:15:52Z",
+          "input": "xxh64:59c1f43a46cdef18"
+        },
+        "nvd": {
+          "captured": "2026-08-20T00:16:40Z",
+          "input": "xxh64:270a022bf71277fc"
+        },
+        "oracle": {
+          "captured": "2026-08-20T00:15:55Z",
+          "input": "xxh64:7a4326588a4abe2e"
+        },
+        "photon": {
+          "captured": "2026-08-20T00:15:50Z",
+          "input": "xxh64:d287193e714a59c3"
+        },
+        "rhel": {
+          "captured": "2026-08-20T00:17:02Z",
+          "input": "xxh64:d68075d1929773fd"
+        },
+        "secureos": {
+          "captured": "2026-08-20T00:16:16Z",
+          "input": "xxh64:bc6b1eaac58305f4"
+        },
+        "sles": {
+          "captured": "2026-08-20T00:16:22Z",
+          "input": "xxh64:45bdaa15e615a80f"
+        },
+        "ubuntu": {
+          "captured": "2026-08-20T00:17:54Z",
+          "input": "xxh64:126eb1a77f5282fe"
+        },
+        "wolfi": {
+          "captured": "2026-08-20T00:15:50Z",
+          "input": "xxh64:b7114317a61c61cd"
+        }
+      }
+    },
+    "timestamp": "2026-08-20T21:28:36.143876-04:00"
+  }
+}

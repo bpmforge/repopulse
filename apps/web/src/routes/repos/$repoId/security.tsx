@@ -3,6 +3,10 @@ import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery } from '../../../api/useApiQuery.js';
 import { ScannerStatusList } from '../../../widgets/security/ScannerStatusList.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
+// W8-14. OUT OF THAT TICKET'S DECLARED WRITE SCOPE and mounted anyway: a
+// funnel widget nobody renders is a widget that does not exist, and FR-SEC-15
+// is about what the Security tab SHOWS. Declared in the handoff.
+import { ValidationFunnelPanel } from '../../../widgets/security/ValidationFunnelPanel.js';
 import type { RepoSecurity } from '../../../widgets/security/contracts.js';
 
 // Repo Security tab (W8-10, SECURITY_SUITE.md §5, FR-SEC-10 / NFR-15).
@@ -131,6 +135,25 @@ function SecurityTab() {
             ))}
         </WidgetFrame>
       </div>
+
+      <WidgetFrame
+        title="Dependency findings, raw to triaged"
+        state={state}
+        testId="security-funnel"
+      >
+        {data && (
+          <ValidationFunnelPanel
+            funnel={data.validation_funnel}
+            recorded={data.validation_funnel_recorded}
+            vex={data.vex}
+            // The scanner rows go in whole. The panel derives the open count
+            // from them, so the arithmetic it reconciles is the arithmetic its
+            // own tests exercise — a number computed here would be untested in
+            // the one place it can be wrong.
+            scanners={data.scanners}
+          />
+        )}
+      </WidgetFrame>
 
       <WidgetFrame title="Attack chains" state={state} testId="security-chains">
         {data && <ChainsPanel chains={data.chains} computed={data.chains_computed} />}

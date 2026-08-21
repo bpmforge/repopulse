@@ -3309,3 +3309,47 @@ Also corrected: my own brief said KEV arrives as `{kev: true}` and EPSS as
 a number. Grype actually reports `vulnerability.knownExploited` and
 `vulnerability.epss` as **arrays of objects**. The agent measured it
 against log4j-core 2.14.1 instead of trusting me.
+
+### 2026-08-20 — W8-13/14/15 and W15-04/05: five tickets, two caught regressions
+
+Five agents across two phases, dependencies respected. Gate green with the
+real 1.9 GB vulnerability database and govulncheck on PATH: **1,643 unit
+tests, zero skipped**, 168 web, 105 e2e, bundle 112.6 KB, four validators.
+
+**Both blockers were found by the agents themselves, about their own work,
+and neither could fix it because the file was outside their list.**
+
+1. **A GitHub install would have shown no GitHub button.** W15-04's
+   provider endpoint needed one registration line in `app.ts`. Until it
+   existed the sign-in screen fell back to local-only. The agent also
+   grepped and reported that e2e would NOT have caught it, because the
+   helpers navigate to `/auth/login` directly and never click a button.
+   Registered and proven both ways against a running API:
+   `{"github":false}` with no App, `{"github":true}` with one.
+2. **INSTALL.md told operators to fill in variables their template did not
+   contain** — neither `.env.example` carried `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+   Added to both.
+
+Work worth knowing about:
+
+- **W8-13 recovers what W8-06 could not.** syft's CycloneDX root is the
+  scanned directory, so every component looked `prod-direct, depth 1` and
+  D12's depth ramp was dead code. V1 reads the real lockfiles instead —
+  npm `package-lock` v2/v3 graph walk, `requirements.txt`, `go.mod` — and
+  recovers dev/prod, direct/transitive and true depth.
+- **V2 is three-valued on purpose**: imported / not_imported / **unknown**.
+  "Not imported" is not "not exploitable", and the copy says so.
+- **V3 actually proves unreachability**: govulncheck in source mode inside
+  the sandbox, against `go-reachable` and `go-unreachable` fixtures. JS,
+  TS and Python have no equivalent and the code says so rather than
+  pretending.
+- **W8-14 validates against the published schemas rather than asserting
+  conformance.** ajv was not resolvable and installing was forbidden, so
+  the agent vendored the schema documents verbatim — sha256, URL and fetch
+  date recorded — and wrote an evaluator whose rule is that an
+  unimplemented keyword **throws**. Negative tests prove it rejects.
+- **W8-15's citation gate is the interesting part**: every `file:line` in a
+  model's proposal must match real V2/V3 evidence or the whole answer is
+  discarded. A proposal citing evidence that does not exist is worse than
+  no proposal. Nothing auto-dismisses; proposals are pre-filled suggestions
+  a human confirms.

@@ -1,0 +1,162 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "serialNumber": "urn:uuid:c2f69215-f800-4f56-9a52-9f02741ab453",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-20T21:28:35-04:00",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "author": "anchore",
+          "name": "syft",
+          "version": "1.51.0"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "760f2dd97a498160",
+      "type": "file",
+      "name": "/scan"
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:npm/jquery@3.3.1?package-id=887ae2aa2422d73d",
+      "type": "library",
+      "name": "jquery",
+      "version": "3.3.1",
+      "cpe": "cpe:2.3:a:jquery:jquery:3.3.1:*:*:*:*:node.js:*:*",
+      "purl": "pkg:npm/jquery@3.3.1",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "javascript-lock-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "javascript"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "npm"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "javascript-npm-package-lock-entry"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/package-lock.json"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:npm/w8-14-covered-fixture@1.0.0?package-id=6613a8b4be7cb10e",
+      "type": "library",
+      "name": "w8-14-covered-fixture",
+      "version": "1.0.0",
+      "cpe": "cpe:2.3:a:w8-14-covered-fixture:w8-14-covered-fixture:1.0.0:*:*:*:*:*:*:*",
+      "purl": "pkg:npm/w8-14-covered-fixture@1.0.0",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "javascript-lock-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "javascript"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "npm"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "javascript-npm-package-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8-14-covered-fixture:w8_14_covered_fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8_14_covered_fixture:w8-14-covered-fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8_14_covered_fixture:w8_14_covered_fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8-14-covered:w8-14-covered-fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8-14-covered:w8_14_covered_fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8_14_covered:w8-14-covered-fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8_14_covered:w8_14_covered_fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8-14:w8-14-covered-fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8-14:w8_14_covered_fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8_14:w8-14-covered-fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8_14:w8_14_covered_fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8:w8-14-covered-fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:w8:w8_14_covered_fixture:1.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/package-lock.json"
+        }
+      ]
+    },
+    {
+      "bom-ref": "fd71c2238fc07657",
+      "type": "file",
+      "name": "/scan/package-lock.json",
+      "hashes": [
+        {
+          "alg": "SHA-1",
+          "content": "8dec1d00a13adaff5758f53b3d50824d3e52b5b9"
+        },
+        {
+          "alg": "SHA-256",
+          "content": "7a2fa24035b188cb97ce32c475072ca4c9a2f2d375b0a6e2c89201c3e160a591"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:npm/w8-14-covered-fixture@1.0.0?package-id=6613a8b4be7cb10e",
+      "dependsOn": [
+        "pkg:npm/jquery@3.3.1?package-id=887ae2aa2422d73d"
+      ]
+    }
+  ]
+}

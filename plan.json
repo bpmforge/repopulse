@@ -3291,13 +3291,14 @@
         "V4: EPSS scores join the nightly db-sync (scan containers stay --network=none, SC-28 checksum rules); effective_risk = f(CVSS, KEV, EPSS, reachability, dep_scope) with workspace-tunable weights in the catalog; findings columns reachability/epss/effective_risk per docs/DATABASE.md D10; CI uses vendored mini EPSS/OSV data (docs/TESTING.md §10)"
       ],
       "points": 8,
-      "status": "blocked",
+      "status": "done",
       "notes": [
-        "BLOCKED 2026-08-19 — this pipeline validates DEPENDENCY findings, and there are none, because W8-06 is blocked for missing syft/grype/osv-scanner. Every tier here is written as \"runs on every dependency finding\": V0 dedups OSV aliases, V1 scopes them against the lockfile, V2 asks whether the vulnerable package is imported, V3 proves reachability, V4 scores them. With no CVE source there is nothing to dedup, scope, or score.",
-        "WHY NOT BUILD THE PURE CORE ANYWAY. The deterministic halves — alias grouping, dev/prod scoping, the import scan, the effective_risk formula — could be written and tested against fixtures I invent. That is 8 points of code with ZERO production callers, validated only against my own idea of what grype emits, for findings that cannot exist. Built-but-never-called is the single most common defect this codebase has produced (W4-22, W12-03, and four more), and writing a whole subsystem that way on purpose would be the largest instance of it yet. The shape of grype/OSV output should come from grype, not from me.",
-        "ALSO MISSING BEYOND W8-06: govulncheck (V3 Go call-graph proof) — Go itself IS installed, so `go install golang.org/x/vuln/cmd/govulncheck@latest` is the whole gap; and the EPSS feed for V4, which needs the nightly db-sync whose vulnerability-database half is already parked in W8-12 (scan containers are --network=none, so EPSS must be fetched host-side and mounted).",
-        "WHAT IS ALREADY IN PLACE FOR IT: the sandbox (W8-03/W8-12) that govulncheck would run inside, the sboms table (W8-02), the findings columns for cve_id/yields, and the chainer vocabulary term `vuln-dependency:{cve}` that dependency findings are meant to yield.",
-        "ORDER WHEN IT UNBLOCKS: install syft+grype (and govulncheck), finish W8-12's db-sync vulnerability half, then W8-06, then this. Doing this ticket before W8-06 would mean designing the funnel around imagined tool output and rewriting it on first contact."
+        "V0-V4 in packages/security/src/validation. V0 alias dedup is union-find over alias sets, so a CVE and its GHSA twin collapse to ONE finding with the aliases recorded — proven against a REAL captured pair from a python fixture, not a hand-written one.",
+        "V1 scoping reads the actual lockfiles (npm package-lock v2/v3 graph walk, requirements.txt, go.mod) and recovers dev/prod, direct/transitive and real depth — which W8-06 could not, because syft CycloneDX root is the directory. The D12 depth ramp stops being dead code.",
+        "V2 usage detection is THREE-VALUED: imported / not_imported / unknown. \"Not imported\" is not \"not exploitable\", and the wording says so rather than overclaiming.",
+        "V3 runs govulncheck v1.7.0 in source mode INSIDE the sandbox and proves proven_unreachable from a real call graph, with go-reachable and go-unreachable fixtures. JS/TS/Python have no equivalent and the code says so instead of pretending.",
+        "V4 feeds epss, kev, depScope and reachability into the existing priceFinding rather than inventing a second scoring path.",
+        "Every tier records input and output counts, so the funnel is reportable end to end with no silent drops."
       ]
     },
     {
@@ -3328,12 +3329,13 @@
         "Funnel UI per FR-SEC-15 on Security tab + Explorer + Security Posture report: raw→deduped→scoped→affected/not_affected/under_investigation with per-justification breakdown; counts reconcile to finding rows; default sort effective_risk; raw count never hidden"
       ],
       "points": 5,
-      "status": "blocked",
+      "status": "done",
       "notes": [
-        "BLOCKED 2026-08-19 — same root cause as W8-13: VEX statements are assertions ABOUT DEPENDENCY FINDINGS, and none can exist while W8-06 is blocked for missing syft/grype/osv-scanner. Every acceptance item here is written in terms of them: \"triage on dependency findings\", \"re-scan at a covered version creates 0 new rows\", \"a version outside version_range reopens the finding\", \"the funnel raw→deduped→scoped→affected reconciles to finding rows\".",
-        "WHY NOT BUILD THE TABLE AND THE EXPORT ANYWAY: the vex_statements schema is keyed (repo, purl, vuln, version_range), and every one of those four columns is a shape that comes OUT of the dependency scanner. Designing the key around imagined purls and version ranges is how it gets rewritten on first contact with grype output — and an OpenVEX export validated only against documents I wrote myself proves the validator, not the export.",
-        "WHAT IS ALREADY HERE FOR IT: the audit-event union (SC-22) takes new events cheaply, the findings lifecycle already supports dismissal with a reason, and the Security tab has the funnel's shape in its scanner-status section.",
-        "ORDER WHEN IT UNBLOCKS: install syft + grype → W8-12's db-sync vulnerability half → W8-06 → W8-13 → this."
+        "OpenVEX vocabulary with the justification gate: not_affected without a justification is a 400. That gate is the ticket — \"we looked and it does not apply\" must carry a reason a reader can disagree with.",
+        "under_investigation is COMPUTED, never stored, which collapses both suppression acceptance criteria into one pure lookup: a re-scan at a covered version writes nothing, and a version outside the range reopens.",
+        "Statements match on ALIASES too, because V0 promotes the CVE — a GHSA-keyed statement written yesterday must keep applying after the collapse.",
+        "SCHEMA VALIDATION IS REAL, NOT ASSERTED: ajv is not resolvable here and installing was forbidden, so the agent vendored the PUBLISHED schema documents verbatim (sha256, URL and fetch date recorded) and wrote an evaluator whose rule is that an unimplemented keyword THROWS. Negative tests prove it rejects a bad enum, a missing required field, a bad date-time, an unknown keyword, and an OpenVEX justification leaked into a CycloneDX field.",
+        "Version ranges are hand-rolled because semver is not resolvable from this package and a VEX statement is not always npm. Caret/tilde/|| are REFUSED at write time rather than half-supported, and an unparseable version means NOT covered — fail-safe."
       ]
     },
     {
@@ -3360,11 +3362,13 @@
         "Gateway rules hold: mocked in CI, token budget from ScanBudget, one call per finding hard cap; runs recorded with parent_run_id chain"
       ],
       "points": 3,
-      "status": "blocked",
+      "status": "done",
       "notes": [
-        "BLOCKED 2026-08-19 — the V5 adversarial verify prices and re-judges DEPENDENCY findings, which cannot exist while W8-06 is blocked. It also sits at the END of the V0–V4 funnel (W8-13, blocked): its prompt is \"advisory summary + the V2/V3 evidence\", and with no V2 import scan and no V3 reachability there is no evidence to ground it in.",
-        "A T2 PASS WITH NOTHING TO GROUND IT IN IS THE FAILURE MODE THIS PRODUCT KEEPS DESIGNING AGAINST — an unfalsifiable judgement about a package nobody has scanned. The maker≠verifier machinery it would use (FR-ANALYSIS-9) is built and proven in W6-05 and used by W9-03/W9-04, so this is wiring plus a prompt once the funnel exists.",
-        "ORDER WHEN IT UNBLOCKS: after W8-13, which produces the evidence this pass reads."
+        "V5 selects the top-N dependency findings by effective_risk, skips anything already proven_unreachable (a model cannot improve on a call-graph proof), and breaks ties on the dedup key so two runs pick the same findings.",
+        "THREE GATES, any one of which throws the whole answer away: strict zod shape with applies/justification agreement; CITATION checking, where every file:line in the proposal must match real V2/V3 evidence; and the budget cap. A proposal citing evidence that does not exist is worse than no proposal.",
+        "Proposals never auto-dismiss — they are pre-filled triage suggestions a human confirms. A model that can close a CVE unattended is the failure mode the whole design exists to prevent.",
+        "The prompt states, per tier, what that tier did NOT establish, and renders unknown as \"supports no conclusion in either direction\" rather than letting silence read as absence of risk.",
+        "Tier-2 only, one call per finding, hard cap 25, budget from ScanBudget, gateway mocked in tests."
       ]
     },
     {
@@ -5149,8 +5153,12 @@
         "axe clean on every new screen; e2e covers local sign-in end to end"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "GET /auth/providers reports which providers this deployment actually offers; the screen renders exactly those. GET /auth/identity returns linked / unlinked / no_activity so an unlinked user is told their account is not connected to a committer instead of being shown 0 pull requests as though it were an answer about their work.",
+        "THE AGENT FLAGGED A REGRESSION IT COULD NOT FIX: app.ts was outside its file list, so until the plugin was registered a deployment WITH a GitHub App would have shown no GitHub button. Registered by the orchestrator and proven both ways against a running API — {\"github\":false} with no App configured, {\"github\":true} with one.",
+        "e2e was unaffected and would NOT have caught it: the helpers navigate to /auth/login directly and never click a button. The agent grepped and said so rather than assuming the suite covered it."
+      ]
     },
     {
       "id": "W15-05",
@@ -5176,8 +5184,39 @@
         "A grep gate proves no route outside the auth module assumes a forge identity on the session"
       ],
       "points": 3,
+      "status": "done",
+      "notes": [
+        "INSTALL.md now LEADS with the install that needs no forge App — fill .env, up, sign in, change the password, then connect a forge. The old doc opened with \"Register a GitHub App\", which D14 made false.",
+        "The setup checklist stops treating a forge connection as a precondition and reports which auth providers are live, with a blocking field so \"not done\" and \"not required\" stop looking the same.",
+        "A grep gate proves no route outside the auth module assumes a forge identity on the session, with a control assertion so it cannot pass vacuously.",
+        "SECOND BLOCKER THE AGENT FLAGGED AND COULD NOT FIX: neither .env.example carried ADMIN_EMAIL/ADMIN_PASSWORD, so INSTALL.md was telling operators to fill in variables their template did not contain. Added to both by the orchestrator."
+      ]
+    },
+    {
+      "id": "W8-16",
+      "title": "Dedup key collapses findings that differ only in digits",
+      "phase": 8,
+      "module": "insights",
+      "stories": [
+        "E4.2"
+      ],
+      "write_scope": [
+        "packages/insights/src/findings/**"
+      ],
+      "depends_on": [
+        "W8-06"
+      ],
+      "acceptance": [
+        "The evidence normaliser stops stripping digits, or the key stops relying on a digit-stripped quote: CVE-2020-11023 and CVE-2020-11022 on one package must be TWO findings, proven by a test that fails against the current normaliser",
+        "Every other reason the normaliser exists — volatile whitespace, line numbers that shift, timestamps — keeps working, with a test per case so the fix does not simply delete the normalisation",
+        "A migration path for rows already collapsed is stated: either they re-open on the next scan or the ticket says plainly why they cannot"
+      ],
+      "points": 3,
       "status": "todo",
-      "notes": []
+      "notes": [
+        "FOUND BY W8-06, not by review. The scanner agent hit it building the dependency scanner: two CVEs on the same package normalise to the same dedup key, so the second silently becomes an occurrence of the first. It worked around the symptom by carrying the vulnerability id in ruleId, which the scanner branch of the key includes verbatim — the underlying normaliser is untouched and SHARED by every dimension.",
+        "The risk is not limited to CVEs. Any two findings that differ only in a number are at risk: two complexity findings quoting different measured values, two EOL findings quoting different cycles, two log lines differing by a port."
+      ]
     }
   ]
 }
