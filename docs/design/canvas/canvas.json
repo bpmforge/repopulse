@@ -1,12 +1,16 @@
 {
   "artboards": [
     { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1200, "title": "Org Overview — / (shipped)" },
-    { "file": "RepoDetail.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "Repo Detail — /repos/:repo (shipped)" }
+    { "file": "RepoDetail.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "Repo Detail — /repos/:repo (shipped)" },
+    { "file": "PrDetail.dc.html", "x": 3120, "y": 0, "w": 1440, "h": 900, "title": "PR Detail — /repos/:repo/prs/:number (shipped)" },
+    { "file": "FileDetail.dc.html", "x": 0, "y": 1440, "w": 1440, "h": 1080, "title": "File drill-down — /repos/:repo/files/*path (shipped)" }
   ],
   "annotations": [
-    { "id": "scope-note", "x": 0, "y": -150, "w": 700, "text": "RepoPulse — shipped UI, drawn from the real components.\nTokens are lifted verbatim from apps/web/src/styles/theme.css (dark theme). Every element on these two boards corresponds to a component in apps/web/src/widgets/{org,repo}; nothing here is proposed or invented." },
+    { "id": "scope-note", "x": 0, "y": -170, "w": 700, "text": "RepoPulse — shipped UI, drawn from the real components.\nTokens are lifted verbatim from apps/web/src/styles/theme.css (dark theme). Every element on these boards corresponds to a component in apps/web/src/widgets/**; nothing here is proposed or invented. Where the shipped screen differs from UX_SPEC §4, the note beside the board says so." },
     { "id": "org-note", "x": 0, "y": 1240, "w": 620, "text": "Org Overview carries MORE than UX_SPEC §4.a sketches: Weekly pulse (pinned top), Improvement plan (D9), Security rollup, Top risks and Risk axes were all added after the spec was written. The health tiles ship WITHOUT the sparkline the spec drew — name, badge and basis only." },
-    { "id": "repo-note", "x": 1560, "y": 940, "w": 620, "text": "Repo Detail ships SEVEN routed tabs, not the five in §4.b — Security (W8) and Code Health (W9) were added later. Each tab is its own URL, so it is linkable and back-button-able. The 'why?' popover is shown open: the score is never displayed without its basis label and formula breakdown." }
+    { "id": "repo-note", "x": 1560, "y": 940, "w": 620, "text": "Repo Detail ships SEVEN routed tabs, not the five in §4.b — Security (W8) and Code Health (W9) were added later. Each tab is its own URL, so it is linkable and back-button-able. The 'why?' popover is shown open: the score is never displayed without its basis label and formula breakdown." },
+    { "id": "pr-note", "x": 3120, "y": 940, "w": 620, "text": "PR Detail is the board that diverges MOST from its spec. §4.c drew a horizontal stage bar, risk badges, a findings accordion with evidence quotes, per-file hotspot badges and a GitHub ↗ link. What ships is a vertical stage list, a size chip, review/checks side by side, a plain files table — and an 'Automated review' panel that is permanently empty because Tier-2 (W6) has not run. Per FR-WEB-8 it says WHY it is empty rather than looking like a clean bill of health." },
+    { "id": "file-note", "x": 0, "y": 2560, "w": 620, "text": "File drill-down. Two things the spec did not have: the Intent control (Refactor / Supervise / Acknowledged, W6-09) sits FIRST because what a team means to do about a file is context for every number under it, and the history banner reports 'last seen' and previous paths WITHOUT claiming the file was deleted — ingestion cannot tell a deletion from a quiet file. §4.d's 'recent PRs touching this file' table is NOT shipped. Churn bars are grouped, not stacked: rework is a subset of gross, and stacking would read as double the churn." }
   ],
   "launch": { "view": "canvas" }
 }

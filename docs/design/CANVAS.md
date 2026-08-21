@@ -13,6 +13,8 @@ verbatim.
 |------|-----------|
 | `docs/design/canvas/Main.dc.html` | Org Overview (`/`) — entry artboard |
 | `docs/design/canvas/RepoDetail.dc.html` | Repo Detail (`/repos/:repo`) |
+| `docs/design/canvas/PrDetail.dc.html` | PR Detail (`/repos/:repo/prs/:number`) |
+| `docs/design/canvas/FileDetail.dc.html` | File drill-down (`/repos/:repo/files/*path`) |
 | `docs/design/canvas/canvas.json` | Layout: positions, titles, sticky notes |
 | `docs/design/canvas/repopulse-ui-canvas.html` | **Generated.** The seeded page that gets published. Never hand-edit it. |
 
@@ -25,7 +27,8 @@ the SAME url so the link keeps working:
 node "<design skill base>/seed-canvas.mjs" \
   --template "<design skill base>/payload.template.html" \
   --out repopulse-ui-canvas.html --title "RepoPulse UI" \
-  --artboard Main.dc.html --artboard RepoDetail.dc.html [--artboard …] \
+  --artboard Main.dc.html --artboard RepoDetail.dc.html \
+  --artboard PrDetail.dc.html --artboard FileDetail.dc.html [--artboard …] \
   --canvas canvas.json
 ```
 
@@ -39,8 +42,8 @@ discarded.
 
 - [x] §4.a Org Overview — shipped
 - [x] §4.b Repo Detail — shipped
-- [ ] §4.c PR Detail
-- [ ] §4.d File drill-down
+- [x] §4.c PR Detail — shipped
+- [x] §4.d File drill-down — shipped
 - [ ] §4.e Findings Explorer — v1.x, ships as a teaser
 - [ ] §4.f My Focus
 - [ ] §4.g Custom Views
@@ -65,3 +68,14 @@ the canvas as sticky notes:
 - **Repo Detail ships seven tabs, not five** — Security (W8) and Code Health
   (W9) came later. `widgets/code-health/` currently holds only
   `contracts.ts`, so that tab's content is spec, not shipped code.
+- **PR Detail diverges most.** §4.c drew a horizontal stage bar, risk badges, a
+  findings accordion with evidence quotes, per-file hotspot badges and a GitHub
+  ↗ link. What ships is a vertical stage list, a size chip, review/checks side
+  by side and a plain files table. Its "Automated review" panel is permanently
+  empty because Tier-2 (W6) has not run — and per FR-WEB-8 it says *why*
+  rather than reading as a clean bill of health.
+- **File drill-down gained two things the spec never had** — the Intent control
+  (Refactor / Supervise / Acknowledged, W6-09) sits first, and the history
+  banner reports "last seen" and previous paths without claiming deletion,
+  because ingestion cannot tell a deletion from a quiet file. §4.d's "recent
+  PRs touching this file" table is **not** shipped.

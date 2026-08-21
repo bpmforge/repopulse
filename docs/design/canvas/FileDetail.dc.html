@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; background: #0d1117; color: #e6edf3; }
+    a { color: #6e7bff; text-decoration: none; }
+    a:hover { color: #8f99ff; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }
+    .card { border: 1px solid #30363d; border-radius: 10px; background: #161b22; }
+    .card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px; }
+    .card h3 { margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3; }
+    .card > .body { padding: 12px; }
+    .th { text-align: left; padding: 6px 4px; font-size: 12px; font-weight: 500; color: #9da7b3; }
+    .td { padding: 8px 4px; font-size: 14px; border-top: 1px solid #30363d; }
+    .axis { font-size: 12px; fill: #9da7b3; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 1080px; background: #0d1117;">
+
+  <nav style="display: flex; flex-direction: column; width: 64px; flex-shrink: 0; border-right: 1px solid #30363d; background: #161b22;">
+    <div style="display: flex; align-items: center; justify-content: center; padding: 12px;"><span style="font-size: 14px; color: #9da7b3;">&raquo;</span></div>
+    <ul style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px; margin: 0; list-style: none; flex-grow: 1;">
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9672;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid #6e7bff; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px;">&#9636;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#8644;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9678;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9873;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9719;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9638;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#10063;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9881;</div></li>
+    </ul>
+    <div style="display: flex; justify-content: center; border-top: 1px solid #30363d; padding: 8px;"><span style="width: 8px; height: 8px; border-radius: 999px; background: #3fb950;"></span></div>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #30363d;">
+      <span style="font-size: 14px; color: #9da7b3;"><a href="#">Org</a> &#9656; <a href="#">bpmforge/ingest</a> &#9656; <span class="mono">src/ingest/budgeter.ts</span></span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #e6edf3; font-size: 13px; padding: 4px 10px;">window 90d &#9662;</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+
+      <!-- IntentControl sits FIRST: what the team means to do about a file is
+           context for every number below it (W6-09) -->
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <span style="font-size: 12px; color: #9da7b3;">Intent</span>
+        <span style="border: 1px solid #6e7bff; border-radius: 6px; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 13px; padding: 4px 10px;">Refactor</span>
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #9da7b3; font-size: 13px; padding: 4px 10px;">Supervise</span>
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #9da7b3; font-size: 13px; padding: 4px 10px;">Acknowledged</span>
+        <span style="font-size: 12px; color: #7d8590;">warns if the hotspot score has not improved</span>
+      </div>
+
+      <!-- The history banner reports what the warehouse knows and never claims
+           the file was deleted — ingestion cannot tell deletion from quiet -->
+      <div style="border: 1px solid #30363d; border-radius: 10px; background: #1c2129; padding: 8px 12px; font-size: 12px; color: #9da7b3;">
+        Previously: <code class="mono">src/forge/budgeter.ts</code>
+      </div>
+
+      <header style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px;">
+        <h1 class="mono" style="margin: 0; font-size: 18px; font-weight: 600;">src/ingest/budgeter.ts</h1>
+        <span style="display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-flex; border-radius: 6px; padding: 2px 6px; font-size: 12px; font-weight: 500; background: rgba(210,153,34,0.15); color: #d29922;">Medium</span>
+          <span style="font-size: 12px; color: #9da7b3;">single owner &mdash; 84% of changed lines</span>
+        </span>
+      </header>
+
+      <!-- Grouped bars, not stacked: rework is a SUBSET of gross, and stacking
+           would read as double the churn that actually happened -->
+      <section class="card">
+        <header><h3>Churn, last 52 weeks</h3></header>
+        <div class="body">
+          <div style="display: flex; gap: 16px; margin-bottom: 8px; font-size: 12px; color: #9da7b3;">
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: #6e7bff;"></span>Gross</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: #3fb950;"></span>Net</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: #d29922;"></span>Rework</span>
+          </div>
+          <svg width="100%" height="220" viewBox="0 0 1300 220" preserveAspectRatio="none">
+            <line x1="48" y1="40" x2="1288" y2="40" stroke="#30363d" stroke-dasharray="3 3"></line>
+            <line x1="48" y1="100" x2="1288" y2="100" stroke="#30363d" stroke-dasharray="3 3"></line>
+            <line x1="48" y1="160" x2="1288" y2="160" stroke="#30363d" stroke-dasharray="3 3"></line>
+            <text class="axis" x="10" y="44">600</text><text class="axis" x="10" y="104">400</text><text class="axis" x="10" y="164">200</text>
+            <g>
+              <rect x="70" y="120" width="14" height="68" fill="#6e7bff"></rect><rect x="86" y="152" width="14" height="36" fill="#3fb950"></rect><rect x="102" y="176" width="14" height="12" fill="#d29922"></rect>
+              <rect x="200" y="86" width="14" height="102" fill="#6e7bff"></rect><rect x="216" y="140" width="14" height="48" fill="#3fb950"></rect><rect x="232" y="166" width="14" height="22" fill="#d29922"></rect>
+              <rect x="330" y="140" width="14" height="48" fill="#6e7bff"></rect><rect x="346" y="164" width="14" height="24" fill="#3fb950"></rect><rect x="362" y="180" width="14" height="8" fill="#d29922"></rect>
+              <rect x="460" y="60" width="14" height="128" fill="#6e7bff"></rect><rect x="476" y="128" width="14" height="60" fill="#3fb950"></rect><rect x="492" y="150" width="14" height="38" fill="#d29922"></rect>
+              <rect x="590" y="104" width="14" height="84" fill="#6e7bff"></rect><rect x="606" y="150" width="14" height="38" fill="#3fb950"></rect><rect x="622" y="172" width="14" height="16" fill="#d29922"></rect>
+              <rect x="720" y="46" width="14" height="142" fill="#6e7bff"></rect><rect x="736" y="118" width="14" height="70" fill="#3fb950"></rect><rect x="752" y="142" width="14" height="46" fill="#d29922"></rect>
+              <rect x="850" y="132" width="14" height="56" fill="#6e7bff"></rect><rect x="866" y="160" width="14" height="28" fill="#3fb950"></rect><rect x="882" y="178" width="14" height="10" fill="#d29922"></rect>
+              <rect x="980" y="96" width="14" height="92" fill="#6e7bff"></rect><rect x="996" y="146" width="14" height="42" fill="#3fb950"></rect><rect x="1012" y="168" width="14" height="20" fill="#d29922"></rect>
+              <rect x="1110" y="70" width="14" height="118" fill="#6e7bff"></rect><rect x="1126" y="134" width="14" height="54" fill="#3fb950"></rect><rect x="1142" y="156" width="14" height="32" fill="#d29922"></rect>
+              <rect x="1240" y="112" width="14" height="76" fill="#6e7bff"></rect><rect x="1256" y="154" width="14" height="34" fill="#3fb950"></rect><rect x="1272" y="174" width="14" height="14" fill="#d29922"></rect>
+            </g>
+            <text class="axis" x="60" y="208">2025-W36</text><text class="axis" x="640" y="208">2026-W10</text><text class="axis" x="1210" y="208">2026-W34</text>
+          </svg>
+        </div>
+      </section>
+
+      <section class="card">
+        <header><h3>Owners</h3></header>
+        <div class="body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th class="th">Author</th><th class="th" style="text-align: right;">Lines changed</th><th class="th" style="text-align: right;">Share</th></tr></thead>
+            <tbody>
+              <tr><td class="td">sam</td><td class="td" style="text-align: right;">2184</td><td class="td" style="text-align: right;">84%</td></tr>
+              <tr><td class="td">kim</td><td class="td" style="text-align: right;">312</td><td class="td" style="text-align: right;">12%</td></tr>
+              <tr><td class="td">lee</td><td class="td" style="text-align: right;">104</td><td class="td" style="text-align: right;">4%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+        <section class="card">
+          <header><h3>Findings</h3></header>
+          <div class="body" style="display: flex; align-items: center; min-height: 120px; font-size: 14px; color: #9da7b3;">
+            <p style="margin: 0;">File-scoped findings arrive with Tier-2 analysis (wave W6).</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <header>
+            <div style="display: flex; align-items: center; gap: 6px;"><h3>Hotspot score history</h3><span style="color: #7d8590; font-size: 13px;" title="Definition">&#9432;</span></div>
+          </header>
+          <div class="body">
+            <svg width="100%" height="120" viewBox="0 0 620 120" preserveAspectRatio="none">
+              <line x1="40" y1="30" x2="608" y2="30" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <line x1="40" y1="70" x2="608" y2="70" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <text class="axis" x="8" y="34">1.0</text><text class="axis" x="8" y="74">0.5</text>
+              <path d="M40,74 C140,66 230,52 320,44 C420,36 500,34 608,30" fill="none" stroke="#6e7bff" stroke-width="2"></path>
+              <text class="axis" x="40" y="112">05-24</text><text class="axis" x="540" y="112">08-21</text>
+            </svg>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
