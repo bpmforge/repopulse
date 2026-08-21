@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; background: #0d1117; color: #e6edf3; }
+    a { color: #6e7bff; text-decoration: none; }
+    a:hover { color: #8f99ff; }
+    .card { border: 1px solid #30363d; border-radius: 10px; background: #161b22; }
+    .card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px; }
+    .card h3 { margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3; }
+    .card > .body { padding: 12px; }
+    .btn { border: 1px solid #30363d; border-radius: 10px; padding: 2px 8px; font-size: 12px; color: #e6edf3; }
+    .item { border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px; }
+    .item.regressed { border-color: rgba(210,153,34,0.4); background: rgba(210,153,34,0.10); }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 1000px; background: #0d1117;">
+
+  <nav style="display: flex; flex-direction: column; width: 64px; flex-shrink: 0; border-right: 1px solid #30363d; background: #161b22;">
+    <div style="display: flex; align-items: center; justify-content: center; padding: 12px;"><span style="font-size: 14px; color: #9da7b3;">&raquo;</span></div>
+    <ul style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px; margin: 0; list-style: none; flex-grow: 1;">
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9672;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9636;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#8644;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9678;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9873;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid #6e7bff; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px;">&#9719;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9638;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#10063;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9881;</div></li>
+    </ul>
+    <div style="display: flex; justify-content: center; border-top: 1px solid #30363d; padding: 8px;"><span style="width: 8px; height: 8px; border-radius: 999px; background: #3fb950;"></span></div>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+    <div style="display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #30363d;">
+      <span style="font-size: 14px; color: #9da7b3;">Plans</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <h1 style="margin: 0; flex-grow: 1; font-size: 18px; font-weight: 600;">Improvement plans</h1>
+        <span style="border: 1px solid #6e7bff; border-radius: 10px; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px; padding: 6px 12px;">Generate a plan</span>
+      </div>
+
+      <section class="card">
+        <header><h3>Plans</h3></header>
+        <div class="body" style="display: flex; flex-direction: column; gap: 12px;">
+
+          <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+            <h2 style="margin: 0; font-size: 14px; font-weight: 500;">Delivery &amp; review hygiene</h2>
+            <span style="font-size: 12px; color: #9da7b3;">3/7 verified</span>
+            <span style="font-size: 12px; color: #d29922;">&#9888; 1 regressed</span>
+            <span style="font-size: 12px; color: #7d8590;">catalog v2</span>
+          </div>
+
+          <div style="height: 6px; border-radius: 999px; background: #1c2129; overflow: hidden;">
+            <div style="width: 43%; height: 100%; background: #6e7bff;"></div>
+          </div>
+
+          <ol style="display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none;">
+
+            <li class="item">
+              <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+                <span style="font-size: 12px; color: #9da7b3;">#1</span>
+                <h3 style="margin: 0; flex-grow: 1; font-size: 14px; font-weight: 500;">Raise review coverage on forge-adapters</h3>
+                <span style="font-size: 12px; color: #9da7b3;">Medium effort</span>
+                <span style="font-size: 12px;">&#9675; proposed</span>
+              </div>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Done when review coverage stays at or above 80% for 30 days.</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #7d8590;">Evidence: M5, M6</p>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+                <span class="btn">Accept</span><span class="btn">Dismiss</span>
+              </div>
+            </li>
+
+            <li class="item">
+              <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+                <span style="font-size: 12px; color: #9da7b3;">#2</span>
+                <h3 style="margin: 0; flex-grow: 1; font-size: 14px; font-weight: 500;">Split the budgeter — bus factor 1 on a top hotspot</h3>
+                <span style="font-size: 12px; color: #9da7b3;">Large effort</span>
+                <span style="font-size: 12px;">&#9680; in progress</span>
+              </div>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Done when no single author holds more than 80% of changed lines.</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #7d8590;">Evidence: M2, M3</p>
+            </li>
+
+            <!-- Regressed items are styled warn and pinned -->
+            <li class="item regressed">
+              <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+                <span style="font-size: 12px; color: #9da7b3;">#3</span>
+                <h3 style="margin: 0; flex-grow: 1; font-size: 14px; font-weight: 500;">Keep CI pass rate above 90%</h3>
+                <span style="font-size: 12px; color: #9da7b3;">Small effort</span>
+                <span style="font-size: 12px;">&#9888; regressed</span>
+              </div>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Done when CI pass rate stays at or above 90% for 30 days.</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #7d8590;">Evidence: M9</p>
+            </li>
+
+            <li class="item">
+              <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+                <span style="font-size: 12px; color: #9da7b3;">#4</span>
+                <h3 style="margin: 0; flex-grow: 1; font-size: 14px; font-weight: 500;">Bring median PR size under 200 lines</h3>
+                <span style="font-size: 12px; color: #9da7b3;">Medium effort</span>
+                <span style="font-size: 12px;">&#10003; done</span>
+              </div>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Done when median PR size stays under 200 lines for 30 days.</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #7d8590;">Evidence: M7</p>
+            </li>
+
+          </ol>
+        </div>
+      </section>
+
+      <!-- R-D3: T2 narration is the quiet-accent AI card family — a provenance
+           chip, no gradient, no sparkle. Deterministic content is visually
+           indistinguishable from the rest of the app, because it IS the app. -->
+      <section class="card">
+        <header><h3>Summary</h3></header>
+        <div class="body">
+          <p style="margin: 0; font-size: 14px;">Review coverage is the binding constraint this window: two of the four repositories below 80% account for every unreviewed merge. The CI item regressed after last week's runner change.</p>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #9da7b3;">T2 &middot; local &mdash; reworded, numbers computed</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

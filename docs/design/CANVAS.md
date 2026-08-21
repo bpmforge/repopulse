@@ -19,6 +19,8 @@ verbatim.
 | `docs/design/canvas/MyFocus.dc.html` | My Focus (`/me`) |
 | `docs/design/canvas/Views.dc.html` | Custom Views (`/views`) |
 | `docs/design/canvas/Reports.dc.html` | Report Center (`/reports`) |
+| `docs/design/canvas/Plans.dc.html` | Plans (`/plans`, D9) |
+| `docs/design/canvas/Admin.dc.html` | Admin (`/admin`) |
 | `docs/design/canvas/canvas.json` | Layout: positions, titles, sticky notes |
 | `docs/design/canvas/repopulse-ui-canvas.html` | **Generated.** The seeded page that gets published. Never hand-edit it. |
 
@@ -34,7 +36,8 @@ node "<design skill base>/seed-canvas.mjs" \
   --artboard Main.dc.html --artboard RepoDetail.dc.html \
   --artboard PrDetail.dc.html --artboard FileDetail.dc.html \
   --artboard Findings.dc.html --artboard MyFocus.dc.html \
-  --artboard Views.dc.html --artboard Reports.dc.html [--artboard …] \
+  --artboard Views.dc.html --artboard Reports.dc.html \
+  --artboard Plans.dc.html --artboard Admin.dc.html \
   --canvas canvas.json
 ```
 
@@ -44,7 +47,7 @@ canvas turns into ten. If the canvas has been edited in the browser since
 the last seed, read it back first (`--extract`) so those edits are not
 discarded.
 
-## Screens covered so far
+## Screens covered — all ten, complete
 
 - [x] §4.a Org Overview — shipped
 - [x] §4.b Repo Detail — shipped
@@ -54,48 +57,88 @@ discarded.
 - [x] §4.f My Focus — shipped
 - [x] §4.g Custom Views — shipped
 - [x] §4.h Report Center — shipped
-- [ ] §4.h2 Plans — D9
-- [ ] §4.i Admin
+- [x] §4.h2 Plans — shipped (D9)
+- [x] §4.i Admin — shipped
 
 ## Rule the canvas is held to
 
-It documents what is SHIPPED. An artboard that contradicts the rendered UI
-is worse than no artboard, so each board is drawn from the components in
-`apps/web/src/widgets/**`, and anything specified-but-unbuilt is labelled
-as such rather than drawn as though it exists.
+It documents what is SHIPPED. An artboard that contradicts the rendered UI is
+worse than no artboard, so each board is drawn from the components in
+`apps/web/src/widgets/**` and `apps/web/src/routes/**`, and anything
+specified-but-unbuilt is labelled rather than drawn as though it exists.
 
-Two places the shipped UI has already outgrown UX_SPEC §4, both recorded on
-the canvas as sticky notes:
+## What the drawing found — UX_SPEC §4 vs the running app
 
-- **Org Overview carries more than §4.a sketches** — Weekly pulse (pinned
-  top), Improvement plan (D9), Security rollup, Top risks and Risk axes were
-  all added after the spec. The health tiles ship *without* the sparkline
-  §4.a drew: name, badge and basis only.
-- **Repo Detail ships seven tabs, not five** — Security (W8) and Code Health
-  (W9) came later. `widgets/code-health/` currently holds only
-  `contracts.ts`, so that tab's content is spec, not shipped code.
-- **PR Detail diverges most.** §4.c drew a horizontal stage bar, risk badges, a
-  findings accordion with evidence quotes, per-file hotspot badges and a GitHub
-  ↗ link. What ships is a vertical stage list, a size chip, review/checks side
-  by side and a plain files table. Its "Automated review" panel is permanently
-  empty because Tier-2 (W6) has not run — and per FR-WEB-8 it says *why*
-  rather than reading as a clean bill of health.
-- **§4.e's "v1.x teaser" line is stale.** The full Findings Explorer shipped in
-  W6-04 — six URL-synced filters (the scanner facet driven by the registry, so a
-  later wave's scanner becomes filterable with no edit to the screen), bulk
-  confirm/dismiss behind a *required* note, and a false-positive-rate widget
-  that shows an em dash rather than 0% when nothing has been triaged. What is
-  still a teaser is the repo-level Findings **tab**, not this screen.
-- **My Focus drops §4.f's personal-cycle-time chart.** Four count tiles stand in
-  its place, captioned "not compared to an earlier window" rather than showing a
-  delta never computed. The screen keeps identity-unlinked and nothing-to-do as
-  distinct states: both render empty, but only one is fixable by the user.
-- **Report Center ships five report types, not §4.h's four** — Code Health
-  (D11) was added in W9. It also gained a free-text "Context" annotation stored
-  *with* the report, and a compare mode that diffs two runs when exactly two
-  rows are ticked. Neither is in the spec.
-- **File drill-down gained two things the spec never had** — the Intent control
-  (Refactor / Supervise / Acknowledged, W6-09) sits first, and the history
-  banner reports "last seen" and previous paths without claiming deletion,
-  because ingestion cannot tell a deletion from a quiet file. §4.d's "recent
-  PRs touching this file" table is **not** shipped.
+This list is the real product of building the canvas. **UX_SPEC is the older
+document**; in every case below the app is right and the spec is stale. None of
+this is a defect list — it is drift, and it is only expensive once nobody
+remembers which document to trust.
+
+### The spec is factually wrong in one place
+
+- **§4.e calls the Findings Explorer "v1.x — shell ships in MVP as teaser".**
+  The full explorer shipped in W6-04: six URL-synced filters (the scanner facet
+  driven by the registry, so a later wave's scanner becomes filterable with no
+  edit to the screen), bulk confirm/dismiss behind a *required* note, and a
+  false-positive-rate widget. The repo-level Findings **tab** is the teaser —
+  a different surface. Worth fixing in the spec.
+
+### Screens that grew past their spec
+
+- **Org Overview (§4.a)** carries five widgets the spec never mentions: Weekly
+  pulse (pinned top), Improvement plan (D9), Security rollup, Top risks, Risk
+  axes.
+- **Repo Detail (§4.b)** ships seven routed tabs, not five — Security (W8) and
+  Code Health (W9) came later.
+- **Report Center (§4.h)** ships five report types, not four (Code Health,
+  D11), plus a free-text "Context" annotation stored *with* the report and a
+  compare mode that diffs two runs.
+- **Admin (§4.i)** ships eight tabs, not four. Connections, Sync, Members and
+  Analysis were specified; Identities, Agreements, Rules and Settings arrived
+  with later waves.
+- **File drill-down (§4.d)** gained the Intent control (Refactor / Supervise /
+  Acknowledged, W6-09) and a history banner that reports last-seen and previous
+  paths *without* claiming deletion — ingestion cannot tell a deletion from a
+  quiet file.
+
+### Things the spec drew that were never built
+
+- **§4.a's health-tile sparkline.** Tiles ship as name + badge + basis only.
+- **§4.c's PR Detail furniture** — the horizontal stage bar (shipped as a
+  vertical list), risk badges, the findings accordion with evidence quotes,
+  per-file hotspot badges, the GitHub ↗ link.
+- **§4.d's "recent PRs touching this file"** table.
+- **§4.f's personal cycle-time-vs-repo-median chart.** Four count tiles stand
+  in its place, captioned "not compared to an earlier window" rather than
+  showing a delta nobody computed.
+- **The Code Health tab's content.** `widgets/code-health/` holds only
+  `contracts.ts` — the tab is spec, not shipped code.
+
+### Decisions the canvas makes visible
+
+Not divergences — implementation choices that only become legible when drawn,
+and that a redesign should not casually undo:
+
+- **Plans has no "mark done" button.** An item closes when its metric actually
+  moves, verified nightly (W5-06). A human cannot declare victory over a number.
+- **The FP-rate widget shows an em dash, never 0%,** when nothing has been
+  triaged: an untriaged corpus must not read as a flawless model
+  (FR-INSIGHTS-1).
+- **PR Detail's empty "Automated review" panel says why it is empty.** Per
+  FR-WEB-8, an empty panel with no policy line reads as a clean bill of health.
+- **My Focus keeps identity-unlinked apart from nothing-to-do.** Both render
+  empty; only one is fixable by the user.
+- **Admin shows a credential fingerprint and last 4 only** — showing more would
+  put a token in the DOM (SC-2) — and surfaces the rate-limit budget per repo,
+  because budget is law (Law 7) and an operator must see it *before* a repo
+  goes `paused_budget`.
+- **Churn bars are grouped, not stacked:** rework is a subset of gross, so
+  stacking would read as double the churn that happened.
+- **Status is always a glyph plus a word,** never colour alone (§7).
+
+### One thing worth changing
+
+The left rail's icons are text glyphs (`◈ ▤ ⇄ ◎ ⚑ ◷ ▦ ❏ ⚙`), drawn here as
+they ship. They are the one element on these ten boards that reads as
+placeholder rather than designed. Replacing them with a real icon set is the
+clearest single visual upgrade available, and it touches one component.

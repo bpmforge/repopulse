@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; background: #0d1117; color: #e6edf3; }
+    a { color: #6e7bff; text-decoration: none; }
+    a:hover { color: #8f99ff; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }
+    .card { border: 1px solid #30363d; border-radius: 10px; background: #161b22; }
+    .card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px; }
+    .card h3 { margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3; }
+    .card > .body { padding: 12px; }
+    .th { text-align: left; font-size: 12px; font-weight: 400; color: #9da7b3; padding: 4px 8px 4px 0; }
+    .td { padding: 6px 8px 6px 0; font-size: 14px; border-top: 1px solid #30363d; }
+    .btn { border: 1px solid #30363d; border-radius: 10px; padding: 2px 8px; font-size: 12px; color: #e6edf3; }
+    .sev { display: inline-flex; border-radius: 6px; padding: 2px 6px; font-size: 12px; font-weight: 500; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 1080px; background: #0d1117;">
+
+  <nav style="display: flex; flex-direction: column; width: 64px; flex-shrink: 0; border-right: 1px solid #30363d; background: #161b22;">
+    <div style="display: flex; align-items: center; justify-content: center; padding: 12px;"><span style="font-size: 14px; color: #9da7b3;">&raquo;</span></div>
+    <ul style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px; margin: 0; list-style: none; flex-grow: 1;">
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9672;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9636;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#8644;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9678;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9873;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9719;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9638;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#10063;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid #6e7bff; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px;">&#9881;</div></li>
+    </ul>
+    <div style="display: flex; justify-content: center; border-top: 1px solid #30363d; padding: 8px;"><span style="width: 8px; height: 8px; border-radius: 999px; background: #3fb950;"></span></div>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+    <div style="display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #30363d;">
+      <span style="font-size: 14px; color: #9da7b3;">Admin</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+
+      <!-- EIGHT tabs ship, not §4.i's four -->
+      <nav style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #30363d;">
+        <span style="padding: 8px 12px; font-size: 14px; color: #e6edf3; border-bottom: 2px solid #6e7bff;">Connections</span>
+        <span style="padding: 8px 12px; font-size: 14px; color: #9da7b3;">Sync</span>
+        <span style="padding: 8px 12px; font-size: 14px; color: #9da7b3;">Members</span>
+        <span style="padding: 8px 12px; font-size: 14px; color: #9da7b3;">Identities</span>
+        <span style="padding: 8px 12px; font-size: 14px; color: #9da7b3;">Agreements</span>
+        <span style="padding: 8px 12px; font-size: 14px; color: #9da7b3;">Rules</span>
+        <span style="padding: 8px 12px; font-size: 14px; color: #9da7b3;">Analysis</span>
+        <span style="padding: 8px 12px; font-size: 14px; color: #9da7b3;">Settings</span>
+      </nav>
+
+      <section class="card">
+        <header>
+          <div style="display: flex; align-items: center; gap: 6px;"><h3>Connect an organisation</h3><span style="color: #7d8590; font-size: 13px;" title="Definition">&#9432;</span></div>
+        </header>
+        <div class="body">
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9da7b3;">Forge<span style="border: 1px solid #30363d; border-radius: 10px; background: #161b22; color: #e6edf3; font-size: 14px; padding: 4px 8px;">Gitea &#9662;</span></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9da7b3;">Organisation<span style="width: 180px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; color: #7d8590; font-size: 14px; padding: 4px 8px;">bpmforge</span></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9da7b3;">Gitea access token (read:repository)<span style="width: 260px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; color: #7d8590; font-size: 14px; padding: 4px 8px;">••••••••••••••••</span></label>
+            <span style="border: 1px solid #6e7bff; border-radius: 10px; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px; padding: 6px 12px;">Connect</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SC-2: the API returns a fingerprint and the last 4 for exactly this
+           display. Showing more would put a token in the DOM. -->
+      <section class="card">
+        <header><h3>Connections</h3></header>
+        <div class="body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th class="th">Organisation</th><th class="th">Forge</th><th class="th">Credential</th><th class="th">Status</th><th class="th">Actions</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="td">bpmforge</td>
+                <td class="td" style="color: #9da7b3;">gitea</td>
+                <td class="td mono" style="font-size: 12px;">&hellip;4f2a</td>
+                <td class="td" style="color: #3fb950;">&#10003; active</td>
+                <td class="td" style="font-size: 12px;"><span class="btn">Pause</span> <span class="btn">Remove</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+        <section class="card">
+          <header><h3>Org sync</h3></header>
+          <div class="body">
+            <dl style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; font-size: 14px;">
+              <div><dt style="font-size: 12px; color: #9da7b3;">Phase</dt><dd style="margin: 0;">backfill commits</dd></div>
+              <div><dt style="font-size: 12px; color: #9da7b3;">Worst lag</dt><dd style="margin: 0;">4m 12s</dd></div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="card">
+          <header><h3>Dead-letter queue</h3></header>
+          <div class="body" style="display: flex; align-items: center; min-height: 72px;">
+            <p style="margin: 0; font-size: 14px; color: #9da7b3;">No dead-lettered jobs. Anything that exhausts its retries will appear here with the error that caused it.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- Rate-limit budget is law (Law 7): an operator has to see it BEFORE a
+           repo goes paused_budget, not after -->
+      <section class="card">
+        <header><h3>Per-repo sync</h3></header>
+        <div class="body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead><tr><th class="th">Repository</th><th class="th">Phase</th><th class="th" style="text-align: right;">Budget</th><th class="th" style="text-align: right;">Lag</th><th class="th">Last error</th></tr></thead>
+            <tbody>
+              <tr><td class="td">api</td><td class="td"><span class="sev" style="background: rgba(88,166,255,0.15); color: #58a6ff;">Low</span> <span style="color: #9da7b3;">idle</span></td><td class="td" style="text-align: right;">4821/5000</td><td class="td" style="text-align: right;">18s</td><td class="td" style="color: #9da7b3;">&mdash;</td></tr>
+              <tr><td class="td">ingest</td><td class="td"><span class="sev" style="background: rgba(210,153,34,0.15); color: #d29922;">Medium</span> <span style="color: #9da7b3;">backfill commits</span></td><td class="td" style="text-align: right;">3140/5000</td><td class="td" style="text-align: right;">4m 12s</td><td class="td" style="color: #9da7b3;">&mdash;</td></tr>
+              <tr><td class="td">forge-adapters</td><td class="td"><span class="sev" style="background: rgba(240,136,62,0.15); color: #f0883e;">High</span> <span style="color: #9da7b3;">paused budget</span></td><td class="td" style="text-align: right;">12/5000</td><td class="td" style="text-align: right;">1h 06m</td><td class="td" style="color: #f85149; font-size: 12px;">secondary rate limit</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
