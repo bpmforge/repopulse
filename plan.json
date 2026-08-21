@@ -5212,10 +5212,14 @@
         "A migration path for rows already collapsed is stated: either they re-open on the next scan or the ticket says plainly why they cannot"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "FOUND BY W8-06, not by review. The scanner agent hit it building the dependency scanner: two CVEs on the same package normalise to the same dedup key, so the second silently becomes an occurrence of the first. It worked around the symptom by carrying the vulnerability id in ruleId, which the scanner branch of the key includes verbatim — the underlying normaliser is untouched and SHARED by every dimension.",
-        "The risk is not limited to CVEs. Any two findings that differ only in a number are at risk: two complexity findings quoting different measured values, two EOL findings quoting different cycles, two log lines differing by a port."
+        "The risk is not limited to CVEs. Any two findings that differ only in a number are at risk: two complexity findings quoting different measured values, two EOL findings quoting different cycles, two log lines differing by a port.",
+        "FIXED AT THE CAUSE, narrowly. The rule is now: a token containing a LETTER is an identifier and keeps its digits; a token of only digits and punctuation is a number and loses them. : and brackets separate, while - _ . join — which is how these strings are actually written, so app.ts:42 still loses its line number while cve-2020-11023 and log4j-core keep their identity.",
+        "Seven tests hold all three properties at once: the two CVEs stay apart, every reason the stripping existed still works (line numbers, shifted constants, leading line numbers, reflowed whitespace), and the normaliser stays idempotent — one that is not gives a single finding two keys.",
+        "THE MIGRATION SHIPPED WITH THE FIX because it had to: dedup_key is stored and the next scan recomputes it, so changing the normaliser would have made affected rows unreachable — duplicate inserted, original swept as resolved, occurrence counts and triage decisions detached. rekeyFindings recomputes in place, proven against live Postgres to preserve the row id, a confirmed status and an occurrence count of 7.",
+        "It REPORTS collisions rather than resolving them: when two rows now key identically, choosing a survivor is a decision about someone triage history, not something a migration should do quietly."
       ]
     }
   ]

@@ -24,21 +24,39 @@ export interface DedupInput {
 /**
  * Normalizes evidence for keying.
  *
- * Digits are stripped because a model quoting the same line will sometimes
- * include the line number and sometimes not, and because constants shift by a
- * digit far more often than the finding changes. Whitespace collapses for the
- * same reason the validator collapses it: models reflow text.
+ * Standalone numbers are stripped because a model quoting the same line will
+ * sometimes include the line number and sometimes not, and because a constant
+ * shifts by a digit far more often than the finding changes. Whitespace
+ * collapses for the same reason the validator collapses it: models reflow text.
+ *
+ * DIGITS INSIDE AN IDENTIFIER SURVIVE (W8-16). The original rule was
+ * `\b\d+\b`, and a hyphen is a word boundary — so `CVE-2020-11023` and
+ * `CVE-2020-11022` both normalized to `cve--` and collapsed into ONE finding.
+ * Two different vulnerabilities on one package became one row, and the second
+ * was silently counted as another sighting of the first. Found while building
+ * the dependency scanner (W8-06), which worked around the symptom by carrying
+ * the id in `ruleId`; this is the cause.
+ *
+ * The rule now: a token containing a LETTER is an identifier and keeps its
+ * digits; a token that is only digits and punctuation is a number and loses
+ * them. `:` and brackets separate tokens, while `-`, `_` and `.` join them —
+ * which is how these strings are actually written, so `app.ts:42` still loses
+ * its line number while `cve-2020-11023` and `log4j-core` keep their identity.
  */
 export function normalizeEvidence(quote: string): string {
-  // Digits FIRST, then whitespace. The other order leaves the gap where the
-  // number was ("foo( 42 )" -> "foo(  )"), so normalizing an already-normalized
-  // quote would produce a different string — and a normalizer that is not
-  // idempotent gives the same finding two keys.
-  return quote
-    .toLowerCase()
-    .replace(/\b\d+\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  // Tokens are runs of identifier characters; everything else is a separator
+  // and is preserved verbatim so the shape of the quote still distinguishes
+  // two different lines.
+  const normalized = quote.toLowerCase().replace(/[a-z0-9._-]+/g, (token) =>
+    // A letter anywhere makes it a name, not a measurement.
+    /[a-z]/.test(token) ? token : token.replace(/\d+/g, ''),
+  );
+
+  // Whitespace last. Doing it first would leave the gap where a number was
+  // ("foo( 42 )" -> "foo(  )"), so normalizing an already-normalized quote
+  // would produce a different string — and a normalizer that is not idempotent
+  // gives the same finding two keys.
+  return normalized.replace(/\s+/g, ' ').trim();
 }
 
 /**
