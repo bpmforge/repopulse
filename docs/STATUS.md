@@ -3353,3 +3353,40 @@ Work worth knowing about:
   discarded. A proposal citing evidence that does not exist is worse than
   no proposal. Nothing auto-dismisses; proposals are pre-filled suggestions
   a human confirms.
+
+### 2026-08-20 — W8-16: the dedup key stopped collapsing two CVEs into one
+
+The bug W8-06 found, fixed at the cause. `\b\d+\b` treats a hyphen as a
+word boundary, so `CVE-2020-11023` and `CVE-2020-11022` both normalised to
+`cve--`. Two different vulnerabilities on one package became **one row**,
+and the second was silently counted as another sighting of the first.
+
+The fix is narrow, because the stripping exists for real reasons — a model
+quoting the same line sometimes includes the line number, and a constant
+shifts by a digit far more often than a finding changes. The rule is now:
+**a token containing a letter is an identifier and keeps its digits; a
+token that is only digits and punctuation is a number and loses them.**
+`:` and brackets separate tokens; `-`, `_` and `.` join them, which is how
+these strings are actually written. So `app.ts:42` still loses its line
+number while `cve-2020-11023` and `log4j-core` keep their identity.
+
+Seven tests hold all three properties at once: the two CVEs stay apart,
+every reason the stripping existed still works (line numbers, shifted
+constants, leading line numbers, reflowed whitespace), and the normaliser
+is still idempotent — one that is not gives a single finding two keys.
+
+**The fix ships with its migration, because it had to.** `dedup_key` is
+stored and the next scan looks findings up by recomputing it. Changing the
+normaliser makes affected rows unreachable: the scan finds no match,
+inserts a duplicate, and sweeps the original as resolved — taking every
+occurrence count and triage decision with it. That is exactly the harm
+`dedup.ts` already warned about for the W8-02 key change.
+`rekeyFindings` recomputes keys in place, proven against live Postgres to
+keep the row id, its `confirmed` status and its occurrence count of 7.
+
+It **reports collisions instead of resolving them**: when two rows now key
+identically, choosing which survives is a decision about someone's triage
+history, not something a migration should do quietly.
+
+Gate: lint clean, typecheck clean, 1,653 unit (zero skipped), 168 web, 105
+e2e, four validators.
