@@ -3648,7 +3648,7 @@ marked.
 
 Gate: lint clean, typecheck clean, **1,657 passed / 8 skipped** (was 1,654).
 
-Board: 150 tickets, 1 claimable (W9-17), 8 blocked on Brad.
+Board: 149 tickets, 1 claimable (W9-17), 8 blocked on Brad.
 
 ### 2026-08-21 — W9-17: one dimension list, enforced against the running database
 
@@ -3682,4 +3682,4 @@ generate and apply a drizzle migration"*, naming the value.
 
 Gate: lint clean, typecheck clean, **1,659 passed / 8 skipped** (was 1,657).
 
-Board: 150 tickets, **0 claimable**, 8 blocked on Brad.
+Board: 149 tickets (141 done), **0 claimable**, 8 blocked on Brad.
