@@ -5274,7 +5274,7 @@
         "If a facet is retained ahead of its producer, the UI says so where a user meets it rather than silently showing an empty result"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
         "FILED 2026-08-21 from the same review as W9-13. Verified by grepping every `dimension: '<name>'` literal in packages/*/src and apps/api/src: slop 0 producers, iac 0 producers, test_coverage 0 producers.",
         "slop: the anti_slop scanner exists and runs, but writes dimension 'code_health' (scanners/anti-slop/run.ts:123,144,174,218). The facet is dead even though the findings are real — possibly a one-word mapping fix, which is why it needs a decision rather than a guess.",
