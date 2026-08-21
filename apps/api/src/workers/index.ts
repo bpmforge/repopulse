@@ -28,6 +28,7 @@ import {
   runChainer,
   runCodeHealthScan,
   runLoggingScan,
+  runPerfScan,
   snapshotForScan,
   runSecretsHistoryScan,
   runSecretsStreamScan,
@@ -313,9 +314,22 @@ async function main(): Promise<void> {
                     ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
                   }),
                 ];
+                // W9-13. Third scan on the SAME snapshot: the perf pack needs a
+                // tree, and a second tarball for eight structural rules would
+                // be a rate-limit cost with nothing to show for it. It has no
+                // judgement half, so it needs no gateway.
+                const perf = await runPerfScan({
+                  db,
+                  workspaceId,
+                  repoId,
+                  commitSha: head.sha,
+                  targetDir: snapshot.dir,
+                  trigger: 'schedule',
+                });
                 return {
                   scanned: sources.files.length,
-                  findingsCreated: slop.findingsCreated + logging.findingsCreated,
+                  findingsCreated:
+                    slop.findingsCreated + logging.findingsCreated + perf.findingsCreated,
                   // Files the reader never saw, surfaced rather than swallowed:
                   // a slop density over an unstated fraction of a repository is
                   // a number with no denominator.

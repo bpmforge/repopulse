@@ -3522,3 +3522,49 @@ they showed you everything; these are filterable but never produced, and they
 show you nothing.
 
 Board: 146 tickets, 2 claimable (W9-13, W9-14), 8 blocked on Brad.
+
+### 2026-08-21 — W9-13 + W9-15: performance findings exist, and a shipped scanner stops dying on ordinary code
+
+**W9-13.** A `performance` scanner now owns the perf pack and emits dimension
+`performance`. The Findings Explorer facet and the risk axis have something to
+show for the first time.
+
+The filed evidence was **wrong about the mechanism and right about the result**,
+and the correction is the interesting part. The ticket said the perf findings
+were evaluated and discarded at `logging/run.ts:164`. They were never evaluated:
+`readRulepack` lists a directory and keeps its `.yaml` files **without
+recursing**, so from `rulepacks/code-health/` it loaded `anti-slop.v1.yaml` and
+`logging.v1.yaml` and never saw the `perf/` subdirectory at all. Every existing
+test read the pack file straight off disk by path, so all of them passed while
+the product could not reach a single rule. The new scanner points at the perf
+directory itself, and two tests — needing neither a database nor a sandbox —
+pin both halves: the pack IS reachable from the scanner's dir, and is NOT
+reachable from the parent. Acceptance 4 was written on the wrong premise and has
+been rewritten rather than quietly satisfied.
+
+Wired into the existing weekly snapshot pass, so it costs no extra tarball.
+`write_scope` was widened to `apps/api/src/workers/**` on purpose: a scanner no
+schedule invokes would have moved the disconnection up a level instead of
+removing it.
+
+**W9-15 — found by W9-13, and much larger than it.** `persistFindings` built its
+dedup map from rows ALREADY IN THE DATABASE and never looked at the batch it was
+handed. Two findings colliding inside one run meant the first inserted, the
+second violated `findings_workspace_repo_dedup_key`, the scanner's catch marked
+the run failed, and **nothing was stored**.
+
+This was not a new-scanner problem. Verified against the SHIPPED
+`logging_hygiene` scanner on a three-line file containing two `console.log`
+calls: `status: failed`, `findingsCreated: 0`. `dedupKey` buckets lines by ten,
+so two hits of one rule within a ten-line window collide — a cluster of matching
+lines a few apart is the ordinary case, and it is the one that failed. It
+survived a whole wave because fixtures trigger each rule once and real code does
+not. The batch now folds before touching the database: worst-case severity and
+confidence win so a fold cannot quietly downgrade, bounds widen across the
+cluster, and `foldedDuplicates` is reported so a scanner that matched twelve
+lines and stored three can say so. `occurrenceCount` still counts RUNS.
+
+Gate: lint clean, typecheck clean, **1,651 passed / 8 skipped** (was 1,645 —
+six new tests).
+
+Board: 148 tickets, 1 claimable (W9-14), 8 blocked on Brad.

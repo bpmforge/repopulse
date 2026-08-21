@@ -64,6 +64,12 @@ export interface PersistResult {
   updated: number;
   reopened: number;
   autoResolved: number;
+  /**
+   * Findings in THIS batch that shared a dedup key with an earlier one and were
+   * folded into it. Reported rather than silent: a scanner that produced twelve
+   * matches and stored three should be able to say so.
+   */
+  foldedDuplicates: number;
 }
 
 /**
@@ -74,8 +80,29 @@ export interface PersistResult {
  * people stop reading — and the count is what feeds the health score, so it
  * would also quietly move a number nobody changed the code to move.
  */
+/** Narrower of two optional line bounds; null only when neither is set. */
+function minDefined(a: number | null | undefined, b: number | null | undefined): number | null {
+  if (a === null || a === undefined) return b ?? null;
+  if (b === null || b === undefined) return a;
+  return Math.min(a, b);
+}
+
+/** Wider of two optional line bounds; null only when neither is set. */
+function maxDefined(a: number | null | undefined, b: number | null | undefined): number | null {
+  if (a === null || a === undefined) return b ?? null;
+  if (b === null || b === undefined) return a;
+  return Math.max(a, b);
+}
+
 export async function persistFindings(db: Database, params: PersistParams): Promise<PersistResult> {
-  const result: PersistResult = { created: 0, updated: 0, reopened: 0, autoResolved: 0, suppressed: 0 };
+  const result: PersistResult = {
+    created: 0,
+    updated: 0,
+    reopened: 0,
+    autoResolved: 0,
+    suppressed: 0,
+    foldedDuplicates: 0,
+  };
   const now = new Date();
 
   const keyed = params.findings.map((f) => ({
@@ -94,8 +121,52 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
     }),
   }));
 
+  // Fold duplicates WITHIN this batch before touching the database.
+  //
+  // Two findings that key identically are the same finding — that is what the
+  // key means. Without this fold the loop below inserted the first and let the
+  // second hit findings_workspace_repo_dedup_key, the catch marked the scan run
+  // failed, and NOTHING was stored: one duplicate pair lost the entire scan.
+  //
+  // Not a hypothetical, and not new with the scanner that found it (W9-13):
+  // every deterministic scanner builds its evidence quote as
+  // `<file>:<line> — <ruleId>`, and the W8-16 normaliser strips the line number
+  // from a numeric token on purpose, so ANY two hits of one rule in one file
+  // collide. Two console.log calls in one file took the shipped logging_hygiene
+  // scanner down. It survived this long because fixtures trigger each rule once
+  // and real repositories do not.
+  //
+  // occurrenceCount deliberately does NOT move here: it counts RUNS in which a
+  // finding was seen, so a file with twenty matching lines is one finding seen
+  // once, not twenty sightings.
+  const folded = new Map<string, (typeof keyed)[number]>();
+  for (const entry of keyed) {
+    const prior = folded.get(entry.key);
+    if (!prior) {
+      folded.set(entry.key, entry);
+      continue;
+    }
+    result.foldedDuplicates += 1;
+    // Worst case wins on severity and confidence: a fold must never quietly
+    // downgrade a finding because a milder sibling happened to be second.
+    // The earliest line is kept, so the stored row points at the first
+    // occurrence in the file rather than whichever the engine emitted last.
+    prior.finding = {
+      ...prior.finding,
+      severity: Math.max(prior.finding.severity, entry.finding.severity),
+      confidence: Math.max(prior.finding.confidence, entry.finding.confidence),
+      // Both are nullable — a repo-scoped finding has no line at all — so the
+      // bounds widen only across the values that exist rather than treating a
+      // missing line as zero.
+      lineStart: minDefined(prior.finding.lineStart, entry.finding.lineStart),
+      lineEnd: maxDefined(prior.finding.lineEnd, entry.finding.lineEnd),
+      suggestedFix: prior.finding.suggestedFix ?? entry.finding.suggestedFix,
+    };
+  }
+  const deduped = [...folded.values()];
+
   const existing =
-    keyed.length === 0
+    deduped.length === 0
       ? []
       : await db
           .select()
@@ -106,13 +177,13 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
               eq(read.findings.repoId, params.repoId),
               inArray(
                 read.findings.dedupKey,
-                keyed.map((k) => k.key),
+                deduped.map((k) => k.key),
               ),
             ),
           );
   const byKey = new Map(existing.map((row) => [row.dedupKey, row]));
 
-  for (const { finding, key } of keyed) {
+  for (const { finding, key } of deduped) {
     const prior = byKey.get(key);
 
     if (!prior) {
@@ -183,7 +254,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
 
   // Findings on files this run reviewed but no longer reports are stale.
   if (params.reviewedFiles && params.reviewedFiles.length > 0) {
-    const seenKeys = new Set(keyed.map((k) => k.key));
+    const seenKeys = new Set(deduped.map((k) => k.key));
     const sweepDimensions =
       params.sweepDimensions ?? [...new Set(params.findings.map((f) => f.dimension))];
     const candidates = await db

@@ -5233,23 +5233,26 @@
         "packages/security/rulepacks/code-health/perf/**",
         "packages/security/fixtures/perf/**",
         "docs/STATUS.md",
-        "plan.json"
+        "plan.json",
+        "apps/api/src/workers/**"
       ],
       "depends_on": [],
       "acceptance": [
         "A scanner OWNS the perf pack and emits its findings with dimension 'performance' — W9-08's fourth acceptance criterion, which is currently unmet",
         "An integration test proves a bpm-perf-* rule fires on the perf fixtures and lands as a STORED finding with dimension 'performance'",
         "The Findings Explorer's performance facet returns those findings, and the performance risk axis grades instead of reading 'not measured'",
-        "The logging scanner no longer pays semgrep to evaluate rules whose findings it discards, or that cost is documented as deliberate"
+        "The logging scanner's cost is documented rather than changed: it never paid for the perf rules — readRulepack does not recurse, so the perf SUBDIRECTORY was invisible from the parent dir it points at. The premise of the original criterion was wrong."
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "FILED 2026-08-21 from a product-gap review. W9-08 is marked DONE and its fourth acceptance criterion reads: 'findings take dimension performance and ride the standard triage/verify/plan rails'. They do not.",
         "EVIDENCE, all grep-verifiable. (1) rulepacks/code-health/perf/perf.v1.yaml holds 8 bpm-perf-* rules. (2) The ONLY runtime loader of that directory is scanners/logging/run.ts:152, which points semgrep at the whole code-health pack dir. (3) At run.ts:164 it does `if (!finding.ruleId.startsWith('bpm-log-')) continue;` — so every perf finding semgrep produces is evaluated and then DISCARDED. (4) The only other reference to `bpm-perf-` in apps/ or packages/ is perf-pack.test.ts, which reads the YAML off disk and asserts its contents; it never runs a scan through the product's pipeline.",
         "CONSEQUENCES: no scanner emits dimension 'performance' (the chainer passes it through but can only chain findings that already exist), so the Findings Explorer's performance facet is permanently empty and the performance risk axis at apps/api/src/routes/risk/index.ts:31 can never grade. VISION.md names performance as one of four review dimensions; three of the four ship.",
         "The rules are NOT the problem: written for RepoPulse with per-rule provenance, trigger and clean fixtures, and messages that deliberately refuse to quote speedup multipliers. This is wiring, not authoring.",
-        "This is the disconnected-pipeline defect (anti-slop R-26) inside the codebase of the product built to find it."
+        "This is the disconnected-pipeline defect (anti-slop R-26) inside the codebase of the product built to find it.",
+        "WRITE_SCOPE WIDENED to apps/api/src/workers/** on purpose. A scanner that no schedule invokes is the exact defect this ticket exists to fix — the perf pack was already a component nothing mounted, and shipping a perf SCANNER nothing calls would move the disconnection up one level rather than removing it. Same precedent as routes/repos/$repoId/route.tsx's RiskAxisStrip widening in W10-05. It joins the existing weekly snapshot pass, so it costs no extra tarball.",
+        "CORRECTION TO THIS TICKET'S OWN EVIDENCE, made while implementing it. The filed note said the perf findings were 'evaluated and then DISCARDED' at logging/run.ts:164. They were not evaluated at all: readRulepack lists a directory and keeps its .yaml files WITHOUT recursing, so from rulepacks/code-health/ it loaded anti-slop.v1.yaml and logging.v1.yaml and never saw the perf/ subdirectory. The conclusion held — no perf finding could ever reach storage — but the mechanism was wrong, and acceptance 4 was written on the wrong premise. Verified by running readRulepack over both directories; both facts are now pinned by a test that needs neither a database nor a sandbox."
       ]
     },
     {
@@ -5278,6 +5281,33 @@
         "iac: no IaC scanner exists at all. The facet is aspirational.",
         "test_coverage: coverage ingestion is parked, so this facet waits on parked work and should probably say so.",
         "NOT the same bug as W8-10/W10-05, worth stating so nobody fixes it twice: those were dimensions that WERE produced and were not filterable. This is the mirror image — filterable dimensions nothing produces. The symptom differs too: that bug showed you everything, this one shows you nothing."
+      ]
+    },
+    {
+      "id": "W9-15",
+      "title": "persistFindings dies on two same-key findings in one batch — logging_hygiene fails on any file with two console.log calls",
+      "phase": 9,
+      "module": "insights",
+      "stories": [],
+      "write_scope": [
+        "packages/insights/src/findings/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Two findings in ONE batch that share a dedup key fold into one stored finding instead of raising a unique-constraint error",
+        "The fold is reported in PersistResult, never silent — a scanner must be able to say how many it collapsed",
+        "A regression test proves three same-key findings in one batch fold to one stored row rather than raising; the shipped logging_hygiene scanner is verified by hand against a file with two console.log calls, the case that fails today",
+        "occurrenceCount still counts RUNS, not in-batch duplicates: a file with twenty matching lines must not add twenty sightings per scan"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "FILED 2026-08-21 mid-W9-13, which it blocks. Found by running the new perf scanner: 8 findings from one fixture file, two sharing a dedup key, whole scan failed.",
+        "ROOT CAUSE, packages/insights/src/findings/store.ts:113 — byKey is built ONLY from rows already in the database. The loop then inserts every batch finding whose key is not already stored, so the first of an in-batch pair inserts and the second violates findings_workspace_repo_dedup_key. The catch marks the scan run failed and NOTHING is stored.",
+        "THIS IS NOT A NEW-SCANNER PROBLEM. Verified against the SHIPPED logging_hygiene scanner (W9-04) on a three-line file containing two console.log calls: status failed, findingsCreated 0, same constraint error. Every deterministic scanner builds evidenceQuote as `<file>:<line> — <ruleId>`, and dedupKey buckets lines by ten, so two hits of one rule in one file collide whenever they fall in the same ten-line window. NOT every pair in a file — the first draft of this note said that and it is wrong — but a cluster of matching lines a few apart is the ordinary case, and it is the one that fails.",
+        "The dedup keys own semantics say the fold is correct: same key means same finding. What must NOT happen is inflating occurrenceCount by the number of duplicate lines — that field counts sightings across runs."
       ]
     }
   ]
