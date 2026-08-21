@@ -3232,3 +3232,80 @@ Gate: lint clean, typecheck clean, 1,435 unit (was 1,359), 128 web, 105 e2e
 Still open in W15: the sign-in screen (W15-04) and the install docs
 (W15-05). Until W15-04 lands, local and OIDC sign-in exist as endpoints
 with no UI in front of them.
+
+### 2026-08-20 — the scanner licensing question, answered with evidence
+
+Installed syft 1.51.0, grype 0.117.0, osv-scanner 2.5.1 with Brad's go.
+
+**Binaries: Apache-2.0, all three** — read from the LICENSE files brew
+actually shipped, not from a badge. Permissive, redistributable inside a
+proprietary product (D10); the obligation is a NOTICE preserving copyright
+and stating modifications.
+
+**The data is a different question, and the answer is architectural.**
+Grype's database is not one source under one licence — its `providers`
+table lists roughly twenty: `nvd`, `github`, `kev`, `epss`, `debian`,
+`rhel`, `alpine`, `alma`, `amazon`, `arch`, `chainguard`, `oracle`,
+`photon`, `mariner`, `fedora`, `bitnami` and more, each with its own terms
+(NVD and CISA KEV are US-government public domain; GitHub advisories are
+CC-BY-4.0; EPSS comes from FIRST).
+
+So we do **not** redistribute it. `deploy/scan-db-sync.sh` already fetches
+scan data HOST-SIDE at the customer's install, on their cron, into a
+directory mounted read-only into the `--network=none` container. The
+customer's machine downloads from Anchore directly, under Anchore's terms;
+we ship a fetcher, not a corpus. That pattern exists for network isolation
+and happens to answer the licensing question exactly.
+
+It is also the only practical option: **the database is 1.9 GB.** Baking it
+into a redistributed image was never viable.
+
+**A real unblock fell out of the reading.** The DB already carries
+**1,671 CISA KEV entries** and **362,257 EPSS scores**. `price.ts` says
+"when the EPSS feed lands (W8-13), this line starts returning a real
+number" — it has landed. KEV correlation and EPSS both come from the
+artifact W8-06 was going to fetch anyway, so neither needs a separate feed.
+
+### 2026-08-20 — W8-06 done: the SBOM table has its first row since W8-02
+
+syft 1.51.0 and grype 0.117.0 are in the scan image, pinned with checksums,
+and both run under the **unmodified** sandbox profile — `--network=none`,
+read-only root, uid 65534. The make-or-break question was whether grype's
+schema-6 sqlite DB opens read-only with no WAL sidecar. It does. Nothing
+about the profile was loosened.
+
+Verified by running, not inferring: 35 dependency tests pass against a
+**really synced 1.9 GB database** (I ran `deploy/scan-db-sync.sh` rather
+than let the suite skip — a skipped suite proves nothing and looks green,
+which is the W8-02 lesson). Live result: jQuery 3.4.1 →
+`CVE-2020-11023`, `yields.kev = true`, priced into the **act** band.
+
+**Four traps the agents found by running things.** Each would have shipped:
+
+1. **`syft | grype` is a trap.** busybox `sh` has no `pipefail` and a
+   pipeline's status is the last command's — so a dead syft hands grype
+   empty stdin, grype exits 0, and the repository reports **clean because
+   the SBOM step crashed**. Both exit codes are now checked explicitly, and
+   a unit test with a fake spawn proves `SYFT_EXIT=1` + empty matches +
+   `GRYPE_EXIT=0` fails the scan.
+2. **A failed run must return BEFORE `persistFindings`.** Reaching the
+   store with an empty list would auto-resolve every existing dependency
+   finding — a crashed scanner quietly marking live CVEs as fixed.
+   Asserted end to end.
+3. **`dedupKey` strips digits from evidence, so `CVE-2020-11023` and
+   `CVE-2020-11022` normalise identically.** Two CVEs on one package would
+   have collapsed into one row. Worked around by carrying the vulnerability
+   id in `ruleId`, which the scanner branch of the key includes verbatim.
+   **This is a pre-existing bug in the shared normaliser, not a dependency
+   one** — any two findings differing only in digits are at risk, and it
+   deserves its own ticket.
+4. **D12's dependency depth ramp is dead code.** syft's CycloneDX root is
+   the scanned directory, whose bom-ref is absent from `dependencies[]`, so
+   the BFS never runs and every component is `prod-direct, depth 1`.
+   `prod-transitive` and `dev` never fire today. Pinned as a limitation in
+   a test rather than asserted as a feature.
+
+Also corrected: my own brief said KEV arrives as `{kev: true}` and EPSS as
+a number. Grype actually reports `vulnerability.knownExploited` and
+`vulnerability.epss` as **arrays of objects**. The agent measured it
+against log4j-core 2.14.1 instead of trusting me.
