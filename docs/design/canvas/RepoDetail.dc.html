@@ -1,0 +1,165 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; background: #0d1117; color: #e6edf3; }
+    a { color: #6e7bff; text-decoration: none; }
+    a:hover { color: #8f99ff; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }
+    .axis { font-size: 12px; fill: #9da7b3; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 900px; background: #0d1117;">
+
+  <!-- Rail collapsed to 64px (UX §3.1) — the same nav, icon-only -->
+  <nav style="display: flex; flex-direction: column; width: 64px; flex-shrink: 0; border-right: 1px solid #30363d; background: #161b22;">
+    <div style="display: flex; align-items: center; justify-content: center; padding: 12px;">
+      <span style="font-size: 14px; color: #9da7b3;">&raquo;</span>
+    </div>
+    <ul style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px; margin: 0; list-style: none; flex-grow: 1;">
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9672;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid #6e7bff; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px;">&#9636;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#8644;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9678;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9873;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9719;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9638;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#10063;</div></li>
+      <li><div style="display: flex; justify-content: center; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;">&#9881;</div></li>
+    </ul>
+    <div style="display: flex; justify-content: center; border-top: 1px solid #30363d; padding: 8px;">
+      <span style="width: 8px; height: 8px; border-radius: 999px; background: #3fb950;"></span>
+    </div>
+  </nav>
+
+  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+
+    <!-- Top bar: breadcrumb spine (UX §3.2) + global filters -->
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #30363d;">
+      <span style="font-size: 14px; color: #9da7b3;"><a href="#">Org</a> &#9656; bpmforge/ingest</span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #e6edf3; font-size: 13px; padding: 4px 10px;">window 90d &#9662;</span>
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #e6edf3; font-size: 13px; padding: 4px 10px;">person: any &#9662;</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+
+      <!-- Repo header: name, risk axis strip, health badge + why? (open) -->
+      <header style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 600;">bpmforge/ingest</h1>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #9da7b3;">
+            <span>Sec <span style="color: #e6edf3; font-weight: 600;">B</span></span>
+            <span>Rev <span style="color: #e6edf3; font-weight: 600;">C</span></span>
+            <span>Del <span style="color: #e6edf3; font-weight: 600;">B</span></span>
+            <span>CH <span>&ndash;</span></span>
+          </div>
+          <div style="position: relative; display: flex; align-items: center; gap: 8px;">
+            <span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 14px; font-weight: 500; background: rgba(210,153,34,0.15); color: #d29922;">74</span>
+            <span style="font-size: 12px; color: #9da7b3; text-decoration: underline; text-underline-offset: 2px;">why?</span>
+
+            <!-- HealthWhy popover, right-anchored, 288px (the shipped open state) -->
+            <div style="position: absolute; right: 0; top: 100%; margin-top: 8px; width: 288px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.3); z-index: 10;">
+              <p style="margin: 0 0 8px; font-size: 12px; color: #9da7b3;">Basis: Tier-1 only</p>
+              <dl style="display: flex; flex-direction: column; gap: 4px; margin: 0;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12px;"><dt style="color: #9da7b3;">Review</dt><dd style="margin: 0;">0.82 &times; 0.30 = <span style="color: #e6edf3;">24.6</span></dd></div>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12px;"><dt style="color: #9da7b3;">CI</dt><dd style="margin: 0;">0.87 &times; 0.25 = <span style="color: #e6edf3;">21.8</span></dd></div>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12px;"><dt style="color: #9da7b3;">Delivery</dt><dd style="margin: 0;">0.71 &times; 0.25 = <span style="color: #e6edf3;">17.8</span></dd></div>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12px;"><dt style="color: #9da7b3;">Activity</dt><dd style="margin: 0;">0.66 &times; 0.20 = <span style="color: #e6edf3;">13.2</span></dd></div>
+              </dl>
+              <p style="margin: 8px 0 0; font-size: 12px; color: #7d8590;">Security and Code Health have no sub-score in this window and are not in the total.</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Seven routed tabs — each is its own URL, not local state -->
+      <nav style="display: flex; gap: 4px; border-bottom: 1px solid #30363d;">
+        <span style="border-radius: 10px 10px 0 0; padding: 8px 12px; font-size: 14px; color: #e6edf3; border-bottom: 2px solid #6e7bff;">Pulse</span>
+        <span style="border-radius: 10px 10px 0 0; padding: 8px 12px; font-size: 14px; color: #9da7b3;">Hotspots</span>
+        <span style="border-radius: 10px 10px 0 0; padding: 8px 12px; font-size: 14px; color: #9da7b3;">PR Flow</span>
+        <span style="border-radius: 10px 10px 0 0; padding: 8px 12px; font-size: 14px; color: #9da7b3;">CI</span>
+        <span style="border-radius: 10px 10px 0 0; padding: 8px 12px; font-size: 14px; color: #9da7b3;">Findings</span>
+        <span style="border-radius: 10px 10px 0 0; padding: 8px 12px; font-size: 14px; color: #9da7b3;">Security</span>
+        <span style="border-radius: 10px 10px 0 0; padding: 8px 12px; font-size: 14px; color: #9da7b3;">Code Health</span>
+      </nav>
+
+      <!-- Pulse tab: four repo-scoped trend charts, 2 columns -->
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500;">PR cycle time</h3>
+            <span style="font-size: 12px; color: #9da7b3; text-decoration: underline; text-underline-offset: 2px;">view as table</span>
+          </header>
+          <div style="padding: 12px;">
+            <svg width="100%" height="180" viewBox="0 0 620 180" preserveAspectRatio="none">
+              <line x1="44" y1="30" x2="608" y2="30" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <line x1="44" y1="80" x2="608" y2="80" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <line x1="44" y1="130" x2="608" y2="130" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <text class="axis" x="8" y="34">60</text><text class="axis" x="8" y="84">40</text><text class="axis" x="8" y="134">20</text>
+              <path d="M44,44 C130,52 200,70 290,66 C380,62 470,92 608,104" fill="none" stroke="#6e7bff" stroke-width="2"></path>
+              <text class="axis" x="44" y="170">05-24</text><text class="axis" x="300" y="170">07-08</text><text class="axis" x="560" y="170">08-21</text>
+            </svg>
+          </div>
+        </section>
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500;">Commit churn</h3>
+            <span style="font-size: 12px; color: #9da7b3; text-decoration: underline; text-underline-offset: 2px;">view as table</span>
+          </header>
+          <div style="padding: 12px;">
+            <svg width="100%" height="180" viewBox="0 0 620 180" preserveAspectRatio="none">
+              <line x1="44" y1="30" x2="608" y2="30" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <line x1="44" y1="80" x2="608" y2="80" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <line x1="44" y1="130" x2="608" y2="130" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <text class="axis" x="4" y="34">24k</text><text class="axis" x="4" y="84">16k</text><text class="axis" x="8" y="134">8k</text>
+              <path d="M44,96 C140,60 210,120 300,74 C400,26 480,110 608,58" fill="none" stroke="#6e7bff" stroke-width="2"></path>
+              <text class="axis" x="44" y="170">05-24</text><text class="axis" x="300" y="170">07-08</text><text class="axis" x="560" y="170">08-21</text>
+            </svg>
+          </div>
+        </section>
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500;">Review coverage</h3>
+            <span style="font-size: 12px; color: #9da7b3; text-decoration: underline; text-underline-offset: 2px;">view as table</span>
+          </header>
+          <div style="padding: 12px;">
+            <svg width="100%" height="180" viewBox="0 0 620 180" preserveAspectRatio="none">
+              <line x1="44" y1="30" x2="608" y2="30" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <line x1="44" y1="80" x2="608" y2="80" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <line x1="44" y1="130" x2="608" y2="130" stroke="#30363d" stroke-dasharray="3 3"></line>
+              <text class="axis" x="6" y="34">100</text><text class="axis" x="14" y="84">80</text><text class="axis" x="14" y="134">60</text>
+              <path d="M44,110 C140,98 220,86 300,72 C390,58 480,52 608,44" fill="none" stroke="#6e7bff" stroke-width="2"></path>
+              <text class="axis" x="44" y="170">05-24</text><text class="axis" x="300" y="170">07-08</text><text class="axis" x="560" y="170">08-21</text>
+            </svg>
+          </div>
+        </section>
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500;">Issue throughput</h3>
+          </header>
+          <div style="display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; padding: 12px; height: 180px; font-size: 14px; color: #9da7b3;">
+            <p style="margin: 0;">No snapshots for this metric in this window.</p>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

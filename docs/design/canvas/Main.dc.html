@@ -1,0 +1,283 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; background: #0d1117; color: #e6edf3; }
+    a { color: #6e7bff; text-decoration: none; }
+    a:hover { color: #8f99ff; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 1200px; background: #0d1117;">
+
+  <!-- Left rail (UX §3.1) — 240px expanded -->
+  <nav style="display: flex; flex-direction: column; width: 240px; flex-shrink: 0; border-right: 1px solid #30363d; background: #161b22;">
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px;">
+      <span style="font-size: 14px; font-weight: 600; color: #e6edf3;">RepoPulse</span>
+      <span style="font-size: 14px; color: #9da7b3;">&laquo;</span>
+    </div>
+
+    <ul style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px; margin: 0; list-style: none; flex-grow: 1;">
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid #6e7bff; background: rgba(110,123,255,0.10); color: #e6edf3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#9672;</span><span style="flex-grow: 1;">Org Overview</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#9636;</span><span style="flex-grow: 1;">Repos</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#8644;</span><span style="flex-grow: 1;">Pull Requests</span><span style="border-radius: 999px; background: rgba(110,123,255,0.20); color: #6e7bff; font-size: 12px; padding: 0 6px;">4</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#9678;</span><span style="flex-grow: 1;">My Focus</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#9873;</span><span style="flex-grow: 1;">Findings</span><span style="border-radius: 999px; background: rgba(110,123,255,0.20); color: #6e7bff; font-size: 12px; padding: 0 6px;">12</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#9719;</span><span style="flex-grow: 1;">Plans</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#9638;</span><span style="flex-grow: 1;">Reports</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#10063;</span><span style="flex-grow: 1;">Views</span></div></li>
+      <li><div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border-left: 2px solid transparent; color: #9da7b3; font-size: 14px;"><span style="width: 16px; text-align: center;">&#9881;</span><span style="flex-grow: 1;">Admin</span></div></li>
+    </ul>
+
+    <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #30363d; padding: 8px 12px;">
+      <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #9da7b3;">
+        <span style="width: 8px; height: 8px; border-radius: 999px; background: #3fb950;"></span><span>Live</span>
+      </span>
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 12px; color: #9da7b3;">Theme</span>
+        <span style="font-size: 12px; color: #9da7b3;">@brad</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main column -->
+  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+
+    <!-- Top bar: breadcrumb + the three URL-persisted global filters (UX §3.4) -->
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-bottom: 1px solid #30363d;">
+      <span style="font-size: 14px; color: #9da7b3;">Org &#9656;</span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #e6edf3; font-size: 13px; padding: 4px 10px;">window 90d &#9662;</span>
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #e6edf3; font-size: 13px; padding: 4px 10px;">repos: all &#9662;</span>
+        <span style="border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #e6edf3; font-size: 13px; padding: 4px 10px;">person: any &#9662;</span>
+      </div>
+    </div>
+
+    <!-- Bento grid (12 col) -->
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+
+      <!-- Weekly pulse — pinned above the tiles (R-A7) -->
+      <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+        <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Weekly pulse</h3>
+        </header>
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px;">
+          <ul style="display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 14px;">
+            <li style="display: flex; gap: 8px;"><span style="color: #9da7b3;">&#9650;</span><span>Review coverage rose to 92% across 6 repositories, up 4.1 points on the prior window.</span></li>
+            <li style="display: flex; gap: 8px;"><span style="color: #9da7b3;">&#9660;</span><span>CI pass rate fell to 87% &mdash; <span class="mono">forge-adapters</span> accounts for most of the drop.</span></li>
+            <li style="display: flex; gap: 8px;"><span style="color: #9da7b3;">&ndash;</span><span>PR cycle time held near 41h; no stage moved by more than half a day.</span></li>
+          </ul>
+          <p style="margin: 0; font-size: 12px; color: #9da7b3;">computed from your warehouse</p>
+        </div>
+      </section>
+
+      <!-- Delivery KPIs: five tiles, value + delta + sparkline, no click target -->
+      <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+        <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Delivery KPIs</h3>
+            <span style="color: #7d8590; font-size: 13px;" title="Definition">&#9432;</span>
+          </div>
+        </header>
+        <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; padding: 12px;">
+
+          <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9da7b3;">Review coverage</span>
+              <svg width="96" height="28" viewBox="0 0 96 28"><path d="M2,20 L20,17 L38,15 L56,11 L74,9 L94,6 L94,26 L2,26 Z" fill="#6e7bff" fill-opacity="0.1"></path><path d="M2,20 L20,17 L38,15 L56,11 L74,9 L94,6" fill="none" stroke="#6e7bff" stroke-width="1.5"></path><circle cx="94" cy="6" r="2" fill="#6e7bff"></circle></svg>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 28px; font-weight: 600; line-height: 1; color: #e6edf3;">92</span>
+              <span style="font-size: 14px; color: #9da7b3;">%</span>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: #3fb950;"><span>&#9650;</span>4.1%</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9da7b3;">CI pass rate</span>
+              <svg width="96" height="28" viewBox="0 0 96 28"><path d="M2,8 L20,7 L38,11 L56,10 L74,15 L94,19 L94,26 L2,26 Z" fill="#6e7bff" fill-opacity="0.1"></path><path d="M2,8 L20,7 L38,11 L56,10 L74,15 L94,19" fill="none" stroke="#6e7bff" stroke-width="1.5"></path><circle cx="94" cy="19" r="2" fill="#6e7bff"></circle></svg>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 28px; font-weight: 600; line-height: 1; color: #e6edf3;">87</span>
+              <span style="font-size: 14px; color: #9da7b3;">%</span>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: #f85149;"><span>&#9660;</span>2.3%</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9da7b3;">PR cycle time</span>
+              <svg width="96" height="28" viewBox="0 0 96 28"><path d="M2,6 L20,9 L38,8 L56,14 L74,17 L94,20 L94,26 L2,26 Z" fill="#6e7bff" fill-opacity="0.1"></path><path d="M2,6 L20,9 L38,8 L56,14 L74,17 L94,20" fill="none" stroke="#6e7bff" stroke-width="1.5"></path><circle cx="94" cy="20" r="2" fill="#6e7bff"></circle></svg>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 28px; font-weight: 600; line-height: 1; color: #e6edf3;">41.2</span>
+              <span style="font-size: 14px; color: #9da7b3;">h</span>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: #3fb950;"><span>&#9660;</span>12%</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9da7b3;">Commit churn</span>
+              <svg width="96" height="28" viewBox="0 0 96 28"><path d="M2,14 L20,10 L38,18 L56,12 L74,16 L94,11 L94,26 L2,26 Z" fill="#6e7bff" fill-opacity="0.1"></path><path d="M2,14 L20,10 L38,18 L56,12 L74,16 L94,11" fill="none" stroke="#6e7bff" stroke-width="1.5"></path><circle cx="94" cy="11" r="2" fill="#6e7bff"></circle></svg>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 28px; font-weight: 600; line-height: 1; color: #e6edf3;">18420</span>
+              <span style="font-size: 14px; color: #9da7b3;">lines</span>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: #9da7b3;"><span>&#9650;</span>3.4%</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9da7b3;">Issue throughput</span>
+              <svg width="96" height="28" viewBox="0 0 96 28"><path d="M2,18 L20,16 L38,17 L56,12 L74,13 L94,8 L94,26 L2,26 Z" fill="#6e7bff" fill-opacity="0.1"></path><path d="M2,18 L20,16 L38,17 L56,12 L74,13 L94,8" fill="none" stroke="#6e7bff" stroke-width="1.5"></path><circle cx="94" cy="8" r="2" fill="#6e7bff"></circle></svg>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 28px; font-weight: 600; line-height: 1; color: #e6edf3;">34</span>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: #3fb950;"><span>&#9650;</span>6.0%</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Two 6-col heroes: repo health + needs attention -->
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Repo health</h3>
+          </header>
+          <div style="padding: 12px;">
+            <ul style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none;">
+              <li><div style="border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px;"><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 14px; font-weight: 500;">api</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 14px; font-weight: 500; background: rgba(63,185,80,0.15); color: #3fb950;">82</span></div><p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Basis: Tier-1 only</p></div></li>
+              <li><div style="border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px;"><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 14px; font-weight: 500;">web</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 14px; font-weight: 500; background: rgba(210,153,34,0.15); color: #d29922;">61</span></div><p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Basis: Tier-1 only</p></div></li>
+              <li><div style="border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px;"><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 14px; font-weight: 500;">ingest</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 14px; font-weight: 500; background: rgba(210,153,34,0.15); color: #d29922;">74</span></div><p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Basis: Tier-1 only</p></div></li>
+              <li><div style="border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px;"><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 14px; font-weight: 500;">forge-adapters</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 14px; font-weight: 500; background: rgba(255,123,114,0.15); color: #ff7b72;">45</span></div><p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Basis: Tier-1 only</p></div></li>
+              <li><div style="border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px;"><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 14px; font-weight: 500;">reports</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 14px; font-weight: 500; background: rgba(63,185,80,0.15); color: #3fb950;">88</span></div><p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Basis: Tier-1 only</p></div></li>
+              <li><div style="border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 12px;"><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 14px; font-weight: 500;">insights</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 14px; font-weight: 500; background: rgba(88,166,255,0.15); color: #58a6ff;">&nbsp;</span></div><p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Backfilling &mdash; score pending</p></div></li>
+            </ul>
+          </div>
+        </section>
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Needs attention</h3>
+          </header>
+          <div style="padding: 12px;">
+            <ul style="display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none;">
+              <li><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 8px 12px; font-size: 14px;"><span>forge-adapters</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 12px; font-weight: 500; background: rgba(240,136,62,0.15); color: #f0883e;">High</span></div></li>
+              <li><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 8px 12px; font-size: 14px;"><span>web</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 12px; font-weight: 500; background: rgba(210,153,34,0.15); color: #d29922;">Medium</span></div></li>
+              <li><div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #30363d; border-radius: 10px; background: #161b22; padding: 8px 12px; font-size: 14px;"><span>insights</span><span style="display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 6px; font-size: 12px; font-weight: 500; background: rgba(88,166,255,0.15); color: #58a6ff;">Low</span></div></li>
+            </ul>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Improvement plan (4) + Hotspots (8) -->
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Improvement plan</h3>
+          </header>
+          <div style="display: flex; flex-direction: column; padding: 12px;">
+            <p style="margin: 0; font-size: 28px; line-height: 1;">3<span style="font-size: 14px; color: #9da7b3;">/7</span></p>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">items verified</p>
+            <p style="margin: 8px 0 0; font-size: 12px; color: #d29922;">1 item regressed</p>
+            <a href="#" style="margin-top: 4px; font-size: 12px;">Open plan</a>
+          </div>
+        </section>
+
+        <section style="grid-column: span 2; border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Hotspots</h3>
+          </header>
+          <div style="padding: 12px;">
+            <p style="margin: 0 0 8px; font-size: 12px; color: #9da7b3;">2 acknowledged files hidden from this list</p>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead>
+                <tr style="border-bottom: 1px solid #30363d;">
+                  <th style="text-align: left; padding: 6px 4px; font-size: 12px; font-weight: 500; color: #9da7b3;">File</th>
+                  <th style="text-align: left; padding: 6px 4px; font-size: 12px; font-weight: 500; color: #9da7b3;">Repository</th>
+                  <th style="text-align: right; padding: 6px 4px; font-size: 12px; font-weight: 500; color: #9da7b3;">Hotspot score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom: 1px solid #30363d;"><td style="padding: 8px 4px;"><a href="#" class="mono">src/ingest/budgeter.ts</a></td><td style="padding: 8px 4px; font-size: 12px; color: #9da7b3; white-space: nowrap;">bpmforge/ingest</td><td style="padding: 8px 4px; text-align: right;">0.91</td></tr>
+                <tr style="border-bottom: 1px solid #30363d;"><td style="padding: 8px 4px;"><a href="#" class="mono">src/forge/github/client.ts</a></td><td style="padding: 8px 4px; font-size: 12px; color: #9da7b3; white-space: nowrap;">bpmforge/forge-adapters</td><td style="padding: 8px 4px; text-align: right;">0.84</td></tr>
+                <tr style="border-bottom: 1px solid #30363d;"><td style="padding: 8px 4px;"><a href="#" class="mono">src/routes/repos/index.ts</a></td><td style="padding: 8px 4px; font-size: 12px; color: #9da7b3; white-space: nowrap;">bpmforge/api</td><td style="padding: 8px 4px; text-align: right;">0.77</td></tr>
+                <tr style="border-bottom: 1px solid #30363d;"><td style="padding: 8px 4px;"><a href="#" class="mono">src/widgets/org/OrgOverview.tsx</a></td><td style="padding: 8px 4px; font-size: 12px; color: #9da7b3; white-space: nowrap;">bpmforge/web</td><td style="padding: 8px 4px; text-align: right;">0.68</td></tr>
+                <tr><td style="padding: 8px 4px;"><a href="#" class="mono">src/findings/dedup.ts</a></td><td style="padding: 8px 4px; font-size: 12px; color: #9da7b3; white-space: nowrap;">bpmforge/insights</td><td style="padding: 8px 4px; text-align: right;">0.62</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Below the fold: security rollup + top risks + risk axes -->
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Security</h3>
+          </header>
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; font-size: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 12px; color: #9da7b3;">sev critical</span><span>2</span></div>
+            <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 12px; color: #9da7b3;">sev high</span><span>9</span></div>
+            <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 12px; color: #9da7b3;">sev medium</span><span>23</span></div>
+            <div style="display: flex; align-items: center; justify-content: space-between;"><span>on CISA KEV</span><span>1</span></div>
+            <div style="display: flex; align-items: center; justify-content: space-between;"><span>verified reachable</span><span>3</span></div>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #9da7b3;">Basis: dependency scan only &mdash; SAST has not run.</p>
+          </div>
+        </section>
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Top risks</h3>
+          </header>
+          <div style="padding: 12px;">
+            <ol style="display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px;">
+              <li><div><span class="mono">CVE-2020-11023</span> in <span class="mono">jquery</span></div><div style="display: flex; gap: 8px; font-size: 12px; color: #9da7b3;"><span>Supply Chain</span><span>&middot;</span><span>KEV</span><span>&middot;</span><span>EPSS 0.71</span></div></li>
+              <li><div>Token written to logs</div><div style="display: flex; gap: 8px; font-size: 12px; color: #9da7b3;"><span>Security</span><span>&middot;</span><span class="mono">src/a.ts:88</span></div></li>
+              <li><div>Bus factor 1 on a top hotspot</div><div style="display: flex; gap: 8px; font-size: 12px; color: #9da7b3;"><span>Code Health</span><span>&middot;</span><span class="mono">src/ingest/budgeter.ts</span></div></li>
+            </ol>
+            <p style="margin: 8px 0 0; font-size: 12px; color: #9da7b3;">34 priced &middot; 11 unpriced</p>
+          </div>
+        </section>
+
+        <section style="border: 1px solid #30363d; border-radius: 10px; background: #161b22;">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #30363d; padding: 8px 12px;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 500; color: #e6edf3;">Risk axes</h3>
+          </header>
+          <div style="padding: 12px;">
+            <ul style="display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px;">
+              <li style="display: flex; align-items: center; gap: 8px;"><span style="width: 24px; font-size: 18px; font-weight: 600;">B</span><span style="font-weight: 500; flex-grow: 1;">Security</span><span style="font-size: 12px; color: #9da7b3;">78</span></li>
+              <li style="display: flex; align-items: center; gap: 8px;"><span style="width: 24px; font-size: 18px; font-weight: 600;">C</span><span style="font-weight: 500; flex-grow: 1;">Review</span><span style="font-size: 12px; color: #9da7b3;">66</span></li>
+              <li style="display: flex; align-items: center; gap: 8px;"><span style="width: 24px; font-size: 18px; font-weight: 600;">B</span><span style="font-weight: 500; flex-grow: 1;">Delivery</span><span style="font-size: 12px; color: #9da7b3;">81</span></li>
+              <li style="display: flex; align-items: center; gap: 8px;"><span style="width: 24px; color: #9da7b3;">&ndash;</span><span style="color: #9da7b3; flex-grow: 1;">Code Health</span></li>
+            </ul>
+            <p style="margin: 8px 0 0; font-size: 12px; color: #9da7b3;">Not measured: Code Health &mdash; no sub-score has been computed.</p>
+          </div>
+        </section>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1200, "title": "Org Overview — / (shipped)" },
+    { "file": "RepoDetail.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "Repo Detail — /repos/:repo (shipped)" }
+  ],
+  "annotations": [
+    { "id": "scope-note", "x": 0, "y": -150, "w": 700, "text": "RepoPulse — shipped UI, drawn from the real components.\nTokens are lifted verbatim from apps/web/src/styles/theme.css (dark theme). Every element on these two boards corresponds to a component in apps/web/src/widgets/{org,repo}; nothing here is proposed or invented." },
+    { "id": "org-note", "x": 0, "y": 1240, "w": 620, "text": "Org Overview carries MORE than UX_SPEC §4.a sketches: Weekly pulse (pinned top), Improvement plan (D9), Security rollup, Top risks and Risk axes were all added after the spec was written. The health tiles ship WITHOUT the sparkline the spec drew — name, badge and basis only." },
+    { "id": "repo-note", "x": 1560, "y": 940, "w": 620, "text": "Repo Detail ships SEVEN routed tabs, not the five in §4.b — Security (W8) and Code Health (W9) were added later. Each tab is its own URL, so it is linkable and back-button-able. The 'why?' popover is shown open: the score is never displayed without its basis label and formula breakdown." }
+  ],
+  "launch": { "view": "canvas" }
+}
