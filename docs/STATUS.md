@@ -3485,3 +3485,40 @@ history, not something a migration should do quietly.
 
 Gate: lint clean, typecheck clean, 1,653 unit (zero skipped), 168 web, 105
 e2e, four validators.
+
+### 2026-08-21 — product-gap review: the performance dimension does not exist in practice
+
+Asked what the product is missing for the "help people clean up perf, code
+health and security" job it exists to do. Three of those four review dimensions
+ship. **Performance does not**, and not because nobody wrote it.
+
+`rulepacks/code-health/perf/perf.v1.yaml` holds eight `bpm-perf-*` rules from
+W9-08 — written for RepoPulse, per-rule provenance, trigger and clean fixtures,
+messages that deliberately refuse to quote speedup multipliers. They are good
+rules. **Nothing owns them.** The only runtime loader of that directory is
+`scanners/logging/run.ts:152`, which points semgrep at the whole `code-health`
+pack dir and then, at line 164, does
+`if (!finding.ruleId.startsWith('bpm-log-')) continue;` — every perf finding
+semgrep produces is evaluated and thrown away. The only other reference to
+`bpm-perf-` in the entire workspace is `perf-pack.test.ts`, which reads the YAML
+off disk and asserts its contents without ever running a scan.
+
+So: no scanner emits dimension `performance`, the Findings Explorer's
+performance facet is permanently empty, and the performance risk axis
+(`routes/risk/index.ts:31`) can never grade. **W9-08 is marked done and its
+fourth acceptance criterion — "findings take dimension performance and ride the
+standard triage/verify/plan rails" — is unmet.** Filed as **W9-13**; W9-08 is
+left done rather than reopened because its other three criteria genuinely
+shipped.
+
+This is the disconnected-pipeline defect (anti-slop R-26) inside the codebase of
+the product built to find it.
+
+A second, related gap, filed as **W9-14**: three filter facets have no producer
+at all — `slop` (the anti_slop scanner writes `code_health`), `iac` (no scanner
+exists), `test_coverage` (ingestion parked). This is the MIRROR of the bug
+W8-10 and W10-05 fixed: those were dimensions produced but not filterable, and
+they showed you everything; these are filterable but never produced, and they
+show you nothing.
+
+Board: 146 tickets, 2 claimable (W9-13, W9-14), 8 blocked on Brad.
