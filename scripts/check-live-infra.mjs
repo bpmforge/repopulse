@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 // Live-infra preflight for the unit gate (W12-08).
 //
-// 37 test files gate themselves on live Postgres + Redis with a locally
-// declared `const describeIfLiveInfra = databaseUrl && redisUrl ? describe :
-// describe.skip`. Without a data tier they become `describe.skip`, and
-// `pnpm test` exits 0.
+// A number of test files gate themselves on live Postgres + Redis with a
+// locally declared `const describeIfLiveInfra = databaseUrl && redisUrl ?
+// describe : describe.skip`. Without a data tier they become `describe.skip`,
+// and `pnpm test` exits 0. How many is COUNTED AT RUNTIME from the source
+// marker below — it was 37 when W12-08 wrote this and is 61 today, which is
+// exactly why no figure is hardcoded in this comment.
 //
-// The skip is NOT invisible — vitest prints `Test Files 85 passed | 37 skipped`
-// — so this script does not reinvent that count as a reporter. What was missing
-// is ENFORCEMENT: CI reads the exit code, not the summary line, and
+// The skip is NOT invisible — vitest prints its own `N skipped` — so this
+// script does not reinvent that count as a reporter. What was missing is
+// ENFORCEMENT: CI reads the exit code, not the summary line, and
 // .github/workflows/ci.yml provisions neither service, so every green check on
-// this repo has covered 433 of 586 tests without ever saying so.
+// this repo has covered a subset without ever saying so.
 //
 // Two modes, on purpose:
 //   REQUIRE_LIVE_INFRA set  -> a missing service FAILS before any test runs.
@@ -121,8 +123,10 @@ async function checkReachable() {
     `\nThe data tier is unreachable:\n\n${dead.join('\n')}\n\n` +
       `  These variables are SET, so the gated suites will not skip —\n` +
       `  they will run and fail with ECONNREFUSED. Failing now instead.\n\n` +
-      `  Start the data tier with scripts/dev-up.sh, or run the offline subset\n` +
-      `  knowingly with DOTENV_CONFIG_PATH=/dev/null pnpm test.\n\n` +
+      `  Start the data tier with scripts/dev-up.sh (which will start the Podman\n` +
+      `  VM first if it is down — a crashed VM, not a stopped container, is the\n` +
+      `  usual cause), or run the offline subset knowingly with\n` +
+      `  DOTENV_CONFIG_PATH=/dev/null pnpm test.\n\n` +
       `  NOTE: this is a TCP connect. It proves something is listening, not that\n` +
       `  the service is ready to answer queries.\n`,
   );
