@@ -3649,3 +3649,37 @@ marked.
 Gate: lint clean, typecheck clean, **1,657 passed / 8 skipped** (was 1,654).
 
 Board: 150 tickets, 1 claimable (W9-17), 8 blocked on Brad.
+
+### 2026-08-21 — W9-17: one dimension list, enforced against the running database
+
+The finding dimensions were declared three times — the CHECK constraint, the
+API facet, the web facet — and `slop` sat in the last two while missing from the
+first from W9-03 until W9-16. Offered to users in two layers, unwritable in the
+third, silent until something tried to store one.
+
+There is now one declaration: `FINDING_DIMENSIONS` in
+`packages/shared/src/dimensions.ts`, on its own export subpath and deliberately
+dependency-free — the web app cannot import the package index, which pulls in
+postgres, pino and drizzle, and that is why `urlState` already has a subpath.
+The API and web facets are re-exports. The CHECK constraint renders from
+`dimensionSqlList()` through `sql.raw`, which drizzle accepts: `pnpm
+db:generate` reported **"No schema changes"**, which is the proof that the
+derived constraint is byte-identical to the literal it replaced.
+
+**The test does not compare the three copies.** Two of them now agree by
+construction, so asserting it would be a tautology. The copy that can still
+drift is the DATABASE, because the constraint is DDL: editing the constant
+changes what the code offers immediately and what the database accepts only once
+a migration is generated *and applied*. That gap is the whole bug. The test
+reads `pg_get_constraintdef` from the live database and compares it to the
+constant, naming the offending values in either direction — missing from the DB
+(offered as a facet, rejected on write) or missing from the code (accepted by
+the store, filterable by nothing).
+
+RED-checked rather than assumed: adding a dimension to the constant without a
+migration fails with *"in FINDING_DIMENSIONS but NOT in the database CHECK —
+generate and apply a drizzle migration"*, naming the value.
+
+Gate: lint clean, typecheck clean, **1,659 passed / 8 skipped** (was 1,657).
+
+Board: 150 tickets, **0 claimable**, 8 blocked on Brad.

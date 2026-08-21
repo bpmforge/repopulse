@@ -8,7 +8,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./url-state": "./src/urlState.ts"
+    "./url-state": "./src/urlState.ts",
+    "./dimensions": "./src/dimensions.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

@@ -5357,7 +5357,8 @@
         "apps/api/src/routes/findings/**",
         "apps/web/src/widgets/findings/**",
         "docs/STATUS.md",
-        "plan.json"
+        "plan.json",
+        "packages/shared/package.json"
       ],
       "depends_on": [],
       "acceptance": [
@@ -5365,11 +5366,13 @@
         "A test fails if a dimension is added to one and not the others — the drift that hid `slop` for a whole wave"
       ],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "FILED 2026-08-21 from W9-16. `slop` was in the API facet and the web facet and MISSING from the findings_dimension_check constraint from W9-03 until W9-16 — filterable in two layers, unstorable in the third, and nothing failed until something tried to store one.",
         "The three copies: packages/shared/src/db/schema/read/findings.ts (CHECK), apps/api/src/routes/findings/index.ts (DIMENSIONS), apps/web/src/widgets/findings/contracts.ts (ALL_DIMENSIONS). The constraint is the only one that fails loudly, and it fails at write time — long after the facet has been offered to a user.",
-        "Note the API list already carries a comment about W8-10 and W10-05 adding dimensions 'as a set'. That discipline is real but manual; this ticket is about making it structural."
+        "Note the API list already carries a comment about W8-10 and W10-05 adding dimensions 'as a set'. That discipline is real but manual; this ticket is about making it structural.",
+        "IMPLEMENTED as FINDING_DIMENSIONS in packages/shared/src/dimensions.ts, on its OWN export subpath ('@repopulse/shared/dimensions') and deliberately dependency-free — the web app cannot import the package index, which pulls in postgres, pino and drizzle. That is the same reason urlState already has a subpath. The API facet and the web facet are now re-exports; the CHECK constraint renders from dimensionSqlList() via sql.raw, which drizzle accepts (verified: `pnpm db:generate` reported 'No schema changes', proving the derived constraint is byte-identical to the literal it replaced).",
+        "THE TEST DOES NOT COMPARE THE THREE COPIES, because after this change two of them agree by construction and asserting that would be a tautology. The copy that can still drift is the DATABASE: the constraint is DDL, so editing the constant changes what the code offers immediately and what the database accepts only once a migration is generated AND applied. The test reads pg_get_constraintdef from the live database and compares it to the constant, naming the offending values in either direction. RED-checked: adding a dimension to the constant without a migration fails with 'in FINDING_DIMENSIONS but NOT in the database CHECK — generate and apply a drizzle migration'."
       ]
     }
   ]
