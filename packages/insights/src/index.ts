@@ -17,3 +17,4 @@ export * from './registers/test-gap/register.js';
 export * from './registers/test-gap/run.js';
 export * from './score/findings-metric.js';
 export * from './findings/rekey.js';
+export * from './findings/remap-dimension.js';

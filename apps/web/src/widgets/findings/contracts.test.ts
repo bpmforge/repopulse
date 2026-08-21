@@ -17,12 +17,9 @@ describe('dimensions awaiting a producer', () => {
     }
   });
 
-  it('names the three the audit found, and each says why', () => {
-    expect(Object.keys(DIMENSIONS_AWAITING_PRODUCER).sort()).toEqual([
-      'iac',
-      'slop',
-      'test_coverage',
-    ]);
+  it('names the ones still without a producer, and each says why', () => {
+    // `slop` left this list in W9-16, when anti_slop started emitting it.
+    expect(Object.keys(DIMENSIONS_AWAITING_PRODUCER).sort()).toEqual(['iac', 'test_coverage']);
     for (const [dimension, reason] of Object.entries(DIMENSIONS_AWAITING_PRODUCER)) {
       // A reason that does not point at the ticket, spec or scanner responsible
       // is a shrug in a tooltip.
@@ -43,6 +40,8 @@ describe('dimensions awaiting a producer', () => {
       'chain',
       'architecture',
       'test_gap',
+      // W9-16 gave this one a producer: anti_slop emits it.
+      'slop',
       // W9-13 gave this one a producer. If a later refactor unwires the perf
       // scanner, this line is the one that should start failing.
       'performance',

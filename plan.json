@@ -5323,7 +5323,10 @@
         "packages/security/src/scanners/anti-slop/**",
         "packages/insights/src/findings/**",
         "docs/STATUS.md",
-        "plan.json"
+        "plan.json",
+        "packages/shared/src/db/schema/read/**",
+        "packages/shared/drizzle/**",
+        "apps/web/src/widgets/findings/**"
       ],
       "depends_on": [],
       "acceptance": [
@@ -5333,11 +5336,40 @@
         "The `slop` facet is removed from DIMENSIONS_AWAITING_PRODUCER once it has a producer"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "FILED 2026-08-21 from W9-14. The spec is unambiguous in two places: SRS FR-CH-3 says 'anti_slop scanner (dimension `slop`)' and the CODE_HEALTH_SUITE.md §2 roster table gives anti_slop the dimension `slop`. The scanner writes 'code_health' at scanners/anti-slop/run.ts:123,144,174,218. The findings are real; they are filed under the wrong name, so the `slop` facet returns nothing while the rows sit in Code Health.",
         "NOT a one-word fix, which is why it is its own ticket rather than part of W9-14. dedupKey() hashes the dimension, so changing it re-keys every stored anti_slop finding. Without a migration the next scan finds no match, inserts a duplicate, and the sweep resolves the original — taking its occurrence count and triage decisions with it. That is exactly the harm dedup.ts warns about and W8-16 had to build rekeyFindings for; the same helper should carry this.",
-        "W9-14 left the facet visible and labelled rather than hiding it, because the findings exist and hiding the name would make them harder to find rather than easier."
+        "W9-14 left the facet visible and labelled rather than hiding it, because the findings exist and hiding the name would make them harder to find rather than easier.",
+        "WRITE_SCOPE WIDENED to packages/shared (schema + drizzle) and apps/web/src/widgets/findings. The schema widening was not optional: `slop` was missing from the findings_dimension_check CHECK constraint, so the value was filterable in the API and the UI and NOT STORABLE — the migration test failed with a constraint violation before it could assert anything. Without it this ticket cannot ship at all. The widgets change is acceptance 4 (dropping slop from DIMENSIONS_AWAITING_PRODUCER) and its test.",
+        "THE DIMENSION LIST LIVES IN THREE PLACES and they had drifted: the DB check constraint (packages/shared/src/db/schema/read/findings.ts), the API facet (apps/api/src/routes/findings), and the web facet (apps/web ALL_DIMENSIONS). `slop` was in the last two and missing from the first since W9-03. Worth a follow-up to derive them from one source; filed as W9-17.",
+        "ONE OVER-CORRECTION CAUGHT BY TYPECHECK, recorded because the distinction is easy to lose: anti-slop/run.ts had FOUR `dimension: 'code_health'` sites, but only THREE are finding dimensions. The fourth is the gateway's meta.dimension, whose union is the four Tier-2 checklist families ('code_health' | 'security' | 'performance' | 'test_coverage') — it names which checklist the model is asked to apply, not what the finding is filed as. It stays 'code_health'."
+      ]
+    },
+    {
+      "id": "W9-17",
+      "title": "The finding dimension list is duplicated in three places and drifts",
+      "phase": 9,
+      "module": "insights",
+      "stories": [],
+      "write_scope": [
+        "packages/shared/src/**",
+        "apps/api/src/routes/findings/**",
+        "apps/web/src/widgets/findings/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "One declaration of the finding dimensions; the DB check constraint, the API facet and the web facet all derive from it",
+        "A test fails if a dimension is added to one and not the others — the drift that hid `slop` for a whole wave"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-08-21 from W9-16. `slop` was in the API facet and the web facet and MISSING from the findings_dimension_check constraint from W9-03 until W9-16 — filterable in two layers, unstorable in the third, and nothing failed until something tried to store one.",
+        "The three copies: packages/shared/src/db/schema/read/findings.ts (CHECK), apps/api/src/routes/findings/index.ts (DIMENSIONS), apps/web/src/widgets/findings/contracts.ts (ALL_DIMENSIONS). The constraint is the only one that fails loudly, and it fails at write time — long after the facet has been offered to a user.",
+        "Note the API list already carries a comment about W8-10 and W10-05 adding dimensions 'as a set'. That discipline is real but manual; this ticket is about making it structural."
       ]
     }
   ]

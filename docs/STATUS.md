@@ -3608,3 +3608,44 @@ component wired to nothing.
 Gate: lint clean, typecheck clean, **1,654 passed / 8 skipped** (was 1,651).
 
 Board: 149 tickets, 1 claimable (W9-16), 8 blocked on Brad.
+
+### 2026-08-21 — W9-16: `slop` was filterable in two layers and storable in none
+
+The anti_slop scanner now emits dimension `slop`, as FR-CH-3 and
+CODE_HEALTH_SUITE.md §2 have said since W9-03. Its findings were real, stored
+and counted the whole time — filed under `code_health`, where nobody looking for
+slop would find them.
+
+**The ticket's plan was incomplete and the database said so.** It assumed a
+scanner change plus a re-key migration. The migration test failed on a CHECK
+constraint: `slop` was never in `findings_dimension_check`. So the value was
+offered in the API facet and the web facet and could not be written at all —
+three copies of the dimension list, and the only one that fails loudly fails at
+write time, long after the facet has been shown to someone. Fixed here with
+migration `0025`; the duplication itself is filed as **W9-17**.
+
+The re-key is the part that had to be right. `dedupKey` hashes the dimension, so
+changing it rewrites the identity of every stored anti_slop row: get it wrong
+and the next scan matches nothing, inserts a duplicate, and sweeps the original
+as resolved with its occurrence count and someone's triage decision attached.
+`remapScannerDimension` updates the dimension and then delegates to W8-16's
+`rekeyFindings` rather than growing a second copy of that logic — order matters,
+because rekey derives the key from the row's stored dimension. It is scoped by
+scanner key, not by dimension: `code_health` is written by three scanners and
+only anti_slop's rows are misfiled. Proven against live Postgres — the row keeps
+its id, its `confirmed` status and its occurrence count of 7, a
+`code_health_tools` row beside it does not move, and a second run is a no-op.
+
+**One over-correction, caught by typecheck and worth recording.**
+`anti-slop/run.ts` had four `dimension: 'code_health'` sites and only three are
+finding dimensions. The fourth is the gateway's `meta.dimension`, whose union is
+the four Tier-2 checklist families — it names which checklist the model is asked
+to apply, not what the finding is filed as. It stays `code_health`.
+
+`slop` has left `DIMENSIONS_AWAITING_PRODUCER`; the facet test now asserts
+`{iac, test_coverage}` and lists `slop` among the dimensions that must never be
+marked.
+
+Gate: lint clean, typecheck clean, **1,657 passed / 8 skipped** (was 1,654).
+
+Board: 150 tickets, 1 claimable (W9-17), 8 blocked on Brad.
