@@ -1,0 +1,162 @@
+{
+ "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+ "bomFormat": "CycloneDX",
+ "specVersion": "1.7",
+ "serialNumber": "urn:uuid:07e594b1-dee5-4dbf-80fd-cdb6149b3f2e",
+ "version": 1,
+ "metadata": {
+  "timestamp": "2026-08-20T23:57:45Z",
+  "tools": {
+   "components": [
+    {
+     "type": "application",
+     "author": "anchore",
+     "name": "syft",
+     "version": "1.51.0"
+    }
+   ]
+  },
+  "component": {
+   "bom-ref": "fd54646600e396d3",
+   "type": "file",
+   "name": "/scan"
+  }
+ },
+ "components": [
+  {
+   "bom-ref": "pkg:npm/jquery@3.4.1?package-id=da202c98087ef85a",
+   "type": "library",
+   "name": "jquery",
+   "version": "3.4.1",
+   "cpe": "cpe:2.3:a:jquery:jquery:3.4.1:*:*:*:*:node.js:*:*",
+   "purl": "pkg:npm/jquery@3.4.1",
+   "properties": [
+    {
+     "name": "syft:package:foundBy",
+     "value": "javascript-lock-cataloger"
+    },
+    {
+     "name": "syft:package:language",
+     "value": "javascript"
+    },
+    {
+     "name": "syft:package:type",
+     "value": "npm"
+    },
+    {
+     "name": "syft:package:metadataType",
+     "value": "javascript-npm-package-lock-entry"
+    },
+    {
+     "name": "syft:location:0:path",
+     "value": "/package-lock.json"
+    }
+   ]
+  },
+  {
+   "bom-ref": "pkg:npm/w8-06-vulnerable-fixture@1.0.0?package-id=73e3182701c4d304",
+   "type": "library",
+   "name": "w8-06-vulnerable-fixture",
+   "version": "1.0.0",
+   "cpe": "cpe:2.3:a:w8-06-vulnerable-fixture:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*",
+   "purl": "pkg:npm/w8-06-vulnerable-fixture@1.0.0",
+   "properties": [
+    {
+     "name": "syft:package:foundBy",
+     "value": "javascript-lock-cataloger"
+    },
+    {
+     "name": "syft:package:language",
+     "value": "javascript"
+    },
+    {
+     "name": "syft:package:type",
+     "value": "npm"
+    },
+    {
+     "name": "syft:package:metadataType",
+     "value": "javascript-npm-package-lock-entry"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06-vulnerable-fixture:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable_fixture:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable_fixture:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06-vulnerable:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06-vulnerable:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06_vulnerable:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8-06:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8_06:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8:w8-06-vulnerable-fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:cpe23",
+     "value": "cpe:2.3:a:w8:w8_06_vulnerable_fixture:1.0.0:*:*:*:*:*:*:*"
+    },
+    {
+     "name": "syft:location:0:path",
+     "value": "/package-lock.json"
+    }
+   ]
+  },
+  {
+   "bom-ref": "fd71c2238fc07657",
+   "type": "file",
+   "name": "/scan/package-lock.json",
+   "hashes": [
+    {
+     "alg": "SHA-1",
+     "content": "a2033de2cfa6ffb954079e5f54ed90a42f9cd7fb"
+    },
+    {
+     "alg": "SHA-256",
+     "content": "91f35654435fd80165668316c253d8e80f6222bb4a2f2beadc7cfcc4186601ce"
+    }
+   ]
+  }
+ ],
+ "dependencies": [
+  {
+   "ref": "pkg:npm/w8-06-vulnerable-fixture@1.0.0?package-id=73e3182701c4d304",
+   "dependsOn": [
+    "pkg:npm/jquery@3.4.1?package-id=da202c98087ef85a"
+   ]
+  }
+ ]
+}

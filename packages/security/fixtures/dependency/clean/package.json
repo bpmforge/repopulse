@@ -1,0 +1,9 @@
+{
+  "name": "w8-06-clean-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "ms": "2.1.3",
+    "is-number": "7.0.0"
+  }
+}
