@@ -132,16 +132,70 @@ export function parseT2Config(raw: unknown): T2HostConfig {
 }
 
 /**
- * Headers for a Tier-2 call — deliberately credential-free (SC-24).
+ * The BASE headers for a Tier-2 call — still deliberately credential-free
+ * (SC-24). A LAN model needs no authorization, and this remains what a host
+ * gets unless a human has said otherwise.
  *
- * A LAN model needs no authorization, and sending one anyway would put a
- * workspace secret on a wire this product does not control. Exported so the
- * test can assert the exact set rather than trusting the client not to add to
- * it later.
+ * Exported so the test can assert the exact set rather than trusting the client
+ * not to add to it later. Frozen for the same reason.
  */
 export const T2_REQUEST_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   'content-type': 'application/json',
 });
+
+/** A configured provider's credential and extra headers (W16-06). */
+export interface HostAuth {
+  /** The API key. Sent as `Authorization: Bearer` unless `authHeader` says otherwise. */
+  apiKey?: string | undefined;
+  /** Vendors that do not use bearer auth — Anthropic wants `x-api-key`. */
+  authHeader?: string | undefined;
+  /** Extra non-secret headers, verbatim (OpenRouter attribution, gateway routing). */
+  extra?: Record<string, string> | undefined;
+}
+
+/**
+ * Builds the header set for one call (W16-06, D-LLM-1).
+ *
+ * WHY THIS EXISTS AT ALL. The header set above was frozen and credential-free,
+ * which meant Tier 2 could never authenticate — and every hosted provider
+ * requires a key. Combined with the host policy rejecting non-private hosts,
+ * "bring your own LLM" was impossible for anything but a LAN box, which is not
+ * the product RepoPulse is meant to be (D-LLM-1).
+ *
+ * The strictness is not removed, it is made conditional on a stored decision: a
+ * credential is attached ONLY when a human created a provider row carrying one.
+ * There is still no path from a REQUEST to a header — nothing user-supplied at
+ * call time can introduce one — which was always the actual control. A diff
+ * cannot be redirected to an attacker's endpoint by anyone who can reach the
+ * analysis API; it can only go where a stored, authored row says.
+ */
+export function requestHeadersFor(auth?: HostAuth): Record<string, string> {
+  const headers: Record<string, string> = { ...T2_REQUEST_HEADERS };
+
+  // Extra headers first, so a provider's own headers can never shadow the
+  // credential or the content type — the two things the call cannot work
+  // without.
+  for (const [k, v] of Object.entries(auth?.extra ?? {})) {
+    const key = k.toLowerCase();
+    // Refused rather than ignored: a person putting a key in the headers bag
+    // has stored a secret in a column that is not encrypted, and silently
+    // dropping it would leave them believing it was sent.
+    if (key === 'authorization' || key === 'x-api-key') {
+      throw new HostPolicyError(
+        key,
+        'a credential belongs in the encrypted credential column, not in the headers bag',
+      );
+    }
+    headers[key] = v;
+  }
+
+  if (auth?.apiKey) {
+    const name = auth.authHeader?.toLowerCase() ?? 'authorization';
+    headers[name] = name === 'authorization' ? `Bearer ${auth.apiKey}` : auth.apiKey;
+  }
+
+  return headers;
+}
 
 /** True when an outbound payload carries anything that looks like a secret. */
 export function containsCredentialMaterial(payload: string): boolean {
