@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 
-// W15-03 (F10). Report summary sections carry Markdown, and the print route
+// W16-03 (F10). Report summary sections carry Markdown, and the print route
 // dropped the raw string into a <p> — so the product's exportable deliverable,
 // and the PDF built from it, rendered `**3 open findings**` and `` `act` ``
 // with the asterisks and backticks showing.

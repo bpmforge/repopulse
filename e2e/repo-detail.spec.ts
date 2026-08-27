@@ -56,7 +56,7 @@ test('drills org → repo → each tab by clicking, breadcrumb intact', async ({
   await expect(page.getByTestId('breadcrumb')).toBeVisible();
 });
 
-// W15-01 (F12): the /repos LIST is its own entry point, and its rows are the
+// W16-01 (F12): the /repos LIST is its own entry point, and its rows are the
 // second item in the rail. The org-overview tile above proves the layout route
 // is linkable; this proves the list's own rows are, by mouse AND by keyboard —
 // a component test renders the anchor happily while the click does nothing.

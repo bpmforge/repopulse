@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ReportMarkdown } from './ReportMarkdown.js';
 
-// W15-03 (F10). The review found the print report showing `**3 open findings**`
+// W16-03 (F10). The review found the print report showing `**3 open findings**`
 // and `` `act` `` with their syntax visible — in the page AND in the exported
 // PDF built from that page. These tests are written against the exact strings
 // the assemblers emit, so they fail on the defect rather than on a toy input.
