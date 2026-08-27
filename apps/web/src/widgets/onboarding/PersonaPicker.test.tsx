@@ -1,0 +1,73 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createQueryClient } from '../../api/queryClient.js';
+import { PersonaPicker } from './PersonaPicker.js';
+
+// W16-26. The picker was mandatory and it intercepted the one action a first
+// run sends you to: the welcome state says "Connect your organization to start
+// ingesting history", and clicking that button raised this dialog instead.
+//
+// At that moment there are no repositories, no PRs and no findings, so every
+// option describes a screen that will be empty — "My PRs, my review queue, code
+// I own" for an account with none.
+
+const ME_NO_PERSONA = { persona: null, role: 'admin', workspace: { id: 1, slug: 'a', name: 'A' } };
+
+function stubFetch(body: unknown) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    ),
+  );
+}
+
+function renderPicker() {
+  render(
+    <QueryClientProvider client={createQueryClient()}>
+      <PersonaPicker />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => stubFetch(ME_NO_PERSONA));
+afterEach(() => vi.unstubAllGlobals());
+
+describe('PersonaPicker (W16-26)', () => {
+  it('offers a way past itself', async () => {
+    renderPicker();
+    expect(await screen.findByTestId('persona-picker')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('persona-defer'));
+
+    await waitFor(() => expect(screen.queryByTestId('persona-picker')).toBeNull());
+  });
+
+  it('persists nothing when deferred, so the choice is postponed and not lost', async () => {
+    renderPicker();
+    await screen.findByTestId('persona-picker');
+
+    const before = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+    await userEvent.click(screen.getByTestId('persona-defer'));
+
+    // No PATCH: `me.persona` stays null, so the dialog returns next visit
+    // rather than a persona being silently chosen for someone.
+    await waitFor(() =>
+      expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(before),
+    );
+  });
+
+  it('stays out of the way once a persona has been chosen', async () => {
+    stubFetch({ ...ME_NO_PERSONA, persona: 'lead' });
+    renderPicker();
+
+    await waitFor(() => expect(screen.queryByTestId('persona-picker')).toBeNull());
+  });
+});

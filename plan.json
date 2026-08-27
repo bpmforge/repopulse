@@ -5686,7 +5686,9 @@
         "W16-04"
       ],
       "status": "todo",
-      "notes": [],
+      "notes": [
+        "Partly superseded: the \"(not installed)\" message is CORRECT, and the real cause is W16-28 — registerScanner has no production caller, so listScanners() is empty everywhere. Fixing the message would have hidden the defect."
+      ],
       "id": "W16-11",
       "title": "The scanners all read \"(not installed)\" with no way to install them (F16)",
       "module": "infra",
@@ -6016,9 +6018,11 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "main.tsx:21 sets defaultNotFoundComponent to \"Coming soon — This screen is part of a later W4 ticket.\" The board is at W16. Three definitionHref links point at /docs/*, which the app does not serve, so they land there — including the info link on Connect an organisation, exactly where a new admin needs help. The setup checklist compounds it: five \"See docs/INSTALL.md#...\" references render as plain text (routes/setup/index.tsx:96), and a container install has no repository checkout to open them from."
+        "main.tsx:21 sets defaultNotFoundComponent to \"Coming soon — This screen is part of a later W4 ticket.\" The board is at W16. Three definitionHref links point at /docs/*, which the app does not serve, so they land there — including the info link on Connect an organisation, exactly where a new admin needs help. The setup checklist compounds it: five \"See docs/INSTALL.md#...\" references render as plain text (routes/setup/index.tsx:96), and a container install has no repository checkout to open them from.",
+        "Serving /docs from the app was the other option and it is worse: the shipping shape is a container whose image carries no repository, so a customer has no checkout for a relative path to resolve against. docsUrl() produces an absolute URL, overridable via VITE_DOCS_BASE_URL for an air-gapped install or a fork with its own docs.",
+        "NotFound was extracted out of main.tsx so it can be tested at all — main.tsx mounts the app on import."
       ],
       "id": "W16-24",
       "title": "The 404 page is W4 scaffolding, and three help links lead to it (A2, A3, A4)",
@@ -6040,7 +6044,7 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
         "GitLab says read_api, Gitea says read:repository, GitHub says \"GitHub token or installation credential\" with placeholder \"ghp_... or an app installation id\" — two kinds of credential, no scope, no guidance on which to use. GitHub is the primary README-first forge; a wrong scope fails later during ingestion, far from the form."
       ],
@@ -6061,7 +6065,7 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Observational. The welcome state sends a new admin to Connections; the persona modal intercepts. At that moment there are no repositories, PRs or findings, so every option describes an empty screen — \"My PRs, my review queue, code I own\" for an account with none — and it is mandatory."
       ],

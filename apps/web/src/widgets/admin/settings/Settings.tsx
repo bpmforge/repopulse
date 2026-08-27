@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { WidgetFrame, frameState, useUiStore } from '../../../components/index.js';
+import { docsUrl } from '../../../lib/docs.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../../api/useApiQuery.js';
 import {
   WEIGHT_KEYS,
@@ -66,7 +67,7 @@ export function Settings() {
         state={frameState({ isLoading, isError, isEmpty: false })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
-        definitionHref="/docs/design/METRICS.md"
+        definitionHref={docsUrl('/docs/design/METRICS.md')}
       >
         {weights && (
           <form

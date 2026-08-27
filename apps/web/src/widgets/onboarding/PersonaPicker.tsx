@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { PERSONAS, type MeContext, type Persona } from '../org/contracts.js';
@@ -23,6 +24,7 @@ const LABELS: Record<Persona, { title: string; blurb: string }> = {
 
 export function PersonaPicker() {
   const navigate = useNavigate();
+  const [deferred, setDeferred] = useState(false);
   const { data: me, isSuccess } = useApiQuery<MeContext>(ME);
   const setPersona = useApiMutation<{ persona: Persona }, { persona: Persona; home: string }>(
     { endpoint: '/me/persona', method: 'PATCH' },
@@ -31,6 +33,9 @@ export function PersonaPicker() {
 
   // Render nothing until the answer is known. Defaulting to "show it" would
   // flash the dialog at every returning user on a slow request.
+  // Deferred for THIS visit only — nothing is persisted, so the picker returns
+  // next time rather than being silently lost.
+  if (deferred) return null;
   if (!isSuccess || me?.persona !== null) return null;
 
   return (
@@ -74,6 +79,29 @@ export function PersonaPicker() {
             </li>
           ))}
         </ul>
+
+        {/*
+          A WAY PAST IT (W16-26).
+          
+          This was mandatory, and it intercepted the one action a first run
+          sends you to: the welcome state says "Connect your organization to
+          start ingesting history", and clicking that button raised this instead.
+          At that moment there are no repositories, no PRs and no findings, so
+          every option here describes a screen that will be empty — "My PRs, my
+          review queue, code I own" for an account with none.
+          
+          Deferring costs nothing: the copy above already says the choice can be
+          changed any time from the user menu, and `me.persona` stays null so
+          the dialog returns on the next visit.
+        */}
+        <button
+          type="button"
+          data-testid="persona-defer"
+          onClick={() => setDeferred(true)}
+          className="mt-4 text-xs text-fg-muted underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          Not now — I want to finish setting up
+        </button>
       </div>
     </div>
   );
