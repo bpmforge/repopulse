@@ -1,5 +1,5 @@
 import type { CompleteOpts, CompleteResult } from '../gateway/types.js';
-import { T2_REQUEST_HEADERS } from '../config/hosts.js';
+import { requestHeadersFor, type HostAuth } from '../config/hosts.js';
 
 // Tier-2 LM Studio client (W6-01, ANALYSIS_TIERS.md §2, FR-ANALYSIS-2/NFR-8/C2).
 //
@@ -34,6 +34,13 @@ export function normalizeHost(baseUrl: string): string {
 export interface T2Host {
   baseUrl: string;
   modelSlot: string;
+  /**
+   * Credential and extra headers for a hosted provider (W16-06). Absent for a
+   * LAN model, which is still the default and still sends nothing.
+   */
+  auth?: HostAuth | undefined;
+  /** The provider row this host came from, for the egress audit. */
+  providerId?: number | undefined;
 }
 
 export interface T2Config {
@@ -111,10 +118,10 @@ export class T2Client {
     try {
       const res = await this.fetchImpl(`${normalizeHost(host.baseUrl)}/v1/chat/completions`, {
         method: 'POST',
-        // SC-24: the exact, credential-free header set. A LAN model needs no
-        // authorization, and sending one would put a workspace secret on a wire
-        // this product does not control.
-        headers: { ...T2_REQUEST_HEADERS },
+        // SC-24: credential-free unless a stored provider row carries a key.
+        // Nothing user-supplied at call time can introduce a header — that,
+        // rather than the frozen constant, was always the real control.
+        headers: requestHeadersFor(host.auth),
         body: JSON.stringify({
           model: host.modelSlot,
           messages: [{ role: 'user', content: prompt }],
@@ -127,7 +134,10 @@ export class T2Client {
       if (!res.ok) {
         // The body carries LM Studio's own reason ("model crashed"), which the
         // crash matcher needs — a bare status code would lose it.
-        throw new Error(`LM Studio responded ${res.status}: ${(await res.text()).slice(0, 300)}`);
+        // The body carries the provider's own reason, which the crash matcher
+        // needs — a bare status code would lose it. Named generically since
+        // W16-06: this client now speaks to any OpenAI-compatible endpoint.
+        throw new Error(`Model host responded ${res.status}: ${(await res.text()).slice(0, 300)}`);
       }
       return (await res.json()) as ChatResponse;
     } finally {

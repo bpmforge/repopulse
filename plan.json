@@ -5523,10 +5523,13 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
         "D-LLM-1 (2026-08-27, Brad): the product is standalone and users connect their own LLM — cloud or local. Connection model follows what OpenCode does (provider id, adapter, options{baseURL, apiKey, headers}, models map; auth in three classes — API key, OAuth, cloud credentials) WITHOUT using OpenCode code.",
-        "This deliberately changes validateHostUrl() and T2_REQUEST_HEADERS in packages/analysis, both of which carry comments explaining why they were strict. The strictness stays the DEFAULT; a user-created provider row is the explicit opt-out."
+        "This deliberately changes validateHostUrl() and T2_REQUEST_HEADERS in packages/analysis, both of which carry comments explaining why they were strict. The strictness stays the DEFAULT; a user-created provider row is the explicit opt-out.",
+        "SMALLER THAN EXPECTED: validateHostUrl ALREADY accepted public hosts and hostnames under allowPublicHosts — the review read the default as the only behaviour. The real blockers were (a) T2_REQUEST_HEADERS frozen with no way to attach a credential and (b) no configuration surface. Both addressed; the host policy itself is unchanged.",
+        "SC-24 is enforced, not relaxed. There is still NO path from a request to a header or a host — that was always the actual control. allowPublicHost is a stored, authored, per-row decision.",
+        "Verified against the live LM Studio host on the LAN: packages/analysis live.integration still passes, so the local path is unbroken by the header change."
       ],
       "id": "W16-06",
       "title": "LLM provider connections: schema, vault, and the openai-compatible + anthropic adapters",
