@@ -5379,6 +5379,302 @@
         "IMPLEMENTED as FINDING_DIMENSIONS in packages/shared/src/dimensions.ts, on its OWN export subpath ('@repopulse/shared/dimensions') and deliberately dependency-free — the web app cannot import the package index, which pulls in postgres, pino and drizzle. That is the same reason urlState already has a subpath. The API facet and the web facet are now re-exports; the CHECK constraint renders from dimensionSqlList() via sql.raw, which drizzle accepts (verified: `pnpm db:generate` reported 'No schema changes', proving the derived constraint is byte-identical to the literal it replaced).",
         "THE TEST DOES NOT COMPARE THE THREE COPIES, because after this change two of them agree by construction and asserting that would be a tautology. The copy that can still drift is the DATABASE: the constraint is DDL, so editing the constant changes what the code offers immediately and what the database accepts only once a migration is generated AND applied. The test reads pg_get_constraintdef from the live database and compares it to the constant, naming the offending values in either direction. RED-checked: adding a dimension to the constant without a migration fails with 'in FINDING_DIMENSIONS but NOT in the database CHECK — generate and apply a drizzle migration'."
       ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-01",
+      "title": "The repository list links do nothing (F12)",
+      "module": "web",
+      "points": 2,
+      "write_scope": [
+        "apps/web/src/routes/repos/**",
+        "apps/web/src/widgets/repos/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Clicking a row on /repos navigates to that repository",
+        "Enter on a keyboard-focused row navigates too",
+        "A Playwright test asserts the URL changed — a component unit test passes while the bug persists"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-02",
+      "title": "Demo mode rejects the sign-in form it puts first (F1, F2, F3)",
+      "module": "api",
+      "points": 3,
+      "write_scope": [
+        "apps/api/src/demo.ts",
+        "apps/api/src/lib/demo.ts",
+        "apps/web/src/routes/**",
+        "apps/web/src/widgets/auth/**",
+        "README.md",
+        "docs/RUNNING.md",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Following the README quickstart verbatim signs you in — the local form works in demo mode, or it is not shown and the docs say so",
+        "The sign-in screen carries the demo banner",
+        "README and docs/RUNNING.md match observed behaviour",
+        "A Playwright test submits the local form against a DEMO_MODE stack and asserts an authenticated landing"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-03",
+      "title": "Report Generate looks inert, and reports leak raw Markdown (F9, F10)",
+      "module": "reports",
+      "points": 3,
+      "write_scope": [
+        "apps/web/src/routes/reports/**",
+        "apps/web/src/routes/print/**",
+        "apps/web/src/widgets/reports/**",
+        "packages/reports/src/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Pressing Generate once shows the new row without a second interaction",
+        "The rendered report and the PDF contain no literal ** or backtick sequences",
+        "Tests cover both: a Playwright single-click assertion and a render assertion on markdown output"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "Overlaps W11-01/W11-05 (both blocked). This ticket is the narrow boot fix; the clean-host smoke stays with W11-05."
+      ],
+      "id": "W15-04",
+      "title": "The container worker refuses to start without SCAN_RULES_DIR (F4)",
+      "module": "infra",
+      "points": 3,
+      "write_scope": [
+        "deploy/**",
+        "Dockerfile",
+        "apps/api/src/workers/**",
+        "docs/RUNNING.md",
+        "docs/RUNBOOK.md",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "compose up on a host with no /var/lib/repopulse/scan-rules brings up all six services",
+        "A worker without scan rules degrades to \"dependency scanning unavailable\" and says so in the UI, rather than refusing to boot",
+        "compose up exits non-zero if any service fails, instead of leaving a healthy-looking web tier"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-05",
+      "title": "UI polish sweep (F11, F13, F14, F18, F19, F20, F21)",
+      "module": "web",
+      "points": 5,
+      "write_scope": [
+        "apps/web/src/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "No numeric repository id is shown to a user (Admin > Sync, report Basis table)",
+        "The print report view offers a way back to the app",
+        "Finding detail scrolls into view on open and is addressable by URL",
+        "Charts label their y-axis units",
+        "Breadcrumbs name the current page",
+        "The repo list badge is labelled as the health score",
+        "The rail auto-collapses below a breakpoint and no page scrolls horizontally at 420px"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "D-LLM-1 (2026-08-27, Brad): the product is standalone and users connect their own LLM — cloud or local. Connection model follows what OpenCode does (provider id, adapter, options{baseURL, apiKey, headers}, models map; auth in three classes — API key, OAuth, cloud credentials) WITHOUT using OpenCode code.",
+        "This deliberately changes validateHostUrl() and T2_REQUEST_HEADERS in packages/analysis, both of which carry comments explaining why they were strict. The strictness stays the DEFAULT; a user-created provider row is the explicit opt-out."
+      ],
+      "id": "W15-06",
+      "title": "LLM provider connections: schema, vault, and the openai-compatible + anthropic adapters",
+      "module": "analysis",
+      "points": 8,
+      "write_scope": [
+        "packages/shared/src/db/schema/**",
+        "packages/shared/src/db/migrations/**",
+        "packages/analysis/src/**",
+        "packages/auth/src/credentials/**",
+        "docs/design/**",
+        "docs/DATABASE.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A workspace-scoped llm_providers table modelled on forge_connections: kind, base_url, encrypted api key, model, headers, enabled — workspace_id present and indexed",
+        "API keys are encrypted at rest through the existing credential vault; plaintext never in DB or logs",
+        "An openai-compatible adapter covers Ollama, LM Studio, vLLM, llama.cpp, OpenRouter, Groq, Together, Fireworks and DeepSeek from one code path",
+        "An anthropic adapter covers the Claude API",
+        "SC-24 host policy is relaxed deliberately and only for rows a human created — recorded in STATUS.md with the reasoning, not silently loosened",
+        "Every provider call writes the egress audit row Tier 3 already writes"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [
+        "W15-06"
+      ],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-07",
+      "title": "Admin UI for LLM provider connections, with Test connection",
+      "module": "web",
+      "points": 5,
+      "write_scope": [
+        "apps/web/src/routes/admin/**",
+        "apps/web/src/widgets/admin/**",
+        "apps/api/src/routes/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A user can add, edit, test and remove an LLM provider entirely from the UI — no file editing, no restart",
+        "Test connection reports a real round-trip result, including the actual failure text on error",
+        "The API key field is write-only: never rendered back, shown as a fingerprint like forge tokens",
+        "A Playwright test adds a provider against a stub endpoint and asserts a successful test"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [
+        "W15-06"
+      ],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-08",
+      "title": "The analysis gateway reads providers from the database, and says so in the UI (F6, F8)",
+      "module": "analysis",
+      "points": 5,
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/analysis/src/**",
+        "apps/web/src/widgets/admin/**",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "docs/CONFIG.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The gateway resolves providers from llm_providers, with the LMSTUDIO_* env vars kept as a migration path and documented as deprecated",
+        "Admin > Analysis shows whether the gateway is configured and, when it is not, the same reason the worker logs",
+        "No user-facing string names LM Studio or Claude API as the only option — tiers are described by where the model runs, not by vendor"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [
+        "W15-07"
+      ],
+      "status": "todo",
+      "notes": [
+        "Split from W15-06 deliberately: three substantially different auth mechanisms, none of which is a base-URL-plus-key. Do not fold back in."
+      ],
+      "id": "W15-09",
+      "title": "Provider auth beyond API keys: Vertex AI, Bedrock, GitHub Copilot, OpenAI subscription plans",
+      "module": "analysis",
+      "points": 8,
+      "write_scope": [
+        "packages/analysis/src/**",
+        "packages/auth/src/**",
+        "apps/api/src/routes/**",
+        "apps/web/src/widgets/admin/**",
+        "docs/design/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Vertex AI authenticates via service-account / application default credentials",
+        "Bedrock authenticates via the AWS credential chain (SigV4)",
+        "GitHub Copilot and OpenAI subscription plans authenticate via their OAuth device flow, storing the token in the vault",
+        "Each auth class is a named kind in the registry, so an unsupported one fails at configuration time with a clear message rather than at call time"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-10",
+      "title": "Run it now: manual sync and scan triggers from the UI (F15)",
+      "module": "api",
+      "points": 5,
+      "write_scope": [
+        "apps/api/src/routes/**",
+        "apps/api/src/workers/**",
+        "apps/web/src/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A repository scan can be started from Repo > Security and Repo > Code Health",
+        "A sync can be started from Admin > Sync",
+        "A running job shows progress and cannot be double-started",
+        "The trigger respects the forge rate-limit budget (Law 7) and refuses with a reason when the budget is spent"
+      ]
+    },
+    {
+      "phase": 15,
+      "stories": [],
+      "depends_on": [
+        "W15-04"
+      ],
+      "status": "todo",
+      "notes": [],
+      "id": "W15-11",
+      "title": "The scanners all read \"(not installed)\" with no way to install them (F16)",
+      "module": "infra",
+      "points": 3,
+      "write_scope": [
+        "deploy/**",
+        "Dockerfile",
+        "apps/web/src/widgets/**",
+        "docs/RUNNING.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Either the worker image ships the scanners, or the UI links to the one command that provides them",
+        "No screen states a tool is missing without saying what to do about it"
+      ]
     }
   ]
 }
