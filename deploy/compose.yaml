@@ -1,7 +1,8 @@
 # RepoPulse — customer-hostable stack (W11-01, D1a).
 #
 # Nothing bpmforge-specific: no quadlet units, no fixed hostname, no operator
-# volumes. Fill deploy/.env, run `podman compose -f deploy/compose.yaml up -d`
+# volumes. Fill deploy/.env, run `./deploy/up.sh` (NOT compose up directly —
+# see up.sh's header: the raw command leaves the worker dead and exits 0)
 # (or docker compose), open the published port.
 #
 # Postgres and Redis are NOT published to the host. They are reachable only on
