@@ -1,4 +1,11 @@
-import { createAnalysisGateway, type AnalysisGateway, type T2Host } from '@repopulse/analysis';
+import {
+  createAnalysisGateway,
+  resolveProvider,
+  type AnalysisGateway,
+  type LlmProviderKind,
+  type T2Host,
+} from '@repopulse/analysis';
+import { credentials } from '@repopulse/auth';
 import { core, type Database } from '@repopulse/shared';
 import { eq } from 'drizzle-orm';
 
@@ -61,6 +68,69 @@ export function missingGatewayConfig(env: NodeJS.ProcessEnv = process.env): stri
 export interface WorkerGateway {
   gateway: AnalysisGateway;
   hosts: T2Host[];
+  /** Where the hosts came from, so the boot log and the UI can say. */
+  source: 'providers' | 'env';
+  /** Configured rows that could not be used, each with its own reason. */
+  skipped: { name: string; reason: string }[];
+}
+
+/**
+ * Hosts from the llm_providers table (W16-08, D-LLM-1).
+ *
+ * The environment path below is now a MIGRATION PATH, not the design. A
+ * standalone product whose premise is that you bring your own model cannot ask
+ * people to edit a file on the host and restart a container to change it, which
+ * is what LMSTUDIO_BASE_URLS required (F5).
+ *
+ * A row that cannot be resolved is SKIPPED WITH ITS REASON rather than throwing:
+ * one mistyped provider must not take the other three down with it, and the
+ * reason has to reach a screen — a provider that silently does nothing is the
+ * failure mode this whole wave is about.
+ */
+export async function hostsFromProviders(
+  db: Database,
+  tokenKey: Buffer,
+): Promise<{ hosts: T2Host[]; skipped: { name: string; reason: string }[] }> {
+  const rows = await db
+    .select()
+    .from(core.llmProviders)
+    .where(eq(core.llmProviders.enabled, true));
+
+  const hosts: T2Host[] = [];
+  const skipped: { name: string; reason: string }[] = [];
+
+  for (const row of rows) {
+    try {
+      const apiKey =
+        row.credentialCiphertext && row.credentialIv && row.keyVersion !== null
+          ? credentials.decryptCredential(
+              {
+                ciphertext: row.credentialCiphertext,
+                iv: row.credentialIv,
+                keyVersion: row.keyVersion,
+              },
+              tokenKey,
+            )
+          : undefined;
+
+      hosts.push(
+        resolveProvider({
+          id: row.id,
+          name: row.name,
+          kind: row.kind as LlmProviderKind,
+          baseUrl: row.baseUrl,
+          model: row.model,
+          ...(apiKey ? { apiKey } : {}),
+          ...(row.headers ? { headers: row.headers } : {}),
+          allowPublicHost: row.allowPublicHost,
+        }),
+      );
+    } catch (err) {
+      skipped.push({ name: row.name, reason: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { hosts, skipped };
 }
 
 /**
@@ -71,8 +141,29 @@ export interface WorkerGateway {
  * to a third-party API without a human having asked is exactly what that
  * opt-in exists to prevent. Scheduled passes are Tier-2 only.
  */
-export function buildWorkerGateway(db: Database, env: NodeJS.ProcessEnv = process.env): WorkerGateway | null {
-  const hosts = hostsFromEnv(env);
+export async function buildWorkerGateway(
+  db: Database,
+  env: NodeJS.ProcessEnv = process.env,
+  tokenKey?: Buffer,
+): Promise<WorkerGateway | null> {
+  // Configured providers first. The env path is kept so an existing install
+  // does not lose its model the moment it upgrades, but it is documented as
+  // deprecated and a configured provider always wins.
+  let hosts: T2Host[] = [];
+  let skipped: { name: string; reason: string }[] = [];
+  let source: 'providers' | 'env' = 'providers';
+
+  if (tokenKey) {
+    const fromDb = await hostsFromProviders(db, tokenKey);
+    hosts = fromDb.hosts;
+    skipped = fromDb.skipped;
+  }
+
+  if (hosts.length === 0) {
+    hosts = hostsFromEnv(env);
+    source = 'env';
+  }
+
   if (hosts.length === 0) return null;
 
   const gateway = createAnalysisGateway({
@@ -90,7 +181,7 @@ export function buildWorkerGateway(db: Database, env: NodeJS.ProcessEnv = proces
     },
   });
 
-  return { gateway, hosts };
+  return { gateway, hosts, source, skipped };
 }
 
 /**
@@ -102,10 +193,19 @@ export function buildWorkerGateway(db: Database, env: NodeJS.ProcessEnv = proces
  */
 export async function reportGatewayHealth(built: WorkerGateway | null): Promise<string> {
   if (!built) {
-    return `analysis gateway: NOT CONFIGURED (${missingGatewayConfig()}) — scheduled judgement passes will skip and say so`;
+    return (
+      `analysis gateway: NOT CONFIGURED — add a model in Admin → Models ` +
+      `(${missingGatewayConfig()}); scheduled judgement passes will skip and say so`
+    );
   }
+  // Named even when the gateway is otherwise fine: a provider that was
+  // configured and is being ignored is exactly what nobody would notice.
+  const skipNote = built.skipped.length
+    ? ` — SKIPPED ${built.skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}`
+    : '';
+  const via = built.source === 'env' ? ' via deprecated LMSTUDIO_* env vars' : '';
   const health = await built.gateway.health('T2').catch(() => ({ ok: false }));
   return health.ok
-    ? `analysis gateway: ${built.hosts.length} Tier-2 host(s), first host healthy`
-    : `analysis gateway: ${built.hosts.length} host(s) CONFIGURED BUT UNREACHABLE — judgement passes will fail, not silently skip`;
+    ? `analysis gateway: ${built.hosts.length} Tier-2 host(s)${via}, first host healthy${skipNote}`
+    : `analysis gateway: ${built.hosts.length} host(s)${via} CONFIGURED BUT UNREACHABLE — judgement passes will fail, not silently skip${skipNote}`;
 }

@@ -5591,8 +5591,12 @@
       "depends_on": [
         "W16-06"
       ],
-      "status": "todo",
-      "notes": [],
+      "status": "done",
+      "notes": [
+        "The gateway is now DB-first with an env fallback. LMSTUDIO_* is documented as deprecated in ENV_REGISTRY (and so in the regenerated docs/CONFIG.md) rather than removed — an existing install must not lose its model on upgrade.",
+        "A provider row that cannot be resolved is SKIPPED WITH ITS REASON rather than throwing: one mistyped provider must not take the working ones down. The boot log names each skipped provider, because a provider someone configured and that is being ignored is exactly what nobody would notice.",
+        "F8 closed: Admin > Analysis now says whether Tier 2 can run at all, and whether any configured model is off-network. The Tier-2 checkboxes used to sit there looking ready to arm while the only evidence to the contrary was a line in a terminal."
+      ],
       "id": "W16-08",
       "title": "The analysis gateway reads providers from the database, and says so in the UI (F6, F8)",
       "module": "analysis",

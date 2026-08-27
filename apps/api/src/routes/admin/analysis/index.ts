@@ -79,7 +79,39 @@ export default async function analysisAdminRoutes(
       .orderBy(desc(read.egressAudit.sentAt))
       .limit(50);
 
+    // W16-08 (F8). Whether analysis can actually run, on the one screen that is
+    // about analysis. The worker already logs an excellent line — "analysis
+    // gateway: NOT CONFIGURED (LMSTUDIO_BASE_URLS is set but LMSTUDIO_MODEL is
+    // not) — scheduled judgement passes will skip and say so" — and it appears
+    // only in a terminal, while these Tier-2 checkboxes sit here looking ready
+    // to arm. A toggle that cannot do anything must say so next to itself.
+    const providers = await db
+      .select({
+        name: core.llmProviders.name,
+        model: core.llmProviders.model,
+        enabled: core.llmProviders.enabled,
+        allowPublicHost: core.llmProviders.allowPublicHost,
+      })
+      .from(core.llmProviders)
+      .where(eq(core.llmProviders.workspaceId, workspaceId));
+
+    const usable = providers.filter((p) => p.enabled);
+    const gateway = {
+      configured: usable.length > 0,
+      provider_count: usable.length,
+      off_network: usable.some((p) => p.allowPublicHost),
+      // The same sentence the worker logs, so the two cannot describe the same
+      // state differently.
+      reason:
+        usable.length > 0
+          ? null
+          : providers.length > 0
+            ? 'Every configured model is disabled, so scheduled passes will skip and say so.'
+            : 'No model is configured, so scheduled passes will skip and say so. Add one in Admin → Models.',
+    };
+
     return reply.send({
+      gateway,
       repos: repos.map((r) => ({
         id: r.id,
         name: `${r.org}/${r.name}`,

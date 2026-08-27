@@ -79,7 +79,9 @@ async function main(): Promise<void> {
   // Tier-2 host is configured, which is a supported deployment rather than a
   // fault — the scheduled passes then skip and say `no_gateway` rather than
   // reporting a clean repository they never looked at.
-  const analysisGateway = buildWorkerGateway(db);
+  // tokenKey: provider API keys live in the same vault as forge tokens, so the
+  // worker needs it to use a configured provider at all (W16-08).
+  const analysisGateway = await buildWorkerGateway(db, process.env, credentials.loadTokenKey());
   console.log(`[worker] ${await reportGatewayHealth(analysisGateway)}`);
 
   const connection = createRedisConnection(redisUrl);
