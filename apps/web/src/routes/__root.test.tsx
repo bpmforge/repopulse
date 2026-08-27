@@ -283,3 +283,44 @@ describe('breadcrumb depth (W16-05, F19)', () => {
     expect(crumb).not.toHaveTextContent('25152');
   });
 });
+
+// W16-15. The strand, not the cause.
+//
+// A session naming a deleted user 500'd and the shell sat on "Checking your
+// session…" for ever — no error, no retry, no sign-out, unrecoverable without
+// clearing cookies. That 500 is fixed at the source, but the DEAD END is the
+// class of bug and it survives any future cause, so the probe now stops
+// claiming to be busy and offers a way out.
+describe('the session probe cannot strand you (W16-15)', () => {
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => vi.useRealTimers());
+
+  it('offers a retry and a sign-out once it has waited too long', async () => {
+    // A request that never settles: exactly the state that produced the strand.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    renderAt('/');
+
+    expect(await screen.findByTestId('session-probe')).toBeInTheDocument();
+    expect(screen.queryByTestId('session-probe-stuck')).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(7000);
+
+    const stuck = await screen.findByTestId('session-probe-stuck');
+    expect(stuck).toHaveTextContent(/longer than it should/i);
+    expect(screen.getByTestId('session-probe-retry')).toBeInTheDocument();
+    expect(screen.getByTestId('session-probe-signout')).toBeInTheDocument();
+  });
+
+  it('stops advertising itself as busy once it gives up waiting', async () => {
+    // aria-busy on a spinner that will never finish tells a screen-reader user
+    // to keep waiting for something that is not coming.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    renderAt('/');
+
+    const probe = await screen.findByTestId('session-probe');
+    expect(probe).toHaveAttribute('aria-busy', 'true');
+
+    await vi.advanceTimersByTimeAsync(7000);
+    await waitFor(() => expect(probe).toHaveAttribute('aria-busy', 'false'));
+  });
+});

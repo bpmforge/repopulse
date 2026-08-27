@@ -91,7 +91,32 @@ export function scanProcessor(deps: ScanProcessorDeps) {
       // and "which commits has this repo been swept for" is the question the
       // next sweep asks.
       const runner = deps.historyRunners?.[data.scannerKey];
-      if (!runner) return;
+      if (!runner) {
+        // NOT a silent return (W16-20).
+        //
+        // Only a subset of scanners has a history runner wired in the worker.
+        // Returning quietly meant a job could be enqueued, consume its turn and
+        // finish "successfully" having done nothing — and the coverage table
+        // would still say "never run", with nothing anywhere saying why. That
+        // is the exact shape of failure this product's copy is otherwise very
+        // careful about: an absence that looks like a measurement.
+        //
+        // It is not an exception either: an unwired scanner is a deployment
+        // fact, not a fault, so it records a run that says so and returns.
+        await deps.db.insert(security.scanRuns).values({
+          workspaceId: data.workspaceId,
+          repoId: data.repoId,
+          scannerKey: data.scannerKey,
+          scannerVersion: 'unregistered',
+          commitSha: data.commitSha,
+          trigger: data.trigger,
+          status: 'failed',
+          startedAt: new Date(),
+          finishedAt: new Date(),
+          error: `No history runner is wired for "${data.scannerKey}" on this server, so nothing was scanned.`,
+        });
+        return;
+      }
       await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
       return;
     }

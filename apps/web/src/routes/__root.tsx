@@ -139,15 +139,75 @@ function RootShell() {
   return <AppShell />;
 }
 
-/** Quiet placeholder for the one round-trip it takes to answer "who is this?". */
+/**
+ * Quiet placeholder for the one round-trip it takes to answer "who is this?".
+ *
+ * WITH AN ESCAPE HATCH (W16-15). This screen is the outermost thing the app
+ * renders, so when it does not resolve there is nothing else on the page — no
+ * error, no retry, no sign-out. A user walk hit exactly that: a session naming
+ * a deleted user 500'd, and the browser sat here for ever, unrecoverable
+ * without clearing cookies.
+ *
+ * The 500 itself is fixed at the source, but the STRAND is the class of bug and
+ * it survives any future cause. After a few seconds this stops claiming to be
+ * busy and offers the two things a stuck person needs: a reload and a way to
+ * abandon the session. Cheap, and it makes the dead end impossible rather than
+ * fixed-for-one-reason.
+ */
+const PROBE_PATIENCE_MS = 6000;
+
 function SessionProbe() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), PROBE_PATIENCE_MS);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <div
-      className="flex h-screen w-screen items-center justify-center bg-bg text-fg-muted"
+      className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-bg text-fg-muted"
       data-testid="session-probe"
-      aria-busy="true"
+      aria-busy={!slow}
     >
       <p className="text-sm">Checking your session…</p>
+
+      {slow && (
+        <div className="flex flex-col items-center gap-2 text-xs" data-testid="session-probe-stuck">
+          <p>
+            This is taking longer than it should. The server may be unreachable, or this session
+            may no longer be valid.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              data-testid="session-probe-retry"
+              onClick={() => window.location.reload()}
+              className="rounded-sm border border-border px-2 py-1 text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Try again
+            </button>
+            {/* A direct fetch, deliberately NOT through the query layer: what
+                is stuck is TanStack's session query, and this has to work
+                regardless of it. /auth/logout is POST-only and CSRF-guarded, so
+                a plain link or a native form submit would 403 — the header has
+                to be set, then the page reloaded to land on sign-in. */}
+            <button
+              type="button"
+              data-testid="session-probe-signout"
+              onClick={() => {
+                void fetch('/auth/logout', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'x-requested-with': 'repopulse' },
+                }).finally(() => window.location.reload());
+              }}
+              className="rounded-sm border border-border px-2 py-1 text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

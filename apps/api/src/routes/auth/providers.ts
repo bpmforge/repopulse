@@ -93,7 +93,18 @@ async function authProviderRoutes(
     // `request.workspace`: that decoration is applied by the api-v1 preHandler,
     // which does not run on /auth routes. `ensureMembership` is the same call
     // the local admin route next door makes for the same reason.
-    const membership = await workspaceModule.ensureMembership(opts.db, userId);
+    // Same dead-session case as the api-v1 preHandler (W16-15): this route does
+    // its own membership call, so it needs its own answer.
+    let membership;
+    try {
+      membership = await workspaceModule.ensureMembership(opts.db, userId);
+    } catch (err) {
+      if (err instanceof workspaceModule.UnknownUserError) {
+        sendProblem(request, reply, 401, 'No active session');
+        return reply;
+      }
+      throw err;
+    }
     const link = await identity.identityLinkState(opts.db, membership.workspace.id, userId);
 
     return reply.send({

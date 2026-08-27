@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { core, createDb, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
+import { SCANNER_DEFAULTS, isEnabled, listScanners } from '@repopulse/security';
 import type { Queue } from 'bullmq';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import runRoutes, { runWindowKey } from './index.js';
@@ -135,10 +136,13 @@ describeIfLiveInfra('run it now (W16-10)', () => {
       .returning({ id: core.repos.id });
     repoId = r!.id;
 
-    await db
-      .insert(security.repoScannerConfig)
-      .values({ workspaceId, repoId, scannerKey: 'semgrep', enabled: true })
-      .onConflictDoNothing();
+    // NO repo_scanner_config ROWS, deliberately (W16-20).
+    //
+    // The previous version of this file inserted `semgrep, enabled: true` here,
+    // and that single row is what made the feature look green while it was
+    // dead: with a row present the route's row-reading query found something.
+    // Every repository on a fresh install has NO rows and falls back to
+    // SCANNER_DEFAULTS, which is the state that must be covered.
 
     app = Fastify();
     await app.register(errorEnvelopePlugin);
@@ -180,7 +184,9 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     vi.clearAllMocks();
   });
 
-  it('starts an enabled scanner and says which', async () => {
+  it('starts the default-enabled scanners on a repo with NO config rows', async () => {
+    // The fresh-install state. Before W16-20 this answered "Nothing to run"
+    // while the coverage table showed four scanners as enabled.
     const res = await app.inject({
       method: 'POST',
       url: `/repos/${repoId}/scan`,
@@ -188,14 +194,28 @@ describeIfLiveInfra('run it now (W16-10)', () => {
       payload: {},
     });
     expect(res.statusCode).toBe(202);
-    expect(res.json().started).toContain('semgrep');
-    expect(added[0]?.data).toMatchObject({ repoId, scannerKey: 'semgrep', trigger: 'manual' });
+    expect(res.json().started.length, 'defaults must be honoured with no rows').toBeGreaterThan(0);
+    // Exactly the set the coverage table calls enabled — same helper, so the
+    // two cannot disagree again.
+    const expected = [
+      ...new Set([...listScanners().map((s) => s.key), ...SCANNER_DEFAULTS.map((d) => d.key)]),
+    ].filter((key) => isEnabled(key, undefined));
+    expect([...res.json().started].sort()).toEqual([...expected].sort());
+    expect(added[0]?.data).toMatchObject({ repoId, trigger: 'manual' });
   });
 
   it('pressing twice does not start twice', async () => {
     // Absorbed by the queue's own id semantics rather than by a flag in the
     // route — a second API replica would not share such a flag.
-    await app.inject({ method: 'POST', url: `/repos/${repoId}/scan`, headers: CSRF, payload: {} });
+    const first = await app.inject({
+      method: 'POST',
+      url: `/repos/${repoId}/scan`,
+      headers: CSRF,
+      payload: {},
+    });
+    const enqueuedAfterFirst = added.length;
+    expect(enqueuedAfterFirst).toBeGreaterThan(0);
+
     const second = await app.inject({
       method: 'POST',
       url: `/repos/${repoId}/scan`,
@@ -203,11 +223,12 @@ describeIfLiveInfra('run it now (W16-10)', () => {
       payload: {},
     });
 
-    expect(added).toHaveLength(1);
+    // The SECOND press adds nothing — the count is unchanged.
+    expect(added).toHaveLength(enqueuedAfterFirst);
     // And the person is told which happened — "already running" and "started"
     // are different news.
     expect(second.json().started).toEqual([]);
-    expect(second.json().already_running).toContain('semgrep');
+    expect([...second.json().already_running].sort()).toEqual([...first.json().started].sort());
   });
 
   it('records the request id and the actor on the job, so a failure traces back to the click', async () => {
@@ -222,17 +243,46 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     expect(payload.requestedBy).toBe(userId);
   });
 
-  it('refuses to run a scanner this repository has disabled', async () => {
+  it('refuses a scanner this repository has explicitly disabled', async () => {
     // Running one because someone pressed a general button would quietly undo a
-    // deliberate decision that has an audit row behind it.
-    const res = await app.inject({
-      method: 'POST',
-      url: `/repos/${repoId}/scan`,
-      headers: CSRF,
-      payload: { scanner_key: 'owasp_web' },
-    });
-    expect(res.statusCode).toBe(409);
-    expect(res.json().detail).toMatch(/not enabled/i);
+    // deliberate decision that has an audit row behind it. Needs an EXPLICIT
+    // row now: with defaults honoured, "no row" no longer means disabled, so
+    // asserting against an absent row would prove nothing.
+    await db
+      .insert(security.repoScannerConfig)
+      .values({ workspaceId, repoId, scannerKey: 'semgrep', enabled: false })
+      .onConflictDoUpdate({
+        target: [
+          security.repoScannerConfig.workspaceId,
+          security.repoScannerConfig.repoId,
+          security.repoScannerConfig.scannerKey,
+        ],
+        set: { enabled: false },
+      });
+
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: { scanner_key: 'semgrep' },
+      });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().detail).toMatch(/not enabled/i);
+
+      // And a stored `false` must beat the default in the general run too.
+      const all = await app.inject({
+        method: 'POST',
+        url: `/repos/${repoId}/scan`,
+        headers: CSRF,
+        payload: {},
+      });
+      expect(all.json().started).not.toContain('semgrep');
+    } finally {
+      await db
+        .delete(security.repoScannerConfig)
+        .where(eq(security.repoScannerConfig.repoId, repoId));
+    }
   });
 
   it('404s for a repository outside the workspace', async () => {

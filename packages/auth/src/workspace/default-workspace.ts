@@ -53,10 +53,46 @@ export interface Membership {
 // the failure mode is "two admins" (redundant, not a privilege
 // escalation), not a security hole, and isn't worth an advisory lock for
 // this skeleton ticket.
+/**
+ * Thrown when the session names a user that no longer exists (W16-15).
+ *
+ * A distinct type rather than a generic Error so the caller can answer 401 —
+ * "this session is no longer valid" — instead of letting a foreign-key
+ * violation surface as a 500.
+ */
+export class UnknownUserError extends Error {
+  constructor(readonly userId: number) {
+    super(`No user ${userId} — the session names an account that no longer exists`);
+    this.name = 'UnknownUserError';
+  }
+}
+
 export async function ensureMembership(db: Database, userId: number): Promise<Membership> {
   const workspace = await ensureDefaultWorkspace(db);
 
   return db.transaction(async (tx) => {
+    // THE USER MUST STILL EXIST (W16-15).
+    //
+    // Without this the insert below violates
+    // workspace_members_user_id_users_id_fk and surfaces as a 500 — and the
+    // shell, which has no branch for a 500 on /me/context, sat on "Checking
+    // your session…" for ever with no error, no retry and no way to sign out.
+    // A browser in that state is unrecoverable without clearing cookies.
+    //
+    // Reachable in any install where an admin removes someone who is signed in
+    // elsewhere; found twice by accident during the 2026-08-27 user walk.
+    //
+    // Checked HERE rather than in the api-v1 preHandler because five call sites
+    // reach this function — /auth/identity and two paths in the local-auth
+    // routes among them — and fixing one would have left the same 500 reachable
+    // from the others.
+    const [user] = await tx
+      .select({ id: core.users.id })
+      .from(core.users)
+      .where(eq(core.users.id, userId))
+      .limit(1);
+    if (!user) throw new UnknownUserError(userId);
+
     const [existing] = await tx
       .select()
       .from(core.workspaceMembers)

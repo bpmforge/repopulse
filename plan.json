@@ -5787,7 +5787,7 @@
       "stories": [],
       "depends_on": [],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/api/src/plugins/**",
         "apps/api/src/routes/**",
@@ -5801,7 +5801,9 @@
       ],
       "notes": [
         "Found during W16-02. With a live session cookie whose user row had been removed, /api/v1/me/context returned 500: ensureMembership inserted into workspace_members and hit workspace_members_user_id_users_id_fk (23503, \"Key (user_id)=(26878) is not present in table users\"). The browser sat on \"Checking your session...\" for ever with no way out — the shell has no branch for a 500 there. Reachable in any install where an admin removes a user while that user is signed in.",
-        "RAISED by the 2026-08-27 user walk: this is not \"500 instead of 401\", it is an UNRECOVERABLE dead end. The shell sits on \"Checking your session...\" for ever — no error, no retry, no sign-out. Hit twice by accident. The shell HAS a designed `unknown` branch for a non-401 failure (__root.tsx:135) and it is never reached; only one request is made, with no retry. Client mechanism unconfirmed; server cause and user-visible result both confirmed."
+        "RAISED by the 2026-08-27 user walk: this is not \"500 instead of 401\", it is an UNRECOVERABLE dead end. The shell sits on \"Checking your session...\" for ever — no error, no retry, no sign-out. Hit twice by accident. The shell HAS a designed `unknown` branch for a non-401 failure (__root.tsx:135) and it is never reached; only one request is made, with no retry. Client mechanism unconfirmed; server cause and user-visible result both confirmed.",
+        "FIXED two ways. Cause: ensureMembership now checks the user exists and throws UnknownUserError, which the api-v1 preHandler and /auth/identity turn into 401 with the session destroyed. Put in ensureMembership rather than the preHandler because FIVE call sites reach it. Class: SessionProbe now offers a retry and a sign-out after 6s, so a probe that never resolves is escapable whatever the future cause — the strand was the real bug and it outlives any one 500.",
+        "VERIFIED in the browser on the exact condition: signed in, deleted the user underneath the live session, reloaded — lands on the sign-in screen. Server log: 0 500s, 0 unhandled errors, and an audit line \"auth.session.orphaned\"."
       ]
     },
     {
@@ -5916,9 +5918,11 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "MINE, from W16-10, and the feature does not work at all. isEnabled() falls back to defaultFor(key).enabled when no row exists, so the coverage table reads \"enabled\" with nothing stored; the route selects rows and finds none, answering \"Nothing to run\" directly beneath a table saying four scanners are enabled. Resolve through listScanners() + isEnabled() instead of reading rows."
+        "MINE, from W16-10, and the feature does not work at all. isEnabled() falls back to defaultFor(key).enabled when no row exists, so the coverage table reads \"enabled\" with nothing stored; the route selects rows and finds none, answering \"Nothing to run\" directly beneath a table saying four scanners are enabled. Resolve through listScanners() + isEnabled() instead of reading rows.",
+        "FIXED both halves. The route now resolves enablement through listScanners() + isEnabled() — the same helper the coverage table uses, so the two cannot disagree again. AND scan-processor no longer returns silently when no history runner is wired: it records a failed scan_run naming the reason, because the original fix alone would have replaced an honest refusal with a button that enqueues doomed jobs and leaves the table still saying \"never run\".",
+        "The test that hid this inserted a semgrep row in beforeAll; that row is exactly why the feature looked green while dead. It now runs against a repo with ZERO config rows — the fresh-install state — and keeps an explicit enabled:false row for the disabled case, where the absence of a row would otherwise prove nothing."
       ],
       "id": "W16-20",
       "title": "Run scans now cannot run anything (B1)",
@@ -6090,6 +6094,32 @@
       ],
       "acceptance": [
         "Seeded metric values are plausible for the seeded volume of data"
+      ]
+    },
+    {
+      "id": "W16-28",
+      "title": "No scanner is ever registered, so listScanners() is empty in every process",
+      "phase": 16,
+      "module": "security",
+      "stories": [],
+      "depends_on": [],
+      "points": 5,
+      "status": "todo",
+      "write_scope": [
+        "packages/security/src/**",
+        "apps/api/src/workers/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The scanners the catalogue documents are registered in the process that runs them",
+        "A repository with a connection can complete a real scan end to end and the coverage table stops saying \"never run\""
+      ],
+      "notes": [
+        "Found while fixing W16-20. registerScanner() has NO caller anywhere in production — only registry.ts itself and framework.test.ts. So listScanners() returns [] in every process, every scanner renders \"(not installed)\" on every install, and getScanner() is always undefined, which is why scan_runs record scannerVersion \"unregistered\".",
+        "The registry comment says \"Adding a scanner is one import and one array entry, reviewed like any other code\" — that import and array entry were never written. The implementations exist and are tested (lizard/jscpd/import-graph integration tests actually run), so this is wiring, not missing work.",
+        "Two scanners partly escape it: the worker supplies historyRunners.secrets and weeklyRunners.semgrep, which run before getScanner is consulted. The other four have no path to running at all.",
+        "This is the real content of W16-11 (\"everything reads (not installed)\") and it is larger than a UI message: roughly a wave of security and code-health work is shipped, tested, and connected to nothing."
       ]
     }
   ]
