@@ -33,7 +33,11 @@ describe('GET /auth/providers (W15-04)', () => {
     const app = await appOffering({});
     const res = await app.inject({ method: 'GET', url: '/auth/providers' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ local: true, oidc: null, github: false });
+    // `demo: null` is part of the contract since W16-02: the sign-in screen is
+    // the one screen with no session, so this anonymous endpoint is how it
+    // learns whether it is looking at a demo. A REAL install must always say
+    // null here — that is what keeps a credential out of a production response.
+    expect(res.json()).toEqual({ local: true, oidc: null, github: false, demo: null });
     await app.close();
   });
 

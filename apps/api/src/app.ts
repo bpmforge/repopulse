@@ -55,6 +55,12 @@ export interface BuildAppOptions {
    * server it is talking to.
    */
   demo?: boolean;
+  /**
+   * The demo account's credentials, passed ONLY by apps/api/src/demo.ts
+   * (W16-02). Present means the sign-in screen shows them; absent — every real
+   * install — means it shows nothing.
+   */
+  demoAccount?: { email: string; password: string } | undefined;
   /** Test-only override so security tests can capture audit/redaction output. */
   loggerInstance?: Logger;
 }
@@ -105,6 +111,9 @@ export function buildApp(opts: BuildAppOptions) {
     db: opts.db,
     ...(opts.oidc ? { oidc: { displayName: opts.oidc.displayName } } : {}),
     github: opts.githubOAuth !== undefined,
+    // W16-02 (F1/F2): only the demo entrypoint passes this, so a production
+    // build cannot publish a credential here even by mistake.
+    ...(opts.demoAccount ? { demo: opts.demoAccount } : {}),
   });
 
   // OIDC only when it is actually configured. A deployment that has not set it

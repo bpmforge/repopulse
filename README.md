@@ -17,6 +17,10 @@ pnpm bootstrap          # containers, .env, generated secrets, migrate, seed
 DEMO_MODE=1 pnpm dev    # then open http://localhost:5273
 ```
 
+Sign in with **`demo@repopulse.local`** / **`demo-password`** — the sign-in
+screen fills them in for you and says so. (Or click *Sign in with GitHub*: in
+demo mode the OAuth boundary is mocked, so it needs no GitHub account either.)
+
 `pnpm bootstrap`, **not** `pnpm setup` — the latter is a built-in pnpm command
 and would never touch this repo.
 
