@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SESSION_ENDPOINT, queryKeyFor } from '../../api/useApiQuery.js';
 import {
@@ -39,6 +39,20 @@ export function SignIn({ expired }: SignInProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Prefill the demo credentials once the providers response arrives, and only
+  // while the visitor has not typed: filling a field someone is editing is a
+  // worse bug than the empty form. Demo mode is disposable by definition, so
+  // there is nothing here worth making a person retype from a banner.
+  const demoEmail = providers.demo?.email;
+  const demoPassword = providers.demo?.password;
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || demoEmail === undefined || demoPassword === undefined) return;
+    prefilled.current = true;
+    setEmail((current) => (current === '' ? demoEmail : current));
+    setPassword((current) => (current === '' ? demoPassword : current));
+  }, [demoEmail, demoPassword]);
+
   const login = useMutation<LocalLoginResult, Error, { email: string; password: string }>({
     mutationFn: (vars) => localLogin(vars.email, vars.password),
     onSuccess: async (result) => {
@@ -68,6 +82,23 @@ export function SignIn({ expired }: SignInProps) {
         className="w-full max-w-sm rounded-md border border-border bg-surface p-6"
         data-testid="signin"
       >
+        {/* W16-02 (F2). The demo banner is in the shell, which only mounts
+            AFTER sign-in — so the one screen where a visitor needs to be told
+            "this is fake, and here is how to get in" was the one screen that
+            said nothing. It also has to carry the credentials: demo mode used
+            to promise that any login worked, and it never did for this form. */}
+        {providers.demo ? (
+          <p
+            className="mb-4 rounded-sm border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
+            data-testid="signin-demo-banner"
+          >
+            <span className="font-medium">Demo mode</span> — fake forge, seeded fixture data.
+            Nothing here describes a real organisation. Sign in with{' '}
+            <code className="font-mono">{providers.demo.email}</code> /{' '}
+            <code className="font-mono">{providers.demo.password}</code>, already filled in below.
+          </p>
+        ) : null}
+
         <h1 className="text-base font-medium">RepoPulse</h1>
         <p className="mt-2 text-sm text-fg-muted">
           {expired
@@ -187,7 +218,9 @@ export function SignIn({ expired }: SignInProps) {
                   self-hosted install is usually reachable the day it comes up,
                   and open registration hands it to whoever finds the URL.
                   Accounts come from first boot or from an admin (D14). */}
-              Accounts are created by your RepoPulse administrator.
+              {providers.demo
+                ? 'In a real install, accounts are created by your RepoPulse administrator.'
+                : 'Accounts are created by your RepoPulse administrator.'}
             </p>
           </>
         )}

@@ -149,3 +149,39 @@ describe('SignIn (W15-04)', () => {
     expect(screen.getByLabelText('Password')).toBe(screen.getByTestId('signin-password'));
   });
 });
+
+// W16-02 (F1/F2). The sign-in screen is the only screen that cannot ask
+// /me/context whether this is a demo — there is no session yet — so it was the
+// one screen with no demo banner, while the docs promised any login would work
+// and the form beneath it rejected everything.
+describe('demo mode (W16-02)', () => {
+  it('shows the demo banner with the credentials, and prefills the form', async () => {
+    renderSignIn({ demo: { email: 'demo@repopulse.local', password: 'demo-password' } });
+
+    const banner = await screen.findByTestId('signin-demo-banner');
+    expect(banner).toHaveTextContent(/demo mode/i);
+    expect(banner).toHaveTextContent('demo@repopulse.local');
+    expect(banner).toHaveTextContent('demo-password');
+
+    // Prefilled, so the documented quickstart is one click rather than a
+    // transcription exercise from a banner.
+    await waitFor(() => {
+      expect(screen.getByTestId('signin-email')).toHaveValue('demo@repopulse.local');
+      expect(screen.getByTestId('signin-password')).toHaveValue('demo-password');
+    });
+  });
+
+  it('softens the administrator line, which is not true of a demo', async () => {
+    renderSignIn({ demo: { email: 'demo@repopulse.local', password: 'demo-password' } });
+    expect(await screen.findByText(/in a real install, accounts are created/i)).toBeInTheDocument();
+  });
+
+  it('shows no banner and prefills nothing on a real install', async () => {
+    renderSignIn({ demo: null });
+    await screen.findByTestId('signin-local');
+
+    expect(screen.queryByTestId('signin-demo-banner')).toBeNull();
+    expect(screen.getByTestId('signin-email')).toHaveValue('');
+    expect(screen.getByTestId('signin-password')).toHaveValue('');
+  });
+});

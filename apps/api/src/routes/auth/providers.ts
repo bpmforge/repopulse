@@ -35,6 +35,22 @@ export interface AuthProviderRoutesOptions {
   oidc?: { displayName: string } | undefined;
   /** True when a GitHub App is configured, i.e. /auth/login was registered. */
   github?: boolean | undefined;
+  /**
+   * The demo credentials, when this process is the demo entrypoint (W16-02).
+   *
+   * The sign-in screen is the ONE screen that cannot ask /me/context whether
+   * this is a demo — there is no session yet, so it answers 401 — which is why
+   * it was the one screen with no demo banner on it (F2). This endpoint is
+   * already unauthenticated and already exists to tell the browser what this
+   * deployment offers, so the demo's own credentials belong here rather than in
+   * a second anonymous endpoint.
+   *
+   * Publishing a password from an API is only acceptable because demo mode
+   * cannot boot under NODE_ENV=production, and because this field is populated
+   * solely by the demo entrypoint — the production entrypoint never passes it,
+   * so a real install cannot emit one even if it wanted to.
+   */
+  demo?: { email: string; password: string } | undefined;
 }
 
 async function authProviderRoutes(
@@ -49,6 +65,7 @@ async function authProviderRoutes(
       local: true,
       oidc: opts.oidc ? { display_name: opts.oidc.displayName } : null,
       github: opts.github === true,
+      demo: opts.demo ? { email: opts.demo.email, password: opts.demo.password } : null,
     });
   });
 

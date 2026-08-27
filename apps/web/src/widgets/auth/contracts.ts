@@ -24,6 +24,12 @@ export interface AuthProviders {
   oidc: { display_name: string } | null;
   /** True only when a GitHub App is configured, i.e. /auth/login exists. */
   github: boolean;
+  /**
+   * Non-null only in demo mode (W16-02). The sign-in screen cannot ask
+   * /me/context whether this is a demo — there is no session yet — so this is
+   * how the one screen that most needs the demo banner gets it.
+   */
+  demo?: { email: string; password: string } | null;
 }
 
 export const AUTH_PROVIDERS_KEY = ['auth', 'providers'] as const;
@@ -38,7 +44,7 @@ export const LOCAL_SESSION_KEY = ['auth', 'local-session'] as const;
  * thing every deployment has, so an unreachable discovery endpoint degrades to
  * the password form and nothing else.
  */
-export const LOCAL_ONLY: AuthProviders = { local: true, oidc: null, github: false };
+export const LOCAL_ONLY: AuthProviders = { local: true, oidc: null, github: false, demo: null };
 
 export function useAuthProviders(): { providers: AuthProviders; ready: boolean } {
   const { data, isPending } = useQuery<AuthProviders>({

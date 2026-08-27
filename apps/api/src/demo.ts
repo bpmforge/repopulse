@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { createDb, seedWarehouse, startFakeForge, startFakeGithub } from '@repopulse/shared';
 import { buildApp } from './app.js';
-import { assertDemoAllowed, demoRequested } from './lib/demo.js';
+import { local } from '@repopulse/auth';
+import { assertDemoAllowed, demoRequested, DEMO_ACCOUNT } from './lib/demo.js';
 
 // Demo entrypoint (W13-02): the whole product, no GitHub account required.
 //
@@ -58,12 +59,31 @@ const db = createDb(requireEnv('DATABASE_URL'));
 // idempotent by fixture id.
 const seeded = await seedWarehouse(db);
 
+// W16-02 (F1). A REAL local account, so the email/password form the sign-in
+// screen puts first actually works in demo mode. `createLocalUser` returns
+// `exists` on a re-run, which is the desired no-op — demo mode reseeds every
+// boot and must not fail because it already did this once.
+const demoAccount = await local.createLocalUser(db, {
+  email: DEMO_ACCOUNT.email,
+  password: DEMO_ACCOUNT.password,
+  name: 'Demo user',
+  // Not `true`: a forced password change is right for an admin-created account
+  // whose password someone else typed, and wrong for a credential printed on
+  // the screen the person is looking at. Making the demo's first act a password
+  // change would be a worse first run than the bug this fixes.
+  mustChangePassword: false,
+});
+if (!demoAccount.ok && demoAccount.reason !== 'exists') {
+  throw new Error(`demo: could not create the demo account (${demoAccount.reason})`);
+}
+
 const github = await startFakeGithub(Number(process.env.DEMO_GITHUB_PORT ?? 0));
 const forge = await startFakeForge(Number(process.env.DEMO_FORGE_PORT ?? 0));
 
 const app = buildApp({
   db,
   demo: true,
+  demoAccount: DEMO_ACCOUNT,
   tokenKey: Buffer.from(requireEnv('TOKEN_ENC_KEY'), 'hex'),
   webhookUrl: `${apiBaseUrl}/api/v1/webhooks/github`,
   forgeBaseUrl: forge.baseUrl,
@@ -98,5 +118,8 @@ await app.listen({ port, host: '127.0.0.1' });
 console.log(
   `\n  DEMO MODE — fake forge, mocked login, seeded warehouse\n` +
     `  ${JSON.stringify(seeded.counts)}\n` +
-    `  Sign in at ${webBaseUrl} — any login lands as the fixture user.\n`,
+    `  Sign in at ${webBaseUrl}\n` +
+    `    email     ${DEMO_ACCOUNT.email}\n` +
+    `    password  ${DEMO_ACCOUNT.password}\n` +
+    `  or click "Sign in with GitHub" — the OAuth boundary is mocked.\n`,
 );

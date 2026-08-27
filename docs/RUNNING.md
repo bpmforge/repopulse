@@ -27,8 +27,22 @@ pnpm bootstrap          # NOT `pnpm setup` — see below
 DEMO_MODE=1 pnpm dev
 ```
 
-Open <http://localhost:5273> and sign in. The sign-in is mocked: any login
-lands you as the fixture user.
+Open <http://localhost:5273> and sign in with:
+
+```
+email     demo@repopulse.local
+password  demo-password
+```
+
+The sign-in screen shows those credentials in its demo banner and fills the
+form in for you, and the API prints them at boot. They are a REAL local
+account, created at startup with a real password hash — demo mode does not
+weaken the login route, so what you sign in through is the same path a real
+install uses. *Sign in with GitHub* also works and needs no GitHub account:
+that is the boundary demo mode mocks.
+
+Both are safe only because demo mode refuses to start under
+`NODE_ENV=production` (below).
 
 Everything you see is fake — a seeded warehouse of three invented repositories,
 served through a local fake forge. The app says so in a banner across the top,

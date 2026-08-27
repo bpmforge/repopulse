@@ -5407,8 +5407,12 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
-      "notes": [],
+      "status": "done",
+      "notes": [
+        "F3 was NOT a defect: the GitHub button renders in demo mode because the demo entrypoint really does configure a (mocked) OAuth app, and /auth/providers already reports github:false when one is absent. Verified in providers.test.ts.",
+        "Demo mode now seeds a REAL local account rather than teaching the login route to wave demo requests through. apps/api/src/routes/auth/local.ts equalises its failure responses AND its timing on purpose; a demo bypass there would add an auth-bypass branch to the one file that most needs not to have one, and would leave the demo exercising a path no real install uses.",
+        "OUTSTANDING: nothing boots apps/api/src/demo.ts under test — the e2e harness runs e2e/server.ts and authenticates through the mocked OAuth boundary, which is the door that always worked. The form was the door nobody tried. Covered here by an in-process integration test over the same wiring; a demo-entrypoint e2e project is W16-14."
+      ],
       "id": "W16-02",
       "title": "Demo mode rejects the sign-in form it puts first (F1, F2, F3)",
       "module": "api",
@@ -5699,6 +5703,79 @@
       ],
       "notes": [
         "Split out of W15-03. TanStack pauses refetchInterval when the document is unfocused (refetchIntervalInBackground defaults false); the Report Center relies on that poll for the queued -> running -> ready transition. Unverified either way — a browser-extension-driven tab cannot test it."
+      ]
+    },
+    {
+      "id": "W16-13",
+      "title": "The demo account sees empty personal views",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [
+        "W16-02"
+      ],
+      "points": 2,
+      "status": "todo",
+      "write_scope": [
+        "apps/api/src/demo.ts",
+        "packages/shared/src/testing/seed/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Signing in to the demo with the documented credentials shows a populated My Focus, not an unlinked-identity banner"
+      ],
+      "notes": [
+        "Introduced by W16-02. The demo local account has no forge_user_id, so resolveUserIdentity returns null and My Focus is honestly empty. Not a bug in the identity design — it is exactly what identityLinkState exists to explain — but demo mode is meant to leave nothing empty. The seeded fixture identity already holds forge_user_id = FIXTURE_LOGIN and users.forge_user_id is UNIQUE, so the demo account cannot simply claim it without breaking the mocked-OAuth path. Needs a deliberate choice, not a one-liner."
+      ]
+    },
+    {
+      "id": "W16-14",
+      "title": "Nothing boots the demo entrypoint under test",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "e2e/**",
+        "playwright.config.ts",
+        "ports.config.mjs",
+        "docs/TESTING.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A Playwright project boots apps/api/src/demo.ts on its own ports and walks the documented quickstart: open the app, sign in through the FORM, land on a populated screen",
+        "The project fails if the README quickstart stops working"
+      ],
+      "notes": [
+        "This is the gap that let F1 ship. e2e/server.ts is not the demo entrypoint, and every spec authenticates through the mocked OAuth boundary — so the screen a newcomer actually meets had no coverage at all."
+      ]
+    },
+    {
+      "id": "W16-15",
+      "title": "A session whose user was deleted 500s instead of 401ing",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "todo",
+      "write_scope": [
+        "apps/api/src/plugins/**",
+        "apps/api/src/routes/**",
+        "packages/auth/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A request carrying a valid session cookie for a deleted user gets 401 and a cleared cookie, not 500",
+        "A test covers it"
+      ],
+      "notes": [
+        "Found during W16-02. With a live session cookie whose user row had been removed, /api/v1/me/context returned 500: ensureMembership inserted into workspace_members and hit workspace_members_user_id_users_id_fk (23503, \"Key (user_id)=(26878) is not present in table users\"). The browser sat on \"Checking your session...\" for ever with no way out — the shell has no branch for a 500 there. Reachable in any install where an admin removes a user while that user is signed in."
       ]
     }
   ]

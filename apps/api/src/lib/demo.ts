@@ -38,3 +38,31 @@ export function demoRequested(env: DemoEnv): boolean {
 export function assertDemoAllowed(env: DemoEnv): void {
   if (env.NODE_ENV === 'production') throw new Error(DEMO_REFUSAL);
 }
+
+/**
+ * The demo account (W16-02, F1).
+ *
+ * Demo mode mocks the OAuth boundary, so the GitHub button always worked — but
+ * the sign-in screen puts the EMAIL AND PASSWORD FORM first, and that form went
+ * to the real local-credential path against a database with no local account in
+ * it. The README, docs/RUNNING.md and the boot banner all promised "any login
+ * lands you as the fixture user", so following the quickstart verbatim produced
+ * "Invalid email or password" on screen one.
+ *
+ * The fix is a REAL account with a real scrypt hash, not a bypass in the login
+ * route. `apps/api/src/routes/auth/local.ts` equalises its failure responses and
+ * its timing on purpose; teaching it to wave demo requests through would add an
+ * authentication-bypass branch to the one file that most needs not to have one,
+ * and would leave the demo exercising a code path no real install uses. Seeding
+ * an account instead means the demo signs in the way a real install does.
+ *
+ * These credentials are PUBLIC by design — they are printed at boot, shown on
+ * the sign-in screen and committed here. That is only safe because demo mode
+ * refuses to boot under NODE_ENV=production (see assertDemoAllowed above), which
+ * is the control that makes every other demo shortcut safe too.
+ */
+export const DEMO_ACCOUNT = {
+  email: 'demo@repopulse.local',
+  /** 12+ characters: the same password policy a real account must satisfy. */
+  password: 'demo-password',
+} as const;
