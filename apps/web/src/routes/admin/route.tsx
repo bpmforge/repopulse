@@ -22,6 +22,10 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/admin/agreements', label: 'Agreements' },
   { to: '/admin/rules', label: 'Rules' },
   { to: '/admin/analysis', label: 'Analysis' },
+  // W16-07: where the model this product runs on is configured. Next to
+  // Analysis because the two answer the same question from opposite ends —
+  // Analysis says which repos may be analysed, Models says what analyses them.
+  { to: '/admin/models', label: 'Models' },
   { to: '/admin/settings', label: 'Settings' },
   // W11-02. Its own top-level route rather than an /admin child — the setup
   // checklist is what an operator opens when something is not working yet, and

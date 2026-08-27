@@ -5560,8 +5560,12 @@
       "depends_on": [
         "W16-06"
       ],
-      "status": "todo",
-      "notes": [],
+      "status": "done",
+      "notes": [
+        "Verified end to end against a real DEMO_MODE stack: the screen renders, the form drives, and Test connection made a genuine outbound attempt to the LAN LM Studio host.",
+        "That live test found a real defect in this ticket own code: Node fetch reports every transport failure as \"fetch failed\" and hides the cause, so the screen said \"Could not connect. fetch failed\" — the same uninformative sentence the button exists to avoid. Now unwrapped, and it reads \"Connect Timeout Error (attempted address: 192.168.13.48:1234, timeout: 10000ms) (UND_ERR_CONNECT_TIMEOUT)\".",
+        "Also fixed a regression from W16-02 found here: the demo local account arrived SECOND in the workspace, so ensureMembership made it a member and every Admin screen 403d. Demo mode now promotes it to admin."
+      ],
       "id": "W16-07",
       "title": "Admin UI for LLM provider connections, with Test connection",
       "module": "web",
@@ -5733,7 +5737,8 @@
         "Signing in to the demo with the documented credentials shows a populated My Focus, not an unlinked-identity banner"
       ],
       "notes": [
-        "Introduced by W16-02. The demo local account has no forge_user_id, so resolveUserIdentity returns null and My Focus is honestly empty. Not a bug in the identity design — it is exactly what identityLinkState exists to explain — but demo mode is meant to leave nothing empty. The seeded fixture identity already holds forge_user_id = FIXTURE_LOGIN and users.forge_user_id is UNIQUE, so the demo account cannot simply claim it without breaking the mocked-OAuth path. Needs a deliberate choice, not a one-liner."
+        "Introduced by W16-02. The demo local account has no forge_user_id, so resolveUserIdentity returns null and My Focus is honestly empty. Not a bug in the identity design — it is exactly what identityLinkState exists to explain — but demo mode is meant to leave nothing empty. The seeded fixture identity already holds forge_user_id = FIXTURE_LOGIN and users.forge_user_id is UNIQUE, so the demo account cannot simply claim it without breaking the mocked-OAuth path. Needs a deliberate choice, not a one-liner.",
+        "PARTIALLY ADDRESSED by W16-07: the demo account is now an admin, so the Admin screens are reachable. What remains is the forge-identity link — My Focus is still honestly empty."
       ]
     },
     {

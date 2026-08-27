@@ -89,7 +89,14 @@ export type AuditEvent =
   | 'rule.proposed'
   | 'rule.candidate'
   | 'rule.active'
-  | 'rule.deprecated';
+  | 'rule.deprecated'
+  // W16-07. A provider row decides WHERE THIS WORKSPACE'S DIFFS ARE SENT — the
+  // same class of decision as a Tier-3 opt-in, and the reason both are
+  // admin-only. Adding one that names a public endpoint is a data-egress
+  // decision with an author, not a settings preference; deleting one silently
+  // stops analysis, which is equally worth a record.
+  | 'llm_provider.created'
+  | 'llm_provider.deleted';
 
 export interface AuditEntry {
   event: AuditEvent;
