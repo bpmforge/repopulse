@@ -3719,3 +3719,72 @@ on the Gitea-first path it can stay parked without blocking anything.
 Recorded because the same staleness reached Brad as advice: my own rundown told
 him to raise the Actions billing limit, which is the opposite of the decision he
 had already made. A stale ticket read aloud is still a stale ticket.
+
+---
+
+## 2026-08-27 — W16, the end-user review wave
+
+An end-user UX pass drove the running product in a browser and brought the
+customer-hostable stack up on this machine. Findings are in
+`docs/review/UX_REVIEW_2026-08-27.md`; they are on the board as W16-01..15.
+
+**Read the review's own retraction note before trusting any of it.** Three
+findings — F12 (repo links dead), F17 (missing accessible names), F9 (report
+Generate inert) — were filed on the strength of what a browser screenshot
+appeared to show, and all three dissolved on a second check: a mis-click after
+a late window resize, an accessibility read taken before hydration, and a query
+poll that TanStack pauses in an unfocused tab. The standing rule adopted
+mid-review, and worth keeping: nothing gets filed or fixed on a screenshot
+alone. Source read, server log, or Playwright.
+
+`2026-08-27 W16-01 done — /repos click-through coverage added (F12 retracted); repo-detail spec 7/7`
+`2026-08-27 W16-03 done — report Markdown rendered instead of printed (F10); 6 new tests, 1664 passing`
+`2026-08-27 W16-02 done — the documented demo quickstart signs in (F1/F2); 9 new tests, 1673 passing`
+`2026-08-27 W16-04 done — deploy/up.sh: the container stack starts all six services and fails loudly (F4); 3 new tests`
+
+### W16-04 note — the container stack was never actually startable
+
+`podman compose -f deploy/compose.yaml up -d --build` on this machine started
+five of six services. The worker died on
+`statfs /var/lib/repopulse/scan-rules: no such file or directory` — the bind
+mount's source, which `SCAN_RULES_DIR` defaults to an absolute host path that
+nothing creates. The repo already ships `deploy/scan-rules/` for exactly this
+reason, and its README names this exact error; the compose default simply
+pointed somewhere else and defeated it.
+
+The worse half is that the stack looked fine. The web tier came up and answered
+200 on :8099, and the compose wrapper exited 0 while printing `exit status 125`.
+An operator following the docs would have had a product that looked installed
+and would never ingest anything.
+
+`deploy/up.sh` is now the documented way in: it creates the mount source, then
+verifies every long-running service and exits non-zero naming the ones that are
+not up. Verified against the genuine clean-host condition
+(`/var/lib/repopulse/scan-rules` absent): all six services running, web 200,
+worker healthy. The verifier was red-checked by stopping the worker — it
+reported `detected as down: worker` and exited 1.
+
+This does NOT close W11-05: a clean-host smoke on a machine that has never built
+these images is still outstanding, and this machine has a warm image cache.
+
+### Also filed while doing the above
+
+- **W16-13** — the demo account's personal views are empty. Introduced by
+  W16-02: the local demo user has no `forge_user_id`, and `users.forge_user_id`
+  is UNIQUE, so it cannot simply claim the seeded fixture identity without
+  breaking the mocked-OAuth path. Needs a decision, not a one-liner.
+- **W16-14** — nothing boots `apps/api/src/demo.ts` under test. This is the gap
+  that let F1 ship: the e2e harness runs `e2e/server.ts` and authenticates
+  through the mocked OAuth boundary — the one door that always worked. The
+  sign-in form was the door nobody tried.
+- **W16-15** — a session whose user was deleted returns 500, not 401.
+  `ensureMembership` inserts into `workspace_members` and hits the user FK
+  (23503); the shell then sits on "Checking your session…" for ever with no way
+  out. Reachable in any install where an admin removes a signed-in user.
+
+### Board hygiene
+
+The review block was first filed as W15, which was already the D14 auth wave —
+and an edit meant for the new tickets overwrote the real W15-01 and W15-03. The
+originals were restored verbatim from `fa26c14` and the block renumbered to
+W16. Check the board for an existing wave before claiming a number.

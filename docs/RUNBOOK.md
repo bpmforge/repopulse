@@ -73,7 +73,7 @@ An untested backup is a hypothesis.
 cd /path/to/repopulse
 ./deploy/backup.sh                                     # 1. always, first
 podman compose -f deploy/compose.yaml down             # 2. stop the old code
-podman compose -f deploy/compose.yaml up -d --build    # 3. migrate + start
+./deploy/up.sh --build                                # 3. migrate + start + verify
 curl -f http://127.0.0.1:${REPOPULSE_PORT:-8080}/healthz && echo OK
 ```
 
@@ -166,7 +166,9 @@ with `statfs /var/lib/repopulse/scan-rules: no such file or directory`, naming
 the *container* path and sending you looking in the wrong place.
 
 **The scan-rules directory has to exist before `up`.** It ships empty with a
-README; `deploy/scan-db-sync.sh` fills it.
+README; `deploy/scan-db-sync.sh` fills it. `deploy/up.sh` creates it for you —
+which is why it is the documented way in, and why a bare `compose up` is not:
+that path started five of six services and still exited 0 (W16-04).
 
 **Everything stuck in `Created`.** Something with a health check is not healthy.
 `podman ps -a` says which, `podman logs <container>` says why.

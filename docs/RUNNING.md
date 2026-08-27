@@ -157,8 +157,25 @@ cp deploy/.env.example deploy/.env
 # WEBHOOK_SECRET — none have defaults on purpose — and add ADMIN_EMAIL /
 # ADMIN_PASSWORD, which are how you get in the first time. The GITHUB_APP_*
 # values are optional and can stay blank.
-podman compose -f deploy/compose.yaml up -d
+./deploy/up.sh
 ```
+
+Use `deploy/up.sh`, not `compose up` directly. It does two things the raw
+command does not, both of which cost a real install its ingestion:
+
+1. **It creates the scan-rules mount source.** `SCAN_RULES_DIR` defaults to an
+   absolute host path that nothing creates, and a bind mount whose source is
+   missing fails at container-creation time — so the worker never starts and
+   cannot report why. `up.sh` defaults it to the shipped `deploy/scan-rules`
+   and creates it.
+2. **It verifies the stack afterwards.** `compose up` returned success while
+   leaving the worker dead, and the web tier answers 200 either way — so a
+   loading page is not proof the stack came up. `up.sh` exits non-zero and
+   names the services that are not running.
+
+An empty scan-rules directory is fine: dependency scanning reports itself
+unavailable (which the Security tab says plainly) until you run
+`deploy/scan-db-sync.sh`, which needs about 2 GB for the grype database.
 
 Then open `http://localhost:8099` (`REPOPULSE_PORT`) and sign in as
 `ADMIN_EMAIL`. [INSTALL.md](INSTALL.md) is the same path written for someone
@@ -169,8 +186,10 @@ and must stay that way: `TOKEN_ENC_KEY` decrypts every stored forge credential,
 so back it up separately and never rotate it casually — losing it means every
 connection must be re-entered.
 
-`SCAN_RULES_DIR` **must be an absolute path** and the directory must exist
-before `up`. `deploy/scan-rules` ships empty for that reason; it is filled by
+`SCAN_RULES_DIR` **must be an absolute path** — podman-compose resolves a
+relative bind source against your working directory, not the compose file's.
+It must also exist before `up`, which is why `deploy/scan-rules` ships empty
+and why `up.sh` creates whatever you point it at. It is filled by
 `deploy/scan-db-sync.sh`, host-side, because the scan container has no network.
 
 ### Verified clean run (W13-06, 2026-08-19)

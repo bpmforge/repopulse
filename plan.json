@@ -5465,9 +5465,13 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Overlaps W11-01/W11-05 (both blocked). This ticket is the narrow boot fix; the clean-host smoke stays with W11-05."
+        "The fix is in the DEPLOY layer, not the worker: the bind mount fails at container-creation time, so there is nothing running to degrade gracefully.",
+        "podman-compose exit status cannot be trusted — the failing run printed \"exit status 125\" and the wrapper exited 0 — so up.sh verifies service state itself rather than relying on it.",
+        "The compose default (/var/lib/repopulse/scan-rules) is deliberately UNCHANGED: it is right for a production host where a timer refreshes the rules and they must survive the checkout being deleted. up.sh picks the shipped deploy/scan-rules only when the operator has not chosen one.",
+        "Verified against the real clean-host condition on 2026-08-27: all six running, web 200, worker healthy. Verifier red-checked by stopping the worker (exited 1, named it).",
+        "DOES NOT CLOSE W11-05 — a clean-host smoke on a machine with no image cache is still outstanding."
       ],
       "id": "W16-04",
       "title": "The container worker refuses to start without SCAN_RULES_DIR (F4)",
@@ -5484,9 +5488,9 @@
         "plan.json"
       ],
       "acceptance": [
-        "compose up on a host with no /var/lib/repopulse/scan-rules brings up all six services",
-        "A worker without scan rules degrades to \"dependency scanning unavailable\" and says so in the UI, rather than refusing to boot",
-        "compose up exits non-zero if any service fails, instead of leaving a healthy-looking web tier"
+        "deploy/up.sh brings up all six services on a host where SCAN_RULES_DIR does not exist",
+        "A stack with an empty scan-rules directory runs, and dependency scanning reports itself unavailable rather than the worker refusing to boot",
+        "The bring-up exits non-zero and names the services that are not running, instead of leaving a healthy-looking web tier"
       ]
     },
     {
