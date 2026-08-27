@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { SyncStatusChip, WidgetFrame, useUiStore } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import '../plans/PlanTile.js';
@@ -104,6 +105,26 @@ export function OrgOverview({ search }: Props) {
             ? 'No repositories are connected yet. Connect your organization to start ingesting history.'
             : 'No repositories are connected yet. Ask an admin to connect your organization.'
         }
+        // W16-18. The comment above calls this a "role-appropriate CTA", and
+        // until now it was only ever role-appropriate COPY: the admin was told
+        // to connect their organisation and given nothing to click. This is the
+        // first screen of a real install — found by finally walking the
+        // non-demo first run — so a dead end here is a dead end at the worst
+        // possible moment. The member still gets none, correctly: they are told
+        // who can act precisely because they cannot.
+        {...(isAdmin
+          ? {
+              emptyAction: (
+                <Link
+                  to="/admin"
+                  data-testid="welcome-connect"
+                  className="rounded-sm border border-border bg-accent px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  Connect an organization
+                </Link>
+              ),
+            }
+          : {})}
       />
     );
   }

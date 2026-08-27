@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { and, desc, eq } from 'drizzle-orm';
 import { core, createDb, createLogger, facts, metricsRegistry } from '@repopulse/shared';
-import { credentials } from '@repopulse/auth';
+import { credentials, workspace as workspaceModule } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
 import { createWorkerRuntime } from './runtime.js';
@@ -89,7 +89,20 @@ async function main(): Promise<void> {
   // reporting a clean repository they never looked at.
   // tokenKey: provider API keys live in the same vault as forge tokens, so the
   // worker needs it to use a configured provider at all (W16-08).
-  const analysisGateway = await buildWorkerGateway(db, process.env, credentials.loadTokenKey());
+  // The DEFAULT workspace's providers, named explicitly (Law 5). v1 runs one
+  // workspace; a second one with its own model needs its own gateway, which is
+  // W16-19 rather than something this line quietly gets wrong.
+  const [defaultWorkspace] = await db
+    .select({ id: core.workspaces.id })
+    .from(core.workspaces)
+    .where(eq(core.workspaces.slug, workspaceModule.DEFAULT_WORKSPACE_SLUG))
+    .limit(1);
+  const analysisGateway = await buildWorkerGateway(
+    db,
+    process.env,
+    credentials.loadTokenKey(),
+    defaultWorkspace?.id,
+  );
   log.info(`[worker] ${await reportGatewayHealth(analysisGateway)}`);
 
   const connection = createRedisConnection(redisUrl);

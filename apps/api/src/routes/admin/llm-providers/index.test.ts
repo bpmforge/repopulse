@@ -378,7 +378,7 @@ describeIfLiveInfra('the gateway reads configured providers (W16-08)', () => {
       },
     ]);
 
-    const { hosts, skipped } = await hostsFromProviders(db, TOKEN);
+    const { hosts, skipped } = await hostsFromProviders(db, TOKEN, ws!.id);
 
     expect(hosts).toHaveLength(1);
     expect(hosts[0]?.baseUrl).toBe('https://openrouter.ai/api/v1');
@@ -392,5 +392,36 @@ describeIfLiveInfra('the gateway reads configured providers (W16-08)', () => {
     // opted in; the key check runs first, so that is the sentence — either way
     // the operator gets an instruction rather than "provider unavailable".
     expect(skipped[0]?.reason).toMatch(/needs an API key/i);
+  });
+
+  it('never reaches another workspace\'s providers — Law 5', async () => {
+    // The bug this pins: the first version selected every enabled row with no
+    // workspace filter, so on any install with more than one workspace (the
+    // seed alone creates two) it would decrypt ONE TENANT'S API KEY and use
+    // their model to analyse another tenant's diffs.
+    const { hostsFromProviders } = await import('../../../workers/gateway.js');
+    const [other] = await db
+      .insert(core.workspaces)
+      .values({ slug: 'w16-18-other-tenant', name: 'Other tenant' })
+      .onConflictDoNothing()
+      .returning({ id: core.workspaces.id });
+    const otherId =
+      other?.id ??
+      (
+        await db
+          .select({ id: core.workspaces.id })
+          .from(core.workspaces)
+          .where(eq(core.workspaces.slug, 'w16-18-other-tenant'))
+          .limit(1)
+      )[0]!.id;
+
+    try {
+      // The other tenant has none of its own; ours are visible only to us.
+      const theirs = await hostsFromProviders(db, TOKEN, otherId);
+      expect(theirs.hosts).toHaveLength(0);
+      expect(theirs.skipped).toHaveLength(0);
+    } finally {
+      await db.delete(core.workspaces).where(eq(core.workspaces.id, otherId));
+    }
   });
 });

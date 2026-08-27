@@ -7,7 +7,7 @@ import {
 } from '@repopulse/analysis';
 import { credentials } from '@repopulse/auth';
 import { core, type Database } from '@repopulse/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 // The analysis gateway, built once for the worker (carry-forward from W9-03,
 // W9-04 and W9-07).
@@ -90,11 +90,26 @@ export interface WorkerGateway {
 export async function hostsFromProviders(
   db: Database,
   tokenKey: Buffer,
+  /**
+   * REQUIRED, and required for a reason (Law 5).
+   *
+   * The first version of this selected every enabled row in the table with no
+   * workspace filter. On any install with more than one workspace — and the
+   * seed alone creates two — that would have decrypted one tenant's API KEY and
+   * used their model to analyse another tenant's diffs. A cross-tenant leak of
+   * both the credential and the code.
+   *
+   * Not defaulted, so a caller has to say whose providers it wants rather than
+   * getting "all of them" by forgetting.
+   */
+  workspaceId: number,
 ): Promise<{ hosts: T2Host[]; skipped: { name: string; reason: string }[] }> {
   const rows = await db
     .select()
     .from(core.llmProviders)
-    .where(eq(core.llmProviders.enabled, true));
+    .where(
+      and(eq(core.llmProviders.enabled, true), eq(core.llmProviders.workspaceId, workspaceId)),
+    );
 
   const hosts: T2Host[] = [];
   const skipped: { name: string; reason: string }[] = [];
@@ -145,6 +160,17 @@ export async function buildWorkerGateway(
   db: Database,
   env: NodeJS.ProcessEnv = process.env,
   tokenKey?: Buffer,
+  /**
+   * Whose providers to run on. Omitted means the env fallback only.
+   *
+   * ONE GATEWAY PER WORKER is a carry-over from when hosts came from a global
+   * environment variable, and it stops being right the moment providers are
+   * per-workspace: a second workspace with its own model needs its own gateway,
+   * not this one. v1 runs a single workspace, so the worker passes the default
+   * and W16-19 tracks the multi-workspace case rather than this pretending to
+   * handle it.
+   */
+  workspaceId?: number,
 ): Promise<WorkerGateway | null> {
   // Configured providers first. The env path is kept so an existing install
   // does not lose its model the moment it upgrades, but it is documented as
@@ -153,8 +179,8 @@ export async function buildWorkerGateway(
   let skipped: { name: string; reason: string }[] = [];
   let source: 'providers' | 'env' = 'providers';
 
-  if (tokenKey) {
-    const fromDb = await hostsFromProviders(db, tokenKey);
+  if (tokenKey && workspaceId !== undefined) {
+    const fromDb = await hostsFromProviders(db, tokenKey, workspaceId);
     hosts = fromDb.hosts;
     skipped = fromDb.skipped;
   }

@@ -82,3 +82,36 @@ describe('ErrorNote — the write surfaces (W16-18)', () => {
     expect(screen.queryByTestId('error-note')).toBeNull();
   });
 });
+
+// W16-18. Found by finally walking the non-demo first run: the org overview's
+// empty state told an admin to "connect your organization" and gave them
+// nothing to click. WidgetFrame has had an `emptyAction` slot all along; the
+// screen simply never filled it, and the comment above that code called it a
+// "role-appropriate CTA" while shipping role-appropriate COPY.
+describe('WidgetFrame empty state actions (W16-18)', () => {
+  it('renders an action when one is given', () => {
+    render(
+      <WidgetFrame
+        title="Welcome"
+        state="empty"
+        emptyMessage="No repositories are connected yet."
+        emptyAction={<a href="/admin">Connect an organization</a>}
+      />,
+    );
+    expect(screen.getByRole('link', { name: /connect an organization/i })).toBeInTheDocument();
+  });
+
+  it('renders the message alone when there is no action to offer', () => {
+    // The member case, and it must stay a dead end on purpose: they are told
+    // who can act precisely because they cannot.
+    render(
+      <WidgetFrame
+        title="Welcome"
+        state="empty"
+        emptyMessage="Ask an admin to connect your organization."
+      />,
+    );
+    expect(screen.getByText(/ask an admin/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+});

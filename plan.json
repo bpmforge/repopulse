@@ -5858,7 +5858,7 @@
       "stories": [],
       "depends_on": [],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "write_scope": [
         "apps/web/src/**",
         "apps/api/src/**",
@@ -5880,7 +5880,34 @@
         "Mutation errors carry no request id at all, and those are the support cases: LlmProviders, RunScanButton and SignIn all render error.message alone.",
         "LOG_LEVEL is in deploy/.env and docs/CONFIG.md and is read NOWHERE in source. A knob that does nothing is worse than no knob — an operator turning it up to debug a production issue gets nothing.",
         "Eight runtime console.log calls in apps/api/src/workers/index.ts and demo.ts bypass pino: no level, no structured fields, invisible to an aggregator, and NOT passed through the SC-2 redaction stream hook. reportGatewayHealth prints provider base URLs, so a vendor that puts the key in the query string would print it in clear.",
-        "job_failure records queue/jobId/payload/error but no request id and no actor, so a job started from the new Run-now button cannot be traced back to the person who pressed it."
+        "job_failure records queue/jobId/payload/error but no request id and no actor, so a job started from the new Run-now button cannot be traced back to the person who pressed it.",
+        "VERIFIED by finally walking the non-demo first run, which found three things no test covered: pnpm dev refused to start without a GitHub App (stale check in scripts/dev.mjs, contradicting ENV_REGISTRY, apps/api/src/index.ts AND docs/RUNNING.md); the org-overview welcome told an admin to connect an organisation and gave them nothing to click; and re-reading the gateway query for it exposed a cross-tenant leak I had introduced in W16-06.",
+        "CROSS-TENANT LEAK, mine, now fixed and pinned: hostsFromProviders selected every enabled row with no workspace filter (Law 5). With two workspaces in the database it would have decrypted one tenant API key and used their model on another tenant diffs. workspaceId is now a REQUIRED parameter so a caller cannot get \"all of them\" by forgetting."
+      ]
+    },
+    {
+      "id": "W16-19",
+      "title": "One gateway per worker stops being right once providers are per-workspace",
+      "phase": 16,
+      "module": "analysis",
+      "stories": [],
+      "depends_on": [
+        "W16-18"
+      ],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/analysis/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Each workspace analyses on its own configured providers",
+        "A workspace with no provider skips and says so, without borrowing another workspace model"
+      ],
+      "notes": [
+        "buildWorkerGateway builds ONE gateway at boot — a carry-over from when hosts came from a global env var. Now that providers are per-workspace rows, the worker passes the DEFAULT workspace and a second workspace would silently get no gateway rather than its own. v1 runs one workspace so this is not urgent, but it is the wrong shape and the code says so rather than pretending otherwise."
       ]
     }
   ]
