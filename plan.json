@@ -5725,7 +5725,8 @@
         "If it does not, refetchIntervalInBackground is set for this query and the test proves the fix"
       ],
       "notes": [
-        "Split out of W15-03. TanStack pauses refetchInterval when the document is unfocused (refetchIntervalInBackground defaults false); the Report Center relies on that poll for the queued -> running -> ready transition. Unverified either way — a browser-extension-driven tab cannot test it."
+        "Split out of W15-03. TanStack pauses refetchInterval when the document is unfocused (refetchIntervalInBackground defaults false); the Report Center relies on that poll for the queued -> running -> ready transition. Unverified either way — a browser-extension-driven tab cannot test it.",
+        "CONFIRMED by the 2026-08-27 user walk. Report 1177 finished server-side (\"event\":\"report.generated\", 20:50:35) and the row still read \"running\" ~50s later. Two GET /api/v1/reports in that time against refetchInterval 3000, which should give ~16. Cannot fully rule out that an extension-driven tab counts as unfocused — which is precisely the refetchIntervalInBackground case this ticket names."
       ]
     },
     {
@@ -5799,7 +5800,8 @@
         "A test covers it"
       ],
       "notes": [
-        "Found during W16-02. With a live session cookie whose user row had been removed, /api/v1/me/context returned 500: ensureMembership inserted into workspace_members and hit workspace_members_user_id_users_id_fk (23503, \"Key (user_id)=(26878) is not present in table users\"). The browser sat on \"Checking your session...\" for ever with no way out — the shell has no branch for a 500 there. Reachable in any install where an admin removes a user while that user is signed in."
+        "Found during W16-02. With a live session cookie whose user row had been removed, /api/v1/me/context returned 500: ensureMembership inserted into workspace_members and hit workspace_members_user_id_users_id_fk (23503, \"Key (user_id)=(26878) is not present in table users\"). The browser sat on \"Checking your session...\" for ever with no way out — the shell has no branch for a 500 there. Reachable in any install where an admin removes a user while that user is signed in.",
+        "RAISED by the 2026-08-27 user walk: this is not \"500 instead of 401\", it is an UNRECOVERABLE dead end. The shell sits on \"Checking your session...\" for ever — no error, no retry, no sign-out. Hit twice by accident. The shell HAS a designed `unknown` branch for a non-401 failure (__root.tsx:135) and it is never reached; only one request is made, with no retry. Client mechanism unconfirmed; server cause and user-visible result both confirmed."
       ]
     },
     {
@@ -5908,6 +5910,186 @@
       ],
       "notes": [
         "buildWorkerGateway builds ONE gateway at boot — a carry-over from when hosts came from a global env var. Now that providers are per-workspace rows, the worker passes the DEFAULT workspace and a second workspace would silently get no gateway rather than its own. v1 runs one workspace so this is not urgent, but it is the wrong shape and the code says so rather than pretending otherwise."
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "MINE, from W16-10, and the feature does not work at all. isEnabled() falls back to defaultFor(key).enabled when no row exists, so the coverage table reads \"enabled\" with nothing stored; the route selects rows and finds none, answering \"Nothing to run\" directly beneath a table saying four scanners are enabled. Resolve through listScanners() + isEnabled() instead of reading rows."
+      ],
+      "id": "W16-20",
+      "title": "Run scans now cannot run anything (B1)",
+      "module": "api",
+      "points": 2,
+      "write_scope": [
+        "apps/api/src/routes/runs/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Pressing Run scans now on a repository with default scanner config starts the scanners the coverage table shows as enabled",
+        "A test covers a repository with NO repo_scanner_config rows — the state of every repo on a fresh install"
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "reviewHygiene normalises m5 with good 0.9 / bad 0.4, so 40% coverage sits ON the bad anchor and normalises to 0 — correct, and unreadable. The generated report already does this right (Raw | Normalized | Weight | Contribution); HealthWhy.tsx:92 prints only normalized x weight = contribution. The screen people look at is the poorer of the two."
+      ],
+      "id": "W16-21",
+      "title": "The score screen says \"Review 0\" above a chart reading 40% (B2)",
+      "module": "web",
+      "points": 2,
+      "write_scope": [
+        "apps/web/src/widgets/repo/HealthWhy.tsx",
+        "apps/api/src/routes/repos/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The health breakdown shows the raw input and its target beside the normalised value",
+        "A reader can tell \"normalised to 0\" from \"no reviews happened\""
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "Report 1177: ciHealth/topFlakiness shows Normalized 0 and Contribution 9.29 — arithmetically impossible for a row value. The column repeats the SUB-SCORE total on each input row. Summing gives 46.8 against a stated 38. This is the exportable deliverable and its design explicitly invites the reader to check the arithmetic."
+      ],
+      "id": "W16-22",
+      "title": "The report Contribution column does not sum to the score (B3)",
+      "module": "reports",
+      "points": 2,
+      "write_scope": [
+        "packages/reports/src/**",
+        "apps/web/src/routes/print/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Each row contribution is that INPUT contribution, or the column is relabelled and grouped so a sub-score total is not repeated per row",
+        "The column sums to the score, and a test asserts it"
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "routes/org/index.ts:105 selects repositories with no ORDER BY and pushes any in band C/D/E in whatever order the database returns. infra (38, the worst repo) renders last. With three repos it is untidy; with two hundred the card is unusable, and without an ORDER BY the order can change between refreshes."
+      ],
+      "id": "W16-23",
+      "title": "Needs attention does not rank and its order is unstable (B4)",
+      "module": "api",
+      "points": 2,
+      "write_scope": [
+        "apps/api/src/routes/org/**",
+        "apps/web/src/widgets/org/AttentionFeed.tsx",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The card is ordered worst-first",
+        "The order is deterministic between refreshes"
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "main.tsx:21 sets defaultNotFoundComponent to \"Coming soon — This screen is part of a later W4 ticket.\" The board is at W16. Three definitionHref links point at /docs/*, which the app does not serve, so they land there — including the info link on Connect an organisation, exactly where a new admin needs help. The setup checklist compounds it: five \"See docs/INSTALL.md#...\" references render as plain text (routes/setup/index.tsx:96), and a container install has no repository checkout to open them from."
+      ],
+      "id": "W16-24",
+      "title": "The 404 page is W4 scaffolding, and three help links lead to it (A2, A3, A4)",
+      "module": "web",
+      "points": 2,
+      "write_scope": [
+        "apps/web/src/main.tsx",
+        "apps/web/src/widgets/**",
+        "apps/web/src/routes/setup/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "An unknown URL gets a real not-found page with a way back, naming no internal ticket",
+        "In-app documentation references resolve to something a container install can actually open"
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "GitLab says read_api, Gitea says read:repository, GitHub says \"GitHub token or installation credential\" with placeholder \"ghp_... or an app installation id\" — two kinds of credential, no scope, no guidance on which to use. GitHub is the primary README-first forge; a wrong scope fails later during ingestion, far from the form."
+      ],
+      "id": "W16-25",
+      "title": "GitHub is the one forge whose token field names no scope (A5)",
+      "module": "web",
+      "points": 1,
+      "write_scope": [
+        "apps/web/src/widgets/admin/Connections.tsx",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The GitHub credential field names the scopes it needs, as GitLab and Gitea already do"
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "Observational. The welcome state sends a new admin to Connections; the persona modal intercepts. At that moment there are no repositories, PRs or findings, so every option describes an empty screen — \"My PRs, my review queue, code I own\" for an account with none — and it is mandatory."
+      ],
+      "id": "W16-26",
+      "title": "The persona picker interrupts the first-run action (A6)",
+      "module": "web",
+      "points": 1,
+      "write_scope": [
+        "apps/web/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A first-run admin can complete \"Connect an organization\" without choosing a home screen first",
+        "The picker can be deferred"
+      ]
+    },
+    {
+      "phase": 16,
+      "stories": [],
+      "depends_on": [],
+      "status": "todo",
+      "notes": [
+        "Observational, and it affects the demo rather than the product. M8 = 175 against 15 seeded PRs. It is also what drags reviewHygiene to 0 (the bad anchor is 10), so the demo headline health scores are shaped by an impossible number — and the demo is what people judge the product by."
+      ],
+      "id": "W16-27",
+      "title": "The demo warehouse reports 175 stale PRs across 15 PRs (B6)",
+      "module": "shared",
+      "points": 1,
+      "write_scope": [
+        "packages/shared/src/testing/seed/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Seeded metric values are plausible for the seeded volume of data"
       ]
     }
   ]
