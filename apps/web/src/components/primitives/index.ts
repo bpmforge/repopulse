@@ -4,3 +4,4 @@ export { HealthBadge, healthBand, type HealthBand, type HealthBadgeProps } from 
 export { SeverityBadge, type Severity, type SeverityBadgeProps } from './SeverityBadge.js';
 export { SyncStatusChip, type SyncStatusChipProps } from './SyncStatusChip.js';
 export { KpiTile, type KpiTileProps } from './KpiTile.js';
+export { ReportMarkdown, type ReportMarkdownProps } from './ReportMarkdown.js';

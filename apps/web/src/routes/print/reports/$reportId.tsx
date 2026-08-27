@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useApiQuery } from '../../../api/useApiQuery.js';
+import { ReportMarkdown } from '../../../components/index.js';
 
 // Print route (W5-04, REPORTS.md §3).
 //
@@ -148,7 +149,9 @@ function PrintReport() {
       {report.sections.map((section, i) => (
         <section key={`${section.kind}-${section.id ?? i}`} className="mb-6" data-testid={`print-section-${section.id ?? section.kind}`}>
           {section.kind === 'summary' && (
-            <p className="text-sm whitespace-pre-wrap">{section.markdown}</p>
+            // W15-03 (F10): this was a raw <p>{section.markdown}</p>, so the
+            // report and the PDF built from it showed their own Markdown syntax.
+            <ReportMarkdown markdown={section.markdown ?? ''} />
           )}
 
           {section.kind === 'no_data' && (
