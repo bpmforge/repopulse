@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
@@ -36,6 +36,24 @@ function FindingsExplorer() {
   const [inChain, setInChain] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
+
+  /**
+   * Scroll the detail panel into view when one opens (W16-05, F14).
+   *
+   * The panel renders BELOW the table, so on a laptop the actions — the note
+   * field, the dismiss reason, Confirm and Dismiss — land under the fold and
+   * clicking a finding looks like it did nothing. Triage is the workflow this
+   * screen exists for, and it began with a click that appeared to fail.
+   *
+   * `block: 'nearest'` rather than 'start': when the panel is already visible,
+   * moving the page anyway would yank the row the person just clicked out from
+   * under the cursor.
+   */
+  const detailRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (openId === null) return;
+    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [openId]);
   const [note, setNote] = useState('');
   const [triage, setTriage] = useState(false);
 
@@ -331,11 +349,13 @@ function FindingsExplorer() {
       )}
 
       {openId !== null && items.find((f) => f.id === openId) && (
-        <FindingDetail
-          finding={items.find((f) => f.id === openId)!}
-          onClose={() => setOpenId(null)}
-          invalidate={[queryKeyFor(listDescriptor), queryKeyFor({ endpoint: '/findings/stats' })]}
-        />
+        <div ref={detailRef}>
+          <FindingDetail
+            finding={items.find((f) => f.id === openId)!}
+            onClose={() => setOpenId(null)}
+            invalidate={[queryKeyFor(listDescriptor), queryKeyFor({ endpoint: '/findings/stats' })]}
+          />
+        </div>
       )}
     </div>
   );

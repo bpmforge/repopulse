@@ -21,7 +21,9 @@ export function SyncOps() {
   const repos = data?.repos ?? [];
 
   const columns: DataTableColumn<RepoSyncStatus>[] = [
-    { id: 'repo', header: 'Repo', cell: (row) => row.repoId },
+    // W16-05 (F11): this showed the numeric id. Falls back to it only if an
+    // older API is answering, rather than rendering `undefined`.
+    { id: 'repo', header: 'Repo', cell: (row) => row.repoName ?? row.repoId },
     {
       id: 'phase',
       header: 'Phase',

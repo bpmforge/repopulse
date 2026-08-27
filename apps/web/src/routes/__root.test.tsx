@@ -255,3 +255,31 @@ describe('unauthenticated visitor (W-FIX)', () => {
     expect(screen.queryByTestId('signin')).not.toBeInTheDocument();
   }, 15000);
 });
+
+// W16-05 (F19). The trail described a screen nobody was on: `/repos/25152/security`
+// read "Org › Repos", naming neither the repository nor the tab. The repository
+// NAME is not in the URL, so it still cannot come from here — that crumb has to
+// be contributed by the screen that loaded it — but the sub-page can, and did not.
+describe('breadcrumb depth (W16-05, F19)', () => {
+  it('names the sub-page, not just the section', async () => {
+    renderAt('/repos/25152/security');
+    const crumb = await screen.findByTestId('breadcrumb');
+    await waitFor(() => expect(crumb).toHaveTextContent('Security'));
+    expect(crumb).toHaveTextContent('Repos');
+  });
+
+  it('names an admin tab', async () => {
+    renderAt('/admin/models');
+    const crumb = await screen.findByTestId('breadcrumb');
+    await waitFor(() => expect(crumb).toHaveTextContent('Models'));
+  });
+
+  it('never shows a numeric id as a crumb', async () => {
+    // "Org › Repos › 25152" would be worse than saying nothing — the same
+    // mistake F11 was about, in a different place.
+    renderAt('/repos/25152');
+    const crumb = await screen.findByTestId('breadcrumb');
+    await waitFor(() => expect(crumb).toHaveTextContent('Repos'));
+    expect(crumb).not.toHaveTextContent('25152');
+  });
+});
