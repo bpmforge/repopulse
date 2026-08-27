@@ -344,7 +344,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'worker',
     required: false,
     purpose:
-      'Comma-separated LM Studio endpoints for Tier-2 analysis (http://host:1234/v1). Absent means no Tier-2: the whole Tier-1 product still works.',
+      'DEPRECATED since W16-08 — configure models in Admin → Models instead, which needs no restart and supports hosted providers as well as LAN ones. Kept so an existing install does not lose its model on upgrade; a configured provider always wins over this. Comma-separated OpenAI-compatible endpoints for Tier-2 analysis (http://host:1234/v1). Absent means no Tier-2: the whole Tier-1 product still works.',
     ifWrong:
       'Scheduled judgement passes skip with reason no_gateway. Pointing at an unreachable host is worse than leaving it unset — the passes then FAIL rather than skip, which is deliberate: a host you configured and cannot reach is a fault, not a choice.',
   },
@@ -353,7 +353,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'worker',
     required: false,
     purpose:
-      'The loaded model id to request, e.g. qwen3.8-27b. Required whenever LMSTUDIO_BASE_URLS is set.',
+      'DEPRECATED since W16-08 — see Admin → Models. The loaded model id to request, e.g. qwen3.8-27b. Required whenever LMSTUDIO_BASE_URLS is set.',
     ifWrong:
       'LM Studio answers 400 "Invalid model identifier" on every call. There is no default because a guessed model name is a guess about your machine; with it unset the gateway refuses to build and says which variable is missing.',
   },

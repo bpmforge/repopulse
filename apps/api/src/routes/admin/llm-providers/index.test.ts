@@ -329,3 +329,68 @@ describeIfLiveInfra('admin LLM providers (W16-07)', () => {
     ).toHaveLength(0);
   });
 });
+
+// W16-08. The half that makes W16-06/07 real: a configured provider must
+// actually drive the worker's gateway. Without this the product would have a
+// beautiful settings screen that changed nothing.
+describeIfLiveInfra('the gateway reads configured providers (W16-08)', () => {
+  const db = createDb(databaseUrl as string);
+  const TOKEN = Buffer.alloc(32, 7);
+
+  afterAll(async () => {
+    await db.delete(core.llmProviders).where(eq(core.llmProviders.workspaceId, WORKSPACE_ID));
+    await db.$client.end();
+  });
+
+  it('turns a stored row into a callable host, with the key from the vault', async () => {
+    const { hostsFromProviders } = await import('../../../workers/gateway.js');
+    const { credentials } = await import('@repopulse/auth');
+    const [ws] = await db.select({ id: core.workspaces.id }).from(core.workspaces).limit(1);
+    const [user] = await db.select({ id: core.users.id }).from(core.users).limit(1);
+    const enc = credentials.encryptCredential('sk-gateway-key', TOKEN);
+
+    await db.delete(core.llmProviders).where(eq(core.llmProviders.workspaceId, ws!.id));
+    await db.insert(core.llmProviders).values([
+      {
+        workspaceId: ws!.id,
+        name: 'Hosted',
+        kind: 'openai_compatible',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        model: 'qwen/qwen3-coder',
+        credentialCiphertext: enc.ciphertext,
+        credentialIv: enc.iv,
+        keyVersion: enc.keyVersion,
+        credentialFingerprint: enc.fingerprint,
+        allowPublicHost: true,
+        createdBy: user!.id,
+      },
+      // A row that cannot be resolved. It must be SKIPPED WITH ITS REASON, not
+      // throw — one mistyped provider taking the working ones down with it is
+      // the failure this shape exists to avoid.
+      {
+        workspaceId: ws!.id,
+        name: 'Broken',
+        kind: 'openai_compatible',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4o',
+        allowPublicHost: false,
+        createdBy: user!.id,
+      },
+    ]);
+
+    const { hosts, skipped } = await hostsFromProviders(db, TOKEN);
+
+    expect(hosts).toHaveLength(1);
+    expect(hosts[0]?.baseUrl).toBe('https://openrouter.ai/api/v1');
+    // Decrypted and attached — otherwise the gateway would call a hosted
+    // endpoint unauthenticated and get a 401 nobody could explain.
+    expect(hosts[0]?.auth?.apiKey).toBe('sk-gateway-key');
+
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.name).toBe('Broken');
+    // The reason names what to fix. This row is hosted, has no key AND has not
+    // opted in; the key check runs first, so that is the sentence — either way
+    // the operator gets an instruction rather than "provider unavailable".
+    expect(skipped[0]?.reason).toMatch(/needs an API key/i);
+  });
+});

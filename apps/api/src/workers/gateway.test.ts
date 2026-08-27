@@ -62,9 +62,43 @@ describe('what the operator is told at boot', () => {
     const built = {
       hosts: [{ baseUrl: 'http://127.0.0.1:9/v1', modelSlot: 'default' }],
       gateway: { health: async () => ({ ok: false }) } as never,
+      source: 'env' as const,
+      skipped: [],
     };
     const message = await reportGatewayHealth(built);
     expect(message).toContain('UNREACHABLE');
     expect(message).toContain('not silently skip');
+  });
+
+  // W16-08. A provider row that cannot be resolved is skipped so one mistake
+  // does not take the others down — but a provider someone configured and that
+  // is being ignored is precisely what nobody would otherwise notice.
+  it('names a skipped provider and why, even when the gateway is otherwise fine', async () => {
+    const message = await reportGatewayHealth({
+      hosts: [{ baseUrl: 'http://10.0.0.5:1234/v1', modelSlot: 'qwen' }],
+      gateway: { health: async () => ({ ok: true }) } as never,
+      source: 'providers',
+      skipped: [{ name: 'Typo box', reason: 'no model id' }],
+    });
+    expect(message).toContain('SKIPPED');
+    expect(message).toContain('Typo box');
+    expect(message).toContain('no model id');
+  });
+
+  it('says when hosts came from the deprecated env vars rather than a provider row', async () => {
+    const message = await reportGatewayHealth({
+      hosts: [{ baseUrl: 'http://10.0.0.5:1234/v1', modelSlot: 'qwen' }],
+      gateway: { health: async () => ({ ok: true }) } as never,
+      source: 'env',
+      skipped: [],
+    });
+    expect(message).toContain('deprecated');
+  });
+
+  it('points an unconfigured install at the screen that fixes it', async () => {
+    // The env vars were the only way to configure this until W16-07, so the
+    // old message named them and nothing else. Naming the screen is the whole
+    // difference between a person fixing it and a person filing a bug.
+    expect(await reportGatewayHealth(null)).toContain('Admin → Models');
   });
 });

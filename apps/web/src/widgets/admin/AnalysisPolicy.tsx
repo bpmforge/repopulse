@@ -5,6 +5,13 @@ import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.
 
 const LIST = { endpoint: '/admin/analysis' } as const;
 
+interface GatewayState {
+  configured: boolean;
+  provider_count: number;
+  off_network: boolean;
+  reason: string | null;
+}
+
 interface RepoPolicy {
   id: number;
   name: string;
@@ -76,15 +83,44 @@ function RepoRow({ repo }: { repo: RepoPolicy }) {
 
 export function AnalysisPolicy() {
   const { data, isLoading, isError, error, refetch } = useApiQuery<{
+    gateway?: GatewayState;
     repos: RepoPolicy[];
     egress_log: EgressRow[];
   }>(LIST);
 
   const repos = data?.repos ?? [];
   const log = data?.egress_log ?? [];
+  const gateway = data?.gateway;
 
   return (
     <div className="flex flex-col gap-4" data-testid="analysis-policy">
+      {/* W16-08 (F8). The toggles below arm analysis; this says whether there is
+          anything to arm. The worker has always logged it — to a terminal —
+          while this screen showed checkboxes that looked ready. */}
+      {gateway && !gateway.configured ? (
+        <p
+          className="rounded-sm border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
+          data-testid="gateway-unconfigured"
+          role="status"
+        >
+          <strong>Tier 2 cannot run.</strong> {gateway.reason}
+        </p>
+      ) : null}
+      {gateway?.configured ? (
+        <p className="text-xs text-fg-muted" data-testid="gateway-configured">
+          Tier 2 runs on {gateway.provider_count} configured model
+          {gateway.provider_count === 1 ? '' : 's'}
+          {gateway.off_network ? (
+            <>
+              {' '}
+              — <strong>one of which is outside your network</strong>, so diffs sent to it leave
+              this machine.
+            </>
+          ) : (
+            <>, all on your own network.</>
+          )}
+        </p>
+      ) : null}
       <WidgetFrame
         title="Per-repository analysis policy"
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && repos.length === 0 })}
