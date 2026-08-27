@@ -68,7 +68,7 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
       <WidgetFrame
         title="Hotspot map"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No churn in this window — nothing is hot."
       >
@@ -100,7 +100,7 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
       <WidgetFrame
         title="Top files"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No ranked files yet."
       >

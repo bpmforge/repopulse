@@ -31,7 +31,7 @@ export function PulseCard(_props: WidgetComponentProps) {
     <WidgetFrame
       title="Weekly pulse"
       state={frameState({ isLoading, isError, isEmpty: data !== undefined && data.bullets.length === 0 })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="Nothing to summarise yet."
     >
       <div className="flex flex-col gap-2" data-testid="pulse-card">

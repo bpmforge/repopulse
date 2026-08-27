@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, buildUrl } from '../../api/client.js';
+import { ErrorNote } from '../../components/index.js';
 
 // Run it now (W16-10, F15).
 //
@@ -57,11 +58,9 @@ export function RunScanButton({ repoId, invalidate }: RunScanButtonProps) {
         {run.isPending ? 'Starting…' : 'Run scans now'}
       </button>
 
-      {run.error ? (
-        <span className="text-xs text-crit" data-testid="run-scan-error" role="alert">
-          {run.error.message}
-        </span>
-      ) : null}
+      {/* W16-18: carries the request id, so "I pressed Run and it failed" is
+          findable in the log. */}
+      <ErrorNote error={run.error} testId="run-scan-error" />
 
       {result ? (
         <span className="text-xs text-fg-muted" data-testid="run-scan-result" role="status">

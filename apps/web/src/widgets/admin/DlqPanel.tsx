@@ -84,7 +84,7 @@ export function DlqPanel() {
     <WidgetFrame
       title="Dead-letter queue"
       state={frameState({ isLoading, isError, isEmpty: items.length === 0 })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       // An empty DLQ is GOOD NEWS and should read that way — not as a screen
       // that failed to load.

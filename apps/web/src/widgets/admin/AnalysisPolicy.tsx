@@ -124,7 +124,7 @@ export function AnalysisPolicy() {
       <WidgetFrame
         title="Per-repository analysis policy"
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && repos.length === 0 })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No repositories connected yet."
       >

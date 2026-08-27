@@ -5,3 +5,4 @@ export { SeverityBadge, type Severity, type SeverityBadgeProps } from './Severit
 export { SyncStatusChip, type SyncStatusChipProps } from './SyncStatusChip.js';
 export { KpiTile, type KpiTileProps } from './KpiTile.js';
 export { ReportMarkdown, type ReportMarkdownProps } from './ReportMarkdown.js';
+export { ErrorNote, type ErrorNoteProps } from './ErrorNote.js';

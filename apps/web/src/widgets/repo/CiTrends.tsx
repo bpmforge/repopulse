@@ -61,7 +61,7 @@ export function CiTrends({ repoId, window }: Props) {
           isError,
           isEmpty: data !== undefined && points.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No CI snapshots in this window."
       >

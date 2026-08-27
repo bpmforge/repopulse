@@ -25,7 +25,7 @@ export function TopRisksCard({ repoId }: { repoId?: string }) {
     <WidgetFrame
       title="Top risks"
       state={state}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="No priced findings yet. Findings are priced by the nightly job — an empty card here means nothing has been scanned or nothing has been priced, not that there is no risk."
       testId="top-risks"
     >

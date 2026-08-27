@@ -23,7 +23,7 @@ export function SecurityRollupTile() {
     <WidgetFrame
       title="Security"
       state={state}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       testId="security-rollup"
     >
       {data && (

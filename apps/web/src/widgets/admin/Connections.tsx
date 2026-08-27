@@ -192,7 +192,7 @@ export function Connections() {
           isError,
           isEmpty: data !== undefined && items.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No connections yet. Add a credential above to connect your organisation."
       >

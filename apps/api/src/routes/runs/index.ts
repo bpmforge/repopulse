@@ -187,6 +187,14 @@ export default async function runRoutes(
             commitSha: '',
             trigger: 'manual' as const,
             mode: 'history' as const,
+            // W16-18. The id of the request that started this job, and who
+            // pressed the button. job_failure stores the whole payload as jsonb,
+            // so both land in the dead-letter ledger with no migration — and
+            // "I pressed Run scans and nothing happened" becomes a row someone
+            // can actually find. Without it a failed job is anonymous: the
+            // queue knows what ran, and nothing knows who asked.
+            requestId: request.id,
+            requestedBy: userId,
           },
           { jobId },
         );
@@ -262,7 +270,11 @@ export default async function runRoutes(
       const jobId = `delta-manual-${repoId}-${runWindowKey(Date.now())}`;
       const started = (await queue.getJob(jobId)) === undefined;
       if (started) {
-        await queue.add('manual', { workspaceId, repoId, trigger: 'manual' }, { jobId });
+        await queue.add(
+          'manual',
+          { workspaceId, repoId, trigger: 'manual', requestId: request.id, requestedBy: userId },
+          { jobId },
+        );
       }
 
       auditLog(request.log, {

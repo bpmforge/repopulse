@@ -52,7 +52,7 @@ export function RiskAxesCard({ repoId }: { repoId?: string }) {
     <WidgetFrame
       title="Risk axes"
       state={state}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="No axes could be computed for this scope."
       testId="risk-axes"
     >

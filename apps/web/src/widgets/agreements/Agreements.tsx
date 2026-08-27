@@ -107,7 +107,7 @@ export function Agreements() {
       <WidgetFrame
         title="Active agreements"
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && items.length === 0 })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No agreements yet. They are your team's own thresholds — the product does not impose one."
       >

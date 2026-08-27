@@ -54,7 +54,7 @@ export function KpiRow({ window }: Props) {
     <WidgetFrame
       title="Delivery KPIs"
       state={state}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No metric snapshots yet for this window."
       definitionHref="/api/v1/metrics/catalog"

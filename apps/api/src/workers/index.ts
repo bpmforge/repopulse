@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { and, desc, eq } from 'drizzle-orm';
-import { core, createDb, facts, metricsRegistry } from '@repopulse/shared';
+import { core, createDb, createLogger, facts, metricsRegistry } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
@@ -68,6 +68,14 @@ export { checkWorkerHealth, startWorkerHealthServer } from './health.js';
 // W2-02 stands up the harness — topology, DLQ, graceful shutdown, metrics,
 // /healthz. The entity processors that actually pull GitHub data are wired in
 // by W2-03; until then this runs producer-side queues + the DLQ + liveness.
+// W16-18. The worker had NO logger: every operational line was a console.log,
+// so none of it was structured, none of it honoured LOG_LEVEL, none of it
+// reached an aggregator as anything but free text — and none of it passed
+// through the SC-2 redaction stream hook. reportGatewayHealth prints provider
+// base URLs, so a vendor that carries its key in a query string would have been
+// printed in clear.
+const log = createLogger({ name: 'repopulse-worker' });
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   const redisUrl = process.env.REDIS_URL;
@@ -82,7 +90,7 @@ async function main(): Promise<void> {
   // tokenKey: provider API keys live in the same vault as forge tokens, so the
   // worker needs it to use a configured provider at all (W16-08).
   const analysisGateway = await buildWorkerGateway(db, process.env, credentials.loadTokenKey());
-  console.log(`[worker] ${await reportGatewayHealth(analysisGateway)}`);
+  log.info(`[worker] ${await reportGatewayHealth(analysisGateway)}`);
 
   const connection = createRedisConnection(redisUrl);
   const healthRedis = createRedisConnection(redisUrl);
@@ -606,7 +614,10 @@ async function main(): Promise<void> {
         printBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:5273',
       }),
     },
-    onError: (err) => console.error('[worker] DLQ/error:', err),
+    // Structured, so an aggregator can alert on it: this is the callback that
+    // fires when a job has exhausted its retries, which is the single most
+    // important worker event there is.
+    onError: (err) => log.error({ err }, '[worker] DLQ/error'),
   });
 
   // The nightly sweep (INGESTION §6: reconcile is a cron, not an on-demand
@@ -632,9 +643,7 @@ async function main(): Promise<void> {
       { repeat: { pattern: reconcileCron }, jobId: 'reconcile-nightly-sweep' },
     );
   }
-  console.log(
-    `[worker] nightly reconcile: ${reconcileCron === 'off' ? 'disabled' : reconcileCron}`,
-  );
+  log.info(`[worker] nightly reconcile: ${reconcileCron === 'off' ? 'disabled' : reconcileCron}`);
 
   // Snapshot orphan sweep (W8-03, NFR-13). A scan brackets its own snapshot in
   // a `finally`, which covers returning and throwing and CANNOT cover SIGKILL —
@@ -646,9 +655,7 @@ async function main(): Promise<void> {
     ...(process.env.SNAPSHOT_ROOT ? { root: process.env.SNAPSHOT_ROOT } : {}),
   });
   const sweptOnBoot = await sweeper.ran;
-  console.log(
-    `[worker] snapshot sweep on boot: removed ${sweptOnBoot.removed.length}, in flight ${sweptOnBoot.keptInFlight}`,
-  );
+  log.info(`[worker] snapshot sweep on boot: removed ${sweptOnBoot.removed.length}, in flight ${sweptOnBoot.keptInFlight}`);
 
   // Secrets history sweep (W8-05, SECURITY_SUITE §4: "secrets(history,
   // monthly)"). Stream mode only sees diffs arriving now, so without this a
@@ -671,9 +678,7 @@ async function main(): Promise<void> {
       { repeat: { pattern: historyCron }, jobId: 'secrets-history-monthly-sweep' },
     );
   }
-  console.log(
-    `[worker] monthly secrets history sweep: ${historyCron === 'off' ? 'disabled' : historyCron}`,
-  );
+  log.info(`[worker] monthly secrets history sweep: ${historyCron === 'off' ? 'disabled' : historyCron}`);
 
   // The weekly security pass (SECURITY_SUITE §4): a full semgrep scan and a
   // chain recompute, per repo. Two scanners, ONE schedule — a chain built from
@@ -717,7 +722,7 @@ async function main(): Promise<void> {
       );
     }
   }
-  console.log(
+  log.info(
     `[worker] weekly security pass: ${weeklyCron === 'off' ? 'disabled' : `${weeklyCron} (semgrep), ${chainCron} (chains)`}`,
   );
 
@@ -733,7 +738,7 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
 
   runtime.coordinator.installSignalHandlers({
     onTimeout: () =>
-      console.warn('[worker] drain timed out — forcing close, jobs resume from cursor'),
+      log.warn('[worker] drain timed out — forcing close, jobs resume from cursor'),
   });
   process.once('SIGTERM', () => {
     sweeper.stop();
@@ -743,13 +748,13 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
     void healthRedis.quit().catch(() => {});
   });
 
-  console.log(`[worker] runtime up; healthz on :${healthPort}`);
+  log.info(`[worker] runtime up; healthz on :${healthPort}`);
 }
 
 // Only run when executed directly (not when imported by tests).
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err: unknown) => {
-    console.error('[worker] fatal:', err);
+    log.error({ err }, '[worker] fatal');
     process.exit(1);
   });
 }

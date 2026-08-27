@@ -37,7 +37,7 @@ function SecurityTab() {
       <WidgetFrame
         title="Coverage"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         testId="security-coverage"
       >
         {data && <ScannerStatusList scanners={data.scanners} />}

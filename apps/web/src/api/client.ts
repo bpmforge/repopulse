@@ -36,6 +36,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The request id off any error, structurally (W16-18).
+ *
+ * Structural rather than `instanceof ApiError` on purpose: a duplicated module
+ * identity — two copies of this file in one bundle — makes `instanceof` false
+ * for a real ApiError, and every failure then loses its id silently. The route
+ * at repos/$repoId already learned this the hard way and grew a local copy of
+ * this function; this is that copy, promoted, so there is ONE extractor rather
+ * than one per screen.
+ */
+export function requestIdOf(error: unknown): string | undefined {
+  return (error as { requestId?: string } | null | undefined)?.requestId;
+}
+
+/** The message to show a person for any error, with a sensible fallback. */
+export function errorMessageOf(error: unknown): string | undefined {
+  if (error === null || error === undefined) return undefined;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === 'string' && message !== '' ? message : undefined;
+}
+
 /** Any string key of the generated `paths` — i.e. a real API route template. */
 export type ApiPath = keyof paths;
 

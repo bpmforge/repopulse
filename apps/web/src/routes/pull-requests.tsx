@@ -148,7 +148,7 @@ function PullRequestsIndex() {
           isError,
           isEmpty: data !== undefined && items.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No pull requests match these filters."
       >

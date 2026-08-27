@@ -38,7 +38,7 @@ function PlansPage() {
       <WidgetFrame
         title="Plans"
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && plans.length === 0 })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No plans yet. Generate one from the current metrics — items are proposed only where a threshold is actually breached, so a healthy workspace produces an empty plan."
       >

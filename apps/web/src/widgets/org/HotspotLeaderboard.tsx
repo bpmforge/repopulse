@@ -81,7 +81,7 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
         isError,
         isEmpty: data !== undefined && items.length === 0,
       })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No churn in this window — nothing is hot."
     >

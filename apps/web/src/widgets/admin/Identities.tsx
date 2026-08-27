@@ -171,7 +171,7 @@ export function Identities() {
       <WidgetFrame
         title="Identities"
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && items.length === 0 })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No identities yet — they appear as commits and pull requests are ingested."
       >

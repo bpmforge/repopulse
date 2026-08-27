@@ -36,7 +36,7 @@ function RuleWorkbench() {
       <WidgetFrame
         title="Rule registry"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         emptyMessage="No rules are registered for this workspace. Rules ship in versioned packs; this screen governs which of them count."
         testId="rules-frame"
       >

@@ -36,7 +36,7 @@ function ViewsIndex() {
       <WidgetFrame
         title="Saved views"
         state={frameState({ isLoading, isError, isEmpty: false })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
       >
         {items.length > 0 ? (

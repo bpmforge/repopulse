@@ -110,7 +110,7 @@ function ViewDetail() {
           isError,
           isEmpty: data !== undefined && widgets.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="This view has no widgets yet — use Edit to add some."
       >

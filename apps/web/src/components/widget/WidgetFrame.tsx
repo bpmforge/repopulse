@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { errorMessageOf, requestIdOf } from '../../api/client.js';
 import type { WidgetState } from './types.js';
 
 // WidgetFrame (UX §2.2 / §4 intro, DASHBOARD §4) wraps every widget with the
@@ -33,6 +34,19 @@ export interface WidgetFrameProps {
   /** error state. */
   errorMessage?: string;
   requestId?: string;
+  /**
+   * The query's error, as thrown (W16-18).
+   *
+   * Prefer this over the two props above: it derives BOTH the message and the
+   * request id, so a screen cannot show a failure the operator then cannot find
+   * in the log. That was the state of the app before this — 86 error surfaces,
+   * exactly one of which passed a request id, while the API had been putting
+   * one in every problem body all along and ApiError had been parsing it.
+   *
+   * The explicit props still win when given: a few call sites pass a literal
+   * string rather than an error object.
+   */
+  error?: unknown;
   onRetry?: () => void;
   /** syncing state. */
   syncPhase?: string;
@@ -53,6 +67,7 @@ export function WidgetFrame({
   definitionHref,
   errorMessage,
   requestId,
+  error,
   onRetry,
   syncPhase,
   syncPct,
@@ -107,8 +122,17 @@ export function WidgetFrame({
             className="flex h-full flex-col items-start justify-center gap-2 text-sm"
             role="alert"
           >
-            <p className="text-crit">{errorMessage ?? 'Something went wrong.'}</p>
-            {requestId && <p className="font-mono text-xs text-fg-faint">request {requestId}</p>}
+            <p className="text-crit">
+              {errorMessage ?? errorMessageOf(error) ?? 'Something went wrong.'}
+            </p>
+            {/* The id is what makes a support conversation possible: without it
+                "it broke" cannot be found in a log. Rendered selectable and in
+                a monospace face because someone is going to copy it. */}
+            {(requestId ?? requestIdOf(error)) && (
+              <p className="font-mono text-xs text-fg-faint" data-testid="error-request-id">
+                request {requestId ?? requestIdOf(error)}
+              </p>
+            )}
             {onRetry && (
               <button
                 type="button"

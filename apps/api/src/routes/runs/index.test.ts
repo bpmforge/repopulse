@@ -210,6 +210,18 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     expect(second.json().already_running).toContain('semgrep');
   });
 
+  it('records the request id and the actor on the job, so a failure traces back to the click', async () => {
+    // W16-18. job_failure stores the whole payload as jsonb, so both land in the
+    // dead-letter ledger with no migration — and "I pressed Run scans and
+    // nothing happened" becomes a row someone can find. Without it a failed job
+    // is anonymous: the queue knows what ran, nothing knows who asked.
+    await app.inject({ method: 'POST', url: `/repos/${repoId}/scan`, headers: CSRF, payload: {} });
+
+    const payload = added[0]?.data as { requestId?: string; requestedBy?: number };
+    expect(payload.requestId, 'the request id must reach the job').toBeTruthy();
+    expect(payload.requestedBy).toBe(userId);
+  });
+
   it('refuses to run a scanner this repository has disabled', async () => {
     // Running one because someone pressed a general button would quietly undo a
     // deliberate decision that has an audit row behind it.

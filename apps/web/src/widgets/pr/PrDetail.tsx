@@ -40,7 +40,7 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
       <WidgetFrame
         title="Pull request"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
       />
     );
