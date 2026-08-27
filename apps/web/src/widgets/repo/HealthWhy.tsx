@@ -42,6 +42,11 @@ export function axisLabel(key: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** Two decimals at most, and no trailing zeros — these sit in a narrow panel. */
+function formatRaw(value: number): string {
+  return String(Math.round(value * 100) / 100);
+}
+
 export function HealthWhy({ health }: Props) {
   const [open, setOpen] = useState(false);
   const axes = health.breakdown;
@@ -81,16 +86,43 @@ export function HealthWhy({ health }: Props) {
           ) : (
             <dl className="flex flex-col gap-1">
               {axes.map((axis) => (
-                <div key={axis.key} className="flex items-baseline justify-between gap-3 text-xs">
-                  {/* When space runs out the label wraps and the arithmetic does
-                      not: a half-printed number is worse than a wrapped word. */}
-                  <dt className="min-w-0 break-words text-fg-muted">{axisLabel(axis.key)}</dt>
-                  {/* Contribution is what actually moved the score; normalized
-                      and weight are shown so the arithmetic is checkable rather
-                      than asserted (UX_SPEC 1.4). */}
-                  <dd className="whitespace-nowrap tabular-nums">
-                    {Math.round(axis.normalized)} x {axis.weight} = {axis.contribution.toFixed(1)}
-                  </dd>
+                <div key={axis.key} className="flex flex-col gap-0.5 text-xs">
+                  <div className="flex items-baseline justify-between gap-3">
+                    {/* When space runs out the label wraps and the arithmetic does
+                        not: a half-printed number is worse than a wrapped word. */}
+                    <dt className="min-w-0 break-words text-fg-muted">{axisLabel(axis.key)}</dt>
+                    {/* Contribution is what actually moved the score; normalized
+                        and weight are shown so the arithmetic is checkable rather
+                        than asserted (UX_SPEC 1.4). */}
+                    <dd className="whitespace-nowrap tabular-nums">
+                      {Math.round(axis.normalized)} x {axis.weight} = {axis.contribution.toFixed(1)}
+                    </dd>
+                  </div>
+
+                  {/*
+                    THE MEASUREMENT, not just the score (W16-21).
+                    
+                    Without this the panel said "Review 0 x 0.3 = 0.0" directly
+                    above a chart reading 40% coverage, and both were correct:
+                    reviewHygiene ramps m5 between good 0.9 and bad 0.4, so 40%
+                    sits ON the bad anchor and normalises to zero. A reader had
+                    no way to tell "normalised to 0" from "no reviews happened".
+                    
+                    The generated report already showed Raw beside Normalized;
+                    this is the screen people actually look at catching up.
+                  */}
+                  {axis.inputs?.length ? (
+                    <dd className="pl-2 text-fg-faint">
+                      {axis.inputs.map((input) => (
+                        <div key={input.key} className="tabular-nums">
+                          {input.key} {formatRaw(input.raw)} → {Math.round(input.normalized)}
+                          <span className="ml-1">
+                            (best {formatRaw(input.good)}, worst {formatRaw(input.bad)})
+                          </span>
+                        </div>
+                      ))}
+                    </dd>
+                  ) : null}
                 </div>
               ))}
             </dl>

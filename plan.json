@@ -5943,9 +5943,10 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "reviewHygiene normalises m5 with good 0.9 / bad 0.4, so 40% coverage sits ON the bad anchor and normalises to 0 — correct, and unreadable. The generated report already does this right (Raw | Normalized | Weight | Contribution); HealthWhy.tsx:92 prints only normalized x weight = contribution. The screen people look at is the poorer of the two."
+        "reviewHygiene normalises m5 with good 0.9 / bad 0.4, so 40% coverage sits ON the bad anchor and normalises to 0 — correct, and unreadable. The generated report already does this right (Raw | Normalized | Weight | Contribution); HealthWhy.tsx:92 prints only normalized x weight = contribution. The screen people look at is the poorer of the two.",
+        "The inputs were ALREADY in the API payload (breakdown: health.subScores carries them) and the web contract simply never declared them — so this was a rendering fix, not a data one. The panel now shows each input raw, its normalised value and both ramp anchors: \"m5 0.4 -> 0 (best 0.9, worst 0.4)\"."
       ],
       "id": "W16-21",
       "title": "The score screen says \"Review 0\" above a chart reading 40% (B2)",
@@ -5966,9 +5967,11 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Report 1177: ciHealth/topFlakiness shows Normalized 0 and Contribution 9.29 — arithmetically impossible for a row value. The column repeats the SUB-SCORE total on each input row. Summing gives 46.8 against a stated 38. This is the exportable deliverable and its design explicitly invites the reader to check the arithmetic."
+        "Report 1177: ciHealth/topFlakiness shows Normalized 0 and Contribution 9.29 — arithmetically impossible for a row value. The column repeats the SUB-SCORE total on each input row. Summing gives 46.8 against a stated 38. This is the exportable deliverable and its design explicitly invites the reader to check the arithmetic.",
+        "The decomposition is exact rather than invented: a sub-score is the EQUAL-WEIGHT MEAN of its inputs ramps, so each input carries normalized / n of it and the parts sum to the sub-score contribution.",
+        "The first version of the test looked for a `score` section that does not exist (the score lives in the summary markdown), so it silently skipped and PASSED against the very bug it was written for. Rewritten to be self-contained in the rows, with a guard asserting the fixture actually produces a multi-input sub-score — otherwise the check is vacuous. RED-CHECKED: with the defect restored it fails, 87.28 against 44."
       ],
       "id": "W16-22",
       "title": "The report Contribution column does not sum to the score (B3)",
@@ -5989,9 +5992,10 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "routes/org/index.ts:105 selects repositories with no ORDER BY and pushes any in band C/D/E in whatever order the database returns. infra (38, the worst repo) renders last. With three repos it is untidy; with two hundred the card is unusable, and without an ORDER BY the order can change between refreshes."
+        "routes/org/index.ts:105 selects repositories with no ORDER BY and pushes any in band C/D/E in whatever order the database returns. infra (38, the worst repo) renders last. With three repos it is untidy; with two hundred the card is unusable, and without an ORDER BY the order can change between refreshes.",
+        "Sorted worst-first with name as a deterministic tie-break. The select still has no ORDER BY, but the sort now makes the response order stable regardless of what Postgres returns."
       ],
       "id": "W16-23",
       "title": "Needs attention does not rank and its order is unstable (B4)",

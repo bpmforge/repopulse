@@ -111,9 +111,30 @@ export default async function orgRoutes(
       for (const r of repos) {
         const health = await repoHealth(opts.db, workspaceId, r.id, window, r.pushedAt, nowMs);
         if (['C', 'D', 'E'].includes(health.letter)) {
-          items.push({ repo_id: r.id, name: r.name, kind: 'health_band', band: health.letter });
+          items.push({
+            repo_id: r.id,
+            name: r.name,
+            kind: 'health_band',
+            band: health.letter,
+            score: health.score,
+          });
         }
       }
+
+      // WORST FIRST (W16-23).
+      //
+      // This loop followed whatever order Postgres returned — the select has no
+      // ORDER BY — so a card called "Needs attention" was not ordered by how
+      // much attention anything needed. On the seeded workspace the worst
+      // repository (infra, 38) rendered last, and with two hundred repositories
+      // the card is one you cannot triage from at all. Worse, without an
+      // ORDER BY anywhere the order could differ between two refreshes, so the
+      // list could reshuffle under someone mid-read.
+      //
+      // Name is the tie-break so the result is fully deterministic rather than
+      // merely sorted.
+      items.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name));
+
       return reply.send({ items });
     },
   );

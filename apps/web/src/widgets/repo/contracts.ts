@@ -15,7 +15,20 @@ export interface RepoDetail {
     /** 'Tier-1 only' until LLM analysis lands — shown, never hidden (UX_SPEC §1.4). */
     basis: string;
     /** Sub-score rows; the "why?" breakdown. Weight x normalized = contribution. */
-    breakdown: { key: string; normalized: number; weight: number; contribution: number }[];
+    breakdown: {
+      key: string;
+      normalized: number;
+      weight: number;
+      contribution: number;
+      /**
+       * The measurements behind the sub-score (W16-21).
+       *
+       * Already sent by the API — `breakdown: health.subScores` carries them —
+       * and simply never declared here, so the screen showed a normalised 0 with
+       * nothing to explain it.
+       */
+      inputs?: { key: string; raw: number; good: number; bad: number; normalized: number }[];
+    }[];
   };
   links: Record<string, string>;
 }

@@ -66,3 +66,42 @@ describe('health "why?" breakdown', () => {
     expect(panel.textContent).toContain('No sub-scores computed yet for this window.');
   });
 });
+
+// W16-21. The panel said "Review 0 x 0.3 = 0.0" directly above a chart reading
+// 40% review coverage, and both were correct: reviewHygiene ramps m5 between
+// good 0.9 and bad 0.4, so 40% sits ON the bad anchor and normalises to zero.
+// A reader had no way to tell "normalised to 0" from "no reviews happened" —
+// and the two suggest completely different actions.
+describe('the measurement behind the score (W16-21)', () => {
+  const reviewAxis = axis('reviewHygiene', {
+    normalized: 0,
+    weight: 0.3,
+    contribution: 0,
+    inputs: [{ key: 'm5', raw: 0.4, good: 0.9, bad: 0.4, normalized: 0 }],
+  });
+
+  it('shows the raw measurement and both anchors beside the normalised value', () => {
+    const panel = open([reviewAxis]);
+
+    // The number the user can also see on the chart.
+    expect(panel).toHaveTextContent('0.4');
+    // And why 0.4 became 0.
+    expect(panel).toHaveTextContent(/best 0\.9/);
+    expect(panel).toHaveTextContent(/worst 0\.4/);
+  });
+
+  it('still shows the checkable arithmetic', () => {
+    // The raw line is additional, not a replacement: the contribution is what
+    // actually moved the score.
+    expect(open([reviewAxis])).toHaveTextContent('0 x 0.3 = 0.0');
+  });
+
+  it('renders nothing extra for an older payload with no inputs', () => {
+    // Report data is persisted and re-read, and an API mid-upgrade may omit
+    // them; the panel must not break or print "undefined".
+    const panel = open([axis('activity')]);
+    expect(panel).toHaveTextContent('62 x 0.2 = 12.4');
+    expect(panel).not.toHaveTextContent('undefined');
+    expect(panel).not.toHaveTextContent(/best/);
+  });
+});
