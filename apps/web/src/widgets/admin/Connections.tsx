@@ -7,6 +7,7 @@ import {
   useUiStore,
   type DataTableColumn,
 } from '../../components/index.js';
+import { docsUrl } from '../../lib/docs.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import type { ConnectionList, ConnectionSummary } from './contracts.js';
 import { RepoPicker } from './RepoPicker.js';
@@ -81,7 +82,7 @@ export function Connections() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="admin-connections">
-      <WidgetFrame title="Connect an organisation" state="ready" definitionHref="/docs/INSTALL.md">
+      <WidgetFrame title="Connect an organisation" state="ready" definitionHref={docsUrl('/docs/INSTALL.md')}>
         <form
           className="flex flex-col gap-2"
           onSubmit={(e) => {
@@ -142,8 +143,12 @@ export function Connections() {
             data-testid="connection-base-url"
           />
           <label className="text-xs text-fg-muted" htmlFor="connection-credential">
+            {/* W16-25: GitHub was the ONE forge that named no scope, while
+                being the primary README-first forge. A wrong scope does not
+                fail here — it fails later, during ingestion, far from this
+                form. */}
             {provider === 'github'
-              ? 'GitHub token or installation credential'
+              ? 'GitHub personal access token (repo, read:org)'
               : provider === 'gitlab'
                 ? 'GitLab personal access token (read_api)'
                 : 'Gitea access token (read:repository)'}
@@ -154,7 +159,7 @@ export function Connections() {
             autoComplete="off"
             value={credential}
             onChange={(e) => setCredential(e.target.value)}
-            placeholder="ghp_… or an app installation id"
+            placeholder="ghp_… — a classic PAT, or a fine-grained token with read access"
             className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
             data-testid="connection-credential"
           />

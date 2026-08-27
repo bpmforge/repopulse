@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { createQueryClient } from './api/queryClient.js';
-import { WidgetFrame } from './components/widget/WidgetFrame.js';
+import { NotFound } from './components/shell/NotFound.js';
 import { routeTree } from './routeTree.gen';
 import './styles/theme.css';
 
@@ -18,20 +18,11 @@ import './styles/theme.css';
 
 const queryClient = createQueryClient();
 
-function NotFoundPlaceholder() {
-  return (
-    <WidgetFrame
-      title="Coming soon"
-      state="empty"
-      emptyMessage="This screen is part of a later W4 ticket. The shell, filters, and navigation already work."
-    />
-  );
-}
 
 const router = createRouter({
   routeTree,
   context: { queryClient },
-  defaultNotFoundComponent: NotFoundPlaceholder,
+  defaultNotFoundComponent: NotFound,
 });
 
 const rootElement = document.getElementById('root');

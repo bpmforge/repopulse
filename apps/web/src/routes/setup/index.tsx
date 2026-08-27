@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { docsUrl } from '../../lib/docs.js';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 
@@ -93,7 +94,20 @@ function SetupChecklist() {
                 <span className="font-medium">{check.label}</span>
               </div>
               <span className="text-xs text-fg-muted">{check.detail}</span>
-              <span className="text-xs text-fg-muted">See {check.docs}</span>
+              {/* W16-24: this was plain text. A checklist that tells a stuck
+                  operator to "See docs/INSTALL.md#connect-your-forge" and gives
+                  them nothing to click is a dead end — and on a container
+                  install there is no repository checkout to open it from at
+                  all. */}
+              <a
+                href={docsUrl(check.docs)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-fg-muted underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid={`setup-doc-${check.id ?? check.docs}`}
+              >
+                See {check.docs}
+              </a>
             </li>
           ))}
         </ul>

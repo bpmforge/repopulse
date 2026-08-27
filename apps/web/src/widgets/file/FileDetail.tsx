@@ -7,6 +7,7 @@ import {
   type DataTableColumn,
 } from '../../components/index.js';
 import { Link } from '@tanstack/react-router';
+import { docsUrl } from '../../lib/docs.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { IntentControl } from './IntentControl.js';
 import {
@@ -180,7 +181,7 @@ export function FileDetailScreen({ repoId, path }: Props) {
           isEmpty: data !== undefined && data.hotspot_history.length < 2,
         })}
         onRetry={() => void refetch()}
-        definitionHref="/docs/design/METRICS.md"
+        definitionHref={docsUrl('/docs/design/METRICS.md')}
         // A single point is not a history. The empty state that stood here said
         // a flat line drawn from one current value would invent a trend — so
         // fewer than two points stays empty rather than becoming that line.

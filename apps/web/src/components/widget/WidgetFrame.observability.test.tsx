@@ -115,3 +115,22 @@ describe('WidgetFrame empty state actions (W16-18)', () => {
     expect(screen.queryByRole('link')).toBeNull();
   });
 });
+
+// W16-24. The application's 404 was W4-era scaffolding — "Coming soon. This
+// screen is part of a later W4 ticket." — still shipping at W16. Every unknown
+// URL told a customer their screen belonged to an internal ticket wave that
+// closed months ago: a typo, a stale bookmark, a deleted repository, a link
+// from an email, and three in-app help links that pointed at /docs/*.
+describe('the not-found page (W16-24)', () => {
+  it('names no internal ticket and offers a way back', async () => {
+    const { NotFound } = await import('../shell/NotFound.js');
+    render(<NotFound />);
+
+    const alertOrEmpty = screen.getByText(/nothing at this address/i);
+    expect(alertOrEmpty).toBeInTheDocument();
+    expect(screen.getByTestId('not-found-home')).toHaveAttribute('href', '/');
+
+    // The specific regression: no ticket language, ever.
+    expect(document.body.textContent).not.toMatch(/W4 ticket|Coming soon/i);
+  });
+});
