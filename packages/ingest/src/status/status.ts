@@ -11,6 +11,13 @@ export type SyncStatusPhase =
 
 export interface SyncStatus {
   repoId: string;
+  /**
+   * `org/name` (W16-05, F11). The status object carried only the numeric id, so
+   * Admin → Sync listed repositories as 25152 / 25153 / 25154 — an internal
+   * identifier shown to a person, on the one screen where they are trying to
+   * work out which repository is stuck.
+   */
+  repoName: string;
   phase: SyncStatusPhase;
   percentComplete: number;
   entities: Record<string, { cursorAt: string | null; done: boolean }>;
@@ -95,6 +102,8 @@ export async function repoSyncStatus(
   const [repo] = await db
     .select({
       id: core.repos.id,
+      org: core.repos.org,
+      name: core.repos.name,
       syncStatus: core.repos.syncStatus,
       lastSyncedAt: core.repos.lastSyncedAt,
       lastError: core.repos.lastError,
@@ -141,6 +150,7 @@ export async function repoSyncStatus(
 
   return {
     repoId: String(repo.id),
+    repoName: `${repo.org}/${repo.name}`,
     phase: refinePhase(repo.syncStatus, entities),
     percentComplete,
     entities,

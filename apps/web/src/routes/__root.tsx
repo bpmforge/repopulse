@@ -47,14 +47,47 @@ const SEGMENT_LABELS: Record<string, string> = {
   me: 'My Focus',
 };
 
+/**
+ * Sub-page labels (W16-05, F19). Path data only — the repo NAME is not in the
+ * URL, so a repository still cannot appear in its own trail from here; that
+ * crumb has to come from the screen that loaded it. This closes the half that
+ * can be closed: `/repos/25152/security` said "Org › Repos", naming neither the
+ * repository nor the tab, so the trail described a screen nobody was on.
+ */
+const SUBPAGE_LABELS: Record<string, string> = {
+  hotspots: 'Hotspots',
+  'pr-flow': 'PR Flow',
+  ci: 'CI',
+  findings: 'Findings',
+  security: 'Security',
+  'code-health': 'Code Health',
+  prs: 'Pull Requests',
+  files: 'Files',
+  connections: 'Connections',
+  sync: 'Sync',
+  members: 'Members',
+  identities: 'Identities',
+  agreements: 'Agreements',
+  rules: 'Rules',
+  analysis: 'Analysis',
+  models: 'Models',
+  settings: 'Settings',
+  setup: 'Setup',
+};
+
 /** Minimal breadcrumb from the path; deeper drill-down crumbs come with screens. */
 function deriveCrumbs(pathname: string): Crumb[] {
   const crumbs: Crumb[] = [{ label: 'Org', to: '/' }];
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length > 0) {
     const first = segments[0]!;
-    crumbs.push({ label: SEGMENT_LABELS[first] ?? first });
+    crumbs.push({ label: SEGMENT_LABELS[first] ?? first, to: `/${first}` });
   }
+  // The first segment that names something rather than identifying it. Numeric
+  // ids are skipped deliberately: "Org › Repos › 25152" would be worse than
+  // saying nothing, which is the same mistake F11 was about.
+  const sub = segments.slice(1).find((seg) => SUBPAGE_LABELS[seg] !== undefined);
+  if (sub) crumbs.push({ label: SUBPAGE_LABELS[sub]! });
   return crumbs;
 }
 

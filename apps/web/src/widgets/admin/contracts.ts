@@ -34,6 +34,8 @@ export type SyncPhase =
 
 export interface RepoSyncStatus {
   repoId: string;
+  /** `org/name` — what a person calls the repository (W16-05, F11). */
+  repoName?: string;
   phase: SyncPhase;
   percentComplete: number;
   entities: Record<string, { cursorAt: string | null; done: boolean }>;

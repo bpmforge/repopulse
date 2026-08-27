@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useApiQuery } from '../../../api/useApiQuery.js';
 import { ReportMarkdown } from '../../../components/index.js';
 
@@ -30,7 +30,13 @@ interface ReportDataShape {
   params: { type: string; windowDays: number; snapshotAt: string; windowEnd: string; annotation?: string };
   sections: ReportSection[];
   appendix: { definitions: { id: string; name: string; formula: string; unit: string }[] };
-  dataQuality: { repoId: string; phase: string; partial: boolean; syncLagHours: number | null }[];
+  dataQuality: {
+    repoId: string;
+    repoName?: string;
+    phase: string;
+    partial: boolean;
+    syncLagHours: number | null;
+  }[];
 }
 
 interface ReportResponse {
@@ -97,6 +103,24 @@ function PrintReport() {
 
   return (
     <div className="mx-auto max-w-[900px] bg-bg p-8 text-fg" data-testid="print-report">
+      {/*
+        W16-05 (F13). This route renders no shell — no rail, no topbar — because
+        it is printed by a headless browser and every live subscription is one
+        more thing that can stop `networkidle` arriving. But the same route is
+        the in-app viewer a human reaches from Report Center, and for them it was
+        a dead end: browser Back was the only way out.
+
+        A single link, hidden from print, is the whole fix. `print:hidden` keeps
+        it out of the PDF, so the artefact is unchanged.
+      */}
+      <Link
+        to="/reports"
+        data-testid="print-back"
+        className="mb-4 inline-block text-xs underline print:hidden"
+      >
+        ← Back to Report Center
+      </Link>
+
       {/* Cover (REPORTS.md §5). */}
       <header className="mb-8 border-b border-border pb-4">
         <h1 className="text-lg font-semibold" data-testid="print-title">
@@ -134,7 +158,9 @@ function PrintReport() {
             <tbody>
               {report.dataQuality.map((d) => (
                 <tr key={d.repoId} className="border-t border-border">
-                  <td>{d.repoId}</td>
+                  {/* W16-05 (F11): this printed the numeric id while the next
+                      paragraph of the same report used org/name. */}
+                  <td>{d.repoName ?? d.repoId}</td>
                   <td>{d.phase}</td>
                   {/* Paired mark + text, never colour alone (UX_SPEC §7). */}
                   <td>{d.partial ? '⚠ partial' : '✓ full'}</td>

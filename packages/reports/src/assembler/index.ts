@@ -85,7 +85,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
    * so is comparing two different things.
    */
   function dataQuality(
-    repos: { id: number; syncStatus: string }[],
+    repos: { id: number; org: string; name: string; syncStatus: string }[],
     snapshots: Map<string, BoundedSnapshot>,
     windowEnd: Date,
   ): ReportDataQuality[] {
@@ -95,6 +95,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
         .reduce<Date | null>((acc, s) => (acc === null || s.computedAt > acc ? s.computedAt : acc), null);
       return {
         repoId: String(repo.id),
+        repoName: `${repo.org}/${repo.name}`,
         phase: repo.syncStatus,
         partial: repo.syncStatus !== 'live',
         syncLagHours: newest === null ? null : r2((windowEnd.getTime() - newest.getTime()) / HOUR_MS),

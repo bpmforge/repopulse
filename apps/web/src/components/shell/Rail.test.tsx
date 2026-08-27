@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RouterProvider, createRootRoute, createRouter } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Rail } from './Rail.js';
@@ -48,5 +48,52 @@ describe('rail badges', () => {
     renderRail({});
     const withNothing = (await railItem('findings')).textContent;
     expect(withZero).toBe(withNothing);
+  });
+});
+
+// W16-05 (F21). At ~800px the expanded rail took 240px of a screen that had
+// none to spare: content was pushed out of view, repository names truncated to
+// "pay…", and the page scrolled sideways. The collapsed state already existed
+// and was reachable only by clicking the toggle — not much use to someone whose
+// window is already too narrow to read.
+describe('narrow windows (W16-05, F21)', () => {
+  function stubViewport(width: number) {
+    vi.stubGlobal('innerWidth', width);
+    vi.stubGlobal('matchMedia', (query: string) => {
+      const max = Number(/max-width:\s*(\d+)px/.exec(query)?.[1] ?? '0');
+      return {
+        matches: width <= max,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      } as unknown as MediaQueryList;
+    });
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('collapses itself below the breakpoint', async () => {
+    stubViewport(420);
+    renderRail({});
+    const rail = await screen.findByTestId('rail');
+    expect(rail).toHaveAttribute('data-collapsed', 'true');
+    // Labels gone, icons kept — that is what buys the width back.
+    expect(screen.queryByText('Org Overview')).toBeNull();
+  });
+
+  it('stays expanded on a wide window', async () => {
+    stubViewport(1440);
+    renderRail({});
+    const rail = await screen.findByTestId('rail');
+    expect(rail).toHaveAttribute('data-collapsed', 'false');
+    expect(screen.getByText('Org Overview')).toBeInTheDocument();
+  });
+
+  it('hides the toggle when the window is what forced the collapse', async () => {
+    // The button could not change anything there, and a control that visibly
+    // does nothing is worse than no control.
+    stubViewport(420);
+    renderRail({});
+    expect(await screen.findByTestId('rail-collapse')).toHaveAttribute('hidden');
   });
 });

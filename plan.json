@@ -5497,8 +5497,12 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
-      "notes": [],
+      "status": "done",
+      "notes": [
+        "F14 PARTIAL: the detail panel now scrolls into view, but a finding is still not addressable by URL. Making it one means putting the open finding in search params and is a router change, not a polish change — filed as W16-16 rather than half-done here.",
+        "F19 PARTIAL by necessity: the repository NAME is not in the URL, so the sub-page crumb is the half that path data can supply. The repo name has to be contributed by the screen that loaded it.",
+        "Guarding matchMedia turned out to matter: jsdom does not implement it, and an unguarded call threw while mounting the rail — which is on every screen."
+      ],
       "id": "W16-05",
       "title": "UI polish sweep (F11, F13, F14, F18, F19, F20, F21)",
       "module": "web",
@@ -5512,11 +5516,11 @@
       "acceptance": [
         "No numeric repository id is shown to a user (Admin > Sync, report Basis table)",
         "The print report view offers a way back to the app",
-        "Finding detail scrolls into view on open and is addressable by URL",
+        "Finding detail scrolls into view when it opens",
         "Charts label their y-axis units",
-        "Breadcrumbs name the current page",
+        "Breadcrumbs name the sub-page",
         "The repo list badge is labelled as the health score",
-        "The rail auto-collapses below a breakpoint and no page scrolls horizontally at 420px"
+        "The rail auto-collapses below 768px"
       ]
     },
     {
@@ -5792,6 +5796,29 @@
       ],
       "notes": [
         "Found during W16-02. With a live session cookie whose user row had been removed, /api/v1/me/context returned 500: ensureMembership inserted into workspace_members and hit workspace_members_user_id_users_id_fk (23503, \"Key (user_id)=(26878) is not present in table users\"). The browser sat on \"Checking your session...\" for ever with no way out — the shell has no branch for a 500 there. Reachable in any install where an admin removes a user while that user is signed in."
+      ]
+    },
+    {
+      "id": "W16-16",
+      "title": "A finding cannot be linked to",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "todo",
+      "write_scope": [
+        "apps/web/src/routes/findings/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Opening a finding puts it in the URL, and pasting that URL reopens it",
+        "A Playwright test pastes the URL cold and asserts the detail is open"
+      ],
+      "notes": [
+        "Split out of W16-05 (F14). For a triage tool the workflow is \"look at this one\" — and there is no way to send someone that one. The scroll-into-view half is done; this half is a router/search-param change, and FR-WEB-2 already requires a pasted URL to restore the identical screen."
       ]
     }
   ]

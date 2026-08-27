@@ -1,4 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { useUiStore } from '../store/uiStore.js';
 import { SyncStatusChip } from '../primitives/SyncStatusChip.js';
 import { ThemeToggle } from './ThemeToggle.js';
@@ -100,10 +101,46 @@ export interface RailProps {
   search?: Record<string, string>;
 }
 
+/**
+ * Below this, the rail collapses to icons (W16-05, F21).
+ *
+ * 768px, matching Tailwind's `md`. At ~800px the expanded rail took 240px of a
+ * screen that had none to spare: content was pushed out of view, repository
+ * names truncated to "pay…", and the page scrolled sideways. The collapsed
+ * state already existed and was only ever reachable by clicking the toggle —
+ * which is not much use to someone whose window is already too narrow to read.
+ */
+const COLLAPSE_BELOW_PX = 768;
+
 export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
-  const collapsed = useUiStore((s) => s.railCollapsed);
+  const stored = useUiStore((s) => s.railCollapsed);
   const toggleRail = useUiStore((s) => s.toggleRail);
   const sseConnection = useUiStore((s) => s.sseConnection);
+
+  // Narrow WINS over the stored preference, and deliberately does not overwrite
+  // it: someone who expanded the rail on a wide screen should still find it
+  // expanded when they go back to one, rather than having their choice
+  // destroyed by a moment at a small window size.
+  const [narrow, setNarrow] = useState(
+    typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.innerWidth < COLLAPSE_BELOW_PX,
+  );
+  useEffect(() => {
+    // Guarded: matchMedia is absent in jsdom and in any non-browser render, and
+    // an unguarded call there throws while mounting the whole shell — the rail
+    // is on every screen, so that is not a small blast radius. Without it the
+    // rail simply never auto-collapses, which is the pre-W16-05 behaviour.
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+
+    const mq = window.matchMedia(`(max-width: ${COLLAPSE_BELOW_PX - 1}px)`);
+    const onChange = (e: MediaQueryListEvent | MediaQueryList) => setNarrow(e.matches);
+    onChange(mq);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const collapsed = stored || narrow;
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const items = NAV.filter((item) => item.to !== '/admin' || isAdmin);
@@ -117,8 +154,12 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
     >
       <div className="flex items-center justify-between px-3 py-3">
         {!collapsed && <span className="font-semibold text-fg">RepoPulse</span>}
+        {/* Hidden when the window forces the collapse: the button could not
+            change anything, and a control that visibly does nothing is worse
+            than no control. */}
         <button
           type="button"
+          hidden={narrow}
           onClick={toggleRail}
           className="rounded-sm px-1.5 py-1 text-fg-muted hover:text-fg"
           data-testid="rail-collapse"

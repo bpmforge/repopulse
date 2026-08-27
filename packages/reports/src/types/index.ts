@@ -70,6 +70,17 @@ export type ReportSection =
 
 export interface ReportDataQuality {
   repoId: string;
+  /**
+   * `org/name` (W16-05, F11). The Basis table listed repositories by numeric id
+   * while the very next paragraph of the same report called one
+   * "**acme/infra**" — one document naming the same thing two ways, and the
+   * useless way first.
+   *
+   * Optional so an already-stored report still renders: report data is
+   * persisted and re-read (REPORTS.md §3), so a required field would break
+   * every report generated before this change.
+   */
+  repoName?: string;
   phase: string;
   /** True when the window is not fully covered by ingested history. */
   partial: boolean;

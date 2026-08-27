@@ -50,7 +50,25 @@ function TrendChart({
         option={{
           grid: { left: 44, right: 12, top: 16, bottom: 28 },
           xAxis: { type: 'category', data: labels },
-          yAxis: { type: 'value' },
+          // W16-05 (F18). The axis showed bare numbers — "PR cycle time" ran to
+          // 180 and "Review coverage" fell 50 → 10 with nothing saying hours or
+          // per cent. The unit was known all along (REPO_METRICS carries it,
+          // and the table fallback already used it); it just never reached the
+          // axis. The KPI tiles got this right, which made the charts the odd
+          // ones out on the same screen.
+          yAxis: {
+            type: 'value',
+            ...(metric.unit
+              ? {
+                  name: metric.unit,
+                  // Above the axis rather than rotated alongside it: one or two
+                  // characters read better there, and it cannot collide with
+                  // the tick labels.
+                  nameLocation: 'end' as const,
+                  nameGap: 8,
+                }
+              : {}),
+          },
           tooltip: { trigger: 'axis' },
           series: [{ type: 'line', smooth: true, showSymbol: false, data: values }],
         }}
