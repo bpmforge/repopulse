@@ -1,7 +1,8 @@
 import 'dotenv/config';
-import { createDb, seedWarehouse, startFakeForge, startFakeGithub } from '@repopulse/shared';
+import { core, createDb, seedWarehouse, startFakeForge, startFakeGithub } from '@repopulse/shared';
 import { buildApp } from './app.js';
-import { local } from '@repopulse/auth';
+import { and, eq } from 'drizzle-orm';
+import { local, workspace as workspaceModule } from '@repopulse/auth';
 import { assertDemoAllowed, demoRequested, DEMO_ACCOUNT } from './lib/demo.js';
 
 // Demo entrypoint (W13-02): the whole product, no GitHub account required.
@@ -75,6 +76,40 @@ const demoAccount = await local.createLocalUser(db, {
 });
 if (!demoAccount.ok && demoAccount.reason !== 'exists') {
   throw new Error(`demo: could not create the demo account (${demoAccount.reason})`);
+}
+
+// ADMIN, deliberately.
+//
+// `ensureMembership` makes the first member of a workspace an admin and
+// everyone after that a member (FR-AUTH-3). The seeded fixture user is already
+// in the demo workspace, so the demo account arrives second and lands as a
+// plain member — and every Admin screen 403s. Connections, Sync, Members,
+// Rules, Analysis and Models are a large part of what there is to look at, so a
+// demo that cannot reach them is showing half the product while claiming to
+// show all of it.
+//
+// Safe for the same single reason every other demo shortcut is: demo mode
+// refuses to boot under NODE_ENV=production.
+{
+  const [row] = await db
+    .select({ id: core.users.id })
+    .from(core.users)
+    .where(eq(core.users.authSubject, DEMO_ACCOUNT.email))
+    .limit(1);
+  if (row) {
+    const membership = await workspaceModule.ensureMembership(db, row.id);
+    if (membership.role !== 'admin') {
+      await db
+        .update(core.workspaceMembers)
+        .set({ role: 'admin' })
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, membership.workspace.id),
+            eq(core.workspaceMembers.userId, row.id),
+          ),
+        );
+    }
+  }
 }
 
 const github = await startFakeGithub(Number(process.env.DEMO_GITHUB_PORT ?? 0));
