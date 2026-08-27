@@ -62,7 +62,7 @@ function CodeHealthTab() {
       <WidgetFrame
         title="Debt signals"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         testId="ch-signals"
       >
         {data && (

@@ -47,7 +47,7 @@ export function AttentionFeed({ window, search }: Props) {
         isError,
         isEmpty: data !== undefined && items.length === 0,
       })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage={
         lastSeenAt ? 'Nothing new since your last visit.' : 'Nothing is asking for attention.'

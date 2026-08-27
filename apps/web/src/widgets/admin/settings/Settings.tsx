@@ -64,7 +64,7 @@ export function Settings() {
       <WidgetFrame
         title="Health score weights"
         state={frameState({ isLoading, isError, isEmpty: false })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         definitionHref="/docs/design/METRICS.md"
       >

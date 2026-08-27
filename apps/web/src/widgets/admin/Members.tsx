@@ -89,7 +89,7 @@ export function Members() {
     <WidgetFrame
       title="Members"
       state={frameState({ isLoading, isError, isEmpty: items.length === 0 })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No members yet — the first person to sign in becomes this workspace's admin."
     >

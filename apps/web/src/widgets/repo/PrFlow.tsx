@@ -122,7 +122,7 @@ export function PrFlow({ repoId, window }: Props) {
       <WidgetFrame
         title="PR funnel"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No pull requests in this window."
       >
@@ -147,7 +147,7 @@ export function PrFlow({ repoId, window }: Props) {
       <WidgetFrame
         title="PR size distribution"
         state={state}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No pull requests in this window."
       >

@@ -122,7 +122,7 @@ function ReportCenter() {
       <WidgetFrame
         title="History"
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && items.length === 0 })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No reports yet — generate one above."
       >
@@ -221,7 +221,7 @@ function ReportDiff({ before, after }: { before: number; after: number }) {
     <WidgetFrame
       title={`Comparing #${before} → #${after}`}
       state={frameState({ isLoading, isError, isEmpty: data?.comparable === true && data.deltas.length === 0 })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="These reports contain no comparable rows."
     >
       {data?.comparable === false ? (

@@ -39,7 +39,7 @@ export function RepoPicker({ connectionId, connectionsKey }: Props) {
         isError,
         isEmpty: data !== undefined && items.length === 0,
       })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="This credential can see no repositories. Check its scopes, or that it has access to the organisation."
     >

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SESSION_ENDPOINT, queryKeyFor } from '../../api/useApiQuery.js';
+import { errorMessageOf, requestIdOf } from '../../api/client.js';
 import {
   LOCAL_SESSION_KEY,
   localLogin,
@@ -122,7 +123,23 @@ export function SignIn({ expired }: SignInProps) {
               : 'sr-only'
           }
         >
-          {login.error ? login.error.message : ''}
+          {/* W16-18: the request id belongs here more than anywhere. A person
+              who cannot sign in cannot reach any other screen to report from,
+              and "invalid email or password" is deliberately identical for
+              every cause — so the id is the ONLY thing that distinguishes a
+              wrong password from a broken database in a support conversation. */}
+          {login.error ? (
+            <>
+              {errorMessageOf(login.error) ?? 'Sign-in failed.'}
+              {requestIdOf(login.error) ? (
+                <span className="ml-1 font-mono text-xs text-fg-faint" data-testid="signin-request-id">
+                  (request {requestIdOf(login.error)})
+                </span>
+              ) : null}
+            </>
+          ) : (
+            ''
+          )}
         </p>
 
         {!ready ? (

@@ -270,7 +270,7 @@ function FindingsExplorer() {
           isError,
           isEmpty: data !== undefined && items.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         // A dimension nothing writes yet is not a clean repository, and the
         // generic line ("findings appear once an analysis run completes") reads

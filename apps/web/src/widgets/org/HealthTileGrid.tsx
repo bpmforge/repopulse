@@ -42,7 +42,7 @@ export function HealthTileGrid({ window, search }: Props) {
     <WidgetFrame
       title="Repo health"
       state={state}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No repositories in this workspace yet."
     >

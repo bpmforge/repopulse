@@ -15,7 +15,7 @@ export function PlanTile(_props: WidgetComponentProps) {
     <WidgetFrame
       title="Improvement plan"
       state={frameState({ isLoading, isError, isEmpty: data !== undefined && !plan })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="No plan yet — generate one from the Plans page."
     >
       {plan && progress && (

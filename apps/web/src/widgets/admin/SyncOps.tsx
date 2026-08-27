@@ -77,7 +77,7 @@ export function SyncOps() {
       <WidgetFrame
         title="Org sync"
         state={frameState({ isLoading, isError, isEmpty: false })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
       >
         {data && (
@@ -109,7 +109,7 @@ export function SyncOps() {
           isError,
           isEmpty: data !== undefined && repos.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No repositories are syncing — connect an organisation first."
       >

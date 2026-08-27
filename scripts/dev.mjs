@@ -64,18 +64,32 @@ function portInUse(port) {
 // output. On a fresh clone this is the FIRST thing a newcomer hits, and a
 // stack trace does not tell them the fix is `pnpm bootstrap` (W13-01) or demo mode
 // (W13-02).
-// Demo mode needs no GitHub credentials at all — that is the entire point, so
-// requiring them here would defeat it.
+// GITHUB_APP_* IS NOT HERE, and its absence is the point (W16-18).
+//
+// This list demanded it in non-demo mode, which made `pnpm dev` refuse to start
+// on any install without a GitHub App — while D14 had already made forge
+// sign-in optional and THREE other places said so: env-registry marks both
+// `required: false` ("OPTIONAL since D14"), apps/api/src/index.ts handles their
+// absence explicitly ("when both are absent, forge sign-in is simply not
+// offered"), and docs/RUNNING.md promises "their absence is no longer fatal".
+//
+// Only this launcher still disagreed, and it is the launcher the docs tell
+// people to run — so the entire "install without a forge account" outcome that
+// D14 and W15-05 delivered was unreachable through the documented command. It
+// went unnoticed because nothing ever booted the non-demo path: every test and
+// every manual pass used DEMO_MODE, which skipped this branch.
+//
+// The drift gate in apps/api/test/ops/dev-required-env.test.ts now compares this
+// list to ENV_REGISTRY, so the two cannot disagree again.
 const REQUIRED = [
   'DATABASE_URL', 'REDIS_URL', 'SESSION_SECRET', 'API_BASE_URL', 'PUBLIC_BASE_URL', 'TOKEN_ENC_KEY',
-  ...(DEMO ? [] : ['GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET']),
 ];
 const missingEnv = REQUIRED.filter((k) => !process.env[k]);
 if (missingEnv.length > 0) {
   console.error(
     `\nThe API cannot start — missing: ${missingEnv.join(', ')}\n\n` +
       `  Fresh clone?   pnpm bootstrap            # writes .env and generates the secrets\n` +
-      `  No GitHub app? DEMO_MODE=1 pnpm dev  # seeded demo data, no GitHub account\n\n` +
+      `  Just looking?  DEMO_MODE=1 pnpm dev  # seeded demo data, no account at all\n\n` +
       `  These live in .env at the REPO ROOT (not apps/api/.env).\n`,
   );
   process.exit(1);

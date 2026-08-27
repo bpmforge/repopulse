@@ -68,3 +68,24 @@ describe('auditLog + redaction wired together', () => {
     expect(typeof parsed.ts).toBe('string');
   });
 });
+
+// W16-18. LOG_LEVEL was in deploy/.env and docs/CONFIG.md and was read NOWHERE
+// in source — a documented knob that did nothing, so an operator turning it up
+// to debug a production incident got exactly the same output as before. A
+// config option that silently does nothing costs someone the time they spent
+// trusting it.
+describe('LOG_LEVEL (W16-18)', () => {
+  it('is read from the environment', () => {
+    expect(createLogger({ env: { LOG_LEVEL: 'debug' } as NodeJS.ProcessEnv }).level).toBe('debug');
+  });
+
+  it('is overridden by an explicit level, so a caller stays in control', () => {
+    expect(
+      createLogger({ level: 'warn', env: { LOG_LEVEL: 'debug' } as NodeJS.ProcessEnv }).level,
+    ).toBe('warn');
+  });
+
+  it("falls back to pino's default when nothing sets it", () => {
+    expect(createLogger({ env: {} as NodeJS.ProcessEnv }).level).toBe('info');
+  });
+});

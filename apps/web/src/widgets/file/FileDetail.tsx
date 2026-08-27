@@ -115,7 +115,7 @@ export function FileDetailScreen({ repoId, path }: Props) {
           isError,
           isEmpty: data !== undefined && data.churn_series.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No non-merge commits touched this file."
       >
@@ -152,7 +152,7 @@ export function FileDetailScreen({ repoId, path }: Props) {
           isError,
           isEmpty: data !== undefined && data.owners.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No authorship recorded for this file."
       >

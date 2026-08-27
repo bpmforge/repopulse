@@ -35,7 +35,7 @@ function TrendChart({
     <WidgetFrame
       title={metric.label}
       state={frameState({ isLoading, isError, isEmpty: data !== undefined && points.length === 0 })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No snapshots for this metric in this window."
     >

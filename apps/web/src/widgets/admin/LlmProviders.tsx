@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { apiFetch, buildUrl } from '../../api/client.js';
 
@@ -262,11 +262,9 @@ export function LlmProviders() {
             </button>
           </div>
 
-          {create.error ? (
-            <p className="text-xs text-crit" data-testid="provider-error" role="alert">
-              {create.error.message}
-            </p>
-          ) : null}
+          {/* W16-18: was error.message alone, so a 500 here left the person
+              with nothing to quote and the operator nothing to grep. */}
+          <ErrorNote error={create.error} testId="provider-error" />
 
           {result ? (
             <div

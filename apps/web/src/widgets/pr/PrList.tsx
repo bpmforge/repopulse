@@ -88,7 +88,7 @@ export function PrListScreen({ repoId, window, search, state, onStateChange }: P
           isError,
           isEmpty: data !== undefined && items.length === 0,
         })}
-        {...(error ? { errorMessage: error.message } : {})}
+        {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No pull requests match this filter in the selected window."
       >

@@ -24,7 +24,7 @@ function RepoList() {
     <WidgetFrame
       title="Repositories"
       state={frameState({ isLoading, isError, isEmpty: data !== undefined && items.length === 0 })}
-      {...(error ? { errorMessage: error.message } : {})}
+      {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No repositories connected yet."
     >

@@ -5849,6 +5849,66 @@
         "Found in W16-10. Several suites delete users, and at least one clears repos outright, so a file reading seeded rows passes or fails on FILE ORDER. Three attempts failed before W16-10 was made to own its whole fixture chain (workspace, user, forge connection, repo) — correct for that file, but a workaround rather than a fix, and repos.connection_id being NOT NULL makes the chain expensive to repeat.",
         "Also seen earlier in this wave: packages/ingest dlq.integration fails whenever a dev worker is running, because it shares the dev Redis and the worker steals the poison message before the test can assert on it. The ports doc separates HTTP ports but nothing separates the queues."
       ]
+    },
+    {
+      "id": "W16-18",
+      "title": "Logging and traceability: a user-visible failure must be findable in the log",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [],
+      "points": 5,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/**",
+        "apps/api/src/**",
+        "packages/shared/src/**",
+        "docs/CONFIG.md",
+        "docs/RUNBOOK.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Every error a user can see carries the request id, including mutations",
+        "One extractor, not a helper copied per screen",
+        "No runtime console.log in the API or worker — everything goes through the pino logger, so the SC-2 redaction hook and the log level apply",
+        "LOG_LEVEL is actually read, or removed from the documented config",
+        "A job enqueued by a UI action records the request id that started it, so a failure can be traced back to the click"
+      ],
+      "notes": [
+        "AUDIT: 86 <WidgetFrame> error surfaces, exactly ONE passes requestId. The API puts request_id in every RFC7807 problem body, ApiError parses it, WidgetFrame renders it — and 85 of 86 screens throw it away. The fix belongs in the component, not in 85 call sites.",
+        "Mutation errors carry no request id at all, and those are the support cases: LlmProviders, RunScanButton and SignIn all render error.message alone.",
+        "LOG_LEVEL is in deploy/.env and docs/CONFIG.md and is read NOWHERE in source. A knob that does nothing is worse than no knob — an operator turning it up to debug a production issue gets nothing.",
+        "Eight runtime console.log calls in apps/api/src/workers/index.ts and demo.ts bypass pino: no level, no structured fields, invisible to an aggregator, and NOT passed through the SC-2 redaction stream hook. reportGatewayHealth prints provider base URLs, so a vendor that puts the key in the query string would print it in clear.",
+        "job_failure records queue/jobId/payload/error but no request id and no actor, so a job started from the new Run-now button cannot be traced back to the person who pressed it.",
+        "VERIFIED by finally walking the non-demo first run, which found three things no test covered: pnpm dev refused to start without a GitHub App (stale check in scripts/dev.mjs, contradicting ENV_REGISTRY, apps/api/src/index.ts AND docs/RUNNING.md); the org-overview welcome told an admin to connect an organisation and gave them nothing to click; and re-reading the gateway query for it exposed a cross-tenant leak I had introduced in W16-06.",
+        "CROSS-TENANT LEAK, mine, now fixed and pinned: hostsFromProviders selected every enabled row with no workspace filter (Law 5). With two workspaces in the database it would have decrypted one tenant API key and used their model on another tenant diffs. workspaceId is now a REQUIRED parameter so a caller cannot get \"all of them\" by forgetting."
+      ]
+    },
+    {
+      "id": "W16-19",
+      "title": "One gateway per worker stops being right once providers are per-workspace",
+      "phase": 16,
+      "module": "analysis",
+      "stories": [],
+      "depends_on": [
+        "W16-18"
+      ],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/analysis/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Each workspace analyses on its own configured providers",
+        "A workspace with no provider skips and says so, without borrowing another workspace model"
+      ],
+      "notes": [
+        "buildWorkerGateway builds ONE gateway at boot — a carry-over from when hosts came from a global env var. Now that providers are per-workspace rows, the worker passes the DEFAULT workspace and a second workspace would silently get no gateway rather than its own. v1 runs one workspace so this is not urgent, but it is the wrong shape and the code says so rather than pretending otherwise."
+      ]
     }
   ]
 }
