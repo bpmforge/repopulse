@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../../components/index.js';
-import { useApiQuery } from '../../../api/useApiQuery.js';
+import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { ScannerStatusList } from '../../../widgets/security/ScannerStatusList.js';
+import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
 // W8-14. OUT OF THAT TICKET'S DECLARED WRITE SCOPE and mounted anyway: a
 // funnel widget nobody renders is a widget that does not exist, and FR-SEC-15
@@ -40,6 +41,14 @@ function SecurityTab() {
         testId="security-coverage"
       >
         {data && <ScannerStatusList scanners={data.scanners} />}
+        {/* W16-10 (F15). This table said "never run" for every scanner and
+            offered no way to change that. */}
+        <div className="mt-3">
+          <RunScanButton
+            repoId={repoId}
+            invalidate={[queryKeyFor({ endpoint: '/repos/{id}/security', path: { id: repoId } })]}
+          />
+        </div>
       </WidgetFrame>
 
       <div className="grid gap-4 md:grid-cols-2">

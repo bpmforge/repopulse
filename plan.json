@@ -5654,8 +5654,12 @@
       "phase": 16,
       "stories": [],
       "depends_on": [],
-      "status": "todo",
-      "notes": [],
+      "status": "done",
+      "notes": [
+        "Dedup is asked BEFORE adding (queue.getJob), not inferred from the add: BullMQ returns the existing job when the id is taken and it is indistinguishable from a fresh one. The first version inferred it and reported every second press as a fresh start — caught by the test, not by reading.",
+        "The sync gate reads repos.sync_status = paused_budget rather than a remaining-call count: the forge budget is a RUNTIME gauge, not warehoused, and paused_budget is the product own record of \"no calls left\" (Law 7).",
+        "This ticket exposed a real test-isolation problem — see W16-17."
+      ],
       "id": "W16-10",
       "title": "Run it now: manual sync and scan triggers from the UI (F15)",
       "module": "api",
@@ -5819,6 +5823,31 @@
       ],
       "notes": [
         "Split out of W16-05 (F14). For a triage tool the workflow is \"look at this one\" — and there is no way to send someone that one. The scroll-into-view half is done; this half is a router/search-param change, and FR-WEB-2 already requires a pasted URL to restore the identical screen."
+      ]
+    },
+    {
+      "id": "W16-17",
+      "title": "The test suite shares one warehouse and several suites delete from it",
+      "phase": 16,
+      "module": "shared",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "apps/api/src/**",
+        "packages/**",
+        "docs/TESTING.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A suite that reads seed data cannot be broken by another suite deleting it",
+        "Running any single test file in isolation and in the full suite gives the same result"
+      ],
+      "notes": [
+        "Found in W16-10. Several suites delete users, and at least one clears repos outright, so a file reading seeded rows passes or fails on FILE ORDER. Three attempts failed before W16-10 was made to own its whole fixture chain (workspace, user, forge connection, repo) — correct for that file, but a workaround rather than a fix, and repos.connection_id being NOT NULL makes the chain expensive to repeat.",
+        "Also seen earlier in this wave: packages/ingest dlq.integration fails whenever a dev worker is running, because it shares the dev Redis and the worker steals the poison message before the test can assert on it. The ports doc separates HTTP ports but nothing separates the queues."
       ]
     }
   ]

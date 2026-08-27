@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../../components/index.js';
-import { useApiQuery } from '../../../api/useApiQuery.js';
+import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
+import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
 import {
   CH_SCANNER_STATE_LABEL,
   CH_SERIES_LABEL,
@@ -80,6 +81,14 @@ function CodeHealthTab() {
       </WidgetFrame>
 
       <WidgetFrame title="Coverage" state={state} testId="ch-coverage">
+        {/* W16-10 (F15). Same table, same problem: three scanners, all "has
+            never run", and no way to run one. */}
+        <div className="mb-3">
+          <RunScanButton
+            repoId={repoId}
+            invalidate={[queryKeyFor({ endpoint: '/repos/{id}/code-health', path: { id: repoId } })]}
+          />
+        </div>
         {data && (
           <table className="w-full text-sm" data-testid="ch-scanners">
             <caption className="sr-only">Code health scanner coverage</caption>
