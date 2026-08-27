@@ -3788,3 +3788,52 @@ The review block was first filed as W15, which was already the D14 auth wave —
 and an edit meant for the new tickets overwrote the real W15-01 and W15-03. The
 originals were restored verbatim from `fa26c14` and the block renumbered to
 W16. Check the board for an existing wave before claiming a number.
+
+`2026-08-27 W16-06 done — llm_providers + provider registry, one adapter for local and hosted (D-LLM-1); 14 tests, migration 0026`
+`2026-08-27 W16-07 done — Admin → Models with a real Test connection (F5); 20 tests, 1710 passing`
+`2026-08-27 W16-08 done — the gateway runs on configured providers and says so (F6/F8); 8 tests`
+`2026-08-27 W16-05 done — UI polish sweep (F11/F13/F14/F18/F19/F20/F21); 6 tests`
+`2026-08-27 W16-10 done — run it now: manual scan and sync (F15); 11 tests, 1731 passing`
+
+### D-LLM-1 — bring your own LLM (2026-08-27, Brad)
+
+RepoPulse is a standalone product and the person installing it brings their own
+model, local or hosted. Recorded because the review found the product could not
+express that at all: Tier 2 was `LMSTUDIO_BASE_URLS`, Tier 3 was
+`ANTHROPIC_API_KEY`, and there was no configuration surface anywhere.
+
+The connection model follows what OpenCode does — a provider is an id, an
+adapter kind, an options bag (base URL, credential, headers) and a model —
+without using its code. One adapter covers Ollama, LM Studio, vLLM, llama.cpp,
+OpenRouter, Groq, Together, Fireworks, DeepSeek and OpenAI, because they all
+speak the `/v1/chat/completions` format `packages/analysis` already spoke. The
+vendors that need their own entry need it for AUTH, not the wire format, which
+is why Vertex, Bedrock, Copilot and OpenAI subscription plans are registry
+entries that fail at CONFIGURATION time naming the mechanism they need
+(W16-09 implements them).
+
+**Two corrections to the review.** `validateHostUrl` already accepted public
+hosts and hostnames under `allowPublicHosts` — F7 read the default as the only
+behaviour. The real blockers were the frozen credential-free header set, which
+made authenticating impossible, and the missing config surface.
+
+**SC-24 is enforced, not relaxed.** The private-range-only default is untouched
+and still applies to any row that has not opted in; the metadata endpoint is
+refused even with the opt-in. There is still no path from a REQUEST to a host or
+a header — that, not the frozen constant, was always the control. A diff can
+only go where a stored row with a named author says.
+
+### Still open in W16
+
+- **W16-09** — Vertex, Bedrock, Copilot, OpenAI subscription plans. Three
+  different auth mechanisms (service account, SigV4, OAuth device flow), none of
+  which is a base-URL-plus-key, and none verifiable here without credentials.
+- **W16-11** — the scanners all read "(not installed)" with no way to install them.
+- **W16-12** — does a report finishing in a backgrounded tab ever update?
+- **W16-13** — the demo account's personal views are empty (needs a decision).
+- **W16-14** — nothing boots the demo entrypoint under test. This is the gap
+  that let F1 ship.
+- **W16-15** — a session whose user was deleted 500s instead of 401ing.
+- **W16-16** — a finding cannot be linked to.
+- **W16-17** — the test suite shares one warehouse and several suites delete
+  from it, so results depend on file order.
