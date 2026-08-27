@@ -137,7 +137,20 @@ export function createReportAssembler(db: Database): ReportAssembler {
           rawValue: input.raw === null ? null : r2(input.raw),
           normalized: input.normalized === null ? null : r2(input.normalized),
           weight: r2(sub.weight),
-          contribution: r2(sub.contribution),
+          // PER INPUT, not the sub-score's total repeated on every row (W16-22).
+          //
+          // It used to write `sub.contribution` here, so a report showed
+          // `ciHealth · topFlakiness · normalized 0 · contribution 9.29` — an
+          // input that scored zero credited with 9.29 — and summing the column
+          // gave 46.8 against a stated score of 38. In a document whose whole
+          // design invites the reader to check the arithmetic, that is the one
+          // number that must not be wrong.
+          //
+          // The decomposition is exact rather than invented: a sub-score is the
+          // EQUAL-WEIGHT MEAN of its available inputs' ramps
+          // (packages/insights/src/score/health.ts:4), so each input carries
+          // normalized ÷ n of it, and the parts sum to sub.contribution.
+          contribution: r2((input.normalized / sub.inputs.length) * sub.weight),
         });
       }
     }

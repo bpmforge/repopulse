@@ -183,6 +183,56 @@ describeIfLiveInfra('report assembler', () => {
       // The stale-PR count and CI pass rate were seeded too, so the
       // decomposition must span more than one sub-score.
       expect(new Set(breakdown.rows.map((r) => r.subScore)).size).toBeGreaterThan(1);
+
+      // W16-22. THE COLUMN MUST SUM TO THE SCORE.
+      //
+      // It wrote the SUB-SCORE's contribution onto every one of its input rows,
+      // so a real report showed `ciHealth · topFlakiness · normalized 0 ·
+      // contribution 9.29` — an input that scored zero credited with 9.29 — and
+      // adding the column up gave 46.8 against a stated score of 38. This is
+      // the exportable deliverable and its whole design invites the reader to
+      // check the arithmetic, so this is the one number that must not be wrong.
+      // Self-contained in the rows, deliberately: the score itself lives in the
+      // summary markdown, and the first version of this check looked for a
+      // `score` section that does not exist — so it silently skipped and passed
+      // against the very bug it was written for.
+      //
+      // A sub-score is the equal-weight mean of its inputs' ramps, so each
+      // group's contributions must sum to mean(normalized) x weight. With the
+      // defect a group of n inputs summed to n times that.
+      const groups = new Map<string, typeof breakdown.rows>();
+      for (const row of breakdown.rows) {
+        groups.set(row.subScore, [...(groups.get(row.subScore) ?? []), row]);
+      }
+      // The seed gives ciHealth two inputs (passRate + topFlakiness) and
+      // reviewHygiene two (m5 + stalePrCount). Without a multi-input group this
+      // assertion cannot fail, so guard the guard.
+      expect(
+        [...groups.values()].some((rows) => rows.length > 1),
+        'this fixture must produce a sub-score with MORE THAN ONE input, or the sum check is vacuous',
+      ).toBe(true);
+
+      for (const [key, rows] of groups) {
+        const summed = rows.reduce((acc, r) => acc + r.contribution, 0);
+        const mean = rows.reduce((acc, r) => acc + (r.normalized ?? 0), 0) / rows.length;
+        const expected = mean * (rows[0]?.weight ?? 0);
+        // 0.5 rather than a tight epsilon: every stored figure is rounded to
+        // two decimals before it reaches the report, so the parts drift from
+        // the whole by fractions. The DEFECT was not a fraction — a group of n
+        // inputs summed to n times its true contribution (44 became 88), so
+        // this still discriminates by a wide margin.
+        expect(
+          Math.abs(summed - expected),
+          `${key}: rows summed to ${summed}, but the sub-score contributes ${expected}`,
+        ).toBeLessThan(0.5);
+      }
+
+      // And no row may claim a contribution while contributing nothing.
+      for (const row of breakdown.rows) {
+        if (row.normalized === 0) {
+          expect(row.contribution, `${row.subScore}/${row.input} scored 0 but was credited`).toBe(0);
+        }
+      }
     }
     // Appendix A comes from the catalog, so a definition in a report cannot
     // disagree with the tooltip the same reader saw on screen.
