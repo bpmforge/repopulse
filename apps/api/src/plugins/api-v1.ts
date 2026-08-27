@@ -23,6 +23,7 @@ import findingsRoutes from '../routes/findings/index.js';
 import intentsRoutes from '../routes/intents/index.js';
 import analysisAdminRoutes from '../routes/admin/analysis/index.js';
 import llmProviderRoutes from '../routes/admin/llm-providers/index.js';
+import runRoutes from '../routes/runs/index.js';
 import scannersRoutes from '../routes/scanners/index.js';
 import securityRoutes from '../routes/security/index.js';
 // W11-02: the setup status endpoints (admin only, values never returned).
@@ -169,6 +170,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // W16-07: the configuration surface for bring-your-own-LLM. Needs tokenKey —
   // provider API keys go through the same vault as forge tokens (Law 9).
   await app.register(llmProviderRoutes, { db: opts.db, tokenKey: opts.tokenKey });
+  // W16-10 (F15): nothing in this product could be started by hand until now.
+  await app.register(runRoutes, { db: opts.db, redisUrl: opts.redisUrl });
   // Artifact intents (W6-07).
   await app.register(intentsRoutes, { db: opts.db });
   // Findings (W6-04).

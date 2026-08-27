@@ -96,7 +96,12 @@ export type AuditEvent =
   // decision with an author, not a settings preference; deleting one silently
   // stops analysis, which is equally worth a record.
   | 'llm_provider.created'
-  | 'llm_provider.deleted';
+  | 'llm_provider.deleted'
+  // W16-10. A manual run spends CPU on the host and, for a sync, forge budget
+  // that everything else has to share. Who asked for it is the same record a
+  // scheduled pass gets from its cron line.
+  | 'scan.manual_run'
+  | 'sync.manual_run';
 
 export interface AuditEntry {
   event: AuditEvent;
