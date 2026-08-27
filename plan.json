@@ -5039,7 +5039,7 @@
     },
     {
       "id": "W15-01",
-      "title": "Identity is not the forge: users keyed on (auth_provider, auth_subject)",
+      "title": "The /repos list had no click-through coverage (F12 retracted)",
       "phase": 15,
       "module": "auth",
       "stories": [
@@ -5052,22 +5052,12 @@
       ],
       "depends_on": [],
       "acceptance": [
-        "users gains auth_provider, auth_subject (unique together), email, password_hash (nullable); forge_user_id becomes NULLABLE — a link to a committer identity, not the identity of a person (D14)",
-        "Migration backfills every existing row to auth_provider='github' with the forge id as the subject, so no current session or user is lost",
-        "A provider-agnostic seam issues the session: the GitHub path becomes one caller of it rather than the only path",
-        "Tenancy and the route-walker suite stay green; a DB grep proves no plaintext secret in the new columns"
+        "A Playwright test asserts a /repos row navigates by click and by Enter"
       ],
-      "points": 5,
+      "points": 1,
       "status": "done",
       "notes": [
-        "D14 recorded in FOUNDING_BRIEF (supersedes D6), FR-AUTH-7/8/9 added to the SRS, story E1.0 added. The decision is written down rather than the schema quietly changing under a requirement that still said GitHub.",
-        "users gains auth_provider / auth_subject (unique together), email, password_hash, must_change_password; forge_user_id becomes NULLABLE — a LINK to a committer, not the identity of a person.",
-        "THE GENERATED MIGRATION WAS BROKEN AND WOULD HAVE FAILED ON EVERY REAL INSTALL. drizzle-kit put ADD CONSTRAINT immediately after ADD COLUMN, so every existing row took the empty-string default and collided on the second user; this database had four. Hand-edited to backfill auth_subject from forge_user_id BEFORE the constraint. Verified after applying: all four existing users kept their identity (github|tok, github|w4-20-admin, ...), nobody logged out.",
-        "One seam — findOrCreateUserForSubject — now turns an authenticated subject into a user row, and the GitHub path forwards to it instead of upserting on forge_user_id itself. Upsert is on (provider, subject) because the same human may hold both a local and an OIDC account, and merging them would assert an identity we cannot prove.",
-        "THE TYPECHECKER FOUND THE REAL CONSEQUENCE: resolveUserIdentity assumed every user has a forge id. Added identityLinkState, which separates linked / unlinked / no_activity — so a personalized view can say \"your account is not connected to a committer\" instead of rendering 0 pull requests at someone as though it were an answer about their work.",
-        "linkForgeIdentity REFUSES a forge id already claimed by another user rather than moving it: two people pointing at one committer makes \"my PRs\" wrong for both, and the loser is never told.",
-        "46 fixture insert sites were rewritten by script rather than by hand (47 files, one pattern). The script OVER-REACHED — it also rewrote two core.identities inserts, which have no such columns — caught by typecheck and reverted. Two shorthand-property sites it correctly skipped were done by hand.",
-        "Gate: lint clean, typecheck clean, 1359 unit, 128 web, 105 e2e (1 skipped), four validators pass."
+        "F12 was a FALSE POSITIVE — see docs/review/UX_REVIEW_2026-08-27.md. The links always worked; the review mis-clicked after a window resize and then \"confirmed\" it with a ref-click, which does not activate links in that tooling. Closed as a test-only ticket: the regression guard is real and the /repos list genuinely had no click coverage."
       ]
     },
     {
@@ -5104,7 +5094,7 @@
     },
     {
       "id": "W15-03",
-      "title": "Generic OIDC: discovery, PKCE, ID-token verification",
+      "title": "Generated reports leak raw Markdown into the page and the PDF (F10)",
       "phase": 15,
       "module": "auth",
       "stories": [
@@ -5118,20 +5108,13 @@
         "W15-01"
       ],
       "acceptance": [
-        "Discovery, authorization-code + PKCE and the code exchange are ours (plain HTTPS); ID-token verification uses jose (MIT) against the provider JWKS",
-        "Rejects, each proven separately: bad signature, wrong issuer, wrong audience, expired, alg=none",
-        "Claims map to auth_subject and email; works against a fixture IdP in tests with no network",
-        "Configured entirely from env; an unconfigured deployment simply does not offer the button"
+        "The rendered report and the PDF contain no literal ** or backtick sequences",
+        "Unit tests cover bold, code spans, paragraph splitting, unmatched syntax and HTML escaping"
       ],
-      "points": 8,
+      "points": 2,
       "status": "done",
       "notes": [
-        "Discovery, PKCE (S256 only) and the code exchange are ours — plain HTTPS, the same shape as the existing GitHub flow. jose (MIT, verified) does only the cryptography: JWKS and signature verification. That split is D14 written down.",
-        "The five rejects each have their own test. alg=none is built with UnsecuredJWT because SignJWT refuses to emit one — a test using SignJWT would have proved nothing, and the test asserts the header really says none.",
-        "auth_subject is the IdP sub, never the email: email is reassignable at most companies, and using it would let a new employee inherit a departed one account.",
-        "Zero network in the suite — an in-process fixture IdP mints tokens against a generated keypair, and the route test exercises the real remote-JWKS path over loopback.",
-        "The author listed what is NOT implemented rather than letting silence imply conformance: at_hash/c_hash, UserInfo, refresh tokens, RP-initiated and channel logout, request objects, JWE, max_age/acr/amr, hybrid and implicit flows, PKCE plain (rejected on purpose).",
-        "Registered only when configured; a PARTIAL configuration throws at boot on purpose, because the alternative is failing at the callback after the user has already authenticated with their IdP."
+        "F9 (Generate looks inert) RETRACTED — one click produces one row in 6s; the original report was a mis-click. See the review doc. The open question it leaves — whether a running report updates in a BACKGROUNDED tab, where TanStack pauses refetchInterval — is filed as W15-12 rather than assumed."
       ]
     },
     {
@@ -5674,6 +5657,30 @@
       "acceptance": [
         "Either the worker image ships the scanners, or the UI links to the one command that provides them",
         "No screen states a tool is missing without saying what to do about it"
+      ]
+    },
+    {
+      "id": "W15-12",
+      "title": "A report finishing in a backgrounded tab may never update",
+      "phase": 15,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "todo",
+      "write_scope": [
+        "apps/web/src/api/**",
+        "apps/web/src/routes/reports/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A Playwright test with explicit focus control proves a queued/running report reaches ready without user interaction",
+        "If it does not, refetchIntervalInBackground is set for this query and the test proves the fix"
+      ],
+      "notes": [
+        "Split out of W15-03. TanStack pauses refetchInterval when the document is unfocused (refetchIntervalInBackground defaults false); the Report Center relies on that poll for the queued -> running -> ready transition. Unverified either way — a browser-extension-driven tab cannot test it."
       ]
     }
   ]

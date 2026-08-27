@@ -56,6 +56,30 @@ test('drills org → repo → each tab by clicking, breadcrumb intact', async ({
   await expect(page.getByTestId('breadcrumb')).toBeVisible();
 });
 
+// W15-01 (F12): the /repos LIST is its own entry point, and its rows are the
+// second item in the rail. The org-overview tile above proves the layout route
+// is linkable; this proves the list's own rows are, by mouse AND by keyboard —
+// a component test renders the anchor happily while the click does nothing.
+test('the /repos list rows navigate, by click and by keyboard', async ({ page }) => {
+  await loginAsFixture(page);
+  await page.goto('/repos?window=90d');
+
+  const row = page.getByTestId('repo-list').locator('a').first();
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page).toHaveURL(/\/repos\/\d+/);
+  await expect(page.getByTestId('repo-name')).toContainText('/');
+
+  // Keyboard activation is a separate path: a handler that swallows the click
+  // can leave Enter working, and vice versa. Both were dead in the review.
+  await page.goto('/repos?window=90d');
+  const kbRow = page.getByTestId('repo-list').locator('a').first();
+  await kbRow.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/repos\/\d+/);
+  await expect(page.getByTestId('repo-name')).toContainText('/');
+});
+
 test('a pasted deep link restores the identical tab and filters', async ({ page }) => {
   await loginAsFixture(page);
   await page.goto('/?window=90d');
