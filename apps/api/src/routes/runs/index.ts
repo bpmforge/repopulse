@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
 import { auditLog, core, security, type Database } from '@repopulse/shared';
+import { SCANNER_DEFAULTS, isEnabled, listScanners } from '@repopulse/security';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
@@ -120,23 +121,36 @@ export default async function runRoutes(
       const repo = await repoIn(workspaceId, repoId);
       if (!repo) return fail(request, reply, 404, 'No such repository');
 
-      // Only scanners this workspace has actually enabled. Running a disabled
-      // scanner because someone pressed a general "run" button would quietly
-      // undo a deliberate decision recorded in an audit row.
-      const enabled = await db
-        .select({ key: security.repoScannerConfig.scannerKey })
+      // ENABLEMENT IS DEFAULT-AWARE (W16-20).
+      //
+      // The first version selected rows from repo_scanner_config and treated an
+      // empty result as "nothing enabled". But `isEnabled` falls back to
+      // SCANNER_DEFAULTS when there is NO row, which is the state of every
+      // repository on a fresh install — so the coverage table read "enabled"
+      // for four scanners while this button answered "Nothing to run" directly
+      // beneath it. The feature was dead for every repository nobody had
+      // explicitly toggled.
+      //
+      // Reading through the same helper the coverage table uses is what keeps
+      // the two from disagreeing again.
+      const stored = await db
+        .select({
+          key: security.repoScannerConfig.scannerKey,
+          enabled: security.repoScannerConfig.enabled,
+        })
         .from(security.repoScannerConfig)
-        .where(
-          and(
-            eq(security.repoScannerConfig.repoId, repoId),
-            eq(security.repoScannerConfig.enabled, true),
-          ),
-        );
+        .where(eq(security.repoScannerConfig.repoId, repoId));
+      const byKey = new Map(stored.map((row) => [row.key, row]));
+
+      const catalogue = [
+        ...new Set([...listScanners().map((s) => s.key), ...SCANNER_DEFAULTS.map((d) => d.key)]),
+      ];
+      const enabledKeys = catalogue.filter((key) => isEnabled(key, byKey.get(key)));
 
       const requested = request.body?.scanner_key;
       const keys = requested
-        ? enabled.filter((s) => s.key === requested).map((s) => s.key)
-        : enabled.map((s) => s.key);
+        ? enabledKeys.filter((key) => key === requested)
+        : enabledKeys;
 
       if (keys.length === 0) {
         return fail(

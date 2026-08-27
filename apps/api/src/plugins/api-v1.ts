@@ -92,7 +92,24 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
       sendProblem(request, reply, 401, 'No active session');
       return reply;
     }
-    const membership = await workspaceModule.ensureMembership(opts.db, userId);
+    let membership;
+    try {
+      membership = await workspaceModule.ensureMembership(opts.db, userId);
+    } catch (err) {
+      // The session names a user that no longer exists (W16-15). That is a
+      // DEAD SESSION, not a server fault: answer 401 and destroy it, so the
+      // shell routes to the sign-in screen instead of retrying a 500 for ever.
+      if (err instanceof workspaceModule.UnknownUserError) {
+        request.log.info(
+          { userId, audit: true, event: 'auth.session.orphaned' },
+          'session names a deleted user — destroying it',
+        );
+        await request.session?.destroy?.();
+        sendProblem(request, reply, 401, 'No active session');
+        return reply;
+      }
+      throw err;
+    }
     request.workspace = {
       id: membership.workspace.id,
       slug: membership.workspace.slug,
