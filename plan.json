@@ -5717,7 +5717,7 @@
       "stories": [],
       "depends_on": [],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/web/src/api/**",
         "apps/web/src/routes/reports/**",

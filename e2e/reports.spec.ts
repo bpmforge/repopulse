@@ -133,3 +133,112 @@ test('two reports of the same scope diff, and an annotation reaches the cover (W
   await expect(page.getByTestId('diff-table')).toBeVisible();
   await expect(page.getByTestId('diff-table').locator('tbody tr').first()).toBeVisible();
 });
+
+test('a report finishing in a BACKGROUNDED tab still reaches ready (W16-12)', async ({ page }) => {
+  // TanStack Query pauses `refetchInterval` while the document is hidden
+  // (`refetchIntervalInBackground` defaults false), and the Report Center
+  // relies on that poll for queued → running → ready. So the question this
+  // test exists to answer: does a report you started, then switched away from,
+  // ever show as finished?
+  //
+  // The 2026-08-27 walk said no — report 1177 finished server-side at 20:50:35
+  // and the row still read "running" ~50s later, with two GETs in a window
+  // that should have held sixteen.
+  test.setTimeout(120_000);
+
+  await loginAsFixture(page);
+  await page.goto('/reports');
+  await expect(page.getByTestId('generate-form')).toBeVisible();
+
+  // The rows that are ALREADY here. Without this the test watches
+  // `.first()`, which after the specs above is a report that finished minutes
+  // ago — it passed in 161ms for exactly that reason, proving nothing.
+  const idsOf = async () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid^="report-status-"]')].map(
+        (el) => el.getAttribute('data-testid')!,
+      ),
+    );
+  const before = new Set(await idsOf());
+
+  // BACKGROUND IT FIRST, so the WHOLE lifecycle happens hidden.
+  //
+  // Not by opening a second tab: Playwright's headless pages all report
+  // `visibilityState: 'visible'`, so `bringToFront()` proves nothing (the
+  // first version of this test asserted 'hidden' and failed on that line).
+  //
+  // The SIGNAL is emulated instead, because the signal is the whole mechanism:
+  // focusManager subscribes to `visibilitychange` and reads
+  // `document.visibilityState`, and that reading is the only thing that pauses
+  // a refetchInterval. This puts the app in exactly the state a backgrounded
+  // tab puts it in, which is what is under test rather than Chromium's tab
+  // bookkeeping.
+  //
+  // Backgrounding BEFORE the click also removes the race in the obvious
+  // ordering: background afterwards and a fast generation can finish inside
+  // the first still-visible tick, passing without ever exercising this path.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(await page.evaluate(() => document.visibilityState)).toBe('hidden');
+
+  await page.getByTestId('generate-report').click();
+
+  // The NEW row appears without help, because the mutation invalidates the
+  // list and an invalidate refetches regardless of visibility. Reaching READY
+  // is the part that needs the interval.
+  const newId = await expect
+    .poll(async () => (await idsOf()).find((id) => !before.has(id)), { timeout: 15_000 })
+    .not.toBeUndefined()
+    .then(async () => (await idsOf()).find((id) => !before.has(id))!);
+
+  // Read the DOM WITHOUT touching the page: Playwright can query a hidden
+  // document, and any click, focus or bringToFront here would trigger the
+  // refetch-on-focus that hides the bug.
+  await expect(page.getByTestId(newId.replace('report-status-', 'report-status-'))).toContainText(
+    /ready/,
+    { timeout: 90_000 },
+  );
+});
+
+test('the poll STOPS once every report has settled (W16-12)', async ({ page }) => {
+  // The other half of the fix, and the reason `refetchIntervalInBackground`
+  // is safe to leave on: the interval returns false when nothing is queued or
+  // running. Without this the screen asks for the list every three seconds for
+  // the life of the tab — now from a hidden one too, which is a background
+  // request nobody asked for rather than a poll.
+  test.setTimeout(60_000);
+
+  await loginAsFixture(page);
+  await page.goto('/reports');
+  await expect(page.getByTestId('generate-form')).toBeVisible();
+
+  // Settle everything first: earlier specs in this file leave ready rows, and
+  // a generation still in flight would legitimately keep the poll alive.
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('[data-testid^="report-status-"]')].every(
+            (el) => !/queued|running/.test(el.textContent ?? ''),
+          ),
+        ),
+      { timeout: 45_000 },
+    )
+    .toBe(true);
+
+  let listRequests = 0;
+  await page.route('**/api/v1/reports*', async (route) => {
+    if (route.request().method() === 'GET') listRequests += 1;
+    await route.continue();
+  });
+
+  // Four poll periods. A running 3s interval would land three or four GETs.
+  await page.waitForTimeout(12_000);
+  expect(listRequests, 'the list is polled after everything settled').toBe(0);
+});
