@@ -53,6 +53,92 @@ export function decodeCursor(cursor: string): { severity: number; id: number } |
   }
 }
 
+
+// ONE PROJECTION FOR EVERY WAY OF ASKING (W16-32).
+//
+// The list and the single-finding lookup have to return the same shape, or a
+// finding opened from a LINK would render differently from the same finding
+// opened by a CLICK. Extracted for that reason rather than for brevity: two
+// copies of thirty columns is exactly the kind of duplication that drifts by
+// one field and is noticed by a user rather than a test.
+function findingsQuery(db: Database) {
+  return db
+    .select({
+      id: read.findings.id,
+      repoId: read.findings.repoId,
+      org: core.repos.org,
+      repoName: core.repos.name,
+      dimension: read.findings.dimension,
+      severity: read.findings.severity,
+      confidence: read.findings.confidence,
+      title: read.findings.title,
+      file: read.findings.file,
+      lineStart: read.findings.lineStart,
+      lineEnd: read.findings.lineEnd,
+      evidence: read.findings.evidence,
+      recommendation: read.findings.recommendation,
+      status: read.findings.status,
+      dismissReason: read.findings.dismissReason,
+      occurrenceCount: read.findings.occurrenceCount,
+      verifyStatus: read.findings.verifyStatus,
+      firstSeenAt: read.findings.firstSeenAt,
+      lastSeenAt: read.findings.lastSeenAt,
+      tier: read.findings.tier,
+      effectiveRisk: read.findings.effectiveRisk,
+      riskBand: read.findings.riskBand,
+      riskFactors: read.findings.riskFactors,
+      experimental: read.findings.experimental,
+      scannerKey: read.findings.scannerKey,
+      ruleId: read.findings.ruleId,
+      cveId: read.findings.cveId,
+      chainId: read.findings.chainId,
+      scanRunId: read.findings.scanRunId,
+      yields: read.findings.yields,
+    })
+    .from(read.findings)
+    .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId));
+}
+
+type FindingRow = Awaited<ReturnType<ReturnType<typeof findingsQuery>['execute']>>[number];
+
+/** The wire shape of one finding (FR-API-3). */
+function toFinding(r: FindingRow) {
+  return {
+  id: r.id,
+  repo: { id: r.repoId, org: r.org, name: r.repoName },
+  dimension: r.dimension,
+  severity: r.severity,
+  confidence: r.confidence,
+  title: r.title,
+  file: r.file,
+  line_range: [r.lineStart, r.lineEnd],
+  evidence: r.evidence,
+  recommendation: r.recommendation,
+  status: r.status,
+  dismiss_reason: r.dismissReason,
+  occurrence_count: r.occurrenceCount,
+  verify_status: r.verifyStatus,
+  first_seen_at: r.firstSeenAt.toISOString(),
+  last_seen_at: r.lastSeenAt.toISOString(),
+  tier: r.tier,
+  // null, not '', for every one of these: a finding with no rule id has
+  // no rule id, and an empty string would render as a blank chip that
+  // looks like a rendering bug.
+  scanner_key: r.scannerKey,
+  rule_id: r.ruleId,
+  cve_id: r.cveId,
+  chain_id: r.chainId,
+  scan_run_id: r.scanRunId,
+  kev: r.yields?.['kev'] === true,
+  // null, not 0: the nightly reprice may not have reached it, and a 0
+  // would read as "judged, and judged harmless".
+  effective_risk: r.effectiveRisk === null ? null : Number(r.effectiveRisk),
+  risk_band: r.riskBand,
+  risk_factors: r.riskFactors,
+  experimental: r.experimental,
+};
+}
+
 export default async function findingsRoutes(
   app: FastifyInstance,
   opts: FindingsRoutesOptions,
@@ -139,41 +225,7 @@ export default async function findingsRoutes(
       );
     }
 
-    const rows = await db
-      .select({
-        id: read.findings.id,
-        repoId: read.findings.repoId,
-        org: core.repos.org,
-        repoName: core.repos.name,
-        dimension: read.findings.dimension,
-        severity: read.findings.severity,
-        confidence: read.findings.confidence,
-        title: read.findings.title,
-        file: read.findings.file,
-        lineStart: read.findings.lineStart,
-        lineEnd: read.findings.lineEnd,
-        evidence: read.findings.evidence,
-        recommendation: read.findings.recommendation,
-        status: read.findings.status,
-        dismissReason: read.findings.dismissReason,
-        occurrenceCount: read.findings.occurrenceCount,
-        verifyStatus: read.findings.verifyStatus,
-        firstSeenAt: read.findings.firstSeenAt,
-        lastSeenAt: read.findings.lastSeenAt,
-        tier: read.findings.tier,
-        effectiveRisk: read.findings.effectiveRisk,
-        riskBand: read.findings.riskBand,
-        riskFactors: read.findings.riskFactors,
-        experimental: read.findings.experimental,
-        scannerKey: read.findings.scannerKey,
-        ruleId: read.findings.ruleId,
-        cveId: read.findings.cveId,
-        chainId: read.findings.chainId,
-        scanRunId: read.findings.scanRunId,
-        yields: read.findings.yields,
-      })
-      .from(read.findings)
-      .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
+    const rows = await findingsQuery(db)
       .where(and(...filters))
       // W9-11: effective_risk by DEFAULT, severity on request. Severity alone
       // put a critical finding in a file nobody touches above a high one in the
@@ -197,42 +249,39 @@ export default async function findingsRoutes(
     const page = rows.slice(0, PAGE_SIZE);
     const last = page[page.length - 1];
     return reply.send({
-      items: page.map((r) => ({
-        id: r.id,
-        repo: { id: r.repoId, org: r.org, name: r.repoName },
-        dimension: r.dimension,
-        severity: r.severity,
-        confidence: r.confidence,
-        title: r.title,
-        file: r.file,
-        line_range: [r.lineStart, r.lineEnd],
-        evidence: r.evidence,
-        recommendation: r.recommendation,
-        status: r.status,
-        dismiss_reason: r.dismissReason,
-        occurrence_count: r.occurrenceCount,
-        verify_status: r.verifyStatus,
-        first_seen_at: r.firstSeenAt.toISOString(),
-        last_seen_at: r.lastSeenAt.toISOString(),
-        tier: r.tier,
-        // null, not '', for every one of these: a finding with no rule id has
-        // no rule id, and an empty string would render as a blank chip that
-        // looks like a rendering bug.
-        scanner_key: r.scannerKey,
-        rule_id: r.ruleId,
-        cve_id: r.cveId,
-        chain_id: r.chainId,
-        scan_run_id: r.scanRunId,
-        kev: r.yields?.['kev'] === true,
-        // null, not 0: the nightly reprice may not have reached it, and a 0
-        // would read as "judged, and judged harmless".
-        effective_risk: r.effectiveRisk === null ? null : Number(r.effectiveRisk),
-        risk_band: r.riskBand,
-        risk_factors: r.riskFactors,
-        experimental: r.experimental,
-      })),
+      items: page.map(toFinding),
       next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.severity, last.id) : null,
     });
+  });
+
+  /**
+   * GET /findings/:id — one finding, whatever the caller's filters are (W16-32).
+   *
+   * W16-16 put the open finding in the URL, and the explorer's filters are
+   * component state — so a link to a dismissed finding, opened by someone whose
+   * Status is the default "open", found nothing in the list and could only say
+   * so. A triage tool whose "look at this one" link depends on the recipient's
+   * view is not a link.
+   *
+   * Registered BEFORE /findings/stats reads oddly and is not a hazard: Fastify's
+   * router prefers a static segment over a parameter, so /findings/stats
+   * resolves to its own handler regardless of order. Kept adjacent to the list
+   * instead, beside the projection they share.
+   */
+  app.get<{ Params: { id: string } }>('/findings/:id', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const id = Number(request.params.id);
+    if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid finding id');
+
+    const [row] = await findingsQuery(db)
+      .where(and(eq(read.findings.workspaceId, workspaceId), eq(read.findings.id, id)))
+      .limit(1);
+    // Tenancy (Law 5): another workspace's finding is a 404, never a 403 — a
+    // 403 would confirm the id exists, which is a link someone could probe.
+    if (!row) return fail(request, reply, 404, 'No such finding');
+
+    return reply.send(toFinding(row));
   });
 
   /** GET /findings/stats — counts by dimension/severity/status + FP rate. */
