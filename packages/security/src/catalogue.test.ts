@@ -68,6 +68,10 @@ describe('what the catalogue claims can be started', () => {
     'rule_draft_pass',
     // W16-36 wired runDependencyScan, which had no caller for eight waves.
     'dependency_cve',
+    // W16-33 wired runOwaspChecklist, which had none either. Manual only —
+    // they are not in the weekly cron group.
+    'owasp_web',
+    'owasp_llm',
   ];
 
   it('offers manual runs for exactly the keys the worker wires', () => {

@@ -50,6 +50,22 @@ describe('delta -> secrets stream (W8-04)', () => {
     expect(code).not.toMatch(/switch\s*\(\s*\w*[sS]cannerKey/);
   });
 
+  it('the OWASP checklists have a caller, and are MANUAL only (W16-33)', () => {
+    // runOwaspChecklist had no caller, so both read "not in this build" on
+    // every install — truthfully, which is the only reason it was not worse.
+    const entry = readFileSync(new URL('./index.ts', import.meta.url).pathname, 'utf8');
+    expect(entry).toContain('runOwaspChecklist');
+    expect(entry).toContain('owasp_web: async');
+    expect(entry).toContain('owasp_llm: async');
+    // NOT on the weekly cron: a checklist is a gateway call per chunk, and
+    // their own defaults say a human starts them. Putting them in that list
+    // would run a model over every repo every week without anyone asking.
+    expect(entry).not.toContain("['owasp_web', weeklyCron]");
+    expect(entry).not.toContain("['owasp_llm', weeklyCron]");
+    // A DIFF, not the weekly snapshot the other scanners share.
+    expect(entry).toContain('diffOf(');
+  });
+
   it('the dependency scanner has a caller at last (W16-36)', () => {
     // W8-06 was marked done and runDependencyScan had NO caller anywhere, so
     // security.sboms had never held a row: the Security tab told every reader

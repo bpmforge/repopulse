@@ -27,6 +27,8 @@ import {
   runAntiSlopScan,
   runChainer,
   runCodeHealthScan,
+  runOwaspChecklist,
+  diffOf,
   runDependencyScan,
   runLoggingScan,
   runPerfScan,
@@ -177,6 +179,76 @@ async function main(): Promise<void> {
     tokenKey: credentials.loadTokenKey(),
     ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
     ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1' ? { allowInsecureLoopback: true } : {}),
+  };
+
+  /**
+   * One OWASP checklist over the newest ingested commit's diff (W16-33).
+   *
+   * Shared because the two checklists differ ONLY by key, and two copies of a
+   * gateway lookup, a provider resolve and a diff fetch is two places for the
+   * Tier-3 guard to drift.
+   */
+  const runChecklistNow = async (
+    key: 'owasp_web' | 'owasp_llm',
+    workspaceId: number,
+    repoId: number,
+  ) => {
+    const nothing = (skipped: string) => ({
+      scanned: 0,
+      findingsCreated: 0,
+      deferred: 0,
+      skipped,
+    });
+
+    // THIS workspace's model (W16-19). A checklist with no gateway cannot run
+    // at all — it is the judgement, not a deterministic pass with a judgement
+    // half — so this is a skip with a name, not a quiet zero.
+    const analysisGateway = await gateways.for(workspaceId);
+    if (!analysisGateway) return nothing('no_gateway');
+
+    const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
+    if (!resolved) return nothing('no_connection');
+
+    const [head] = await db
+      .select({ sha: facts.commits.sha })
+      .from(facts.commits)
+      .where(eq(facts.commits.repoId, repoId))
+      .orderBy(desc(facts.commits.committedAt))
+      .limit(1);
+    if (!head?.sha) return nothing('no_head_sha');
+
+    // `patch` is OPTIONAL on the forge's shape and REQUIRED on the chunker's,
+    // and the difference is meaningful: a file with no patch is a binary or a
+    // too-large one, and the chunker's own SkipReason vocabulary already has a
+    // word for it (`no_patch`). Normalised to null here so that stays the
+    // chunker's decision rather than becoming a silently dropped file.
+    const files = (
+      await diffOf(
+        { provider: resolved.provider, repo: resolved.repoFullName, repoId },
+        { commitSha: head.sha },
+      )
+    ).map((f) => ({ ...f, patch: f.patch ?? null }));
+
+    const result = await runOwaspChecklist({
+      db,
+      gateway: analysisGateway.gateway,
+      workspaceId,
+      repoId,
+      files,
+      commitSha: head.sha,
+      trigger: 'manual',
+      key,
+    });
+
+    return {
+      scanned: result.status === 'succeeded' ? 1 : 0,
+      findingsCreated: result.findingsCreated,
+      // Findings the validator threw out — a pass that rejected everything
+      // must not read as a quiet one.
+      deferred: result.rejected,
+      ...(result.error ? { error: result.error } : {}),
+      ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
+    };
   };
 
   // W16-28. The process that RUNS the scans registers the catalogue too, so
@@ -554,6 +626,32 @@ async function main(): Promise<void> {
               ...(result.error ? { error: result.error } : {}),
             };
           },
+          // W8-08's OWASP checklists, wired at last (W16-33).
+          //
+          // Both were shipped, tested and reachable by nothing: runOwaspChecklist
+          // had no caller, so `owasp_web` and `owasp_llm` read "not in this
+          // build" on every install — truthfully, which is the only reason it
+          // was not worse.
+          //
+          // MANUAL ONLY, and deliberately not on the weekly cron. Their own
+          // default says so: owasp_web is `enabled: false, schedule: 'manual'`
+          // because it is "costly per run, so a human starts it" — a checklist
+          // is a gateway call per chunk, not a regex over a tree.
+          //
+          // A DIFF, not a snapshot, which is why they do not share the weekly
+          // runners' shape: chunkDiff reviews changed files, and a checklist
+          // over a whole tree would ask a model the same questions about code
+          // nobody touched. The newest ingested commit is the one a person
+          // pressing the button means.
+          owasp_web: async ({ workspaceId, repoId }) =>
+            await runChecklistNow('owasp_web', workspaceId, repoId),
+          // W8-08 §3.4 gates this one on the repository actually depending on
+          // an LLM client, and runOwaspChecklist checks that itself against the
+          // SBOM — which nothing wrote until W16-36 gave the dependency scanner
+          // a caller. Until a dependency scan has run for a repo it reports
+          // `no_sbom` and says so, rather than reading as "not applicable".
+          owasp_llm: async ({ workspaceId, repoId }) =>
+            await runChecklistNow('owasp_llm', workspaceId, repoId),
           // W9-07's scheduled drafting pass, wired here rather than left as
           // three exported functions nothing called. Workspace-scoped, so it
           // runs once per workspace rather than once per repo — it clusters

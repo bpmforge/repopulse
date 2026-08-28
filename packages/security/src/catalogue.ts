@@ -136,6 +136,24 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     inputs: 'findings',
     triggers: ['schedule', 'manual'],
   }),
+  // W16-33 gave both of these a runner. MANUAL only, and not on the weekly
+  // cron: a checklist is a gateway call per chunk, and their own defaults say
+  // "costly per run, so a human starts it". They also read a DIFF rather than
+  // a snapshot, which is why they are not in the weekly group above.
+  sweeper({
+    key: 'owasp_web',
+    displayName: 'OWASP Web checklist',
+    version: 'owasp_web.v1',
+    inputs: 'diff',
+    triggers: ['manual'],
+  }),
+  sweeper({
+    key: 'owasp_llm',
+    displayName: 'OWASP LLM checklist',
+    version: 'owasp_llm.v1',
+    inputs: 'diff',
+    triggers: ['manual'],
+  }),
   sweeper({
     key: DEPENDENCY_SCANNER_KEY,
     displayName: 'Dependency CVEs',

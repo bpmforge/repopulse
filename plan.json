@@ -6252,7 +6252,7 @@
         "W16-28"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/api/src/workers/**",
         "packages/security/src/scanners/owasp/**",
@@ -6266,12 +6266,15 @@
       "notes": [
         "Split out of W16-11 after I mis-scoped that ticket. runOwaspChecklist and both checklists exist and are tested; no worker runner calls either, and neither has a catalogue entry, so both read 'not in this build' on the Security tab — truthfully.",
         "Both are LLM-backed and need an AnalysisGateway, which W16-19 now resolves per workspace. They also need a DIFF rather than a snapshot (chunkDiff over changed files), so they do not fit the weekly snapshot runners that anti_slop and semgrep share — that is the design question this ticket has to answer, not just wiring.",
-        "dependency_cve is the third of the same shape: runDependencyScan exists with no caller. Catalogued but not startable, and disabled by default until something calls it."
+        "dependency_cve is the third of the same shape: runDependencyScan exists with no caller. Catalogued but not startable, and disabled by default until something calls it.",
+        "DONE 2026-08-28. Both checklists wired as MANUAL-ONLY runners over the newest ingested commit's DIFF — not the weekly snapshot the other scanners share, because chunkDiff reviews changed files and their own defaults say a human starts them ('costly per run'). Catalogued with triggers ['manual'] and left disabled by default, so nothing runs a model over every repo without being asked.",
+        "Verified against the REAL local model, and it found two more bugs on the way: the fake forge served commit files with NO `patch` field at all, and its commit-detail route regex `[0-9a-z]+` rejected the seeder's shas (`payments-c1`) so it 404'd for every commit in the demo. Both fixed. That second one also means the secrets STREAM scanner — the one meant to catch a credential within 60s of a webhook — had never been handed a line of source against this fake.",
+        "The final run reached the model host and stopped there: LM Studio refused to load the model for 'insufficient system resources' on this machine. The wiring is proven end to end (provider -> diff -> chunker -> gateway -> host) and the model's own answer is NOT verified. The error reaches the screen verbatim, which is the behaviour wanted."
       ]
     },
     {
       "id": "W16-34",
-      "title": "e2e ingest-flow timed out once in a full run and has not repeated",
+      "title": "Full-suite runs fail intermittently under memory pressure",
       "phase": 16,
       "module": "api",
       "stories": [],
@@ -6290,7 +6293,10 @@
       "notes": [
         "OBSERVED ONCE, 2026-08-28: e2e/ingest-flow.spec.ts 'selecting a repo enqueues backfill work rather than silently succeeding' hit its 30s timeout at position 60 of 111 in a full `pnpm e2e`. It passed alone immediately after, and the next full run was 111/111 green.",
         "NOT DIAGNOSED, and deliberately not labelled a race. Checked and ruled out at the time: no stray repopulse worker process, and Redis held zero bull:* keys. Nothing in that spec or its dependencies was changed that day; the full suite had passed several times before and after.",
-        "Do not 'fix' this by raising the timeout without first reproducing it. The likely shapes are the worker being saturated by earlier specs in the run, or a queue drained by a preceding spec — both checkable by logging what the worker was doing when the assertion window opened."
+        "Do not 'fix' this by raising the timeout without first reproducing it. The likely shapes are the worker being saturated by earlier specs in the run, or a queue drained by a preceding spec — both checkable by logging what the worker was doing when the assertion window opened.",
+        "SECOND SIGHTING, 2026-08-28, with better evidence. A full `pnpm test` failed the same 15 tests in accounts.test.ts + auth/local.test.ts that the W16-13 FK used to cause — but that FK is fixed, the suite passes alone, and the next full run was 1820/1820. This run logged `[ioredis] Unhandled error event: Error: write EPIPE` repeatedly: Redis connections being dropped mid-suite, not a data problem.",
+        "CONTEXT that makes an environmental cause likely rather than proven: minutes earlier LM Studio refused to load a model on the same machine with 'Model loading was stopped due to insufficient system resources', after a long session of demo stacks, a podman VM and container scans. Postgres and Redis both reported healthy throughout.",
+        "So the two sightings on this ticket may be one thing — the suite is not resilient to a machine under memory pressure — or two. NOT diagnosed. The next step is to capture free memory and the Redis connection count at the moment of failure rather than raising a timeout."
       ]
     },
     {
