@@ -142,6 +142,10 @@ e2e run.
   table.
 - Shares the same database as §6 and `pnpm test`, and reseeds on every boot, so
   the same rule applies: never run two of them concurrently.
+- `playwright.config.ts` carries `testIgnore: ['demo/**']`. `testDir: './e2e'`
+  does NOT exclude a subdirectory, so without it `pnpm e2e` picks these specs
+  up, runs them against the §6 stack — no demo banner, no pre-filled
+  credentials — and fails for reasons that say nothing about the demo.
 
 ## 7. Backfill soak harness (pre-wave-gate)
 

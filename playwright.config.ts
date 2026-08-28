@@ -30,6 +30,12 @@ const WORKER_HEALTH_PORT = String(PORTS.e2eWorkerHealth);
 
 export default defineConfig({
   testDir: './e2e',
+  // e2e/demo/ belongs to playwright.demo.config.ts (W16-14): it boots
+  // `DEMO_MODE=1 pnpm dev` on its own ports and signs in through the form,
+  // with no storageState. Run here it finds the e2e stack instead — no demo
+  // banner, no pre-filled credentials — and fails for reasons that say nothing
+  // about the demo. testDir alone does not exclude a subdirectory.
+  testIgnore: ['demo/**'],
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
   fullyParallel: false,
