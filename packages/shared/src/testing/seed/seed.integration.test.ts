@@ -126,10 +126,11 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
     // exceed the PRs that exist.
     for (const v of valuesFor('M8', 'org')) expect(v).toBeLessThanOrEqual(r.counts.prs);
 
-    // Bus factor is a count of PEOPLE; the fixture seeds four contributors.
+    // Bus factor is a count of PEOPLE; the fixture seeds five contributors
+    // (four, plus the demo committer W16-13 added).
     for (const v of valuesFor('M3', 'repo')) {
       expect(v).toBeGreaterThanOrEqual(1);
-      expect(v).toBeLessThanOrEqual(4);
+      expect(v).toBeLessThanOrEqual(5);
     }
     // One release per repo, so a window cannot hold hundreds.
     for (const v of valuesFor('M11', 'repo')) expect(v).toBeLessThanOrEqual(2);
@@ -146,7 +147,7 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
     // on a fixture whose PRs merge in one to six days. Three repos do not make
     // a pull request slower.
     for (const v of valuesFor('M4', 'org')) expect(v).toBeLessThanOrEqual(320);
-    for (const v of valuesFor('M3', 'org')) expect(v).toBeLessThanOrEqual(4);
+    for (const v of valuesFor('M3', 'org')) expect(v).toBeLessThanOrEqual(5);
     for (const v of valuesFor('M7', 'org')) expect(v).toBeLessThanOrEqual(320);
 
     // The series must still MOVE, or every trend delta reads "no change" and

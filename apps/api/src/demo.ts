@@ -1,5 +1,13 @@
 import 'dotenv/config';
-import { FAKE_TOKEN, core, createDb, seedWarehouse, startFakeForge, startFakeGithub } from '@repopulse/shared';
+import {
+  DEMO_LOGIN,
+  FAKE_TOKEN,
+  core,
+  createDb,
+  seedWarehouse,
+  startFakeForge,
+  startFakeGithub,
+} from '@repopulse/shared';
 import { buildApp } from './app.js';
 import { and, eq } from 'drizzle-orm';
 import { credentials, local, workspace as workspaceModule } from '@repopulse/auth';
@@ -109,6 +117,35 @@ if (!demoAccount.ok && demoAccount.reason !== 'exists') {
           ),
         );
     }
+
+    // A COMMITTER IDENTITY, so My Focus has something in it (W16-13).
+    //
+    // resolveUserIdentity matches users.forge_user_id against
+    // identities.forge_user_id; a local account has neither, so every personal
+    // view was honestly empty and the shell showed the unlinked-identity
+    // banner. That banner is correct behaviour and exactly what
+    // identityLinkState exists for — it is just the wrong thing for a demo,
+    // whose whole job is to leave nothing empty.
+    //
+    // Its OWN identity (DEMO_LOGIN), not a share of the fixture's:
+    // users.forge_user_id is UNIQUE, so claiming FIXTURE_LOGIN here would take
+    // it from the mocked-OAuth path — and the README advertises both sign-in
+    // doors, so whichever lost it would be the one that lands on an empty
+    // screen. The seeder makes DEMO_LOGIN a full contributor, so the demo
+    // account authors PRs, reviews others' and appears in the ownership data.
+    await db
+      .update(core.users)
+      .set({ forgeUserId: DEMO_LOGIN })
+      .where(eq(core.users.id, row.id));
+    await db
+      .update(core.identities)
+      .set({ userId: row.id })
+      .where(
+        and(
+          eq(core.identities.workspaceId, membership.workspace.id),
+          eq(core.identities.forgeUserId, DEMO_LOGIN),
+        ),
+      );
   }
 }
 

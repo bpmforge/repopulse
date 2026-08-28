@@ -11,7 +11,22 @@ import { makeRng, type Rng } from './prng.js';
 export const SEED_DEFAULT_SLUG = 'default';
 export const SEED_SECOND_SLUG = 'seed-second-tenant';
 export const FIXTURE_LOGIN = 'fixture-dev';
-const CONTRIBUTORS = ['alice', 'bob', 'carol', FIXTURE_LOGIN] as const;
+/**
+ * The DEMO account's committer identity (W16-13).
+ *
+ * A second one, not a share of the fixture's. `users.forge_user_id` is UNIQUE,
+ * so the demo's local account cannot claim FIXTURE_LOGIN without taking it
+ * away from the mocked-OAuth path — and the README advertises BOTH sign-in
+ * doors, so whichever one lost it would land on an empty My Focus. Two
+ * identities is the only shape where both doors open onto the same populated
+ * screen.
+ *
+ * It is a full contributor, not a decoration: it authors commits, opens PRs
+ * and reviews other people's, because "My Focus" being present but empty is
+ * the state this exists to remove.
+ */
+export const DEMO_LOGIN = 'demo-dev';
+const CONTRIBUTORS = ['alice', 'bob', 'carol', FIXTURE_LOGIN, DEMO_LOGIN] as const;
 const BOT = 'renovate[bot]';
 // Exported so specs can target a SEEDED repo by name instead of "whichever
 // tile renders first" — the ingest specs legitimately add repos to this same
@@ -79,6 +94,8 @@ export interface SeedResult {
   secondWorkspaceId: number;
   fixtureUserId: number;
   fixtureIdentityId: number;
+  /** The DEMO account's committer identity (W16-13). */
+  demoIdentityId: number;
   repoIds: number[];
   counts: { repos: number; commits: number; prs: number; snapshots: number };
 }
@@ -216,7 +233,9 @@ export async function seedWarehouse(
         workspaceId,
         provider: 'github',
         forgeLogin: login,
-        forgeUserId: login === FIXTURE_LOGIN ? FIXTURE_LOGIN : `id-${login}`,
+        // The two LINKABLE logins carry their own name as the forge user id,
+        // because that is what an OAuth callback and demo.ts each look up.
+        forgeUserId: login === FIXTURE_LOGIN || login === DEMO_LOGIN ? login : `id-${login}`,
         displayName: login,
         isBot: login === BOT,
         ...(login === FIXTURE_LOGIN ? { userId: fixtureUser!.id } : {}),
@@ -455,7 +474,17 @@ export async function seedWarehouse(
   // numbers, so a fixture that grows stays honest instead of quietly
   // reacquiring the same bug. Per repo below; the org rollup scales by the
   // repo count, because that is what a rollup is.
-  const PER_REPO = { commits: 8, prs: 5, openPrs: 2, issues: 3, releases: 1, humans: 4 };
+  // `humans` tracks CONTRIBUTORS, so adding the demo committer (W16-13) moves
+  // the bus-factor ceiling with it rather than leaving a number that used to
+  // be true.
+  const PER_REPO = {
+    commits: 8,
+    prs: 5,
+    openPrs: 2,
+    issues: 3,
+    releases: 1,
+    humans: CONTRIBUTORS.length,
+  };
   //
   // `additive` is the half that is easy to get wrong, and the first version of
   // this fix did: a COUNT sums across repos, and an AVERAGE does not. Scaling
@@ -630,6 +659,8 @@ export async function seedWarehouse(
     secondWorkspaceId,
     fixtureUserId: fixtureUser!.id,
     fixtureIdentityId: identityIds.get(FIXTURE_LOGIN)!,
+    /** demo.ts links its local account to this one (W16-13). */
+    demoIdentityId: identityIds.get(DEMO_LOGIN)!,
     repoIds,
     counts: { repos: repoIds.length, commits: commitCount, prs: prCount, snapshots: snapshotCount },
   };

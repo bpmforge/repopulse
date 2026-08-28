@@ -5744,7 +5744,7 @@
         "W16-02"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/api/src/demo.ts",
         "packages/shared/src/testing/seed/**",
@@ -5856,7 +5856,8 @@
       ],
       "notes": [
         "Found in W16-10. Several suites delete users, and at least one clears repos outright, so a file reading seeded rows passes or fails on FILE ORDER. Three attempts failed before W16-10 was made to own its whole fixture chain (workspace, user, forge connection, repo) — correct for that file, but a workaround rather than a fix, and repos.connection_id being NOT NULL makes the chain expensive to repeat.",
-        "Also seen earlier in this wave: packages/ingest dlq.integration fails whenever a dev worker is running, because it shares the dev Redis and the worker steals the poison message before the test can assert on it. The ports doc separates HTTP ports but nothing separates the queues."
+        "Also seen earlier in this wave: packages/ingest dlq.integration fails whenever a dev worker is running, because it shares the dev Redis and the worker steals the poison message before the test can assert on it. The ports doc separates HTTP ports but nothing separates the queues.",
+        "OBSERVED AGAIN 2026-08-28 (W16-13): packages/auth/src/local/accounts.test.ts and apps/api/src/routes/auth/local.test.ts failed 15 tests on one `pnpm test` run and passed on the next, with no code change between them — and accounts.test.ts passes every time when run alone. The run that failed followed a `pnpm e2e:demo` and a live demo stack, so the warehouse held rows the suites did not expect. This is the flake the ticket describes, and it now costs a re-run to tell a real failure from it."
       ]
     },
     {

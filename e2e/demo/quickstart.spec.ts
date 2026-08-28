@@ -84,6 +84,27 @@ test.describe('the quickstart a newcomer follows', () => {
     expect(await rows.count()).toBeGreaterThan(0);
   });
 
+  test('the demo account is a committer, so My Focus is not empty (W16-13)', async ({ page }) => {
+    // Introduced by W16-02: the demo's local account had no forge identity, so
+    // resolveUserIdentity returned null, every personal view was honestly
+    // empty and the shell showed the unlinked-identity banner. Correct
+    // behaviour, and the wrong thing for a demo — whose whole job is to leave
+    // nothing empty.
+    //
+    // Its OWN identity, not the fixture's: users.forge_user_id is UNIQUE, and
+    // the README advertises both sign-in doors, so sharing one would give the
+    // empty screen to whichever door lost it.
+    await signIn(page);
+
+    // The banner that says "we do not know which committer you are" is gone.
+    await expect(page.getByTestId('forge-link-banner')).toBeHidden();
+
+    await page.goto('/me');
+    await expect(page.getByText(/My Focus|My PRs/i).first()).toBeVisible();
+    // POPULATED. An empty My Focus is exactly what this ticket was.
+    await expect(page.getByTestId('my-focus')).not.toContainText(/nothing to show|no open pull/i);
+  });
+
   test('the demo forge is reachable from the WORKER, not just the API', async ({ page }) => {
     // W16-28/29/30 in one walk, read through the SCREEN rather than the log —
     // because the screen is what said "has never run" while all three were
