@@ -146,7 +146,12 @@ test('a finding can be LINKED to: opening one puts it in the URL (W16-16)', asyn
   // pasted URL always landed on the list. FR-WEB-2 already requires a pasted
   // URL to restore the identical screen.
   await loginAsFixture(page);
-  await page.goto('/findings');
+  // WITH A GLOBAL FILTER SET. This is the first child route in the app to
+  // declare its own validateSearch, and whether ?window= survives a navigate
+  // that adds ?finding= depends on the parent's search being merged rather
+  // than replaced. Opening a finding must not silently reset the window and
+  // repo pickers (DASHBOARD §1).
+  await page.goto('/findings?window=90d');
 
   const open = page.locator('[data-testid^="finding-open-"]').first();
   await expect(open).toBeVisible();
@@ -160,6 +165,9 @@ test('a finding can be LINKED to: opening one puts it in the URL (W16-16)', asyn
   await expect(page.getByTestId('finding-detail')).toBeVisible();
   // The URL now carries it — that is the whole feature.
   await expect(page).toHaveURL(new RegExp(`[?&]finding=${id}\\b`));
+  // ...and the global filter is still there, in the URL and on the control.
+  await expect(page).toHaveURL(/[?&]window=90d\b/);
+  await expect(page.getByLabel('Time window')).toHaveValue('90d');
   const link = page.url();
 
   // COLD. A fresh context is what the recipient of the link has: no click
@@ -176,6 +184,8 @@ test('a finding can be LINKED to: opening one puts it in the URL (W16-16)', asyn
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByTestId('finding-detail')).toBeHidden();
   await expect(page).not.toHaveURL(/[?&]finding=/);
+  // Closing removes the finding and nothing else.
+  await expect(page).toHaveURL(/[?&]window=90d\b/);
 });
 
 test('a link to a finding the filters hide SAYS so, rather than nothing (W16-16)', async ({
