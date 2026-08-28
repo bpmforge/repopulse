@@ -11,8 +11,27 @@ const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
 const describeIfLiveInfra = databaseUrl && redisUrl ? describe : describe.skip;
 
-const POISON_QUEUE = QUEUE.enrich; // a real queue name; obliterated after
+const POISON_QUEUE = QUEUE.enrich; // a real queue NAME — see the prefix below
 const JOB_ID = 'en-99999-poisontest'; // BullMQ forbids ':' in custom ids
+
+/**
+ * ITS OWN KEYSPACE (W16-17).
+ *
+ * This ran on the shared dev Redis under BullMQ's default `bull` prefix, on
+ * the real `enrich` queue name. Two consequences, both seen:
+ *
+ *   a `pnpm dev` worker running alongside CONSUMED the poison message before
+ *   this suite could assert on it, so the test failed for anyone with the app
+ *   running — which is most people, most of the time
+ *
+ *   the afterAll `obliterate` wiped the developer's actual enrich queue, which
+ *   is a test destroying work outside itself
+ *
+ * A prefix is the whole fix: BullMQ namespaces every key by it, so a dev
+ * worker on `bull:` cannot see these jobs and this suite cannot touch theirs.
+ * The queue NAME is left real so the topology under test is the shipped one.
+ */
+const TEST_PREFIX = 'repopulse-test';
 
 // Proves the NFR-11 acceptance: a poison message that exhausts its attempts
 // lands in the DLQ + a job_failure row, and never blocks the queue.
@@ -33,10 +52,13 @@ describeIfLiveInfra('DLQ poison-message (W2-02, NFR-11)', () => {
     if (!ws) throw new Error('workspace upsert failed');
     workspaceId = ws.id;
 
-    poisonQueue = new Queue(POISON_QUEUE, { connection });
-    dlqQueue = new Queue(QUEUE.dlq, { connection });
+    poisonQueue = new Queue(POISON_QUEUE, { connection, prefix: TEST_PREFIX });
+    dlqQueue = new Queue(QUEUE.dlq, { connection, prefix: TEST_PREFIX });
     // A processor that always throws — the poison.
-    worker = new Worker(POISON_QUEUE, () => Promise.reject(new Error('poison')), { connection });
+    worker = new Worker(POISON_QUEUE, () => Promise.reject(new Error('poison')), {
+      connection,
+      prefix: TEST_PREFIX,
+    });
     attachDeadLetter(worker, dlqQueue, db);
   });
 

@@ -5842,7 +5842,7 @@
       "stories": [],
       "depends_on": [],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/api/src/**",
         "packages/**",
@@ -5858,7 +5858,11 @@
         "Found in W16-10. Several suites delete users, and at least one clears repos outright, so a file reading seeded rows passes or fails on FILE ORDER. Three attempts failed before W16-10 was made to own its whole fixture chain (workspace, user, forge connection, repo) — correct for that file, but a workaround rather than a fix, and repos.connection_id being NOT NULL makes the chain expensive to repeat.",
         "Also seen earlier in this wave: packages/ingest dlq.integration fails whenever a dev worker is running, because it shares the dev Redis and the worker steals the poison message before the test can assert on it. The ports doc separates HTTP ports but nothing separates the queues.",
         "NOT A SIGHTING — CORRECTED 2026-08-28. The 15 failures across accounts.test.ts + auth/local.test.ts that were first written up here as a file-order flake were a deterministic W16-13 regression: identities.user_id references users with NO ON DELETE, and W16-13 gave the demo account an identity, so both `deleteAllLocalUsers` helpers threw 23503 and failed every test in their file after any `DEMO_MODE=1 pnpm dev`. It looked intermittent only because seed.integration.test.ts's unseedWarehouse cleared the link, so the next run was clean. Repro: boot the demo, kill it, run accounts.test.ts ALONE. Fixed in the helpers.",
-        "STILL OPEN, and the real content of this ticket: packages/auth accounts.test.ts and apps/api routes/auth/local.test.ts BOTH delete every row matching `users WHERE auth_provider = 'local'`, because the bootstrap's idempotence rule is genuinely global ('does ANY local account exist'). Two files owning one global predicate is a latent race whatever the FKs do. A pg_advisory_lock is the obvious mutex and is NOT trivial here: createDb returns a postgres.js POOL, so a lock taken on one connection can be released on another — it needs a reserved connection held for the file's lifetime. Bigger than the 3 points on this ticket."
+        "STILL OPEN, and the real content of this ticket: packages/auth accounts.test.ts and apps/api routes/auth/local.test.ts BOTH delete every row matching `users WHERE auth_provider = 'local'`, because the bootstrap's idempotence rule is genuinely global ('does ANY local account exist'). Two files owning one global predicate is a latent race whatever the FKs do. A pg_advisory_lock is the obvious mutex and is NOT trivial here: createDb returns a postgres.js POOL, so a lock taken on one connection can be released on another — it needs a reserved connection held for the file's lifetime. Bigger than the 3 points on this ticket.",
+        "RESOLVED 2026-08-28, and the ticket's PREMISE was wrong. Files do not run in parallel: `fileParallelism: false` is honoured, proved with a probe that appended start/end timestamps from three files in three packages and showed no overlapping windows. So this was never a concurrency race — it was ORDER, plus two specific bugs.",
+        "The two real breakages, both reproduced and both fixed: (1) the identities.user_id FK, which was a W16-13 regression, not a flake; (2) dlq.integration ran on the shared dev Redis under BullMQ's DEFAULT prefix on the real `enrich` queue name, so a `pnpm dev` worker consumed the poison message before the assertion — and its afterAll obliterate wiped the developer's actual enrich queue. Now namespaced with prefix 'repopulse-test'. Verified by running the full suite WITH the demo stack up, which is the state that broke it twice.",
+        "Also migrated vitest.workspace.ts into `test.projects` in vitest.config.ts. The workspace file is deprecated and due for removal, and `fileParallelism: false` is load-bearing — losing it silently would activate the one remaining hazard below.",
+        "REMAINING, dormant: packages/auth accounts.test.ts and apps/api routes/auth/local.test.ts both delete every `users WHERE auth_provider = 'local'`, because the bootstrap's idempotence rule is genuinely global. Harmless while files are sequential, a race if fileParallelism is ever turned on. Documented in vitest.config.ts beside the setting that keeps it dormant."
       ]
     },
     {

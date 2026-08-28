@@ -21,6 +21,18 @@ const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
 
 const NO_ENV = {} as NodeJS.ProcessEnv;
+/**
+ * NEVER USED, and worth saying so.
+ *
+ * The fixture row below has no credential columns — a LAN model legitimately
+ * has no key — so `hostsFromProviders` skips the decrypt entirely and this
+ * buffer is only there to satisfy the signature. So these tests prove the
+ * right workspace's ROW is read; they do not prove the right workspace's
+ * CREDENTIAL is decrypted, which is the more serious half of the leak W16-19
+ * closes. Covering that needs a real sealed credential per workspace and a
+ * vault key, which is the ticket after this one if it is ever worth the
+ * fixture.
+ */
 const KEY = Buffer.alloc(32, 7);
 
 describeIfLiveInfra('each workspace analyses on its own providers (W16-19)', () => {
