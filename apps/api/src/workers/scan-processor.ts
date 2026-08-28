@@ -31,8 +31,70 @@ export interface HistoryRunner {
     scanned: number;
     findingsCreated: number;
     deferred: number;
+    /**
+     * A BENIGN reason there was nothing to do: `no_connection`, `no_head_sha`,
+     * `no_sbom`, `no_targets`, `no_diff`. Not a fault.
+     */
     skipped?: string;
+    /**
+     * A FAULT, verbatim (W16-35).
+     *
+     * Separate from `skipped` because they were the same field and the
+     * difference is the difference between "nobody looked" and "we tried and
+     * it broke". Runners that wrap a result rather than throwing were putting
+     * their real error into `skipped`, and this processor rendered every
+     * non-`no_connection` value as "No commits in range to sweep" on a
+     * SUCCEEDED row — so a semgrep run that failed on a 404 read as a clean
+     * sweep, with the error thrown away.
+     */
+    error?: string;
   }>;
+}
+
+/**
+ * What a zero-work sweep should SAY, by the reason it gave (W16-35).
+ *
+ * A map rather than a ternary because there are at least six reasons and the
+ * ternary had two: everything that was not `no_connection` claimed "no commits
+ * in range", including `no_sbom` and `no_head_sha`, which are not claims about
+ * commits at all.
+ *
+ * The fallback QUOTES the reason instead of inventing a sentence for it. A
+ * reason this processor has not been taught is still the runner's answer, and
+ * printing it beats asserting something plausible and wrong — which is the
+ * whole failure this file keeps being about. It earned its place immediately:
+ * the first run against a broken scan image produced `no_clusters`, which was
+ * not in the map, and the row read "the scanner gave: no_clusters" instead of
+ * a confident sentence about commits.
+ *
+ * The keys are every value the codebase actually emits — checked by grepping
+ * for `skipped:` and `skippedReason:` rather than remembered.
+ */
+const NOTHING_SCANNED: Record<string, string> = {
+  no_connection: 'No forge connection for this repository, so there were no patches to read.',
+  no_head_sha:
+    'No ingested commit to pin this scan to, so there was nothing to scan — ingest history first.',
+  no_sbom:
+    'No SBOM has been built for this repository yet, so there was nothing for the register to read.',
+  no_targets:
+    'No commits in range to sweep — nothing was scanned, which is not the same as nothing being found.',
+  no_diff: 'No changed files to review, so the checklist had nothing to read.',
+  no_llm_packages:
+    'No LLM client is a dependency of this repository, so the OWASP LLM checklist does not apply.',
+  disabled: 'This scanner is switched off for this repository, so nothing looked.',
+  no_gateway:
+    'No model is configured for this workspace, so the judgement half could not run — add one in Admin → Models.',
+  no_snapshot: 'The source archive could not be read, so there was no tree to scan.',
+  no_clusters:
+    'No cluster of dismissals large enough to draft a rule from — the pass ran and found no pattern.',
+  no_candidates: 'Nothing met the bar to be considered, so there was nothing to judge.',
+  source_cap_reached:
+    'The source cap was reached before anything was scanned — the repository is larger than one pass covers.',
+};
+
+function nothingScannedMessage(reason: string | undefined): string {
+  if (reason === undefined) return NOTHING_SCANNED['no_targets']!;
+  return NOTHING_SCANNED[reason] ?? `Nothing was scanned, and the scanner gave: ${reason}`;
 }
 
 export interface ScanProcessorDeps {
@@ -118,6 +180,30 @@ async function runSweep(
     throw err;
   }
 
+  // A RUNNER THAT FAILED BY RETURNING (W16-35).
+  //
+  // Most runners here wrap a result instead of throwing, so a semgrep or
+  // code-health run that failed came back as `scanned: 0` with its real error
+  // in `skipped` — and the branch below recorded it as SUCCEEDED with the
+  // sentence "No commits in range to sweep". The W16-29 screenshot has both on
+  // one screen: anti-slop threw and read "last run failed — archive request
+  // returned 401", while code health returned and read "ran clean" from the
+  // same 401.
+  //
+  // Not rethrown, unlike the catch above: this runner has already handled its
+  // own failure and returned, so the queue's retry would repeat work the
+  // runner decided not to raise on. The ROW is what was missing.
+  if (outcome.error) {
+    await deps.db.insert(security.scanRuns).values({
+      ...row,
+      status: 'failed',
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      error: outcome.error,
+    });
+    return;
+  }
+
   // A RUNNER THAT DID NOTHING MUST SAY SO (W16-28).
   //
   // A sweep covering zero commits writes no rows of its own, so the coverage
@@ -130,10 +216,7 @@ async function runSweep(
       status: 'succeeded',
       startedAt: new Date(),
       finishedAt: new Date(),
-      error:
-        outcome.skipped === 'no_connection'
-          ? 'No forge connection for this repository, so there were no patches to read.'
-          : 'No commits in range to sweep — nothing was scanned, which is not the same as nothing being found.',
+      error: nothingScannedMessage(outcome.skipped),
     });
   }
 }

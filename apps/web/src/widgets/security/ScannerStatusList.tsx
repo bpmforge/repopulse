@@ -32,7 +32,18 @@ function when(iso: string | null): string {
  * cost them the answer.
  */
 export function looksLikeMissingScanTools(error: string): boolean {
-  return /enoent|not known|manifest unknown|no such image|podman|docker/i.test(error);
+  return (
+    // The container runtime is absent, or the image has never been built.
+    /enoent|not known|manifest unknown|no such image|podman|docker/i.test(error) ||
+    // OBSERVED, not guessed. Running the demo against SCAN_IMAGE pointed at an
+    // image that does not exist produced exactly two shapes on screen:
+    // `exit 125` — podman's own code for "could not run the container" — and
+    // `… produced no output`, from a tool that never started. The first
+    // version of this heuristic matched neither, so the row that most needed
+    // the build command was the one that did not get it.
+    /\bexit 125\b/.test(error) ||
+    /produced no output/i.test(error)
+  );
 }
 
 export function ScannerStatusList({ scanners }: Props) {

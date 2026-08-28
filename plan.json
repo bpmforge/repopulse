@@ -6292,6 +6292,32 @@
         "NOT DIAGNOSED, and deliberately not labelled a race. Checked and ruled out at the time: no stray repopulse worker process, and Redis held zero bull:* keys. Nothing in that spec or its dependencies was changed that day; the full suite had passed several times before and after.",
         "Do not 'fix' this by raising the timeout without first reproducing it. The likely shapes are the worker being saturated by earlier specs in the run, or a queue drained by a preceding spec — both checkable by logging what the worker was doing when the assertion window opened."
       ]
+    },
+    {
+      "id": "W16-35",
+      "title": "A runner that failed by RETURNING was recorded as a clean sweep",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [
+        "W16-28"
+      ],
+      "points": 3,
+      "status": "done",
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "apps/web/src/widgets/security/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A runner that returns an error is recorded as failed, with that error"
+      ],
+      "notes": [
+        "MY OWN REGRESSION, introduced by W16-28. Most weekly runners wrap a result rather than throwing: `scanned: result.status === 'succeeded' ? 1 : 0` with `...(result.error ? { skipped: result.error } : {})`. So a failed semgrep/code-health/architecture run arrived as scanned:0 with the real error in `skipped`, and runSweep's two-case ternary wrote status 'succeeded' with 'No commits in range to sweep' — discarding the error.",
+        "The W16-29 screenshot had both on one screen and I did not see it: anti-slop THREW and read 'last run failed — archive request returned 401'; code health RETURNED and read 'ran clean' from the same 401.",
+        "Fixed by separating a fault (`error`) from a benign reason (`skipped`) on the runner outcome, and giving the benign reasons a map keyed on every value the codebase actually emits — checked by grep, not memory. The fallback QUOTES an untaught reason rather than inventing a sentence, and earned its place on the first run: `no_clusters` was not in the map."
+      ]
     }
   ]
 }
