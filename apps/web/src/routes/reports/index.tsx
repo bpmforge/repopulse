@@ -44,7 +44,22 @@ function ReportCenter() {
     // Polling rather than SSE because a report takes seconds, not minutes, and
     // a dedicated event channel for it would be more moving parts than the
     // problem deserves.
-    refetchInterval: 3000,
+    //
+    // WHILE THERE IS SOMETHING TO WAIT FOR, and not otherwise (W16-12). The
+    // old flat 3000 asked every three seconds for the life of the tab, long
+    // after every report had settled.
+    refetchInterval: (list) =>
+      list?.items.some((r) => r.status === 'queued' || r.status === 'running') ? 3000 : false,
+    // AND WHILE THE TAB IS HIDDEN. TanStack pauses the interval on
+    // `visibilityState: 'hidden'` and defaults this to false — right for a
+    // dashboard nobody is looking at, wrong for work the user asked for and
+    // then switched away from. A report generated in a backgrounded tab
+    // finished server-side and the row read "running" indefinitely.
+    //
+    // Safe to leave on precisely because the interval above stops itself: this
+    // is a poll while a report is generating, not a permanent background
+    // request from a tab nobody is looking at.
+    refetchIntervalInBackground: true,
   });
 
   const [annotation, setAnnotation] = useState('');

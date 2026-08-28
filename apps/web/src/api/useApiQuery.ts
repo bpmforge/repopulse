@@ -99,20 +99,59 @@ export function useSession(options: { enabled?: boolean } = {}): { status: Sessi
   return { status: settled.current ?? 'loading' };
 }
 
+export interface ApiQueryOptions<T> {
+  enabled?: boolean;
+  /**
+   * Poll interval in ms, or a function of the latest data (W5-04, W16-12).
+   *
+   * A FUNCTION so a poll can stop when there is nothing left to wait for:
+   * returning `false` ends it. The Report Center polls while a report is
+   * queued or running and stops the moment they are all settled, rather than
+   * asking every three seconds for ever.
+   */
+  refetchInterval?: number | false | ((data: T | undefined) => number | false);
+  /**
+   * Keep polling while the tab is HIDDEN (W16-12).
+   *
+   * TanStack pauses `refetchInterval` when `document.visibilityState` is
+   * 'hidden' and defaults this to false — reasonable for a dashboard nobody is
+   * looking at, and wrong for work the user asked for and walked away from.
+   * A report generated in a backgrounded tab reached `ready` server-side and
+   * the row read "running" indefinitely; proven in e2e/reports.spec.ts, where
+   * the row sat at running for the full 90-second wait.
+   *
+   * Only ever paired with a stopping `refetchInterval`, or it is a request
+   * every three seconds from a tab nobody is looking at, for ever.
+   */
+  refetchIntervalInBackground?: boolean;
+}
+
 export function useApiQuery<T>(
   descriptor: QueryDescriptor,
-  // `refetchInterval` (W5-04): report generation is asynchronous, and the
-  // Report Center's history table is how anyone learns it finished. Forwarded
-  // to the query rather than reimplemented as a setInterval beside it, which
-  // would fight the very cache it is meant to refresh.
-  options: { enabled?: boolean; refetchInterval?: number } = {},
+  // Forwarded to the query rather than reimplemented as a setInterval beside
+  // it, which would fight the very cache it is meant to refresh.
+  options: ApiQueryOptions<T> = {},
 ): UseQueryResult<T, Error> {
+  const interval = options.refetchInterval;
   const query = useQuery<T, Error>({
     queryKey: queryKeyFor(descriptor),
     queryFn: () => apiFetch<T>(buildUrl(descriptor.endpoint, descriptor)),
     placeholderData: keepPreviousData,
     enabled: options.enabled ?? true,
-    ...(options.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
+    ...(interval !== undefined
+      ? {
+          refetchInterval:
+            typeof interval === 'function'
+              ? // TanStack hands the Query; the callers here only ever want the
+                // data, so the adapter is kept in one place instead of every
+                // screen learning the Query shape.
+                (query: { state: { data: T | undefined } }) => interval(query.state.data)
+              : interval,
+        }
+      : {}),
+    ...(options.refetchIntervalInBackground !== undefined
+      ? { refetchIntervalInBackground: options.refetchIntervalInBackground }
+      : {}),
   });
   useSessionExpiryWatch(descriptor.endpoint, query.error);
   return query;
