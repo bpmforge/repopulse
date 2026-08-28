@@ -66,6 +66,8 @@ describe('what the catalogue claims can be started', () => {
     'test_gap_register',
     'knowledge_register',
     'rule_draft_pass',
+    // W16-36 wired runDependencyScan, which had no caller for eight waves.
+    'dependency_cve',
   ];
 
   it('offers manual runs for exactly the keys the worker wires', () => {
@@ -73,12 +75,13 @@ describe('what the catalogue claims can be started', () => {
     expect([...manual].sort()).toEqual([...WIRED_IN_THE_WORKER].sort());
   });
 
-  it('lists the three scanners that exist but nothing can start', () => {
+  it('lists the two scanners that exist but nothing can start', () => {
     // logging_hygiene and performance run inside the anti_slop runner, on the
-    // snapshot it already paid for; dependency_cve has no caller at all. They
-    // are catalogued so the screen stops saying "(not installed)", and not
-    // offered, because today no button reaches them.
-    for (const key of ['logging_hygiene', 'performance', 'dependency_cve']) {
+    // snapshot it already paid for, so they have no runner of their own. They
+    // are catalogued so the screen stops claiming they are absent, and not
+    // offered, because today no button reaches them. dependency_cve WAS the
+    // third until W16-36 gave it a caller.
+    for (const key of ['logging_hygiene', 'performance']) {
       expect(getScanner(key), key).toBeDefined();
       expect(getScanner(key)?.triggers, key).not.toContain('manual');
     }
@@ -116,8 +119,10 @@ describe('defaults line up with the catalogue (W16-28)', () => {
     }
   });
 
-  it('leaves dependency_cve off until something calls runDependencyScan', () => {
-    expect(isEnabled('dependency_cve', undefined)).toBe(false);
+  it('enables dependency_cve now that something calls runDependencyScan (W16-36)', () => {
+    // It was deliberately off while the scanner had no caller — an enabled
+    // scanner that cannot run is a presence that reads as a capability.
+    expect(isEnabled('dependency_cve', undefined)).toBe(true);
     // And the key it was misfiled under is gone, rather than left as a second
     // row that would resolve to a scanner that does not exist.
     expect(SCANNER_DEFAULTS.some((d) => d.key === 'dependency')).toBe(false);

@@ -24,16 +24,17 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     rationale: 'Cheap, high signal, and a leaked credential is exploitable immediately.',
   },
   {
-    // KEY CORRECTED IN W16-28. This read 'dependency' for eight waves; the
-    // scanner stamps every finding it makes with 'dependency_cve'
-    // (DEPENDENCY_SCANNER_KEY), so the default governed a key nothing used and
-    // the real scanner had no default at all. Disabled, unlike the row it
-    // replaces, because runDependencyScan has no caller in any process — it is
-    // written and tested and nothing starts it, and an enabled scanner that
-    // cannot run is the "presence that reads as capability" this wave exists
-    // to remove. Flip it in the same change that wires the runner.
+    // KEY CORRECTED IN W16-28, ENABLED IN W16-36. This read 'dependency' for
+    // eight waves; the scanner stamps every finding it makes with
+    // 'dependency_cve' (DEPENDENCY_SCANNER_KEY), so the default governed a key
+    // nothing used and the real scanner had no default at all. It was then
+    // left DISABLED on purpose, because runDependencyScan had no caller and an
+    // enabled scanner that cannot run is the "presence that reads as
+    // capability" that wave existed to remove. The worker wires it now, so the
+    // flag goes back to what the rationale always argued for.
     key: 'dependency_cve',
-    enabled: false,
+    enabled: true,
+    schedule: 'weekly',
     rationale: 'Reads manifests already in the warehouse; no code leaves the network.',
   },
   {

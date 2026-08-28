@@ -128,6 +128,28 @@ describe('scanner coverage table', () => {
     expect(row.textContent).not.toContain('not installed');
   });
 
+  it('offers the DATABASE command, not the image one, for a stale vuln db (W16-36)', () => {
+    // The first real dependency scan failed with grype's own words: "the
+    // vulnerability database was built 1 week ago (max allowed age is 5
+    // days)". That needs deploy/scan-db-sync.sh, not a rebuild of the image —
+    // and the image deliberately cannot carry a database, because a baked-in
+    // copy would ship stale and look current.
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            state: 'error',
+            error:
+              'grype exited 1: failed to load vulnerability db: the vulnerability database was built 1 week ago (max allowed age is 5 days)',
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('scanner-db-secrets').textContent).toContain('scan-db-sync.sh');
+    // And NOT both at once: two commands under one error is a reader guessing.
+    expect(screen.queryByTestId('scanner-fix-secrets')).toBeNull();
+  });
+
   it('prints the failure verbatim, so "why is this red" needs no log search', () => {
     render(
       <ScannerStatusList

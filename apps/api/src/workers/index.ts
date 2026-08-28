@@ -27,6 +27,7 @@ import {
   runAntiSlopScan,
   runChainer,
   runCodeHealthScan,
+  runDependencyScan,
   runLoggingScan,
   runPerfScan,
   snapshotForScan,
@@ -292,6 +293,55 @@ async function main(): Promise<void> {
               scanned: result.status === 'succeeded' ? 1 : 0,
               findingsCreated: result.findingsCreated,
               deferred: 0,
+              ...(result.error ? { error: result.error } : {}),
+            };
+          },
+          // W8-06's dependency scan, wired at last (W16-36).
+          //
+          // The scanner has been shipped, tested and marked done since W8 and
+          // NOTHING CALLED IT. So `security.sboms` had never held a row, the
+          // Security tab told every reader "the CVE scanner is not available
+          // yet", the supply-chain register returned `no_sbom` every night,
+          // and owasp_llm could only ever skip for want of a document to read.
+          // One scanner unwired, four screens telling the truth about it.
+          //
+          // Same weekly slot and same shape as code health: it needs a
+          // snapshot of one pinned commit, and a vulnerable dependency is a
+          // property of a tree rather than of a change.
+          //
+          // A missing grype database FAILS this scan rather than reporting a
+          // clean one, by the scanner's own design — and says
+          // `run deploy/scan-db-sync.sh` in the error, which now reaches the
+          // coverage table verbatim (W16-35).
+          dependency_cve: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
+            if (!resolved) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            }
+            const [head] = await db
+              .select({ sha: facts.commits.sha })
+              .from(facts.commits)
+              .where(eq(facts.commits.repoId, repoId))
+              .orderBy(desc(facts.commits.committedAt))
+              .limit(1);
+            if (!head?.sha) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
+            }
+            const result = await runDependencyScan({
+              db,
+              provider: resolved.provider,
+              workspaceId,
+              repoId,
+              repo: resolved.repoFullName,
+              commitSha: head.sha,
+            });
+            return {
+              scanned: result.status === 'succeeded' ? 1 : 0,
+              findingsCreated: result.findingsCreated,
+              // Components the SBOM held that our own reader could not scope.
+              // Carried rather than dropped: a CVE count over an unstated
+              // fraction of a dependency tree is a number with no denominator.
+              deferred: Math.max(0, result.componentsScanned - result.syncableComponents),
               ...(result.error ? { error: result.error } : {}),
             };
           },
@@ -721,6 +771,10 @@ async function main(): Promise<void> {
     for (const [scannerKey, pattern] of [
       ['semgrep', weeklyCron],
       ['code_health_tools', weeklyCron],
+      // W16-36. The CVE scan rides the same weekly slot as code health: both
+      // want a snapshot of the same commit, and taking two tarballs for one
+      // tree would be a rate-limit cost with nothing to show for it.
+      ['dependency_cve', weeklyCron],
       // W9-06: one entry drives both deterministic code-health scanners; they
       // share a snapshot, and taking two would double the forge cost of the
       // same commit.

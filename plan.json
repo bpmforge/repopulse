@@ -6318,6 +6318,58 @@
         "The W16-29 screenshot had both on one screen and I did not see it: anti-slop THREW and read 'last run failed — archive request returned 401'; code health RETURNED and read 'ran clean' from the same 401.",
         "Fixed by separating a fault (`error`) from a benign reason (`skipped`) on the runner outcome, and giving the benign reasons a map keyed on every value the codebase actually emits — checked by grep, not memory. The fallback QUOTES an untaught reason rather than inventing a sentence, and earned its place on the first run: `no_clusters` was not in the map."
       ]
+    },
+    {
+      "id": "W16-36",
+      "title": "W8-06's dependency scanner was marked done with no caller",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [
+        "W16-28"
+      ],
+      "points": 5,
+      "status": "done",
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/security/src/**",
+        "apps/web/src/widgets/security/**",
+        "docs/RUNNING.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The CVE scan runs from the worker and its result reaches the Security tab"
+      ],
+      "notes": [
+        "W8-06 is marked done. runDependencyScan had NO caller anywhere, so security.sboms had never held a row: the Security tab told every reader 'the CVE scanner is not available yet', the supply-chain register returned no_sbom every night, and owasp_llm could only ever skip for want of a document. One scanner unwired, four screens truthfully reporting it.",
+        "Wired into the weekly pass beside code health (same snapshot of the same commit), catalogued as startable, and re-enabled by default — it had been disabled in W16-28 precisely because nothing called it.",
+        "The first real run failed with 'grype exited 1' and nothing else. The cause was a vulnerability database eight days old, which grype refuses over five — it says so only on stderr, which did not survive the sandbox. checkVulnDb now dates the database from grype's OWN import.json record (not the file mtime, which scan-db-sync.sh resets on copy) and refuses a stale one in the same words and the same place as a missing one."
+      ]
+    },
+    {
+      "id": "W16-37",
+      "title": "Sandbox stderr does not reach a failed scan's message",
+      "phase": 16,
+      "module": "security",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "todo",
+      "write_scope": [
+        "packages/security/sandbox/**",
+        "packages/security/src/scanners/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A tool that explains itself on stderr has that explanation in the scan_run error"
+      ],
+      "notes": [
+        "Found in W16-36. runInSandbox captures stderr and the comment says it is 'kept for the operator', and the dependency tools discarded it — so 'grype exited 1' was the whole message while grype's stderr held 'failed to load vulnerability db: the vulnerability database was built 1 week ago'.",
+        "tools.ts now appends the last stderr lines to syft/grype exit failures, and it came back EMPTY for the grype path under podman — so the code is right and something upstream is losing it. Not diagnosed. The W16-36 fix went in at checkVulnDb instead, which does not depend on stderr.",
+        "Worth finding, because every sandboxed scanner has the same gap: a tool that explains itself on stderr currently reports only its exit code."
+      ]
     }
   ]
 }
