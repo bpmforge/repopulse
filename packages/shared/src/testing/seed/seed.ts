@@ -436,19 +436,85 @@ export async function seedWarehouse(
   // request for 7d/90d/365d matched nothing, so all five KPI tiles rendered em
   // dashes. Points run weekly backwards from the anchor.
   const METRICS = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12'];
-  const RATIOS = new Set(['M5', 'M6', 'M9']);
+  // M2 is a hotspot SCORE, catalogued as "score 0-1" (METRICS.md M2). It was
+  // outside this set, so it was seeded as a bare level in the tens — the same
+  // shape of wrong as M8 below, and on a metric whose whole range is 0..1.
+  const RATIOS = new Set(['M2', 'M5', 'M6', 'M9']);
+
+  // PLAUSIBLE FOR THE VOLUME THAT WAS SEEDED (W16-27, B6).
+  //
+  // Every non-ratio metric shared one anonymous `rng.int(20, 180)` walk
+  // clamped to 400, so the fixture reported 175 stale PRs across 15 seeded
+  // PRs, roughly 300 releases against three, and a bus factor of 90 over four
+  // contributors. It is the demo that people judge the product by, and an
+  // impossible number there is not a cosmetic problem: M8 at 175 is also what
+  // dragged reviewHygiene to zero, so the headline health scores were shaped
+  // by a number no repository could produce.
+  //
+  // Bands are expressed AGAINST THE SEEDED VOLUME rather than as magic
+  // numbers, so a fixture that grows stays honest instead of quietly
+  // reacquiring the same bug. Per repo below; the org rollup scales by the
+  // repo count, because that is what a rollup is.
+  const PER_REPO = { commits: 8, prs: 5, openPrs: 2, issues: 3, releases: 1, humans: 4 };
+  //
+  // `additive` is the half that is easy to get wrong, and the first version of
+  // this fix did: a COUNT sums across repos, and an AVERAGE does not. Scaling
+  // everything by the repo count put the org's PR cycle time at 823 hours —
+  // five weeks — on a fixture whose PRs merge in one to six days. Three repos
+  // do not make a pull request slower.
+  interface Band {
+    min: number;
+    max: number;
+    drift: number;
+    /** True only for a metric the org rollup SUMS rather than averages. */
+    additive?: boolean;
+  }
+  const BANDS: Record<string, Band> = {
+    // Lines changed across 8 commits of 1-3 files each. A total, so additive.
+    M1: { min: 120, max: 900, drift: 60, additive: true },
+    // Bus factor is a COUNT OF PEOPLE and cannot exceed the contributors — and
+    // the org's bus factor is not the repos' added together.
+    M3: { min: 1, max: PER_REPO.humans, drift: 1 },
+    // PR cycle time in hours: a few hours to a fortnight. An average.
+    M4: { min: 4, max: 320, drift: 24 },
+    // PR size in lines — the seeder writes additions of 5..300. A distribution
+    // point, not a total.
+    M7: { min: 20, max: 320, drift: 30 },
+    // THE ONE THIS TICKET IS ABOUT: stale PRs cannot exceed the OPEN ones.
+    M8: { min: 0, max: PER_REPO.openPrs, drift: 1, additive: true },
+    // Issues opened or closed in the window; 3 exist per repo.
+    M10: { min: 0, max: PER_REPO.issues, drift: 1, additive: true },
+    // Releases in the window; one is seeded per repo.
+    M11: { min: 0, max: PER_REPO.releases + 1, drift: 1, additive: true },
+    // DORA is mixed units by construction (deploy frequency, lead time in
+    // hours, change-failure count), so it gets the widest honest band rather
+    // than a precise one that would be precise about the wrong thing — and it
+    // is NOT scaled, because a summed lead time is meaningless.
+    M12: { min: 1, max: 72, drift: 8 },
+  };
+  const scaleFor = (repoId: number | null, band: Band): Band =>
+    repoId === null && band.additive === true
+      ? {
+          min: band.min * repoIds.length,
+          max: band.max * repoIds.length,
+          drift: Math.max(1, band.drift * repoIds.length),
+        }
+      : band;
   const snapshotRows: (typeof read.metricSnapshots.$inferInsert)[] = [];
   for (const repoId of [...repoIds, null]) {
     for (const mk of METRICS) {
       for (const window of WINDOWS) {
         // One walk per (scope, metric, window) so each series drifts on its own
         // rather than every tile moving in lockstep.
+        const band = scaleFor(repoId, BANDS[mk] ?? { min: 1, max: 100, drift: 10 });
         let ratioTenths = rng.int(3, 9);
-        let level = rng.int(20, 180);
+        let level = rng.int(band.min, band.max);
         for (let i = SERIES_POINTS - 1; i >= 0; i--) {
-          // Random walk, clamped, so deltas are non-zero but values stay sane.
+          // Random walk, clamped to the metric's OWN band, so deltas are
+          // non-zero and a sparkline moves while no point in the series can
+          // leave the range the seeded data could actually produce.
           ratioTenths = Math.min(10, Math.max(1, ratioTenths + rng.int(-1, 1)));
-          level = Math.min(400, Math.max(1, level + rng.int(-15, 15)));
+          level = Math.min(band.max, Math.max(band.min, level + rng.int(-band.drift, band.drift)));
           const isRatio = RATIOS.has(mk);
           snapshotRows.push({
             workspaceId,
