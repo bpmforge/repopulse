@@ -106,7 +106,8 @@ describe('a human-authored provider row is the opt-out', () => {
 
 describe('configuration errors surface at configuration time', () => {
   it('names the auth mechanism an unsupported kind needs', () => {
-    for (const kind of ['vertex', 'bedrock', 'copilot', 'openai_subscription'] as const) {
+    // Bedrock left this list in W16-09 — it is supported now.
+    for (const kind of ['vertex', 'copilot', 'openai_subscription'] as const) {
       expect(() => resolveProvider(config({ kind, baseUrl: null }))).toThrow(ProviderConfigError);
       expect(PROVIDER_REGISTRY[kind].unsupportedReason).toBeTruthy();
     }
@@ -118,8 +119,12 @@ describe('configuration errors surface at configuration time', () => {
     expect(() => resolveProvider(config({ model: '  ' }))).toThrow(ProviderConfigError);
   });
 
-  it('supports exactly the two api-key kinds for now', () => {
-    expect([...SUPPORTED_KINDS].sort()).toEqual(['anthropic', 'openai_compatible']);
+  it('supports the api-key kinds, which now includes Bedrock (W16-09)', () => {
+    // Bedrock joined this list without a line of transport code: AWS exposes
+    // an OpenAI-compatible Chat Completions API on bedrock-runtime that takes
+    // an Amazon Bedrock API key as a bearer token, so the entry that called it
+    // a SigV4-only cloud credential was simply out of date.
+    expect([...SUPPORTED_KINDS].sort()).toEqual(['anthropic', 'bedrock', 'openai_compatible']);
   });
 
   it('one adapter covers local and hosted alike', () => {
