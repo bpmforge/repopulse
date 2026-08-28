@@ -28,6 +28,16 @@ export const PORTS = {
   e2eWorkerHealth: Number(process.env.E2E_WORKER_HEALTH_PORT ?? 3311),
   /** The fake forge e2e binds, which must be a known port (e2e/server.ts). */
   e2eFakeForge: Number(process.env.E2E_FAKE_FORGE_PORT ?? 9099),
+  /**
+   * The fake forge DEMO MODE binds (W16-29).
+   *
+   * It used to take port 0 — whatever the OS handed out — which was fine while
+   * only the API talked to it, and wrong the moment anything else had to: the
+   * worker is a separate process and cannot be told a port that is chosen after
+   * it starts. Its own block, not the e2e one, so a demo left running and a
+   * Playwright run do not fight over the same socket.
+   */
+  demoFakeForge: Number(process.env.DEMO_FORGE_PORT ?? 3309),
 };
 
 /** `http://localhost:<port>` for a key, so callers never re-spell the host. */
