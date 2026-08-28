@@ -259,7 +259,7 @@ async function main(): Promise<void> {
               scanned: result.status === 'succeeded' ? 1 : 0,
               findingsCreated: result.findingsCreated,
               deferred: 0,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
             };
           },
           // W9-02. Same weekly slot as semgrep: both want a snapshot of the
@@ -292,7 +292,7 @@ async function main(): Promise<void> {
               scanned: result.status === 'succeeded' ? 1 : 0,
               findingsCreated: result.findingsCreated,
               deferred: 0,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
             };
           },
           // W9-06: the weekly deterministic pass for the two scanners whose
@@ -456,7 +456,7 @@ async function main(): Promise<void> {
               // The denominator, carried out of the job rather than logged and
               // lost: components with no registry answer are not healthy ones.
               deferred: result.unmeasured + sync.failed.length + eol.failed.length,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
               ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
             };
           },
@@ -491,7 +491,7 @@ async function main(): Promise<void> {
               // Detections that could not run — too few modules for a
               // distribution — carried out rather than logged and lost.
               deferred: result.notRun.length,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
             };
           },
           // W10-01, wired here rather than left as an unreferenced export.
@@ -501,7 +501,7 @@ async function main(): Promise<void> {
               scanned: result.modules,
               findingsCreated: result.created,
               deferred: 0,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
             };
           },
           // W9-07's scheduled drafting pass, wired here rather than left as
@@ -525,7 +525,7 @@ async function main(): Promise<void> {
               // Drafts the validator threw out, carried rather than logged:
               // a pass that rejected everything must not read as a quiet one.
               deferred: result.rejected,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
               ...(result.skippedReason ? { skipped: result.skippedReason } : {}),
             };
           },
@@ -539,7 +539,7 @@ async function main(): Promise<void> {
               // Detections that could not run, carried out rather than logged
               // and lost: "no churn distribution" is not "no test gaps".
               deferred: result.notRun.length,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
             };
           },
           attack_chainer: async ({ workspaceId, repoId }) => {
@@ -550,7 +550,7 @@ async function main(): Promise<void> {
               scanned: result.chains + result.compound,
               findingsCreated: result.created,
               deferred: 0,
-              ...(result.error ? { skipped: result.error } : {}),
+              ...(result.error ? { error: result.error } : {}),
             };
           },
         },

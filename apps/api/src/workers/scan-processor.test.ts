@@ -179,6 +179,61 @@ describe('a history runner that scanned nothing says so (W16-28)', () => {
     expect(inserted[0]).toMatchObject({ scannerKey: 'semgrep', status: 'failed' });
   });
 
+  it('a runner that FAILED BY RETURNING is a failed row, not a clean sweep (W16-35)', async () => {
+    // The regression W16-28 introduced and the W16-29 screenshot caught: most
+    // runners wrap a result instead of throwing, so a failed semgrep or
+    // code-health run came back as scanned:0 with its real error in `skipped`
+    // — and this processor recorded it as SUCCEEDED, saying "No commits in
+    // range to sweep" and discarding the error. Anti-slop threw and read
+    // "last run failed — archive request returned 401"; code health returned
+    // and read "ran clean", from the same 401.
+    const { db, inserted } = stubDb();
+    const runner = vi.fn(async () => ({
+      scanned: 0,
+      findingsCreated: 0,
+      deferred: 0,
+      error: 'archive request returned 404',
+    }));
+
+    await scanProcessor({ db, historyRunners: { semgrep: runner } })({
+      data: job({ scannerKey: 'semgrep' }),
+    } as never);
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({ status: 'failed' });
+    expect(inserted[0]?.error).toBe('archive request returned 404');
+    // NOT the nothing-to-sweep sentence, which is what it used to say.
+    expect(String(inserted[0]?.error)).not.toMatch(/no commits in range/i);
+  });
+
+  it('names the reason it was given, rather than asserting one (W16-35)', async () => {
+    // The old ternary had two cases for at least six reasons: everything that
+    // was not `no_connection` claimed "no commits in range", including
+    // `no_sbom` and `no_head_sha`, which are not claims about commits.
+    const cases: [string, RegExp][] = [
+      ['no_head_sha', /no ingested commit/i],
+      ['no_sbom', /no SBOM/i],
+      ['no_llm_packages', /does not apply/i],
+      // A reason this processor has not been taught is QUOTED, not replaced by
+      // a plausible sentence about something else.
+      ['some_future_reason', /some_future_reason/],
+    ];
+    for (const [reason, expected] of cases) {
+      const { db, inserted } = stubDb();
+      const runner = vi.fn(async () => ({
+        scanned: 0,
+        findingsCreated: 0,
+        deferred: 0,
+        skipped: reason,
+      }));
+      await scanProcessor({ db, historyRunners: { secrets: runner } })({
+        data: job({ scannerKey: 'secrets' }),
+      } as never);
+      expect(inserted[0], reason).toMatchObject({ status: 'succeeded' });
+      expect(String(inserted[0]?.error), reason).toMatch(expected);
+    }
+  });
+
   it('writes NOTHING extra when the sweep actually covered commits', async () => {
     // The sweeper writes its own row per commit; a second summary row here
     // would double-count a real scan.

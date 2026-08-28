@@ -95,6 +95,21 @@ describe('scanner coverage table', () => {
     expect(screen.getByTestId('scanner-error-secrets').textContent).toContain('spawn podman ENOENT');
   });
 
+  it('recognises the shapes a missing image ACTUALLY produces (W16-11)', () => {
+    // Observed by running the demo against SCAN_IMAGE pointed at an image that
+    // does not exist. The first heuristic matched neither of these, so the rows
+    // that most needed the build command were the ones that did not get it.
+    for (const error of ['dependency_cruiser: exit 125', 'perf pack run failed: opengrep produced no output']) {
+      const { unmount } = render(
+        <ScannerStatusList scanners={[scanner({ state: 'error', error })]} />,
+      );
+      expect(screen.getByTestId('scanner-fix-secrets').textContent, error).toContain(
+        'Containerfile.scan',
+      );
+      unmount();
+    }
+  });
+
   it('does NOT offer the image command for a failure that is not about tools', () => {
     render(
       <ScannerStatusList
