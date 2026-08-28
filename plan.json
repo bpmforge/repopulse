@@ -6355,7 +6355,7 @@
       "stories": [],
       "depends_on": [],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "packages/security/sandbox/**",
         "packages/security/src/scanners/**",
@@ -6368,7 +6368,10 @@
       "notes": [
         "Found in W16-36. runInSandbox captures stderr and the comment says it is 'kept for the operator', and the dependency tools discarded it — so 'grype exited 1' was the whole message while grype's stderr held 'failed to load vulnerability db: the vulnerability database was built 1 week ago'.",
         "tools.ts now appends the last stderr lines to syft/grype exit failures, and it came back EMPTY for the grype path under podman — so the code is right and something upstream is losing it. Not diagnosed. The W16-36 fix went in at checkVulnDb instead, which does not depend on stderr.",
-        "Worth finding, because every sandboxed scanner has the same gap: a tool that explains itself on stderr currently reports only its exit code."
+        "Worth finding, because every sandboxed scanner has the same gap: a tool that explains itself on stderr currently reports only its exit code.",
+        "DIAGNOSED AND FIXED 2026-08-28. The sandbox was never losing stderr — `-q` was. grype was invoked with `-q`, and that flag silences a FATAL error as thoroughly as a progress bar: verified by hand against the real image, with `-q` grype wrote ZERO bytes to stderr and exited 1; without it, the whole reason. Same flag removed from syft for the same reason. Safe for the parsers because both tools put their report on stdout (syft's to a file) and their logs on stderr.",
+        "Opengrep is a DIFFERENT case and was left alone: it reports its errors inside the JSON on stdout (`errors[]`, already carried as toolErrors) with or without --quiet, so dropping the flag would gain nothing and risks the stream the markers split.",
+        "What semgrep and code-health needed instead was the RUNTIME's words when the tool never ran at all: 'opengrep produced no output' is the symptom of a missing scan image, and podman had already said so. Both now append it, through one `stderrTail` helper in the sandbox module — read from the END, capped, and marked with an ellipsis rather than cut mid-word (the first version produced 'epopulse/does-not-exist', which reads as a rendering bug)."
       ]
     }
   ]

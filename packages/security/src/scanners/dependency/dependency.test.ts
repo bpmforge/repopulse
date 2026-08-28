@@ -286,6 +286,74 @@ function fakeContainer(
     )) as never;
 }
 
+describe('a tool that failed says WHY, not just that it did (W16-37)', () => {
+  const dbDir = (() => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'w16-37-db-'));
+    mkdirSync(path.join(dir, '6'));
+    writeFileSync(path.join(dir, '6', 'vulnerability.db'), 'stand-in');
+    return dir;
+  })();
+
+  /** A container stand-in that writes to BOTH streams, as the real one does. */
+  const twoStream = (
+    stdout: string,
+    stderr: string,
+  ): NonNullable<Parameters<typeof runDependencyTools>[0]['spawnFn']> =>
+    ((_cmd: string, argv: string[], opts: object) => {
+      seenArgv = argv;
+      return spawn(
+        process.execPath,
+        [
+          '-e',
+          `process.stdout.write(${JSON.stringify(stdout)});process.stderr.write(${JSON.stringify(stderr)})`,
+        ],
+        opts,
+      );
+    }) as never;
+
+  let seenArgv: string[] = [];
+
+  it("carries the tool's own last words into the error", async () => {
+    // The first real run of this scanner reported `grype exited 1` and nothing
+    // else, while grype's stderr held the reason and the fix. The sandbox had
+    // captured stderr correctly all along; this file discarded it.
+    const result = await runDependencyTools({
+      targetDir: FIXTURES,
+      image: 'localhost/repopulse/scan:test',
+      vulnDb: dbDir,
+      budget: { wallClockMs: 30_000 },
+      spawnFn: twoStream(
+        'SYFT_EXIT=0\n===SBOM===\n{}\n===GRYPE===\nGRYPE_EXIT=1\n',
+        '[0000] INFO some progress\n[0000] ERROR failed to load vulnerability db: built 1 week ago\n',
+      ),
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(/grype exited 1/);
+    // The REASON, and the last line of it — a tool that logged progress before
+    // dying buries the reason at the bottom.
+    expect(result.error).toMatch(/failed to load vulnerability db/);
+  });
+
+  it('asks neither tool to be QUIET, because -q silences a fatal error too', async () => {
+    // Verified by hand against the real image: with `-q`, grype wrote zero
+    // bytes to stderr and exited 1. Without it, the whole reason. A flag that
+    // hides a progress bar and a fatal error equally is not a quiet flag.
+    await runDependencyTools({
+      targetDir: FIXTURES,
+      image: 'localhost/repopulse/scan:test',
+      vulnDb: dbDir,
+      budget: { wallClockMs: 30_000 },
+      spawnFn: twoStream('SYFT_EXIT=0\n===SBOM===\n{}\n===GRYPE===\nGRYPE_EXIT=0\n', ''),
+    });
+
+    const command = seenArgv.join(' ');
+    expect(command).toContain('grype sbom:');
+    expect(command).not.toMatch(/grype sbom:\S* -o json -q/);
+    expect(command).not.toMatch(/syft scan \S* -o cyclonedx-json=\S* -q/);
+  });
+});
+
 describe('a tool that did not run fails the scan', () => {
   const dbDir = (() => {
     const dir = mkdtempSync(path.join(tmpdir(), 'w8-06-db-'));
