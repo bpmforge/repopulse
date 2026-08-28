@@ -275,6 +275,37 @@ that has never been billed.
 
 ---
 
+## Scan tools
+
+The security and code-health scanners do not run on the host. They run inside
+one sandboxed image (C1a, `Containerfile.scan`) that carries every tool they
+need — opengrep, lizard, jscpd, dependency-cruiser, syft and grype — pinned by
+version and checksum. One command builds it:
+
+```bash
+podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
+```
+
+Until it exists, every scanner that needs a tool fails with whatever podman
+says, and the repository's Security tab shows that failure verbatim with this
+command underneath it. `SCAN_IMAGE` overrides the tag if you build it
+elsewhere.
+
+Two things this image deliberately does NOT contain:
+
+- **grype's vulnerability database.** It is refreshed daily and baking a copy
+  in would ship a stale one that looks current. `deploy/scan-db-sync.sh` pulls
+  it.
+- **Semgrep registry rules.** They are licence-barred for service use, so the
+  semgrep scanner refuses a `p/…`, `r/…` or `auto` config outright rather than
+  quietly ignoring it. The rules it runs are in-house and live in the repo.
+
+A scanner that reads **"(not in this build)"** on the Security tab is a
+different problem: there is no code for it here, and no tool you can install
+will change that. Today that is `owasp_web` and `owasp_llm`.
+
+---
+
 ## Tests
 
 ```bash
