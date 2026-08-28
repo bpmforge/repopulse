@@ -139,3 +139,56 @@ test('the weekly pulse card is computed, and says so (W6-06, R-A7/R-D3)', async 
   // model did.
   await expect(page.getByTestId('pulse-provenance')).toContainText(/computed from your warehouse/i);
 });
+
+test('a finding can be LINKED to: opening one puts it in the URL (W16-16)', async ({ page }) => {
+  // For a triage tool the workflow is "look at this one" — and there was no
+  // way to send someone that one. The open row lived in component state, so a
+  // pasted URL always landed on the list. FR-WEB-2 already requires a pasted
+  // URL to restore the identical screen.
+  await loginAsFixture(page);
+  await page.goto('/findings');
+
+  const open = page.locator('[data-testid^="finding-open-"]').first();
+  await expect(open).toBeVisible();
+  const id = (await open.getAttribute('data-testid'))!.replace('finding-open-', '');
+  // The file:line cell identifies the row inside the panel, which renders the
+  // title in its frame heading rather than in the panel body. nth(3) because
+  // the title cell is a <th> (a row header) and not counted among the <td>s.
+  const where = (await open.locator('xpath=../..').locator('td').nth(3).textContent())!.trim();
+  await open.click();
+
+  await expect(page.getByTestId('finding-detail')).toBeVisible();
+  // The URL now carries it — that is the whole feature.
+  await expect(page).toHaveURL(new RegExp(`[?&]finding=${id}\\b`));
+  const link = page.url();
+
+  // COLD. A fresh context is what the recipient of the link has: no click
+  // history, no in-memory state, only the URL.
+  await page.context().clearCookies();
+  await loginAsFixture(page);
+  await page.goto(link);
+  await expect(page.getByTestId('finding-detail')).toBeVisible();
+  // The SAME finding, not merely a panel: the file:line the row showed.
+  await expect(page.getByTestId('finding-detail')).toContainText(where.split(':')[0]!);
+  await expect(page.getByTestId('finding-not-in-view')).toBeHidden();
+
+  // Closing takes it back out, so a shared link is never stale for the sender.
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByTestId('finding-detail')).toBeHidden();
+  await expect(page).not.toHaveURL(/[?&]finding=/);
+});
+
+test('a link to a finding the filters hide SAYS so, rather than nothing (W16-16)', async ({
+  page,
+}) => {
+  // The filters are not part of the link, so a link resolves against the
+  // RECIPIENT'S view. Landing silently on the list is indistinguishable from a
+  // broken link — the failure this whole screen's copy is careful about.
+  await loginAsFixture(page);
+  await page.goto('/findings?finding=999999999');
+
+  const notice = page.getByTestId('finding-not-in-view');
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText('999999999');
+  await expect(notice).toContainText(/not in the current view/i);
+});
