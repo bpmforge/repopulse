@@ -37,7 +37,12 @@ function renderPicker() {
   );
 }
 
-beforeEach(() => stubFetch(ME_NO_PERSONA));
+beforeEach(() => {
+  // "Not now" is remembered for the SESSION, so it has to be cleared between
+  // tests or the second one renders nothing and passes for the wrong reason.
+  window.sessionStorage.clear();
+  stubFetch(ME_NO_PERSONA);
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe('PersonaPicker (W16-26)', () => {
@@ -50,7 +55,7 @@ describe('PersonaPicker (W16-26)', () => {
     await waitFor(() => expect(screen.queryByTestId('persona-picker')).toBeNull());
   });
 
-  it('persists nothing when deferred, so the choice is postponed and not lost', async () => {
+  it('chooses nothing when deferred, so the choice is postponed and not lost', async () => {
     renderPicker();
     await screen.findByTestId('persona-picker');
 
@@ -62,6 +67,25 @@ describe('PersonaPicker (W16-26)', () => {
     await waitFor(() =>
       expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(before),
     );
+  });
+
+  it('stays deferred across a reload, so it does not reappear mid-setup', async () => {
+    // Component state alone was not enough: "not now" has to survive the
+    // navigation it was pressed to get on with. Someone who defers and then
+    // follows the connect link was asked again on the next screen, and a
+    // dialog that comes back after you dismissed it reads as broken.
+    renderPicker();
+    await userEvent.click(await screen.findByTestId('persona-defer'));
+    await waitFor(() => expect(screen.queryByTestId('persona-picker')).toBeNull());
+
+    // A fresh mount is what a reload looks like to this component.
+    renderPicker();
+    await waitFor(() => expect(screen.queryByTestId('persona-picker')).toBeNull());
+    // Session-scoped, not persisted: a NEW session asks again, because the
+    // choice is still worth making and `me.persona` is still null.
+    window.sessionStorage.clear();
+    renderPicker();
+    expect(await screen.findByTestId('persona-picker')).toBeInTheDocument();
   });
 
   it('stays out of the way once a persona has been chosen', async () => {
