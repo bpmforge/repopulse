@@ -46,6 +46,33 @@ describe('scanner coverage table', () => {
     expect(screen.getByTestId('scanner-state-secrets').textContent).toBe(SCANNER_STATE_LABEL.ok);
   });
 
+  it('does not put a tick on a run that scanned nothing (W16-31)', () => {
+    // The state W16-28 created rows for. "✓ ran clean" on a sweep with no
+    // commits in range is a measurement claimed for work that did not happen,
+    // and the sentence underneath was contradicting the label above it.
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            state: 'nothing_scanned',
+            open_findings: 0,
+            error: 'No commits in range to sweep — nothing was scanned.',
+          }),
+        ]}
+      />,
+    );
+    const label = screen.getByTestId('scanner-state-secrets').textContent ?? '';
+    expect(label).toBe(SCANNER_STATE_LABEL.nothing_scanned);
+    expect(label).not.toContain('✓');
+    expect(label).not.toContain('clean');
+    // A dash, like the other states where nobody looked: a zero here would be
+    // the same claim in the count column.
+    expect(screen.getByTestId('scanner-row-secrets').textContent).toContain('—');
+    expect(screen.getByTestId('scanner-error-secrets').textContent).toContain(
+      'nothing was scanned',
+    );
+  });
+
   it('says a partial run is partial — an unflagged one reads as clean', () => {
     render(<ScannerStatusList scanners={[scanner({ state: 'partial', open_findings: 3 })]} />);
     expect(screen.getByTestId('scanner-state-secrets').textContent).toContain('incomplete');

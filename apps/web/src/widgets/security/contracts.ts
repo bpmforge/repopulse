@@ -1,6 +1,13 @@
 // Security tab wire contracts (W8-10). Source of truth: apps/api/src/routes/security.
 
-export type ScannerState = 'not_enabled' | 'never_run' | 'ok' | 'error' | 'partial';
+export type ScannerState =
+  | 'not_enabled'
+  | 'never_run'
+  | 'ok'
+  | 'error'
+  | 'partial'
+  /** Finished without a fault and covered nothing — see the label below. */
+  | 'nothing_scanned';
 
 export interface ScannerStatus {
   key: string;
@@ -122,6 +129,11 @@ export const SCANNER_STATE_LABEL: Record<ScannerState, string> = {
   not_enabled: '○ not enabled — nothing has looked',
   never_run: '· enabled, has never run',
   ok: '✓ ran clean',
+  // NOT a tick. A sweep with no commits in range, or a repository with no
+  // connection, finished without a fault and measured nothing — and a green
+  // tick on it is the same lie as "has never run" was, told the other way
+  // round. The scanner's own sentence follows underneath.
+  nothing_scanned: '○ ran, but nothing was scanned',
   error: '✕ last run failed',
   partial: '! last run was cut short — findings are incomplete',
 };
