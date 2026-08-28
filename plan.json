@@ -6112,7 +6112,7 @@
       "stories": [],
       "depends_on": [],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "packages/security/src/**",
         "apps/api/src/workers/**",
@@ -6128,6 +6128,59 @@
         "The registry comment says \"Adding a scanner is one import and one array entry, reviewed like any other code\" — that import and array entry were never written. The implementations exist and are tested (lizard/jscpd/import-graph integration tests actually run), so this is wiring, not missing work.",
         "Two scanners partly escape it: the worker supplies historyRunners.secrets and weeklyRunners.semgrep, which run before getScanner is consulted. The other four have no path to running at all.",
         "This is the real content of W16-11 (\"everything reads (not installed)\") and it is larger than a UI message: roughly a wave of security and code-health work is shipped, tested, and connected to nothing."
+      ]
+    },
+    {
+      "id": "W16-29",
+      "title": "Demo mode sends the fake credential to the real api.github.com",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "done",
+      "write_scope": [
+        "apps/api/src/demo.ts",
+        "apps/api/src/workers/**",
+        "scripts/dev.mjs",
+        "ports.config.mjs",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "No process in DEMO_MODE makes a request to a host outside 127.0.0.1",
+        "The scan runners honour FORGE_BASE_URL and the SC-12 loopback opt-in, the same as ingestion"
+      ],
+      "notes": [
+        "Found by pressing Run scans now in the demo: 'Anti-slop - last run failed - archive request returned 401'. The 401 came from api.github.com.",
+        "Three causes stacked. (1) The fake forge bound port 0, so its address existed only inside the API process and the worker - a separate process - had no FORGE_BASE_URL and fell back to DEFAULT_GITHUB_BASE_URL. (2) providerForRepo lazily BACKFILLS conn.baseUrl with whatever it resolved, so one boot without the env stamped api.github.com onto the connection row permanently. (3) All six scan runners called providerForRepo({ db, tokenKey }) with no forge options at all, so FORGE_BASE_URL and allowInsecureLoopback were honoured by ingestion and dropped by every scan - invisible against api.github.com because that IS the fallback, and wrong for any self-hosted forge (D1a).",
+        "Fixed at all three: a pinned demo forge port handed to every child, the connection row pointed at it explicitly, and one scanForgeDeps object the runners share."
+      ]
+    },
+    {
+      "id": "W16-30",
+      "title": "The fake forge serves no tarball, so no snapshot scanner can run in demo or e2e",
+      "phase": 16,
+      "module": "shared",
+      "stories": [],
+      "depends_on": [
+        "W16-29"
+      ],
+      "points": 5,
+      "status": "todo",
+      "write_scope": [
+        "packages/shared/src/testing/fake/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A snapshot scanner completes end to end against the fake forge",
+        "The archive it serves is a real gzipped tar that snapshot/tar.ts parses"
+      ],
+      "notes": [
+        "After W16-29 the demo's archive request reaches the fake forge and gets 404: there is no /repos/:owner/:repo/tarball/:sha route. So anti_slop, semgrep, code_health_tools, architecture_register and every other snapshot scanner has never run against the fake, in the demo or in e2e.",
+        "The coverage table now says so honestly ('archive request returned 404') rather than reading 'has never run', which is W16-28 working.",
+        "Needs a real gzipped tar: snapshot/extract.ts parses it, so a stub body fails further from the cause. Serving a few fixture source files is enough and makes the demo able to demonstrate a scan finding something."
       ]
     }
   ]

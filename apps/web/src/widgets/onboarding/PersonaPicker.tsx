@@ -22,9 +22,33 @@ const LABELS: Record<Persona, { title: string; blurb: string }> = {
   exec: { title: 'Executive', blurb: 'Org-level trends and DORA, no per-person data' },
 };
 
+const DEFER_KEY = 'repopulse.persona.deferred';
+
+function readDeferred(): boolean {
+  try {
+    return window.sessionStorage?.getItem(DEFER_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function PersonaPicker() {
   const navigate = useNavigate();
-  const [deferred, setDeferred] = useState(false);
+  // sessionStorage, not component state: "not now" has to survive a page
+  // reload, or someone who defers and then follows a link is asked again — and
+  // a dialog that keeps coming back after you dismissed it reads as broken.
+  // Session-scoped rather than persisted, because the choice is still worth
+  // making and `me.persona` stays null until it is.
+  const [deferred, setDeferred] = useState(() => readDeferred());
+  const defer = () => {
+    try {
+      window.sessionStorage?.setItem(DEFER_KEY, '1');
+    } catch {
+      // Private mode, or storage disabled. Deferring for this mount is still
+      // better than refusing to close.
+    }
+    setDeferred(true);
+  };
   const { data: me, isSuccess } = useApiQuery<MeContext>(ME);
   const setPersona = useApiMutation<{ persona: Persona }, { persona: Persona; home: string }>(
     { endpoint: '/me/persona', method: 'PATCH' },
@@ -33,8 +57,8 @@ export function PersonaPicker() {
 
   // Render nothing until the answer is known. Defaulting to "show it" would
   // flash the dialog at every returning user on a slow request.
-  // Deferred for THIS visit only — nothing is persisted, so the picker returns
-  // next time rather than being silently lost.
+  // Deferred for THIS SESSION only. `me.persona` stays null, so the picker
+  // returns on the next visit rather than the choice being silently lost.
   if (deferred) return null;
   if (!isSuccess || me?.persona !== null) return null;
 
@@ -97,7 +121,7 @@ export function PersonaPicker() {
         <button
           type="button"
           data-testid="persona-defer"
-          onClick={() => setDeferred(true)}
+          onClick={defer}
           className="mt-4 text-xs text-fg-muted underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           Not now — I want to finish setting up

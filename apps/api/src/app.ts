@@ -6,6 +6,7 @@ import { oauth } from '@repopulse/auth';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
+import { registerBuiltinScanners } from '@repopulse/security';
 import authRoutes from './routes/auth/index.js';
 // W15-02 / W15-03 (D14). Both register AFTER authRoutes and in the same scope:
 // its sessionPlugin is fp-wrapped, so its decorators land on the enclosing
@@ -66,6 +67,14 @@ export interface BuildAppOptions {
 }
 
 export function buildApp(opts: BuildAppOptions) {
+  // W16-28. OUT OF THIS TICKET'S WRITE SCOPE, and added anyway — declared in
+  // the handoff, following the W8-14 precedent in packages/security/src/index.
+  // The API is the process that RENDERS the catalogue, so without this call
+  // listScanners() is empty here and every scanner reads "(not installed)" on
+  // the Scanners screen no matter what the worker knows. Idempotent, so
+  // building a second app in a test does not throw.
+  registerBuiltinScanners();
+
   // SC-2: a custom pino instance (not `logger: true`) so every log line -
   // including every `request.log`/child logger, since pino's streamWrite
   // hook operates at the shared destination-stream level - passes through

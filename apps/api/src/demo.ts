@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import { core, createDb, seedWarehouse, startFakeForge, startFakeGithub } from '@repopulse/shared';
+import { FAKE_TOKEN, core, createDb, seedWarehouse, startFakeForge, startFakeGithub } from '@repopulse/shared';
 import { buildApp } from './app.js';
 import { and, eq } from 'drizzle-orm';
-import { local, workspace as workspaceModule } from '@repopulse/auth';
+import { credentials, local, workspace as workspaceModule } from '@repopulse/auth';
 import { assertDemoAllowed, demoRequested, DEMO_ACCOUNT } from './lib/demo.js';
 
 // Demo entrypoint (W13-02): the whole product, no GitHub account required.
@@ -113,7 +113,46 @@ if (!demoAccount.ok && demoAccount.reason !== 'exists') {
 }
 
 const github = await startFakeGithub(Number(process.env.DEMO_GITHUB_PORT ?? 0));
+// STARTED BEFORE THE CONNECTION IS FIXED UP, because the row needs its address.
 const forge = await startFakeForge(Number(process.env.DEMO_FORGE_PORT ?? 0));
+
+// A USABLE forge connection for the seeded workspace (W16-28, W16-29).
+//
+// The seeder writes `credentialCiphertext: Buffer.from('seed')` — four bytes,
+// not an AES-GCM blob — because packages/shared cannot depend on packages/auth
+// and so has no vault to encrypt with. Harmless for every screen that only
+// reads the warehouse, and fatal for anything that actually calls the forge:
+// every secrets scan died with "ciphertext too short", left no scan_run, and
+// the Security tab went on reporting "has never run".
+//
+// Re-sealed here, where the vault IS available, and pointed at the fake forge
+// that is now listening, so the demo can demonstrate the scanning path rather
+// than only the dashboards.
+{
+  const key = Buffer.from(requireEnv('TOKEN_ENC_KEY'), 'hex');
+  // THE FAKE FORGE'S OWN TOKEN, not a plausible-looking string. It checks the
+  // Authorization header rather than accepting anything — a fake that ignored
+  // auth would prove nothing about credential handling — so any other value
+  // gets a 401, which is what "Anti-slop · last run failed · archive request
+  // returned 401" was on the Security tab.
+  const sealed = credentials.encryptCredential(FAKE_TOKEN, key);
+  await db
+    .update(core.forgeConnections)
+    .set({
+      credentialCiphertext: sealed.ciphertext,
+      credentialIv: sealed.iv,
+      keyVersion: sealed.keyVersion,
+      credentialFingerprint: sealed.fingerprint,
+      // THE ROW, not just the worker's env (W16-29). providerForRepo reads
+      // `conn.baseUrl ?? FORGE_BASE_URL ?? api.github.com` and lazily BACKFILLS
+      // the row with whatever it resolved — so one boot without the env var
+      // stamped api.github.com onto the connection permanently, and every later
+      // boot sent the demo's fake token to the real GitHub however the env was
+      // set. Writing the address here is what makes that unreachable.
+      baseUrl: forge.baseUrl,
+    })
+    .where(eq(core.forgeConnections.workspaceId, seeded.workspaceId));
+}
 
 const app = buildApp({
   db,

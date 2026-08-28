@@ -36,6 +36,25 @@ const DEMO = (() => {
   return f !== undefined && f !== '' && f !== '0' && f.toLowerCase() !== 'false';
 })();
 
+// THE WORKER NEEDS THE FAKE FORGE TOO (W16-29).
+//
+// The fake forge runs inside the API process and used to bind port 0, so its
+// address existed only inside that process. The worker is a separate one: with
+// no FORGE_BASE_URL it fell back to DEFAULT_GITHUB_BASE_URL and sent the demo's
+// fake credential to the REAL api.github.com, which answered 401 — so every
+// scan needing a snapshot failed with "archive request returned 401", and a
+// demo advertised as "fake forge, seeded fixture data" was making authenticated
+// requests to GitHub.
+//
+// Pinned to a known port and handed to all three children, the same shape
+// playwright.config.ts already uses for the e2e fake. SC-12's loopback opt-in
+// comes with it because 127.0.0.1 over http is exactly what it is for.
+if (DEMO) {
+  process.env.DEMO_FORGE_PORT = String(PORTS.demoFakeForge);
+  process.env.FORGE_BASE_URL = `http://127.0.0.1:${PORTS.demoFakeForge}`;
+  process.env.FORGE_ALLOW_INSECURE_LOOPBACK = '1';
+}
+
 const PROCS = [
   { name: 'api', color: '\x1b[36m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', DEMO ? 'demo' : 'dev'], port: PORTS.api },
   { name: 'worker', color: '\x1b[35m', cmd: 'pnpm', args: ['--filter', '@repopulse/api', 'dev:worker'] },

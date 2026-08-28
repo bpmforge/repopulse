@@ -63,3 +63,4 @@ export * from './scanners/dependency/run.js';
 // exports map is '.' only, so without this line the API cannot reach the vex
 // module at all and the ticket cannot land. Declared in the handoff.
 export * from './vex/index.js';
+export * from './catalogue.js';

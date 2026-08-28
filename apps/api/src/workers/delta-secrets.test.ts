@@ -50,6 +50,26 @@ describe('delta -> secrets stream (W8-04)', () => {
     expect(code).not.toMatch(/switch\s*\(\s*\w*[sS]cannerKey/);
   });
 
+  it('the scanners use the SAME forge config as ingestion (W16-29)', () => {
+    // Six scan runners each built `providerForRepo({ db, tokenKey })` with no
+    // forge options, so FORGE_BASE_URL and the SC-12 loopback opt-in were
+    // honoured by ingestion and silently dropped by every scan. Invisible
+    // against api.github.com, because that IS the fallback — and in demo mode
+    // it sent the fake credential to the real GitHub.
+    const entry = readFileSync(new URL('./index.ts', import.meta.url).pathname, 'utf8');
+    expect(entry).toContain('scanForgeDeps');
+    // Not a second reading of the env with its own spelling: one object, so a
+    // runner added later cannot forget half of it.
+    const code = entry
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join('\n');
+    expect(code).not.toMatch(/providerForRepo\(\s*\{\s*db,\s*tokenKey/);
+    const scanDeps = entry.slice(entry.indexOf('const scanForgeDeps'));
+    expect(scanDeps.slice(0, 600)).toContain('FORGE_BASE_URL');
+    expect(scanDeps.slice(0, 600)).toContain('FORGE_ALLOW_INSECURE_LOOPBACK');
+  });
+
   it('the WEEKLY pass is one schedule for two scanners (W8-07 + W8-09)', () => {
     // A semgrep full run and a chain recompute are the same shape of work, and
     // two crons doing it would drift. The chainer runs AFTER the full scan on

@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { core, createDb, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
-import { SCANNER_DEFAULTS, isEnabled, listScanners } from '@repopulse/security';
+import { SCANNER_DEFAULTS, isEnabled, listScanners, registerBuiltinScanners } from '@repopulse/security';
 import type { Queue } from 'bullmq';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import runRoutes, { runWindowKey } from './index.js';
@@ -55,6 +55,10 @@ describeIfLiveInfra('run it now (W16-10)', () => {
   } as unknown as Queue;
 
   beforeAll(async () => {
+    // W16-28. buildApp() does this for the real API; this suite mounts the
+    // route directly, so without it listScanners() is empty here and the route
+    // has nothing it will agree to start.
+    registerBuiltinScanners();
     // FULLY OWN FIXTURES. Three attempts got here:
     //
     //   reading whatever `pnpm seed` left → passed or failed on FILE ORDER,
@@ -197,9 +201,17 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     expect(res.json().started.length, 'defaults must be honoured with no rows').toBeGreaterThan(0);
     // Exactly the set the coverage table calls enabled — same helper, so the
     // two cannot disagree again.
+    // Enabled AND startable: a scanner only declares `manual` when the worker
+    // has a runner for it (W16-28), and the button must not report a start for
+    // a job that could only reach "no history runner is wired".
+    const startable = new Set(
+      listScanners()
+        .filter((s) => s.triggers.includes('manual'))
+        .map((s) => s.key),
+    );
     const expected = [
       ...new Set([...listScanners().map((s) => s.key), ...SCANNER_DEFAULTS.map((d) => d.key)]),
-    ].filter((key) => isEnabled(key, undefined));
+    ].filter((key) => startable.has(key) && isEnabled(key, undefined));
     expect([...res.json().started].sort()).toEqual([...expected].sort());
     expect(added[0]?.data).toMatchObject({ repoId, trigger: 'manual' });
   });

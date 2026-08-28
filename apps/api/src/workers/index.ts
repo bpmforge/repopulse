@@ -35,6 +35,7 @@ import {
   runArchitectureScan,
   runRuleDraftPass,
   runSemgrepFull,
+  registerBuiltinScanners,
   runSupplyChainRegisters,
   startSweeper,
   syncEolProducts,
@@ -154,6 +155,27 @@ async function main(): Promise<void> {
     ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1' ? { allowInsecureLoopback: true } : {}),
   };
 
+  // ONE FORGE CONFIG FOR THE SCANNERS TOO (W16-29).
+  //
+  // The six scan runners below each built `providerForRepo({ db, tokenKey })`
+  // with no forge options, so FORGE_BASE_URL and the SC-12 loopback opt-in were
+  // honoured by ingestion and silently dropped by every scan. Against
+  // api.github.com the omission was invisible — it IS the default — which is
+  // why it survived: in demo mode it meant the fake credential went to the real
+  // GitHub, and against any self-hosted forge (D1a puts those in the MVP) every
+  // scan would have gone to github.com while ingestion went to the right host.
+  const scanForgeDeps = {
+    db,
+    tokenKey: credentials.loadTokenKey(),
+    ...(process.env.FORGE_BASE_URL ? { forgeBaseUrl: process.env.FORGE_BASE_URL } : {}),
+    ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1' ? { allowInsecureLoopback: true } : {}),
+  };
+
+  // W16-28. The process that RUNS the scans registers the catalogue too, so
+  // getScanner() resolves here and a scan_run records a real scanner version
+  // instead of "unregistered".
+  registerBuiltinScanners();
+
   const runtime = createWorkerRuntime({
     db,
     connection,
@@ -180,11 +202,7 @@ async function main(): Promise<void> {
         // FR-SEC-1's "the framework never branches on a scanner key" stays true.
         historyRunners: {
           secrets: async ({ workspaceId, repoId }) => {
-            const resolved = await providerForRepo(
-              { db, tokenKey: credentials.loadTokenKey() },
-              workspaceId,
-              repoId,
-            );
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             // No active connection: nothing to fetch patches with. Reported as
             // zero work, not as a failure — the repo simply is not connected.
             if (!resolved) return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -202,11 +220,7 @@ async function main(): Promise<void> {
         // schedule, no user waiting — and two crons doing it would drift.
         weeklyRunners: {
           semgrep: async ({ workspaceId, repoId }) => {
-            const resolved = await providerForRepo(
-              { db, tokenKey: credentials.loadTokenKey() },
-              workspaceId,
-              repoId,
-            );
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
             }
@@ -246,11 +260,7 @@ async function main(): Promise<void> {
           // than of a change — a per-PR run would report the same findings on
           // every branch until people filtered the scanner out of their view.
           code_health_tools: async ({ workspaceId, repoId }) => {
-            const resolved = await providerForRepo(
-              { db, tokenKey: credentials.loadTokenKey() },
-              workspaceId,
-              repoId,
-            );
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
             }
@@ -284,11 +294,7 @@ async function main(): Promise<void> {
           // not a model — so they run here and the judgement layer stays on
           // the pull-request path where a gateway already exists.
           anti_slop: async ({ workspaceId, repoId }) => {
-            const resolved = await providerForRepo(
-              { db, tokenKey: credentials.loadTokenKey() },
-              workspaceId,
-              repoId,
-            );
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
             }
@@ -404,11 +410,7 @@ async function main(): Promise<void> {
             });
             const eol = await syncEolProducts({ db, fetchJson, products: EOL_PRODUCTS });
 
-            const resolved = await providerForRepo(
-              { db, tokenKey: credentials.loadTokenKey() },
-              workspaceId,
-              repoId,
-            );
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             const [head] = await db
               .select({ sha: facts.commits.sha })
               .from(facts.commits)
@@ -450,11 +452,7 @@ async function main(): Promise<void> {
           // carries the same no-connection / no-head-sha guards: a register
           // that cannot fetch a tree reports why rather than reporting clean.
           architecture_register: async ({ workspaceId, repoId }) => {
-            const resolved = await providerForRepo(
-              { db, tokenKey: credentials.loadTokenKey() },
-              workspaceId,
-              repoId,
-            );
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
             }
