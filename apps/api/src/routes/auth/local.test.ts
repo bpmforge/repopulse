@@ -34,6 +34,22 @@ describeIfLiveInfra('local sign-in routes (W15-02)', () => {
       .where(eq(core.users.authProvider, 'local'));
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return;
+    // UNLINK THE IDENTITIES FIRST, or the delete throws 23503 (W16-13).
+    //
+    // identities.user_id references users with no ON DELETE, so a local
+    // account that has claimed a committer identity cannot be deleted while
+    // the link stands. Nothing did until W16-13 gave the DEMO account one — at
+    // which point a single `DEMO_MODE=1 pnpm dev` left a row that made this
+    // hook throw and failed EVERY test in the file, deterministically, until
+    // something else happened to clear it.
+    //
+    // Set to null rather than deleted: an identity is a COMMITTER and the user
+    // is a LOGIN. The committer's history is not this suite's to remove, and
+    // deleting it here would take seeded rows other files read.
+    await db
+      .update(core.identities)
+      .set({ userId: null })
+      .where(inArray(core.identities.userId, ids));
     await db.delete(core.workspaceMembers).where(inArray(core.workspaceMembers.userId, ids));
     await db.delete(core.users).where(inArray(core.users.id, ids));
   }
