@@ -5685,15 +5685,14 @@
       "depends_on": [
         "W16-04"
       ],
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "RE-SCOPED after W16-28 (2026-08-28). The original ticket was 'the scanners all read (not installed) with no way to install them'. That was the registry never being called, which W16-28 fixed: twelve scanners now register, carry a version and a display name, and ten of them are startable from Run scans now.",
-        "What is LEFT is two keys. owasp_web and owasp_llm have runOwaspChecklist and a checklist, no worker runner, and no catalogue entry — so they still read '(not installed)', which is now the truthful answer rather than a blanket one.",
-        "dependency_cve is the third of the same shape and is tracked in W16-28's notes: runDependencyScan exists with no caller, and it is catalogued-but-not-startable and disabled by default until something calls it.",
-        "So this ticket is now: wire the OWASP checklist runners (both are LLM-backed and gateway-dependent, which is why they were left), or decide they are post-v1 and say so on the screen."
+        "MIS-SCOPED BY ME EARLIER TODAY, and corrected. I rewrote this ticket's title and notes to be about owasp_web/owasp_llm having no runner — which contradicted its own write_scope (deploy/**, Dockerfile, apps/web/src/widgets/**, docs/RUNNING.md) and its own acceptance, both of which are about TOOL AVAILABILITY. The runner gap is a separate ticket (W16-33).",
+        "The bulk of the original complaint was the registry never being called, fixed in W16-28: every scanner now registers, carries a version, and reads a real state.",
+        "What was left, and what this ticket did: (1) the scan tools DO ship, in Containerfile.scan (opengrep, lizard, jscpd, dependency-cruiser, syft, grype, pinned by version and checksum) — but the one command that builds it was documented nowhere. docs/RUNNING.md now has a Scan tools section with it. (2) The UI said '(not installed)', which read as a missing TOOL you could go and install and never was one; it now says 'not in this build', and a run that failed for a missing sandbox image gets the build command underneath the verbatim error."
       ],
       "id": "W16-11",
-      "title": "owasp_web and owasp_llm are the only scanners left with no runner (F16)",
+      "title": "The scanners all read \"(not installed)\" with no way to install them (F16)",
       "module": "infra",
       "points": 3,
       "write_scope": [
@@ -6241,6 +6240,57 @@
       "notes": [
         "W16-16 put the open finding in the URL, and the filters are still component state — so a link to a dismissed finding, opened by someone whose Status filter is the default 'open', finds nothing in the list. It now says so ('not in the current view') instead of landing silently, which is the honest half.",
         "Two ways to finish it, and they are not exclusive: serialize the filters into the URL alongside ?finding= (which FR-WEB-2 arguably already asks for), and/or add GET /findings/:id so the panel can fetch a finding the list does not contain. The endpoint does not exist — /findings/:id/history does, which is the near miss that makes it look like it should."
+      ]
+    },
+    {
+      "id": "W16-33",
+      "title": "owasp_web and owasp_llm have no runner, so nothing can start them",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [
+        "W16-28"
+      ],
+      "points": 5,
+      "status": "todo",
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "packages/security/src/scanners/owasp/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "An OWASP checklist pass runs end to end from the worker",
+        "The catalogue lists both as startable, or says why they are not"
+      ],
+      "notes": [
+        "Split out of W16-11 after I mis-scoped that ticket. runOwaspChecklist and both checklists exist and are tested; no worker runner calls either, and neither has a catalogue entry, so both read 'not in this build' on the Security tab — truthfully.",
+        "Both are LLM-backed and need an AnalysisGateway, which W16-19 now resolves per workspace. They also need a DIFF rather than a snapshot (chunkDiff over changed files), so they do not fit the weekly snapshot runners that anti_slop and semgrep share — that is the design question this ticket has to answer, not just wiring.",
+        "dependency_cve is the third of the same shape: runDependencyScan exists with no caller. Catalogued but not startable, and disabled by default until something calls it."
+      ]
+    },
+    {
+      "id": "W16-34",
+      "title": "e2e ingest-flow timed out once in a full run and has not repeated",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "todo",
+      "write_scope": [
+        "e2e/**",
+        "apps/api/src/workers/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Either the cause is named and fixed, or the spec is made robust for a stated reason"
+      ],
+      "notes": [
+        "OBSERVED ONCE, 2026-08-28: e2e/ingest-flow.spec.ts 'selecting a repo enqueues backfill work rather than silently succeeding' hit its 30s timeout at position 60 of 111 in a full `pnpm e2e`. It passed alone immediately after, and the next full run was 111/111 green.",
+        "NOT DIAGNOSED, and deliberately not labelled a race. Checked and ruled out at the time: no stray repopulse worker process, and Redis held zero bull:* keys. Nothing in that spec or its dependencies was changed that day; the full suite had passed several times before and after.",
+        "Do not 'fix' this by raising the timeout without first reproducing it. The likely shapes are the worker being saturated by earlier specs in the run, or a queue drained by a preceding spec — both checkable by logging what the worker was doing when the assertion window opened."
       ]
     }
   ]

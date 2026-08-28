@@ -78,6 +78,41 @@ describe('scanner coverage table', () => {
     expect(screen.getByTestId('scanner-state-secrets').textContent).toContain('incomplete');
   });
 
+  it('says what to DO about a missing scan image, not just that it failed (W16-11)', () => {
+    // F16: a screen that states a tool is missing and stops there has told
+    // someone their scan failed and left them to guess. The scanners run in a
+    // sandbox image, and one command builds it.
+    render(
+      <ScannerStatusList
+        scanners={[scanner({ state: 'error', error: 'spawn podman ENOENT' })]}
+      />,
+    );
+    const fix = screen.getByTestId('scanner-fix-secrets');
+    expect(fix.textContent).toContain('Containerfile.scan');
+    expect(fix.textContent).toContain('RUNNING.md');
+    // The scanner's own words are still there — the guidance is added, never
+    // substituted for the error.
+    expect(screen.getByTestId('scanner-error-secrets').textContent).toContain('spawn podman ENOENT');
+  });
+
+  it('does NOT offer the image command for a failure that is not about tools', () => {
+    render(
+      <ScannerStatusList
+        scanners={[scanner({ state: 'error', error: 'ciphertext too short' })]}
+      />,
+    );
+    expect(screen.queryByTestId('scanner-fix-secrets')).toBeNull();
+  });
+
+  it('an unregistered scanner is "not in this build", not "(not installed)" (W16-11)', () => {
+    // "(not installed)" read as a missing TOOL — something you could go and
+    // install — and for these rows it never was.
+    render(<ScannerStatusList scanners={[scanner({ registered: false })]} />);
+    const row = screen.getByTestId('scanner-row-secrets');
+    expect(row.textContent).toContain('not in this build');
+    expect(row.textContent).not.toContain('not installed');
+  });
+
   it('prints the failure verbatim, so "why is this red" needs no log search', () => {
     render(
       <ScannerStatusList
@@ -89,10 +124,12 @@ describe('scanner coverage table', () => {
     );
   });
 
-  it('keeps a documented-but-not-installed scanner visible', () => {
-    // Hiding it would make its absence look deliberate.
+  it('keeps a documented-but-absent scanner visible', () => {
+    // Hiding it would make its absence look deliberate. The WORDING changed in
+    // W16-11 — "(not installed)" implied a tool you could go and install, and
+    // it never was one — but the row still has to be there.
     render(<ScannerStatusList scanners={[scanner({ key: 'iac', registered: false })]} />);
-    expect(screen.getByTestId('scanner-row-iac').textContent).toContain('not installed');
+    expect(screen.getByTestId('scanner-row-iac').textContent).toContain('not in this build');
   });
 
   it('states each state in WORDS, never colour alone (UX_SPEC §7)', () => {

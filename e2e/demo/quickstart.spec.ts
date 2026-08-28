@@ -111,7 +111,7 @@ test.describe('the quickstart a newcomer follows', () => {
     // happening.
     //
     //   the scanner registry had no production caller, so every row read
-    //   "(not installed)" and no scan_run could record a version
+    //   "(not in this build)" and no scan_run could record a version
     //
     //   the fake forge runs inside the API process and the worker is a
     //   separate one, so with no FORGE_BASE_URL it sent the demo's fake
@@ -134,8 +134,12 @@ test.describe('the quickstart a newcomer follows', () => {
     // REGISTERED (W16-28). Before it, every row on every install read this.
     // owasp_web and owasp_llm legitimately still do (W16-11), so the rows are
     // named rather than the string being asserted absent from the table.
-    await expect(coverage.getByTestId('scanner-row-secrets')).not.toContainText('(not installed)');
-    await expect(coverage.getByTestId('scanner-row-semgrep')).not.toContainText('(not installed)');
+    await expect(coverage.getByTestId('scanner-row-secrets')).not.toContainText(
+      'not in this build',
+    );
+    await expect(coverage.getByTestId('scanner-row-semgrep')).not.toContainText(
+      'not in this build',
+    );
 
     await expect(coverage.getByTestId('scanner-row-secrets')).toHaveAttribute(
       'data-state',
