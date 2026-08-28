@@ -1,5 +1,5 @@
 import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
-import { runInSandbox } from '../../../sandbox/run.js';
+import { runInSandbox, stderrTail } from '../../../sandbox/run.js';
 import type { ScanBudget } from '../../framework/types.js';
 import { resolveThresholds, verdictsForFunction, type CodeHealthThresholds } from './thresholds.js';
 import { adaptersFor } from './adapters/registry.js';
@@ -292,7 +292,13 @@ export async function runCodeHealthTools(args: RunToolsArgs): Promise<ToolRunRes
       // An adapter that applied and produced nothing at all is reported, not
       // read as a clean tree: "ruff found no problems" and "ruff did not run"
       // must never look the same.
-      adapterErrors.push({ adapter: adapter.key, reason: 'produced no output' });
+      // The RUNTIME's words when the adapter never ran (W16-37) — a missing
+      // scan image says so on stderr, and "produced no output" is the symptom.
+      const detail = stderrTail(result.stderr, 2, 200);
+      adapterErrors.push({
+        adapter: adapter.key,
+        reason: detail === '' ? 'produced no output' : `produced no output: ${detail}`,
+      });
       return;
     }
     try {

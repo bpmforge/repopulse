@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
-import { runInSandbox, type RunInSandboxOptions } from '../../../sandbox/run.js';
+import { runInSandbox, stderrTail, type RunInSandboxOptions } from '../../../sandbox/run.js';
 import type { ScanBudget } from '../../framework/types.js';
 import { parseGrypeMatches, type DependencyMatch, type MatchFunnel } from './matches.js';
 
@@ -206,13 +206,28 @@ export async function runDependencyTools(
     command: [
       'sh',
       '-c',
+      // NO `-q` ON EITHER TOOL (W16-37).
+      //
+      // Both were quiet, and `-q` silences a FATAL error as thoroughly as it
+      // silences a progress bar. The first real run of this scanner failed
+      // with `grype exited 1` and an empty stderr — the sandbox had captured
+      // stderr correctly and grype had written nothing to it. Verified by
+      // hand: with `-q`, zero bytes; without it, "failed to load vulnerability
+      // db: the vulnerability database was built 1 week ago (max allowed age
+      // is 5 days)".
+      //
+      // Safe for the parsers, and checked rather than assumed: both tools put
+      // their REPORT on stdout (syft's goes to a file here) and their logs on
+      // stderr, so dropping the flag adds nothing to the stream these markers
+      // split. stderr is capped at 4000 chars and read from the END, because a
+      // tool that logged progress before dying buries its reason at the bottom.
       [
-        `syft scan dir:${SCAN_MOUNT_PATH} -o cyclonedx-json=${SBOM_PATH} -q`,
+        `syft scan dir:${SCAN_MOUNT_PATH} -o cyclonedx-json=${SBOM_PATH}`,
         `echo "SYFT_EXIT=$?"`,
         `echo '${SBOM_MARKER}'`,
         `cat ${SBOM_PATH} 2>/dev/null`,
         `echo '${GRYPE_MARKER}'`,
-        `grype sbom:${SBOM_PATH} -o json -q`,
+        `grype sbom:${SBOM_PATH} -o json`,
         `echo "GRYPE_EXIT=$?"`,
       ].join('; '),
     ],
@@ -247,11 +262,8 @@ export async function runDependencyTools(
    * this string lands in a scan_run row that a screen renders.
    */
   const detail = (): string => {
-    const text = result.stderr.trim();
-    if (text === '') return '';
-    // The LAST lines, not the first: a tool that logged progress before dying
-    // buries its reason at the bottom.
-    return `: ${text.split('\n').slice(-3).join(' ').slice(-300)}`;
+    const tail = stderrTail(result.stderr, 3);
+    return tail === '' ? '' : `: ${tail}`;
   };
 
   // A missing marker means the shell never reached that line — truncated

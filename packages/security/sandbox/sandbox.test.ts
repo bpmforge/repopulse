@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildSandboxArgs, runtimeEnv, SCAN_MOUNT_PATH } from './profile.js';
-import { parseSandboxOutput, runInSandbox } from './run.js';
+import { parseSandboxOutput, runInSandbox, stderrTail } from './run.js';
 
 // Sandbox profile + runner (W8-03, SECURITY_SUITE.md 2.2, NFR-14).
 
@@ -254,4 +254,30 @@ describeIfPodman('sandbox, actually run (NFR-14)', () => {
     expect(out).not.toContain('must-not-appear');
     expect(out).not.toContain('REPOPULSE_TEST_SECRET');
   }, 30_000);
+});
+
+describe('stderrTail (W16-37)', () => {
+  it('returns the LAST lines, where a dying tool puts its reason', () => {
+    expect(stderrTail('[0000] INFO working\n[0000] ERROR the real reason\n')).toBe(
+      '[0000] INFO working [0000] ERROR the real reason',
+    );
+  });
+
+  it('is empty for empty stderr, so a caller can tell there is nothing to add', () => {
+    expect(stderrTail('')).toBe('');
+    expect(stderrTail('   \n  \n')).toBe('');
+  });
+
+  it('marks a truncation instead of cutting mid-word', () => {
+    // The first version sliced bare and produced "epopulse/does-not-exist",
+    // which reads as a rendering bug rather than as a truncation.
+    const long = `x${'y'.repeat(400)}`;
+    const out = stderrTail(long, 2, 50);
+    expect(out.startsWith('…')).toBe(true);
+    expect(out.length).toBe(51);
+  });
+
+  it('keeps a short message whole, with no ellipsis', () => {
+    expect(stderrTail('exit 125', 2, 300)).toBe('exit 125');
+  });
 });

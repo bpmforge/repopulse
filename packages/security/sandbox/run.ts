@@ -160,6 +160,24 @@ export async function runInSandbox(opts: RunInSandboxOptions): Promise<SandboxRu
   });
 }
 
+/**
+ * The tail of a tool's stderr, for an error message a person will read (W16-37).
+ *
+ * Read from the END because a tool that logged progress before dying buries
+ * its reason at the bottom — and capped, because this is untrusted output from
+ * third-party code that lands in a scan_run row a screen renders.
+ *
+ * The cap is applied with an explicit ellipsis rather than a bare slice: the
+ * first version cut mid-word and the message began "epopulse/does-not-exist",
+ * which reads as a rendering bug rather than a truncation.
+ */
+export function stderrTail(stderr: string, lines = 2, cap = 300): string {
+  const text = stderr.trim();
+  if (text === '') return '';
+  const tail = text.split('\n').slice(-lines).join(' ').trim();
+  return tail.length <= cap ? tail : `…${tail.slice(-cap)}`;
+}
+
 export function parseSandboxOutput(
   stdout: string,
 ): { ok: true; value: SandboxOutput } | { ok: false; error: string } {

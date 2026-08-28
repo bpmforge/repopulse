@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IncomingFinding } from '@repopulse/insights';
 import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
-import { runInSandbox } from '../../../sandbox/run.js';
+import { runInSandbox, stderrTail } from '../../../sandbox/run.js';
 import type { ScanBudget } from '../../framework/types.js';
 import { parseOpengrepOutput, type SemgrepFinding } from './output.js';
 
@@ -183,12 +183,23 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
   });
 
   if (!parsed.ok) {
+    // THE RUNTIME'S OWN WORDS, when there are any (W16-37).
+    //
+    // "opengrep produced no output" is what a reader saw when the SCAN IMAGE
+    // was missing — accurate, and it describes the symptom rather than the
+    // cause, which podman had already written to stderr. Opengrep itself
+    // reports its errors inside the JSON (`errors[]`, carried as toolErrors),
+    // so this appends only for the case where nothing ran at all.
+    //
+    // Read from the END and capped: a runtime that logged before failing
+    // buries its reason at the bottom, and this lands in a row a screen shows.
+    const detail = stderrTail(result.stderr);
     return {
       status: 'invalid_output',
       findings: [],
       toolErrors: [],
       durationMs: Date.now() - started,
-      error: parsed.error,
+      error: detail === '' ? parsed.error : `${parsed.error}: ${detail}`,
       toolVersions,
     };
   }
