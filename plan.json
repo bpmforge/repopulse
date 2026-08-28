@@ -5819,7 +5819,7 @@
       "stories": [],
       "depends_on": [],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/web/src/routes/findings/**",
         "e2e/**",
@@ -6209,6 +6209,32 @@
       "notes": [
         "W16-28 made a zero-work sweep record a scan_run so the coverage table stopped reading 'has never run'. Rendered through stateOf that came out as '✓ ran clean' with 'No commits in range to sweep' underneath — the tick asserting a measurement for work that did not happen, and the sub-line arguing with the label above it. The same lie, told the other way round.",
         "New sixth state, nothing_scanned: a SUCCEEDED run that still carries an error string. The only writer of that shape is scan-processor's zero-work path. Checked after failed and partial so it can never swallow the more serious reading."
+      ]
+    },
+    {
+      "id": "W16-32",
+      "title": "A finding link resolves against the recipient's filters, not the sender's",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [
+        "W16-16"
+      ],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "apps/web/src/routes/findings/**",
+        "apps/api/src/routes/findings/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A link to a finding opens it whatever the recipient's filters are"
+      ],
+      "notes": [
+        "W16-16 put the open finding in the URL, and the filters are still component state — so a link to a dismissed finding, opened by someone whose Status filter is the default 'open', finds nothing in the list. It now says so ('not in the current view') instead of landing silently, which is the honest half.",
+        "Two ways to finish it, and they are not exclusive: serialize the filters into the URL alongside ?finding= (which FR-WEB-2 arguably already asks for), and/or add GET /findings/:id so the panel can fetch a finding the list does not contain. The endpoint does not exist — /findings/:id/history does, which is the near miss that makes it look like it should."
       ]
     }
   ]

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
@@ -18,7 +18,27 @@ import {
 //
 // The last of four rail destinations that linked nowhere since W4-02.
 
-export const Route = createFileRoute('/findings/')({ component: FindingsExplorer });
+/**
+ * `?finding=` — the open finding, in the URL (W16-16, F14).
+ *
+ * For a triage tool the workflow is "look at this one", and there was no way
+ * to send someone that one: the open row lived in component state, so a
+ * pasted URL always landed on the list. FR-WEB-2 already requires a pasted URL
+ * to restore the identical screen.
+ *
+ * Lenient, like the root's own validateSearch: a junk value opens nothing
+ * rather than white-screening the whole explorer.
+ */
+function validateFindingsSearch(search: Record<string, unknown>): { finding?: number } {
+  const raw = search.finding;
+  const id = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
+  return Number.isInteger(id) && id > 0 ? { finding: id } : {};
+}
+
+export const Route = createFileRoute('/findings/')({
+  validateSearch: validateFindingsSearch,
+  component: FindingsExplorer,
+});
 
 const LIST = { endpoint: '/findings' } as const;
 
@@ -35,7 +55,25 @@ function FindingsExplorer() {
   const [scannerKey, setScannerKey] = useState('');
   const [inChain, setInChain] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
-  const [openId, setOpenId] = useState<number | null>(null);
+  // THE URL IS THE STATE, not a mirror of it (W16-16). Reading it back rather
+  // than keeping a copy in useState is what makes the back button and a pasted
+  // link behave the same as a click.
+  const navigate = useNavigate({ from: Route.fullPath });
+  const openId = Route.useSearch().finding ?? null;
+  const setOpenId = (id: number | null) => {
+    void navigate({
+      // The other global filters ride along — dropping them would make opening
+      // a finding silently reset the window and repo pickers (DASHBOARD §1).
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        ...(id === null ? { finding: undefined } : { finding: id }),
+      }),
+      // REPLACE, not push. Triage is a queue: pushing a history entry per row
+      // would make Back walk every finding someone glanced at instead of
+      // leaving the screen.
+      replace: true,
+    });
+  };
 
   /**
    * Scroll the detail panel into view when one opens (W16-05, F14).
@@ -348,15 +386,36 @@ function FindingsExplorer() {
         />
       )}
 
-      {openId !== null && items.find((f) => f.id === openId) && (
-        <div ref={detailRef}>
-          <FindingDetail
-            finding={items.find((f) => f.id === openId)!}
-            onClose={() => setOpenId(null)}
-            invalidate={[queryKeyFor(listDescriptor), queryKeyFor({ endpoint: '/findings/stats' })]}
-          />
-        </div>
-      )}
+      {openId !== null &&
+        (items.find((f) => f.id === openId) ? (
+          <div ref={detailRef}>
+            <FindingDetail
+              finding={items.find((f) => f.id === openId)!}
+              onClose={() => setOpenId(null)}
+              invalidate={[
+                queryKeyFor(listDescriptor),
+                queryKeyFor({ endpoint: '/findings/stats' }),
+              ]}
+            />
+          </div>
+        ) : (
+          // NOT SILENCE (W16-16). A link resolves against the recipient's
+          // filters, which are not in the URL — so a link to a dismissed
+          // finding, opened by someone whose Status is "open", would otherwise
+          // land on the list with no explanation and read as a broken link.
+          <div
+            ref={detailRef}
+            className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
+            data-testid="finding-not-in-view"
+          >
+            Finding #{openId} is not in the current view. It may be filtered out — the filters
+            above are not part of the link — or it may belong to another workspace.{' '}
+            <button type="button" className="text-accent underline" onClick={() => setStatus('')}>
+              Clear the status filter
+            </button>{' '}
+            and look again.
+          </div>
+        ))}
     </div>
   );
 }
