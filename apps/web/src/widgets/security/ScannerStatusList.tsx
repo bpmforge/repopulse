@@ -112,6 +112,16 @@ export function ScannerStatusList({ scanners }: Props) {
               <span data-testid={`scanner-state-${scanner.key}`}>
                 {SCANNER_STATE_LABEL[scanner.state]}
               </span>
+              {scanner.state === 'all_rejected' && (
+                // HOW MANY, not just that it happened (W16-38). A reader
+                // deciding whether the prompt is wrong needs the number.
+                <div className="text-xs text-fg-muted" data-testid={`scanner-rejected-${scanner.key}`}>
+                  The model proposed {scanner.validation_funnel?.proposed ?? 0} finding
+                  {(scanner.validation_funnel?.proposed ?? 0) === 1 ? '' : 's'} and the evidence
+                  check rejected every one — their quotes were not verbatim from the diff. That is
+                  a problem with the prompt or the check, not a clean repository.
+                </div>
+              )}
               {scanner.error && (
                 <div className="text-xs text-fg-muted" data-testid={`scanner-error-${scanner.key}`}>
                   {scanner.error}
@@ -150,7 +160,11 @@ export function ScannerStatusList({ scanners }: Props) {
                   claim, and an unrun scanner has not earned it. */}
               {scanner.state === 'not_enabled' ||
               scanner.state === 'never_run' ||
-              scanner.state === 'nothing_scanned'
+              scanner.state === 'nothing_scanned' ||
+              // A zero here would be the same claim the label just refused.
+              scanner.state === 'all_rejected' ||
+              // A count from a scan still in flight is not its count.
+              scanner.state === 'running'
                 ? '—'
                 : scanner.open_findings}
             </td>

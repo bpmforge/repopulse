@@ -64,6 +64,7 @@ const scanners = (open: number, over: Partial<ScannerStatus> = {}): ScannerStatu
     last_run_status: null,
     error: null,
     scanner_version: null,
+    validation_funnel: null,
     open_findings: 4,
   },
   {
@@ -76,6 +77,7 @@ const scanners = (open: number, over: Partial<ScannerStatus> = {}): ScannerStatu
     last_run_status: 'succeeded',
     error: null,
     scanner_version: 'syft@1.51.0 grype@0.117.0',
+    validation_funnel: null,
     open_findings: open,
     ...over,
   },

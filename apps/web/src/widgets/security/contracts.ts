@@ -4,10 +4,14 @@ export type ScannerState =
   | 'not_enabled'
   | 'never_run'
   | 'ok'
+  /** Enqueued or in flight — there is no result to describe yet (W16-38). */
+  | 'running'
   | 'error'
   | 'partial'
   /** Finished without a fault and covered nothing — see the label below. */
-  | 'nothing_scanned';
+  | 'nothing_scanned'
+  /** Proposed findings and kept none of them (W16-38). */
+  | 'all_rejected';
 
 export interface ScannerStatus {
   key: string;
@@ -19,6 +23,12 @@ export interface ScannerStatus {
   last_run_status: string | null;
   error: string | null;
   scanner_version: string | null;
+  /**
+   * The checklist's own funnel (W16-38): chunks, proposed, rejected, created.
+   * Null for every scanner that has no funnel — which the UI must read as
+   * "not measured", never as zero.
+   */
+  validation_funnel: { proposed?: number; rejected?: number; created?: number } | null;
   open_findings: number;
 }
 
@@ -129,11 +139,19 @@ export const SCANNER_STATE_LABEL: Record<ScannerState, string> = {
   not_enabled: '○ not enabled — nothing has looked',
   never_run: '· enabled, has never run',
   ok: '✓ ran clean',
+  // A scan in flight has no result, and "ran clean" about one that has not
+  // finished is a claim with nothing behind it. A checklist takes minutes.
+  running: '◐ running now',
   // NOT a tick. A sweep with no commits in range, or a repository with no
   // connection, finished without a fault and measured nothing — and a green
   // tick on it is the same lie as "has never run" was, told the other way
   // round. The scanner's own sentence follows underneath.
   nothing_scanned: '○ ran, but nothing was scanned',
+  // NOT a tick either. The model looked and proposed findings; the evidence
+  // validator threw every one of them out for not quoting the diff verbatim.
+  // "Ran clean" over that is the same claim as a tick over an unscanned sweep,
+  // and it is the only signal that a prompt or the validator is wrong.
+  all_rejected: '! ran, but every finding was rejected',
   error: '✕ last run failed',
   partial: '! last run was cut short — findings are incomplete',
 };

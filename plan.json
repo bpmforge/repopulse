@@ -6402,7 +6402,7 @@
         "W16-33"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/api/src/workers/**",
         "apps/api/src/routes/security/**",
@@ -6415,7 +6415,36 @@
       "notes": [
         "Found verifying W16-33. runOwaspChecklist returns `rejected` — findings the evidence validator threw out for not quoting the diff verbatim — and the runner maps it to `deferred`, which the processor only persists on the zero-work path. A run that scanned something drops it.",
         "So the first real checklist run read '✓ ran clean, 0 findings' and there is no way to tell from the screen whether the model found nothing or proposed things that were all rejected. Those are very different facts about a scanner, and the second one is how you learn a prompt or a validator is wrong.",
-        "This is the same distinction W16-31 drew between 'nothing was scanned' and 'ran clean' — one layer in."
+        "This is the same distinction W16-31 drew between 'nothing was scanned' and 'ran clean' — one layer in.",
+        "DONE 2026-08-28, and it turned up two more defects of the same family while being verified against a real model.",
+        "(1) A scan still RUNNING read as '✓ ran clean'. scan_runs is inserted with status 'running' and updated when it finishes, and stateOf fell through to 'ok' in between — so the coverage table described a result that did not exist yet, with last_run_at pointing at the START. A checklist takes minutes, so that was the screen for the whole of every OWASP run. New 'running' state, checked FIRST so an in-flight scan cannot borrow a stale funnel or error from an earlier attempt.",
+        "(2) A REASONING model that spends its whole budget thinking returns content:'' with the substance in reasoning_content. The T2 client read content and returned an empty string; the OWASP runner then did JSON.parse(''), caught the SyntaxError, and counted the chunk as one rejected finding — so a model that ran out of room to answer looked like a checklist that reviewed the code and found it clean. Now thrown with a named reason that says which of the two fixes applies (raise the cap, or use a non-reasoning model). Seen for real on qwen3.8 on the LAN host.",
+        "The funnel itself (chunks/proposed/rejected/created) rides the existing validation_funnel jsonb column, which already existed for exactly this shape of question and said 'only the dependency scanner writes it'. No migration."
+      ]
+    },
+    {
+      "id": "W16-39",
+      "title": "A checklist against a LAN model times out with a bare \"fetch failed\"",
+      "phase": 16,
+      "module": "analysis",
+      "stories": [],
+      "depends_on": [
+        "W16-33"
+      ],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "packages/analysis/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A checklist run against a slow model either completes or fails with a reason naming the timeout"
+      ],
+      "notes": [
+        "Observed repeatedly 2026-08-28 verifying W16-33 against qwen3.8-27b on a LAN host: the run reaches the model, the model is demonstrably up (a direct curl answers), and the scan_run records `fetch failed` with nothing else. A 27B reasoning model on a 45000-token budget takes minutes per chunk, and something in the path gives up first.",
+        "`fetch failed` is undici's message for an aborted or dropped connection, so the candidates are the AbortController timeout in T2Client.chat, an intermediary, or the host closing an idle connection mid-generation. Not diagnosed — the timeout value and its source were not established.",
+        "This is the last thing standing between the local-LLM path and a demonstrated finding: the pipeline is proven correct (a clean diff gives a clean result, twice) and the fixture now carries a real SQL injection, but no run has yet completed against it."
       ]
     }
   ]

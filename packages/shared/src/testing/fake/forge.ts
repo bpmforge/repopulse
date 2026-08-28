@@ -154,6 +154,33 @@ export interface FakeForge {
   close: () => Promise<void>;
 }
 
+/**
+ * A stable index for a sha this fake does not know (W16-38).
+ *
+ * PREFERS THE ORDINAL IN THE SHA. The seeder names commits `payments-c0` …
+ * `payments-c7`, so the trailing number is the commit's position in that
+ * repo's history — which makes the mapping deterministic, varied, and tied to
+ * something meaningful rather than to a hash's luck.
+ *
+ * That matters more than it sounds. A scanner that reviews the NEWEST commit
+ * gets whichever fixture the newest sha lands on, and the first version of
+ * this hashed `payments-c7` onto the one benign patch in the set — so the
+ * OWASP checklist reviewed a clean `createServer` snippet, found nothing, and
+ * looked broken while working perfectly.
+ *
+ * djb2 remains the fallback for a sha with no ordinal (a real hex one), because
+ * the requirement there is only "same sha, same answer, spread across the set"
+ * — not collision resistance. A cryptographic hash would claim something about
+ * security that this function does not mean.
+ */
+function hashIndex(sha: string, buckets: number): number {
+  const ordinal = /(\d+)$/.exec(sha)?.[1];
+  if (ordinal !== undefined) return Number(ordinal) % buckets;
+  let h = 5381;
+  for (let i = 0; i < sha.length; i++) h = ((h << 5) + h + sha.charCodeAt(i)) >>> 0;
+  return h % buckets;
+}
+
 export function startFakeForge(port = 0): Promise<FakeForge> {
   const calls: string[] = [];
 
@@ -329,7 +356,21 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
       const sha = commitDetail[1]!;
       // Deterministic per-SHA so the churn totals are stable across runs and an
       // assertion can name a number rather than "greater than zero".
-      const idx = FAKE_COMMITS.findIndex((c) => c.sha === sha);
+      // DETERMINISTIC PER SHA, AND NOT ALWAYS THE FIRST ONE (W16-38).
+      //
+      // `findIndex` only matches this fake's OWN commit shas. The seeder's look
+      // like `payments-c7`, so every commit in the demo fell through to
+      // FAKE_COMMIT_FILES[0] — the one benign patch in the set. The OWASP
+      // checklist therefore reviewed a clean `createServer` snippet on every
+      // run, reported zero findings, and looked exactly like a checklist that
+      // does not work. It was working; it was being shown nothing to find.
+      //
+      // Falls back to a hash of the sha rather than to index 0, so an unknown
+      // sha still gets a STABLE and varied file set — the churn totals stay
+      // reproducible, which is what index 0 was protecting, without every
+      // commit in a seeded repo being the same clean diff.
+      const known = FAKE_COMMITS.findIndex((c) => c.sha === sha);
+      const idx = known >= 0 ? known : hashIndex(sha, FAKE_COMMIT_FILES.length);
       const files = FAKE_COMMIT_FILES[idx] ?? FAKE_COMMIT_FILES[0]!;
       json(200, {
         sha,

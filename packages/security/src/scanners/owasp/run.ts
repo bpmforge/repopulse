@@ -213,6 +213,30 @@ export async function runOwaspChecklist(
           // about a finding nobody agrees with.
           models: [...models].sort().join(','),
         },
+        /**
+         * THE CHECKLIST'S OWN FUNNEL (W16-38).
+         *
+         * `rejected` — findings the evidence validator threw out because their
+         * quote was not verbatim from the diff — was returned to the caller and
+         * then dropped. So a run where the model proposed four things and every
+         * one was rejected recorded `findingCount: 0` and rendered as
+         * "✓ ran clean", identical to a run where the model found nothing.
+         *
+         * Those are very different facts. The first says the prompt or the
+         * validator is wrong and is the only way anyone would learn it; the
+         * second is good news. This is the same distinction W16-31 drew between
+         * "nothing was scanned" and "ran clean", one layer in.
+         *
+         * The column already existed for exactly this shape of question — its
+         * own comment says "only the dependency scanner writes it; other
+         * scanners have no funnel". Now one does, and no migration was needed.
+         */
+        validationFunnel: {
+          chunks: chunked.chunks.length,
+          proposed: findings.length + rejected,
+          rejected,
+          created: persisted.created,
+        },
       })
       .where(eq(security.scanRuns.id, runId));
 
