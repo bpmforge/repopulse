@@ -6223,7 +6223,7 @@
         "W16-16"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/web/src/routes/findings/**",
         "apps/api/src/routes/findings/**",

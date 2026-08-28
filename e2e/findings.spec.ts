@@ -188,17 +188,55 @@ test('a finding can be LINKED to: opening one puts it in the URL (W16-16)', asyn
   await expect(page).toHaveURL(/[?&]window=90d\b/);
 });
 
-test('a link to a finding the filters hide SAYS so, rather than nothing (W16-16)', async ({
+test('a link opens a finding the filters HIDE (W16-32)', async ({ page }) => {
+  // W16-16 put the finding in the URL; the filters are still component state,
+  // so a link resolved against the RECIPIENT'S view. A triage tool whose "look
+  // at this one" link depends on what the reader happens to be filtering by is
+  // not a link. GET /findings/:id is what makes it one.
+  await loginAsFixture(page);
+  await page.goto('/findings');
+
+  // Dismiss one, so it leaves the default (status = open) list.
+  await page.getByTestId('filter-status').selectOption('');
+  const open = page.locator('[data-testid^="finding-open-"]').first();
+  await expect(open).toBeVisible();
+  const id = (await open.getAttribute('data-testid'))!.replace('finding-open-', '');
+  await open.click();
+  await expect(page.getByTestId('finding-detail')).toBeVisible();
+  await page.getByTestId('finding-note').fill('W16-32 link fixture');
+  await page.getByTestId('finding-dismiss-reason').selectOption('false positive');
+  await page.getByTestId('finding-dismiss').click();
+  // Dismissed rows leave the default list, which is the whole point of the
+  // fixture — wait for the transition before sharing the link.
+  await expect(page.getByTestId('finding-detail')).toContainText(/dismissed/i);
+
+  // COLD, with the DEFAULT filters — which exclude a dismissed finding.
+  await page.context().clearCookies();
+  await loginAsFixture(page);
+  await page.goto(`/findings?finding=${id}`);
+
+  // Fetched by id rather than found in the list. Before W16-32 this was the
+  // "not in the current view" notice.
+  await expect(page.getByTestId('finding-detail')).toBeVisible();
+  await expect(page.getByTestId('finding-not-in-view')).toBeHidden();
+  // AND THE LIST DOES NOT HOLD IT — otherwise this passes through the old path
+  // and proves nothing about the by-id fetch.
+  await expect(page.getByTestId(`finding-open-${id}`)).toBeHidden();
+  await expect(page.getByTestId('finding-detail')).toContainText(/dismissed/i);
+});
+
+test('a link to a finding that does not exist SAYS so, rather than nothing (W16-16)', async ({
   page,
 }) => {
-  // The filters are not part of the link, so a link resolves against the
-  // RECIPIENT'S view. Landing silently on the list is indistinguishable from a
-  // broken link — the failure this whole screen's copy is careful about.
+  // Landing silently on the list is indistinguishable from a broken link — the
+  // failure this whole screen's copy is careful about. Reaching this state now
+  // means the id genuinely is not in the workspace, because W16-32's by-id
+  // fetch covers the filtered case.
   await loginAsFixture(page);
   await page.goto('/findings?finding=999999999');
 
   const notice = page.getByTestId('finding-not-in-view');
   await expect(notice).toBeVisible();
   await expect(notice).toContainText('999999999');
-  await expect(notice).toContainText(/not in the current view/i);
+  await expect(notice).toContainText(/not in this workspace/i);
 });

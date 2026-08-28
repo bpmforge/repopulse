@@ -132,6 +132,21 @@ function FindingsExplorer() {
 
   const items = data?.items ?? [];
 
+  /**
+   * The open finding, fetched by id when the LIST does not hold it (W16-32).
+   *
+   * The filters are component state, so a link resolves against the
+   * RECIPIENT'S view — a link to a dismissed finding, opened by someone whose
+   * Status is the default "open", found nothing. Enabled only in that case, so
+   * an ordinary click costs no extra request: the row is already in hand.
+   */
+  const inList = openId !== null ? items.find((f) => f.id === openId) : undefined;
+  const fetched = useApiQuery<Finding>(
+    { endpoint: '/findings/{id}', path: { id: String(openId ?? '') } },
+    { enabled: openId !== null && !inList && !isLoading },
+  );
+  const openFinding = inList ?? (openId !== null ? fetched.data : undefined);
+
   return (
     <div className="flex flex-col gap-4" data-testid="findings">
       <div className="flex justify-end">
@@ -387,10 +402,10 @@ function FindingsExplorer() {
       )}
 
       {openId !== null &&
-        (items.find((f) => f.id === openId) ? (
+        (openFinding ? (
           <div ref={detailRef}>
             <FindingDetail
-              finding={items.find((f) => f.id === openId)!}
+              finding={openFinding}
               onClose={() => setOpenId(null)}
               invalidate={[
                 queryKeyFor(listDescriptor),
@@ -398,22 +413,22 @@ function FindingsExplorer() {
               ]}
             />
           </div>
+        ) : fetched.isLoading ? (
+          <div ref={detailRef} className="text-sm text-fg-muted" data-testid="finding-loading">
+            Opening finding #{openId}…
+          </div>
         ) : (
-          // NOT SILENCE (W16-16). A link resolves against the recipient's
-          // filters, which are not in the URL — so a link to a dismissed
-          // finding, opened by someone whose Status is "open", would otherwise
-          // land on the list with no explanation and read as a broken link.
+          // NOT SILENCE (W16-16), and now only for a finding that genuinely is
+          // not there (W16-32). The by-id fetch covers the filters case, so
+          // reaching here means the id does not exist in this workspace —
+          // deleted, mistyped, or somebody else's.
           <div
             ref={detailRef}
             className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
             data-testid="finding-not-in-view"
           >
-            Finding #{openId} is not in the current view. It may be filtered out — the filters
-            above are not part of the link — or it may belong to another workspace.{' '}
-            <button type="button" className="text-accent underline" onClick={() => setStatus('')}>
-              Clear the status filter
-            </button>{' '}
-            and look again.
+            Finding #{openId} is not in this workspace. It may have been deleted, or the link may
+            be for a different RepoPulse install.
           </div>
         ))}
     </div>
