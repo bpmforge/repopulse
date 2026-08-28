@@ -81,11 +81,30 @@ export const PROVIDER_REGISTRY: Readonly<Record<LlmProviderKind, ProviderSpec>> 
   bedrock: {
     kind: 'bedrock',
     label: 'Amazon Bedrock',
-    authClass: 'cloud_credentials',
-    needsBaseUrl: false,
-    supported: false,
-    unsupportedReason:
-      'Bedrock signs each request with the AWS credential chain (SigV4) rather than sending a key. Support is W16-09.',
+    // API KEY, not cloud credentials (W16-09).
+    //
+    // This entry said `cloud_credentials` and "Bedrock signs each request with
+    // the AWS credential chain (SigV4) rather than sending a key". That was
+    // true when it was written and is not any more: AWS exposes an
+    // OpenAI-compatible Chat Completions API on bedrock-runtime that accepts
+    // EITHER SigV4 or an Amazon Bedrock API key as `Authorization: Bearer`
+    //
+    //   https://bedrock-runtime.{region}.amazonaws.com/openai/v1/chat/completions
+    //
+    // (verified against the AWS docs, Law 2). So Bedrock is base-URL-plus-key
+    // after all, and rides the same transport as every other OpenAI-compatible
+    // endpoint. Implementing SigV4 would be about a hundred lines of HMAC plus
+    // a dependency decision, for no capability the key does not already give.
+    //
+    // The REGION is in the URL, so this needs a base URL rather than carrying
+    // a default: there is no single Bedrock endpoint to default to.
+    authClass: 'api_key',
+    needsBaseUrl: true,
+    supported: true,
+    examples: [
+      'https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1',
+      'https://bedrock-runtime.eu-west-1.amazonaws.com/openai/v1',
+    ],
   },
   copilot: {
     kind: 'copilot',
