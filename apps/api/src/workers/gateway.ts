@@ -163,12 +163,9 @@ export async function buildWorkerGateway(
   /**
    * Whose providers to run on. Omitted means the env fallback only.
    *
-   * ONE GATEWAY PER WORKER is a carry-over from when hosts came from a global
-   * environment variable, and it stops being right the moment providers are
-   * per-workspace: a second workspace with its own model needs its own gateway,
-   * not this one. v1 runs a single workspace, so the worker passes the default
-   * and W16-19 tracks the multi-workspace case rather than this pretending to
-   * handle it.
+   * ONE CALL BUILDS ONE WORKSPACE'S GATEWAY. The worker no longer calls this
+   * directly — see createGatewayResolver below, which is what makes "each
+   * workspace analyses on its own providers" true rather than aspirational.
    */
   workspaceId?: number,
 ): Promise<WorkerGateway | null> {
@@ -208,6 +205,72 @@ export async function buildWorkerGateway(
   });
 
   return { gateway, hosts, source, skipped };
+}
+
+/**
+ * A gateway PER WORKSPACE, built on demand (W16-19).
+ *
+ * The worker used to build one gateway at boot and hand it to every scan. That
+ * was right while hosts came from a global environment variable and wrong the
+ * moment providers became per-workspace rows (D-LLM-1): a second workspace with
+ * its own model would have been analysed on the first workspace's — or, since
+ * the worker passed the DEFAULT workspace's id, silently got no gateway at all
+ * while its own configured provider sat there enabled.
+ *
+ * v1 runs one workspace, so nothing was visibly broken. That is exactly why it
+ * was worth fixing before there were two: the failure mode is a workspace whose
+ * configured model is quietly ignored, which is the shape of bug this whole
+ * wave has been about.
+ */
+export interface GatewayResolver {
+  /** This workspace's gateway, or null when it has no usable provider. */
+  for(workspaceId: number): Promise<WorkerGateway | null>;
+  /** Drops the cache — for tests, and for an admin change taking effect. */
+  invalidate(workspaceId?: number): void;
+}
+
+export interface GatewayResolverOptions {
+  /**
+   * How long a built gateway is reused, in ms.
+   *
+   * Not zero, because building one decrypts a credential and resolves every
+   * provider row, and a weekly pass over forty repos would do that forty times.
+   * Not infinite either: D-LLM-1's premise is that you configure your model in
+   * Admin → Models, and a cache with no expiry would mean an admin who adds a
+   * provider has to restart the worker before anything uses it — which is the
+   * file-editing-and-restarting the whole feature exists to remove.
+   */
+  ttlMs?: number;
+  now?: () => number;
+}
+
+export function createGatewayResolver(
+  db: Database,
+  env: NodeJS.ProcessEnv,
+  tokenKey: Buffer,
+  options: GatewayResolverOptions = {},
+): GatewayResolver {
+  const ttlMs = options.ttlMs ?? 60_000;
+  const now = options.now ?? (() => Date.now());
+  const cache = new Map<number, { at: number; built: WorkerGateway | null }>();
+
+  return {
+    async for(workspaceId: number): Promise<WorkerGateway | null> {
+      const hit = cache.get(workspaceId);
+      // A cached NULL counts. A workspace with no provider is a settled answer,
+      // not a miss — re-deriving it on every scan would query the table for
+      // every repo in the sweep to reach the same nothing.
+      if (hit && now() - hit.at < ttlMs) return hit.built;
+
+      const built = await buildWorkerGateway(db, env, tokenKey, workspaceId);
+      cache.set(workspaceId, { at: now(), built });
+      return built;
+    },
+    invalidate(workspaceId?: number): void {
+      if (workspaceId === undefined) cache.clear();
+      else cache.delete(workspaceId);
+    },
+  };
 }
 
 /**

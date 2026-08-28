@@ -19,7 +19,7 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
-import { buildWorkerGateway, reportGatewayHealth } from './gateway.js';
+import { createGatewayResolver, reportGatewayHealth } from './gateway.js';
 import {
   jsonFetcher,
   readComponents,
@@ -90,21 +90,28 @@ async function main(): Promise<void> {
   // reporting a clean repository they never looked at.
   // tokenKey: provider API keys live in the same vault as forge tokens, so the
   // worker needs it to use a configured provider at all (W16-08).
-  // The DEFAULT workspace's providers, named explicitly (Law 5). v1 runs one
-  // workspace; a second one with its own model needs its own gateway, which is
-  // W16-19 rather than something this line quietly gets wrong.
+  // A GATEWAY PER WORKSPACE, resolved where the workspace is known (W16-19).
+  //
+  // This used to build ONE gateway at boot for the default workspace and hand
+  // it to every scan — right while hosts came from a global env var, wrong once
+  // providers became per-workspace rows (D-LLM-1). A second workspace would
+  // have analysed on the first one's model, or silently got none at all while
+  // its own configured provider sat there enabled.
+  const gateways = createGatewayResolver(db, process.env, credentials.loadTokenKey());
+
+  // The boot line still reports the DEFAULT workspace, because that is the one
+  // an operator setting this up has, and "which hosts answer" is worth saying
+  // once at startup. It is labelled as the default's rather than presented as
+  // the whole picture.
   const [defaultWorkspace] = await db
     .select({ id: core.workspaces.id })
     .from(core.workspaces)
     .where(eq(core.workspaces.slug, workspaceModule.DEFAULT_WORKSPACE_SLUG))
     .limit(1);
-  const analysisGateway = await buildWorkerGateway(
-    db,
-    process.env,
-    credentials.loadTokenKey(),
-    defaultWorkspace?.id,
+  const bootGateway = defaultWorkspace ? await gateways.for(defaultWorkspace.id) : null;
+  log.info(
+    `[worker] default workspace — ${await reportGatewayHealth(bootGateway)}`,
   );
-  log.info(`[worker] ${await reportGatewayHealth(analysisGateway)}`);
 
   const connection = createRedisConnection(redisUrl);
   const healthRedis = createRedisConnection(redisUrl);
@@ -294,6 +301,11 @@ async function main(): Promise<void> {
           // not a model — so they run here and the judgement layer stays on
           // the pull-request path where a gateway already exists.
           anti_slop: async ({ workspaceId, repoId }) => {
+            // THIS WORKSPACE'S gateway (W16-19), resolved here because here is
+            // where the workspace is known. Cached by the resolver, so the two
+            // scanners below share one build rather than each paying for a
+            // credential decrypt.
+            const analysisGateway = await gateways.for(workspaceId);
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             if (!resolved) {
               return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
@@ -498,6 +510,10 @@ async function main(): Promise<void> {
           // dismissals across the whole workspace, and running it per repo
           // would draft the same rule N times.
           rule_draft_pass: async ({ workspaceId }) => {
+            // THIS WORKSPACE'S gateway (W16-19). The pass clusters one
+            // workspace's dismissals, so borrowing another's model to judge
+            // them would be both wrong and a cross-tenant use of a credential.
+            const analysisGateway = await gateways.for(workspaceId);
             const result = await runRuleDraftPass({
               db,
               workspaceId,
