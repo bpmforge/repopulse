@@ -50,6 +50,21 @@ describe('delta -> secrets stream (W8-04)', () => {
     expect(code).not.toMatch(/switch\s*\(\s*\w*[sS]cannerKey/);
   });
 
+  it('the dependency scanner has a caller at last (W16-36)', () => {
+    // W8-06 was marked done and runDependencyScan had NO caller anywhere, so
+    // security.sboms had never held a row: the Security tab told every reader
+    // "the CVE scanner is not available yet", the supply-chain register
+    // returned no_sbom every night, and owasp_llm could only ever skip for
+    // want of a document to read. One scanner unwired, four screens telling
+    // the truth about it.
+    const entry = readFileSync(new URL('./index.ts', import.meta.url).pathname, 'utf8');
+    expect(entry).toContain('runDependencyScan');
+    expect(entry).toContain('dependency_cve: async');
+    // And it is SCHEDULED, not merely wired — the shape of failure this whole
+    // wave has been about is a runner nothing enqueues.
+    expect(entry).toContain("['dependency_cve', weeklyCron]");
+  });
+
   it('the scanners use the SAME forge config as ingestion (W16-29)', () => {
     // Six scan runners each built `providerForRepo({ db, tokenKey })` with no
     // forge options, so FORGE_BASE_URL and the SC-12 loopback opt-in were

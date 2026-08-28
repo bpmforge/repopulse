@@ -46,6 +46,18 @@ export function looksLikeMissingScanTools(error: string): boolean {
   );
 }
 
+/**
+ * Does this failure look like a stale or missing VULNERABILITY database?
+ *
+ * A different answer from a missing image, and it needs a different command.
+ * grype refuses a database older than five days and says so on stderr; the
+ * scan tools image deliberately does not carry one, because baking a copy in
+ * would ship a stale one that looks current.
+ */
+export function looksLikeStaleVulnDb(error: string): boolean {
+  return /vulnerability database|vulnerability db|scan-db-sync/i.test(error);
+}
+
 export function ScannerStatusList({ scanners }: Props) {
   return (
     <table className="w-full text-sm" data-testid="scanner-status">
@@ -103,7 +115,21 @@ export function ScannerStatusList({ scanners }: Props) {
               {scanner.error && (
                 <div className="text-xs text-fg-muted" data-testid={`scanner-error-${scanner.key}`}>
                   {scanner.error}
-                  {looksLikeMissingScanTools(scanner.error) && (
+                  {looksLikeStaleVulnDb(scanner.error) && (
+                    // A DIFFERENT command from the image one. grype refuses a
+                    // database older than five days, and the image cannot
+                    // carry one — a baked-in copy would ship stale and look
+                    // current.
+                    <div className="mt-0.5" data-testid={`scanner-db-${scanner.key}`}>
+                      The vulnerability database is refreshed daily and is not part of the image.
+                      Run{' '}
+                      <code className="rounded bg-surface-2 px-1 font-mono">
+                        deploy/scan-db-sync.sh
+                      </code>{' '}
+                      — see docs/RUNNING.md → Scan tools.
+                    </div>
+                  )}
+                  {!looksLikeStaleVulnDb(scanner.error) && looksLikeMissingScanTools(scanner.error) && (
                     // WHAT TO DO ABOUT IT (W16-11, F16). A screen that says a
                     // tool is missing and stops there has told someone their
                     // scan failed and left them to guess.

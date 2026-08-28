@@ -136,17 +136,23 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     inputs: 'findings',
     triggers: ['schedule', 'manual'],
   }),
-  // NO 'manual' below this line. These three exist and are tested, and nothing
-  // in the worker can start one on request:
-  //
-  //   logging_hygiene and performance run INSIDE the anti_slop weekly runner,
-  //   on the snapshot it already paid for — they have no runner of their own,
-  //   and taking a second tarball for them would be a rate-limit cost for the
-  //   same commit.
-  //
-  //   dependency_cve has runDependencyScan and NO caller anywhere. It is listed
-  //   so the catalogue stops claiming it is not installed, and it is not
-  //   offered as something a button can start, because today it is not.
+  sweeper({
+    key: DEPENDENCY_SCANNER_KEY,
+    displayName: 'Dependency CVEs',
+    version: 'dependency.v1',
+    inputs: 'manifests',
+    // STARTABLE AS OF W16-36. It had no caller anywhere for eight waves, so it
+    // was catalogued without 'manual' — listed, so the screen stopped claiming
+    // it was not installed, and not offered, because no button could reach it.
+    // The worker wires it now.
+    triggers: ['schedule', 'manual'],
+    requiredTools: ['syft@1', 'grype@0'],
+  }),
+  // NO 'manual' below this line. These two exist and are tested, and nothing
+  // in the worker can start one on request: logging_hygiene and performance
+  // run INSIDE the anti_slop weekly runner, on the snapshot it already paid
+  // for — they have no runner of their own, and taking a second tarball for
+  // them would be a rate-limit cost for the same commit.
   sweeper({
     key: LOGGING_SCANNER_KEY,
     displayName: 'Logging hygiene',
@@ -160,14 +166,6 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     version: 'perf.v1',
     inputs: 'snapshot',
     triggers: ['schedule'],
-  }),
-  sweeper({
-    key: DEPENDENCY_SCANNER_KEY,
-    displayName: 'Dependency CVEs',
-    version: 'dependency.v1',
-    inputs: 'manifests',
-    triggers: ['schedule'],
-    requiredTools: ['syft@1', 'grype@0'],
   }),
 ];
 

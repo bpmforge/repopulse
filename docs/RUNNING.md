@@ -295,7 +295,17 @@ Two things this image deliberately does NOT contain:
 
 - **grype's vulnerability database.** It is refreshed daily and baking a copy
   in would ship a stale one that looks current. `deploy/scan-db-sync.sh` pulls
-  it.
+  it. The scanner looks in `$SCAN_RULES_DIR/vuln-db`, defaulting to
+  `/var/lib/repopulse/scan-rules` — a deployment path, so on a dev machine
+  point it at the checkout:
+
+  ```bash
+  SCAN_RULES_DIR=$PWD/deploy/scan-rules DEMO_MODE=1 pnpm dev
+  ```
+
+  A database grype will refuse — it rejects anything over five days old — is
+  reported as a failed scan naming its age and the sync command, not as a
+  clean bill of health.
 - **Semgrep registry rules.** They are licence-barred for service use, so the
   semgrep scanner refuses a `p/…`, `r/…` or `auto` config outright rather than
   quietly ignoring it. The rules it runs are in-house and live in the repo.

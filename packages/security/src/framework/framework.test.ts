@@ -159,6 +159,8 @@ describe('enablement defaults (FR-SEC-11)', () => {
     const on = SCANNER_DEFAULTS.filter((d) => d.enabled).map((d) => d.key);
     expect(on).toEqual([
       'secrets',
+      // W16-36: back on, now that the worker actually calls runDependencyScan.
+      'dependency_cve',
       'semgrep',
       'attack_chainer',
       'code_health_tools',

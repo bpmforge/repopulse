@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
 import { runInSandbox, type RunInSandboxOptions } from '../../../sandbox/run.js';
@@ -63,12 +63,67 @@ export function checkVulnDb(dir: string): VulnDbCheck {
   // rather than pinned here: pinning it would break the day grype's own
   // upgrade changes it, and the failure would look like an empty scan.
   for (const entry of readdirSync(dir)) {
-    if (existsSync(path.join(dir, entry, 'vulnerability.db'))) return { ok: true, schema: entry };
+    if (!existsSync(path.join(dir, entry, 'vulnerability.db'))) continue;
+    const age = ageOf(path.join(dir, entry));
+    // STALE IS ITS OWN ANSWER (W16-36).
+    //
+    // grype refuses a database older than five days and exits 1 — and it says
+    // why only on stderr, which did not survive the sandbox: the first real
+    // run of this scanner reported "grype exited 1" to the screen and nothing
+    // else. A present-but-refused database is the same shape of problem as an
+    // absent one, so it is checked in the same place and answered in the same
+    // words: what is wrong, and the command that fixes it.
+    if (age !== null && age > MAX_DB_AGE_DAYS) {
+      return {
+        ok: false,
+        reason:
+          `the vulnerability database is ${age} days old and grype refuses one over ` +
+          `${MAX_DB_AGE_DAYS} — run deploy/scan-db-sync.sh`,
+      };
+    }
+    return { ok: true, schema: entry };
   }
   return {
     ok: false,
     reason: `${dir} exists but holds no <schema>/vulnerability.db — the sync did not finish`,
   };
+}
+
+/**
+ * grype's own default maximum database age, in days.
+ *
+ * Mirrored rather than discovered because grype does not expose it, and a
+ * number that drifts from the tool's is better than no check: too strict here
+ * means an early, actionable failure instead of `grype exited 1`, and too
+ * lenient means the behaviour we have today.
+ */
+const MAX_DB_AGE_DAYS = 5;
+
+/**
+ * How old the imported database is, from grype's OWN record of it.
+ *
+ * `import.json` holds the source URL it was built from, and that URL carries
+ * the build timestamp — which is what grype itself compares against. The file
+ * mtime is deliberately not used: `scan-db-sync.sh` copies the directory, so
+ * mtime is when it was COPIED, and a fresh copy of a stale database would
+ * report as new.
+ *
+ * Returns null when the record cannot be read, and the caller then proceeds:
+ * a database this function cannot date is not thereby a database that is old,
+ * and refusing to scan on that basis would be its own false alarm.
+ */
+function ageOf(schemaDir: string): number | null {
+  try {
+    const raw = readFileSync(path.join(schemaDir, 'import.json'), 'utf8');
+    const source = (JSON.parse(raw) as { source?: string }).source ?? '';
+    const stamp = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)/.exec(source)?.[1];
+    if (!stamp) return null;
+    const built = Date.parse(stamp);
+    if (Number.isNaN(built)) return null;
+    return Math.floor((Date.now() - built) / 86_400_000);
+  } catch {
+    return null;
+  }
 }
 
 export interface DependencyToolsArgs {
@@ -173,12 +228,38 @@ export async function runDependencyTools(
   const syftExit = readExitCode(head, 'SYFT_EXIT');
   const grypeExit = readExitCode(grypeText, 'GRYPE_EXIT');
 
+  /**
+   * THE TOOL'S OWN REASON, not just its exit code (W16-36).
+   *
+   * `grype exited 1` was the whole message a reader got, and it is the same
+   * unactionable shape as "(not installed)": true, and no use. The first real
+   * run of this scanner failed with it — and grype's stderr said exactly what
+   * was wrong and what to do about it:
+   *
+   *   failed to load vulnerability db: the vulnerability database was built
+   *   1 week ago (max allowed age is 5 days)
+   *
+   * The sandbox has captured stderr all along (`SandboxResult.stderr`, kept
+   * "for the operator") and this file discarded it at the one point an
+   * operator needed it.
+   *
+   * Capped, because stderr is untrusted output from a third-party tool and
+   * this string lands in a scan_run row that a screen renders.
+   */
+  const detail = (): string => {
+    const text = result.stderr.trim();
+    if (text === '') return '';
+    // The LAST lines, not the first: a tool that logged progress before dying
+    // buries its reason at the bottom.
+    return `: ${text.split('\n').slice(-3).join(' ').slice(-300)}`;
+  };
+
   // A missing marker means the shell never reached that line — truncated
   // output or a killed container, which is a failed run and not an empty one.
   if (syftExit === null) return failure('syft did not report an exit code', toolVersions);
-  if (syftExit !== 0) return failure(`syft exited ${syftExit}`, toolVersions);
+  if (syftExit !== 0) return failure(`syft exited ${syftExit}${detail()}`, toolVersions);
   if (grypeExit === null) return failure('grype did not report an exit code', toolVersions);
-  if (grypeExit !== 0) return failure(`grype exited ${grypeExit}`, toolVersions);
+  if (grypeExit !== 0) return failure(`grype exited ${grypeExit}${detail()}`, toolVersions);
 
   let document: Record<string, unknown>;
   try {
