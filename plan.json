@@ -5628,7 +5628,9 @@
       ],
       "status": "todo",
       "notes": [
-        "Split from W15-06 deliberately: three substantially different auth mechanisms, none of which is a base-URL-plus-key. Do not fold back in."
+        "Split from W15-06 deliberately: three substantially different auth mechanisms, none of which is a base-URL-plus-key. Do not fold back in.",
+        "NOT BLOCKED ON CREDENTIALS — I said that on 2026-08-28 and it was wrong. Re-reading the acceptance: all four criteria are about the auth MECHANISM, not a live vendor round-trip. SigV4 is a pure signing function and AWS publishes official test vectors (aws-sig-v4-test-suite) that verify it with fake keys. Vertex's service-account flow is JWT construction and signing, testable with a throwaway RSA key plus a fake token endpoint. The device flow is an HTTP dance, testable against a fake authorization server — this repo already fakes GitHub's OAuth boundary in e2e/helpers/fake-github.ts. The fourth criterion (an unsupported kind fails at CONFIGURATION time) needs nothing at all.",
+        "What genuinely needs credentials is only a live smoke against the real vendor, and this repo already has the pattern for that: smoke-real-forge.spec.ts is opt-in behind SMOKE_REAL_FORGE=1 and skips otherwise. So the work is claimable now; only the final vendor smoke waits on Brad."
       ],
       "id": "W16-09",
       "title": "Provider auth beyond API keys: Vertex AI, Bedrock, GitHub Copilot, OpenAI subscription plans",
@@ -6269,7 +6271,8 @@
         "dependency_cve is the third of the same shape: runDependencyScan exists with no caller. Catalogued but not startable, and disabled by default until something calls it.",
         "DONE 2026-08-28. Both checklists wired as MANUAL-ONLY runners over the newest ingested commit's DIFF — not the weekly snapshot the other scanners share, because chunkDiff reviews changed files and their own defaults say a human starts them ('costly per run'). Catalogued with triggers ['manual'] and left disabled by default, so nothing runs a model over every repo without being asked.",
         "Verified against the REAL local model, and it found two more bugs on the way: the fake forge served commit files with NO `patch` field at all, and its commit-detail route regex `[0-9a-z]+` rejected the seeder's shas (`payments-c1`) so it 404'd for every commit in the demo. Both fixed. That second one also means the secrets STREAM scanner — the one meant to catch a credential within 60s of a webhook — had never been handed a line of source against this fake.",
-        "The final run reached the model host and stopped there: LM Studio refused to load the model for 'insufficient system resources' on this machine. The wiring is proven end to end (provider -> diff -> chunker -> gateway -> host) and the model's own answer is NOT verified. The error reaches the screen verbatim, which is the behaviour wanted."
+        "The final run reached the model host and stopped there: LM Studio refused to load the model for 'insufficient system resources' on this machine. The wiring is proven end to end (provider -> diff -> chunker -> gateway -> host) and the model's own answer is NOT verified. The error reaches the screen verbatim, which is the behaviour wanted.",
+        "MODEL ANSWER NOW VERIFIED (2026-08-28, Brad supplied a second host). Against qwen3.8-27b-mlx-textonly on http://192.168.13.179:1234/v1 the checklist ran for ~3 minutes and completed: scan_run succeeded, scannerVersion owasp-web.v1, partial false, 0 findings. So the earlier 'reached the host and stopped' caveat is closed — the local machine was simply out of memory."
       ]
     },
     {
@@ -6378,6 +6381,32 @@
         "DIAGNOSED AND FIXED 2026-08-28. The sandbox was never losing stderr — `-q` was. grype was invoked with `-q`, and that flag silences a FATAL error as thoroughly as a progress bar: verified by hand against the real image, with `-q` grype wrote ZERO bytes to stderr and exited 1; without it, the whole reason. Same flag removed from syft for the same reason. Safe for the parsers because both tools put their report on stdout (syft's to a file) and their logs on stderr.",
         "Opengrep is a DIFFERENT case and was left alone: it reports its errors inside the JSON on stdout (`errors[]`, already carried as toolErrors) with or without --quiet, so dropping the flag would gain nothing and risks the stream the markers split.",
         "What semgrep and code-health needed instead was the RUNTIME's words when the tool never ran at all: 'opengrep produced no output' is the symptom of a missing scan image, and podman had already said so. Both now append it, through one `stderrTail` helper in the sandbox module — read from the END, capped, and marked with an ellipsis rather than cut mid-word (the first version produced 'epopulse/does-not-exist', which reads as a rendering bug)."
+      ]
+    },
+    {
+      "id": "W16-38",
+      "title": "A checklist run does not say how many findings the validator rejected",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [
+        "W16-33"
+      ],
+      "points": 2,
+      "status": "todo",
+      "write_scope": [
+        "apps/api/src/workers/**",
+        "apps/api/src/routes/security/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A run that proposed findings and had them all rejected is distinguishable from one that found nothing"
+      ],
+      "notes": [
+        "Found verifying W16-33. runOwaspChecklist returns `rejected` — findings the evidence validator threw out for not quoting the diff verbatim — and the runner maps it to `deferred`, which the processor only persists on the zero-work path. A run that scanned something drops it.",
+        "So the first real checklist run read '✓ ran clean, 0 findings' and there is no way to tell from the screen whether the model found nothing or proposed things that were all rejected. Those are very different facts about a scanner, and the second one is how you learn a prompt or a validator is wrong.",
+        "This is the same distinction W16-31 drew between 'nothing was scanned' and 'ran clean' — one layer in."
       ]
     }
   ]
