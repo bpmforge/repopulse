@@ -6,4 +6,5 @@ export * from './seed/index.js';
 // serves the whole app against them so a newcomer can see it work with no
 // GitHub account. A fixture that only a test runner can start cannot do that.
 export * from './fake/forge.js';
+export * from './fake/tarball.js';
 export * from './fake/github.js';
