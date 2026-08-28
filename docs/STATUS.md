@@ -3857,3 +3857,4 @@ nothing reads — an admin's deliberate decision, silently dropped. Judged
 acceptable pre-release rather than worth a migration, and written down here so
 it does not resurface as a mystery. If a real install ever exists before v1,
 the fix is a one-line UPDATE renaming the key.
+`2026-08-28 W16-27 done — every non-ratio metric shared one anonymous rng.int(20,180) walk, so the demo reported 175 stale PRs across 15 seeded PRs, ~300 releases against three, and a bus factor of 90 over four contributors. Per-metric bands expressed against the seeded volume; only COUNT metrics scale in the org rollup (the first cut scaled everything and put org cycle time at 823h). M2 moved into the ratio set — it is a 0-1 score and was seeding in the tens. Verified in the demo: cycle time 275h, churn 2352 lines over 24 commits, throughput 9 over 9 issues. 1 test`
