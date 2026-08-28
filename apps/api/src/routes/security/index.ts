@@ -20,7 +20,19 @@ export interface SecurityRoutesOptions {
 export type ScannerState =
   | 'not_enabled'
   | 'never_run'
+  // W16-38. A scan_run is inserted with status 'running' and updated when it
+  // finishes, so between those two moments this fell through to 'ok' — the
+  // coverage table said "✓ ran clean" about a scan that had not finished, with
+  // `last_run_at` pointing at the moment it STARTED. A checklist that takes
+  // three minutes therefore looked clean for three minutes.
+  | 'running'
   | 'ok'
+  // W16-38. A run whose findings were ALL thrown out by the evidence
+  // validator. It recorded findingCount 0 and read as "ran clean", which is
+  // the same sentence a run that genuinely found nothing gets — and the
+  // difference between them is the only way anyone learns a prompt or a
+  // validator is wrong.
+  | 'all_rejected'
   | 'error'
   | 'partial'
   // W16-31. A run that finished without a fault and covered NOTHING — an
@@ -43,12 +55,34 @@ function fail(
 }
 
 /** Last run per scanner key for one repo. */
+/**
+ * Did this run propose findings and keep none of them? (W16-38)
+ *
+ * Read from the funnel the checklist writes. `proposed > 0 && created === 0` is
+ * the only shape that means it: a run with nothing proposed found nothing, and
+ * one with something created is not "all rejected" whatever else happened.
+ */
+export function rejectedEverything(funnel: Record<string, unknown> | null | undefined): boolean {
+  if (!funnel) return false;
+  const proposed = Number(funnel['proposed'] ?? 0);
+  const created = Number(funnel['created'] ?? 0);
+  return Number.isFinite(proposed) && proposed > 0 && created === 0;
+}
+
 export function stateOf(
   enabled: boolean,
-  run: { status: string; partial: boolean | null; error?: string | null } | undefined,
+  run: {
+    status: string;
+    partial: boolean | null;
+    error?: string | null;
+    validationFunnel?: Record<string, unknown> | null;
+  } | undefined,
 ): ScannerState {
   if (!enabled) return 'not_enabled';
   if (!run) return 'never_run';
+  // BEFORE any judgement about the result: there isn't one yet. Checked first
+  // so a queued or in-flight run can never borrow another state's sentence.
+  if (run.status === 'running' || run.status === 'queued') return 'running';
   if (run.status === 'failed') return 'error';
   if (run.status === 'budget_exceeded' || run.partial === true) return 'partial';
   // A SUCCEEDED run that still has something to say scanned nothing (W16-31).
@@ -56,6 +90,10 @@ export function stateOf(
   // records a row precisely so the table stops reading "has never run" — and a
   // green tick on it would put the lie back in a different place.
   if (run.error) return 'nothing_scanned';
+  // EVERYTHING THE MODEL PROPOSED WAS THROWN OUT (W16-38). Checked before the
+  // tick, because "ran clean" over four rejected findings is the same class of
+  // claim as a tick over an unscanned sweep.
+  if (rejectedEverything(run.validationFunnel)) return 'all_rejected';
   return 'ok';
 }
 
@@ -144,7 +182,12 @@ export default async function securityRoutes(
     const scanners = keys.map((key) => {
       const run = latestByKey.get(key);
       const stateRun = run
-        ? { status: run.status, partial: run.partial, error: run.error }
+        ? {
+            status: run.status,
+            partial: run.partial,
+            error: run.error,
+            validationFunnel: run.validationFunnel,
+          }
         : undefined;
       const enabled = isEnabled(
         key,
@@ -165,6 +208,10 @@ export default async function securityRoutes(
         // answerable without a log search.
         error: run?.error ?? null,
         scanner_version: run?.scannerVersion ?? null,
+        // The checklist funnel, so the UI can say HOW MANY were thrown out
+        // rather than only that some were (W16-38). Null for every scanner
+        // that has no funnel, which the UI reads as "not measured".
+        validation_funnel: run?.validationFunnel ?? null,
         open_findings: findings.filter((f) => f.scannerKey === key).length,
       };
     });

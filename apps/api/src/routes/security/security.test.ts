@@ -64,6 +64,81 @@ describe('a scanner state is never a bare zero', () => {
     expect(stateOf(true, { status: 'succeeded', partial: true, error: 'capped' })).toBe('partial');
   });
 
+  it('a scan still RUNNING is not "ran clean" (W16-38)', () => {
+    // scan_runs is inserted with status 'running' and updated when it
+    // finishes, so between those moments this fell through to 'ok': the
+    // coverage table said "✓ ran clean" about a scan that had not finished,
+    // with last_run_at pointing at the moment it STARTED. A checklist takes
+    // minutes, so the window is not theoretical — it is how the screen looked
+    // for the whole of every OWASP run.
+    expect(stateOf(true, { status: 'running', partial: false })).toBe('running');
+    expect(stateOf(true, { status: 'queued', partial: false })).toBe('running');
+  });
+
+  it('a running scan does not borrow another state, whatever else is set', () => {
+    // Checked FIRST, so a stale funnel or error from an earlier attempt on the
+    // same row cannot make an in-flight scan describe a result it has not got.
+    expect(
+      stateOf(true, {
+        status: 'running',
+        partial: true,
+        error: 'something older',
+        validationFunnel: { proposed: 4, rejected: 4, created: 0 },
+      }),
+    ).toBe('running');
+    // And a disabled scanner still reads as disabled.
+    expect(stateOf(false, { status: 'running', partial: false })).toBe('not_enabled');
+  });
+
+  it('a run whose findings were ALL rejected is not "ran clean" (W16-38)', () => {
+    // The model looked, proposed findings, and the evidence validator threw
+    // every one out for not quoting the diff verbatim. findingCount is 0 and
+    // the row used to read exactly like a run that found nothing — which is
+    // the only signal anyone would get that a prompt or the check is wrong.
+    expect(
+      stateOf(true, {
+        status: 'succeeded',
+        partial: false,
+        validationFunnel: { chunks: 2, proposed: 4, rejected: 4, created: 0 },
+      }),
+    ).toBe('all_rejected');
+  });
+
+  it('a run that kept SOME findings is ok, whatever else was rejected', () => {
+    expect(
+      stateOf(true, {
+        status: 'succeeded',
+        partial: false,
+        validationFunnel: { chunks: 2, proposed: 4, rejected: 3, created: 1 },
+      }),
+    ).toBe('ok');
+  });
+
+  it('a run that proposed nothing is ok, not "all rejected"', () => {
+    // Nothing proposed is a clean diff, and calling that "every finding was
+    // rejected" would invent a problem — the mirror of the bug above.
+    expect(
+      stateOf(true, {
+        status: 'succeeded',
+        partial: false,
+        validationFunnel: { chunks: 2, proposed: 0, rejected: 0, created: 0 },
+      }),
+    ).toBe('ok');
+    // And a scanner with no funnel at all is untouched by this.
+    expect(stateOf(true, { status: 'succeeded', partial: false })).toBe('ok');
+  });
+
+  it('a FAILED run stays failed even with a funnel full of rejections', () => {
+    expect(
+      stateOf(true, {
+        status: 'failed',
+        partial: false,
+        error: 'boom',
+        validationFunnel: { proposed: 4, rejected: 4, created: 0 },
+      }),
+    ).toBe('error');
+  });
+
   it('treats an unknown partial flag as not partial, not as unknown', () => {
     // partial is nullable in the schema for rows written before it existed;
     // null means "nothing said it was cut short", which is the honest reading.

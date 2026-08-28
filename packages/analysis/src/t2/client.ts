@@ -69,9 +69,58 @@ export interface T2Deps {
 }
 
 interface ChatResponse {
-  choices?: { message?: { content?: string } }[];
+  choices?: {
+    message?: {
+      content?: string;
+      /**
+       * Where a REASONING model puts its thinking (W16-38).
+       *
+       * LM Studio, Ollama and the hosted OpenAI-compatible endpoints all
+       * return it alongside `content` for models like qwen3.8 and the gpt-oss
+       * family. It is never the answer — read only to tell a model that
+       * thought and never concluded from one that returned nothing at all.
+       */
+      reasoning_content?: string;
+    };
+    /** `stop` when the model finished, `length` when it hit the cap. */
+    finish_reason?: string;
+  }[];
   model?: string;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
+}
+
+/**
+ * A reasoning model that spent its whole budget thinking (W16-38).
+ *
+ * The header note above already says why the cap is 45000: "thinking models
+ * spend most of their budget before emitting a token of answer". What it did
+ * not say is what that looks like from here — `content` comes back EMPTY, and
+ * an empty string is indistinguishable from a model that answered "nothing".
+ *
+ * Downstream that is worse than it sounds: the OWASP runner does
+ * `JSON.parse(result.text)`, the SyntaxError is caught, and the chunk is
+ * counted as one rejected finding. So a model that ran out of room to answer
+ * shows up as a checklist that reviewed the code and found it clean.
+ *
+ * Named here instead, because "the model never answered" and "the model found
+ * nothing" are different facts and only one of them is about the model's
+ * configuration.
+ */
+export function noAnswerReason(choice: {
+  message?: { content?: string; reasoning_content?: string };
+  finish_reason?: string;
+}): string | null {
+  if ((choice.message?.content ?? '').trim() !== '') return null;
+  const thought = (choice.message?.reasoning_content ?? '').trim() !== '';
+  if (choice.finish_reason === 'length') {
+    return thought
+      ? 'the model used its entire token budget on reasoning and never produced an answer — raise the cap or use a non-reasoning model'
+      : 'the model hit its token cap before producing any output';
+  }
+  if (thought) {
+    return 'the model produced reasoning but no answer — its output went to reasoning_content and left content empty';
+  }
+  return null;
 }
 
 function isCrash(error: unknown, matches: string[]): boolean {
@@ -176,8 +225,15 @@ export class T2Client {
           // here is the whole reason callers may not reach LM Studio directly.
           const body = await this.chat(host, prompt, T2_MAX_TOKENS);
           this.warm.add(host.baseUrl);
+          // A model that thought and never concluded is a FAILURE with a name,
+          // not an empty answer (W16-38). Thrown rather than returned empty,
+          // because every caller parses `text` and an empty string becomes a
+          // rejected finding — which reads as "reviewed and clean".
+          const choice = body.choices?.[0];
+          const noAnswer = choice ? noAnswerReason(choice) : null;
+          if (noAnswer) throw new Error(`Model returned no answer: ${noAnswer}`);
           return {
-            text: body.choices?.[0]?.message?.content ?? '',
+            text: choice?.message?.content ?? '',
             model: body.model ?? host.modelSlot,
             tokensIn: body.usage?.prompt_tokens ?? 0,
             tokensOut: body.usage?.completion_tokens ?? 0,

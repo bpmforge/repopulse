@@ -15,6 +15,7 @@ const scanner = (over: Partial<ScannerStatus> = {}): ScannerStatus => ({
   last_run_status: 'succeeded',
   error: null,
   scanner_version: 'secrets.v1',
+  validation_funnel: null,
   open_findings: 0,
   ...over,
 });
@@ -71,6 +72,39 @@ describe('scanner coverage table', () => {
     expect(screen.getByTestId('scanner-error-secrets').textContent).toContain(
       'nothing was scanned',
     );
+  });
+
+  it('shows a scan in flight as running, with a dash for its count (W16-38)', () => {
+    render(<ScannerStatusList scanners={[scanner({ state: 'running', open_findings: 0 })]} />);
+    expect(screen.getByTestId('scanner-state-secrets').textContent).toBe(
+      SCANNER_STATE_LABEL.running,
+    );
+    // Not a tick, and not a zero: there is no result yet to describe.
+    expect(screen.getByTestId('scanner-state-secrets').textContent).not.toContain('✓');
+    expect(screen.getByTestId('scanner-row-secrets').textContent).toContain('—');
+  });
+
+  it('says how many findings were rejected, not just that some were (W16-38)', () => {
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({
+            state: 'all_rejected',
+            open_findings: 0,
+            validation_funnel: { proposed: 4, rejected: 4, created: 0 },
+          }),
+        ]}
+      />,
+    );
+    const label = screen.getByTestId('scanner-state-secrets').textContent ?? '';
+    expect(label).toBe(SCANNER_STATE_LABEL.all_rejected);
+    expect(label).not.toContain('✓');
+    const note = screen.getByTestId('scanner-rejected-secrets').textContent ?? '';
+    expect(note).toContain('4 findings');
+    expect(note).toContain('not a clean repository');
+    // A dash, not a zero: the count column must not make the claim the label
+    // just refused.
+    expect(screen.getByTestId('scanner-row-secrets').textContent).toContain('—');
   });
 
   it('says a partial run is partial — an unflagged one reads as clean', () => {
