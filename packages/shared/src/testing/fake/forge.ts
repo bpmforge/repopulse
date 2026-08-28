@@ -57,18 +57,94 @@ export const FAKE_CHECKS: { name: string; conclusion: string }[][] = [
   [{ name: 'build', conclusion: 'failure' }],
 ];
 
+/**
+ * Per-commit file churn, WITH PATCHES (W16-33).
+ *
+ * The patches were missing until now, and everything that reads a DIFF rather
+ * than a tree quietly had nothing to read: the OWASP checklists reported "no
+ * changed files to review", and the secrets STREAM scanner — the one that is
+ * supposed to find a credential within 60s of a webhook — had never been given
+ * a line of source against this fake. Same family as the archive route W16-30
+ * added: a fake that omits the field the real forge always sends does not
+ * imitate it, it just fails somewhere else.
+ *
+ * The content is unified-diff shaped because that is what the real API returns
+ * and what every consumer parses: `@@` hunk headers, `+`/`-`/context prefixes.
+ * It is also deliberately not clean — a swallowed error, a string-built query
+ * and a credential-SHAPED literal that is not a credential — so a scanner that
+ * reads it can be told apart from one that did not run.
+ */
 export const FAKE_COMMIT_FILES: {
   path: string;
   additions: number;
   deletions: number;
   status: string;
+  patch: string;
 }[][] = [
-  [{ path: 'src/index.ts', additions: 40, deletions: 0, status: 'added' }],
   [
-    { path: 'src/service.ts', additions: 25, deletions: 3, status: 'modified' },
-    { path: 'src/index.ts', additions: 5, deletions: 1, status: 'modified' },
+    {
+      path: 'src/index.ts',
+      additions: 40,
+      deletions: 0,
+      status: 'added',
+      patch: [
+        '@@ -0,0 +1,8 @@',
+        "+import { createServer } from 'node:http';",
+        '+',
+        '+export function start(port: number) {',
+        '+  return createServer((req, res) => {',
+        '+    res.end(JSON.stringify({ ok: true }));',
+        '+  }).listen(port);',
+        '+}',
+      ].join('\n'),
+    },
   ],
-  [{ path: 'src/service.ts', additions: 8, deletions: 12, status: 'modified' }],
+  [
+    {
+      path: 'src/service.ts',
+      additions: 25,
+      deletions: 3,
+      status: 'modified',
+      patch: [
+        '@@ -12,7 +12,11 @@ export class ChargeService {',
+        '   async settle(id: string) {',
+        '-    await this.db.settle(id);',
+        '+    try {',
+        '+      await this.db.query(`select * from charges where id = ${id}`);',
+        '+    } catch {',
+        '+      // swallowed',
+        '+    }',
+        '   }',
+      ].join('\n'),
+    },
+    {
+      path: 'src/index.ts',
+      additions: 5,
+      deletions: 1,
+      status: 'modified',
+      patch: [
+        '@@ -1,3 +1,5 @@',
+        "+const STRIPE_KEY = 'sk_test_00000000000000000000000000';",
+        '+',
+        " import { createServer } from 'node:http';",
+      ].join('\n'),
+    },
+  ],
+  [
+    {
+      path: 'src/service.ts',
+      additions: 8,
+      deletions: 12,
+      status: 'modified',
+      patch: [
+        '@@ -30,6 +30,4 @@ export class ChargeService {',
+        '-  private retry(fn: () => Promise<void>) {',
+        '-    return fn().catch(() => fn());',
+        '-  }',
+        '+  private retry = withBackoff;',
+      ].join('\n'),
+    },
+  ],
 ];
 
 export interface FakeForge {
@@ -237,7 +313,18 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
     // a different path from the commit LIST above and returns files + stats.
     // Without it enrichment has nothing to fetch, and M1/M2 stay at zero
     // because churn metrics read commit_files.
-    const commitDetail = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-z]+)$/.exec(url.pathname);
+    // `[0-9a-z]+` was too narrow (W16-33): the seeder's commit shas look like
+    // `payments-c1`, and a hyphen made this route 404 for every commit in the
+    // demo. So getCommitFiles came back empty and everything that reads a DIFF
+    // — the OWASP checklists, and the secrets STREAM scanner that is supposed
+    // to catch a credential within 60s of a webhook — reported "no changed
+    // files" against a warehouse full of them.
+    //
+    // A real forge accepts any ref here, not just a hex sha, so the wider
+    // pattern is also the more faithful one.
+    const commitDetail = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-zA-Z._-]+)$/.exec(
+      url.pathname,
+    );
     if (commitDetail && req.method === 'GET') {
       const sha = commitDetail[1]!;
       // Deterministic per-SHA so the churn totals are stable across runs and an
@@ -251,6 +338,9 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
           additions: f.additions,
           deletions: f.deletions,
           changes: f.additions + f.deletions,
+          // The field the real API always sends and this fake omitted, so
+          // every diff-reading scanner saw a file it had to skip (W16-33).
+          patch: f.patch,
           status: f.status,
         })),
         stats: {
