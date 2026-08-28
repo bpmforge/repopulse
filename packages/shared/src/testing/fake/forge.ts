@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http';
+import { FIXTURE_SOURCES, archiveRoot, buildTarball } from './tarball.js';
 
 // Fake forge API for e2e (W12-02).
 //
@@ -302,6 +303,36 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
           },
         });
       });
+      return;
+    }
+
+    // THE SOURCE ARCHIVE (W16-30, C1a).
+    //
+    // Absent until now, so every snapshot scanner — anti_slop, semgrep,
+    // code_health_tools, the architecture register — got a 404 from the one
+    // endpoint it depends on and had never run once against this fake, in the
+    // demo or in e2e. `json()` is not used: the response is BYTES, and a
+    // JSON-encoded archive fails inside snapshot/tar.ts a long way from here.
+    //
+    // 200 with the bytes rather than a 302 to a codeload host, because that is
+    // what the caller actually sees: Octokit follows the redirect itself, so
+    // resolveTarball's 200 branch is the production path.
+    const tarballPath = /^\/repos\/([^/]+)\/([^/]+)\/tarball\/(.*)$/.exec(url.pathname);
+    if (tarballPath && req.method === 'GET') {
+      const repo = `${tarballPath[1]}/${tarballPath[2]}`;
+      const sha = decodeURIComponent(tarballPath[3] ?? '');
+      const bytes = buildTarball(archiveRoot(repo, sha), FIXTURE_SOURCES);
+      res.writeHead(200, {
+        'content-type': 'application/gzip',
+        'content-length': String(bytes.byteLength),
+        'content-disposition': `attachment; filename=${archiveRoot(repo, sha)}.tar.gz`,
+        'x-ratelimit-limit': '5000',
+        'x-ratelimit-remaining': '4999',
+        'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 3600),
+        'x-ratelimit-used': '1',
+        'x-ratelimit-resource': 'core',
+      });
+      res.end(bytes);
       return;
     }
 
