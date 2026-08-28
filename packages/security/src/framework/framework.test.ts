@@ -151,8 +151,27 @@ describe('budget meter (§1.2)', () => {
 
 describe('enablement defaults (FR-SEC-11)', () => {
   it('has the documented workspace posture', () => {
+    // Grew in W16-28. Nine of these had had a weekly or nightly runner wired
+    // since W9/W10 with no entry here, so the admin screen listed neither a
+    // default nor a rationale for work that was already happening — and
+    // `dependency` governed a key nothing used, the scanner stamping every
+    // finding it makes `dependency_cve`.
     const on = SCANNER_DEFAULTS.filter((d) => d.enabled).map((d) => d.key);
-    expect(on).toEqual(['secrets', 'dependency', 'semgrep', 'attack_chainer']);
+    expect(on).toEqual([
+      'secrets',
+      'semgrep',
+      'attack_chainer',
+      'code_health_tools',
+      'anti_slop',
+      'logging_hygiene',
+      'performance',
+      'supply_chain_register',
+      'architecture_register',
+      'test_gap_register',
+      'knowledge_register',
+      'rule_draft_pass',
+    ]);
+    expect(on).not.toContain('dependency');
   });
 
   it('every default explains itself', () => {

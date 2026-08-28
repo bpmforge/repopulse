@@ -145,7 +145,22 @@ export default async function runRoutes(
       const catalogue = [
         ...new Set([...listScanners().map((s) => s.key), ...SCANNER_DEFAULTS.map((d) => d.key)]),
       ];
-      const enabledKeys = catalogue.filter((key) => isEnabled(key, byKey.get(key)));
+      // ENABLED IS NOT THE SAME AS STARTABLE (W16-28).
+      //
+      // A scanner is offered here only if it declares the `manual` trigger,
+      // which the catalogue gives only to keys with a runner wired in the
+      // worker. Without this the button enqueued a job for every enabled key
+      // and told the user four scanners had started, while three of them could
+      // only ever reach "no history runner is wired" — a started-count that
+      // counted things that could not run.
+      const startable = new Set(
+        listScanners()
+          .filter((s) => s.triggers.includes('manual'))
+          .map((s) => s.key),
+      );
+      const enabledKeys = catalogue.filter(
+        (key) => startable.has(key) && isEnabled(key, byKey.get(key)),
+      );
 
       const requested = request.body?.scanner_key;
       const keys = requested
@@ -159,7 +174,9 @@ export default async function runRoutes(
           409,
           'Nothing to run',
           requested
-            ? `The scanner "${requested}" is not enabled for this repository.`
+            ? startable.has(requested)
+              ? `The scanner "${requested}" is not enabled for this repository.`
+              : `The scanner "${requested}" cannot be started on request — it runs on a schedule.`
             : 'No scanner is enabled for this repository — enable one first.',
         );
       }

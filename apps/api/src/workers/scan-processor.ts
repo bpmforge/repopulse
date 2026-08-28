@@ -63,6 +63,81 @@ export interface ScanProcessorDeps {
   weeklySweep?: (scannerKey: string) => Promise<{ enqueued: number }>;
 }
 
+/**
+ * One sweep, and a scan_run row whatever it does (W16-28).
+ *
+ * The weekly and history branches ran byte-identical bodies, which is how the
+ * throw case came to be handled in one and not the other. Both call this.
+ *
+ * The sweeper writes its OWN scan_run rows, one per commit it covers, so the
+ * happy path deliberately writes nothing here: a single summary row over a
+ * 200-commit sweep could not say which commits were scanned, and "which
+ * commits has this repo been swept for" is the question the next sweep asks.
+ * Only the two cases the sweeper cannot record for itself are written.
+ */
+async function runSweep(
+  deps: ScanProcessorDeps,
+  data: ScanJobData,
+  runner: HistoryRunner,
+): Promise<void> {
+  const row = {
+    workspaceId: data.workspaceId,
+    repoId: data.repoId,
+    scannerKey: data.scannerKey,
+    scannerVersion: getScanner(data.scannerKey)?.version ?? 'unregistered',
+    commitSha: data.commitSha,
+    trigger: data.trigger,
+    findingCount: 0,
+  };
+
+  let outcome;
+  try {
+    outcome = await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
+  } catch (err) {
+    // A THROW MUST REACH THE SCREEN (W16-28).
+    //
+    // Without this a runner that raises leaves no scan_run at all: the job
+    // lands in job_failure, which only an admin looking at the dead-letter
+    // queue ever sees, while the repository's coverage table goes on saying
+    // "has never run" to the person who pressed the button.
+    //
+    // Found with a real one — the demo's seeded forge connection carried a
+    // credential the vault could not decrypt, so every secrets scan died with
+    // "ciphertext too short" and the screen showed nothing at all.
+    //
+    // Recorded, then RETHROWN: the retry and dead-letter behaviour is
+    // deliberate (NFR-11) and swallowing the error here would trade one silent
+    // failure for another.
+    await deps.db.insert(security.scanRuns).values({
+      ...row,
+      status: 'failed',
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+
+  // A RUNNER THAT DID NOTHING MUST SAY SO (W16-28).
+  //
+  // A sweep covering zero commits writes no rows of its own, so the coverage
+  // table went on reading "has never run" after someone pressed Run scans now
+  // and was told it had started — the same silent nothing W16-20 fixed for the
+  // unwired branch, arriving by a different route.
+  if (outcome.scanned === 0) {
+    await deps.db.insert(security.scanRuns).values({
+      ...row,
+      status: 'succeeded',
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      error:
+        outcome.skipped === 'no_connection'
+          ? 'No forge connection for this repository, so there were no patches to read.'
+          : 'No commits in range to sweep — nothing was scanned, which is not the same as nothing being found.',
+    });
+  }
+}
+
 export function scanProcessor(deps: ScanProcessorDeps) {
   return async function process(job: Job<ScanJobData>): Promise<void> {
     const data = job.data;
@@ -75,7 +150,7 @@ export function scanProcessor(deps: ScanProcessorDeps) {
     if (data.mode === 'weekly') {
       const runner = deps.weeklyRunners?.[data.scannerKey];
       if (!runner) return;
-      await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
+      await runSweep(deps, data, runner);
       return;
     }
 
@@ -85,21 +160,27 @@ export function scanProcessor(deps: ScanProcessorDeps) {
     }
 
     if (data.mode === 'history') {
-      // The sweeper writes its OWN scan_run rows, one per commit it covers, so
-      // this path deliberately does not open one here: a single run row over a
-      // 200-commit sweep could not say which commits were actually scanned,
-      // and "which commits has this repo been swept for" is the question the
-      // next sweep asks.
-      const runner = deps.historyRunners?.[data.scannerKey];
+      // A MANUAL RUN REACHES THE WEEKLY RUNNERS TOO (W16-28).
+      //
+      // "Run scans now" enqueues mode:'history' for every enabled scanner, and
+      // only `secrets` has a history runner — so pressing the button on a repo
+      // with the default posture reached real work for exactly one scanner and
+      // recorded "no history runner is wired" for the rest, which is honest and
+      // useless. The weekly runners answer the same question (sweep this repo)
+      // on a schedule instead of on a keypress; a person asking for it now is
+      // asking for that work, not for a different kind of it.
+      //
+      // Still a lookup rather than a branch on the key, so FR-SEC-1 holds.
+      const runner = deps.historyRunners?.[data.scannerKey] ?? deps.weeklyRunners?.[data.scannerKey];
       if (!runner) {
         // NOT a silent return (W16-20).
         //
-        // Only a subset of scanners has a history runner wired in the worker.
-        // Returning quietly meant a job could be enqueued, consume its turn and
-        // finish "successfully" having done nothing — and the coverage table
-        // would still say "never run", with nothing anywhere saying why. That
-        // is the exact shape of failure this product's copy is otherwise very
-        // careful about: an absence that looks like a measurement.
+        // Only a subset of scanners has a runner wired in the worker. Returning
+        // quietly meant a job could be enqueued, consume its turn and finish
+        // "successfully" having done nothing — and the coverage table would
+        // still say "never run", with nothing anywhere saying why. That is the
+        // exact shape of failure this product's copy is otherwise very careful
+        // about: an absence that looks like a measurement.
         //
         // It is not an exception either: an unwired scanner is a deployment
         // fact, not a fault, so it records a run that says so and returns.
@@ -107,7 +188,7 @@ export function scanProcessor(deps: ScanProcessorDeps) {
           workspaceId: data.workspaceId,
           repoId: data.repoId,
           scannerKey: data.scannerKey,
-          scannerVersion: 'unregistered',
+          scannerVersion: getScanner(data.scannerKey)?.version ?? 'unregistered',
           commitSha: data.commitSha,
           trigger: data.trigger,
           status: 'failed',
@@ -117,7 +198,7 @@ export function scanProcessor(deps: ScanProcessorDeps) {
         });
         return;
       }
-      await runner({ workspaceId: data.workspaceId, repoId: data.repoId });
+      await runSweep(deps, data, runner);
       return;
     }
 

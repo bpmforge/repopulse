@@ -6112,7 +6112,7 @@
       "stories": [],
       "depends_on": [],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "packages/security/src/**",
         "apps/api/src/workers/**",

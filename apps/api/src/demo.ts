@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { core, createDb, seedWarehouse, startFakeForge, startFakeGithub } from '@repopulse/shared';
 import { buildApp } from './app.js';
 import { and, eq } from 'drizzle-orm';
-import { local, workspace as workspaceModule } from '@repopulse/auth';
+import { credentials, local, workspace as workspaceModule } from '@repopulse/auth';
 import { assertDemoAllowed, demoRequested, DEMO_ACCOUNT } from './lib/demo.js';
 
 // Demo entrypoint (W13-02): the whole product, no GitHub account required.
@@ -110,6 +110,31 @@ if (!demoAccount.ok && demoAccount.reason !== 'exists') {
         );
     }
   }
+}
+
+// A DECRYPTABLE forge credential for the seeded connection (W16-28).
+//
+// The seeder writes `credentialCiphertext: Buffer.from('seed')` — four bytes,
+// not an AES-GCM blob — because packages/shared cannot depend on packages/auth
+// and so has no vault to encrypt with. Harmless for every screen that only
+// reads the warehouse, and fatal for anything that actually calls the forge:
+// every secrets scan died with "ciphertext too short", left no scan_run, and
+// the Security tab went on reporting "has never run".
+//
+// Re-sealed here, where the vault IS available, so the demo can demonstrate the
+// scanning path rather than only the dashboards.
+{
+  const key = Buffer.from(requireEnv('TOKEN_ENC_KEY'), 'hex');
+  const sealed = credentials.encryptCredential('demo-forge-token', key);
+  await db
+    .update(core.forgeConnections)
+    .set({
+      credentialCiphertext: sealed.ciphertext,
+      credentialIv: sealed.iv,
+      keyVersion: sealed.keyVersion,
+      credentialFingerprint: sealed.fingerprint,
+    })
+    .where(eq(core.forgeConnections.workspaceId, seeded.workspaceId));
 }
 
 const github = await startFakeGithub(Number(process.env.DEMO_GITHUB_PORT ?? 0));

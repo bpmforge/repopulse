@@ -35,6 +35,7 @@ import {
   runArchitectureScan,
   runRuleDraftPass,
   runSemgrepFull,
+  registerBuiltinScanners,
   runSupplyChainRegisters,
   startSweeper,
   syncEolProducts,
@@ -153,6 +154,11 @@ async function main(): Promise<void> {
     // loopback-only and still allowlisted. See ValidateBaseUrlOptions.
     ...(process.env.FORGE_ALLOW_INSECURE_LOOPBACK === '1' ? { allowInsecureLoopback: true } : {}),
   };
+
+  // W16-28. The process that RUNS the scans registers the catalogue too, so
+  // getScanner() resolves here and a scan_run records a real scanner version
+  // instead of "unregistered".
+  registerBuiltinScanners();
 
   const runtime = createWorkerRuntime({
     db,

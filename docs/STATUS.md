@@ -3837,3 +3837,5 @@ only go where a stored row with a named author says.
 - **W16-16** — a finding cannot be linked to.
 - **W16-17** — the test suite shares one warehouse and several suites delete
   from it, so results depend on file order.
+
+`2026-08-28 W16-28 done — the scanner registry had no caller: registerScanner() was reachable only from its own test, so listScanners() returned [] in every process and every scanner read "(not installed)". Catalogue module + registration at API and worker boot; SCANNER_DEFAULTS corrected ('dependency' governed a key nothing used — the scanner stamps 'dependency_cve') and grown to cover the nine scanners the cron has run since W9/W10. Manual runs now reach the weekly runners and are offered only for scanners a runner is wired for. 19 tests, 1784 passing`
