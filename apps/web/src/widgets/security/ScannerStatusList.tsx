@@ -72,7 +72,9 @@ export function ScannerStatusList({ scanners }: Props) {
             <td className="py-1.5 text-right tabular-nums">
               {/* A dash, not 0, when nothing has looked: a zero here is a
                   claim, and an unrun scanner has not earned it. */}
-              {scanner.state === 'not_enabled' || scanner.state === 'never_run'
+              {scanner.state === 'not_enabled' ||
+              scanner.state === 'never_run' ||
+              scanner.state === 'nothing_scanned'
                 ? '—'
                 : scanner.open_findings}
             </td>

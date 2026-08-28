@@ -3841,3 +3841,19 @@ only go where a stored row with a named author says.
 `2026-08-28 W16-28 done — the scanner registry had no caller: registerScanner() was reachable only from its own test, so listScanners() returned [] in every process and every scanner read "(not installed)". Catalogue module + registration at API and worker boot; SCANNER_DEFAULTS corrected ('dependency' governed a key nothing used — the scanner stamps 'dependency_cve') and grown to cover the nine scanners the cron has run since W9/W10. Manual runs now reach the weekly runners and are offered only for scanners a runner is wired for. 19 tests, 1784 passing`
 `2026-08-28 W16-29 done — demo mode sent the fake credential to the REAL api.github.com. The fake forge bound port 0 so the worker (a separate process) had no address for it; providerForRepo then backfilled conn.baseUrl with api.github.com permanently; and all six scan runners built a provider with no forge options at all, so FORGE_BASE_URL and the SC-12 loopback opt-in were honoured by ingestion and dropped by every scan — invisible because api.github.com IS the fallback. Pinned port + explicit row baseUrl + one shared scanForgeDeps. 1 test`
 `2026-08-28 W16-30 done — the fake forge now serves a real gzipped ustar source archive, so the snapshot scanners run end to end for the first time: code_health_tools (lizard@1.24.0 jscpd@4.3.0 ruff@0.16.3 biome@2.5.9, 3 findings), semgrep (opengrep@1.27.1), logging_hygiene (1), anti_slop and perf all ran clean in the demo. Built by hand, not shelled to tar, because snapshot/tar.ts is our own parser. 5 tests, 1790 passing`
+`2026-08-28 W16-31 done — a sweep that scanned nothing rendered as "✓ ran clean" with "No commits in range" underneath: the tick claimed a measurement for work that did not happen, which is W16-28's own fix telling the same lie the other way round. Sixth state nothing_scanned (a SUCCEEDED run carrying an error string), checked after failed and partial. 4 tests`
+
+### Board hygiene, 2026-08-28
+
+**W16-11 re-scoped, not closed.** Its content was the registry never being
+called (W16-28). What is left is `owasp_web` and `owasp_llm`: a checklist and a
+runner exist, no worker wiring and no catalogue entry, so they still read
+"(not installed)" — now the truthful answer rather than a blanket one.
+
+**Orphaned `repo_scanner_config` rows.** W16-28 corrected the default key
+`dependency` → `dependency_cve` (the scanner stamps every finding it makes with
+the latter). Any stored row explicitly disabling `dependency` now governs a key
+nothing reads — an admin's deliberate decision, silently dropped. Judged
+acceptable pre-release rather than worth a migration, and written down here so
+it does not resurface as a mystery. If a real install ever exists before v1,
+the fix is a one-line UPDATE renaming the key.

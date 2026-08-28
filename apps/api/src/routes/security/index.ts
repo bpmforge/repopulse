@@ -17,7 +17,19 @@ export interface SecurityRoutesOptions {
   db: Database;
 }
 
-export type ScannerState = 'not_enabled' | 'never_run' | 'ok' | 'error' | 'partial';
+export type ScannerState =
+  | 'not_enabled'
+  | 'never_run'
+  | 'ok'
+  | 'error'
+  | 'partial'
+  // W16-31. A run that finished without a fault and covered NOTHING — an
+  // unconnected repository, or a sweep with no commits in range. It was
+  // rendering as "✓ ran clean", which is a tick asserting a measurement for
+  // work that did not happen; the explanation underneath it was arguing with
+  // the label above it. The whole point of this enum is that "nobody looked"
+  // and "someone looked and found nothing" are different sentences.
+  | 'nothing_scanned';
 
 function fail(
   req: FastifyRequest,
@@ -33,12 +45,17 @@ function fail(
 /** Last run per scanner key for one repo. */
 export function stateOf(
   enabled: boolean,
-  run: { status: string; partial: boolean | null } | undefined,
+  run: { status: string; partial: boolean | null; error?: string | null } | undefined,
 ): ScannerState {
   if (!enabled) return 'not_enabled';
   if (!run) return 'never_run';
   if (run.status === 'failed') return 'error';
   if (run.status === 'budget_exceeded' || run.partial === true) return 'partial';
+  // A SUCCEEDED run that still has something to say scanned nothing (W16-31).
+  // The only writer of that shape is scan-processor's zero-work path, which
+  // records a row precisely so the table stops reading "has never run" — and a
+  // green tick on it would put the lie back in a different place.
+  if (run.error) return 'nothing_scanned';
   return 'ok';
 }
 
@@ -126,7 +143,9 @@ export default async function securityRoutes(
 
     const scanners = keys.map((key) => {
       const run = latestByKey.get(key);
-      const stateRun = run ? { status: run.status, partial: run.partial } : undefined;
+      const stateRun = run
+        ? { status: run.status, partial: run.partial, error: run.error }
+        : undefined;
       const enabled = isEnabled(
         key,
         enabledByKey.has(key) ? { enabled: enabledByKey.get(key)! } : undefined,
