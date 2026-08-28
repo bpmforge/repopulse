@@ -5767,7 +5767,7 @@
       "stories": [],
       "depends_on": [],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "e2e/**",
         "playwright.config.ts",

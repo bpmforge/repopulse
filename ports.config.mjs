@@ -38,6 +38,19 @@ export const PORTS = {
    * Playwright run do not fight over the same socket.
    */
   demoFakeForge: Number(process.env.DEMO_FORGE_PORT ?? 3309),
+  /**
+   * The DEMO e2e stack (W16-14), deliberately apart from both the dev ports
+   * and the e2e ones.
+   *
+   * It has to be its own block for the same reason the e2e stack is: this
+   * project boots `DEMO_MODE=1 pnpm dev`, the actual quickstart command, and a
+   * demo someone left running in another terminal must neither be mistaken for
+   * the stack under test nor be killed by it.
+   */
+  demoE2eApi: Number(process.env.DEMO_E2E_API_PORT ?? 3320),
+  demoE2eWorkerHealth: Number(process.env.DEMO_E2E_WORKER_HEALTH_PORT ?? 3321),
+  demoE2eFakeForge: Number(process.env.DEMO_E2E_FAKE_FORGE_PORT ?? 3322),
+  demoE2eWeb: Number(process.env.DEMO_E2E_WEB_PORT ?? 5283),
 };
 
 /** `http://localhost:<port>` for a key, so callers never re-spell the host. */

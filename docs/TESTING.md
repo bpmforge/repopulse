@@ -113,6 +113,36 @@ requests emitted, not just response shape.
 - W5 adds: saved-view persistence, share-link second-user, ⌘K keyboard-only, PDF
   download + text extraction. W6 adds findings triage. axe scan per routed page.
 
+## 6a. The demo quickstart (`pnpm e2e:demo`, W16-14)
+
+A SECOND Playwright config, `playwright.demo.config.ts`, testDir `e2e/demo/`.
+Separate because Playwright attaches `webServer` to the config rather than to a
+project: folding it into §6 would boot a whole second stack on every ordinary
+e2e run.
+
+- **What it boots**: `DEMO_MODE=1 pnpm dev` — the literal command in the
+  README — on its own port block (`demoE2e*` in `ports.config.mjs`), so a demo
+  someone left running in another terminal is neither mistaken for the stack
+  under test nor killed by it. It runs `scripts/dev.mjs` rather than the API
+  alone, because the demo's forge wiring lives in that file.
+- **No `storageState`.** §6 authenticates once in `globalSetup` through the
+  mocked OAuth boundary; this project signs in through the FORM, which is the
+  screen a newcomer actually meets and the reason it had no coverage.
+- **Why it exists**: nothing anywhere booted `apps/api/src/demo.ts`. Three
+  demo-mode bugs shipped in one wave behind that gap — a forge credential the
+  vault could not decrypt (W16-28), a worker that sent it to the real
+  api.github.com (W16-29), and a fake forge with no archive endpoint (W16-30).
+- **What it asserts**: the sign-in screen fills the credentials in and says
+  why; the persona picker opens and can be dismissed (it is the second screen
+  of the quickstart, since the demo reseeds `persona: null` every boot); the
+  org overview is POPULATED rather than merely rendered; the three seeded
+  repos and the PR list are there; and pressing *Run scans now* moves a scanner
+  off "has never run" and records a real scanner VERSION — with no `401`, no
+  `api.github.com` and no `archive request returned` anywhere in the coverage
+  table.
+- Shares the same database as §6 and `pnpm test`, and reseeds on every boot, so
+  the same rule applies: never run two of them concurrently.
+
 ## 7. Backfill soak harness (pre-wave-gate)
 
 - **Synthetic repo generator** (`packages/ingest/testkit/`): deterministic (seeded RNG)
