@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { contentDigest, createT3Client, estimateCostUsd } from './client.js';
 import { decideEscalation, meetsTrigger } from '../escalation/index.js';
@@ -150,5 +151,29 @@ describe('escalation (ANALYSIS_TIERS.md §6)', () => {
 
   it('does nothing when no trigger is met, whatever the permissions', () => {
     expect(decideEscalation({ dimension: 'code_health', severity: 1, confidence: 5 }, { t3OptIn: true }).action).toBe('none');
+  });
+});
+
+describe('Tier 3 streams too, without exception (W16-39)', () => {
+  it('goes through the streaming API, not the buffered one', async () => {
+    // Every long generation this product makes is streamed. A non-streamed
+    // request sends no response headers until the model has finished, so the
+    // only thing bounding it is whatever timeout the transport happens to have
+    // — which is exactly how Tier 2 came to die at 301 seconds on undici's
+    // default. Anthropic agrees from the other side: it refuses non-streaming
+    // requests whose max_tokens implies a long generation.
+    //
+    // Asserted against the SOURCE because the SDK is imported lazily and only
+    // when a real key is configured, so no test can reach the call itself
+    // without one. The seam that tests do use (`createMessage`) deliberately
+    // bypasses the SDK entirely.
+    const src = readFileSync(new URL('./client.ts', import.meta.url).pathname, 'utf8');
+    const code = src
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join('\n');
+    expect(code).toContain('client.messages.stream(');
+    expect(code).toContain('finalMessage()');
+    expect(code).not.toContain('client.messages.create(');
   });
 });
