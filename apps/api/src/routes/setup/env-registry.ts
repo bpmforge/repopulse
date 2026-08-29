@@ -366,6 +366,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '1',
   },
   {
+    name: 'LMSTUDIO_REQUEST_TIMEOUT_MS',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'Wall-clock budget for ONE Tier-2 completion (W16-39). Raise it for a large reasoning model on a busy host.',
+    ifWrong:
+      'Too low and a legitimately slow generation is killed mid-answer, which reads as a scanner that found nothing. Too high and a stalled stream leaves the scan sitting at "running" until someone notices. Before this existed the bound was undici\'s 300s header timeout, which killed every checklist against a 27B model at exactly 301s.',
+    default: '1200000 (20 minutes)',
+  },
+  {
     name: 'API_PROXY_TARGET',
     scope: 'web',
     required: false,

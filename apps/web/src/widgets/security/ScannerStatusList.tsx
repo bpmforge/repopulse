@@ -163,8 +163,10 @@ export function ScannerStatusList({ scanners }: Props) {
               scanner.state === 'nothing_scanned' ||
               // A zero here would be the same claim the label just refused.
               scanner.state === 'all_rejected' ||
-              // A count from a scan still in flight is not its count.
-              scanner.state === 'running'
+              // A count from a scan still in flight is not its count, and one
+              // from a scan that never finished is not a count at all.
+              scanner.state === 'running' ||
+              scanner.state === 'stale'
                 ? '—'
                 : scanner.open_findings}
             </td>

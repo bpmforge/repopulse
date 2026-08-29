@@ -90,6 +90,25 @@ describe('a scanner state is never a bare zero', () => {
     expect(stateOf(false, { status: 'running', partial: false })).toBe('not_enabled');
   });
 
+  it('a run that never reported back is STALE, not still running (W16-39)', () => {
+    // 'running' is only ever cleared by the worker that owns the row, so a
+    // worker that dies mid-scan leaves it set for ever. Observed twice while
+    // proving the streaming fix: the process disappeared during a long model
+    // call and the table went on saying "running now" indefinitely.
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    expect(stateOf(true, { status: 'running', partial: false, startedAt: old })).toBe('stale');
+  });
+
+  it('a slow scan that is genuinely alive is NOT called stale', () => {
+    // The mirror of the bug: a checklist against a slow local model really does
+    // take many minutes — one measured here ran past ten — and declaring a live
+    // scan dead would be the same wrong claim in the other direction.
+    const recent = new Date(Date.now() - 12 * 60 * 1000);
+    expect(stateOf(true, { status: 'running', partial: false, startedAt: recent })).toBe('running');
+    // And with no timestamp at all, it is not presumed dead.
+    expect(stateOf(true, { status: 'running', partial: false })).toBe('running');
+  });
+
   it('a run whose findings were ALL rejected is not "ran clean" (W16-38)', () => {
     // The model looked, proposed findings, and the evidence validator threw
     // every one out for not quoting the diff verbatim. findingCount is 0 and
