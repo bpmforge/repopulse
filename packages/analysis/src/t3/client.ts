@@ -81,8 +81,22 @@ export function createT3Client(deps: T3Deps) {
     // SDK, and so importing this package does not require an API key.
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey: deps.apiKey });
-    return client.messages.create(params) as unknown as ReturnType<
-      NonNullable<T3Deps['createMessage']>
+    // STREAMED, like Tier 2 (W16-39). Every long generation this product makes
+    // is streamed, without exception: a non-streamed request sends no response
+    // headers until the model has finished, so the only thing bounding it is
+    // whatever timeout the transport happens to have — which is exactly how
+    // Tier 2 came to die at 301 seconds on undici's default.
+    //
+    // Anthropic makes the same point from the other side: it rejects
+    // non-streaming requests whose max_tokens implies a long generation,
+    // because the connection cannot be held open for them. `.stream()` also
+    // removes the 10-minute ceiling that applies to a buffered request.
+    //
+    // `finalMessage()` yields the same assembled shape `create()` returned, so
+    // nothing below this line changes.
+    const stream = client.messages.stream(params);
+    return (await stream.finalMessage()) as unknown as Awaited<
+      ReturnType<NonNullable<T3Deps['createMessage']>>
     >;
   }
 
