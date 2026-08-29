@@ -353,9 +353,9 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'worker',
     required: false,
     purpose:
-      'DEPRECATED since W16-08 — see Admin → Models. The loaded model id to request, e.g. qwen3.8-27b. Required whenever LMSTUDIO_BASE_URLS is set.',
+      'DEPRECATED since W16-08 — see Admin → Models. The loaded model id to request. Use an INSTRUCT or CODER model, e.g. qwen3-coder-30b-a3b-instruct. Required whenever LMSTUDIO_BASE_URLS is set.',
     ifWrong:
-      'LM Studio answers 400 "Invalid model identifier" on every call. There is no default because a guessed model name is a guess about your machine; with it unset the gateway refuses to build and says which variable is missing.',
+      'LM Studio answers 400 "Invalid model identifier" on every call. There is no default because a guessed model name is a guess about your machine; with it unset the gateway refuses to build and says which variable is missing. A REASONING model is the subtler mistake: measured here, qwen3.5-9b spent an entire 4000-token budget on reasoning and returned no answer at all, and at the tier\'s 45000 cap that is twenty minutes per chunk before the request is abandoned. The scanner now reports that by name rather than as a clean result, but the fix is the model: an instruct model answered the same prompt in 12 seconds.',
   },
   {
     name: 'LMSTUDIO_CONCURRENCY',
