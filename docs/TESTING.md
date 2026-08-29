@@ -99,6 +99,14 @@ requests emitted, not just response shape.
   Playwright derives the web dev server's `API_PROXY_TARGET` from it (W4-11).
   Never run `pnpm test` and `pnpm e2e` concurrently — they share one database and
   `globalSetup` wipes-and-reseeds it.
+- **`pnpm test` LOGS YOU OUT OF A RUNNING DEMO.** packages/auth's
+  accounts.test.ts deletes every row with `auth_provider = 'local'` in a
+  `beforeEach`, because the first-boot bootstrap's rule is "does ANY local
+  account exist" and it cannot be tested without owning that predicate. The
+  demo account is a local account, so a `DEMO_MODE=1 pnpm dev` you left running
+  starts answering 401 to a password that is definitely correct. Restart the
+  demo — it recreates the account on boot. This caught the author three times
+  in one session before it was written down; the underlying fix is W16-17.
 - Runs against the compose stack seeded by the synthetic generator (§7) — real API,
   real DB, no component mocks.
 - **The 6 core journeys** (UX_SPEC §4, W4 gate):

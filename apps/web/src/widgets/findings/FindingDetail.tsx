@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
-import { SEVERITY_LABEL, type Finding, type FindingEvent } from './contracts.js';
+import { locationOf, SEVERITY_LABEL, type Finding, type FindingEvent } from './contracts.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -53,7 +53,7 @@ export function FindingDetail({
             {finding.evidence}
           </pre>
           <p className="mt-1 font-mono text-xs text-fg-faint">
-            {finding.file}:{finding.line_range[0]}–{finding.line_range[1]}
+            {locationOf(finding)}
           </p>
         </div>
 

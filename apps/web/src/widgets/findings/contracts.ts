@@ -107,3 +107,25 @@ export const SEVERITY_LABEL: Record<number, string> = {
   2: '○ low',
   1: '○ info',
 };
+
+/**
+ * Where a finding is, in words a reader can act on (W16-40).
+ *
+ * NOT every finding is about a line of code. A test-gap or ownership register
+ * reports on a REPOSITORY, and those rows carry `file: null` with a null line
+ * range — which the two screens rendered as `{file}:{line}`, i.e. a bare colon.
+ * Punctuation with nothing either side of it reads as a rendering bug, and the
+ * reader learns nothing about a finding that is perfectly well located.
+ */
+export function locationOf(finding: {
+  file: string | null;
+  line_range: (number | null)[];
+}): string {
+  if (!finding.file) return 'whole repository';
+  const [start, end] = finding.line_range;
+  if (start === null || start === undefined) return finding.file;
+  // A single-line finding says one number, not "10–10".
+  return end === null || end === undefined || end === start
+    ? `${finding.file}:${start}`
+    : `${finding.file}:${start}–${end}`;
+}

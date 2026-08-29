@@ -602,6 +602,13 @@ export async function seedWarehouse(
       severity: 5,
       confidence: 5,
       title: 'SQL built by string concatenation',
+      // The scanner each fixture finding is meant to have come from (W16-40).
+      // Without it these three carried a NULL scanner_key, and the Findings
+      // Explorer's Scanner facet silently dropped them: picking ANY scanner
+      // hid three of the demo's findings with nothing saying why. In a real
+      // install every finding has a scanner, so a fixture without one is not a
+      // simpler fixture — it is an impossible row.
+      scannerKey: 'owasp_web',
       file: 'src/payments/charge.ts',
       evidence: "db.query('select * from charges where id = ' + req.params.id)",
       recommendation: 'Use a parameterised query.',
@@ -611,6 +618,7 @@ export async function seedWarehouse(
       severity: 4,
       confidence: 4,
       title: 'Query inside a loop over pull requests',
+      scannerKey: 'performance',
       file: 'src/reports/build.ts',
       evidence: 'for (const pr of prs) { await db.select().from(reviews) }',
       recommendation: 'Batch the lookup outside the loop.',
@@ -620,6 +628,7 @@ export async function seedWarehouse(
       severity: 2,
       confidence: 3,
       title: 'Empty catch swallows the failure',
+      scannerKey: 'code_health_tools',
       file: 'src/sync/webhook.ts',
       evidence: 'catch { }',
       recommendation: 'Log the error or let it propagate.',
@@ -636,6 +645,7 @@ export async function seedWarehouse(
       severity: f.severity,
       confidence: f.confidence,
       title: f.title,
+      scannerKey: f.scannerKey,
       file: f.file,
       lineStart: 10 + i * 25,
       lineEnd: 12 + i * 25,
