@@ -9,6 +9,7 @@ import {
   DIMENSIONS_AWAITING_PRODUCER,
   awaitingProducer,
   SEVERITY_LABEL,
+  locationOf,
   VERIFY_LABEL,
   type Finding,
   type FindingStats,
@@ -380,9 +381,7 @@ function FindingsExplorer() {
                   </button>
                 </th>
                 <td className="py-1 text-xs">{f.repo.name}</td>
-                <td className="py-1 font-mono text-xs">
-                  {f.file}:{f.line_range[0]}
-                </td>
+                <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
                 <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
                 <td className="py-1 text-xs whitespace-nowrap" data-testid={`finding-verify-${f.id}`}>
                   {VERIFY_LABEL[f.verify_status]}
