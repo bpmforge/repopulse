@@ -84,6 +84,15 @@ describe('scanner coverage table', () => {
     expect(screen.getByTestId('scanner-row-secrets').textContent).toContain('—');
   });
 
+  it('says an interrupted scan was interrupted, not that it is running (W16-39)', () => {
+    render(<ScannerStatusList scanners={[scanner({ state: 'stale', open_findings: 0 })]} />);
+    const label = screen.getByTestId('scanner-state-secrets').textContent ?? '';
+    expect(label).toBe(SCANNER_STATE_LABEL.stale);
+    expect(label).toContain('never finished');
+    expect(label).not.toContain('running now');
+    expect(screen.getByTestId('scanner-row-secrets').textContent).toContain('—');
+  });
+
   it('says how many findings were rejected, not just that some were (W16-38)', () => {
     render(
       <ScannerStatusList

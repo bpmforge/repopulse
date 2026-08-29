@@ -26,6 +26,8 @@ export type ScannerState =
   // `last_run_at` pointing at the moment it STARTED. A checklist that takes
   // three minutes therefore looked clean for three minutes.
   | 'running'
+  /** Claimed by a worker that never came back — see the note in stateOf. */
+  | 'stale'
   | 'ok'
   // W16-38. A run whose findings were ALL thrown out by the evidence
   // validator. It recorded findingCount 0 and read as "ran clean", which is
@@ -69,6 +71,22 @@ export function rejectedEverything(funnel: Record<string, unknown> | null | unde
   return Number.isFinite(proposed) && proposed > 0 && created === 0;
 }
 
+/**
+ * How long a run may sit in 'running' before it is presumed abandoned.
+ *
+ * Generous on purpose. A checklist against a slow local model genuinely takes
+ * many minutes — one measured here ran past ten — and calling a live scan dead
+ * would be the same kind of wrong claim in the other direction. An hour is far
+ * longer than any scanner's own budget (the sandbox caps at minutes, the T2
+ * tier at one model call per chunk) and far shorter than "for ever".
+ */
+export const STALE_RUN_AFTER_MS = 60 * 60 * 1000;
+
+function startedLongAgo(startedAt: Date | null | undefined, now = Date.now()): boolean {
+  if (!startedAt) return false;
+  return now - startedAt.getTime() > STALE_RUN_AFTER_MS;
+}
+
 export function stateOf(
   enabled: boolean,
   run: {
@@ -76,13 +94,27 @@ export function stateOf(
     partial: boolean | null;
     error?: string | null;
     validationFunnel?: Record<string, unknown> | null;
+    startedAt?: Date | null;
   } | undefined,
 ): ScannerState {
   if (!enabled) return 'not_enabled';
   if (!run) return 'never_run';
   // BEFORE any judgement about the result: there isn't one yet. Checked first
   // so a queued or in-flight run can never borrow another state's sentence.
-  if (run.status === 'running' || run.status === 'queued') return 'running';
+  if (run.status === 'running' || run.status === 'queued') {
+    // A RUN THAT NEVER REPORTED BACK (W16-39).
+    //
+    // 'running' is only ever cleared by the worker that owns the row, so a
+    // worker that dies mid-scan — killed, redeployed, or crashed — leaves it
+    // set for ever. Observed twice while proving the streaming fix: the
+    // process disappeared during a long model call and the coverage table went
+    // on saying "◐ running now" indefinitely, which is a claim about something
+    // that stopped happening.
+    //
+    // Decided from the CLOCK rather than by a sweeper, because a sweeper is a
+    // second thing that can also die, and the row already carries the fact.
+    return startedLongAgo(run.startedAt) ? 'stale' : 'running';
+  }
   if (run.status === 'failed') return 'error';
   if (run.status === 'budget_exceeded' || run.partial === true) return 'partial';
   // A SUCCEEDED run that still has something to say scanned nothing (W16-31).
@@ -187,6 +219,7 @@ export default async function securityRoutes(
             partial: run.partial,
             error: run.error,
             validationFunnel: run.validationFunnel,
+            startedAt: run.startedAt,
           }
         : undefined;
       const enabled = isEnabled(

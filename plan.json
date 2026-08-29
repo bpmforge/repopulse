@@ -6432,7 +6432,7 @@
         "W16-33"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "packages/analysis/src/**",
         "docs/STATUS.md",
@@ -6444,7 +6444,12 @@
       "notes": [
         "Observed repeatedly 2026-08-28 verifying W16-33 against qwen3.8-27b on a LAN host: the run reaches the model, the model is demonstrably up (a direct curl answers), and the scan_run records `fetch failed` with nothing else. A 27B reasoning model on a 45000-token budget takes minutes per chunk, and something in the path gives up first.",
         "`fetch failed` is undici's message for an aborted or dropped connection, so the candidates are the AbortController timeout in T2Client.chat, an intermediary, or the host closing an idle connection mid-generation. Not diagnosed — the timeout value and its source were not established.",
-        "This is the last thing standing between the local-LLM path and a demonstrated finding: the pipeline is proven correct (a clean diff gives a clean result, twice) and the fixture now carries a real SQL injection, but no run has yet completed against it."
+        "This is the last thing standing between the local-LLM path and a demonstrated finding: the pipeline is proven correct (a clean diff gives a clean result, twice) and the fixture now carries a real SQL injection, but no run has yet completed against it.",
+        "DIAGNOSED EXACTLY 2026-08-28: UND_ERR_HEADERS_TIMEOUT at 301.0s, reproduced directly against the host. Non-streaming, an OpenAI-compatible endpoint sends no response headers until the whole generation is finished, and undici's default headersTimeout is 300s. A 27B reasoning model on the tier's 45000-token budget takes longer, so the connection died before the first byte and the scan_run recorded a bare 'fetch failed' — undici's outer wrapper, with the reason on error.cause, which every layer above discarded.",
+        "FIXED by streaming (stream: true, stream_options.include_usage). Headers then arrive in 0.04s measured, so that timeout cannot fire at all — it removes the failure class rather than moving the number, and needs no new dependency (configuring undici's dispatcher would mean adding undici itself, which is not installed). Verified against the real host that usage survives streaming, so FR-SEC-7 spend rows do not all read zero, and that reasoning_content stays separable so W16-38's no-answer detection still works. Both response shapes are handled, because a provider that ignores stream:true answers with ordinary JSON.",
+        "AND BOUNDED AGAIN ON PURPOSE. Streaming on its own would have left NO timeout at all — undici's 300s was the only thing bounding a call, badly. Replacing a too-short timeout with none is not an improvement: a stalled stream would hang for ever with the scan_run stuck at 'running'. LMSTUDIO_REQUEST_TIMEOUT_MS, default 20 minutes, aborts with a reason naming what to do.",
+        "Two more defects found while proving it, both fixed: transport errors now carry their cause chain (fetch failed: Headers Timeout Error (UND_ERR_HEADERS_TIMEOUT)), and a run abandoned by a dead worker now reads as 'started but never finished' after an hour rather than claiming to be running for ever.",
+        "NOT PROVEN, and stated plainly: no checklist run has yet completed against a real model on this machine. Runs now survive past 300s (measured to 720s) instead of dying at 301s, but the LAN host is saturated — it did not answer a trivial 5-token probe within 30s while a scan was in flight — so nothing has finished. The pipeline is proven correct on a clean diff; a completed run producing a finding still needs an unloaded model host."
       ]
     }
   ]

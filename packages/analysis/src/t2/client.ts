@@ -49,6 +49,22 @@ export interface T2Config {
   crashRetry: { matches: string[]; attempts: number; backoffMs: number[] };
   /** Per host (FR-ANALYSIS-8). */
   concurrencyCap: number;
+  /**
+   * Wall-clock budget for one completion (W16-39).
+   *
+   * REQUIRED BECAUSE STREAMING REMOVED THE ACCIDENTAL ONE. Before this client
+   * streamed, undici's 300-second headersTimeout bounded every call — badly,
+   * killing legitimate slow generations, which is the bug streaming fixed. But
+   * replacing a too-short timeout with NO timeout is not an improvement: a
+   * stalled stream would then hang for ever, and the scan_run would sit at
+   * 'running' until someone noticed.
+   *
+   * Generous rather than tight. A checklist chunk against a 27B reasoning
+   * model on a contended LAN host legitimately takes many minutes — measured
+   * here at over twelve — so anything under that would recreate the original
+   * failure with a different number on it.
+   */
+  requestTimeoutMs: number;
 }
 
 export const T2_DEFAULTS: Omit<T2Config, 'hosts'> = {
@@ -59,6 +75,11 @@ export const T2_DEFAULTS: Omit<T2Config, 'hosts'> = {
     backoffMs: [5_000, 15_000, 60_000],
   },
   concurrencyCap: 1,
+  // 20 minutes. Long enough for a big reasoning model on a contended host —
+  // twelve was measured here and did not finish — and short enough that a
+  // stalled stream is reported the same day it stalls. Overridable per
+  // deployment because "a slow model" is a property of someone's hardware.
+  requestTimeoutMs: Number(process.env.LMSTUDIO_REQUEST_TIMEOUT_MS ?? 20 * 60 * 1000),
 };
 
 export interface T2Deps {
@@ -123,6 +144,108 @@ export function noAnswerReason(choice: {
   return null;
 }
 
+/**
+ * Assembles an SSE chat stream into the same shape a non-streamed reply has
+ * (W16-39), so nothing above this function needs to know which it got.
+ *
+ * `reasoning_content` is accumulated separately rather than folded into the
+ * answer: it is how W16-38 tells a model that thought and never concluded from
+ * one that returned nothing, and concatenating the two would destroy that
+ * distinction and feed a model's thinking to a JSON parser.
+ *
+ * A malformed data line is SKIPPED rather than thrown on. These streams end
+ * with `[DONE]` and can carry keep-alive comments; failing the whole call
+ * because one frame did not parse would turn a cosmetic difference between
+ * servers into a lost scan.
+ */
+export async function readChatStream(body: ReadableStream<Uint8Array>): Promise<ChatResponse> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffered = '';
+  let content = '';
+  let reasoning = '';
+  let finishReason: string | undefined;
+  let model: string | undefined;
+  let usage: ChatResponse['usage'];
+
+  const consume = (line: string): void => {
+    if (!line.startsWith('data:')) return;
+    const data = line.slice(5).trim();
+    if (data === '' || data === '[DONE]') return;
+    let frame: StreamFrame;
+    try {
+      frame = JSON.parse(data) as StreamFrame;
+    } catch {
+      return;
+    }
+    model ??= frame.model;
+    if (frame.usage) usage = frame.usage;
+    const choice = frame.choices?.[0];
+    if (choice?.delta?.content) content += choice.delta.content;
+    if (choice?.delta?.reasoning_content) reasoning += choice.delta.reasoning_content;
+    if (choice?.finish_reason) finishReason = choice.finish_reason;
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffered += decoder.decode(value, { stream: true });
+    const lines = buffered.split('\n');
+    // The last element is a partial line until the next chunk completes it.
+    buffered = lines.pop() ?? '';
+    for (const line of lines) consume(line);
+  }
+  consume(buffered);
+
+  return {
+    choices: [
+      {
+        message: {
+          content,
+          ...(reasoning !== '' ? { reasoning_content: reasoning } : {}),
+        },
+        ...(finishReason !== undefined ? { finish_reason: finishReason } : {}),
+      },
+    ],
+    ...(model !== undefined ? { model } : {}),
+    ...(usage ? { usage } : {}),
+  };
+}
+
+interface StreamFrame {
+  model?: string;
+  usage?: ChatResponse['usage'];
+  choices?: {
+    delta?: { content?: string; reasoning_content?: string };
+    finish_reason?: string;
+  }[];
+}
+
+/**
+ * A transport failure with its CAUSE, which Node's fetch hides (W16-39).
+ *
+ * `fetch failed` is undici's outer wrapper and says nothing on its own — the
+ * reason is on `error.cause`, and every layer above here reads `.message`. So
+ * a checklist that timed out against a slow model recorded exactly "fetch
+ * failed" on the scan_run, and the screen showed that, and it was
+ * indistinguishable from a host that was down.
+ *
+ * Same shape of fix as the sandbox's discarded stderr (W16-37): the reason had
+ * been captured all along and thrown away at the one point a person needed it.
+ */
+export function describeTransportError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const parts: string[] = [error.message];
+  let cause: unknown = (error as { cause?: unknown }).cause;
+  // A chain, because undici nests: fetch failed -> the socket error -> errno.
+  for (let depth = 0; depth < 3 && cause instanceof Error; depth++) {
+    const code = (cause as { code?: string }).code;
+    parts.push(code ? `${cause.message} (${code})` : cause.message);
+    cause = (cause as { cause?: unknown }).cause;
+  }
+  return parts.join(': ');
+}
+
 function isCrash(error: unknown, matches: string[]): boolean {
   const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return matches.some((m) => text.toLowerCase().includes(m.toLowerCase()));
@@ -163,9 +286,23 @@ export class T2Client {
 
   private async chat(host: T2Host, prompt: string, maxTokens: number, timeoutMs?: number): Promise<ChatResponse> {
     const controller = new AbortController();
-    const timer = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+    // The reason travels with the abort, so the scan_run says "the model did
+    // not finish in 20 minutes" rather than the bare "This operation was
+    // aborted" that an argument-less abort() produces (W16-39).
+    const timer = timeoutMs
+      ? setTimeout(
+          () =>
+            controller.abort(
+              new Error(
+                `the model did not finish within ${Math.round(timeoutMs / 1000)}s — it may be ` +
+                  'loaded on a busy host, or the prompt may be too large for it',
+              ),
+            ),
+          timeoutMs,
+        )
+      : undefined;
     try {
-      const res = await this.fetchImpl(`${normalizeHost(host.baseUrl)}/v1/chat/completions`, {
+      const res = await this.fetchWithCause(`${normalizeHost(host.baseUrl)}/v1/chat/completions`, {
         method: 'POST',
         // SC-24: credential-free unless a stored provider row carries a key.
         // Nothing user-supplied at call time can introduce a header — that,
@@ -176,7 +313,25 @@ export class T2Client {
           messages: [{ role: 'user', content: prompt }],
           max_tokens: maxTokens,
           temperature: 0.1,
-          stream: false,
+          // STREAMED, and not for latency (W16-39).
+          //
+          // Non-streaming, the endpoint sends no response headers until the
+          // whole generation is done — and undici's default headersTimeout is
+          // 300 seconds. A 27B reasoning model on this tier's 45000-token
+          // budget takes longer than that, so the connection was killed before
+          // the first byte and every checklist recorded `fetch failed`.
+          // Measured: UND_ERR_HEADERS_TIMEOUT at 301.0s, reproducibly.
+          //
+          // Streaming makes headers arrive immediately (measured: 0.04s), so
+          // that timeout can no longer fire at all. It removes the failure
+          // class rather than moving the number, which is why it beats raising
+          // a timeout — and it needs no new dependency, whereas configuring
+          // undici's dispatcher would mean adding undici itself.
+          stream: true,
+          // Token accounting survives streaming only if asked for: without
+          // this the final chunk carries no `usage` and FR-SEC-7's spend rows
+          // would all read zero. Verified against LM Studio, which returns it.
+          stream_options: { include_usage: true },
         }),
         signal: controller.signal,
       });
@@ -188,9 +343,32 @@ export class T2Client {
         // W16-06: this client now speaks to any OpenAI-compatible endpoint.
         throw new Error(`Model host responded ${res.status}: ${(await res.text()).slice(0, 300)}`);
       }
-      return (await res.json()) as ChatResponse;
+      // BOTH SHAPES, on purpose. A provider that ignores `stream: true` answers
+      // with an ordinary JSON body, and breaking on that would trade one
+      // vendor's timeout for another's incompatibility. The content type is
+      // the signal the servers themselves use.
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.includes('text/event-stream') || !res.body) {
+        return (await res.json()) as ChatResponse;
+      }
+      return await readChatStream(res.body);
     } finally {
       if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * `fetch`, with the transport's real reason attached (W16-39).
+   *
+   * Rethrown rather than logged, because the message is what reaches the
+   * scan_run row and therefore the screen. The original is kept as the cause
+   * so nothing downstream loses it.
+   */
+  private async fetchWithCause(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await this.fetchImpl(url, init);
+    } catch (error) {
+      throw new Error(describeTransportError(error), { cause: error });
     }
   }
 
@@ -223,7 +401,12 @@ export class T2Client {
           // 45000 ALWAYS, whatever the caller asked for. The cap is a property
           // of the tier (C2/NFR-8), not a per-call preference — enforcing it
           // here is the whole reason callers may not reach LM Studio directly.
-          const body = await this.chat(host, prompt, T2_MAX_TOKENS);
+          const body = await this.chat(
+            host,
+            prompt,
+            T2_MAX_TOKENS,
+            this.config.requestTimeoutMs,
+          );
           this.warm.add(host.baseUrl);
           // A model that thought and never concluded is a FAILURE with a name,
           // not an empty answer (W16-38). Thrown rather than returned empty,

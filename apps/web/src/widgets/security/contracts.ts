@@ -6,6 +6,8 @@ export type ScannerState =
   | 'ok'
   /** Enqueued or in flight — there is no result to describe yet (W16-38). */
   | 'running'
+  /** Claimed by a worker that never came back (W16-39). */
+  | 'stale'
   | 'error'
   | 'partial'
   /** Finished without a fault and covered nothing — see the label below. */
@@ -142,6 +144,10 @@ export const SCANNER_STATE_LABEL: Record<ScannerState, string> = {
   // A scan in flight has no result, and "ran clean" about one that has not
   // finished is a claim with nothing behind it. A checklist takes minutes.
   running: '◐ running now',
+  // A worker takes a run and is the only thing that ever clears it, so one
+  // that dies mid-scan leaves the row set for ever. Saying "running now" about
+  // something that stopped an hour ago is a claim about the present tense.
+  stale: '✕ started but never finished — the scan was interrupted',
   // NOT a tick. A sweep with no commits in range, or a repository with no
   // connection, finished without a fault and measured nothing — and a green
   // tick on it is the same lie as "has never run" was, told the other way
