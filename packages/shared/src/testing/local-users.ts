@@ -31,7 +31,8 @@ import { core } from '../db/index.js';
  * ORDER MATTERS for the deletes: children before parents.
  */
 const OWNERSHIP: { table: string; column: string; action: 'null' | 'delete' }[] = [
-  // Nullable — unlink and leave the row.
+  // Nullable — unlink and leave the row. An agreement's author leaving does not
+  // un-write the agreement, and the row is not this suite's to remove.
   { table: 'identities', column: 'user_id', action: 'null' },
   { table: 'findings', column: 'status_changed_by', action: 'null' },
   { table: 'finding_events', column: 'actor', action: 'null' },
@@ -40,18 +41,23 @@ const OWNERSHIP: { table: string; column: string; action: 'null' | 'delete' }[] 
   { table: 'repo_scanner_config', column: 'updated_by', action: 'null' },
   { table: 'vex_statements', column: 'author_user_id', action: 'null' },
   { table: 'rule_registry', column: 'updated_by', action: 'null' },
-  // NOT NULL — the row goes with the user. Plans before their items would
-  // violate the items' own foreign key, so the chain is walked leaf-first.
-  { table: 'plan_item_events', column: 'actor_user_id', action: 'delete' },
+  // NOT NULL and childless — the row goes with the user.
   { table: 'reports', column: 'generated_by', action: 'delete' },
   { table: 'saved_views', column: 'owner_user_id', action: 'delete' },
   { table: 'egress_audit', column: 'initiator_user_id', action: 'delete' },
   { table: 'agreements', column: 'created_by', action: 'delete' },
   { table: 'file_intents', column: 'created_by', action: 'delete' },
   { table: 'llm_providers', column: 'created_by', action: 'delete' },
-  { table: 'improvement_plans', column: 'created_by', action: 'delete' },
-  { table: 'forge_connections', column: 'created_by', action: 'delete' },
   { table: 'workspace_members', column: 'user_id', action: 'delete' },
+  // improvement_plans and forge_connections are NOT here: both have children of
+  // their own and are handled explicitly below. Listed in HANDLED so the
+  // schema-coverage guard still sees them.
+];
+
+/** Handled by the explicit passes below rather than the generic loop. */
+const HANDLED_SEPARATELY: { table: string; column: string }[] = [
+  { table: 'improvement_plans', column: 'created_by' },
+  { table: 'forge_connections', column: 'created_by' },
 ];
 
 /** Every table+column with a foreign key into `users`, read from the database. */
@@ -72,7 +78,7 @@ export async function userReferencingColumns(
 
 /** The columns this helper knows how to clear — for the guard test. */
 export function handledUserColumns(): { table: string; column: string }[] {
-  return OWNERSHIP.map(({ table, column }) => ({ table, column }));
+  return [...OWNERSHIP.map(({ table, column }) => ({ table, column })), ...HANDLED_SEPARATELY];
 }
 
 /**
@@ -105,6 +111,45 @@ export async function deleteAllLocalUsers(db: Database): Promise<void> {
       await db.execute(sql`delete from ${target} where ${col} in (${idList})`);
     }
   }
+
+  // THE PLAN CHAIN, leaf-first. improvement_plans.created_by is NOT NULL so the
+  // plan goes with its author, but plan_items.plan_id and
+  // plan_item_events.plan_item_id are both NO ACTION — so deleting the plan
+  // while its items stand throws, and every plan has items. The first version
+  // of this list said in a comment that the chain was walked leaf-first and
+  // then did not walk it; the behavioural test below is what caught that.
+  await db.execute(sql`
+    delete from "plan_item_events" where "plan_item_id" in (
+      select pi."id" from "plan_items" pi
+      join "improvement_plans" p on p."id" = pi."plan_id"
+      where p."created_by" in (${idList})
+    )`);
+  await db.execute(sql`
+    delete from "plan_items" where "plan_id" in (
+      select "id" from "improvement_plans" where "created_by" in (${idList})
+    )`);
+  await db.execute(sql`delete from "improvement_plans" where "created_by" in (${idList})`);
+
+  // FORGE CONNECTIONS ARE NOT OURS TO DELETE when they own anything. repos,
+  // webhook_delivery and forge_etag all reference them NO ACTION, and a repo is
+  // the seeded warehouse other suites read — removing it to satisfy a login
+  // cleanup would be a far worse trade than failing. A connection with no
+  // children can go; one with children means a local account connected an org,
+  // which this helper says out loud rather than surfacing as a raw 23503.
+  const owning = await db.execute<{ id: number }>(sql`
+    select c."id" from "forge_connections" c
+    where c."created_by" in (${idList})
+      and (exists (select 1 from "repos" r where r."connection_id" = c."id")
+        or exists (select 1 from "webhook_delivery" w where w."connection_id" = c."id")
+        or exists (select 1 from "forge_etag" e where e."connection_id" = c."id"))`);
+  if ([...owning].length > 0) {
+    throw new Error(
+      'deleteAllLocalUsers: a local account owns a forge connection with repositories. ' +
+        'Refusing to delete the connection, because its repos are the seeded warehouse other ' +
+        'suites read. Re-point the connection or reset the database.',
+    );
+  }
+  await db.execute(sql`delete from "forge_connections" where "created_by" in (${idList})`);
 
   await db.delete(core.users).where(inArray(core.users.id, ids));
 }
