@@ -6730,6 +6730,29 @@
         "Not fixed mid-walk because it is cross-cutting rather than one screen: honouring `?repos=` means Org Overview, Pull Requests, Findings and Reports, and the org PR list has no repo_id filter in its API at all. Fixing one screen would deepen the inconsistency rather than reduce it.",
         "There is also a duplicate to resolve, not just a gap: /pull-requests has its OWN Author input beside the global person box. One of them works. Whichever survives, the screen must not offer both."
       ]
+    },
+    {
+      "id": "W16-51",
+      "title": "Open PRs counted the merged ones too",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 1,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/widgets/me/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The Open PRs tile counts the open ones",
+        "The empty state of My pull requests describes the list it is the empty state of"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of My Focus. The tile read 'OPEN PRS 2' directly above a table showing one open pull request and one merged one — it counted the length of the whole /me/prs list, which comes back in EVERY state. My Focus exists to say what is on your plate, and a merged pull request is not on anyone's plate.",
+        "The same wrong assumption was in the panel's empty message: 'Nothing open — you have no pull requests in flight' is the empty state of an open-PR list, and this list is not one. An author with only merged pull requests would have been told they had none at all."
+      ]
     }
   ]
 }

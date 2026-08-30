@@ -66,6 +66,11 @@ export function MyFocus({ search }: Props) {
   // from its OWN rows: a developer whose PRs are all in one repo but whose
   // review queue spans four should see the column on exactly one of them.
   const prItems = prs.data?.items ?? [];
+  // OPEN means open (W16-51). The "Open PRs" tile counted the whole list, which
+  // /me/prs returns in EVERY state — so the tile read 2 above a table showing
+  // one open PR and one merged one, on a screen whose job is telling someone
+  // what is on their plate. A merged pull request is not on anyone's plate.
+  const openPrItems = prItems.filter((pr) => pr.state === 'open');
   const queueItems = queue.data?.items ?? [];
   const hotspotItems = hotspots.data?.items ?? [];
 
@@ -219,7 +224,7 @@ export function MyFocus({ search }: Props) {
           unit="lines"
           polarity="neutral"
         />
-        <KpiTile label="Open PRs" value={String(prItems.length)} polarity="neutral" />
+        <KpiTile label="Open PRs" value={String(openPrItems.length)} polarity="neutral" />
         <KpiTile label="To review" value={String(queueItems.length)} polarity="neutral" />
       </div>
 
@@ -232,7 +237,10 @@ export function MyFocus({ search }: Props) {
         })}
         {...(prs.error ? { errorMessage: prs.error.message } : {})}
         onRetry={() => void prs.refetch()}
-        emptyMessage="Nothing open — you have no pull requests in flight."
+        // The list is not an open-PR list, so its empty state cannot say
+        // "nothing open" — an author with only merged PRs would be told they
+        // have none.
+        emptyMessage="No pull requests authored by you in this workspace."
       >
         <div data-testid="my-prs">
           <DataTable
