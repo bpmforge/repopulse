@@ -6753,6 +6753,33 @@
         "Found in the 2026-08-30 UAT walk of My Focus. The tile read 'OPEN PRS 2' directly above a table showing one open pull request and one merged one — it counted the length of the whole /me/prs list, which comes back in EVERY state. My Focus exists to say what is on your plate, and a merged pull request is not on anyone's plate.",
         "The same wrong assumption was in the panel's empty message: 'Nothing open — you have no pull requests in flight' is the empty state of an open-PR list, and this list is not one. An author with only merged pull requests would have been told they had none at all."
       ]
+    },
+    {
+      "id": "W16-52",
+      "title": "Every triage decision skipped the finding after it",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/widgets/findings/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A decision moves to the next finding, never past it",
+        "The count does not change while someone works through the queue",
+        "A finding already decided can still be stepped back to"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk, by pressing 'c' in the triage queue and reading the header: '1 of 3' became '2 of 2' and the screen showed the THIRD finding. The second was never offered.",
+        "Cause: `findings` is the explorer's LIVE list and each decision invalidates it. The explorer's default filter is status=open, so a confirmed finding leaves the list — the array shifts down while the index moves up, and the two cancel into a skip. On the one screen whose entire purpose is not missing a finding.",
+        "Fixed by snapshotting the queue at open, which is what a stepper is: you work through the set you started with. Decided items stay in the run so k can go back to one confirmed by mistake, and the count stays still while someone works.",
+        "THE FIRST VERSION OF THE TEST PASSED AGAINST THE BUG. It rendered once with a static prop, and the defect only exists when the parent hands down a SHORTER list — so the harness reproduced nothing. Rewritten to re-render with the remaining findings after each key, then checked against the pre-fix code: all three fail there with exactly the symptoms seen on screen ('third' for 'second', '2 of 2' for '2 of 3').",
+        "Also gave the overlay the backdrop-blur the command palette already uses — the underlying table competed with the finding being decided about."
+      ]
     }
   ]
 }
