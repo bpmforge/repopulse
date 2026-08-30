@@ -106,6 +106,12 @@ export function buildChartTheme(root: HTMLElement = document.documentElement): o
       axisLabel,
       splitLine: { lineStyle: { color: border, type: 'dashed' } },
     },
+    // A series VALUE LABEL is text, so it wears the ink token like every other
+    // piece of text (UX §2.3). Left to itself echarts gives a bar label its own
+    // default fill plus an automatic contrast STROKE, which drew the PR-funnel
+    // counts as hollow outlined digits on the dark surface — legible only if
+    // you already knew the number (W16-44).
+    bar: { label: { color: fg, textBorderWidth: 0 } },
     tooltip: {
       backgroundColor: surface,
       borderColor: border,

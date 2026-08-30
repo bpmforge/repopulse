@@ -6527,6 +6527,36 @@
         "A directory takes its HOTTEST CHILD's colour, not its own value — that value is the sum of its children and routinely exceeds the 0..1 domain, which would paint every directory at the top of the ramp.",
         "Second bug found while verifying: the colour survived a theme flip unchanged, because Chart's token bridge only covers colours Chart derives, and a widget-computed colour is baked into the option literal during the widget's render. Extracted the data-theme subscription as `useChartThemeKey` so a widget can sit on the same signal."
       ]
+    },
+    {
+      "id": "W16-44",
+      "title": "The window control that moved nothing, and the hollow digits",
+      "phase": 16,
+      "module": "api",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "done",
+      "write_scope": [
+        "apps/api/src/routes/prs/**",
+        "apps/web/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The repo PR list honours the window control, so the funnel and the size histogram change with it",
+        "The PR funnel and the review-load matrix report the same number of reviewed PRs",
+        "Series value labels are legible in both themes"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of the PR Flow tab. The funnel said 3 PRs Reviewed; the review-load matrix directly beneath it said '2 PRs reviewed ... Excludes 0 self-review(s) and 0 bot review(s)'. Two numbers for one question, on one screen, one of them claiming nothing had been excluded.",
+        "Checked the data before theorising: 5 PRs, 3 pr_reviews rows, none self, none bot. The data was consistent — the WINDOW was not. GET /repos/{id}/prs declared no `window` in its querystring schema, and fastify's zod provider drops an undeclared query param silently, so the list returned every PR ever while review-load (which does honour the window) counted only reviews inside it.",
+        "So the window control at the top of the repo screen moved every widget on the page except the two built from this list, and nothing anywhere said so. The request succeeded, the chart rendered, and the number simply answered a different question than the reader asked.",
+        "Fixed as a COHORT: PRs created in the window. That is what makes the funnel's stages nest — PrFlow derives Reviewed and Merged by filtering the same array, so both are subsets of Opened only under that reading.",
+        "Residual, deliberately not papered over: the funnel is a cohort metric and review load is an activity metric, so a PR opened before the window and reviewed inside it still counts for one and not the other. Much narrower than the bug, and inherent to the two questions.",
+        "Second defect on the same screen: the funnel's value labels rendered as hollow outlined digits on the dark surface. Echarts gives a bar label its own default fill plus an automatic contrast stroke; the theme now gives every bar label the ink token and no text border, so labels wear text tokens like all other text.",
+        "Third, found while regenerating the client types: apps/web/src/api/openapi.snapshot.json was stale by roughly forty routes (org pulse, review-load, ci, scanners, security, vex, reports, admin, setup, code-health, rules ...). The typed API layer had no generated types for most of the API. Snapshot and schema.gen.ts regenerated per apps/web/src/api/README.md."
+      ]
     }
   ]
 }

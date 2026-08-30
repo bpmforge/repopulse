@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -15,10 +15,16 @@ export interface PrsRoutesOptions {
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const prParams = idParams.extend({ number: z.coerce.number().int().positive() });
-const listQuery = z.object({
+const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+export const listQuery = z.object({
   state: z.enum(['open', 'closed', 'merged']).optional(),
   stale: z.coerce.boolean().optional(),
   unreviewed: z.coerce.boolean().optional(),
+  // The window was MISSING here while both callers sent it (W16-44). Fastify's
+  // zod provider drops an unknown query param without complaint, so the repo
+  // screen's window control changed every widget on the page except the two
+  // built from this list — and nothing anywhere said so.
+  window: z.enum(['7d', '30d', '90d', '365d']).default('30d'),
 });
 
 
@@ -109,7 +115,17 @@ export default async function prsRoutes(
       if (!(await ownsRepo(db, workspaceId, request.params.id)))
         return fail(request, reply, 404, 'Not Found');
 
-      const conds = [eq(facts.pullRequests.repoId, request.params.id)];
+      // A COHORT of PRs opened in the window, not every PR whose state changed
+      // in it. That is what makes the funnel's stages nest: PrFlow derives
+      // Reviewed and Merged by filtering this same array, so both are subsets
+      // of Opened only if Opened means "opened in the window".
+      const days = WINDOW_DAYS[request.query.window] ?? 30;
+      const windowStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const conds = [
+        eq(facts.pullRequests.repoId, request.params.id),
+        gte(facts.pullRequests.createdAt, windowStart),
+      ];
       if (request.query.state) conds.push(eq(facts.pullRequests.state, request.query.state));
       const rows = await db
         .select({
