@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createDb, type Database } from '../../db/index.js';
 import { core, facts, read } from '../../db/index.js';
@@ -287,6 +287,58 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
       // A repository-level finding has no file, and that is a real answer.
       if (f.file === null) continue;
       expect(paths.has(f.file), `${f.file} has no commit history`).toBe(true);
+    }
+  });
+
+  it("a PR-scoped finding is on a PR that touched the finding's file (W16-46)", async () => {
+    // A diff review can only report what is in the diff. The first cut attached
+    // the security finding to the first PR by number, and the demo then showed
+    // an automated review of src/payments/charge.ts on a pull request whose
+    // only file was src/reports/build.ts.
+    const r = await seedWarehouse(db, { seed: 29 });
+    const scoped = await db
+      .select({ file: read.findings.file, prId: read.findings.pullRequestId })
+      .from(read.findings)
+      .where(
+        and(
+          eq(read.findings.workspaceId, r.workspaceId),
+          isNotNull(read.findings.pullRequestId),
+        ),
+      );
+    expect(scoped.length).toBeGreaterThan(0);
+    for (const f of scoped) {
+      const touched = await db
+        .select({ path: facts.prFiles.path })
+        .from(facts.prFiles)
+        .where(eq(facts.prFiles.pullRequestId, f.prId!));
+      expect(touched.map((t) => t.path), `finding on PR ${f.prId}`).toContain(f.file);
+    }
+  });
+
+  it('a merged PR records WHEN it was approved, not only that it was (W16-46)', async () => {
+    // first_approval_at was never set although every merged PR gets exactly one
+    // APPROVED review, so two of the three rows of the PR drill-down's stage
+    // timeline — "First review → approved" and "Approved → merged" — read "—"
+    // on every seeded PR, beside an approving review the same screen displayed.
+    const r = await seedWarehouse(db, { seed: 31 });
+    const merged = await db
+      .select({
+        number: facts.pullRequests.number,
+        firstApprovalAt: facts.pullRequests.firstApprovalAt,
+        mergedAt: facts.pullRequests.mergedAt,
+      })
+      .from(facts.pullRequests)
+      .where(
+        and(
+          eq(facts.pullRequests.workspaceId, r.workspaceId),
+          eq(facts.pullRequests.state, 'merged'),
+        ),
+      );
+    expect(merged.length).toBeGreaterThan(0);
+    for (const pr of merged) {
+      expect(pr.firstApprovalAt, `PR ${pr.number} approval time`).not.toBeNull();
+      // And approved BEFORE merged, or the stage would render a negative span.
+      expect(pr.firstApprovalAt!.getTime()).toBeLessThanOrEqual(pr.mergedAt!.getTime());
     }
   });
 

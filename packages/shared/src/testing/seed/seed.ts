@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { core, facts, plans, read, security } from '../../db/index.js';
 import { makeRng, type Rng } from './prng.js';
@@ -345,7 +345,15 @@ export async function seedWarehouse(
       const firstReview = merged
         ? new Date(created.getTime() + rng.int(2, 40) * 3600 * 1000)
         : null;
-      const mergedAt = merged ? new Date(created.getTime() + rng.int(1, 6) * DAY) : null;
+      // MERGED AFTER IT WAS REVIEWED. This was `created + 1..6 days` while the
+      // review was `created + 2..40 hours`, so a 40-hour review on a PR merged
+      // after one day produced a pull request approved AFTER it was merged
+      // (W16-46) — which the stage timeline would draw as a negative span.
+      // Derived from the review instead, so the ordering holds by construction
+      // rather than by the two ranges happening not to cross.
+      const mergedAt = merged
+        ? new Date(firstReview!.getTime() + rng.int(2, 48) * 3600 * 1000)
+        : null;
       const headSha = `${name}-pr${p}-head`;
       const [pr] = await db
         .insert(facts.pullRequests)
@@ -369,6 +377,13 @@ export async function seedWarehouse(
           deletions: rng.int(0, 100),
           changedFiles: rng.int(1, 8),
           firstReviewAt: firstReview,
+          // The APPROVAL, which is the same event here: every merged PR below
+          // gets exactly one review and its state is APPROVED (W16-46). Leaving
+          // this null made two of the three rows of the PR drill-down's stage
+          // timeline read "—" on EVERY seeded PR — "First review → approved"
+          // and "Approved → merged" blank on a pull request the same screen
+          // showed as merged with an approving review beside it.
+          firstApprovalAt: firstReview,
           lastActivityAt: mergedAt ?? created,
         })
         .returning();
@@ -710,12 +725,34 @@ export async function seedWarehouse(
     },
   ];
 
+  // ONE finding attached to a pull request (W16-46), so the PR drill-down's
+  // Automated review panel has something to show. Every seeded finding carried
+  // `pullRequestId: null`, and that panel was hardcoded to its empty state, so
+  // neither half of the feature could contradict the other.
+  //
+  // Attached to the PR THAT TOUCHED THE FINDING'S FILE, looked up rather than
+  // assumed. The first version of this picked the first PR by number and the
+  // demo then showed an "automated review" of src/payments/charge.ts on a pull
+  // request whose only file was src/reports/build.ts — a diff review reporting
+  // something that was not in the diff.
+  const [reviewedPr] = await db
+    .select({ pullRequestId: facts.prFiles.pullRequestId })
+    .from(facts.prFiles)
+    .where(
+      and(
+        eq(facts.prFiles.workspaceId, workspaceId),
+        eq(facts.prFiles.repoId, repoIds[0]!),
+        eq(facts.prFiles.path, findingSeeds[0]!.file),
+      ),
+    )
+    .limit(1);
+
   await db.insert(read.findings).values(
     findingSeeds.map((f, i) => ({
       workspaceId,
       repoId: repoIds[0]!,
       analysisRunId: analysisRun!.id,
-      pullRequestId: null,
+      pullRequestId: i === 0 ? (reviewedPr?.pullRequestId ?? null) : null,
       dimension: f.dimension,
       severity: f.severity,
       confidence: f.confidence,
