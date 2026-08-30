@@ -6701,6 +6701,35 @@
         "THREE DEAD LINKS, all the same defect: the top-risks card, the complex-functions list and the attack-chain panel all linked to the explorer with `search={{ open: id }}`, the param name from before W16-16 renamed it to `finding`. TanStack's validateSearch REPLACES the search object, so the id was stripped rather than ignored — clicking any of them navigated to the explorer and opened nothing. Every one carried an `as never` cast, which is precisely what stopped the compiler from saying so.",
         "The guard reads the param out of the EXPLORER's own validator rather than restating it, so renaming it there fails the test instead of silently orphaning links again."
       ]
+    },
+    {
+      "id": "W16-50",
+      "title": "Two of the three global filters do nothing",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 8,
+      "status": "todo",
+      "write_scope": [
+        "apps/web/src/**",
+        "apps/api/src/routes/prs/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The repository picker lists the workspace's repositories",
+        "Choosing a repository narrows the screens that can be narrowed, and the ones that cannot do not offer the control",
+        "Typing a person narrows the same way, and the org PR list stops offering two different Author controls"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk, on /pull-requests but present on every screen — it is the global topbar.",
+        "TWO separate defects that hide each other. (1) __root.tsx renders <Topbar value onChange /> and never passes repoOptions or personOptions, though FilterBar accepts both and Topbar forwards both — so the repository dropdown contains only 'All repos' and can never be set, and the person box has no suggestions. The shipped-with-no-caller pattern again: the component works, nothing supplies it.",
+        "(2) Even set, nothing would happen: `?repos=` and `?person=` are serialized by urlState and faithfully preserved across every navigation, and NO screen reads either one. A control that silently does nothing is worse than a missing one, and it is the opposite of this codebase's own rule that nothing on screen claims what it has not earned.",
+        "Not fixed mid-walk because it is cross-cutting rather than one screen: honouring `?repos=` means Org Overview, Pull Requests, Findings and Reports, and the org PR list has no repo_id filter in its API at all. Fixing one screen would deepen the inconsistency rather than reduce it.",
+        "There is also a duplicate to resolve, not just a gap: /pull-requests has its OWN Author input beside the global person box. One of them works. Whichever survives, the screen must not offer both."
+      ]
     }
   ]
 }
