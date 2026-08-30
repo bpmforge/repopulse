@@ -1,4 +1,5 @@
 export * from './route-walker.js';
+export * from './local-users.js';
 export * from './seed/index.js';
 
 // The fakes (W13-02). They live here, not in e2e/, because demo mode runs them

@@ -37,7 +37,14 @@ function RuleWorkbench() {
         title="Rule registry"
         state={state}
         {...(error ? { errorMessage: error.message, error } : {})}
-        emptyMessage="No rules are registered for this workspace. Rules ship in versioned packs; this screen governs which of them count."
+        // NAME WHAT THIS REGISTRY IS (W16-57). It said "Rules ship in
+        // versioned packs; this screen governs which of them count", which
+        // reads as though every rule the scanners apply should be listed
+        // here — so a reader who has just seen a finding attributed to
+        // `bpm-log-console-in-prod` concludes the screen is broken. It holds
+        // only CANDIDATE rules drafted from this workspace's own findings,
+        // working through shadow before they are allowed to count.
+        emptyMessage="No candidate rules yet. This registry holds rules DRAFTED from your own findings, which run in shadow before they are allowed to raise anything — the rules that ship in the scanners' packs are always on and are not listed here."
         testId="rules-frame"
       >
         <table className="w-full text-sm" data-testid="rules-table">

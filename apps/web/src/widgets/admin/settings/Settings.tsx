@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { WidgetFrame, frameState, useUiStore } from '../../../components/index.js';
 import { docsUrl } from '../../../lib/docs.js';
@@ -205,42 +206,45 @@ export function Settings() {
         </form>
       </WidgetFrame>
 
-      {/* Rendered disabled rather than hidden: an operator evaluating RepoPulse
-          should be able to see that the analysis knobs exist and are not ready,
-          instead of wondering whether they are missing. The list comes from the
-          API so the screen cannot disagree with the server about it. */}
-      <WidgetFrame title="Analysis (lands with the analysis wave)" state="ready">
-        <fieldset
-          disabled
-          className="flex flex-col gap-2 opacity-60"
-          data-testid="settings-pending"
-        >
-          <legend className="sr-only">Analysis settings, not yet available</legend>
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            LM Studio hosts
-            <input
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
-              placeholder="lands with analysis wave"
-              readOnly
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            Concurrency cap
-            <input
-              className="w-40 rounded-md border border-border bg-surface px-2 py-1 text-sm"
-              placeholder="lands with analysis wave"
-              readOnly
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            Tier-3 monthly cap (USD)
-            <input
-              className="w-40 rounded-md border border-border bg-surface px-2 py-1 text-sm"
-              placeholder="lands with analysis wave"
-              readOnly
-            />
-          </label>
-        </fieldset>
+      {/* WHERE EACH OF THESE ACTUALLY LIVES (W16-57).
+          This was three disabled inputs under the heading "Analysis (lands
+          with the analysis wave)", every one captioned "lands with analysis
+          wave". The wave landed: LM Studio hosts moved to Admin → Models —
+          which is two tabs away, needs no restart, and was used to configure a
+          model minutes before this screen said the feature was pending — and
+          the concurrency cap is an environment variable with a default. The
+          third has no implementation at all, which is worth SAYING rather than
+          implying with a greyed-out box that it is nearly here.
+
+          Kept as a section rather than deleted, for the reason the disabled
+          fields were rendered in the first place: an operator evaluating
+          RepoPulse should be able to find these knobs, not wonder whether they
+          exist. It just has to point at the truth. */}
+      <WidgetFrame title="Analysis settings" state="ready">
+        <ul className="flex flex-col gap-2 text-sm" data-testid="settings-analysis-pointers">
+          <li>
+            <span className="text-fg">Models and endpoints</span> —{' '}
+            <Link to="/admin/models" className="text-accent hover:underline">
+              Admin → Models
+            </Link>
+            . Add a local or hosted OpenAI-compatible endpoint, test it, and see what answered.
+          </li>
+          <li>
+            <span className="text-fg">Per-host concurrency</span> — the{' '}
+            <code className="font-mono text-xs">LMSTUDIO_CONCURRENCY</code> environment variable on
+            the worker (default 1). Not a workspace setting: it describes the machine the model runs
+            on, not the organisation being measured.
+          </li>
+          <li>
+            <span className="text-fg">Tier-3 monthly spend cap</span> — not implemented. Tier 3 is
+            opt-in per repository on the{' '}
+            <Link to="/admin/analysis" className="text-accent hover:underline">
+              Analysis
+            </Link>{' '}
+            tab, and every call is recorded in the egress audit there, but nothing yet stops
+            spending at a threshold.
+          </li>
+        </ul>
       </WidgetFrame>
     </div>
   );
