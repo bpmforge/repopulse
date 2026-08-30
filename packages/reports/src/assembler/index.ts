@@ -5,7 +5,8 @@ import {
   healthInputsFromSnapshots,
   scoreLetter,
 } from '@repopulse/insights';
-import type { Database } from '@repopulse/shared';
+import { and, desc, eq } from 'drizzle-orm';
+import { read, type Database } from '@repopulse/shared';
 import type {
   ReportAssembler,
   ReportData,
@@ -250,9 +251,51 @@ export function createReportAssembler(db: Database): ReportAssembler {
         : noData('ci', 'No CI runs ingested for this repository in this window.'),
     );
 
-    // Findings arrive in W6. Saying so beats an empty heading that looks broken.
+    // THIS REPOSITORY'S FINDINGS (W16-54).
+    //
+    // The section was an unconditional no_data block reading "findings require
+    // the analysis pass (W6)" — no query behind it, waves after W6 shipped. The
+    // same report opens by counting them: a reader saw "3 open findings" on the
+    // first page and "no analysis data" on the last. Nothing here is Tier-1
+    // only; the sentence had simply outlived its wave.
+    const openFindings = await db
+      .select({
+        severity: read.findings.severity,
+        dimension: read.findings.dimension,
+        title: read.findings.title,
+        file: read.findings.file,
+        lineStart: read.findings.lineStart,
+        status: read.findings.status,
+      })
+      .from(read.findings)
+      .where(and(eq(read.findings.workspaceId, workspaceId), eq(read.findings.repoId, repo.id)))
+      .orderBy(desc(read.findings.severity), desc(read.findings.id))
+      .limit(25);
     sections.push(
-      noData('findings', 'No analysis data (Tier-1 only) — findings require the analysis pass (W6).'),
+      openFindings.length > 0
+        ? {
+            kind: 'table',
+            id: 'findings',
+            columns: ['Severity', 'Dimension', 'Finding', 'Where', 'Status'],
+            rows: openFindings.map((f) => [
+              f.severity,
+              f.dimension,
+              f.title,
+              // "whole repository" rather than a bare colon, the same words
+              // the screens use (W16-40) — a repository-level finding has no
+              // file and that is a real answer, not a missing one.
+              f.file === null
+                ? 'whole repository'
+                : f.lineStart === null
+                  ? f.file
+                  : `${f.file}:${f.lineStart}`,
+              f.status,
+            ]),
+          }
+        : noData(
+            'findings',
+            'No findings recorded for this repository at this snapshot. Findings are written by the analysis and scanner passes, so an empty section means nothing has run or nothing was found — the scanner coverage table on the repository screen says which.',
+          ),
     );
     return sections;
   }
