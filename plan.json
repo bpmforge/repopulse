@@ -6557,6 +6557,37 @@
         "Second defect on the same screen: the funnel's value labels rendered as hollow outlined digits on the dark surface. Echarts gives a bar label its own default fill plus an automatic contrast stroke; the theme now gives every bar label the ink token and no text border, so labels wear text tokens like all other text.",
         "Third, found while regenerating the client types: apps/web/src/api/openapi.snapshot.json was stale by roughly forty routes (org pulse, review-load, ci, scanners, security, vex, reports, admin, setup, code-health, rules ...). The typed API layer had no generated types for most of the API. Snapshot and schema.gen.ts regenerated per apps/web/src/api/README.md."
       ]
+    },
+    {
+      "id": "W16-45",
+      "title": "Four windows of one metric that contradicted each other",
+      "phase": 16,
+      "module": "shared",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "done",
+      "write_scope": [
+        "packages/shared/src/testing/seed/**",
+        "apps/api/src/routes/repos/index.test.ts",
+        "docs/TESTING.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A metric's windows nest: every window sits at the same level, and the longer one is the smoother line",
+        "The CI tab's pass rate is the newest point of the pass-rate chart above it",
+        "A count of runs grows with the window"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of the CI tab. Switching the window control from 30d to 7d moved the CI pass rate from about 90% to about 30% ACROSS THE WHOLE X-AXIS, including dates the two windows share. A 365-day window that contains the week cannot disagree with it like that.",
+        "Cause, verified against the rows rather than guessed: the seeder drew `ratioTenths = rng.int(3, 9)` inside the window loop, so each (scope, metric, window) was an independent random walk. Four unrelated series wearing one metric's name. On the fixture people judge the product by.",
+        "Fixed with ONE underlying process per (scope, metric), each window an EWMA of it with its own smoothing. That is what a rolling window IS. EWMA rather than a trailing mean because the series is 8 points long: 90d and 365d both exceed it, and a boxcar would render them as the same line — two windows drawn identically quietly claim they measure the same thing.",
+        "Second incoherence on the same screen: m9Dims drew `passRate: rng.int(70, 99) / 100` independently of the row's own value, so the CI card's pass rate and the newest point of the chart directly above it were unrelated numbers. The card now reads the row.",
+        "Third: the denominator was the literal 10 for every ratio and every window, so the card printed the same 'Runs 38' at 7d and 365d. It is now a per-30-day figure scaled by the window, and M9's defaultBranchRuns IS that denominator — so '80% of 24 runs' is one sentence.",
+        "Collateral, and a latent time bomb regardless: routes/repos/index.test.ts pinned its fixture to the absolute date 2026-07-10, which was 51 days stale by the time W16-44 made the PR list honour the window — so a correct change broke a walk that had nothing to do with it. Now relative to now, quantised to UTC midnight, the same lesson the seeder records in `anchorFor`.",
+        "Also documented in docs/TESTING.md: the seeder's own integration tests unseed in afterAll, so `pnpm test` EMPTIES a running demo's warehouse — every screen then reads 'No repositories connected yet.', which looks exactly like a product that never ingested anything. Same family as the accounts.test.ts logout (W16-17)."
+      ]
     }
   ]
 }
