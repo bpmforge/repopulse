@@ -39,9 +39,37 @@ export interface Plan {
  * practically useless — someone deciding whether to accept an item needs to
  * know what "done" will mean before they commit to it.
  */
-export function criterionInWords(c: PlanItem['verify_criterion']): string {
+/** Metric id → human name, from `/metrics/catalog`. */
+export type MetricNames = Record<string, string>;
+
+/**
+ * `M6` is not a sentence anyone can act on (W16-53).
+ *
+ * The plan's exit criterion and evidence line printed raw metric ids — "Closes
+ * automatically when M6 stays at most 0.05" — on a screen whose whole job is
+ * getting a person to agree to a piece of work. The catalog exists precisely so
+ * a screen can name a metric instead of numbering it, and the route that serves
+ * it says so; nothing had ever fetched it.
+ *
+ * `names` is optional and the id is the fallback, because a criterion is still
+ * better shown with an unresolved key than not shown while a request is in
+ * flight.
+ */
+export function metricInWords(key: string, names?: MetricNames): string {
+  const name = names?.[key];
+  // The id travels WITH the name rather than being replaced by it: it is what
+  // the metric catalog, the reports and the API all call this thing, so a
+  // reader who wants to look it up still can.
+  return name ? `${name} (${key})` : key;
+}
+
+export function criterionInWords(
+  c: PlanItem['verify_criterion'],
+  names?: MetricNames,
+): string {
   const direction = c.op === 'gte' ? 'at least' : 'at most';
-  const what = c.dimPath?.length ? `${c.metricKey} ${c.dimPath.join(' ')}` : c.metricKey;
+  const metric = metricInWords(c.metricKey, names);
+  const what = c.dimPath?.length ? `${metric} ${c.dimPath.join(' ')}` : metric;
   return `Closes automatically when ${what} stays ${direction} ${c.target} for ${c.windowDays} days.`;
 }
 

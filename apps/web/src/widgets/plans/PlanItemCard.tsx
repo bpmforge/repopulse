@@ -1,5 +1,10 @@
 import { useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
-import { criterionInWords, type PlanItem } from './contracts.js';
+import {
+  criterionInWords,
+  metricInWords,
+  type MetricNames,
+  type PlanItem,
+} from './contracts.js';
 
 // One ranked plan item (W5-07, UX_SPEC §4.h2).
 
@@ -17,7 +22,7 @@ const STATUS_LABEL: Record<PlanItem['status'], string> = {
   dismissed: '– dismissed',
 };
 
-export function PlanItemCard({ item }: { item: PlanItem }) {
+export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricNames?: MetricNames }) {
   const transition = useApiMutation<{ status: string }, unknown>(
     { endpoint: '/plans/items/{id}', path: { id: item.id }, method: 'PATCH' },
     { invalidate: [queryKeyFor(LIST)] },
@@ -41,14 +46,17 @@ export function PlanItemCard({ item }: { item: PlanItem }) {
 
       {/* What "done" will mean, before anyone commits to it. */}
       <p className="mt-1 text-xs text-fg-muted" data-testid={`plan-item-criterion-${item.id}`}>
-        {criterionInWords(item.verify_criterion)}
+        {criterionInWords(item.verify_criterion, metricNames)}
       </p>
 
       {/* Evidence keys, not a copy of the data — the item points at the
           numbers that raised it so a reader can go and check. */}
       {Array.isArray(item.evidence.metricKeys) && (
         <p className="mt-1 text-xs text-fg-faint">
-          Evidence: {(item.evidence.metricKeys as string[]).join(', ')}
+          Evidence:{' '}
+          {(item.evidence.metricKeys as string[])
+            .map((k) => metricInWords(k, metricNames))
+            .join(', ')}
         </p>
       )}
 

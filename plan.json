@@ -6780,6 +6780,60 @@
         "THE FIRST VERSION OF THE TEST PASSED AGAINST THE BUG. It rendered once with a static prop, and the defect only exists when the parent hands down a SHORTER list — so the harness reproduced nothing. Rewritten to re-render with the remaining findings after each key, then checked against the pre-fix code: all three fail there with exactly the symptoms seen on screen ('third' for 'second', '2 of 2' for '2 of 3').",
         "Also gave the overlay the backdrop-blur the command palette already uses — the underlying table competed with the finding being decided about."
       ]
+    },
+    {
+      "id": "W16-53",
+      "title": "A plan that asked you to agree to M6",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/widgets/plans/**",
+        "apps/web/src/routes/plans/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A plan item's exit criterion and evidence name the metric",
+        "An unresolved key still shows, rather than the line disappearing"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of Plans, after generating a plan and accepting an item — both of which work. Every item then read 'Closes automatically when M6 stays at most 0.05 for 30 days' with 'Evidence: M6'. On the screen whose entire job is getting a person to agree to a piece of work, the work was described in internal ids.",
+        "The metric catalog exists exactly for this, and the route serving it says the UI should read it and never hardcode the names — and nothing had ever read it. `definitionHref` on the org KPI row LINKS to the raw JSON, which is not the same as naming the metric.",
+        "The id travels WITH the name rather than being replaced by it: M6 is what the catalog, the reports and the API all call this thing, so a reader who wants to look it up still can.",
+        "The fallback is the bare key, not a blank: a criterion is better shown with an unresolved id than hidden while a separate request is in flight, or forever if a new metric has not reached the catalog yet."
+      ]
+    },
+    {
+      "id": "W16-54",
+      "title": "A report that counted findings on page one and denied them on the last",
+      "phase": 16,
+      "module": "reports",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "done",
+      "write_scope": [
+        "packages/reports/src/**",
+        "apps/web/src/routes/print/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The repository-health report lists that repository's findings",
+        "An empty findings section gives a reason that is true",
+        "Section headings spell CI and PR correctly"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of Reports, which otherwise works well end to end: generate, history, View, and a Basis box with coverage and sync lag per repository.",
+        "The findings SECTION was an unconditional no_data block reading 'No analysis data (Tier-1 only) — findings require the analysis pass (W6).' with no query behind it, waves after W6 shipped. The same report opens by counting findings, so a reader saw '3 open findings' on the first page and 'no analysis data' on the last. The fourth teaser of this walk, and the first one in a document that goes to customers.",
+        "The empty state now names the honest reason — nothing has run, or nothing was found — and points at the scanner coverage table that distinguishes them. Repository-level findings print 'whole repository' rather than a bare colon, the same words the screens use (W16-40).",
+        "Section headings came from `capitalize` on the raw section id, so `ci` rendered as 'Ci' and `pr_flow` as 'Pr Flow' — the two acronyms this product is largely about, misspelled in the document customers are handed. A small title map covers those ids; everything else keeps the mechanical transform so a later section still gets a readable heading.",
+        "Note for whoever debugs this suite next: the earlier failed attempts at the fixture left analysis_runs rows referencing the test repo, and the suite's afterAll deletes repos before connections — so the teardown then failed on a FK for reasons that had nothing to do with the test being run. Clean `analysis_runs`/`repos`/`forge_connections` for the w5-03 fixture before concluding anything from a red teardown."
+      ]
     }
   ]
 }

@@ -14,6 +14,33 @@ import { ReportMarkdown } from '../../../components/index.js';
 // by a headless browser, and every live subscription is one more thing that can
 // keep `networkidle` from ever arriving.
 
+/**
+ * A section's heading (W16-54).
+ *
+ * `capitalize` on the raw id turned `ci` into "Ci" and `pr_flow` into "Pr
+ * Flow" — the two acronyms this product is largely about, misspelled in the
+ * document customers are handed. The map covers the ids where mechanical
+ * casing is wrong; everything else keeps the underscore-to-space transform,
+ * so a section added later still gets a readable heading rather than nothing.
+ */
+const SECTION_TITLE: Record<string, string> = {
+  ci: 'CI',
+  pr_flow: 'PR flow',
+  top_risks: 'Top risks',
+  risk_counts: 'Risk counts',
+  score_breakdown: 'Health score breakdown',
+  sbom: 'SBOM',
+  vex: 'VEX',
+};
+
+function sectionTitle(id: string | undefined): string {
+  const key = id ?? '';
+  const mapped = SECTION_TITLE[key];
+  if (mapped) return mapped;
+  const words = key.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export const Route = createFileRoute('/print/reports/$reportId')({ component: PrintReport });
 
 interface ReportSection {
@@ -185,16 +212,14 @@ function PrintReport() {
             // findings" and "nothing has analysed this repo" are different
             // facts and a reader has to be able to tell them apart.
             <div className="rounded-md border border-border bg-surface p-3">
-              <h2 className="text-sm font-medium capitalize">{(section.id ?? '').replace(/_/g, ' ')}</h2>
+              <h2 className="text-sm font-medium">{sectionTitle(section.id)}</h2>
               <p className="mt-1 text-xs text-fg-muted">{section.reason}</p>
             </div>
           )}
 
           {section.kind === 'table' && (
             <>
-              <h2 className="mb-1 text-sm font-medium capitalize">
-                {(section.id ?? '').replace(/_/g, ' ')}
-              </h2>
+              <h2 className="mb-1 text-sm font-medium">{sectionTitle(section.id)}</h2>
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-fg-muted">

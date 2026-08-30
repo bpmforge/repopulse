@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, type Database } from '@repopulse/shared';
 import { createReportAssembler } from './index.js';
-import type { ReportParams } from '../types/index.js';
+import type { ReportParams, ReportSection } from '../types/index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
@@ -166,6 +166,72 @@ describeIfLiveInfra('report assembler', () => {
         }
       }
     }
+  });
+
+  it("the findings section reports this repository's findings (W16-54)", async () => {
+    // It was an unconditional no_data block reading "findings require the
+    // analysis pass (W6)", with no query behind it, waves after W6 shipped —
+    // while the SAME report opened by counting them. A reader saw "3 open
+    // findings" on the first page and "no analysis data" on the last.
+    const assembler = createReportAssembler(db);
+
+    const empty = await assembler.assemble(paramsFor('repo_health'));
+    // Not every section kind carries an id, so narrow before comparing.
+    const findingsSection = (data: { sections: ReportSection[] }) =>
+      data.sections.find((s) => 'id' in s && s.id === 'findings');
+
+    const before = findingsSection(empty);
+    expect(before?.kind).toBe('no_data');
+    if (before?.kind === 'no_data') {
+      // And it must not blame a wave: the honest reason is that nothing has
+      // run or nothing was found.
+      expect(before.reason).not.toMatch(/W6|Tier-1 only/);
+    }
+
+    const [run] = await db
+      .insert(read.analysisRuns)
+            .values({
+        workspaceId,
+        repoId,
+        tier: 2,
+        dimension: 'security',
+        checklistVersion: 'test-1',
+        modelId: 'test-model',
+        status: 'succeeded',
+        chunkCount: 1,
+        promptTokens: 0,
+        outputTokens: 0,
+        startedAt: new Date('2026-08-01T00:00:00.000Z'),
+      })
+      .returning();
+    await db.insert(read.findings).values({
+      workspaceId,
+      repoId,
+      analysisRunId: run!.id,
+      dimension: 'security',
+      severity: 5,
+      confidence: 5,
+      title: 'SQL built by string concatenation',
+      file: 'src/pay.ts',
+      lineStart: 10,
+      lineEnd: 12,
+      evidence: 'db.query(x)',
+      recommendation: 'parameterise',
+      status: 'open',
+      dedupKey: 'w16-54-dedup',
+      tier: 2,
+    });
+
+    const after = await assembler.assemble(paramsFor('repo_health'));
+    const section = findingsSection(after);
+    expect(section?.kind).toBe('table');
+    if (section?.kind === 'table') {
+      expect(JSON.stringify(section.rows)).toContain('SQL built by string concatenation');
+      expect(JSON.stringify(section.rows)).toContain('src/pay.ts:10');
+    }
+
+    await db.delete(read.findings).where(eq(read.findings.dedupKey, 'w16-54-dedup'));
+    await db.delete(read.analysisRuns).where(eq(read.analysisRuns.id, run!.id));
   });
 
   it('decomposes the health score input by input, and carries the appendix', async () => {

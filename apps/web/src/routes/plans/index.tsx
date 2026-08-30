@@ -2,7 +2,11 @@ import { createFileRoute } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { PlanItemCard } from '../../widgets/plans/PlanItemCard.js';
-import { planProgress, type Plan } from '../../widgets/plans/contracts.js';
+import {
+  planProgress,
+  type MetricNames,
+  type Plan,
+} from '../../widgets/plans/contracts.js';
 
 // Plans page (W5-07, UX_SPEC §4.h2). The rail has linked to /plans since W4-02
 // with no route behind it.
@@ -13,6 +17,18 @@ const LIST = { endpoint: '/plans' } as const;
 
 function PlansPage() {
   const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Plan[] }>(LIST);
+
+  // Metric NAMES for the exit criteria and evidence lines (W16-53). The route
+  // serving this catalog says the UI should read it and never hardcode the
+  // names — and until now nothing read it, so every plan item spoke in raw ids
+  // ("Closes automatically when M6 stays at most 0.05") on the screen whose job
+  // is getting a person to agree to the work.
+  const { data: catalog } = useApiQuery<{ items: { id: string; name: string }[] }>({
+    endpoint: '/metrics/catalog',
+  });
+  const metricNames: MetricNames = Object.fromEntries(
+    (catalog?.items ?? []).map((m) => [m.id, m.name]),
+  );
   const generate = useApiMutation<{ window: string }, { id: number }>(
     { endpoint: '/plans', method: 'POST' },
     { invalidate: [queryKeyFor(LIST)] },
@@ -91,7 +107,7 @@ function PlansPage() {
                 {items.length > 0 ? (
                   <ul className="flex flex-col gap-2" data-testid={`plan-items-${plan.id}`}>
                     {items.map((item) => (
-                      <PlanItemCard key={item.id} item={item} />
+                      <PlanItemCard key={item.id} item={item} metricNames={metricNames} />
                     ))}
                   </ul>
                 ) : (
