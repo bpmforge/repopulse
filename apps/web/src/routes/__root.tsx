@@ -14,6 +14,10 @@ import { Breadcrumb, type Crumb } from '../components/shell/Breadcrumb.js';
 
 export type EntityCrumb = { pathPrefix: string; label: string; to: string };
 import { Toaster } from '../components/shell/Toaster.js';
+// Side-effect import: registers every widget type before any screen renders
+// (W16-55). Saved views live outside the org overview and cannot rely on it
+// having been visited first.
+import '../widgets/registerAll.js';
 import { useUiStore } from '../components/store/uiStore.js';
 import { useSyncStream } from '../sse/useSyncStream.js';
 import { useApiQuery, useSession } from '../api/useApiQuery.js';

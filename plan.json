@@ -6834,6 +6834,58 @@
         "Section headings came from `capitalize` on the raw section id, so `ci` rendered as 'Ci' and `pr_flow` as 'Pr Flow' — the two acronyms this product is largely about, misspelled in the document customers are handed. A small title map covers those ids; everything else keeps the mechanical transform so a later section still gets a readable heading.",
         "Note for whoever debugs this suite next: the earlier failed attempts at the fixture left analysis_runs rows referencing the test repo, and the suite's afterAll deletes repos before connections — so the teardown then failed on a FK for reasons that had nothing to do with the test being run. Clean `analysis_runs`/`repos`/`forge_connections` for the w5-03 fixture before concluding anything from a red teardown."
       ]
+    },
+    {
+      "id": "W16-55",
+      "title": "Views: a whole feature over an empty registry",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 5,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A saved view renders its widgets whichever screen you arrived from",
+        "Every widget type a template names is registered",
+        "The four templates all draw"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk. Choosing a template and opening the view produced a page where EVERY tile read '\"kpi\" widget is not available yet'. Two independent failures were meeting there.",
+        "First: widgets register themselves as a module SIDE EFFECT, and every registering module was reachable only through OrgOverview. Loading /views directly found an empty registry, so whether the feature worked at all depended on whether you happened to pass through the org overview first in the same page load. The registrations now live in widgets/registerAll.ts, imported by the root route.",
+        "Second, and only visible once the first was fixed: three of the four templates named types nothing registered anywhere — my-prs, my-queue, finding-table and trend. Views advertised four starting points and one of them could draw. Those four widgets are now implemented, deliberately smaller than the screens they echo: a dashboard tile answers 'is there anything here for me' and the full list is one click away.",
+        "The guard checks the templates AGAINST the registry, which is the check that was missing: the two halves shipped in different waves and nothing ever compared them."
+      ]
+    },
+    {
+      "id": "W16-56",
+      "title": "Commit churn fell by 373 per cent",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/widgets/org/**",
+        "apps/api/src/routes/org/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A KPI delta is a percentage of the previous window",
+        "No delta is shown when there is no baseline to divide by"
+      ],
+      "notes": [
+        "Found on the landing screen's headline row: 'COMMIT CHURN 1946 lines ▼373%'. A fall of more than 100% is impossible, which is what made it visible — the other four tiles were wrong in exactly the same way and looked plausible.",
+        "The tile prop is `deltaPct` and it was being handed `trend.delta`, which is an ABSOLUTE change (current − previous). So churn falling by 373 lines rendered as '373%'. The two ratio tiles happened to look right because a ratio's absolute change and its change in points are close enough to pass a glance.",
+        "/org/summary now returns `previous` alongside `delta` — a percentage cannot be computed without the baseline — and the web divides by it. Null when the baseline is null OR zero: going from nothing to something is not a percentage, and the tile already has honest words for an absent delta.",
+        "Divides by the MAGNITUDE of the baseline so a negative baseline does not flip an increase into a fall."
+      ]
     }
   ]
 }

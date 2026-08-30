@@ -1,22 +1,14 @@
 import { Link } from '@tanstack/react-router';
 import { SyncStatusChip, WidgetFrame, useUiStore } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import '../plans/PlanTile.js';
-// W8-10: side-effect import, same pattern — the tile registers itself.
-import '../security/SecurityRollupTile.js';
-// W9-11: side-effect import, same pattern.
-import '../risk/TopRisksCard.js';
-import '../risk/RiskAxesCard.js';
-import '../pulse/PulseCard.js';
+// The widget registrations moved to widgets/registerAll.js, imported by the
+// root route (W16-55): they were side-effect imports reachable only from HERE,
+// so a saved view that did not pass through this screen first found an empty
+// registry and rendered "widget is not available yet" for every tile.
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import type { GlobalSearch } from '../../api/urlState.js';
 import { WidgetGrid } from '../../components/widget/WidgetGrid.js';
 import type { Widget } from '../../components/widget/types.js';
-// Side-effect import: registers the four org widget types. The grid renders by
-// TYPE, so a screen that composes widgets must ensure they are registered — an
-// unregistered type degrades to a placeholder frame, which is a silent way for
-// this screen to lose a panel.
-import './register.js';
 import { OnboardingChecklist } from '../onboarding/OnboardingChecklist.js';
 import type { HealthTiles, MeContext } from './contracts.js';
 

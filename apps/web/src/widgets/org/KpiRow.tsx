@@ -1,6 +1,12 @@
 import { KpiTile, Sparkline, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import { KPI_TILES, formatKpi, type MetricSeries, type OrgSummary } from './contracts.js';
+import {
+  KPI_TILES,
+  deltaPctOf,
+  formatKpi,
+  type MetricSeries,
+  type OrgSummary,
+} from './contracts.js';
 
 // UX_SPEC §4.a: five KPI tiles, each with a sparkline and a TrendDelta (KpiTile
 // renders the delta from deltaPct + polarity).
@@ -68,7 +74,7 @@ export function KpiRow({ window }: Props) {
               label={tile.label}
               value={formatKpi(row?.value ?? null, tile.unit)}
               {...(tile.unit ? { unit: tile.unit } : {})}
-              deltaPct={row?.delta ?? null}
+              deltaPct={deltaPctOf(row?.delta ?? null, row?.previous ?? null)}
               polarity={tile.polarity}
               aside={<KpiSparkline metricKey={tile.key} label={tile.label} window={window} />}
             />

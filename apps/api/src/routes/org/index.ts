@@ -50,7 +50,16 @@ export default async function orgRoutes(
           metricKey,
           window,
         });
-        return { metric_key: metricKey, value: trend.current, delta: trend.delta };
+        // `previous` travels with the delta (W16-56). The tile shows a PERCENT
+        // change, and an absolute delta cannot be turned into one without the
+        // baseline — so the web was rendering "−373" as "−373%", a fall of more
+        // than everything there was.
+        return {
+          metric_key: metricKey,
+          value: trend.current,
+          delta: trend.delta,
+          previous: trend.previous,
+        };
       }),
     );
     return reply.send({ window, tiles });
