@@ -107,6 +107,14 @@ requests emitted, not just response shape.
   starts answering 401 to a password that is definitely correct. Restart the
   demo — it recreates the account on boot. This caught the author three times
   in one session before it was written down; the underlying fix is W16-17.
+- **`pnpm test` also EMPTIES a running demo's warehouse.** The seeder's own
+  integration tests (`packages/shared/src/testing/seed/`) call
+  `unseedWarehouse` in `afterAll` — they have to, since they assert on what a
+  fresh seed contains. A demo you left running then shows "No repositories
+  connected yet." on every screen, which reads exactly like a product that
+  never ingested anything. Same remedy: restart the demo, which reseeds on
+  boot. Related to W16-17 and the same root cause — one database shared
+  between the suite and whatever you have open.
 - Runs against the compose stack seeded by the synthetic generator (§7) — real API,
   real DB, no component mocks.
 - **The 6 core journeys** (UX_SPEC §4, W4 gate):

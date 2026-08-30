@@ -66,7 +66,7 @@ function anchorFor(now: number): number {
  * workflow never rerun has no flakiness ratio), because "no CI" and "CI that
  * never passes" must stay distinguishable on screen.
  */
-function m9Dims(rng: Rng): Record<string, unknown> {
+function m9Dims(rng: Rng, passRate: number, defaultBranchRuns: number): Record<string, unknown> {
   const flaky = [
     { workflowName: 'ci', rerunGroups: rng.int(3, 8), flippedGroups: rng.int(1, 3) },
     { workflowName: 'e2e', rerunGroups: rng.int(1, 4), flippedGroups: rng.int(0, 1) },
@@ -78,10 +78,18 @@ function m9Dims(rng: Rng): Record<string, unknown> {
 
   const medianMs = rng.int(2, 12) * 60_000;
   return {
-    passRate: rng.int(70, 99) / 100,
-    prPassRate: rng.int(55, 95) / 100,
-    defaultBranchRuns: rng.int(8, 40),
-    prRuns: rng.int(10, 60),
+    // TAKEN FROM THE ROW, not drawn again (W16-45). These were independent
+    // draws, so the CI tab's pass rate and the newest point of the pass-rate
+    // chart directly above it were two unrelated numbers for one measurement —
+    // and the card could read 90% over a series that ended at 30%.
+    passRate,
+    // PR runs are a different population than default-branch runs, so a
+    // different rate is correct; anchored to the same level rather than drawn
+    // from thin air, because a repo whose main branch is green rarely has PRs
+    // failing three times as often.
+    prPassRate: Math.min(1, Math.max(0, passRate - rng.int(0, 15) / 100)),
+    defaultBranchRuns,
+    prRuns: defaultBranchRuns + rng.int(2, 20),
     duration: { medianMs, p90Ms: medianMs + rng.int(1, 8) * 60_000 },
     flakiness: flaky,
     flakinessWorkflows: flaky.length,
@@ -529,38 +537,84 @@ export async function seedWarehouse(
           drift: Math.max(1, band.drift * repoIds.length),
         }
       : band;
+  // THE WINDOWS HAVE TO NEST (W16-45).
+  //
+  // Each (scope, metric, WINDOW) used to get its own independent random walk,
+  // so the four windows of one metric were four unrelated series. The demo
+  // showed acme/payments at a 30% CI pass rate over 7d and 90% over 365d on the
+  // same dates — a year-long window that contains the week cannot disagree with
+  // it like that. Moving the window control swung every rate on the screen with
+  // no explanation a reader could construct, on the fixture that people judge
+  // the product by.
+  //
+  // So: ONE underlying process per (scope, metric), and each window is that
+  // process smoothed by its own length. That is what a rolling window IS — a
+  // longer one is a longer average of the same measurements — and it reproduces
+  // the relationship a reader expects: every window sits at the same level, and
+  // the short ones are the volatile ones.
+  //
+  // EWMA rather than a boxcar mean because the series is only SERIES_POINTS
+  // long: 90d and 365d both exceed it, and a trailing mean would render them as
+  // the same line, quietly suggesting the two windows measure the same thing.
+  const POINT_DAYS = 7; // points are weekly
+  const smoothing = (windowDays: number): number => 2 / (windowDays / POINT_DAYS + 1);
+  const WINDOW_DAYS_SEED: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+
   const snapshotRows: (typeof read.metricSnapshots.$inferInsert)[] = [];
   for (const repoId of [...repoIds, null]) {
     for (const mk of METRICS) {
+      const band = scaleFor(repoId, BANDS[mk] ?? { min: 1, max: 100, drift: 10 });
+      const isRatio = RATIOS.has(mk);
+
+      // The underlying process, oldest → newest. Random walk clamped to the
+      // metric's OWN band, so deltas are non-zero and a sparkline moves while
+      // no point can leave the range the seeded data could actually produce.
+      const base: number[] = [];
+      let ratioTenths = rng.int(3, 9);
+      let level = rng.int(band.min, band.max);
+      for (let t = 0; t < SERIES_POINTS; t++) {
+        ratioTenths = Math.min(10, Math.max(1, ratioTenths + rng.int(-1, 1)));
+        level = Math.min(band.max, Math.max(band.min, level + rng.int(-band.drift, band.drift)));
+        base.push(isRatio ? ratioTenths / 10 : level);
+      }
+      // A denominator the numbers can be READ against: for M9 it is the run
+      // count the CI tab prints, so "80% of 24 runs" is one coherent sentence
+      // rather than a rate beside an unrelated total. Expressed per 30 days and
+      // scaled per window below, because a count of runs GROWS with the window
+      // — a fixed one made the CI tab print the same "Runs 38" at 7d and 365d.
+      const denominatorPer30d = isRatio ? rng.int(12, 48) : null;
+
       for (const window of WINDOWS) {
-        // One walk per (scope, metric, window) so each series drifts on its own
-        // rather than every tile moving in lockstep.
-        const band = scaleFor(repoId, BANDS[mk] ?? { min: 1, max: 100, drift: 10 });
-        let ratioTenths = rng.int(3, 9);
-        let level = rng.int(band.min, band.max);
-        for (let i = SERIES_POINTS - 1; i >= 0; i--) {
-          // Random walk, clamped to the metric's OWN band, so deltas are
-          // non-zero and a sparkline moves while no point in the series can
-          // leave the range the seeded data could actually produce.
-          ratioTenths = Math.min(10, Math.max(1, ratioTenths + rng.int(-1, 1)));
-          level = Math.min(band.max, Math.max(band.min, level + rng.int(-band.drift, band.drift)));
-          const isRatio = RATIOS.has(mk);
+        const windowDays = WINDOW_DAYS_SEED[window] ?? 30;
+        const alpha = smoothing(windowDays);
+        const denominator =
+          denominatorPer30d === null
+            ? null
+            : Math.max(1, Math.round((denominatorPer30d * windowDays) / 30));
+        // Seeded at the process mean so a long window starts where it belongs
+        // instead of spending the series climbing away from an arbitrary
+        // first point.
+        let ewma = base.reduce((a, b) => a + b, 0) / base.length;
+        for (let t = 0; t < SERIES_POINTS; t++) {
+          ewma = alpha * base[t]! + (1 - alpha) * ewma;
+          // i counts DOWN to the newest point, which lands on the anchor end.
+          const i = SERIES_POINTS - 1 - t;
+          const numerator = denominator === null ? null : Math.round(ewma * denominator);
           snapshotRows.push({
             workspaceId,
             repoId,
             metricKey: mk,
             window,
-            value: isRatio ? (ratioTenths / 10).toFixed(6) : String(level),
-            numerator: isRatio ? String(ratioTenths) : null,
-            denominator: isRatio ? '10' : null,
+            value: isRatio ? ewma.toFixed(6) : String(Math.round(ewma)),
+            numerator: numerator === null ? null : String(numerator),
+            denominator: denominator === null ? null : String(denominator),
             // W4-15: M9's newest row carries the three components compute.ts
             // now writes. Only the newest, because that is what the CI tab
             // reads — and because older rows genuinely predate the change,
             // which the endpoint reports as components_available: false. A
             // fixture that back-filled every row would hide that state instead
             // of letting a screen be tested against it.
-            dims: mk === 'M9' && i === 0 ? m9Dims(rng) : {},
-            // i = 0 is the newest point and lands on the anchor end (today).
+            dims: mk === 'M9' && i === 0 ? m9Dims(rng, ewma, denominator ?? 0) : {},
             computedAt: new Date(BASE + SPAN_DAYS * DAY - i * 7 * DAY),
           });
         }

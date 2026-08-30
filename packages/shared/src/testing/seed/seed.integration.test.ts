@@ -152,8 +152,117 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
 
     // The series must still MOVE, or every trend delta reads "no change" and
     // the sparkline is a flat line — the failure the series was added to fix.
-    const cycle = valuesFor('M4', 'repo');
-    expect(new Set(cycle).size).toBeGreaterThan(1);
+    //
+    // PER WINDOW, because this assertion used to pool all four and so passed on
+    // 7d's variety alone. W16-45 made each window a smoothing of one process,
+    // and a long window IS the flat one — so pooling would have hidden a 365d
+    // sparkline that never moves.
+    //
+    // Asserted on the WIDE-band metrics only. A narrow one is honestly flat
+    // over a long window: the fixture has four issues in total, so a 365-day
+    // issue-throughput line SHOULD be a straight line at 4, and demanding
+    // movement there would be demanding the fixture lie.
+    for (const window of ['7d', '30d', '90d', '365d']) {
+      for (const key of ['M4', 'M9', 'M1']) {
+        const series = rows
+          .filter((row) => row.metricKey === key && row.window === window && row.repoId !== null)
+          .map((row) => Number(row.value));
+        expect(new Set(series).size, `${key} @ ${window}`).toBeGreaterThan(1);
+      }
+    }
+  });
+
+  it('the four windows of a metric nest instead of contradicting each other (W16-45)', async () => {
+    // Every (scope, metric, WINDOW) got its own independent random walk, so the
+    // four windows of one metric were four unrelated series. The demo showed
+    // acme/payments at a 30% CI pass rate over 7d and 90% over 365d ON THE SAME
+    // DATES — a year that contains the week cannot disagree with it like that.
+    // Moving the window control swung every rate on screen with no explanation
+    // a reader could construct.
+    const r = await seedWarehouse(db, { seed: 13 });
+    const rows = await db
+      .select()
+      .from(read.metricSnapshots)
+      .where(
+        and(
+          eq(read.metricSnapshots.workspaceId, r.workspaceId),
+          eq(read.metricSnapshots.repoId, r.repoIds[0]!),
+        ),
+      );
+
+    const series = (key: string, window: string) =>
+      rows
+        .filter((row) => row.metricKey === key && row.window === window)
+        .sort((a, b) => a.computedAt.getTime() - b.computedAt.getTime())
+        .map((row) => Number(row.value));
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
+
+    for (const key of ['M9', 'M5', 'M6', 'M4']) {
+      const short = series(key, '7d');
+      const long = series(key, '365d');
+      expect(short.length, `${key} 7d`).toBeGreaterThan(1);
+      expect(long.length, `${key} 365d`).toBe(short.length);
+
+      // SAME LEVEL: the windows measure one underlying process, so their means
+      // agree to within a tenth of the range they move over. This is the
+      // assertion the old seeder could not have passed.
+      const scale = Math.max(spread(short), 1e-9);
+      expect(Math.abs(mean(short) - mean(long)), `${key} level`).toBeLessThanOrEqual(scale);
+
+      // DIFFERENT VOLATILITY: a longer window is a longer average, so it is the
+      // smoother line. Equal spreads would mean the window changed nothing.
+      expect(spread(long), `${key} smoothness`).toBeLessThanOrEqual(spread(short));
+    }
+
+    // 90d and 365d must not be the SAME line either — two windows rendering
+    // identically would quietly claim they measure the same thing.
+    expect(series('M9', '90d')).not.toEqual(series('M9', '365d'));
+  });
+
+  it("the CI tab's pass rate is the newest point of the chart above it (W16-45)", async () => {
+    // These were independent draws: dims.passRate came from rng.int(70, 99)
+    // while the plotted series came from its own walk, so the card could read
+    // 90% over a chart that ended at 30%.
+    const r = await seedWarehouse(db, { seed: 17 });
+    const rows = await db
+      .select()
+      .from(read.metricSnapshots)
+      .where(
+        and(
+          eq(read.metricSnapshots.workspaceId, r.workspaceId),
+          eq(read.metricSnapshots.repoId, r.repoIds[0]!),
+          eq(read.metricSnapshots.metricKey, 'M9'),
+          eq(read.metricSnapshots.window, '30d'),
+        ),
+      );
+    const newest = rows.sort((a, b) => b.computedAt.getTime() - a.computedAt.getTime())[0]!;
+    const dims = newest.dims as { passRate?: number; defaultBranchRuns?: number };
+    expect(dims.passRate).toBeCloseTo(Number(newest.value), 6);
+    // …and the run count the card prints is the denominator the rate is of, so
+    // "80% of 24 runs" is one coherent sentence.
+    expect(dims.defaultBranchRuns).toBe(Number(newest.denominator));
+
+    // A COUNT OF RUNS GROWS WITH THE WINDOW. A fixed denominator made the CI
+    // tab print the same "Runs 38" at 7d and at 365d, which says a year of CI
+    // and a week of it saw the same number of builds.
+    const denomFor = async (window: string) => {
+      const [row] = await db
+        .select({ denominator: read.metricSnapshots.denominator })
+        .from(read.metricSnapshots)
+        .where(
+          and(
+            eq(read.metricSnapshots.workspaceId, r.workspaceId),
+            eq(read.metricSnapshots.repoId, r.repoIds[0]!),
+            eq(read.metricSnapshots.metricKey, 'M9'),
+            eq(read.metricSnapshots.window, window),
+          ),
+        )
+        .limit(1);
+      return Number(row!.denominator);
+    };
+    expect(await denomFor('7d')).toBeLessThan(await denomFor('30d'));
+    expect(await denomFor('30d')).toBeLessThan(await denomFor('365d'));
   });
 
   it('the second workspace is isolated (no repos leak from default)', async () => {

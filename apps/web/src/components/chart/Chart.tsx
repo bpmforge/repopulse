@@ -22,6 +22,29 @@ import { activeChartTheme, buildChartTheme } from './chartTheme.js';
 // depends only on what genuinely requires a new instance (theme, table toggle);
 // data changes flow through setOption on the live instance instead.
 
+/**
+ * The active theme key, re-read whenever `data-theme` flips.
+ *
+ * Exported because the token bridge inside this component only covers colours
+ * CHART derives (`buildChartTheme`). A widget that computes a colour itself —
+ * a treemap painting nodes from the sequential ramp, say — bakes it into the
+ * `option` literal during ITS render, and a theme flip never re-renders the
+ * widget. The chart dutifully re-initialised with last theme's colours baked
+ * in. Depending on this hook puts the widget on the same signal.
+ */
+export function useChartThemeKey(): string {
+  const [themeKey, setThemeKey] = useState(() => activeChartTheme());
+  useEffect(() => {
+    const observer = new MutationObserver(() => setThemeKey(activeChartTheme()));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    return () => observer.disconnect();
+  }, []);
+  return themeKey;
+}
+
 function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -56,20 +79,11 @@ export function Chart({
   // `painted` is the honest answer to "is there anything in that box yet". The
   // instance existing is not enough: echarts draws on the first setOption.
   const [painted, setPainted] = useState(false);
-  const [themeKey, setThemeKey] = useState(() => activeChartTheme());
   const [asTable, setAsTable] = useState(false);
-
-  // Re-init when data-theme flips so the token bridge picks up new colors. Kept
-  // as state rather than a create() call from the observer so the re-creation
+  // Re-init when data-theme flips so the token bridge picks up new colors. Held
+  // as state rather than acted on from the observer directly so the re-creation
   // goes through the same effect (and the same cancellation) as the first one.
-  useEffect(() => {
-    const themeObserver = new MutationObserver(() => setThemeKey(activeChartTheme()));
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme'],
-    });
-    return () => themeObserver.disconnect();
-  }, []);
+  const themeKey = useChartThemeKey();
 
   // (Re)create the instance: on mount, on theme flip, and when returning from
   // the table view. NOT on data change — see the note at the top of the file.

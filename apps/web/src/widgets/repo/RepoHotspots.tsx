@@ -4,9 +4,11 @@ import {
   DataTable,
   WidgetFrame,
   frameState,
+  useChartThemeKey,
   type DataTableColumn,
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { sequentialColor } from '../../components/chart/chartTheme.js';
 import { toTreemap, type RepoHotspots as RepoHotspotsResponse } from './contracts.js';
 
 // Hotspots tab (UX_SPEC §4.b, FR-WEB-3): directory treemap sized by hotspot
@@ -31,6 +33,40 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
 
   const items = data?.items ?? [];
   const tree = toTreemap(items);
+  useChartThemeKey();
+
+  // A HEAT MAP WITH HEAT (W16-43).
+  //
+  // Every tile took the theme's first series colour, so a file scoring 0.82
+  // was painted exactly like one scoring 0.10: the map encoded size and threw
+  // the score away, and a reader would reasonably conclude every file was
+  // equally hot. Colour is the one channel a treemap has left after area.
+  //
+  // Painted per node rather than through a `visualMap`, because a treemap
+  // ignores one — it has its own levels/colorMappingBy machinery, so a
+  // visualMap silently does nothing (tried, and the tiles stayed flat).
+  //
+  // Sequential and single-hue because a hotspot score is a MAGNITUDE. The
+  // status palette is deliberately not borrowed: ok/warn/crit mean a state
+  // someone should act on, and a churned file is not thereby critical.
+  //
+  // A DIRECTORY takes its hottest child's colour, not its own value — that
+  // value is the SUM of its children and routinely exceeds 1, so mapping it
+  // would paint every directory at the top of the ramp. "How hot is this
+  // directory" means its worst file, which is also the question someone
+  // scanning the map is asking.
+  //
+  // Recomputed when the theme flips (`useChartThemeKey`) — these colours are
+  // baked into the option literal, so without that signal a light-mode ramp
+  // survived the switch to dark.
+  const painted = tree.map((dir) => ({
+    ...dir,
+    itemStyle: { color: sequentialColor(Math.max(...dir.children.map((c) => c.value), 0)) },
+    children: dir.children.map((leaf) => ({
+      ...leaf,
+      itemStyle: { color: sequentialColor(leaf.value) },
+    })),
+  }));
   const state = frameState({
     isLoading,
     isError,
@@ -90,7 +126,7 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
                 roam: false,
                 nodeClick: 'zoomToNode',
                 breadcrumb: { show: true },
-                data: tree,
+                data: painted,
               },
             ],
           }}

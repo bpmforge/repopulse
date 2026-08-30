@@ -13,7 +13,14 @@ const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
 const describeIfLiveInfra = databaseUrl && redisUrl ? describe : describe.skip;
 const FIXTURE = 'w4-01-user';
-const RECENT = new Date('2026-07-10T00:00:00Z');
+// RELATIVE TO NOW, quantised to UTC midnight (W16-45). This was pinned to
+// 2026-07-10, which was recent when it was written and 51 days stale by the
+// time the PR list started honouring the window (W16-44) — at which point the
+// fixture's only PR fell outside the default 30d and this walk broke on a
+// change that was correct. The seeder learned the same lesson in `anchorFor`:
+// an absolute date in a fixture is a test that expires.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RECENT = new Date(Math.floor(Date.now() / DAY_MS) * DAY_MS - 3 * DAY_MS);
 
 describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
   let githubMock: Server;
