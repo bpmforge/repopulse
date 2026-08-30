@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { createFileRoute, Link, Outlet, useParams } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { WidgetFrame } from '../../../components/index.js';
 import { useApiQuery } from '../../../api/useApiQuery.js';
+import { useUiStore } from '../../../components/store/uiStore.js';
 import { HealthWhy } from '../../../widgets/repo/HealthWhy.js';
 // W10-05: the axis letters belong beside the health grade, which is here.
 // Widened out of the ticket's write_scope on purpose — a widget nobody mounts
@@ -47,11 +49,32 @@ function RepoLayout() {
   const { repoId } = useParams({ from: '/repos/$repoId' });
   const search = Route.useSearch();
   const preserved = serializeGlobalSearch(search);
+  // THE CRUMB ONLY THIS SCREEN KNOWS (W16-42).
+  //
+  // A repository's name is not in its URL, so the trail read
+  // "Org › Repos › Security" and never said WHICH repository — on a product
+  // whose whole premise is drilling down org → repo → PR → file. __root has
+  // said since W16-05 that this crumb "has to come from the screen that loaded
+  // it"; this is that.
+  //
+  // Published with the path it belongs to, so navigating between repos cannot
+  // leave the previous name in the trail, and cleared on unmount so leaving
+  // the section cannot either. A confidently wrong trail is worse than a thin
+  // one.
+  const setEntityCrumb = useUiStore((s) => s.setEntityCrumb);
+
   const { data, isLoading, isError, error, refetch } = useApiQuery<RepoDetail>({
     endpoint: '/repos/{id}',
     path: { id: repoId },
     query: { window: search.window },
   });
+
+  const repoName = data?.name;
+  useEffect(() => {
+    if (repoName === undefined) return;
+    setEntityCrumb({ pathPrefix: `/repos/${repoId}`, label: repoName, to: `/repos/${repoId}` });
+    return () => setEntityCrumb(null);
+  }, [repoId, repoName, setEntityCrumb]);
 
   const tabs = (
     <nav

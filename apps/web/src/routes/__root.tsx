@@ -11,6 +11,8 @@ import { Topbar } from '../components/shell/Topbar.js';
 import { DemoBanner } from '../components/shell/DemoBanner.js';
 import { CommandPalette } from '../components/palette/CommandPalette.js';
 import { Breadcrumb, type Crumb } from '../components/shell/Breadcrumb.js';
+
+export type EntityCrumb = { pathPrefix: string; label: string; to: string };
 import { Toaster } from '../components/shell/Toaster.js';
 import { useUiStore } from '../components/store/uiStore.js';
 import { useSyncStream } from '../sse/useSyncStream.js';
@@ -76,12 +78,18 @@ const SUBPAGE_LABELS: Record<string, string> = {
 };
 
 /** Minimal breadcrumb from the path; deeper drill-down crumbs come with screens. */
-function deriveCrumbs(pathname: string): Crumb[] {
+export function deriveCrumbs(pathname: string, entity?: EntityCrumb | null): Crumb[] {
   const crumbs: Crumb[] = [{ label: 'Org', to: '/' }];
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length > 0) {
     const first = segments[0]!;
     crumbs.push({ label: SEGMENT_LABELS[first] ?? first, to: `/${first}` });
+  }
+  // The named entity, from the screen that loaded it (W16-42) — but ONLY when
+  // it belongs to the path being rendered. A crumb that outlives its screen
+  // names the wrong repository, which is worse than naming none.
+  if (entity && pathname.startsWith(entity.pathPrefix)) {
+    crumbs.push({ label: entity.label, to: entity.to });
   }
   // The first segment that names something rather than identifying it. Numeric
   // ids are skipped deliberately: "Org › Repos › 25152" would be worse than
@@ -248,6 +256,9 @@ function AppShell() {
   };
 
   const preservedSearch = serializeGlobalSearch(search);
+  // Published by the screen that loaded the entity — the repo layout sets its
+  // name here, because the URL only carries an id (W16-42).
+  const entityCrumb = useUiStore((s) => s.entityCrumb);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-fg">
@@ -261,7 +272,7 @@ function AppShell() {
         {/* Global: ⌘K works from every screen (UX_SPEC §3.3). */}
         <CommandPalette />
         <Topbar value={search} onChange={onFilterChange} />
-        <Breadcrumb crumbs={deriveCrumbs(pathname)} search={preservedSearch} />
+        <Breadcrumb crumbs={deriveCrumbs(pathname, entityCrumb)} search={preservedSearch} />
         <main className="min-h-0 flex-1 overflow-auto p-4" data-testid="main">
           <Outlet />
         </main>
