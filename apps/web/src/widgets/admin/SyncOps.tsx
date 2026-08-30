@@ -36,7 +36,12 @@ export function SyncOps() {
     },
     {
       id: 'pct',
-      header: 'Progress',
+      // NOT "Progress" (W16-57). percentComplete is how far back the ingested
+      // history reaches as a fraction of the 365-day backfill target — so a
+      // repository that is fully caught up and phase `live` still reads 9% on a
+      // fixture holding 40 days. Under a column called Progress that says the
+      // sync is stuck, next to a phase saying it is finished.
+      header: 'History of 1y',
       align: 'right',
       cell: (row) => <span className="tabular-nums">{Math.round(row.percentComplete)}%</span>,
     },
@@ -46,11 +51,20 @@ export function SyncOps() {
       align: 'right',
       // Rate-limit budget is law (Law 7); an operator needs to see it before a
       // repo goes paused_budget, not after.
-      cell: (row) => (
-        <span className="tabular-nums">
-          {row.budget.remaining}/{row.budget.limit}
-        </span>
-      ),
+      //
+      // A ZERO LIMIT IS NOT A BUDGET (W16-57). The status endpoint documents
+      // its budget as a placeholder — a runtime gauge that no table warehouses
+      // yet — and served { remaining: 0, limit: 0 }, which rendered as "0/0":
+      // indistinguishable from a repository that has exhausted its rate limit,
+      // which is the one state this column exists to warn about.
+      cell: (row) =>
+        row.budget.limit === 0 ? (
+          <span className="text-xs text-fg-muted">not recorded</span>
+        ) : (
+          <span className="tabular-nums">
+            {row.budget.remaining}/{row.budget.limit}
+          </span>
+        ),
     },
     {
       id: 'lag',
@@ -91,7 +105,8 @@ export function SyncOps() {
               <dd className="tabular-nums">{data.repoCount}</dd>
             </div>
             <div>
-              <dt className="text-xs text-fg-muted">Complete</dt>
+              {/* Same measure, same honesty as the column below (W16-57). */}
+              <dt className="text-xs text-fg-muted">History of 1y</dt>
               <dd className="tabular-nums">{Math.round(data.percentComplete)}%</dd>
             </div>
             <div>
