@@ -1,6 +1,6 @@
 // Component kit barrel (UX §2.2, DASHBOARD §4/§5/§7).
 export * from './primitives/index.js';
-export { Chart, type ChartProps, type ChartTableData } from './chart/Chart.js';
+export { Chart, useChartThemeKey, type ChartProps, type ChartTableData } from './chart/Chart.js';
 export { DataTable, type DataTableColumn, type DataTableProps } from './table/DataTable.js';
 export { WidgetFrame, frameState, type WidgetFrameProps } from './widget/WidgetFrame.js';
 export { WidgetGrid, type WidgetGridProps } from './widget/WidgetGrid.js';

@@ -6501,6 +6501,32 @@
         "The breadcrumb read 'Org › Repos › Security' and never named the repository — on a product whose premise is drilling down org → repo → PR → file. __root's comment had said since W16-05 that this crumb 'has to come from the screen that loaded it'; the mechanism for a screen to do that did not exist. Added as a path-scoped entity crumb the repo layout publishes and clears, so a crumb can never outlive its screen and name the wrong repository.",
         "The y-axis unit was CLIPPED: grid.top was 16 and the axis name sits 8px above the axis end, so the 'h' on PR cycle time lost its ascender and rendered as 'n'. A clipped glyph reads as a different unit rather than as a rendering fault, which is why it survived — the chart looked fine."
       ]
+    },
+    {
+      "id": "W16-43",
+      "title": "The hotspot map has no heat",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A file's hotspot score is visible in the map, not only in the table beside it",
+        "The scale holds in both themes"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk. Every tile was painted the theme's first series colour, so a file scoring 0.82 looked exactly like one scoring 0.10: the treemap encoded size and discarded the score. Colour is the only channel a treemap has left after area, and it was carrying nothing.",
+        "A global `visualMap` does NOT work here — an ECharts treemap ignores one, having its own levels/colorMappingBy machinery. Tried it; the tiles stayed flat. Nodes are painted per-node from a sequential ramp instead.",
+        "Sequential, single hue, because a hotspot score is a magnitude. The status palette is deliberately not borrowed: ok/warn/crit mean a state someone should act on, and a churned file is not thereby critical.",
+        "A directory takes its HOTTEST CHILD's colour, not its own value — that value is the sum of its children and routinely exceeds the 0..1 domain, which would paint every directory at the top of the ramp.",
+        "Second bug found while verifying: the colour survived a theme flip unchanged, because Chart's token bridge only covers colours Chart derives, and a widget-computed colour is baked into the option literal during the widget's render. Extracted the data-theme subscription as `useChartThemeKey` so a widget can sit on the same signal."
+      ]
     }
   ]
 }

@@ -35,6 +35,53 @@ export function chartSeriesPalette(root: HTMLElement = document.documentElement)
   ).map((v) => readVar(root, v));
 }
 
+/** Mixes two hex colours; `t` is how far from `a` toward `b`. */
+function mix(a: string, b: string, t: number): string {
+  const parse = (h: string): [number, number, number] => [
+    parseInt(h.slice(1, 3), 16),
+    parseInt(h.slice(3, 5), 16),
+    parseInt(h.slice(5, 7), 16),
+  ];
+  const [ar, ag, ab] = parse(a);
+  const [br, bg, bb] = parse(b);
+  const c = (x: number, y: number): string =>
+    Math.round(x + (y - x) * t)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
+}
+
+/**
+ * Two-stop SEQUENTIAL ramp, for a magnitude encoding (W16-43).
+ *
+ * One hue, dim → bright, derived from the accent token rather than written as
+ * hex so it follows the theme like everything else in this file. Deliberately
+ * NOT the status palette: ok/warn/crit mean a state someone should act on, and
+ * a hotspot score is a magnitude — borrowing those hues would say a file is
+ * "critical" when it is merely churned.
+ *
+ * The low stop is mixed toward the surface only as far as it can go while
+ * staying visible on it — measured at 3.06:1 against the dark surface, where
+ * mixing further gave 2.18:1 and the coldest cells faded into the card.
+ */
+export function chartSequentialRamp(root: HTMLElement = document.documentElement): [string, string] {
+  const accent = readVar(root, '--color-accent');
+  return [mix(accent, readVar(root, '--color-surface'), 0.3), mix(accent, readVar(root, '--color-fg'), 0.2)];
+}
+
+/**
+ * A colour from the sequential ramp for `t` in 0..1 (W16-43).
+ *
+ * Computed here rather than handed to ECharts as a `visualMap`, because a
+ * TREEMAP ignores one: it has its own `levels`/`colorMappingBy` machinery, so
+ * a global visualMap silently does nothing and every tile keeps the first
+ * series colour — which is exactly the bug this replaced.
+ */
+export function sequentialColor(t: number, root: HTMLElement = document.documentElement): string {
+  const [lo, hi] = chartSequentialRamp(root);
+  return mix(lo, hi, Math.min(1, Math.max(0, t)));
+}
+
 /** Build an ECharts theme object from the active tokens (no chart-junk, UX §2.3). */
 export function buildChartTheme(root: HTMLElement = document.documentElement): object {
   const fg = readVar(root, '--color-fg');
