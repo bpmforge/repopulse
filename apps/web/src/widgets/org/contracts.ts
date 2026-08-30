@@ -13,7 +13,13 @@ import type { TrendPolarity } from '../../components/index.js';
 /** GET /org/summary?window= */
 export interface OrgSummary {
   window: string;
-  tiles: { metric_key: string; value: number | null; delta: number | null }[];
+  tiles: {
+    metric_key: string;
+    value: number | null;
+    delta: number | null;
+    /** The baseline the delta is against — a percent change needs it (W16-56). */
+    previous: number | null;
+  }[];
 }
 
 /** GET /org/health-tiles?window= */
@@ -126,4 +132,21 @@ export type Persona = (typeof PERSONAS)[number];
 export interface UserPrefs {
   /** Onboarding checklist dismissal (R-A1). Absent = never dismissed. */
   onboardingDismissed?: boolean;
+}
+
+/**
+ * The percent change a KPI tile shows (W16-56).
+ *
+ * The tile was handed `trend.delta` — an ABSOLUTE change — for a prop called
+ * `deltaPct`, so commit churn falling by 373 lines rendered as "▼373%": a drop
+ * of nearly four times everything there was. Every non-ratio tile was wrong in
+ * the same way, and the two ratio tiles looked right only by coincidence.
+ *
+ * Null when there is no baseline to divide by, INCLUDING a previous value of
+ * zero: the change from nothing to something is not a percentage, and the tile
+ * already has honest words for an absent delta.
+ */
+export function deltaPctOf(delta: number | null, previous: number | null): number | null {
+  if (delta === null || previous === null || previous === 0) return null;
+  return (delta / Math.abs(previous)) * 100;
 }
