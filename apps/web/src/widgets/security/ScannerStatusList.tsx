@@ -1,4 +1,4 @@
-import { SCANNER_STATE_LABEL, type ScannerStatus } from './contracts.js';
+import { scannerStateLabel, type ScannerStatus } from './contracts.js';
 
 // Per-scanner coverage (W8-10, NFR-15).
 //
@@ -110,7 +110,7 @@ export function ScannerStatusList({ scanners }: Props) {
             <td className="py-1.5">
               {/* Word + glyph, never colour alone (UX_SPEC §7). */}
               <span data-testid={`scanner-state-${scanner.key}`}>
-                {SCANNER_STATE_LABEL[scanner.state]}
+                {scannerStateLabel(scanner.state, scanner.open_findings)}
               </span>
               {scanner.state === 'all_rejected' && (
                 // HOW MANY, not just that it happened (W16-38). A reader

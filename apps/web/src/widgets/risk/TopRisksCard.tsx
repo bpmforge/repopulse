@@ -36,7 +36,7 @@ export function TopRisksCard({ repoId }: { repoId?: string }) {
               <RiskBandChip band={item.risk_band} testId={`risk-band-${item.finding_id}`} />
               <Link
                 to="/findings"
-                search={{ open: item.finding_id } as never}
+                search={{ finding: item.finding_id } as never}
                 className="truncate underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid={`top-risk-${item.finding_id}`}
               >

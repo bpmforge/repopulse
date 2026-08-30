@@ -40,7 +40,7 @@ export function ChainsPanel({ chains, computed }: Props) {
                 {index > 0 && <span aria-hidden="true">→</span>}
                 <Link
                   to="/findings"
-                  search={{ open: node.finding_id } as never}
+                  search={{ finding: node.finding_id } as never}
                   className="rounded-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   data-testid={`chain-node-${node.finding_id}`}
                 >

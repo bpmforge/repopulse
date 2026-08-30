@@ -6651,6 +6651,56 @@
         "The second was pre-existing and larger: first_approval_at was never seeded although every merged PR gets exactly one APPROVED review, so 'First review → approved' and 'Approved → merged' read '—' on EVERY pull request in the demo — two of the three rows of the flagship stage timeline, blank, beside an approving review the same screen displayed.",
         "And setting it exposed a third: merged_at was created + 1..6 DAYS while first_review_at was created + 2..40 HOURS, so the fixture could produce a PR approved AFTER it was merged, which the timeline would draw as a negative span. The merge is now derived from the review, so the ordering holds by construction rather than by the two ranges happening not to cross. Found by the new test, not by reading the code."
       ]
+    },
+    {
+      "id": "W16-48",
+      "title": "Every demo restart invalidates every demo URL",
+      "phase": 16,
+      "module": "shared",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "packages/shared/src/testing/seed/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "Re-seeding the same workspace keeps each repository's id, so a demo URL survives a restart"
+      ],
+      "notes": [
+        "Noticed repeatedly during the 2026-08-30 UAT walk. seedWarehouse wipes the workspace and re-inserts, so repo ids advance on every boot — a bookmarked /repos/34565/... is a 404 after the next `pnpm dev`. The seeder's own test already claims re-seeding is 'deterministic + idempotent', which this contradicts for the one value that appears in URLs.",
+        "The screen degrades honestly ('Repository not visible here' plus a Browse all repositories link), which is why this is a papercut rather than a break — and why it is filed rather than fixed mid-walk.",
+        "Approach: upsert repos on their natural key (workspace_id, forge_repo_id) and delete only their children, instead of deleting repos as part of wipeWorkspace. The wipe's FK ORDER is load-bearing — see the 'reseeds after REAL ingestion' test, which exists because forge_etag rows once referenced the connections being deleted — so this needs that test kept green, not just a passing seed."
+      ]
+    },
+    {
+      "id": "W16-49",
+      "title": "A scanner that ran clean and had four findings open",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A scanner row's state agrees with its own open count",
+        "An empty panel explains the case the reader is actually in",
+        "A link that opens a finding opens it"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of the Code Health tab, after running the scanners for real — which they do, in demo mode, against the fake forge's tarball: ruff, biome, jscpd and lizard all reported versions and real numbers (duplication 27.27%, complexity p90 8).",
+        "The row read '✓ ran clean' beside 'Open 4'. A row contradicting itself, and the tick is the half a reader believes. 'Clean' is a claim about FINDINGS, not about the process exiting zero — a scan that finished without fault and left four findings open is a normal result and not a clean one. The good-news sentence is kept for the case that earns it: anti_slop at 0 still says 'ran clean'. Same fix on the Security tab, which had the same label with the same open count beside it.",
+        "'Most complex functions' said: 'If the coverage table above says the scanner has never run, that is why.' The coverage table said it HAD run, and Complexity p90 was measured — so the panel sent the reader to a table that answered the opposite and left them there. The screen knows which case it is in; it now says which.",
+        "THREE DEAD LINKS, all the same defect: the top-risks card, the complex-functions list and the attack-chain panel all linked to the explorer with `search={{ open: id }}`, the param name from before W16-16 renamed it to `finding`. TanStack's validateSearch REPLACES the search object, so the id was stripped rather than ignored — clicking any of them navigated to the explorer and opened nothing. Every one carried an `as never` cast, which is precisely what stopped the compiler from saying so.",
+        "The guard reads the param out of the EXPLORER's own validator rather than restating it, so renaming it there fails the test instead of silently orphaning links again."
+      ]
     }
   ]
 }

@@ -52,6 +52,20 @@ export const CH_SCANNER_STATE_LABEL: Record<ChScannerState, string> = {
   partial: '! last run was cut short — findings are incomplete',
 };
 
+/**
+ * The state in words, given what the scanner still has OPEN (W16-49).
+ *
+ * "✓ ran clean" sat beside "Open 4" in the same row: a row disagreeing with
+ * itself, and the tick is the half a reader believes. "Clean" is a claim about
+ * FINDINGS, not about whether the process exited zero — a scan that completed
+ * without fault and left four open findings is a normal, useful result and not
+ * a clean one. The good-news sentence is kept for the case that earns it.
+ */
+export function chScannerStateLabel(state: ChScannerState, openFindings: number | null): string {
+  if (state === 'ok' && (openFindings ?? 0) > 0) return '✓ ran — findings still open';
+  return CH_SCANNER_STATE_LABEL[state];
+}
+
 /** Human names for the ch_* series. */
 export const CH_SERIES_LABEL: Record<string, string> = {
   ch_duplication_pct: 'Duplication %',
