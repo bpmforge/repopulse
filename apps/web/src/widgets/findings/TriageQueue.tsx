@@ -17,6 +17,19 @@ export function TriageQueue({
   onExit: () => void;
   invalidate: readonly (readonly unknown[])[];
 }) {
+  // THE QUEUE YOU STARTED WITH (W16-52).
+  //
+  // `findings` is the explorer's LIVE list, and each decision invalidates it —
+  // so the array shrank under the cursor while the index advanced, and
+  // confirming item 1 of 3 landed on item 3. Every decision silently skipped
+  // the finding after it, on the screen whose entire purpose is not missing
+  // one. It also made the position counter walk backwards ("1 of 3" → "2 of
+  // 2"), which is the visible half of the same bug.
+  //
+  // A stepper works through the set it opened with. Items already decided stay
+  // in the run so j/k can go back to them, and the count stays still while
+  // someone works.
+  const [queue] = useState(findings);
   const [index, setIndex] = useState(0);
   const [note, setNote] = useState('Triaged in queue review.');
   const [done, setDone] = useState<{ confirmed: number; dismissed: number }>({
@@ -24,7 +37,7 @@ export function TriageQueue({
     dismissed: 0,
   });
 
-  const current = findings[index];
+  const current = queue[index];
 
   const transition = useApiMutation<
     { status: string; note: string; dismiss_reason?: string },
@@ -43,23 +56,23 @@ export function TriageQueue({
       // Ignore while typing the note, or every keystroke would triage.
       if (e.target instanceof HTMLInputElement) return;
       if (e.key === 'Escape') onExit();
-      if (e.key === 'j') setIndex((i) => Math.min(i + 1, findings.length - 1));
+      if (e.key === 'j') setIndex((i) => Math.min(i + 1, queue.length - 1));
       if (e.key === 'k') setIndex((i) => Math.max(i - 1, 0));
       if (!current) return;
       if (e.key === 'c') {
         transition.mutate({ status: 'confirmed', note });
         setDone((d) => ({ ...d, confirmed: d.confirmed + 1 }));
-        setIndex((i) => Math.min(i + 1, findings.length - 1));
+        setIndex((i) => Math.min(i + 1, queue.length - 1));
       }
       if (e.key === 'd') {
         transition.mutate({ status: 'dismissed', note, dismiss_reason: 'false_positive' });
         setDone((d) => ({ ...d, dismissed: d.dismissed + 1 }));
-        setIndex((i) => Math.min(i + 1, findings.length - 1));
+        setIndex((i) => Math.min(i + 1, queue.length - 1));
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [current, findings.length, note, onExit, transition]);
+  }, [current, queue.length, note, onExit, transition]);
 
   if (!current) {
     return (
@@ -76,7 +89,7 @@ export function TriageQueue({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col gap-4 overflow-auto bg-bg/95 p-8"
+      className="fixed inset-0 z-50 flex flex-col gap-4 overflow-auto bg-bg/95 p-8 backdrop-blur"
       data-testid="triage-queue"
       role="dialog"
       aria-modal="true"
@@ -85,7 +98,7 @@ export function TriageQueue({
       <div className="flex items-baseline gap-3">
         <h2 className="flex-1 text-lg font-semibold">{current.title}</h2>
         <span className="text-xs text-fg-muted" data-testid="triage-position">
-          {index + 1} of {findings.length}
+          {index + 1} of {queue.length}
         </span>
       </div>
 

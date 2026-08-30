@@ -123,3 +123,38 @@ describe('My Focus row identity across repositories', () => {
     expect(within(first).getByText('120')).toBeTruthy();
   });
 });
+
+// W16-51. The "Open PRs" tile counted the whole /me/prs list, which comes back
+// in EVERY state — so it read 2 above a table showing one open PR and one
+// merged one. My Focus exists to say what is on your plate, and a merged pull
+// request is not on anyone's plate.
+describe('the Open PRs tile (W16-51)', () => {
+  const merged = (id: number, name: string, number: number): MyPr => ({
+    ...pr(id, name, number),
+    state: 'merged',
+    merged_at: '2026-08-20T00:00:00.000Z',
+  });
+
+  /** The "Open PRs" tile, found by its label among the KPI tiles. */
+  function openPrTile(): HTMLElement {
+    const tile = screen
+      .getAllByTestId('kpi-tile')
+      .find((el) => el.textContent?.includes('Open PRs'));
+    if (!tile) throw new Error('no Open PRs tile rendered');
+    return tile;
+  }
+
+  it('counts only the open ones', () => {
+    renderWith({ prs: [pr(1, 'web', 5), merged(2, 'api', 3)] });
+    expect(openPrTile().textContent).toContain('1');
+  });
+
+  it('reads zero when every pull request of mine is already merged', () => {
+    renderWith({ prs: [merged(1, 'web', 1), merged(2, 'api', 2)] });
+    // …and the table is still not empty, which is the case the old empty
+    // message ("Nothing open — you have no pull requests in flight") described
+    // wrongly: those authors have pull requests, just none open.
+    expect(openPrTile().textContent).toContain('0');
+    expect(within(table('my-prs')).getAllByRole('row').length).toBeGreaterThan(1);
+  });
+});
