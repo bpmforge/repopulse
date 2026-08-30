@@ -152,8 +152,24 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
 
     // The series must still MOVE, or every trend delta reads "no change" and
     // the sparkline is a flat line — the failure the series was added to fix.
-    const cycle = valuesFor('M4', 'repo');
-    expect(new Set(cycle).size).toBeGreaterThan(1);
+    //
+    // PER WINDOW, because this assertion used to pool all four and so passed on
+    // 7d's variety alone. W16-45 made each window a smoothing of one process,
+    // and a long window IS the flat one — so pooling would have hidden a 365d
+    // sparkline that never moves.
+    //
+    // Asserted on the WIDE-band metrics only. A narrow one is honestly flat
+    // over a long window: the fixture has four issues in total, so a 365-day
+    // issue-throughput line SHOULD be a straight line at 4, and demanding
+    // movement there would be demanding the fixture lie.
+    for (const window of ['7d', '30d', '90d', '365d']) {
+      for (const key of ['M4', 'M9', 'M1']) {
+        const series = rows
+          .filter((row) => row.metricKey === key && row.window === window && row.repoId !== null)
+          .map((row) => Number(row.value));
+        expect(new Set(series).size, `${key} @ ${window}`).toBeGreaterThan(1);
+      }
+    }
   });
 
   it('the four windows of a metric nest instead of contradicting each other (W16-45)', async () => {
