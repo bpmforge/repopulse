@@ -6451,6 +6451,32 @@
         "Two more defects found while proving it, both fixed: transport errors now carry their cause chain (fetch failed: Headers Timeout Error (UND_ERR_HEADERS_TIMEOUT)), and a run abandoned by a dead worker now reads as 'started but never finished' after an hour rather than claiming to be running for ever.",
         "NOT PROVEN, and stated plainly: no checklist run has yet completed against a real model on this machine. Runs now survive past 300s (measured to 720s) instead of dying at 301s, but the LAN host is saturated — it did not answer a trivial 5-token probe within 30s while a scan was in flight — so nothing has finished. The pipeline is proven correct on a clean diff; a completed run producing a finding still needs an unloaded model host."
       ]
+    },
+    {
+      "id": "W16-41",
+      "title": "A finding cannot be opened in the forge",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "todo",
+      "write_scope": [
+        "apps/web/src/widgets/findings/**",
+        "apps/web/src/routes/findings/**",
+        "apps/api/src/routes/findings/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A finding with a file and a line offers a link to that line in the forge, at the commit it was found on"
+      ],
+      "notes": [
+        "Found in the 2026-08-29 UAT walk. The detail panel renders 'src/service.ts:15–18' as PLAIN TEXT. For a triage tool whose whole workflow is 'look at this one', the next action after reading a finding is opening the code — and there is no way to do it from the product.",
+        "The pieces exist: the finding carries file, line_range and scan_run_id; the scan_run carries commit_sha; and forge_connections carries the base URL and provider kind. A GitHub blob URL is base + /org/repo/blob/{sha}/{file}#L{start}-L{end}, and Gitea's differs, so this belongs behind the ForgeProvider rather than string-built in the web app.",
+        "Only for findings that HAVE a file: a repository-level finding (test gap, ownership) has nothing to link to, and W16-40 already gives those rows the words 'whole repository' rather than a fake location."
+      ]
     }
   ]
 }
