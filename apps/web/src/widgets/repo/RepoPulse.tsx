@@ -48,7 +48,12 @@ function TrendChart({
           rows: labels.map((l, i) => [l, values[i] ?? 0]),
         }}
         option={{
-          grid: { left: 44, right: 12, top: 16, bottom: 28 },
+          // `top` LEAVES ROOM FOR THE UNIT (W16-42). At 16 the axis name sat
+          // 8px above the axis end and its ascender fell outside the chart, so
+          // the "h" on PR cycle time rendered as "n" — a clipped glyph that
+          // reads as a different unit rather than as a rendering fault. Only
+          // widened when there is a name to clip.
+          grid: { left: 44, right: 12, top: metric.unit ? 30 : 16, bottom: 28 },
           xAxis: { type: 'category', data: labels },
           // W16-05 (F18). The axis showed bare numbers — "PR cycle time" ran to
           // 180 and "Review coverage" fell 50 → 10 with nothing saying hours or

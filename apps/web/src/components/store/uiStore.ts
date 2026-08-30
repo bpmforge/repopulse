@@ -47,6 +47,23 @@ interface UiState {
   pushToasts: (toasts: Toast[]) => void;
   dismissToast: (id: string) => void;
 
+  /**
+   * The crumb only the SCREEN knows (W16-42).
+   *
+   * A repository's NAME is not in its URL — `/repos/34083/security` carries an
+   * id — so the trail said "Org › Repos › Security" and never named the
+   * repository anyone was looking at. __root's own comment has said since
+   * W16-05 that "that crumb has to come from the screen that loaded it"; this
+   * is the half that was never built.
+   *
+   * Carries the PATH it belongs to, not just a label. Without that, navigating
+   * from one repo to another shows the previous repo's name until the new one
+   * loads — a trail that is confidently wrong, which is worse than a trail
+   * that is merely thin.
+   */
+  entityCrumb: { pathPrefix: string; label: string; to: string } | null;
+  setEntityCrumb: (crumb: { pathPrefix: string; label: string; to: string } | null) => void;
+
   sseConnection: SseConnection;
   setSseConnection: (state: SseConnection) => void;
   repoProgress: Record<number, RepoSyncProgress>;
@@ -80,6 +97,9 @@ export const useUiStore = create<UiState>()(
       dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
       sseConnection: 'connecting',
+      entityCrumb: null,
+      setEntityCrumb: (entityCrumb) => set({ entityCrumb }),
+
       setSseConnection: (sseConnection) => set({ sseConnection }),
       repoProgress: {},
       setRepoProgress: (repoId, progress) =>

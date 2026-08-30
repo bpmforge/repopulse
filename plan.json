@@ -6477,6 +6477,30 @@
         "The pieces exist: the finding carries file, line_range and scan_run_id; the scan_run carries commit_sha; and forge_connections carries the base URL and provider kind. A GitHub blob URL is base + /org/repo/blob/{sha}/{file}#L{start}-L{end}, and Gitea's differs, so this belongs behind the ForgeProvider rather than string-built in the web app.",
         "Only for findings that HAVE a file: a repository-level finding (test gap, ownership) has nothing to link to, and W16-40 already gives those rows the words 'whole repository' rather than a fake location."
       ]
+    },
+    {
+      "id": "W16-42",
+      "title": "The repo tabs: an unnamed trail and a clipped unit",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 3,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The trail names the repository you are looking at",
+        "No axis label is clipped"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of the repo tabs, both visible on the Pulse tab without scrolling.",
+        "The breadcrumb read 'Org › Repos › Security' and never named the repository — on a product whose premise is drilling down org → repo → PR → file. __root's comment had said since W16-05 that this crumb 'has to come from the screen that loaded it'; the mechanism for a screen to do that did not exist. Added as a path-scoped entity crumb the repo layout publishes and clears, so a crumb can never outlive its screen and name the wrong repository.",
+        "The y-axis unit was CLIPPED: grid.top was 16 and the axis name sits 8px above the axis end, so the 'h' on PR cycle time lost its ascender and rendered as 'n'. A clipped glyph reads as a different unit rather than as a rendering fault, which is why it survived — the chart looked fine."
+      ]
     }
   ]
 }
