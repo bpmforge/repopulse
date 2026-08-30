@@ -112,6 +112,17 @@ export function buildChartTheme(root: HTMLElement = document.documentElement): o
     // counts as hollow outlined digits on the dark surface — legible only if
     // you already knew the number (W16-44).
     bar: { label: { color: fg, textBorderWidth: 0 } },
+    // A LEGEND IS TEXT TOO (W16-46). Echarts defaults legend labels to a dark
+    // grey, which on the dark surface is the background — so the file
+    // drill-down drew Gross, Net and Rework as three differently coloured bars
+    // with nothing on screen saying which was which. The chart looked like one
+    // multicoloured series, which encodes nothing.
+    legend: {
+      textStyle: { color: fg },
+      // The dimmed state of a legend entry someone has clicked off. Muted ink
+      // rather than echarts' default, or "hidden" is itself invisible.
+      inactiveColor: muted,
+    },
     tooltip: {
       backgroundColor: surface,
       borderColor: border,

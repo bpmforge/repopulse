@@ -13,6 +13,12 @@ import {
   totalChurn,
   type PrDetail as PrDetailResponse,
 } from './contracts.js';
+import {
+  SEVERITY_LABEL,
+  VERIFY_LABEL,
+  locationOf,
+  type Finding,
+} from '../findings/contracts.js';
 
 // PR Detail (UX_SPEC §4.c): stage timeline, review feed, checks summary, and the
 // files list with links into the file drill-down.
@@ -32,6 +38,21 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
     endpoint: '/repos/{id}/prs/{number}',
     path: { id: repoId, number },
   });
+
+  // This PR's automated review (W16-46). The panel below was hardcoded to
+  // `state="empty"` with a sentence about wave W6 arriving — no request behind
+  // it — so a PR that HAD been reviewed said it had not.
+  const {
+    data: findings,
+    isLoading: findingsLoading,
+    isError: findingsIsError,
+    error: findingsError,
+    refetch: refetchFindings,
+  } = useApiQuery<{ items: Finding[] }>({
+    endpoint: '/findings',
+    query: { repo_id: repoId, pr_number: number },
+  });
+  const reviewItems = findings?.items ?? [];
 
   const state = frameState({ isLoading, isError, isEmpty: false });
 
@@ -164,12 +185,58 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
 
       <WidgetFrame
         title="Automated review"
-        state="empty"
+        state={frameState({
+          isLoading: findingsLoading,
+          isError: findingsIsError,
+          isEmpty: findings !== undefined && reviewItems.length === 0,
+        })}
+        {...(findingsError ? { errorMessage: findingsError.message, error: findingsError } : {})}
+        onRetry={() => void refetchFindings()}
         // FR-WEB-8: say WHY there is nothing, and what would change it. An empty
         // panel with no policy line reads as "nothing found" — the opposite of
-        // "not yet analysed".
-        emptyMessage="No automated review yet. Tier-2 diff review (wave W6) runs on a schedule per repo; Tier-3 deep review is opt-in per repo."
-      />
+        // "not yet analysed". Kept, minus the claim that the feature has not
+        // shipped: the reason a given PR has no review is scheduling and opt-in,
+        // not the wave it was built in.
+        emptyMessage="No automated review recorded for this pull request. Tier-2 diff review runs on a schedule per repo; Tier-3 deep review is opt-in per repo."
+      >
+        <table className="w-full text-sm" data-testid="pr-automated-review">
+          <caption className="sr-only">Automated review findings for this pull request</caption>
+          <thead>
+            <tr className="text-left text-xs text-fg-muted">
+              <th scope="col">Severity</th>
+              <th scope="col">Finding</th>
+              <th scope="col">File</th>
+              <th scope="col">Status</th>
+              <th scope="col">Verification</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reviewItems.map((f) => (
+              <tr key={f.id} className="border-t border-border">
+                {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
+                <td className="py-1 whitespace-nowrap">
+                  {SEVERITY_LABEL[f.severity] ?? f.severity}
+                </td>
+                <th scope="row" className="py-1 text-left font-normal">
+                  {/* Triage lives on the repo's Findings tab; this panel
+                      reports rather than duplicating the actions. */}
+                  <Link
+                    to="/repos/$repoId/findings"
+                    params={{ repoId }}
+                    search={(prev: Record<string, unknown>) => ({ ...prev, finding: f.id })}
+                    className="text-accent hover:underline"
+                  >
+                    {f.title}
+                  </Link>
+                </th>
+                <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
+                <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </WidgetFrame>
     </div>
   );
 }

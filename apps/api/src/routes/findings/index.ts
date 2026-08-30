@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, core, read, type Database } from '@repopulse/shared';
+import { auditLog, core, facts, read, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
 import { sendProblem } from '../../lib/problem.js';
 import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
@@ -153,6 +153,10 @@ export default async function findingsRoutes(
       severity_min?: string;
       confidence_min?: string;
       repo_id?: string;
+      /** Exact repo-relative path — the file drill-down's own findings (W16-46). */
+      file?: string;
+      /** PR number, WITH repo_id — the PR drill-down's automated review (W16-46). */
+      pr_number?: string;
       verify_status?: string;
       scanner_key?: string;
       cve_id?: string;
@@ -186,6 +190,33 @@ export default async function findingsRoutes(
     }
     if (q.repo_id && Number.isInteger(Number(q.repo_id))) {
       filters.push(eq(read.findings.repoId, Number(q.repo_id)));
+    }
+    // EXACT path, not a prefix match. The file drill-down asks about one file,
+    // and a prefix would fold `src/pay.ts` in with `src/pay.test.ts` — a
+    // longer list that looks like more thorough reporting and is wrong.
+    if (q.file) filters.push(eq(read.findings.file, q.file));
+
+    // A PR is identified by (repo, number) everywhere the UI can see; the
+    // findings table stores the internal id. Resolved with a subquery rather
+    // than by teaching the web app about internal ids, and REQUIRING repo_id —
+    // a bare number is not a pull request, and matching one across every
+    // repository would attach another project's review to this PR.
+    if (q.pr_number && q.repo_id && Number.isInteger(Number(q.pr_number))) {
+      filters.push(
+        inArray(
+          read.findings.pullRequestId,
+          db
+            .select({ id: facts.pullRequests.id })
+            .from(facts.pullRequests)
+            .where(
+              and(
+                eq(facts.pullRequests.workspaceId, workspaceId),
+                eq(facts.pullRequests.repoId, Number(q.repo_id)),
+                eq(facts.pullRequests.number, Number(q.pr_number)),
+              ),
+            ),
+        ),
+      );
     }
     // W6-05 facet. 'unverified' is a real answer, not the absence of one — a
     // finding nobody re-judged must be filterable as such.
