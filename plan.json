@@ -6588,6 +6588,38 @@
         "Collateral, and a latent time bomb regardless: routes/repos/index.test.ts pinned its fixture to the absolute date 2026-07-10, which was 51 days stale by the time W16-44 made the PR list honour the window — so a correct change broke a walk that had nothing to do with it. Now relative to now, quantised to UTC midnight, the same lesson the seeder records in `anchorFor`.",
         "Also documented in docs/TESTING.md: the seeder's own integration tests unseed in afterAll, so `pnpm test` EMPTIES a running demo's warehouse — every screen then reads 'No repositories connected yet.', which looks exactly like a product that never ingested anything. Same family as the accounts.test.ts logout (W16-17)."
       ]
+    },
+    {
+      "id": "W16-46",
+      "title": "The tabs that promised a feature the product had already shipped",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 5,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/**",
+        "apps/api/src/routes/findings/**",
+        "packages/shared/src/testing/seed/**",
+        "e2e/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "The repo Findings tab lists that repository's findings and opens one without leaving the repository",
+        "The file drill-down lists the findings recorded against that file",
+        "A chart with more than one series shows a legend",
+        "A seeded finding names a file the fixture has commit history for"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk. TWO teasers were still shipping: the repo Findings tab read 'Code review findings arrive with Tier-2 analysis (wave W6)' and the file drill-down read 'File-scoped findings arrive with Tier-2 analysis (wave W6)'. Both were hardcoded WidgetFrames with no request behind them, long after W6 shipped — the explorer lists findings, the weekly pulse counts them, and `/findings?repo_id=` had supported the filter the whole time. The single most common defect in this codebase: a module that works and a screen that never asks it (see the shipped-with-no-caller memory).",
+        "The repo tab mounts the SAME FindingDetail the explorer uses, rather than linking out, so following a finding does not throw away the repository the reader navigated into. Triage was exercised end to end in the browser: note, Confirm, status moves to confirmed in the row and the history line.",
+        "The file panel needed one new API filter — `?file=` — matched EXACTLY, not as a prefix: a prefix would fold src/pay.ts in with src/pay.test.ts, a longer list that looks like more thorough reporting and is wrong.",
+        "THE LEGEND HAD NEVER RENDERED. The file drill-down's churn chart draws three series (Gross, Net, Rework) and declares a legend, and echarts silently discarded it because LegendComponent was never registered in echarts.ts — so the chart read as one multicoloured series encoding nothing. Ruled out a colour cause by checking both themes first. That file's own comment already warned about this trap for series types; it catches components too. Also explains, independently, why the treemap ignored a visualMap in W16-43.",
+        "Legends also now wear the ink token (echarts defaults them to a dark grey that is the background in dark mode) — the same defect class as the bar label in W16-44.",
+        "Fixture coherence: the three seeded findings named src/payments/charge.ts, src/reports/build.ts and src/sync/webhook.ts, none of which any commit had touched, so following a finding to its file showed churn and owners BOTH reading 'Not Found' behind a Retry that could never succeed. The commit fixture now uses those same paths — and they read like a real service, which mod0.ts never did. A test pins every seeded finding's file to a path with commit history."
+      ]
     }
   ]
 }

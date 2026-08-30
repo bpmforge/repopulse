@@ -39,6 +39,27 @@ const DAY = 24 * 60 * 60 * 1000;
 const SPAN_DAYS = 40;
 /** Weekly snapshot points per (scope × metric × window) — >=2 so a sparkline renders. */
 const SERIES_POINTS = 8;
+/**
+ * The fixture's source files (W16-46).
+ *
+ * Two things this list has to be. Named like a real service rather than
+ * `mod0.ts`..`mod3.ts`, because a hotspot map reading "payments/charge.ts" is
+ * the demo doing its job and one reading "mod2.ts" is not. And a SUPERSET of
+ * the paths the seeded findings point at — those three were invented
+ * separately, so every finding named a file the commit fixture had never heard
+ * of, and following one from the Findings tab landed on a file drill-down whose
+ * churn and owners both read "Not Found" behind a Retry button that could never
+ * succeed.
+ *
+ * Anything added to `findingSeeds` below belongs here too.
+ */
+const FIXTURE_FILES = [
+  'src/payments/charge.ts',
+  'src/reports/build.ts',
+  'src/sync/webhook.ts',
+  'src/api/routes.ts',
+] as const;
+
 /** Every window preset the UI offers; the API filters snapshots by this exact string. */
 const WINDOWS = ['7d', '30d', '90d', '365d'] as const;
 
@@ -307,7 +328,7 @@ export async function seedWarehouse(
             workspaceId,
             repoId,
             commitId: commit!.id,
-            path: `src/mod${(ri + f) % 4}.ts`,
+            path: FIXTURE_FILES[(ri + f) % FIXTURE_FILES.length]!,
             additions: rng.int(5, 80),
             deletions: rng.int(0, 30),
             status: 'modified',
@@ -358,7 +379,7 @@ export async function seedWarehouse(
           workspaceId,
           repoId,
           pullRequestId: pr!.id,
-          path: `src/mod${p % 4}.ts`,
+          path: FIXTURE_FILES[p % FIXTURE_FILES.length]!,
           additions: rng.int(1, 50),
           deletions: rng.int(0, 20),
           changeType: 'modified',

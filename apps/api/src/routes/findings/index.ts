@@ -153,6 +153,8 @@ export default async function findingsRoutes(
       severity_min?: string;
       confidence_min?: string;
       repo_id?: string;
+      /** Exact repo-relative path — the file drill-down's own findings (W16-46). */
+      file?: string;
       verify_status?: string;
       scanner_key?: string;
       cve_id?: string;
@@ -187,6 +189,10 @@ export default async function findingsRoutes(
     if (q.repo_id && Number.isInteger(Number(q.repo_id))) {
       filters.push(eq(read.findings.repoId, Number(q.repo_id)));
     }
+    // EXACT path, not a prefix match. The file drill-down asks about one file,
+    // and a prefix would fold `src/pay.ts` in with `src/pay.test.ts` — a
+    // longer list that looks like more thorough reporting and is wrong.
+    if (q.file) filters.push(eq(read.findings.file, q.file));
     // W6-05 facet. 'unverified' is a real answer, not the absence of one — a
     // finding nobody re-judged must be filterable as such.
     if (q.verify_status && ['unverified', 'confirmed', 'contradicted'].includes(q.verify_status)) {

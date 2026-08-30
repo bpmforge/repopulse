@@ -11,6 +11,12 @@ import { docsUrl } from '../../lib/docs.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { IntentControl } from './IntentControl.js';
 import {
+  SEVERITY_LABEL,
+  VERIFY_LABEL,
+  locationOf,
+  type Finding,
+} from '../findings/contracts.js';
+import {
   SINGLE_OWNER_THRESHOLD,
   STALE_FILE_DAYS,
   type FileDetail as FileDetailResponse,
@@ -31,6 +37,22 @@ export function FileDetailScreen({ repoId, path }: Props) {
     endpoint: '/repos/{id}/files/{path}',
     path: { id: repoId, path },
   });
+
+  // This file's own findings (W16-46). The panel below was a hardcoded teaser —
+  // "File-scoped findings arrive with Tier-2 analysis (wave W6)" — years after
+  // W6 shipped, on the one screen where a finding's file:line is the entire
+  // subject. Every finding already carries `file`; only the filter was missing.
+  const {
+    data: findings,
+    isLoading: findingsLoading,
+    isError: findingsIsError,
+    error: findingsError,
+    refetch: refetchFindings,
+  } = useApiQuery<{ items: Finding[] }>({
+    endpoint: '/findings',
+    query: { repo_id: repoId, file: path },
+  });
+  const findingItems = findings?.items ?? [];
 
   // The API's buckets. The browser-side version was deleted rather than kept
   // alongside: REWORK cannot be computed here at all — M1 scopes it to a prior
@@ -169,9 +191,56 @@ export function FileDetailScreen({ repoId, path }: Props) {
 
       <WidgetFrame
         title="Findings"
-        state="empty"
-        emptyMessage="File-scoped findings arrive with Tier-2 analysis (wave W6)."
-      />
+        state={frameState({
+          isLoading: findingsLoading,
+          isError: findingsIsError,
+          isEmpty: findings !== undefined && findingItems.length === 0,
+        })}
+        {...(findingsError ? { errorMessage: findingsError.message, error: findingsError } : {})}
+        onRetry={() => void refetchFindings()}
+        emptyMessage="No findings recorded against this file."
+      >
+        <table className="w-full text-sm" data-testid="file-findings">
+          <caption className="sr-only">Findings recorded against this file</caption>
+          <thead>
+            <tr className="text-left text-xs text-fg-muted">
+              <th scope="col">Severity</th>
+              <th scope="col">Finding</th>
+              <th scope="col">Lines</th>
+              <th scope="col">Status</th>
+              <th scope="col">Verification</th>
+            </tr>
+          </thead>
+          <tbody>
+            {findingItems.map((f) => (
+              <tr key={f.id} className="border-t border-border">
+                {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
+                <td className="py-1 whitespace-nowrap">
+                  {SEVERITY_LABEL[f.severity] ?? f.severity}
+                </td>
+                <th scope="row" className="py-1 text-left font-normal">
+                  {/* Links into the repo's Findings tab, which owns triage —
+                      this panel reports, it does not duplicate the actions. */}
+                  <Link
+                    to="/repos/$repoId/findings"
+                    params={{ repoId }}
+                    search={(prev: Record<string, unknown>) => ({ ...prev, finding: f.id })}
+                    className="text-accent hover:underline"
+                  >
+                    {f.title}
+                  </Link>
+                </th>
+                {/* The file is the page, so only the lines are news here. */}
+                <td className="py-1 font-mono text-xs">
+                  {locationOf(f).replace(`${f.file}:`, '')}
+                </td>
+                <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </WidgetFrame>
 
       <WidgetFrame
         title="Hotspot score history"

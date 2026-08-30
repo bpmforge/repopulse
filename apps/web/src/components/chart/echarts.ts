@@ -1,7 +1,12 @@
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, TreemapChart } from 'echarts/charts';
-import { DatasetComponent, GridComponent, TooltipComponent } from 'echarts/components';
+import {
+  DatasetComponent,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+} from 'echarts/components';
 
 // Register ONLY the renderers/charts/components RepoPulse uses (DASHBOARD §5
 // lazy-bundle rule). Everything imports echarts through this module so the
@@ -17,6 +22,14 @@ import { DatasetComponent, GridComponent, TooltipComponent } from 'echarts/compo
 // ECharts funnel band's bottom edge is the NEXT stage's value, so it cannot
 // draw a stage whose width is that stage's own number. Nothing renders a
 // funnel now, and a registration nobody uses is dead weight in the bundle.
+//
+// THE SAME TRAP CATCHES COMPONENTS, not only series (W16-46). LegendComponent
+// was missing, so the file drill-down's `legend: { data: ['Gross','Net',
+// 'Rework'] }` was accepted and silently discarded: three differently coloured
+// bar series with nothing on screen saying which was which, which reads as one
+// multicoloured series encoding nothing. It failed in both themes, which is
+// what ruled out a colour cause. Any chart option that names a component
+// belongs in this list.
 echarts.use([
   CanvasRenderer,
   LineChart,
@@ -25,6 +38,7 @@ echarts.use([
   GridComponent,
   TooltipComponent,
   DatasetComponent,
+  LegendComponent,
 ]);
 
 export type EChartsInstance = ReturnType<typeof echarts.init>;
