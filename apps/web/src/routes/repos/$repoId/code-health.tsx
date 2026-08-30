@@ -3,7 +3,7 @@ import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
 import {
-  CH_SCANNER_STATE_LABEL,
+  chScannerStateLabel,
   CH_SERIES_LABEL,
   type RepoCodeHealth,
 } from '../../../widgets/code-health/contracts.js';
@@ -120,7 +120,7 @@ function CodeHealthTab() {
                       </span>
                     )}
                   </th>
-                  <td className="py-1.5">{CH_SCANNER_STATE_LABEL[scanner.state]}</td>
+                  <td className="py-1.5">{chScannerStateLabel(scanner.state, scanner.open_findings)}</td>
                   <td className="py-1.5">
                     {scanner.last_run_at
                       ? new Date(scanner.last_run_at).toLocaleDateString()
@@ -140,9 +140,15 @@ function CodeHealthTab() {
         <WidgetFrame title="Most complex functions" state={state} testId="ch-complexity">
           {data &&
             (data.worst_complexity.length === 0 ? (
+              // ANSWER THE QUESTION THE TABLE ABOVE HAS ALREADY SETTLED
+              // (W16-49). This said "if the coverage table above says the
+              // scanner has never run, that is why", which sent a reader to a
+              // table that said it HAD run and then left them there. The screen
+              // knows which case it is in, so it says which.
               <p className="text-sm text-fg-muted" data-testid="ch-complexity-empty">
-                No complexity findings. If the coverage table above says the scanner has never run,
-                that is why — this is not a measurement of a tidy codebase.
+                {data.scanners.some((s) => s.key === 'code_health_tools' && s.state !== 'never_run')
+                  ? 'The complexity scanner ran and found no function over the threshold. This one IS a measurement of a tidy codebase.'
+                  : 'No complexity findings — the complexity scanner has never run for this repository, which is why. This is not a measurement of a tidy codebase.'}
               </p>
             ) : (
               <ol className="flex flex-col gap-1 text-sm" data-testid="ch-complexity-list">
@@ -150,7 +156,7 @@ function CodeHealthTab() {
                   <li key={item.finding_id} className="flex justify-between gap-2">
                     <Link
                       to="/findings"
-                      search={{ open: item.finding_id } as never}
+                      search={{ finding: item.finding_id } as never}
                       className="truncate underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                       data-testid={`ch-complexity-${item.finding_id}`}
                     >

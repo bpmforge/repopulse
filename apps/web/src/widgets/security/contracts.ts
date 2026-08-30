@@ -137,6 +137,21 @@ export interface OrgSecurity {
  * run, and one that ran clean are three different sentences, and only the last
  * is good news.
  */
+/**
+ * The state in words, given what the scanner still has OPEN (W16-49).
+ *
+ * Same reason as the code-health screen's: "✓ ran clean" printed beside a
+ * non-zero open count is a row contradicting itself, and the tick is the half a
+ * reader believes. "Clean" is a claim about findings, not about the process
+ * exiting zero. Every other state is unchanged — an errored or interrupted run
+ * says nothing about how many findings are open, so the count does not qualify
+ * it.
+ */
+export function scannerStateLabel(state: ScannerState, openFindings: number | null): string {
+  if (state === 'ok' && (openFindings ?? 0) > 0) return '✓ ran — findings still open';
+  return SCANNER_STATE_LABEL[state];
+}
+
 export const SCANNER_STATE_LABEL: Record<ScannerState, string> = {
   not_enabled: '○ not enabled — nothing has looked',
   never_run: '· enabled, has never run',
