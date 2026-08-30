@@ -6780,6 +6780,32 @@
         "THE FIRST VERSION OF THE TEST PASSED AGAINST THE BUG. It rendered once with a static prop, and the defect only exists when the parent hands down a SHORTER list — so the harness reproduced nothing. Rewritten to re-render with the remaining findings after each key, then checked against the pre-fix code: all three fail there with exactly the symptoms seen on screen ('third' for 'second', '2 of 2' for '2 of 3').",
         "Also gave the overlay the backdrop-blur the command palette already uses — the underlying table competed with the finding being decided about."
       ]
+    },
+    {
+      "id": "W16-53",
+      "title": "A plan that asked you to agree to M6",
+      "phase": 16,
+      "module": "web",
+      "stories": [],
+      "depends_on": [],
+      "points": 2,
+      "status": "done",
+      "write_scope": [
+        "apps/web/src/widgets/plans/**",
+        "apps/web/src/routes/plans/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "A plan item's exit criterion and evidence name the metric",
+        "An unresolved key still shows, rather than the line disappearing"
+      ],
+      "notes": [
+        "Found in the 2026-08-30 UAT walk of Plans, after generating a plan and accepting an item — both of which work. Every item then read 'Closes automatically when M6 stays at most 0.05 for 30 days' with 'Evidence: M6'. On the screen whose entire job is getting a person to agree to a piece of work, the work was described in internal ids.",
+        "The metric catalog exists exactly for this, and the route serving it says the UI should read it and never hardcode the names — and nothing had ever read it. `definitionHref` on the org KPI row LINKS to the raw JSON, which is not the same as naming the metric.",
+        "The id travels WITH the name rather than being replaced by it: M6 is what the catalog, the reports and the API all call this thing, so a reader who wants to look it up still can.",
+        "The fallback is the bare key, not a blank: a criterion is better shown with an unresolved id than hidden while a separate request is in flight, or forever if a new metric has not reached the catalog yet."
+      ]
     }
   ]
 }
