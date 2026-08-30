@@ -33,7 +33,9 @@ test('the Security tab says what has NOT been looked at, and passes axe', async 
   // missing.
   const coverage = page.getByTestId('scanner-status');
   await expect(coverage).toBeVisible();
-  await expect(coverage).toContainText(/not enabled|has never run|ran clean/);
+  // "ran —" covers the W16-49 state: a scan that finished without fault and
+  // left findings open, which is not "ran clean" and must not be called it.
+  await expect(coverage).toContainText(/not enabled|has never run|ran clean|ran —/);
 
   // The CVE panel is empty and SAYS WHY — "no dependency scan has run" rather
   // than a blank panel that reads as a clean bill of health.

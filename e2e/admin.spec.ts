@@ -253,10 +253,16 @@ test('the rule workbench shows shadow evidence and blocks an unready promotion',
   const frame = page.getByTestId('rules-frame');
   await expect(frame).toHaveAttribute('data-state', /ready|empty/);
 
-  // With no rules registered the empty state explains where rules come from,
-  // rather than looking like a broken screen.
+  // With no rules registered the empty state explains WHAT THIS REGISTRY HOLDS,
+  // rather than looking like a broken screen. It used to say rules "ship in
+  // versioned packs" and that this screen "governs which of them count", which
+  // reads as though every rule the scanners apply is listed — so a reader who
+  // has just seen a finding attributed to bpm-log-console-in-prod concludes the
+  // screen is broken. It holds only CANDIDATE rules drafted from this
+  // workspace's own findings (W16-57).
   if ((await frame.getAttribute('data-state')) === 'empty') {
-    await expect(frame).toContainText(/versioned packs/i);
+    await expect(frame).toContainText(/candidate rules/i);
+    await expect(frame).toContainText(/shadow/i);
   } else {
     await expect(page.getByTestId('rules-table')).toBeVisible();
   }

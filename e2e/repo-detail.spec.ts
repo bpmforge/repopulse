@@ -187,9 +187,13 @@ test('the repo Findings tab lists that repo\'s findings and opens one in place',
 }) => {
   await loginAsFixture(page);
   await page.goto('/?window=90d');
-  const href = await firstRepoHref(page);
+  // The tile's href already carries the global search, so appending a child
+  // path to it produces `/repos/1?window=90d/findings` — which routes to the
+  // repo index and renders Pulse. Extract the id, like the deep-link test above.
+  const repoId = (await firstRepoHref(page)).match(/\/repos\/(\d+)/)?.[1];
+  expect(repoId).toBeDefined();
 
-  await page.goto(`${href}/findings?window=90d`);
+  await page.goto(`/repos/${repoId}/findings?window=90d`);
   await expect(page.getByTestId('repo-findings')).toBeVisible();
 
   // ROWS, not just a visible container: the teaser was "visible" too. The
