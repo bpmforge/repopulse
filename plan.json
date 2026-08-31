@@ -6663,7 +6663,7 @@
       "stories": [],
       "depends_on": [],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "packages/shared/src/testing/seed/**",
         "docs/STATUS.md",
@@ -6675,7 +6675,11 @@
       "notes": [
         "Noticed repeatedly during the 2026-08-30 UAT walk. seedWarehouse wipes the workspace and re-inserts, so repo ids advance on every boot — a bookmarked /repos/34565/... is a 404 after the next `pnpm dev`. The seeder's own test already claims re-seeding is 'deterministic + idempotent', which this contradicts for the one value that appears in URLs.",
         "The screen degrades honestly ('Repository not visible here' plus a Browse all repositories link), which is why this is a papercut rather than a break — and why it is filed rather than fixed mid-walk.",
-        "Approach: upsert repos on their natural key (workspace_id, forge_repo_id) and delete only their children, instead of deleting repos as part of wipeWorkspace. The wipe's FK ORDER is load-bearing — see the 'reseeds after REAL ingestion' test, which exists because forge_etag rows once referenced the connections being deleted — so this needs that test kept green, not just a passing seed."
+        "Approach: upsert repos on their natural key (workspace_id, forge_repo_id) and delete only their children, instead of deleting repos as part of wipeWorkspace. The wipe's FK ORDER is load-bearing — see the 'reseeds after REAL ingestion' test, which exists because forge_etag rows once referenced the connections being deleted — so this needs that test kept green, not just a passing seed.",
+        "DONE. The fixture's repository ROWS now survive a re-seed and are upserted on their natural key, so the ids that appear in every URL are stable; everything below a repo is still deleted and rebuilt, so this is not a skipped re-seed.",
+        "A repo's unique key is (workspace, connection, forge_repo_id), so keeping the repo means keeping ITS connection — and the connection cannot be identified by fingerprint, because DEMO MODE replaces the seeded one with its own pointed at the fake forge and repoints the repos at it. The kept connection is chosen once, from what the surviving fixture repos actually reference.",
+        "wipeWorkspace now takes `keepFixtureRepos`, which is the difference between RE-SEEDING and UNSEEDING: an unseed is the inverse of seeding and must leave nothing behind, or the next caller inherits three repositories it did not create. Anything not in the fixture still goes, so 'seeded' keeps meaning the same thing for every suite that counts rows.",
+        "Two false starts worth recording. The first cut spared the connection by FINGERPRINT and deleted the demo's own — the very row the kept repos pointed at. The second looked correct and still threw, because the ORIGINAL unconditional `delete from forge_connections` was still there further down the function: the new guarded delete was additive, matched nothing, and looked innocent. Found by tracing the actual statement rather than re-reading the diff."
       ]
     },
     {
