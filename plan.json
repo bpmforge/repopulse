@@ -6993,6 +6993,36 @@
         "egress_audit is READ by the security-posture report and written by nothing yet — Tier-3 egress rows are not produced anywhere. Its column is in place for when that lands; the writer must populate it, or the audit will record that code left the network without recording who sent it.",
         "W16-58's helper collapsed from thirty lines of ordered deletes to `delete from users`, and its guard was repointed from a hand-kept array to the invariant that makes the array unnecessary. Two pre-existing test defects surfaced while doing it: the last-admin test demoted ONE known member while the warehouse seeder also makes its fixture user an admin of the same workspace, so the refusal never fired and the test passed or failed depending on whether the seeder had run recently."
       ]
+    },
+    {
+      "id": "W16-60",
+      "title": "A local demo container where every step is done in the UI",
+      "phase": 16,
+      "module": "deploy",
+      "stories": [],
+      "depends_on": [],
+      "points": 5,
+      "status": "done",
+      "write_scope": [
+        "deploy/**",
+        "apps/api/src/demo-forge.ts",
+        "docs/RUNNING.md",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "acceptance": [
+        "One command brings the product up locally with no file to edit",
+        "The whole first run — connect, choose repositories, watch the backfill — is done in the browser",
+        "The images are the ones a customer runs, not a demo build"
+      ],
+      "notes": [
+        "Brad's ask: a local-only demo container where the process is done in the UI. Two decisions taken with him: a COMPOSE STACK rather than an all-in-one image, and BOOT EMPTY rather than seeded — so the demo walks the real first run instead of showing a fixture.",
+        "WHAT MAKES IT A DEMO IS ONLY THE FORGE. deploy/compose.demo.yaml builds the same api/worker/migrate/web targets deploy/compose.yaml does and changes one thing: FORGE_BASE_URL points at a fixture server. No demo mode, no seeded warehouse, no special-cased code path — which is what makes it evidence the product works rather than a mock of it. Sign-in is the product's own first-boot bootstrap from ADMIN_EMAIL/ADMIN_PASSWORD, which is why it immediately demands a new password.",
+        "api and worker SHARE the forge container's network namespace. SC-12 permits an http:// forge URL only for an exact loopback host and the fixture binds 127.0.0.1, so `http://forge:3309` would be refused by the same guard that stops the product being pointed at an internal address. Sharing the namespace satisfies the guard honestly rather than weakening a security control for a fixture's convenience. It is also why nginx proxies to `http://forge:3000`: the api has no network identity of its own.",
+        "The fake forge became a SERVICE (apps/api/src/demo-forge.ts) rather than an env-guarded branch inside the production entrypoints — a separate process cannot be reached by accident, because production simply never runs that file. It prints the token the connect flow needs, and demo.sh reads that token out of the fixture source rather than copying it, because I guessed it wrong the first time and a printed value that has drifted breaks the one step nobody can work out for themselves.",
+        "VERIFIED BY DOING IT, in the browser against the containers: signed in, was made to change the password, pasted the token, the picker listed the three fixture repositories, tracked all three, and Admin → Sync showed all three LIVE with no dead-lettered jobs. /repos then listed them with health scores.",
+        "demo.sh's own service check was wrong on the first run and said a healthy stack was broken: `compose ps --services --filter status=running` is unsupported by podman-compose, which answers with its usage text. Now matched on the container name and 'Up' in plain `compose ps`. A launcher that cries wolf gets ignored exactly like up.sh's opposite failure, where a dead worker exited 0."
+      ]
     }
   ]
 }

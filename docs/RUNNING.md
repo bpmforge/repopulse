@@ -16,10 +16,50 @@ C1) and the web app never calls a forge — it reads only our own Postgres.
 
 ---
 
-## Demo mode
+## The demo container (no checkout, no Node, no .env)
 
-The fastest way to see whether this is useful to you. No GitHub account, no
-OAuth app, no credentials of any kind.
+One command, and everything after it is done in the browser:
+
+```bash
+./deploy/demo.sh          # build + start, then print where to go
+./deploy/demo.sh down     # stop
+./deploy/demo.sh reset    # stop AND wipe the database, back to a first boot
+```
+
+Open <http://localhost:8090> and sign in as `demo@repopulse.local` with
+`demo-password-change-me`. The product will immediately make you choose a new
+password — that is the real first-boot behaviour of an account created from
+`ADMIN_PASSWORD`, not a demo quirk.
+
+**It starts EMPTY on purpose.** There is no seeded warehouse, because the point
+is to walk the first run the way a customer does: connect a credential in
+Admin → Connections (the script prints the fixture token to paste), choose
+repositories, watch the backfill land in Admin → Sync, and see the repos go
+live. Models, settings, agreements and scanners are all configured from the UI
+too — nothing in this stack needs a file edited.
+
+**What makes it a demo is only the forge.** `deploy/compose.demo.yaml` builds
+the SAME api, worker, migrate and web images `deploy/compose.yaml` does, and
+changes one thing: `FORGE_BASE_URL` points at a fixture server instead of
+api.github.com. There is no demo mode, no seeded data and no special-cased code
+path — which is what makes it evidence that the product works rather than a
+mock of it.
+
+Every secret in that compose file is a fixed published throwaway, which is safe
+for exactly one reason: it binds to loopback only. It is not an install recipe —
+`deploy/compose.yaml` is, and it refuses to start without real ones.
+
+`api` and `worker` share the `forge` container's network namespace. SC-12 allows
+an `http://` forge URL only for an exact loopback host, so reaching the fixture
+as `http://forge:3309` would be refused by the same guard that stops the product
+being pointed at an internal address. Sharing the namespace satisfies that guard
+honestly instead of relaxing it for a fixture's convenience.
+
+## Demo mode (from a checkout)
+
+The same idea without containers, for when you are already working in the repo.
+Unlike the demo container above, this one SEEDS a warehouse, so there is data on
+every screen immediately and no first run to walk.
 
 ```bash
 pnpm install
