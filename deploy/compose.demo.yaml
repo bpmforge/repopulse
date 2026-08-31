@@ -1,0 +1,158 @@
+# RepoPulse — the LOCAL DEMO stack (W16-60).
+#
+#   docker compose -f deploy/compose.demo.yaml up --build
+#   → open http://localhost:8090
+#   → sign in  demo@repopulse.local / demo-password-change-me
+#   → everything after that is done in the UI.
+#
+# THERE IS NO .env TO FILL. Every secret below is a fixed, published,
+# throwaway value, which is safe for exactly one reason: nothing here listens
+# beyond loopback and the forge it talks to is a fixture. That is also why this
+# file must never be the basis of an install — deploy/compose.yaml is, and it
+# refuses to start without real secrets.
+#
+# WHAT MAKES IT A DEMO. Only the forge. The api, worker, migrate and web images
+# are the SAME build targets a customer runs, unmodified, with FORGE_BASE_URL
+# pointed at a fixture server instead of api.github.com. There is no demo mode,
+# no seeded warehouse and no special-cased code path: the stack boots EMPTY and
+# you do the real first run — connect a credential, choose repositories, watch
+# the backfill land — through the actual product.
+#
+# WHY api AND worker SHARE THE forge NETWORK NAMESPACE. SC-12 permits an http://
+# forge URL only for an exact loopback host, and the fixture binds 127.0.0.1.
+# Reaching it as `http://forge:3309` would be refused by the same guard that
+# stops the product being pointed at an internal address. Sharing the namespace
+# satisfies the guard honestly rather than relaxing it for convenience. It is
+# also why nginx proxies to `http://forge:3000`: the api has no network identity
+# of its own, so the namespace's name is the address you reach it at.
+
+name: repopulse-demo
+
+services:
+  postgres:
+    image: docker.io/library/postgres:16
+    restart: unless-stopped
+    user: postgres
+    environment:
+      POSTGRES_USER: repopulse
+      POSTGRES_PASSWORD: demo-only-not-a-secret
+      POSTGRES_DB: repopulse
+    volumes:
+      - demo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U repopulse -d repopulse']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    restart: unless-stopped
+    user: redis
+    command: ['redis-server', '--requirepass', 'demo-only-not-a-secret', '--appendonly', 'yes']
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a demo-only-not-a-secret ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # The fixture forge, and the network namespace api and worker join.
+  forge:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+    image: repopulse/api:demo
+    command: ['tsx', 'apps/api/src/demo-forge.ts']
+    restart: unless-stopped
+    environment:
+      DEMO_FORGE_PORT: '3309'
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: migrate
+    image: repopulse/migrate:demo
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgres://repopulse:demo-only-not-a-secret@postgres:5432/repopulse
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
+    image: repopulse/api:demo
+    restart: unless-stopped
+    # Shares the fixture's namespace, so 127.0.0.1:3309 IS the forge.
+    network_mode: 'service:forge'
+    environment: &app_env
+      DATABASE_URL: postgres://repopulse:demo-only-not-a-secret@postgres:5432/repopulse
+      REDIS_URL: redis://:demo-only-not-a-secret@redis:6379
+      # 32 bytes of hex. Fixed so the stack is reproducible; worthless because
+      # the only credential it ever encrypts is the fixture's own fake token.
+      TOKEN_ENC_KEY: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
+      SESSION_SECRET: 'demo-session-secret-at-least-32-characters-long'
+      API_BASE_URL: http://localhost:${REPOPULSE_DEMO_PORT:-8090}
+      PUBLIC_BASE_URL: http://localhost:${REPOPULSE_DEMO_PORT:-8090}
+      # THE ONE LINE THAT MAKES IT A DEMO.
+      FORGE_BASE_URL: http://127.0.0.1:3309
+      # SC-12's operator escape hatch, which exists for exactly this: an http
+      # loopback forge in local development. It permits nothing else.
+      FORGE_ALLOW_INSECURE_LOOPBACK: '1'
+      # The first-boot administrator, so there is someone to sign in as. This is
+      # the product's own bootstrap — not a demo account — and the password is
+      # published, which is why this stack binds to loopback only.
+      ADMIN_EMAIL: demo@repopulse.local
+      ADMIN_PASSWORD: demo-password-change-me
+      PORT: '3000'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      forge: { condition: service_started }
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
+    image: repopulse/worker:demo
+    restart: unless-stopped
+    # Same namespace, same reason: the backfill it runs is what calls the forge.
+    network_mode: 'service:forge'
+    environment: *app_env
+    # Scans need a writable scratch dir; the demo has no scan image, so the
+    # scanners report that honestly rather than being hidden.
+    tmpfs:
+      - /var/tmp/repopulse-scan:size=1g,mode=0700
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      forge: { condition: service_started }
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: web
+    image: repopulse/web:demo
+    restart: unless-stopped
+    # The api has no network identity of its own — it lives in the forge's
+    # namespace — so nginx proxies to the FORGE service name on the api's port.
+    # The api binds 0.0.0.0, so that address resolves from outside the namespace
+    # even though the process answering is the api.
+    environment:
+      API_UPSTREAM: http://forge:3000
+    depends_on: [api]
+    ports:
+      # Loopback only. Every secret in this file is published in it, so a demo
+      # that listened on 0.0.0.0 would be handing them out.
+      - '127.0.0.1:${REPOPULSE_DEMO_PORT:-8090}:8080'
+
+volumes:
+  demo-pgdata:
