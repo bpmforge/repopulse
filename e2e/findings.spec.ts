@@ -230,6 +230,28 @@ test('a link opens a finding the filters HIDE (W16-32)', async ({ page }) => {
   await expect(page.getByTestId('finding-detail')).toContainText(/dismissed/i);
 });
 
+test('a finding opens in the forge, at a real URL (W16-41)', async ({ page }) => {
+  // The detail panel rendered `src/service.ts:15–18` as PLAIN TEXT, so on a
+  // triage tool whose whole workflow is "look at this one", the step after
+  // reading a finding was to go and find the file by hand.
+  await loginAsFixture(page);
+  await page.goto('/findings');
+  await page.locator('[data-testid^="finding-open-"]').first().click();
+  await expect(page.getByTestId('finding-detail')).toBeVisible();
+
+  const link = page.getByTestId('finding-forge-link');
+  await expect(link).toBeVisible();
+  const href = await link.getAttribute('href');
+  // The SHAPE, not a fixed string: the instance and repo come from the seeded
+  // connection. What must hold is that it is an absolute URL into a file, with
+  // the line anchor — a link to the repository root would pass a "has an href"
+  // assertion and be useless.
+  expect(href).toMatch(/^https?:\/\/.+\/blob\/.+\/.+\.[a-z]+#L\d+/);
+  // Opens away from the app, so triage does not lose its place.
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', /noreferrer/);
+});
+
 test('a link to a finding that does not exist SAYS so, rather than nothing (W16-16)', async ({
   page,
 }) => {

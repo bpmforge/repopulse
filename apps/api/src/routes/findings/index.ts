@@ -1,7 +1,8 @@
 import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, core, facts, read, type Database } from '@repopulse/shared';
+import { auditLog, core, facts, read, security, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
+import { blobUrl, webBaseUrl, type ForgeKind } from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
 import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
 
@@ -94,9 +95,22 @@ function findingsQuery(db: Database) {
       chainId: read.findings.chainId,
       scanRunId: read.findings.scanRunId,
       yields: read.findings.yields,
+      // Everything the forge link needs (W16-41). The connection carries the
+      // instance and its kind; the SCAN RUN carries the commit the finding was
+      // raised on, which is what makes the link point at the code as it was
+      // rather than at whatever is on the branch today.
+      defaultBranch: core.repos.defaultBranch,
+      forgeKind: core.forgeConnections.provider,
+      forgeBaseUrl: core.forgeConnections.baseUrl,
+      scanCommitSha: security.scanRuns.commitSha,
     })
     .from(read.findings)
-    .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId));
+    .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
+    .innerJoin(core.forgeConnections, eq(core.forgeConnections.id, core.repos.connectionId))
+    // LEFT: an analysis-run finding has no scan run, and must still be listed.
+    // An inner join here would have silently dropped every Tier-2 finding from
+    // the explorer — the failure mode this codebase keeps producing.
+    .leftJoin(security.scanRuns, eq(security.scanRuns.id, read.findings.scanRunId));
 }
 
 type FindingRow = Awaited<ReturnType<ReturnType<typeof findingsQuery>['execute']>>[number];
@@ -136,7 +150,43 @@ function toFinding(r: FindingRow) {
   risk_band: r.riskBand,
   risk_factors: r.riskFactors,
   experimental: r.experimental,
+  // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
+  // to — a finding about the whole repository has no file, and a connection
+  // with no recorded base URL has no instance to point at.
+  forge: forgeLinkFor(r),
 };
+}
+
+/**
+ * The forge link for one finding, and which kind of ref it is pinned to.
+ *
+ * Pinned to the SCAN'S COMMIT wherever there is one, so the link shows the code
+ * as it was when the finding was raised — line 15 of a file moves, and a link
+ * to today's line 15 quietly points at something else. Where there is no commit
+ * (a Tier-2 analysis run records none) it falls back to the default branch and
+ * SAYS so, rather than implying a precision it does not have.
+ */
+function forgeLinkFor(r: FindingRow): { url: string; ref_kind: 'commit' | 'branch' } | null {
+  if (r.file === null) return null;
+  // The stored base is the API host, not the site — api.github.com serves the
+  // API and github.com serves the file. A null base is not "unknown" either:
+  // for the hosted forges it means the public instance, exactly as the provider
+  // clients already read it.
+  const base = webBaseUrl(r.forgeKind as ForgeKind, r.forgeBaseUrl);
+  if (base === null) return null;
+  const refKind = r.scanCommitSha ? ('commit' as const) : ('branch' as const);
+  const url = blobUrl({
+    kind: r.forgeKind as ForgeKind,
+    baseUrl: base,
+    org: r.org,
+    repo: r.repoName,
+    path: r.file,
+    ref: r.scanCommitSha ?? r.defaultBranch,
+    refKind,
+    lineStart: r.lineStart,
+    lineEnd: r.lineEnd,
+  });
+  return url === null ? null : { url, ref_kind: refKind };
 }
 
 export default async function findingsRoutes(

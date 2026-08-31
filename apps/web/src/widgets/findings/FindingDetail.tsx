@@ -53,8 +53,34 @@ export function FindingDetail({
             {finding.evidence}
           </pre>
           <p className="mt-1 font-mono text-xs text-fg-faint">
-            {locationOf(finding)}
+            {/* THE LOCATION IS NOW A LINK (W16-41). It was plain text, so on a
+                triage tool whose whole workflow is "look at this one", the step
+                after reading a finding was to go and find the file by hand.
+                Still plain text when there is nothing honest to link to. */}
+            {finding.forge ? (
+              <a
+                href={finding.forge.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="finding-forge-link"
+              >
+                {locationOf(finding)}
+              </a>
+            ) : (
+              locationOf(finding)
+            )}
           </p>
+          {finding.forge?.ref_kind === 'branch' && (
+            // The link is only as precise as the ref behind it. Without the
+            // scan's commit it opens the default branch, where line 15 may no
+            // longer be the line this finding is about — worth one sentence
+            // rather than a link that silently means something else.
+            <p className="mt-1 text-xs text-fg-faint" data-testid="finding-forge-ref-note">
+              Opens the default branch — this finding records no commit, so the
+              lines may have moved since it was raised.
+            </p>
+          )}
         </div>
 
         <div>
