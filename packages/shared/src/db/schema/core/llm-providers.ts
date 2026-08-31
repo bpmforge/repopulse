@@ -112,9 +112,10 @@ export const llmProviders = pgTable(
      */
     allowPublicHost: boolean('allow_public_host').notNull().default(false),
     enabled: boolean('enabled').notNull().default(true),
-    createdBy: bigint('created_by', { mode: 'number' })
-      .notNull()
-      .references(() => users.id),
+    // SET NULL (W16-59): a configured model outlives whoever added it.
+    createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   DataTable,
   WidgetFrame,
@@ -69,6 +70,90 @@ function RoleButton({
   );
 }
 
+/**
+ * Remove a member (W16-59).
+ *
+ * Two-step, because it is the most destructive control in the product and the
+ * confirm step is where the CONSEQUENCES are stated. Until the FK migration
+ * that preceded this, a member who had used RepoPulse could not be removed at
+ * all — one report or one triaged finding made the account permanently
+ * undeletable — so nobody has ever seen this happen and nobody has intuitions
+ * about what it takes with it.
+ *
+ * What it takes and what it leaves is the whole message: their saved views go,
+ * because ownership there gates who can see and edit one; their reports, plans,
+ * agreements and triage history stay, with their login preserved beside each,
+ * because the work was done and removing a login does not un-do it.
+ */
+function RemoveButton({ row, onToast }: { row: MemberRow; onToast: (t: Toast[]) => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const remove = useApiMutation<undefined, { user_id: number; removed: boolean }>(
+    { endpoint: '/admin/members/{userId}', path: { userId: row.user_id }, method: 'DELETE' },
+    { invalidate: [queryKeyFor(LIST)] },
+  );
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        className="rounded-md border border-border px-2 py-1 text-xs hover:border-crit"
+        data-testid={`member-remove-${row.user_id}`}
+        onClick={() => setConfirming(true)}
+      >
+        Remove…
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1" data-testid={`member-remove-confirm-${row.user_id}`}>
+      <p className="max-w-md text-xs text-fg-muted">
+        Remove <span className="text-fg">{row.login}</span>? Their saved views go with the account.
+        Reports, plans, agreements and triage history stay, still showing their name.
+      </p>
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          className="rounded-md border border-crit px-2 py-1 text-xs text-crit hover:bg-crit/10"
+          data-testid={`member-remove-do-${row.user_id}`}
+          disabled={remove.isPending}
+          onClick={() =>
+            remove.mutate(undefined, {
+              // The API refuses the LAST admin and refuses self-removal, both
+              // with 409 and both with a reason someone can act on. Surface the
+              // reason rather than a generic failure.
+              onError: (err: Error) =>
+                onToast([
+                  { id: `member-rm-${row.user_id}-err`, tone: 'crit', message: err.message },
+                ]),
+              onSuccess: () => {
+                setConfirming(false);
+                onToast([
+                  {
+                    id: `member-rm-${row.user_id}-ok`,
+                    tone: 'ok',
+                    message: `${row.login} was removed from this workspace`,
+                  },
+                ]);
+              },
+            })
+          }
+        >
+          Remove {row.login}
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+          data-testid={`member-remove-cancel-${row.user_id}`}
+          onClick={() => setConfirming(false)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Members() {
   const pushToasts = useUiStore((s) => s.pushToasts);
   const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: MemberRow[] }>(LIST);
@@ -82,6 +167,11 @@ export function Members() {
       id: 'action',
       header: 'Change role',
       cell: (row) => <RoleButton row={row} onToast={pushToasts} />,
+    },
+    {
+      id: 'remove',
+      header: 'Remove',
+      cell: (row) => <RemoveButton row={row} onToast={pushToasts} />,
     },
   ];
 

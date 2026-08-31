@@ -23,9 +23,14 @@ export const egressAudit = pgTable(
     analysisRunId: bigint('analysis_run_id', { mode: 'number' })
       .notNull()
       .references(() => analysisRuns.id),
-    initiatorUserId: bigint('initiator_user_id', { mode: 'number' })
-      .notNull()
-      .references(() => users.id),
+    // The audit row is the point (W16-59). SET NULL on its own would leave a
+    // record that code left the network and NOT who sent it — the single field
+    // this table exists to hold. The login is denormalised beside the id, so
+    // deleting an account cannot erase the fact that they sent it.
+    initiatorUserId: bigint('initiator_user_id', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    initiatorLogin: text('initiator_login'),
     modelId: text('model_id').notNull(),
     bytesSent: integer('bytes_sent').notNull(),
     tokensSent: integer('tokens_sent').notNull(),

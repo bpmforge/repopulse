@@ -25,7 +25,11 @@ export const identities = pgTable(
     forgeLogin: text('forge_login').notNull(),
     forgeUserId: text('forge_user_id'),
     displayName: text('display_name').notNull(),
-    userId: bigint('user_id', { mode: 'number' }).references(() => users.id),
+    // SET NULL (W16-59). An identity is a COMMITTER and a user is a LOGIN:
+    // the commits stay, the claim on them goes.
+    userId: bigint('user_id', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     isBot: boolean('is_bot').notNull().default(false),
     // Self-FK: merges are non-destructive/reversible (DATABASE.md §2) —
     // queries resolve through COALESCE(merged_into_id, id).

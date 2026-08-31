@@ -13,6 +13,7 @@ import {
   type MetricSet,
 } from '@repopulse/insights';
 import { sendProblem } from '../../lib/problem.js';
+import { actorLoginFor } from '../../lib/actor.js';
 
 // Plans API (W5-06, FR-PLANS-2/6).
 //
@@ -362,12 +363,16 @@ export default async function plansRoutes(
         .update(plansSchema.planItems)
         .set({ status: next, statusChangedBy: userId, statusChangedAt: now })
         .where(eq(plansSchema.planItems.id, id));
+      // The login beside the id (W16-59), so a plan's history keeps saying who
+      // accepted an item after that account is gone.
+      const actorLogin = await actorLoginFor(db, userId);
       await db.insert(plansSchema.planItemEvents).values({
         workspaceId,
         planItemId: id,
         fromStatus: item.status,
         toStatus: next,
         actorUserId: userId,
+        actorLogin,
         reason: 'human transition',
       });
 

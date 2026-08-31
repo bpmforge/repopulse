@@ -21,7 +21,17 @@ export const findingEvents = pgTable(
       .references(() => findings.id),
     fromStatus: text('from_status'),
     toStatus: text('to_status').notNull(),
-    actor: bigint('actor', { mode: 'number' }).references(() => users.id),
+    // NULL ALREADY MEANS SOMETHING HERE (W16-59): the API reports
+    // `automatic: actor === null` — a null actor is the analysis pass acting by
+    // itself. So SET NULL alone would silently reclassify a departed person's
+    // triage decisions as automatic, which is a worse lie than refusing the
+    // delete. The login is denormalised beside the id so the record survives
+    // the account: actor null AND actor_login null is automatic; actor null
+    // with a login is a person whose account has since been removed.
+    actor: bigint('actor', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    actorLogin: text('actor_login'),
     reason: text('reason'),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },

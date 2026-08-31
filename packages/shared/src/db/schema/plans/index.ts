@@ -38,9 +38,11 @@ export const improvementPlans = pgTable(
     ),
     catalogVersion: text('catalog_version').notNull(),
     status: text('status').notNull().default('active'),
-    createdBy: bigint('created_by', { mode: 'number' })
-      .notNull()
-      .references(() => users.id),
+    // SET NULL (W16-59): the work outlives whoever proposed it. An agreement
+    // is the team's threshold, not its author's.
+    createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -70,7 +72,9 @@ export const planItems = pgTable(
     status: text('status').notNull().default('proposed'),
     verifyCriterion: jsonb('verify_criterion').$type<Record<string, unknown>>().notNull(),
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
-    statusChangedBy: bigint('status_changed_by', { mode: 'number' }).references(() => users.id),
+    statusChangedBy: bigint('status_changed_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     statusChangedAt: timestamp('status_changed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -103,7 +107,13 @@ export const planItemEvents = pgTable(
     fromStatus: text('from_status'),
     toStatus: text('to_status').notNull(),
     /** null = the nightly verifier, not a person. */
-    actorUserId: bigint('actor_user_id', { mode: 'number' }).references(() => users.id),
+    // Denormalised beside the id for the same reason as finding_events: a plan
+    // item's history is a record of who decided what, and an account being
+    // removed must not turn a person's decision into an anonymous one (W16-59).
+    actorUserId: bigint('actor_user_id', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    actorLogin: text('actor_login'),
     reason: text('reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -128,9 +138,11 @@ export const agreements = pgTable(
     kind: text('kind').notNull(),
     threshold: jsonb('threshold').$type<Record<string, unknown>>().notNull(),
     active: boolean('active').notNull().default(true),
-    createdBy: bigint('created_by', { mode: 'number' })
-      .notNull()
-      .references(() => users.id),
+    // SET NULL (W16-59): the work outlives whoever proposed it. An agreement
+    // is the team's threshold, not its author's.
+    createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -160,9 +172,11 @@ export const fileIntents = pgTable(
     path: text('path').notNull(),
     intent: text('intent').notNull(),
     note: text('note'),
-    createdBy: bigint('created_by', { mode: 'number' })
-      .notNull()
-      .references(() => users.id),
+    // SET NULL (W16-59): the work outlives whoever proposed it. An agreement
+    // is the team's threshold, not its author's.
+    createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /** How long a `refactor` intent may sit without improvement before warning. */
     warnAfterMonths: smallint('warn_after_months').notNull().default(3),

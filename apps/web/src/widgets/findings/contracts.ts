@@ -105,6 +105,12 @@ export interface FindingEvent {
   from_status: string | null;
   to_status: string;
   actor: number | null;
+  /**
+   * The actor's login, kept beside the id so it survives their account
+   * (W16-59). Present with a null `actor` means a person whose account has
+   * since been removed — which is a different fact from `automatic`.
+   */
+  actor_login?: string | null;
   automatic: boolean;
   reason: string | null;
   at: string;
