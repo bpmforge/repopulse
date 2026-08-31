@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne, notInArray, or } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { core, facts, plans, read, security } from '../../db/index.js';
 import { makeRng, type Rng } from './prng.js';
@@ -32,6 +32,10 @@ const BOT = 'renovate[bot]';
 // tile renders first" — the ingest specs legitimately add repos to this same
 // workspace, so position is not identity.
 export const SEED_REPO_NAMES = ['payments', 'web-app', 'infra'] as const;
+/** The fixture's forge ids — the natural key that keeps a repo's row id stable. */
+const SEED_FORGE_REPO_IDS = SEED_REPO_NAMES.map((n) => `seed-${n}`);
+/** Identifies the fixture's own connection, which survives a re-seed with them. */
+const SEED_CREDENTIAL_FINGERPRINT = 'seed:fp';
 const REPO_NAMES = SEED_REPO_NAMES;
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -139,7 +143,20 @@ export interface SeedResult {
 // Anything writing a new repo- or connection-scoped table has to be added
 // here, or reseeding breaks only for whoever has exercised that code path —
 // the worst kind of failure to debug, because it reproduces for one person.
-async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
+/**
+ * Empty a workspace.
+ *
+ * `keepFixtureRepos` is the difference between RE-SEEDING and UNSEEDING
+ * (W16-48). A re-seed keeps the fixture's own repository rows so their ids —
+ * the numbers that appear in every URL — survive a restart. An unseed is the
+ * inverse of seeding and must leave nothing behind, or the next caller inherits
+ * three repositories it did not create.
+ */
+async function wipeWorkspace(
+  db: Database,
+  workspaceId: number,
+  { keepFixtureRepos = false }: { keepFixtureRepos?: boolean } = {},
+): Promise<void> {
   // Analysis/audit rows reference repos.
   await db.delete(read.findingEvents).where(eq(read.findingEvents.workspaceId, workspaceId));
   await db.delete(read.findings).where(eq(read.findings.workspaceId, workspaceId));
@@ -157,12 +174,71 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   await db.delete(facts.deployments).where(eq(facts.deployments.workspaceId, workspaceId));
   await db.delete(core.syncCursors).where(eq(core.syncCursors.workspaceId, workspaceId));
   await db.delete(core.identities).where(eq(core.identities.workspaceId, workspaceId));
-  await db.delete(core.repos).where(eq(core.repos.workspaceId, workspaceId));
+  // THE FIXTURE'S OWN REPOS SURVIVE THE WIPE (W16-48), so their ids do too.
+  //
+  // Deleting and re-inserting them gave every repository a new id on every
+  // boot, so a bookmarked demo URL — /repos/34565/hotspots — was a 404 after
+  // the next `pnpm dev`, and this seeder's own test claimed re-seeding was
+  // "deterministic + idempotent" while the one value that appears in URLs
+  // changed each time. Everything BELOW a repo is still deleted and rebuilt;
+  // only the row that owns the id is kept and updated in place.
+  //
+  // A repo's unique key is (workspace, connection, forge_repo_id), so keeping
+  // the repo means keeping ITS connection — and exactly one of them, chosen
+  // here rather than by a `limit 1` further down. Two connections in the
+  // workspace and an arbitrary pick is how the first cut produced a second set
+  // of repositories with new ids, which is the bug wearing a disguise.
+  //
+  // It cannot be identified by fingerprint either: DEMO MODE replaces the
+  // seeded connection with its own, pointed at the fake forge, and repoints the
+  // repos at it.
+  const keepConnection = keepFixtureRepos
+    ? ((
+        await db
+          .select({ id: core.repos.connectionId })
+          .from(core.repos)
+          .where(
+            and(
+              eq(core.repos.workspaceId, workspaceId),
+              inArray(core.repos.forgeRepoId, SEED_FORGE_REPO_IDS),
+            ),
+          )
+          .orderBy(core.repos.id)
+          .limit(1)
+      )[0]?.id ?? null)
+    : null;
+
+  // Anything NOT in the fixture goes, and so does a fixture repo hanging off a
+  // connection we are about to remove — leaving one would fail the connection
+  // delete below for a row nothing wanted to keep.
+  await db
+    .delete(core.repos)
+    .where(
+      and(
+        eq(core.repos.workspaceId, workspaceId),
+        keepConnection === null
+          ? undefined
+          : // Keep exactly (a fixture forge id) AND (the kept connection);
+            // delete the complement of that pair.
+            or(
+              notInArray(core.repos.forgeRepoId, SEED_FORGE_REPO_IDS),
+              ne(core.repos.connectionId, keepConnection),
+            ),
+      ),
+    );
   // Both reference forge_connections and must go before it. forge_etag is the
   // one that actually broke: it is written only when a forge returns an ETag,
   // so it stayed empty until the first real-GitHub run.
   await db.delete(core.forgeEtag).where(eq(core.forgeEtag.workspaceId, workspaceId));
   await db.delete(core.webhookDelivery).where(eq(core.webhookDelivery.workspaceId, workspaceId));
+  await db
+    .delete(core.forgeConnections)
+    .where(
+      and(
+        eq(core.forgeConnections.workspaceId, workspaceId),
+        keepConnection === null ? undefined : ne(core.forgeConnections.id, keepConnection),
+      ),
+    );
   // Saved views (W5-02). Workspace-scoped like everything above, and missed
   // until something finally created one: saved_views has an FK to users, so a
   // leftover view makes unseedWarehouse's user delete fail with a constraint
@@ -188,7 +264,11 @@ async function wipeWorkspace(db: Database, workspaceId: number): Promise<void> {
   // table needs a line here.
   await db.delete(read.reports).where(eq(read.reports.workspaceId, workspaceId));
   await db.delete(read.savedViews).where(eq(read.savedViews.workspaceId, workspaceId));
-  await db.delete(core.forgeConnections).where(eq(core.forgeConnections.workspaceId, workspaceId));
+  // Connections were deleted HERE as well as above. The guarded delete near the
+  // repos is the one that survives: this unconditional copy removed the very
+  // connection the kept repositories point at, so it threw the FK error the
+  // whole change exists to avoid — and it did so silently at first, because the
+  // guarded delete above matched nothing and looked innocent.
 }
 
 export async function seedWarehouse(
@@ -213,8 +293,8 @@ export async function seedWarehouse(
     .returning();
   const workspaceId = ws!.id;
   const secondWorkspaceId = ws2!.id;
-  await wipeWorkspace(db, workspaceId);
-  await wipeWorkspace(db, secondWorkspaceId);
+  await wipeWorkspace(db, workspaceId, { keepFixtureRepos: true });
+  await wipeWorkspace(db, secondWorkspaceId, { keepFixtureRepos: true });
 
   // --- users + membership (fixture is admin) ---
   // W4-10: the fixture user carries a PERSONA. A null persona is what opens the
@@ -238,7 +318,19 @@ export async function seedWarehouse(
       set: { role: 'admin' },
     });
 
-  const [conn] = await db
+  // REUSE whatever connection the surviving repos are attached to (W16-48).
+  // Not the one with the seed fingerprint: demo mode swaps that row for its
+  // own, and re-seeding onto a fresh connection would change the repos' unique
+  // key and hand them new ids — the exact thing this is here to prevent.
+  const [existingConn] = await db
+    .select({ id: core.forgeConnections.id })
+    .from(core.forgeConnections)
+    .where(eq(core.forgeConnections.workspaceId, workspaceId))
+    .limit(1);
+
+  const [insertedConn] = existingConn
+    ? [undefined]
+    : await db
     .insert(core.forgeConnections)
     .values({
       workspaceId,
@@ -247,11 +339,12 @@ export async function seedWarehouse(
       credentialCiphertext: Buffer.from('seed'),
       credentialIv: Buffer.from('iv-seed-1234567'),
       keyVersion: 1,
-      credentialFingerprint: 'seed:fp',
+      credentialFingerprint: SEED_CREDENTIAL_FINGERPRINT,
       status: 'active',
       createdBy: fixtureUser!.id,
     })
     .returning();
+  const conn = existingConn ?? insertedConn;
 
   // --- identities (incl. the fixture login + a bot) ---
   const identityIds = new Map<string, number>();
@@ -280,6 +373,8 @@ export async function seedWarehouse(
   let prCount = 0;
   for (let ri = 0; ri < REPO_NAMES.length; ri++) {
     const name = REPO_NAMES[ri]!;
+    // UPSERT on the natural key (W16-48): the row that owns the id is updated
+    // in place rather than replaced, so /repos/<id>/... survives a restart.
     const [repo] = await db
       .insert(core.repos)
       .values({
@@ -294,6 +389,16 @@ export async function seedWarehouse(
         syncStatus: 'live',
         tier2Auto: false,
         pushedAt: new Date(BASE + 40 * DAY - rng.int(0, 5) * DAY),
+      })
+      .onConflictDoUpdate({
+        target: [core.repos.workspaceId, core.repos.connectionId, core.repos.forgeRepoId],
+        set: {
+          org: 'acme',
+          name,
+          defaultBranch: 'main',
+          syncStatus: 'live',
+          pushedAt: new Date(BASE + 40 * DAY - rng.int(0, 5) * DAY),
+        },
       })
       .returning();
     const repoId = repo!.id;

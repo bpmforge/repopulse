@@ -342,6 +342,61 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
     }
   });
 
+  it('keeps each repository\'s id across a re-seed, so a demo URL survives (W16-48)', async () => {
+    // seedWarehouse wiped and re-inserted, so every repository got a new id on
+    // every boot: a bookmarked /repos/34565/hotspots was a 404 after the next
+    // `pnpm dev`. The suite next door already claimed re-seeding was
+    // "deterministic + idempotent" while the one value that appears in URLs
+    // changed each time.
+    const first = await seedWarehouse(db, { seed: 5 });
+    const second = await seedWarehouse(db, { seed: 5 });
+    expect(second.repoIds).toEqual(first.repoIds);
+
+    // A DIFFERENT seed still keeps the ids: the fixture's repositories are the
+    // same three repositories, whatever numbers get generated inside them.
+    const third = await seedWarehouse(db, { seed: 99 });
+    expect(third.repoIds).toEqual(first.repoIds);
+
+    // And the rows BELOW a repo were genuinely rebuilt, not left behind — the
+    // point is a stable id, not a skipped re-seed.
+    const commits = await db
+      .select({ id: facts.commits.id })
+      .from(facts.commits)
+      .where(eq(facts.commits.repoId, first.repoIds[0]!));
+    expect(commits.length).toBeGreaterThan(0);
+  });
+
+  it('still removes a repository that is NOT part of the fixture', async () => {
+    // The wipe spares the fixture's own repos by forge id. Anything else — a
+    // repository ingested from a real forge — must still go, or "seeded" stops
+    // meaning the same thing for every suite that counts rows.
+    const r = await seedWarehouse(db, { seed: 7 });
+    const [conn] = await db
+      .select({ id: core.forgeConnections.id })
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.workspaceId, r.workspaceId))
+      .limit(1);
+    await db.insert(core.repos).values({
+      workspaceId: r.workspaceId,
+      connectionId: conn!.id,
+      forgeRepoId: 'not-a-fixture-repo',
+      org: 'acme',
+      name: 'stray',
+      defaultBranch: 'main',
+      isPrivate: true,
+      isArchived: false,
+      syncStatus: 'live',
+      tier2Auto: false,
+    });
+
+    const after = await seedWarehouse(db, { seed: 7 });
+    const names = await db
+      .select({ forgeRepoId: core.repos.forgeRepoId })
+      .from(core.repos)
+      .where(eq(core.repos.workspaceId, after.workspaceId));
+    expect(names.map((n) => n.forgeRepoId)).not.toContain('not-a-fixture-repo');
+  });
+
   it('the second workspace is isolated (no repos leak from default)', async () => {
     const r = await seedWarehouse(db, { seed: 42 });
     const secondRepos = await db
