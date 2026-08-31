@@ -108,12 +108,33 @@ describe('app shell (__root) — W4-02', () => {
     expect(screen.getByTestId('rail-org-overview')).toHaveAttribute('aria-current', 'page');
   });
 
-  it('restores filter state from the URL (FR-WEB-2): ?window=90d&person=octocat', async () => {
+  it('restores filter state from the URL (FR-WEB-2): ?window=90d', async () => {
     renderAt('/?window=90d&person=octocat');
     const windowSelect = (await screen.findByTestId('filter-window')) as HTMLSelectElement;
-    const personInput = screen.getByTestId('filter-person') as HTMLInputElement;
     expect(windowSelect.value).toBe('90d');
+  });
+
+  it('offers only the filters the screen APPLIES (W16-50)', async () => {
+    // The org overview applies the window and nothing else: its nine widgets
+    // read five org-rollup endpoints with no repo_id, and it is already scoped
+    // to one person by nobody. A control that silently does nothing is worse
+    // than a missing one — which is what all three used to be, everywhere.
+    renderAt('/?window=90d&person=octocat');
+    expect(await screen.findByTestId('filter-window')).toBeInTheDocument();
+    expect(screen.queryByTestId('filter-person')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('filter-repos')).not.toBeInTheDocument();
+
+  });
+
+  it('shows a filter again on a screen that DOES apply it, with its value', async () => {
+    // The value rides in the URL while the control is hidden, so hiding it on
+    // one screen must not lose it for the next — the org PR list narrows by
+    // author, and that is where the same `?person=` becomes a control again.
+    renderAt('/pull-requests?person=octocat');
+    const personInput = (await screen.findByTestId('filter-person')) as HTMLInputElement;
     expect(personInput.value).toBe('octocat');
+    // …and the window, which that list does not apply, is not offered.
+    expect(screen.queryByTestId('filter-window')).not.toBeInTheDocument();
   });
 
   it('changing a filter serializes to the URL; nav links omit default filters', async () => {

@@ -18,7 +18,13 @@ function RepoList() {
     endpoint: '/org/health-tiles',
     query: { window: search.window },
   });
-  const items = data?.items ?? [];
+  // The repository picker narrows this list (W16-50). It is the same filter the
+  // topbar has always serialized into `?repos=` and no screen has ever read.
+  // Applied here rather than in the query because /org/health-tiles has no
+  // repo_id and the list is one row per repository — filtering three rows in
+  // the browser is not worth an API change.
+  const allItems = data?.items ?? [];
+  const items = search.repos ? allItems.filter((r) => String(r.id) === search.repos) : allItems;
 
   return (
     <WidgetFrame

@@ -96,9 +96,15 @@ function FindingsExplorer() {
   const [note, setNote] = useState('');
   const [triage, setTriage] = useState(false);
 
+  // The global repository filter, at last read by a screen (W16-50). The API
+  // has supported repo_id since W6-04; the topbar has serialized `?repos=`
+  // since W4-02; nothing joined them.
+  const repos = Route.useSearch().repos;
+
   const listDescriptor = {
     endpoint: '/findings',
     query: {
+      ...(repos ? { repo_id: repos } : {}),
       ...(dimension ? { dimension } : {}),
       ...(status ? { status } : {}),
       ...(severityMin ? { severity_min: severityMin } : {}),
@@ -256,7 +262,14 @@ function FindingsExplorer() {
         </label>
       </div>
 
-      <WidgetFrame title="Analysis quality" state="ready">
+      {/* ACROSS THE WORKSPACE, and it now says so (W16-50). The moment the
+          repository filter started working, this card read "3 findings total"
+          beside a list saying "No findings match these filters" — two numbers
+          about apparently the same thing, disagreeing. It is not filtered and
+          should not be: a false-positive RATE is a measure of the analysis, and
+          computing it over the three findings in one repository would be noise
+          reported as a quality signal. */}
+      <WidgetFrame title="Analysis quality (whole workspace)" state="ready">
         <div className="flex flex-wrap gap-6 text-sm" data-testid="fp-widget">
           <div>
             <p className="text-[28px] leading-none tabular-nums">
@@ -274,7 +287,7 @@ function FindingsExplorer() {
           </div>
           <div>
             <p className="text-[28px] leading-none tabular-nums">{stats?.total ?? 0}</p>
-            <p className="text-xs text-fg-muted">findings total</p>
+            <p className="text-xs text-fg-muted">findings total, all repositories</p>
           </div>
         </div>
       </WidgetFrame>

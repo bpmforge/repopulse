@@ -165,9 +165,14 @@ test('a finding can be LINKED to: opening one puts it in the URL (W16-16)', asyn
   await expect(page.getByTestId('finding-detail')).toBeVisible();
   // The URL now carries it — that is the whole feature.
   await expect(page).toHaveURL(new RegExp(`[?&]finding=${id}\\b`));
-  // ...and the global filter is still there, in the URL and on the control.
+  // ...and the global filter is still there IN THE URL, which is what makes the
+  // link carry it to the recipient. The window CONTROL is deliberately not
+  // rendered on this screen (W16-50): findings have no time dimension, and a
+  // window here would quietly hide the oldest findings — the ones that matter
+  // most. The value rides along regardless, so a screen that does apply it
+  // still gets it.
   await expect(page).toHaveURL(/[?&]window=90d\b/);
-  await expect(page.getByLabel('Time window')).toHaveValue('90d');
+  await expect(page.getByLabel('Time window')).toHaveCount(0);
   const link = page.url();
 
   // COLD. A fresh context is what the recipient of the link has: no click

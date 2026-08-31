@@ -1,4 +1,5 @@
 import { WINDOW_PRESETS, type GlobalSearch } from '../../api/urlState.js';
+import type { FilterScope } from '../../api/filterScope.js';
 
 // Global filters (UX §3.4): time window, repo set, person. Controlled — the
 // topbar wires `onChange` to router.navigate so every change serializes to the
@@ -15,6 +16,12 @@ export interface FilterBarProps {
   onChange: (patch: { window?: string; repos?: string | null; person?: string | null }) => void;
   repoOptions?: RepoOption[] | undefined;
   personOptions?: string[] | undefined;
+  /**
+   * Which filters this screen actually applies (W16-50). A control the screen
+   * ignores is not rendered — it used to be rendered and do nothing, which is
+   * the worse of the two.
+   */
+  scope?: FilterScope | undefined;
 }
 
 export function FilterBar({
@@ -22,9 +29,14 @@ export function FilterBar({
   onChange,
   repoOptions = [],
   personOptions = [],
+  scope = { window: true, repos: true, person: true },
 }: FilterBarProps) {
   return (
     <div className="flex items-center gap-2" data-testid="filter-bar">
+      {/* Nothing at all is a legitimate result: Reports and Views carry their
+          own scope, and an empty bar says so more honestly than three dead
+          controls did. */}
+      {scope.window && (
       <label className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="sr-only">Time window</span>
         <select
@@ -46,7 +58,9 @@ export function FilterBar({
           )}
         </select>
       </label>
+      )}
 
+      {scope.repos && (
       <label className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="sr-only">Repositories</span>
         <select
@@ -64,7 +78,9 @@ export function FilterBar({
           ))}
         </select>
       </label>
+      )}
 
+      {scope.person && (
       <label className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="sr-only">Person</span>
         <input
@@ -82,6 +98,7 @@ export function FilterBar({
           ))}
         </datalist>
       </label>
+      )}
     </div>
   );
 }
