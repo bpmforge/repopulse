@@ -9,9 +9,15 @@ export const savedViews = pgTable(
     workspaceId: bigint('workspace_id', { mode: 'number' })
       .notNull()
       .references(() => workspaces.id),
+    // CASCADE (W16-59), and NOT set null, because ownership here gates
+    // visibility AND editing: the list query filters by owner and every
+    // mutation is owner-only. A null owner would leave a view that appears in
+    // nobody's list, that nobody can edit or delete, and that is readable only
+    // if it happened to be shared — worse than removing it. A view is a layout,
+    // and the templates that made it are still there.
     ownerUserId: bigint('owner_user_id', { mode: 'number' })
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     // repo filter, window, tile layout
     config: jsonb('config').$type<Record<string, unknown>>().notNull(),

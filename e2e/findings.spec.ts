@@ -56,10 +56,13 @@ test('filter → open → acknowledge, with the note the API insists on', async 
   await page.getByTestId('finding-note').fill('Reviewed with the payments team.');
   await page.getByTestId('finding-confirm').click();
 
-  // The transition shows up in the history with an actor, distinguishing it
-  // from an automatic one.
+  // The transition shows up in the history NAMED, which distinguishes it both
+  // from an automatic one and — since W16-59 made a removed account null the
+  // actor id — from a person whose account has since gone. The login is stored
+  // beside the id at write time precisely so the name outlives the account.
   await expect(page.getByTestId('finding-history')).toContainText(/confirmed/);
-  await expect(page.getByTestId('finding-history')).toContainText(/by a person/);
+  await expect(page.getByTestId('finding-history')).toContainText(/fixture-dev/);
+  await expect(page.getByTestId('finding-history')).not.toContainText(/automatic/);
   await expect(page.getByTestId(`finding-${id}`)).toContainText(/confirmed/);
 });
 

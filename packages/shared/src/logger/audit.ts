@@ -30,6 +30,13 @@ export type AuditEvent =
   // (any member can bulk-read the org vuln map) and T-31 (untraceable share)
   // both lean on this stream to answer "who granted that access, and when".
   | 'admin.role.changed'
+  // W16-59. Removing a member is the most destructive thing an admin can do
+  // from the UI: it ends a person's access and takes their saved views with it,
+  // while deliberately LEAVING their reports, plans, agreements and triage
+  // history behind. The target's login is recorded because after the delete
+  // there is no row to resolve the id against — the audit entry is the only
+  // place the name survives.
+  | 'admin.member.removed'
   // NOT on the SC-22 list. Replaying a dead-lettered job re-runs work against
   // the forge on an operator's say-so, which is a privileged mutation with no
   // other record: the job_failure row gets a replayed_at stamp and nothing

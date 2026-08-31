@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Writable } from 'node:stream';
 import pino from 'pino';
@@ -259,14 +259,19 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
 
   it('refuses to demote the LAST admin — that would lock the workspace out', async () => {
     const cookie = await adminSession();
-    // Make the caller the only admin.
+    // Make the caller the only admin — EVERY other admin, not just this
+    // suite's own member. The warehouse seeder also makes its fixture user an
+    // admin of this workspace, so demoting one known id left two admins and
+    // the refusal never fired; the test then passed or failed depending on
+    // whether the seeder had run recently, which is not a property a test
+    // should have.
     await db
       .update(core.workspaceMembers)
       .set({ role: 'member' })
       .where(
         and(
           eq(core.workspaceMembers.workspaceId, workspaceId),
-          eq(core.workspaceMembers.userId, memberUserId),
+          ne(core.workspaceMembers.userId, adminUserId),
         ),
       );
 
@@ -289,6 +294,112 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
         ),
       );
     expect(still!.role, 'the demotion must not have partially applied').toBe('admin');
+  });
+
+  // W16-59. Until the foreign-key migration that preceded this, a member who
+  // had used RepoPulse could not be removed at all: every users FK was NO
+  // ACTION, so generating one report or triaging one finding made the account
+  // permanently undeletable. These pin the guards on the endpoint that now
+  // makes the migration something the product actually offers.
+  it('removes a member', async () => {
+    const cookie = await adminSession();
+    // Its OWN throwaway account, not the shared fixture member: this test is
+    // the one that destroys what it touches, and the suite's other tests need
+    // that member to still exist.
+    const [doomed] = await db
+      .insert(core.users)
+      .values({
+        authProvider: 'github',
+        authSubject: 'w16-59-doomed',
+        forgeUserId: 'w16-59-doomed',
+        login: 'w16-59-doomed',
+      })
+      .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w16-59-doomed' } })
+      .returning();
+    await db
+      .insert(core.workspaceMembers)
+      .values({ workspaceId, userId: doomed!.id, role: 'member' })
+      .onConflictDoUpdate({
+        target: [core.workspaceMembers.workspaceId, core.workspaceMembers.userId],
+        set: { role: 'member' },
+      });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/members/${doomed!.id}`,
+      cookies: { repopulse_sid: cookie },
+      headers: CSRF,
+    });
+    expect(res.statusCode).toBe(200);
+
+    const left = await db
+      .select({ id: core.users.id })
+      .from(core.users)
+      .where(eq(core.users.id, doomed!.id));
+    expect(left, 'the account is gone').toEqual([]);
+    // And the membership went with it — the one place a CASCADE is right.
+    const membership = await db
+      .select({ userId: core.workspaceMembers.userId })
+      .from(core.workspaceMembers)
+      .where(eq(core.workspaceMembers.userId, doomed!.id));
+    expect(membership).toEqual([]);
+  });
+
+  it('refuses to remove the LAST admin', async () => {
+    const cookie = await adminSession();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/members/${adminUserId}`,
+      cookies: { repopulse_sid: cookie },
+      headers: CSRF,
+    });
+    // 409 whether it is the last-admin rule or the self-removal rule that
+    // catches it — both are STATE refusals of a well-formed request.
+    expect(res.statusCode).toBe(409);
+    const [still] = await db
+      .select({ id: core.users.id })
+      .from(core.users)
+      .where(eq(core.users.id, adminUserId));
+    expect(still, 'the refusal must not have partially applied').toBeDefined();
+  });
+
+  it('refuses to remove YOURSELF, even with another admin present', async () => {
+    // Deleting your own account ends the session mid-request and leaves you
+    // staring at a 401 from a screen you were just using. An admin who wants to
+    // leave should be removed by another admin, which is also the audit trail
+    // you want for it.
+    const cookie = await adminSession();
+    await db
+      .update(core.workspaceMembers)
+      .set({ role: 'admin' })
+      .where(
+        and(
+          eq(core.workspaceMembers.workspaceId, workspaceId),
+          eq(core.workspaceMembers.userId, memberUserId),
+        ),
+      );
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/members/${adminUserId}`,
+      cookies: { repopulse_sid: cookie },
+      headers: CSRF,
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().title).toMatch(/your own account/i);
+
+    // Put the role back. A test that promotes a shared fixture member and
+    // leaves it promoted breaks the ones after it — which is exactly what this
+    // one did before the restore was added.
+    await db
+      .update(core.workspaceMembers)
+      .set({ role: 'member' })
+      .where(
+        and(
+          eq(core.workspaceMembers.workspaceId, workspaceId),
+          eq(core.workspaceMembers.userId, memberUserId),
+        ),
+      );
   });
 
   it('a member cannot reach the admin surface', async () => {

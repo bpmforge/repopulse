@@ -95,10 +95,13 @@ export function FindingDetail({
               <li key={i}>
                 <span className="text-fg-muted">{e.at.slice(0, 10)}</span> {e.from_status ?? 'new'} →{' '}
                 {e.to_status}{' '}
-                {/* Automatic transitions are labelled: an analysis pass
-                    reopening a finding must not look like a colleague doing it. */}
+                {/* THREE STATES (W16-59). An analysis pass reopening a finding
+                    must not look like a colleague doing it — and now that a
+                    removed account nulls the actor id, a departed colleague
+                    must not look automatic either. The login kept beside the id
+                    is what separates them, and a name outlives the account. */}
                 <span className="text-fg-faint">
-                  ({e.automatic ? 'automatic' : 'by a person'}
+                  ({e.automatic ? 'automatic' : (e.actor_login ?? 'by a person')}
                   {e.reason ? `: ${e.reason}` : ''})
                 </span>
               </li>

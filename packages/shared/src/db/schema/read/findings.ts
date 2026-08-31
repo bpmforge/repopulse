@@ -63,7 +63,9 @@ export const findings = pgTable(
     dedupKey: text('dedup_key').notNull(),
     status: text('status').notNull(),
     dismissReason: text('dismiss_reason'),
-    statusChangedBy: bigint('status_changed_by', { mode: 'number' }).references(() => users.id),
+    statusChangedBy: bigint('status_changed_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     statusChangedAt: timestamp('status_changed_at', { withTimezone: true }),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),

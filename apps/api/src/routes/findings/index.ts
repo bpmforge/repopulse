@@ -4,6 +4,7 @@ import { auditLog, core, facts, read, security, type Database } from '@repopulse
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
 import { blobUrl, webBaseUrl, type ForgeKind } from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
+import { actorLoginFor } from '../../lib/actor.js';
 import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
 
 // Findings API (W6-04, API_DESIGN.md §2, FR-API-3 / FR-INSIGHTS-1).
@@ -418,10 +419,15 @@ export default async function findingsRoutes(
       items: events.map((e) => ({
         from_status: e.fromStatus,
         to_status: e.toStatus,
-        // null actor = the analysis pass. Without the distinction an automatic
-        // reopen is indistinguishable from a colleague reopening it.
+        // THREE STATES, not two (W16-59). A null actor used to mean exactly one
+        // thing — the analysis pass acting by itself — and now that the FK is
+        // ON DELETE SET NULL it could also mean a person whose account has been
+        // removed. The denormalised login is what tells them apart, so
+        // `automatic` requires BOTH to be absent; a row with a login and no id
+        // is a person, and the screen says so.
         actor: e.actor,
-        automatic: e.actor === null,
+        actor_login: e.actorLogin,
+        automatic: e.actor === null && e.actorLogin === null,
         reason: e.reason,
         at: e.at.toISOString(),
       })),
@@ -501,12 +507,16 @@ export default async function findingsRoutes(
       })
       .where(eq(read.findings.id, id));
 
+    // The login travels WITH the id (W16-59), so removing the account leaves
+    // "a person whose account is gone" rather than "the analysis pass did it".
+    const actorLogin = await actorLoginFor(db, userId);
     await db.insert(read.findingEvents).values({
       workspaceId,
       findingId: id,
       fromStatus: finding.status,
       toStatus: next,
       actor: userId,
+      actorLogin,
       reason: dismissReason ? `${dismissReason}: ${note}` : note,
     });
 
@@ -537,6 +547,9 @@ export default async function findingsRoutes(
       const ids = Array.isArray(request.body?.ids)
         ? (request.body.ids as unknown[]).map(Number).filter(Number.isInteger)
         : [];
+      // Resolved ONCE for the whole batch — it is the same person for every row
+      // and a lookup per finding would be a query per finding.
+      const bulkActorLogin = await actorLoginFor(db, userId);
       const next = request.body?.status;
       const note = typeof request.body?.note === 'string' ? request.body.note.trim() : '';
       if (ids.length === 0) return fail(request, reply, 400, 'No findings selected');
@@ -572,6 +585,7 @@ export default async function findingsRoutes(
           fromStatus: row.status,
           toStatus: next,
           actor: userId,
+          actorLogin: bulkActorLogin,
           reason: note,
         });
         applied.push(row.id);

@@ -42,9 +42,12 @@ export const forgeConnections = pgTable(
     // No enum values enumerated in DATABASE.md for this field (unlike
     // repos.sync_status) — left as plain text, not CHECK-constrained.
     status: text('status').notNull(),
-    createdBy: bigint('created_by', { mode: 'number' })
-      .notNull()
-      .references(() => users.id),
+    // SET NULL, emphatically NOT cascade (W16-59): cascading here would take
+    // `repos` and the entire warehouse with it. A connection is shared
+    // infrastructure that outlives whoever pasted the token.
+    createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

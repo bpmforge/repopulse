@@ -26,9 +26,11 @@ export const reports = pgTable(
     // Why a generation failed, kept ON the row: a failed report that says
     // nothing sends its owner to the worker logs, and REPORTS.md §3 lists it.
     error: text('error'),
-    generatedBy: bigint('generated_by', { mode: 'number' })
-      .notNull()
-      .references(() => users.id),
+    // SET NULL (W16-59). A report is evidence in a conversation about
+    // someone's team; removing an account must not remove the report.
+    generatedBy: bigint('generated_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

@@ -201,6 +201,110 @@ export default async function adminRoutes(
     },
   );
 
+  /**
+   * DELETE /admin/members/:userId — remove a person from the workspace (W16-59).
+   *
+   * Until this existed, a member who had used RepoPulse could not be removed at
+   * all: every one of the seventeen foreign keys into `users` was NO ACTION, so
+   * generating one report or triaging one finding made the account permanently
+   * undeletable. The migration that fixed those is what makes this endpoint
+   * possible, and this endpoint is what stops that migration being a schema
+   * capability nothing calls.
+   *
+   * What survives is deliberate, not incidental. Reports, plans, agreements,
+   * findings and their history all outlive the account — the work was done and
+   * removing a login does not un-do it — with the author's login kept beside
+   * the id on history rows so "who" survives too. Saved views go WITH the
+   * person, because ownership there gates visibility and editing: an unowned
+   * view would sit in nobody's list, editable by nobody.
+   */
+  app.delete<{ Params: { userId: string } }>(
+    '/admin/members/:userId',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const callerId = request.session.get('userId');
+      if (workspaceId === undefined || callerId === undefined) {
+        return problem(request, reply, 401, 'No active session');
+      }
+
+      const userId = Number(request.params.userId);
+      if (!Number.isFinite(userId)) return problem(request, reply, 400, 'Invalid user id');
+
+      // Deleting YOURSELF is refused outright rather than guarded by the
+      // last-admin rule. Even with other admins present it ends the session
+      // mid-request and leaves the caller staring at a 401 from a screen they
+      // were just using; an admin who wants to leave should be removed by
+      // another admin, which is also the audit trail you want for it.
+      if (userId === callerId) {
+        return problem(
+          request,
+          reply,
+          409,
+          'Cannot remove your own account',
+          'Ask another admin to remove it, so the action has someone behind it.',
+        );
+      }
+
+      const [member] = await opts.db
+        .select({ role: core.workspaceMembers.role })
+        .from(core.workspaceMembers)
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, workspaceId),
+            eq(core.workspaceMembers.userId, userId),
+          ),
+        )
+        .limit(1);
+      // Tenancy (Law 5): a user in ANOTHER workspace is a 404, not a 403 — a
+      // 403 would confirm the id exists somewhere.
+      if (!member) return problem(request, reply, 404, 'Member not found');
+
+      if (member.role === 'admin') {
+        const admins = await opts.db
+          .select({ userId: core.workspaceMembers.userId })
+          .from(core.workspaceMembers)
+          .where(
+            and(
+              eq(core.workspaceMembers.workspaceId, workspaceId),
+              eq(core.workspaceMembers.role, 'admin'),
+            ),
+          );
+        if (admins.length <= 1) {
+          return problem(
+            request,
+            reply,
+            409,
+            'Cannot remove the last admin',
+            'Promote another member to admin first, or the workspace would have nobody who can administer it.',
+          );
+        }
+      }
+
+      // The login is read BEFORE the delete, because the audit entry is about a
+      // row that will not exist by the time it is written.
+      const [target] = await opts.db
+        .select({ login: core.users.login })
+        .from(core.users)
+        .where(eq(core.users.id, userId))
+        .limit(1);
+
+      await opts.db.delete(core.users).where(eq(core.users.id, userId));
+
+      auditLog(request.log, {
+        event: 'admin.member.removed',
+        actorUserId: callerId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        targetUserId: userId,
+        targetLogin: target?.login ?? null,
+      });
+
+      return reply.send({ user_id: userId, removed: true });
+    },
+  );
+
   /** GET /admin/dlq — jobs that exhausted their retries (NFR-11). */
   app.get<{ Querystring: { include_replayed?: string } }>(
     '/admin/dlq',

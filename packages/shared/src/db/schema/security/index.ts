@@ -31,7 +31,9 @@ export const repoScannerConfig = pgTable(
      */
     enabled: boolean('enabled').notNull(),
     config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
-    updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id),
+    updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -169,7 +171,9 @@ export const vexStatements = pgTable(
     statusNotes: text('status_notes'),
     /** Reachability tier, import refs, finding id: what the author was shown. */
     evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
-    authorUserId: bigint('author_user_id', { mode: 'number' }).references(() => users.id),
+    authorUserId: bigint('author_user_id', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -233,7 +237,9 @@ export const ruleRegistry = pgTable(
     fpRate: text('fp_rate'),
     /** True once trailing FP passed the demotion threshold (§8.2). */
     demotionCandidate: boolean('demotion_candidate').notNull().default(false),
-    updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id),
+    updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
