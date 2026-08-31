@@ -16,6 +16,11 @@ export const Route = createFileRoute('/plans/')({ component: PlansPage });
 const LIST = { endpoint: '/plans' } as const;
 
 function PlansPage() {
+  // THE WINDOW CONTROL IS RIGHT ABOVE THE GENERATE BUTTON (W16-50), and the
+  // button was hardcoded to 30d — so picking 90d and pressing Generate produced
+  // a 30-day plan labelled 30d: the control moved nothing and the result
+  // quietly disagreed with it.
+  const search = Route.useSearch();
   const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Plan[] }>(LIST);
 
   // Metric NAMES for the exit criteria and evidence lines (W16-53). The route
@@ -45,7 +50,7 @@ function PlansPage() {
           className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="generate-plan"
           disabled={generate.isPending}
-          onClick={() => generate.mutate({ window: '30d' })}
+          onClick={() => generate.mutate({ window: search.window })}
         >
           Generate plan
         </button>

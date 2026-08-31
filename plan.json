@@ -6710,7 +6710,7 @@
       "stories": [],
       "depends_on": [],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/web/src/**",
         "apps/api/src/routes/prs/**",
@@ -6728,7 +6728,11 @@
         "TWO separate defects that hide each other. (1) __root.tsx renders <Topbar value onChange /> and never passes repoOptions or personOptions, though FilterBar accepts both and Topbar forwards both — so the repository dropdown contains only 'All repos' and can never be set, and the person box has no suggestions. The shipped-with-no-caller pattern again: the component works, nothing supplies it.",
         "(2) Even set, nothing would happen: `?repos=` and `?person=` are serialized by urlState and faithfully preserved across every navigation, and NO screen reads either one. A control that silently does nothing is worse than a missing one, and it is the opposite of this codebase's own rule that nothing on screen claims what it has not earned.",
         "Not fixed mid-walk because it is cross-cutting rather than one screen: honouring `?repos=` means Org Overview, Pull Requests, Findings and Reports, and the org PR list has no repo_id filter in its API at all. Fixing one screen would deepen the inconsistency rather than reduce it.",
-        "There is also a duplicate to resolve, not just a gap: /pull-requests has its OWN Author input beside the global person box. One of them works. Whichever survives, the screen must not offer both."
+        "There is also a duplicate to resolve, not just a gap: /pull-requests has its OWN Author input beside the global person box. One of them works. Whichever survives, the screen must not offer both.",
+        "DONE. Two halves, because the honest fix is both: the filters that are OFFERED now work, and the ones a screen cannot honour are no longer rendered. The topbar had shown all three everywhere — and `window` turned out to be decorative on half the product too, so the audit was wider than the ticket said.",
+        "Offered and working: the repository picker on /repos (filters the list), /pull-requests (new repo_id on the org PR API) and /findings (repo_id was supported since W6-04 and nothing sent it); the person filter on /pull-requests, whose own duplicate Author box is GONE rather than kept in sync; and the window on /plans, whose Generate button was hardcoded to 30d while the control sat directly above it — picking 90d produced a 30-day plan labelled 30d.",
+        "Not offered, deliberately: the org overview (nine widgets over five org-rollup endpoints with no repo_id — the choice was five API changes or a control that narrows three and ignores six, and every health tile already links to the repo); a repository's own screens (a picker there could contradict the page you are on); My Focus (already one person: you); Reports and Views (each carries its own scope); Admin. An unrecognised path gets NOTHING, because defaulting the other way is how all three came to be offered everywhere.",
+        "Found while verifying: the moment the repo filter worked, the Findings explorer read '3 findings total' beside 'No findings match these filters'. The stats card is workspace-wide and should stay that way — a false-positive RATE over the three findings in one repository is noise reported as a quality signal — so it now says which it is."
       ]
     },
     {

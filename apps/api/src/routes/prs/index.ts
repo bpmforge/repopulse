@@ -48,6 +48,10 @@ export const SIZE_BUCKET_BOUNDS: Record<string, { min: number; max: number | nul
 };
 
 const orgListQuery = z.object({
+  // The GLOBAL repository filter (W16-50). The topbar has serialized `?repos=`
+  // since W4-02 and no screen read it; this list is the one where narrowing to
+  // a repository is the obvious thing to want, and it had no way to express it.
+  repo_id: z.coerce.number().int().positive().optional(),
   state: z.enum(['open', 'closed', 'merged']).optional(),
   stale: z.coerce.boolean().optional(),
   unreviewed: z.coerce.boolean().optional(),
@@ -264,6 +268,7 @@ export default async function prsRoutes(
     // within the tenant; none can widen past it.
     const conds = [eq(facts.pullRequests.workspaceId, workspaceId)];
 
+    if (q.repo_id) conds.push(eq(facts.pullRequests.repoId, q.repo_id));
     if (q.state) conds.push(eq(facts.pullRequests.state, q.state));
     if (q.author) conds.push(eq(core.identities.forgeLogin, q.author));
 

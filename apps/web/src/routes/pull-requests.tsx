@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { WidgetFrame, frameState } from '../components/index.js';
@@ -40,7 +40,6 @@ function PullRequestsIndex() {
 
   const [state, setState] = useState('');
   const [size, setSize] = useState('');
-  const [author, setAuthor] = useState('');
   const [flags, setFlags] = useState<{ stale: boolean; unreviewed: boolean }>({
     stale: false,
     unreviewed: false,
@@ -49,13 +48,24 @@ function PullRequestsIndex() {
   // the page. An infinite-append list here would keep growing while the filters
   // above it changed, so the rows on screen would no longer all match them.
   const [cursor, setCursor] = useState<string | null>(null);
+  // A cursor from the previous filter set means nothing. The local controls
+  // reset it through applied(); the GLOBAL ones change in the URL without
+  // passing through this component, so they reset it here.
+  useEffect(() => {
+    setCursor(null);
+  }, [search.repos, search.person]);
 
+  // REPOSITORY AND PERSON COME FROM THE TOPBAR (W16-50). This screen used to
+  // carry its own Author box beside the global person filter — two controls for
+  // one question, of which only the local one worked. The global pair now
+  // narrows this list, and the duplicate is gone rather than kept in sync.
   const { data, isLoading, isError, error, refetch } = useApiQuery<OrgPrPage>({
     endpoint: '/prs',
     query: {
+      ...(search.repos ? { repo_id: search.repos } : {}),
+      ...(search.person ? { author: search.person } : {}),
       ...(state ? { state } : {}),
       ...(size ? { size_bucket: size } : {}),
-      ...(author.trim() ? { author: author.trim() } : {}),
       ...(flags.stale ? { stale: 'true' } : {}),
       ...(flags.unreviewed ? { unreviewed: 'true' } : {}),
       ...(cursor ? { cursor } : {}),
@@ -104,16 +114,6 @@ function PullRequestsIndex() {
               </option>
             ))}
           </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          Author
-          <input
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
-            data-testid="pr-filter-author"
-            value={author}
-            placeholder="login"
-            onChange={(e) => applied(setAuthor)(e.target.value)}
-          />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-fg-muted">
           <input

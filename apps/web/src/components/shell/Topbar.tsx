@@ -12,7 +12,7 @@ export interface TopbarProps extends FilterBarProps {
   actions?: ReactNode;
 }
 
-export function Topbar({ value, onChange, repoOptions, personOptions, actions }: TopbarProps) {
+export function Topbar({ value, onChange, repoOptions, personOptions, scope, actions }: TopbarProps) {
   const sseConnection = useUiStore((s) => s.sseConnection);
   return (
     <header
@@ -24,6 +24,7 @@ export function Topbar({ value, onChange, repoOptions, personOptions, actions }:
         onChange={onChange}
         repoOptions={repoOptions}
         personOptions={personOptions}
+        scope={scope}
       />
       <div className="flex items-center gap-3">
         {actions}

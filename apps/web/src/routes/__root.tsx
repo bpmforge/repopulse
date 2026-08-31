@@ -21,6 +21,7 @@ import '../widgets/registerAll.js';
 import { useUiStore } from '../components/store/uiStore.js';
 import { useSyncStream } from '../sse/useSyncStream.js';
 import { useApiQuery, useSession } from '../api/useApiQuery.js';
+import { filterScopeFor } from '../api/filterScope.js';
 import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
 import { SignedOut } from '../widgets/auth/SignedOut.js';
 import { ForgeLinkBanner } from '../widgets/auth/ForgeLinkBanner.js';
@@ -249,6 +250,22 @@ function AppShell() {
   const railBadges =
     reviewQueue === undefined ? {} : { '/pull-requests': reviewQueue.items.length };
 
+  // WHICH FILTERS THIS SCREEN APPLIES, and the options for the one that needs
+  // them (W16-50). FilterBar has accepted `repoOptions` since it was written
+  // and Topbar has forwarded them; nothing ever supplied any, so the repository
+  // picker contained only "All repos" and could never be set. Fetched only
+  // where the picker is actually shown — react-query serves the /repos screen
+  // from the same cache entry.
+  const scope = filterScopeFor(pathname);
+  const { data: repoList } = useApiQuery<{ items: { id: number; org: string; name: string }[] }>(
+    { endpoint: '/repos', query: { window: search.window } },
+    { enabled: scope.repos },
+  );
+  const repoOptions = (repoList?.items ?? []).map((r) => ({
+    id: String(r.id),
+    label: `${r.org}/${r.name}`,
+  }));
+
   const onFilterChange = (patch: {
     window?: string;
     repos?: string | null;
@@ -275,7 +292,7 @@ function AppShell() {
         <ForgeLinkBanner />
         {/* Global: ⌘K works from every screen (UX_SPEC §3.3). */}
         <CommandPalette />
-        <Topbar value={search} onChange={onFilterChange} />
+        <Topbar value={search} onChange={onFilterChange} scope={scope} repoOptions={repoOptions} />
         <Breadcrumb crumbs={deriveCrumbs(pathname, entityCrumb)} search={preservedSearch} />
         <main className="min-h-0 flex-1 overflow-auto p-4" data-testid="main">
           <Outlet />
