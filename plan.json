@@ -6959,7 +6959,7 @@
       "module": "shared",
       "stories": [],
       "depends_on": [],
-      "points": 5,
+      "points": 13,
       "status": "todo",
       "write_scope": [
         "packages/shared/src/db/**",
@@ -6975,7 +6975,13 @@
         "Surfaced underneath W16-58, and larger than it. SEVENTEEN tables reference `users` and every one of them is NO ACTION: identities, findings.status_changed_by, finding_events.actor, reports.generated_by, saved_views.owner_user_id, egress_audit.initiator_user_id, improvement_plans.created_by, plan_items.status_changed_by, plan_item_events.actor_user_id, agreements.created_by, file_intents.created_by, repo_scanner_config.updated_by, vex_statements.author_user_id, rule_registry.updated_by, llm_providers.created_by, forge_connections.created_by, workspace_members.user_id.",
         "So deleting a user who has ever generated a report, saved a view, accepted a plan item or triaged a finding is impossible — the delete throws. Admin → Members offers only a role change today, which is why nobody has hit it in the product; offboarding is a normal thing an installation will need.",
         "The right shape is ON DELETE SET NULL on the AUTHORSHIP columns (which means making the NOT NULL ones nullable) and a rendered 'account removed' where a name would be — an agreement outlives its author, and an egress audit row especially must not be deletable by removing a login. workspace_members is the one that genuinely cascades.",
-        "Deliberately NOT smuggled into W16-58 as a migration: it changes the meaning of every audit column and deserves its own review."
+        "Deliberately NOT smuggled into W16-58 as a migration: it changes the meaning of every audit column and deserves its own review.",
+        "DESIGN INVESTIGATION 2026-08-31, before writing any migration — it changed the shape of the ticket three times, so the next attempt should start here rather than from the schema.",
+        "(1) AS FILED THIS WAS A SCHEMA CAPABILITY WITH NO CALLER — this repo's commonest defect, fixed five times in the W16 walk. Admin → Members offers only 'Make member'; nothing deletes a user anywhere. The ticket is three things or it is not done: the migration, a Remove control that actually deletes, and the display handling wherever a name is now absent.",
+        "(2) SET NULL IS WRONG FOR finding_events.actor. That column is ALREADY nullable and null already MEANS something: `automatic: e.actor === null` — a null actor is the analysis pass acting by itself. Nulling a departed human's triage decisions would silently reclassify them as automatic, which is a worse lie than blocking the delete. Audit and history rows need a denormalized login kept beside the FK so the record survives the account: finding_events.actor, plan_item_events.actor_user_id and egress_audit.initiator_user_id are all in this class. An egress row whose initiator is null records that code left the network and not who sent it.",
+        "(3) SET NULL IS ALSO WRONG FOR saved_views.owner_user_id, for a different reason: ownership GATES VISIBILITY AND EDITING. The list query filters by owner and every mutation is owner-only (403 otherwise), so a null owner leaves a view that appears in nobody's list, that nobody can edit or delete, and that is readable only if it happened to be shared. CASCADE is right there — a saved view is a layout and the templates exist — but the confirm dialog has to say how many views go with the account, including any shared with the workspace.",
+        "(4) The rest split as: workspace_members.user_id CASCADE (a membership without a member is not a row). forge_connections.created_by SET NULL and NOT cascade — cascading would take repos and the entire warehouse with it; a connection is shared infrastructure that outlives whoever pasted the token. reports.generated_by, improvement_plans.created_by, agreements.created_by, file_intents.created_by, llm_providers.created_by, repo_scanner_config.updated_by, rule_registry.updated_by, vex_statements.author_user_id, findings.status_changed_by, plan_items.status_changed_by, identities.user_id: SET NULL, with 'account removed' rendered where a name would be. vex already leftJoins users, so it tolerates this today.",
+        "(5) CONSEQUENCE TO LAND IN THE SAME TICKET: once the FKs are SET NULL/CASCADE, W16-58's OWNERSHIP array and its plan-chain pass are dead code, and its schema-coverage guard defends a list that no longer needs to exist. Collapse the helper to `delete from users` and repoint that guard at the new invariant — every users FK is SET NULL or CASCADE — or the repo carries two mechanisms for one thing, one of which has already bitten once."
       ]
     }
   ]
