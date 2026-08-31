@@ -73,6 +73,17 @@ export interface Finding {
   chain_id?: string | null;
   scan_run_id?: number | null;
   kev?: boolean;
+  /**
+   * Where to open this in the forge (W16-41), or null when there is nothing
+   * honest to link to — a repository-level finding has no file, and a
+   * connection with no recorded base URL has no instance to point at.
+   *
+   * `ref_kind` is carried because it changes what the link MEANS: pinned to
+   * the scan's commit it shows the code as it was when the finding was raised;
+   * on the default branch it shows whatever is there now, which for a line
+   * number is a different claim.
+   */
+  forge?: { url: string; ref_kind: 'commit' | 'branch' } | null;
 }
 
 /** Paired glyph + word — a badge that relies on colour says nothing in print. */

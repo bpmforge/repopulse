@@ -6460,7 +6460,7 @@
       "stories": [],
       "depends_on": [],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "write_scope": [
         "apps/web/src/widgets/findings/**",
         "apps/web/src/routes/findings/**",
@@ -6475,7 +6475,10 @@
       "notes": [
         "Found in the 2026-08-29 UAT walk. The detail panel renders 'src/service.ts:15–18' as PLAIN TEXT. For a triage tool whose whole workflow is 'look at this one', the next action after reading a finding is opening the code — and there is no way to do it from the product.",
         "The pieces exist: the finding carries file, line_range and scan_run_id; the scan_run carries commit_sha; and forge_connections carries the base URL and provider kind. A GitHub blob URL is base + /org/repo/blob/{sha}/{file}#L{start}-L{end}, and Gitea's differs, so this belongs behind the ForgeProvider rather than string-built in the web app.",
-        "Only for findings that HAVE a file: a repository-level finding (test gap, ownership) has nothing to link to, and W16-40 already gives those rows the words 'whole repository' rather than a fake location."
+        "Only for findings that HAVE a file: a repository-level finding (test gap, ownership) has nothing to link to, and W16-40 already gives those rows the words 'whole repository' rather than a fake location.",
+        "DONE. A pure blobUrl() in packages/forge (no network, no CallCtx, no budget — string construction, so Law 7 is untouched) plus a `forge` link on the finding payload, rendered as the location itself in the detail panel. Every path form was VERIFIED against a live instance rather than recalled: github /blob/{ref}/{path} (GitHub's own permalink docs, plus a 200 on a real blob URL), gitea /src/commit/{sha}/ and /src/branch/{branch}/ (200 on gitea.com), gitlab /-/blob/{ref}/ (200 on gitlab.com). The #L anchor is a browser fragment, never sent to the server, so a wrong one degrades to 'no highlight' and can never 404 — the path was the part that had to be right.",
+        "Pinned to the SCAN'S COMMIT where there is one, so the link shows the code as it was when the finding was raised — line 15 moves, and a link to today's line 15 quietly points at something else. Where there is none (a Tier-2 analysis run records no sha) it falls back to the default branch and SAYS so in a sentence, rather than implying a precision it does not have.",
+        "THE E2E CAUGHT A REAL BUG the unit tests could not: the first cut returned no link when base_url was NULL, but null is not 'unknown' — for the hosted forges it means the public instance, exactly as the provider clients already read it. And the stored base is the API host, not the site: api.github.com serves the API while github.com serves the file, and Enterprise stores https://HOST/api/v3 (verified in GitHub's Enterprise Server REST quickstart). webBaseUrl() resolves that per kind. Gitea keeps no default, because it is self-hosted by definition and a guessed host would 404."
       ]
     },
     {
