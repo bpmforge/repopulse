@@ -7307,10 +7307,14 @@
         "Existing setup remains idempotent"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-09 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Only display OAuth providers the backend reports available. Do not persist secrets in browser storage."
+        "Only display OAuth providers the backend reports available. Do not persist secrets in browser storage.",
+        "DONE 2026-09-08. NEW e2e/first-run.spec.ts (8 tests) drives the journey a CUSTOMER takes, with storageState explicitly emptied - every other spec starts from the global-setup OAuth session, so the local-password path D14 exists for had never actually run in a browser. No DEMO_MODE, no mocked sign-in, no pre-filled credentials.",
+        "Covers: local sign-in offered with no forge configured; FORCED password change; the old password stops working and the new one works (proving persistence, not just dialog dismissal); reload mid-setup keeps the session; a wrong password errors without revealing whether the account exists; metadata-only use with NO model configured; invalid forge token rejected WITHOUT storing a connection; a valid token turning the W17-07 forge component away from Setup needed; and backfill phase coming from the recorded vocabulary rather than an animated guess.",
+        "NEW packages/auth/src/local/bootstrap.test.ts (5 tests). ensureBootstrapAdmin is what gives a fresh install any way in at all and had NO test: covers not_configured, refusing a short ADMIN_PASSWORD, never putting the password in the thrown error, creating with mustChangePassword, and idempotence across the API and worker both running it on every boot.",
+        "Three test-authoring defects found and fixed rather than worked around: POST /auth/local/users is NOT under /api/v1 (root app, app.ts:117); counting connection rows on page load races the query and made a PRE-EXISTING row look like one the rejected token created - a false product defect I nearly reported; and asserting the ABSENCE of the password-change dialog passes instantly, so the next navigation raced the session cookie. Sign-in now waits for the form to disappear, a positive transition."
       ]
     },
     {

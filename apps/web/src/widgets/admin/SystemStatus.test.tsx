@@ -123,6 +123,27 @@ describe('SystemStatus (W17-08)', () => {
     expect(screen.queryByText('Ready')).not.toBeInTheDocument();
   });
 
+  it('a poll that STARTS failing replaces the panel, it does not go stale', async () => {
+    // The real staleness scenario, which a fail-on-first-load test cannot show:
+    // React Query keeps `data` after a refetch fails, so a widget that rendered
+    // children whenever data existed would keep showing "Ready" from a response
+    // that stopped arriving. frameState puts the frame in `error`, and
+    // WidgetFrame renders children ONLY in `ready` — this asserts that pairing.
+    respond(ready);
+    renderWidget();
+    await waitFor(() => expect(screen.getByTestId('system-status-list')).toBeInTheDocument());
+    expect(screen.getByTestId('system-state-database')).toHaveTextContent('Ready');
+
+    respond({ title: 'Service Unavailable', status: 503 }, false, 503);
+    await userEvent.click(screen.getByTestId('system-status-refresh'));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('system-status-list')).not.toBeInTheDocument(),
+    );
+    // And nothing green is left behind.
+    expect(screen.queryByTestId('system-state-database')).not.toBeInTheDocument();
+  });
+
   it('keeps technical detail behind an expandable control', async () => {
     respond(ready);
     renderWidget();
