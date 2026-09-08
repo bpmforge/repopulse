@@ -7,6 +7,7 @@ import { rankHotspots } from '@repopulse/insights';
 import { computeReviewLoad, readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
 import { repoHealth } from '../org/health.js';
+import { repoCapabilities } from '../../lib/capability.js';
 
 // Drill-down levels 1–2 (FR-API-5, API_DESIGN §2 'repos'). Warehouse-only.
 // Every level returns `links` to its children so a client can walk
@@ -339,4 +340,50 @@ export default async function reposRoutes(
       });
     },
   );
+
+  /**
+   * GET /repos/:id/capabilities — what has actually been measured here (W17-10).
+   *
+   * The one canonical producer. Every screen that wants to say "this is fresh"
+   * or "this has never run" reads this rather than deciding for itself, because
+   * two screens deciding separately is how they end up disagreeing in front of
+   * a user.
+   */
+  app.get<{ Params: { id: string } }>('/repos/:id/capabilities', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) {
+      sendProblem(request, reply, 401, 'No active session');
+      return reply;
+    }
+    const repoId = Number(request.params.id);
+    if (!Number.isInteger(repoId)) {
+      sendProblem(request, reply, 400, 'Invalid repository id');
+      return reply;
+    }
+
+    const result = await repoCapabilities(opts.db, workspaceId, repoId);
+    // Tenancy (Law 5): another workspace's repository is a 404, never a 403 —
+    // a 403 would confirm the id exists.
+    if (!result) {
+      sendProblem(request, reply, 404, 'Not Found');
+      return reply;
+    }
+
+    return reply.send({
+      repo_id: result.repoId,
+      checked_at: result.checkedAt,
+      freshness_hours: result.freshnessHours,
+      capabilities: result.capabilities.map((c) => ({
+        id: c.id,
+        label: c.label,
+        kind: c.kind,
+        state: c.state,
+        last_success_at: c.lastSuccessAt,
+        latest_run_id: c.latestRunId,
+        last_success_ref: c.lastSuccessRef,
+        stale: c.stale,
+        detail: c.detail,
+      })),
+    });
+  });
 }

@@ -7339,10 +7339,15 @@
         "Tenant isolation and response-shape tests pass; null ref and null time stay null"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-10 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "States: not_configured | not_supported | queued | running | succeeded | failed, plus last success time, latest run id, latest successful ref and an independent stale boolean."
+        "States: not_configured | not_supported | queued | running | succeeded | failed, plus last success time, latest run id, latest successful ref and an independent stale boolean.",
+        "DONE 2026-09-08. NEW apps/api/src/lib/capability.ts is the ONE canonical producer, exposed at GET /api/v1/repos/:id/capabilities. Before it, three screens each worked freshness out for themselves (repo page from scan runs, overview from findings, scanners screen from enablement config) and any two could disagree in front of a user.",
+        "States: not_configured | not_supported | queued | running | succeeded | failed, plus lastSuccessAt, latestRunId, lastSuccessRef and an INDEPENDENT stale boolean. Independent on purpose: a succeeded capability whose success was three weeks ago is both succeeded and stale, and collapsing them makes one unsayable. Never-measured is NOT stale - that is lastSuccessAt being null.",
+        "The case that matters most: an OLD SUCCESS plus a NEW FAILURE exposes BOTH, and lastSuccessRef comes only from the successful run - a ref from a failed run would describe a measurement that did not happen. Tested.",
+        "not_supported is distinct from not_configured: coverage ingestion and IaC scanning have reserved schema values and no producer, and showing them as off would imply a switch exists. UNSUPPORTED_CAPABILITIES lists them explicitly so shipping one is a deliberate edit.",
+        "Freshness threshold documented as 24h and returned in the response so no UI hardcodes it. It is a DISPLAY hint, explicitly not a security guarantee. 14 tests incl. tenant isolation (another workspace gets null, not a 403 that would confirm the id exists)."
       ]
     },
     {
