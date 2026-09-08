@@ -24,6 +24,21 @@ export interface SessionPluginOptions {
 
 async function sessionPlugin(app: FastifyInstance, opts: SessionPluginOptions): Promise<void> {
   const redis = new Redis(opts.redisUrl);
+
+  // Route transport faults to the app logger instead of leaving them unhandled
+  // (W17-03). ioredis emits `error` on its client and, with no listener,
+  // console.errors "[ioredis] Unhandled error event" itself — which is exactly
+  // what W16-34 kept catching as `write EPIPE` when a full suite ran against a
+  // contended data tier. This was the only Redis client in the codebase with
+  // neither a listener nor a guarded shutdown; routes/health and routes/events
+  // already handled theirs.
+  //
+  // Logged, NOT swallowed: ioredis reconnects on its own, so a genuine
+  // connection fault still has to be visible in production, and a silent
+  // `.catch(() => {})` here would hide a Redis outage behind broken sessions.
+  redis.on('error', (err: Error) => {
+    app.log.warn({ err }, 'session redis connection error');
+  });
   const store = new RedisSessionStore({ redis, absoluteLifetimeMs: opts.absoluteLifetimeMs });
 
   await app.register(fastifyCookie, { secret: opts.sessionSecret });
@@ -42,7 +57,9 @@ async function sessionPlugin(app: FastifyInstance, opts: SessionPluginOptions): 
   });
 
   app.addHook('onClose', async () => {
-    await redis.quit();
+    // A socket that is already gone has nothing left to quit gracefully, and a
+    // rejecting onClose fails teardown for every suite that builds an app.
+    await redis.quit().catch(() => redis.disconnect());
   });
 }
 

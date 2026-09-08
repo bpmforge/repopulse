@@ -7106,12 +7106,16 @@
         "Every existing test and assertion is retained"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-03 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
         "SUPERSEDES W16-34, which holds the real prior art: three sightings, and the data tier already RULED OUT with measurements (Redis maxclients 10000 with 1 connected, timeout 0, rejected_connections 0 of 9322, used_memory 2.5M peak 3.0M; postgres 84MB and redis 39MB of an 8.3GB VM).",
         "The open lead from W16-34 is a client- or host-side socket teardown — ioredis \"write EPIPE\" — pointing at the podman VM networking or the host, NOT at Redis refusing or exhausting anything. Start there; do not re-derive what W16-34 already eliminated.",
-        "Do not paper over it with a client-side ioredis retry or a raised timeout: that hides the next occurrence too."
+        "Do not paper over it with a client-side ioredis retry or a raised timeout: that hides the next occurrence too.",
+        "DONE 2026-09-08. Acceptance met: three consecutive full runs, 268 files / 1922 tests each, exit 0, zero unhandled ioredis events, peak parent RSS 0.23-0.24GB; e2e once = 113 passed / 1 skipped (real-forge, no credentials).",
+        "CAUSE FOUND for the SYMPTOM, not for the 15-test failure. Clean runs emitted 0 unhandled ioredis events; a run with a demo dev stack on the same data tier emitted 6; after the fix the same condition emits 0 plus 5 handled logger warnings. packages/auth/src/session/plugin.ts was the only Redis client with no error listener and an unguarded quit() - routes/health and routes/events already guarded theirs.",
+        "NOT REPRODUCED and therefore NOT claimed fixed: the accounts.test.ts + auth/local.test.ts 15-test failure. Six full runs, including one with a dev stack competing for the same Postgres, did not surface it. W16-34 stays blocked rather than done; a recurrence is still open work.",
+        "Ruled out with measurements, so nobody re-derives it: no leaked Fastify apps (13 app-building test files, builds and closes match 1:1); no connection accumulation (Redis connected_clients flat at 1 for a whole run, rejected_connections 0); no memory pressure (host free never below 36GB of 128GB). Resource table and the capture recipe are in docs/TESTING.md section 11."
       ]
     },
     {

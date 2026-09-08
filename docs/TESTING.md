@@ -228,3 +228,90 @@ e2e run.
   auto-resolves the chain with an audit row.
 - **Gateway rules from §8 apply to `owasp_*` scanners**: mocked at the gateway boundary,
   no live LLM calls; `meta.initiator = 'scanner:{key}'` asserted on accounting rows.
+
+## 11. Test-host resources and the contention failure mode (W17-03)
+
+### Measured configuration
+
+Recorded 2026-09-08 on the development host (Apple silicon, **128 GB RAM,
+18 CPUs**, Podman 6.1.0, Node 22.23.1, pnpm 9.15.9), so a later run has
+something to compare against rather than a feeling.
+
+| Setting | Value | Why |
+|---|---|---|
+| `fileParallelism` | `false` (root `vitest.config.ts`) | Load-bearing, verified W16-17: test files share the single `default` workspace and two files delete every local user. Sequential is what keeps that dormant. |
+| Vitest pool | default, one forked worker in practice | Peak RSS of the parent process **0.23–0.24 GB** across six full runs; peak of any node process ~1.2 GB. |
+| Playwright `workers` | `1` | Same shared-state reason. |
+| Playwright `webServer` | three, all `reuseExistingServer: false` | Deliberate ownership separation — e2e starts and owns its own API, worker and web, so it never depends on a developer's running stack. |
+| Data tier | shared compose Postgres + Redis (`scripts/dev-up.sh`) | The one piece of pre-existing state `pnpm test` requires. `scripts/check-live-infra.mjs` fails fast rather than letting suites die on ECONNREFUSED. |
+
+**Full unit/integration run: 268 files, 1922 tests, ~140–157s.** Host free
+memory never dropped below 36 GB of 128 GB. Redis `connected_clients` stayed
+**flat at 1** for an entire run (one sample of 2) — the suite accumulates no
+connections, and `rejected_connections` was 0 throughout.
+
+### What the intermittent failure actually was
+
+W16-34 recorded three sightings of a full suite failing intermittently, always
+alongside `[ioredis] Unhandled error event: Error: write EPIPE`, and had already
+ruled out the data tier with measurements. W17-03 reproduced the **symptom**
+deterministically and found its source:
+
+| Condition | Unhandled ioredis events |
+|---|---|
+| Three clean runs, nothing else on the host | **0, 0, 0** |
+| Run with a `DEMO_MODE=1 pnpm dev` stack live on the same data tier | **6** |
+| Same contended condition, after the fix | **0** (5 handled warnings instead) |
+
+`packages/auth/src/session/plugin.ts` held the only Redis client in the codebase
+with **no `error` listener and an unguarded `quit()`** — which is precisely what
+makes ioredis classify the event as *unhandled* and print it via `console.error`.
+`routes/health/index.ts` and `routes/events/index.ts` had guarded theirs long
+before. Under contention a session socket dies mid-flight, and the teardown
+write lands on a dead socket.
+
+The fault is now **routed to the app logger, not swallowed** — ioredis
+reconnects on its own, so a genuine Redis outage still has to be visible rather
+than hidden behind quietly broken sessions.
+
+> **This is not a proven fix for W16-34's test failures.** The 15-test
+> `accounts.test.ts` + `auth/local.test.ts` failure was **never reproduced** —
+> not in six full runs, and not with a dev stack competing for the same
+> Postgres. What is fixed is the unhandled-error hazard that accompanied every
+> sighting. Treat a recurrence as still-open, and do not close it on these
+> three green runs alone. Regression coverage:
+> `packages/auth/src/session/plugin.test.ts`, which fails on the unfixed plugin.
+
+### Capturing the next occurrence
+
+W16-34's own stated next step was to capture resources at the moment of failure
+rather than raise a timeout. Run the suite alongside a sampler:
+
+```bash
+# terminal 1 — sample every 3s while the suite runs
+PW=$(grep -m1 REDIS_URL .env | sed -E 's|.*://[^:]*:([^@]*)@.*|\1|')
+while true; do
+  echo "$(date +%H:%M:%S) $(podman exec repopulse-redis redis-cli -a "$PW" --no-auth-warning \
+    INFO clients | grep -m1 connected_clients | tr -d '\r') \
+    free=$(vm_stat | awk '/Pages free/ {gsub("\\.","",$3); print int($3*16384/1048576)}')MB"
+  sleep 3
+done
+
+# terminal 2
+pnpm test 2>&1 | tee /tmp/run.log
+grep -c 'Unhandled error event' /tmp/run.log
+```
+
+A 3-second poll of `connected_clients` cannot see a socket that is dropped and
+re-established between samples, so treat a flat client count as *no
+accumulation*, never as *no drop*. The `Unhandled error event` grep is the
+sensitive signal; the sampler is the context around it.
+
+### Do not
+
+- Raise a timeout or add an ioredis retry to make an intermittent failure go
+  away. Both hide the next occurrence, and W16-34 forbids them by name.
+- Raise `fileParallelism` or the Playwright worker count to speed the suite up.
+  Both are load-bearing against shared-state races, not performance choices.
+- Run a `pnpm dev` / demo stack against the same data tier while running the
+  suite. It is the one condition demonstrated to change the failure profile.
