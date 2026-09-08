@@ -33,6 +33,7 @@ import rulesRoutes from '../routes/rules/index.js';
 import riskRoutes from '../routes/risk/index.js';
 import agreementsRoutes from '../routes/agreements/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
+import systemRoutes from '../routes/admin/system/index.js';
 
 export interface ApiV1Options {
   db: Database;
@@ -177,6 +178,9 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   });
   // Scanner enablement (W8-01).
   await app.register(scannersRoutes, { db: opts.db });
+  // W17-07: read-only install health. Registered here rather than beside
+  // /healthz because it is admin-only and workspace-scoped.
+  await app.register(systemRoutes, { db: opts.db, redisUrl: opts.redisUrl });
   await app.register(securityRoutes, { db: opts.db });
   await app.register(setupRoutes, { db: opts.db });
   await app.register(codeHealthRoutes, { db: opts.db });

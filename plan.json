@@ -7241,10 +7241,15 @@
         "No keys, headers, connection strings, filesystem paths or other workspace configuration are exposed; cross-workspace tests pass"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-07 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "States are ready | degraded | unavailable | unknown. No repository connected is setup-needed, not a crash."
+        "States are ready | degraded | unavailable | unknown. No repository connected is setup-needed, not a crash.",
+        "DONE 2026-09-08. NEW GET /api/v1/admin/system, admin-only via requireAdmin, workspace-scoped. Six components: database, cache, worker, forge, scanners, models. States ready | degraded | unavailable | unknown | setup_needed.",
+        "setup_needed was ADDED to the plan four-state set on purpose and ranks BELOW unknown/degraded/unavailable: a fresh install with no model and no forge is working exactly as intended, and painting it red teaches operators to ignore red - after which they ignore the dead worker too. A missing optional model therefore cannot make the install look broken.",
+        "READ-ONLY: no forge call, no paid model test, no scan is triggered. The forge component reuses orgSyncStatus (the existing canonical producer) rather than a second opinion that would eventually disagree with the sync banner. Models are read from the database only - whether an endpoint ANSWERS is a paid network call and stays behind the explicit test button.",
+        "CAUGHT BY VERIFYING THE SCHEMA rather than trusting it: forge_connections has NO last_synced_at column. The first draft selected one. Reading the table is what turned that into orgSyncStatus reuse.",
+        "14 tests: admin 200 with a reason per component, member 403, anonymous denied, live db/cache ready, dead worker visible then flipped ready by a real heartbeat, no key/connection-string/host-path in the payload, and 7 unit tests pinning the state ranking including that unknown never reads as fine."
       ]
     },
     {
