@@ -7172,10 +7172,15 @@
         "The customer needs no host Node or pnpm"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-05 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Never silently rotate encryption keys and never print generated secrets. No universal default password."
+        "Never silently rotate encryption keys and never print generated secrets. No universal default password.",
+        "DONE 2026-09-08. NEW deploy/configure.mjs + deploy/configure.sh. Generates POSTGRES_PASSWORD, REDIS_PASSWORD, SESSION_SECRET, TOKEN_ENC_KEY, WEBHOOK_SECRET with node:crypto randomBytes and wires DATABASE_URL/REDIS_URL to the passwords it just made - the hand-edit step that previously produced credentials encrypted under a key that did not survive the next edit.",
+        "NO HOST NODE NEEDED, verified live: podman run --entrypoint node --network none --user $(id -u):$(id -g) -v <deploy>:/deploy migrate:dev wrote a correct 29-variable .env, mode 0600, owned by the invoking user rather than root.",
+        "Rerunning NEVER rewrites an existing deploy/.env (byte-for-byte test) because rotating TOKEN_ENC_KEY orphans every stored forge credential. Exclusive creation (wx, 0600) closes the exists-then-write race. No generated secret is ever printed. No universal default admin password: the password comes from ADMIN_PASSWORD or deploy/admin-password, never from an argument that would land in shell history.",
+        "15 tests including a DRIFT GATE: configure.mjs cannot import ENV_REGISTRY (it runs with only /deploy mounted), so its REQUIRED list is duplicated and the gate fails the build if the two diverge.",
+        "Host note for later tickets: the macOS podman VM shares $HOME but NOT /tmp, so a bind mount under /tmp fails with statfs. Test scratch dirs for containerised steps must live under $HOME."
       ]
     },
     {
