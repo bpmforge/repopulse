@@ -7375,10 +7375,16 @@
         "No paid or live endpoint is required for the automated tests"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-11 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "The ledger says egress audit rows lack a production writer while the API already reads them. Verify the real gateway path; never store raw source in the audit table; never record unknown token usage as a measured zero."
+        "The ledger says egress audit rows lack a production writer while the API already reads them. Verify the real gateway path; never store raw source in the audit table; never record unknown token usage as a measured zero.",
+        "DONE 2026-09-08. CONFIRMED THE LEDGER WAS RIGHT: egress_audit had a reader (Admin -> Analysis) and NO production writer. createT3Client was the only thing that could write one and its ONLY caller was its own test. Worse, the gap was wider than Tier-3: a Tier-2 llm_providers row may name a PUBLIC host - an OpenAI-compatible cloud endpoint is configured exactly like a LAN LM Studio - so diffs were leaving the network on a path the table never saw.",
+        "Migration 0028, fully ADDITIVE: attempt_id, outcome, destination_host, tier, error added; analysis_run_id, tokens_sent and tokens_received widened to nullable. tokens_* had been NOT NULL, so a provider that reports no usage had to be recorded as having used none - null now means not measured, 0 means measured as zero, and an audit that cannot tell those apart is not an audit. Rollback note recorded, incl. that re-adding NOT NULL is NOT reversible without deciding what the null rows meant.",
+        "TWO ROWS PER ATTEMPT, because SC-15 grants INSERT and SELECT only and an UPDATE would be refused by the database. An attempted row is written BEFORE dispatch and an outcome row appended after, sharing attempt_id. If the process dies between them the surviving attempted row is the truth: the bytes left and we do not know what came back.",
+        "FAIL CLOSED: a non-local host with no auditor, a failed audit write, or an egress that cannot be attributed to a workspace all REFUSE to send. Verified by test, including that the Tier-3 transport is never called. A denied Tier-3 request is recorded with bytes_sent 0.",
+        "16 tests against LOCAL fixture HTTP servers - no paid endpoint, no network, no key. Found and fixed a REAL HOLE in my own isLocalHost: a prefix test treated 10.evil.com as RFC1918, which would have exempted a public host from auditing entirely. The IP checks now only apply to actual IPv4 literals.",
+        "Two pre-existing test defects surfaced and fixed rather than worked around: gateway.test.ts asserted that an opted-in Tier-3 call succeeds with NO auditor (that behaviour is now correctly refused, and the test was updated AND strengthened with the refusal case); and seed.integration.test.ts was not idempotent against its own forge_etag fixture, so an interrupted run left a row that killed the next run on a duplicate key unrelated to the test."
       ]
     },
     {

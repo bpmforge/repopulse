@@ -197,6 +197,13 @@
       "when": 1788188913057,
       "tag": "0027_peaceful_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1788911045987,
+      "tag": "0028_bizarre_frightful_four",
+      "breakpoints": true
     }
   ]
 }

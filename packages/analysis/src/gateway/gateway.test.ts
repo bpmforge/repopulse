@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createEgressAuditor } from './egress-auditor.js';
 import { createAnalysisGateway, HostUnavailableError } from './index.js';
 import { TierNotPermittedError, type CompleteOpts } from './types.js';
 import { shouldEnqueue, reviewJobId, analysisStatus } from '../scheduling/index.js';
@@ -22,10 +23,32 @@ describe('tier dispatch (FR-ANALYSIS-1)', () => {
     await expect(gateway.complete('p', t3Opts)).rejects.toThrow(/must never be implicit/);
   });
 
-  it('allows Tier-3 once the repo has opted in', async () => {
+  it('allows Tier-3 once the repo has opted in AND the egress can be audited', async () => {
+    // W17-11 changed what this test is about. Opt-in alone is no longer enough:
+    // Tier-3 leaves the customer's network, so it now also requires that the
+    // call can be recorded. The auditor here is what a real deployment supplies.
+    const t3 = vi.fn(async () => ({ text: 'ok', model: 'claude', tokensIn: 1, tokensOut: 1, costUsd: 0.01, durationMs: 5 }));
+    const rows: unknown[] = [];
+    const gateway = createAnalysisGateway({
+      hosts: [],
+      isT3OptedIn: async () => true,
+      t3,
+      egressAuditor: createEgressAuditor({ write: async (r) => void rows.push(r) }),
+      resolveAuditIds: async () => ({ workspaceId: 1, repoId: 1 }),
+    });
+    await expect(gateway.complete('p', t3Opts)).resolves.toMatchObject({ costUsd: 0.01 });
+    // And it really was audited — attempt + outcome.
+    expect(rows).toHaveLength(2);
+  });
+
+  it('REFUSES an opted-in Tier-3 call it cannot audit (W17-11)', async () => {
+    // Fail closed. Before W17-11 this call succeeded with no record at all,
+    // which is exactly the hole NFR-9 exists to prevent.
     const t3 = vi.fn(async () => ({ text: 'ok', model: 'claude', tokensIn: 1, tokensOut: 1, costUsd: 0.01, durationMs: 5 }));
     const gateway = createAnalysisGateway({ hosts: [], isT3OptedIn: async () => true, t3 });
-    await expect(gateway.complete('p', t3Opts)).resolves.toMatchObject({ costUsd: 0.01 });
+
+    await expect(gateway.complete('p', t3Opts)).rejects.toThrow(/un-auditable egress/i);
+    expect(t3).not.toHaveBeenCalled();
   });
 
   it('treats a missing opt-in callback as NOT opted in', async () => {

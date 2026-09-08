@@ -1,12 +1,14 @@
 import {
   createAnalysisGateway,
+  createEgressAuditor,
   resolveProvider,
   type AnalysisGateway,
+  type EgressAuditRow,
   type LlmProviderKind,
   type T2Host,
 } from '@repopulse/analysis';
 import { credentials } from '@repopulse/auth';
-import { core, type Database } from '@repopulse/shared';
+import { core, read, type Database } from '@repopulse/shared';
 import { and, eq } from 'drizzle-orm';
 
 // The analysis gateway, built once for the worker (carry-forward from W9-03,
@@ -189,8 +191,59 @@ export async function buildWorkerGateway(
 
   if (hosts.length === 0) return null;
 
+  // THE PRODUCTION EGRESS WRITER (W17-11).
+  //
+  // egress_audit had a reader and no writer: the only thing that ever wrote one
+  // was createT3Client, whose only caller was its own test. So Admin → Analysis
+  // reported an empty table on an install that had been sending diffs to a
+  // configured PUBLIC provider all along.
+  //
+  // INSERT only. SC-15 grants the app role INSERT and SELECT, so an outcome is
+  // an appended row sharing the attempt id, never an update.
+  const egressAuditor = createEgressAuditor({
+    write: async (row: EgressAuditRow) => {
+      await db.insert(read.egressAudit).values({
+        workspaceId: row.workspaceId,
+        repoId: row.repoId,
+        analysisRunId: row.analysisRunId ?? null,
+        pullRequestId: row.pullRequestId ?? null,
+        initiatorUserId: row.initiatorUserId ?? null,
+        initiatorLogin: row.initiatorLogin ?? null,
+        modelId: row.modelId,
+        bytesSent: row.bytesSent,
+        // Unknown stays NULL. Recording 0 would assert a measurement nobody
+        // made, which is the thing an audit may never do.
+        tokensSent: row.tokensSent,
+        tokensReceived: row.tokensReceived,
+        contentSha256: row.contentSha256,
+        attemptId: row.attemptId,
+        outcome: row.outcome,
+        destinationHost: row.destinationHost,
+        tier: row.tier,
+        error: row.error,
+      });
+    },
+  });
+
   const gateway = createAnalysisGateway({
     hosts,
+    egressAuditor,
+    /**
+     * The gateway speaks in the string repoId its callers use; the audit table
+     * is relational. Resolving here — not in the gateway — keeps the analysis
+     * package free of a database dependency (ARCHITECTURE §3).
+     */
+    resolveAuditIds: async (meta) => {
+      const numericRepoId = Number(meta.repoId);
+      if (!Number.isInteger(numericRepoId)) return null;
+      const [repo] = await db
+        .select({ id: core.repos.id, workspaceId: core.repos.workspaceId })
+        .from(core.repos)
+        .where(eq(core.repos.id, numericRepoId))
+        .limit(1);
+      if (!repo) return null;
+      return { workspaceId: repo.workspaceId, repoId: repo.id };
+    },
     ...(env.LMSTUDIO_CONCURRENCY ? { concurrencyCap: Number(env.LMSTUDIO_CONCURRENCY) } : {}),
     // Read per repo, from the admin flag — never assumed, and never true for a
     // scheduled pass because no T3 transport is supplied above.
