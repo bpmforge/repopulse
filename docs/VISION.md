@@ -27,12 +27,21 @@ DORA trends.
 RepoPulse is a **clone-free, self-hosted** repo health, quality, and delivery
 monitoring web service. It ingests everything through forge APIs (commits, PR
 files/diffs, reviews, checks, issues, releases — never `git clone`, per C1), stores it
-in Postgres on bpmforge infra (D1), and serves a drill-down dashboard, personalized
-views (D6), and an audit-ready report center (D7). Data stays on-infra; the only
-opt-in exception is Tier-3 frontier-LLM review (D2).
+in Postgres **in the customer's own environment** (D1a), and serves a drill-down
+dashboard, personalized views (D14), and an audit-ready report center (D7). Data
+stays where the customer installed it; the only opt-in exception is Tier-3
+frontier-LLM review (D2).
 
-Sibling to ThreatForge in the bpmforge family; SaaS-ready by construction
-(`workspace_id` everywhere) but internal-only in v1 (D1).
+**Delivery model: customer-hosted.** A customer installs the container stack in
+their own environment, points it at their own forge, and optionally at their own
+LLM. SaaS-ready by construction (`workspace_id` everywhere), single `default`
+workspace per install. bpmforge's own deployment is the **dogfood install, not
+the product** (D1a, 2026-08-13).
+
+> Superseded 2026-09-08 (product-completion D15): this document previously read
+> "internal-only in v1" and placed the database "on bpmforge infra". That
+> phrasing predates D1a and contradicted it. See
+> `docs/work/product-completion/DECISIONS.md`.
 
 ## Three product pillars
 
@@ -40,7 +49,7 @@ Sibling to ThreatForge in the bpmforge family; SaaS-ready by construction
 |--------|-----------|-------------|
 | **1. Clone-free ingestion** | ForgeProvider abstraction (GitHub v1, Gitea v1.x) with rate-limit budgeting, ETag conditional requests, incremental cursors, webhooks + reconciliation. 12-month backfill on connect. | C1, D3, D5 |
 | **2. Tiered analysis** | Tier 1: API-derived metrics, always on. Tier 2: local LLM (LM Studio LAN) bulk diff review under C2 ops constraints. Tier 3: Claude API deep review, opt-in per repo/PR. Review dimensions ported from bpm-opencode-experts: code health, security, performance, test coverage. | D2, C2 |
-| **3. Drill-down dashboard + reports** | Org → repo → PR/file → detail navigation, custom saved views, personalized "my PRs / my review load" (via GitHub OAuth identity), in-app report center with history and exportable audit-ready PDF packs. | D5, D6, D7 |
+| **3. Drill-down dashboard + reports** | Org → repo → PR/file → detail navigation, custom saved views, personalized "my PRs / my review load" (via a linked forge identity, D14), in-app report center with history and exportable audit-ready PDF packs. | D5, D7, D14 |
 
 ## What "done" means for v1 (D5 MVP)
 
@@ -71,8 +80,8 @@ now (module boundaries exist), built later. See SCOPE.md.
 
 - vs SonarQube/CodeScene-class: they clone and scan; RepoPulse reads the API and
   stays cheap to run and instant to onboard.
-- vs LinearB/Swarmia-class: same questions, zero data egress — self-hosted on
-  bpmforge infra.
+- vs LinearB/Swarmia-class: same questions, zero data egress — the customer
+  self-hosts it and the data never leaves their environment.
 - vs GitHub Insights: cross-repo rollup, drill-down, saved views, audit reports,
   and LLM review tiers that GitHub does not offer.
 - vs ThreatForge (`/security` deep audits): RepoPulse is continuous signal and
@@ -83,4 +92,5 @@ now (module boundaries exist), built later. See SCOPE.md.
 
 Deliberately excluded scope is enumerated with rationale in NON_GOALS.md — headline:
 no cloning, no CI runner, no PR-blocking bot in v1, no email/Slack delivery in v1
-(D7), no billing/multi-org onboarding in v1 (D1).
+(D7), no billing/multi-org onboarding in v1 (D1, N-5 — a self-hosted customer
+needs none of those).

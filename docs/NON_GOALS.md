@@ -10,11 +10,29 @@ requirements docs.
 | N-2 | **No CI runner / build execution.** | RepoPulse observes CI results via forge APIs (check runs, statuses); running builds is a different product with a different risk and cost profile. |
 | N-3 | **No PR-blocking gate bot in v1.** | Dashboard-first (D5): trust must be earned before RepoPulse can block merges; advisory PR comments are a v1.x candidate (S-25), required status checks are not. |
 | N-4 | **No email digests or Slack push in v1.** | D7 locks delivery to the in-app report center with history + PDF export; outbound channels are explicitly deferred. |
-| N-5 | **No billing, plans, or multi-org self-serve onboarding in v1.** | D1: internal deployment with a single `default` workspace; SaaS-readiness is a schema discipline (`workspace_id`), not a v1 feature surface. |
+| N-5 | **No billing, plans, or multi-org self-serve onboarding in v1.** | D1/D1a: a CUSTOMER-HOSTED install with a single `default` workspace needs none of them. SaaS-readiness is a schema discipline (`workspace_id`), not a v1 feature surface. D1a explicitly left N-5 binding when it made self-hosting the MVP. |
 | N-6 | ~~**No GitLab or Bitbucket adapters.**~~ **GRADUATED for GitLab 2026-08-13 (D3a)** — the MVP is a customer pointing a self-hosted install at their own repos on GitHub, GitLab or Gitea, so a GitLab adapter is now in scope (W12-01). **Bitbucket remains a non-goal.** Original rationale: | D3 scopes forges to GitHub v1 + Gitea v1.x behind `ForgeProvider`; further adapters dilute effort before the interface is proven twice. |
 | N-7 | **No IDE plugin.** | The product surface is the web dashboard and reports; editor integration multiplies clients without serving P1/P3/P4 at all. |
 | N-8 | **Not a replacement for deep security audits (`/security`-style, ThreatForge-style).** | Tier-2/3 diff review yields signals with confidence scores, not exhaustive OWASP coverage; RepoPulse routes attention, audits provide assurance. |
 | N-9 | **No quality "grades" or developer leaderboards.** | Metrics are presented as signals for humans to interpret (see RISKS R-5, Goodhart); single-letter scores and per-developer rankings invite gaming and misuse. |
+
+## Out of scope for the product-completion release (D15, 2026-09-08)
+
+These are not permanent non-goals — they are excluded from THIS release and
+carry no N-id. Recorded so an empty panel is never mistaken for a shipped
+capability (`docs/work/product-completion/DECISIONS.md`).
+
+- Kubernetes/Helm packaging; public SaaS signup; billing.
+- Automatic code changes or PR submission (D9a already forbids these outright).
+- New identity-provider integrations beyond D14's local + generic OIDC.
+- Model auth beyond API keys — Vertex AI, Bedrock, Copilot (`W16-09`, parked).
+- Production APM / runtime performance measurement. "Performance review" means
+  static and AI code-review evidence, never measured latency, CPU or memory.
+- Coverage ingestion and IaC scanning. Both have reserved schema values; **a
+  reserved schema value is not a shipped capability**, and each must read as
+  explicitly unavailable rather than as an empty green panel.
+- Executing repository benchmarks, and autonomous browser review of customer
+  applications.
 
 ## How to use this file
 

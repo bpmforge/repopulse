@@ -1,5 +1,13 @@
 # RepoPulse — Deployment (Podman on bpmforge infra)
 
+> **This document describes the bpmforge DOGFOOD install, not the product.**
+> Under D1a the delivery model is customer-hosted; a customer's install path is
+> the bundle produced by W17-28 and documented by W17-33. Hostnames, TLS
+> termination and backup volumes below are one operator's specifics.
+> Superseded framing recorded 2026-09-08 in
+> `docs/work/product-completion/DECISIONS.md` (D15); the customer-facing rewrite
+> is W17-33 (RP-33), which has not run yet.
+
 Mirrors ThreatForge conventions: Podman + compose/quadlet on the bpmforge host,
 reverse proxy terminating TLS at `repopulse.bpmforge.com`, dual-remote git
 (Gitea origin + GitHub). Internal deployment per D1; SaaS flip is schema-ready
