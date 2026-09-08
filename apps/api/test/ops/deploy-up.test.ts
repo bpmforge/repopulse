@@ -71,11 +71,14 @@ describe('deploy/up.sh health check (W16-04)', () => {
     const mkdirAt = script.indexOf('mkdir -p "$SCAN_RULES_DIR"');
     // The real invocation, not the `up -d` inside this script's own header
     // comment — which is earlier in the file and would make the assertion pass
-    // or fail for the wrong reason.
-    const composeAt = script.indexOf('"${COMPOSE[@]}" -f compose.yaml up -d');
+    // or fail for the wrong reason. Matched by shape rather than by an exact
+    // string: W17-04 inserted `-p "$REPOPULSE_PROJECT"` so a test stack cannot
+    // collide with the operator's, and pinning the literal made this assertion
+    // fail for a reason it does not care about.
+    const composeAt = script.search(/\$\{COMPOSE\[@\]\}"[^\n]*-f compose\.yaml up -d/);
 
     expect(mkdirAt, 'up.sh must create SCAN_RULES_DIR').toBeGreaterThan(-1);
-    expect(composeAt).toBeGreaterThan(-1);
+    expect(composeAt, 'up.sh must invoke compose up on compose.yaml').toBeGreaterThan(-1);
     expect(mkdirAt, 'the directory must be created BEFORE compose up').toBeLessThan(composeAt);
   });
 

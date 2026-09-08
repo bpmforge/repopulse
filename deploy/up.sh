@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bring up the customer-hostable stack (W16-04).
+# Bring up the customer-hostable stack (W16-04, hardened in W17-04).
 #
 # WHY THIS EXISTS, rather than "just run compose up".
 #
@@ -30,15 +30,79 @@
 # answer for a production host where the rules are refreshed by a timer and must
 # survive a checkout being deleted. This script picks the shipped directory only
 # when the operator has not chosen one.
+#
+# W17-04 added, on top of that:
+#   - RUNTIME=docker|podman honoured explicitly; detection ONLY when unset, so a
+#     host with both installed stops being a coin flip.
+#   - the compose PROVIDER is verified, not just the runtime binary. `podman`
+#     existing does not mean `podman compose` can run.
+#   - migrate is verified to have exited ZERO. "Exited" was previously treated as
+#     success, so a failed migration produced a healthy-looking stack.
+#   - services are waited for with a bounded timeout instead of inspected once,
+#     immediately, before they could possibly be up.
+#   - state comes from `inspect` on compose LABELS rather than from grepping
+#     `compose ps` text, which differs between the two providers.
+#   - the real compose error is shown instead of being swallowed by `|| true`.
 
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-if [ ! -f .env ]; then
-  echo "deploy/.env is missing. Copy .env.example and fill it in:" >&2
-  echo "    cp deploy/.env.example deploy/.env" >&2
+die() {
+  echo >&2
+  echo "$*" >&2
   exit 1
+}
+
+# How long to wait for the stack to become healthy. A cold first run has to pull
+# or build images, so this is generous; CI and tests override it.
+: "${REPOPULSE_UP_TIMEOUT:=300}"
+
+# One compose project per install, overridable so a test can bring up a stack
+# that cannot collide with — or tear down — the operator's own.
+: "${REPOPULSE_PROJECT:=repopulse}"
+
+if [ ! -f .env ]; then
+  die "deploy/.env is missing. Copy .env.example and fill it in:
+    cp deploy/.env.example deploy/.env"
+fi
+
+# ---------------------------------------------------------------- runtime ----
+# Explicit beats detection. On a host with both runtimes installed, detection
+# alone silently picks one, and the operator discovers which only when their
+# containers are somewhere they did not look.
+case "${RUNTIME:-}" in
+  podman | docker)
+    command -v "$RUNTIME" >/dev/null 2>&1 ||
+      die "RUNTIME=$RUNTIME was requested but '$RUNTIME' is not on PATH."
+    RT="$RUNTIME"
+    ;;
+  '')
+    if command -v podman >/dev/null 2>&1; then
+      RT=podman
+    elif command -v docker >/dev/null 2>&1; then
+      RT=docker
+    else
+      die "Neither podman nor docker is on PATH.
+Install one, or set RUNTIME=docker|podman to name the one you want."
+    fi
+    ;;
+  *)
+    die "RUNTIME must be 'docker' or 'podman' (got: $RUNTIME)."
+    ;;
+esac
+
+COMPOSE=("$RT" compose)
+
+# A runtime binary is not a compose provider. podman needs podman-compose (or
+# docker-compose) installed separately, and failing here — with the provider's
+# own words — beats failing later inside an `up` that half-worked.
+if ! provider_err="$("${COMPOSE[@]}" version 2>&1)"; then
+  die "'$RT compose' is not usable on this host:
+
+$provider_err
+
+Install a compose provider for $RT, or set RUNTIME to the other runtime."
 fi
 
 # Absolute, because podman-compose does not resolve a relative bind-mount source
@@ -55,42 +119,114 @@ export SCAN_RULES_DIR
 # person can understand and fix; the second is not.
 mkdir -p "$SCAN_RULES_DIR"
 
-if command -v podman >/dev/null 2>&1; then
-  COMPOSE=(podman compose)
-elif command -v docker >/dev/null 2>&1; then
-  COMPOSE=(docker compose)
-else
-  echo "Neither podman nor docker is on PATH." >&2
-  exit 1
-fi
-
+echo "runtime:    $RT (compose project: $REPOPULSE_PROJECT)"
 echo "scan rules: $SCAN_RULES_DIR"
 if [ -z "$(ls -A "$SCAN_RULES_DIR" 2>/dev/null | grep -v '^README.md$\|^\.gitignore$' || true)" ]; then
   echo "  (empty — dependency scanning will report itself unavailable until you"
   echo "   run deploy/scan-db-sync.sh, which needs ~2 GB for the grype database)"
 fi
 
-"${COMPOSE[@]}" -f compose.yaml up -d "$@" || true
+# ------------------------------------------------------------------- up ------
+# `|| true` used to hide the reason a stack failed to start. The exit status of
+# the compose wrapper still cannot be trusted on its own — the run that left the
+# worker dead exited 0 — so the verification below remains the real gate, but a
+# non-zero compose now prints what compose actually said.
+set +e
+compose_out="$("${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" -f compose.yaml up -d "$@" 2>&1)"
+compose_rc=$?
+set -e
+printf '%s\n' "$compose_out"
 
-# VERIFY, because the compose wrapper's exit status cannot be trusted: the run
-# that left the worker dead still exited 0 through podman-compose. `migrate` is
-# excluded on purpose — it is a one-shot job and having EXITED is its success.
+# ---------------------------------------------------------------- verify -----
+# Container state comes from the runtime, addressed by the compose labels BOTH
+# providers set (verified: podman-compose 1.6.0 writes com.docker.compose.project
+# and com.docker.compose.service, the same keys docker compose uses). Grepping
+# `compose ps` text was fragile in the way that matters — its columns and its
+# name mangling differ per provider, so the check could pass on one and silently
+# never match on the other.
+container_for() { # $1 = compose service name -> container id, or empty
+  "$RT" ps -a \
+    --filter "label=com.docker.compose.project=$REPOPULSE_PROJECT" \
+    --filter "label=com.docker.compose.service=$1" \
+    --format '{{.ID}}' 2>/dev/null | head -n1
+}
+
+inspect_field() { # $1 = container id, $2 = go template -> value, or empty
+  "$RT" inspect "$1" --format "$2" 2>/dev/null || true
+}
+
 EXPECTED="postgres redis api worker web"
-failed=""
-for svc in $EXPECTED; do
-  if ! "${COMPOSE[@]}" -f compose.yaml ps --format '{{.Names}} {{.State}}' 2>/dev/null |
-    grep -qE "(^|[_-])${svc}(_[0-9]+)?[[:space:]]+(running|Up)"; then
-    failed="$failed $svc"
+
+# migrate is a one-shot job, so "running" is the wrong question for it — but
+# "exited" was the wrong answer. A migration that fails also exits, and the old
+# check treated that as success, producing a stack that looks healthy against a
+# schema that was never applied.
+migrate_id="$(container_for migrate)"
+if [ -n "$migrate_id" ]; then
+  deadline=$(( $(date +%s) + REPOPULSE_UP_TIMEOUT ))
+  while :; do
+    m_status="$(inspect_field "$migrate_id" '{{.State.Status}}')"
+    [ "$m_status" != "running" ] && [ "$m_status" != "created" ] && break
+    [ "$(date +%s)" -ge "$deadline" ] && break
+    sleep 2
+  done
+  m_code="$(inspect_field "$migrate_id" '{{.State.ExitCode}}')"
+  if [ "$m_status" = "running" ]; then
+    die "Database migration did not finish within ${REPOPULSE_UP_TIMEOUT}s.
+Logs:
+    $RT logs $migrate_id"
   fi
+  if [ "${m_code:-1}" != "0" ]; then
+    die "DATABASE MIGRATION FAILED (exit ${m_code:-unknown}).
+
+The stack is not usable: the schema was not applied. Nothing else was started
+against it on purpose, because an API serving a half-migrated database is worse
+than an API that is down.
+
+Logs:
+    $RT logs $migrate_id"
+  fi
+fi
+
+# Wait, bounded, rather than inspect once. The old check ran the instant compose
+# returned, so a service that was still starting counted as failed.
+deadline=$(( $(date +%s) + REPOPULSE_UP_TIMEOUT ))
+while :; do
+  failed=""
+  for svc in $EXPECTED; do
+    cid="$(container_for "$svc")"
+    if [ -z "$cid" ]; then
+      failed="$failed $svc"
+      continue
+    fi
+    status="$(inspect_field "$cid" '{{.State.Status}}')"
+    if [ "$status" != "running" ]; then
+      failed="$failed $svc"
+      continue
+    fi
+    # Only services that DECLARE a healthcheck are held to it. `{{.State.Health}}`
+    # is empty for the rest, and demanding health from a service that never
+    # reports any would hang until the deadline on a working stack.
+    health="$(inspect_field "$cid" '{{if .State.Health}}{{.State.Health.Status}}{{end}}')"
+    if [ -n "$health" ] && [ "$health" != "healthy" ]; then
+      failed="$failed $svc"
+    fi
+  done
+  [ -z "$failed" ] && break
+  [ "$(date +%s)" -ge "$deadline" ] && break
+  sleep 3
 done
 
 if [ -n "$failed" ]; then
   echo >&2
-  echo "STACK IS NOT HEALTHY — these services are not running:$failed" >&2
+  if [ "$compose_rc" -ne 0 ]; then
+    echo "compose exited $compose_rc — its output is above." >&2
+  fi
+  echo "STACK IS NOT HEALTHY after ${REPOPULSE_UP_TIMEOUT}s — these services are not running:$failed" >&2
   echo >&2
   echo "The web tier may still answer on the published port, so do not take a" >&2
   echo "loading page as proof the stack came up. Logs for one of them:" >&2
-  echo "    podman compose -f deploy/compose.yaml logs${failed}" >&2
+  echo "    $RT compose -p $REPOPULSE_PROJECT -f deploy/compose.yaml logs${failed}" >&2
   exit 1
 fi
 

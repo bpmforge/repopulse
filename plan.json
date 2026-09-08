@@ -7141,10 +7141,13 @@
         "Loopback-only publishing and private database/cache ports are preserved"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-04 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Docker is NOT installed on the development host (RP-01). The Docker half of any dual-runtime claim is untestable here and must be recorded as untested rather than inferred."
+        "Docker is NOT installed on the development host (RP-01). The Docker half of any dual-runtime claim is untestable here and must be recorded as untested rather than inferred.",
+        "DONE 2026-09-08. RUNTIME=docker|podman honoured explicitly, detection only when unset; compose PROVIDER verified (podman existing does not mean podman compose runs); migrate verified to have exited ZERO rather than merely exited; bounded wait (REPOPULSE_UP_TIMEOUT, default 300s) instead of one immediate inspect; state read via podman/docker inspect on com.docker.compose.* LABELS - verified empirically that podman-compose 1.6.0 writes the same keys docker compose does - instead of grepping compose ps text; real compose error printed instead of swallowed by || true; REPOPULSE_PROJECT gives a test stack its own compose project.",
+        "Tested two ways. 12 behavioural tests (apps/api/test/ops/deploy-up-behaviour.test.ts) drive every branch through a STUBBED runtime binary: missing env, unknown RUNTIME, requested-but-absent runtime, no runtime at all, missing compose provider, failed migration, dead worker, real compose error surfaced, waits-rather-than-failing-instantly, temp path CONTAINING A SPACE, explicit RUNTIME=docker, and no destructive down -v anywhere. Then a LIVE run against real podman under a throwaway project: all six services up, web 200 on 127.0.0.1:8097, LAN IP refused (loopback-only preserved), migrate Exited(0), three consecutive ups all exit 0, and a Postgres marker row survived every one.",
+        "Docker half NOT tested: docker is not installed on this host (W17-01). The docker code path is exercised only by the stub. Recorded as untested rather than inferred - W17-28 must not claim Docker support without a real run."
       ]
     },
     {
