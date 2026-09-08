@@ -14,6 +14,7 @@ import {
   snapshotProcessor,
 } from './processors.js';
 import { startWorkerHealthServer } from './health.js';
+import { startWorkerHeartbeat } from './heartbeat.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
@@ -915,6 +916,16 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
     port: healthPort,
   });
 
+  // AFTER the consumers exist (W17-06). The heartbeat asserts "this instance can
+  // pick up work", so publishing it during startup would state something untrue
+  // for as long as the boot took. Its key is per-instance, so one worker
+  // stopping cannot erase another's.
+  const heartbeat = startWorkerHeartbeat({
+    redis: healthRedis,
+    queues: [...runtime.queues.keys()],
+    onError: (err) => log.warn({ err }, '[worker] heartbeat write failed'),
+  });
+
   runtime.coordinator.installSignalHandlers({
     onTimeout: () =>
       log.warn('[worker] drain timed out — forcing close, jobs resume from cursor'),
@@ -922,12 +933,21 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
   process.once('SIGTERM', () => {
     sweeper.stop();
     healthServer.close();
-    void connection.quit().catch(() => {});
-    void publisher.quit().catch(() => {});
-    void healthRedis.quit().catch(() => {});
+    // Remove the heartbeat BEFORE dropping the connection it needs, so a clean
+    // stop is visible immediately instead of lingering for the TTL.
+    void heartbeat
+      .stop()
+      .catch(() => {})
+      .finally(() => {
+        void connection.quit().catch(() => {});
+        void publisher.quit().catch(() => {});
+        void healthRedis.quit().catch(() => {});
+      });
   });
 
-  log.info(`[worker] runtime up; healthz on :${healthPort}`);
+  log.info(
+    `[worker] runtime up; healthz on :${healthPort}; heartbeat ${heartbeat.instanceId}`,
+  );
 }
 
 // Only run when executed directly (not when imported by tests).

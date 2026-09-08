@@ -92,3 +92,46 @@ describe('deploy/up.sh health check (W16-04)', () => {
     );
   });
 });
+
+describe('container healthchecks use binaries the image HAS (W17-06)', () => {
+  // Verified in-image on 2026-09-08:
+  //   worker (node:22-alpine)  node yes, wget yes, curl NO
+  //   web    (nginx:1.27-alpine) wget yes, curl yes, nc yes, node NO
+  // Copying the api probe into the web stage would mark every web container
+  // unhealthy forever, and the failure would look like a broken web tier.
+  const dockerfile = read('Dockerfile');
+
+  /** The body of a stage, from `FROM ... AS <name>` to the next FROM. */
+  function stage(name: string): string {
+    const start = dockerfile.search(new RegExp(`^FROM .* AS ${name}$`, 'm'));
+    expect(start, `stage ${name} not found`).toBeGreaterThan(-1);
+    const after = dockerfile.slice(start + 1);
+    const end = after.search(/^FROM /m);
+    return end === -1 ? after : after.slice(0, end);
+  }
+
+  it('every long-running stage declares a healthcheck', () => {
+    for (const name of ['api', 'worker', 'web']) {
+      expect(stage(name), `${name} has no HEALTHCHECK`).toContain('HEALTHCHECK');
+    }
+  });
+
+  it('the web stage does NOT use node — nginx:alpine has none', () => {
+    const web = stage('web');
+    const healthLine = web.slice(web.indexOf('HEALTHCHECK'));
+    expect(healthLine).not.toMatch(/\bnode\b/);
+    expect(healthLine).toMatch(/wget|curl/);
+  });
+
+  it('the worker stage does NOT use curl — it is not installed there', () => {
+    const worker = stage('worker');
+    const healthLine = worker.slice(worker.indexOf('HEALTHCHECK'));
+    expect(healthLine).not.toMatch(/\bcurl\b/);
+    expect(healthLine).toMatch(/\bnode\b/);
+  });
+
+  it('the worker probe targets the worker health port, not the API port', () => {
+    const worker = stage('worker');
+    expect(worker.slice(worker.indexOf('HEALTHCHECK'))).toContain('WORKER_HEALTH_PORT');
+  });
+});

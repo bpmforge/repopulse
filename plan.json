@@ -6312,7 +6312,8 @@
         "THIRD SIGHTING 2026-08-28 (a Stop hook reported `pnpm test` exit 1) — and this time the SERVER SIDE IS RULED OUT with measurements rather than guesses. Redis: maxclients 10000 with 1 connected, `timeout 0` so it never drops an idle client, rejected_connections 0 across 9,322 connections that day, used_memory 2.5M peak 3.0M with no maxmemory. Containers: postgres 84MB and redis 39MB of an 8.3GB VM, both under 1%.",
         "So the `write EPIPE` is a client- or host-side socket teardown, not Redis refusing, timing out or exhausting anything. That kills the 'memory pressure on the data tier' reading and points at the podman VM's networking or the host, which is where the next attempt should look.",
         "Three consecutive full runs immediately after the hook's failure: exit 0, 1820 passing, no stray dev processes. Still NOT reproducible on demand, and deliberately not 'fixed' by loosening an ioredis retry setting — papering over an undiagnosed transport fault with a client-side retry would hide the next one too.",
-        "BLOCKED 2026-09-08, superseded by W17-03, which owns the root-cause work under the product-completion handoff. Deliberately NOT marked done: it was never diagnosed. The evidence above is the starting point for W17-03, not a closed record."
+        "BLOCKED 2026-09-08, superseded by W17-03, which owns the root-cause work under the product-completion handoff. Deliberately NOT marked done: it was never diagnosed. The evidence above is the starting point for W17-03, not a closed record.",
+        "FOURTH DATA POINT 2026-09-08 (W17-06), and the best lead yet: the podman VM DIED TWICE in one session, unprompted. Once before any test ran (machine reported 'last up 2 weeks ago'), once mid-session where a running worker died with AggregateError [ECONNREFUSED] 127.0.0.1:5432 and podman ps answered 'Cannot connect to Podman ... dial tcp 127.0.0.1:53314: connection refused'. A VM dying under a running suite drops every Postgres and Redis socket at once, which is exactly a client-side write EPIPE with a Redis server that reports nothing wrong - because from its side nothing did. Still NOT a demonstrated cause of the 15-test accounts/auth-local failure, so this ticket stays blocked; but check `podman machine list` and the VM log first on the next occurrence. docs/TESTING.md section 11."
       ]
     },
     {
@@ -7207,11 +7208,16 @@
         "Absent optional model configuration does not make ingestion unhealthy or break startup"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-06 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
         "Baseline defect this closes: the existing worker /healthz proves the process can reach Postgres and Redis. It does NOT prove a queue consumer is alive or that work is progressing.",
-        "Container healthchecks must use binaries actually present in the final images."
+        "Container healthchecks must use binaries actually present in the final images.",
+        "DONE 2026-09-08. Probes bounded at 2s (HEALTH_PROBE_TIMEOUT_MS) in BOTH the worker health server and the API /healthz. The case this fixes is a HUNG dependency, not a refused one: a refused connection rejects at once, but a dropped NAT entry or paused VM never settles, so select 1 hung forever and /healthz never answered while holding the socket. Both handlers also got rejection paths - a bare void promise.then() with no catch takes the process down under Node default policy, so the health endpoint could kill the process it reports on.",
+        "NEW apps/api/src/workers/heartbeat.ts. Per-INSTANCE key repopulse:worker:heartbeat:<id>, SET with EX in one round trip (no window where the key exists without a TTL), 15s refresh / 60s TTL, deleted on clean shutdown, published only AFTER consumers register. readWorkerHeartbeats() uses SCAN not KEYS - it sits behind an admin endpoint that may be polled. Payload is id/timestamps/pid/host/queues: no secrets, no repository content, asserted by an allow-list test.",
+        "LIVE PROOF with two real workers from the shipping entrypoint: 2 distinct heartbeats; SIGTERM on exactly one left exactly one (the acceptance case - a shared key would have erased both); SIGKILL left the key with TTL 49s, bounded, so a killed worker cannot look alive forever; worker /healthz answered {postgres:true,redis:true,ok:true}.",
+        "Container healthchecks added for worker and web, using binaries VERIFIED PRESENT in each image: worker has node but NOT curl; web is nginx:alpine and has wget/curl but NO node. Copying the api probe into web would have marked every web container unhealthy forever. Drift gate in deploy-up.test.ts asserts each stage uses the right one.",
+        "Mandatory vs optional kept separate: checkWorkerHealth deliberately does not consider whether a model is configured - Tier-1 ingestion needs no LLM, so an install with no provider is a WORKING install and folding it into liveness would restart a good worker. Asserted by test."
       ]
     },
     {

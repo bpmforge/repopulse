@@ -282,6 +282,33 @@ than hidden behind quietly broken sessions.
 > three green runs alone. Regression coverage:
 > `packages/auth/src/session/plugin.test.ts`, which fails on the unfixed plugin.
 
+### The podman VM dies on this host (observed twice, 2026-09-08)
+
+Recorded during W17-06, and it is the strongest lead W16-34 has ever had.
+
+The VM went down **twice in one working session**: once before any test ran
+(`podman machine` reported `last up 2 weeks ago`, and the infra guard failed
+fast) and once mid-session, where a running worker died with
+`AggregateError [ECONNREFUSED] ... 127.0.0.1:5432` and `podman ps` answered
+`Cannot connect to Podman ... dial tcp 127.0.0.1:53314: connect: connection
+refused`. Nothing was asking the VM to stop either time.
+
+A VM that dies underneath a running suite drops **every** Postgres and Redis
+socket at once. That produces exactly what W16-34 recorded — an ioredis
+`write EPIPE` from a client- or host-side teardown, with the Redis server
+itself showing no rejected connections, no memory pressure and no timeout,
+because from the server's point of view nothing went wrong: it went away with
+the VM.
+
+This does not close W16-34 — the 15-test `accounts`/`auth-local` failure still
+has not been reproduced, and "the VM sometimes dies" is a hypothesis about the
+host, not a demonstrated cause of that specific failure. But it is a far better
+explanation than memory pressure, and it is checkable: when a run fails,
+`podman machine list` and the VM's own log say whether it restarted.
+
+`scripts/dev-up.sh` already starts the VM when it is down, which is why the
+recovery is one command.
+
 ### Capturing the next occurrence
 
 W16-34's own stated next step was to capture resources at the moment of failure

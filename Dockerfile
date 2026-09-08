@@ -105,6 +105,18 @@ COPY --from=runtime-src /app ./
 RUN npm install -g tsx@4.23.1 && npm cache clean --force
 RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
 USER app
+# W17-06. Uses `node`, which this image HAS (verified in-image; `curl` is NOT
+# installed here, so a curl-based probe would report every worker unhealthy).
+# start-period is generous because the worker registers consumers and warms a
+# gateway before it serves anything.
+#
+# This proves the PROCESS is serving and can reach Postgres and Redis. It
+# deliberately does not prove a queue consumer is alive — that is the Redis
+# heartbeat (workers/heartbeat.ts), which the API can actually see. A container
+# healthcheck cannot be the liveness signal for the product, because nothing
+# outside this container can read it.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.WORKER_HEALTH_PORT||3301)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["tsx", "apps/api/src/workers/index.ts"]
 
 # ---------- one-shot: migrate ----------
@@ -127,3 +139,9 @@ FROM nginx:1.27-alpine AS web
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
 COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 8080
+# W17-06. `wget`, NOT node: this image is nginx:alpine and has no node at all
+# (verified in-image), so the api/worker probe copied here would mark every web
+# container unhealthy forever. Checks that nginx is serving the built index,
+# which is the whole job of this container.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
