@@ -17,7 +17,10 @@ describeIfRedis('worker heartbeat (W17-06)', () => {
   });
 
   afterEach(async () => {
-    const keys = await redis.keys(`${HEARTBEAT_PREFIX}*`);
+    // Only this file's own keys. Deleting every heartbeat would knock out a real
+    // worker running on the same machine, which is someone else's problem to
+    // debug.
+    const keys = await redis.keys(`${HEARTBEAT_PREFIX}test-*`);
     if (keys.length) await redis.del(...keys);
   });
 
@@ -33,10 +36,14 @@ describeIfRedis('worker heartbeat (W17-06)', () => {
     });
     await hb.beat();
 
-    const live = await readWorkerHeartbeats(redis);
-    expect(live.map((h) => h.instanceId)).toEqual(['test-a']);
-    expect(live[0]?.queues).toEqual(['backfill', 'enrich']);
-    expect(live[0]?.pid).toBe(process.pid);
+    // Find OUR instance rather than asserting the whole list: a real worker may
+    // legitimately be running on this machine (a dev stack, the e2e webServer),
+    // and a test that depends on nothing else existing is a test that fails for
+    // reasons that are not about the code.
+    const mine = (await readWorkerHeartbeats(redis)).find((h) => h.instanceId === 'test-a');
+    expect(mine).toBeDefined();
+    expect(mine?.queues).toEqual(['backfill', 'enrich']);
+    expect(mine?.pid).toBe(process.pid);
 
     await hb.stop();
   });
@@ -82,22 +89,26 @@ describeIfRedis('worker heartbeat (W17-06)', () => {
       intervalMs: 60_000, // never refreshes within the test
     });
     await hb.beat();
-    expect(await readWorkerHeartbeats(redis)).toHaveLength(1);
+    const has = async (): Promise<boolean> =>
+      (await readWorkerHeartbeats(redis)).some((h) => h.instanceId === 'test-expiry');
+    expect(await has()).toBe(true);
 
     await new Promise((r) => setTimeout(r, 1500));
 
-    expect(await readWorkerHeartbeats(redis)).toHaveLength(0);
+    expect(await has()).toBe(false);
     await hb.stop();
   });
 
   it('a clean stop removes it immediately rather than waiting out the TTL', async () => {
     const hb = startWorkerHeartbeat({ redis, queues: ['backfill'], instanceId: 'test-stop' });
+    const has = async (): Promise<boolean> =>
+      (await readWorkerHeartbeats(redis)).some((h) => h.instanceId === 'test-stop');
     await hb.beat();
-    expect(await readWorkerHeartbeats(redis)).toHaveLength(1);
+    expect(await has()).toBe(true);
 
     await hb.stop();
 
-    expect(await readWorkerHeartbeats(redis)).toHaveLength(0);
+    expect(await has()).toBe(false);
   });
 
   it('ONE worker stopping does not erase another worker heartbeat', async () => {
@@ -107,16 +118,20 @@ describeIfRedis('worker heartbeat (W17-06)', () => {
     const b = startWorkerHeartbeat({ redis, queues: ['enrich'], instanceId: 'test-b' });
     await a.beat();
     await b.beat();
-    expect((await readWorkerHeartbeats(redis)).map((h) => h.instanceId).sort()).toEqual([
-      'test-a',
-      'test-b',
-    ]);
+    const mine = async (): Promise<string[]> =>
+      (await readWorkerHeartbeats(redis))
+        .map((h) => h.instanceId)
+        .filter((id) => id === 'test-a' || id === 'test-b')
+        .sort();
+    expect(await mine()).toEqual(['test-a', 'test-b']);
 
     await a.stop();
 
-    const left = await readWorkerHeartbeats(redis);
-    expect(left.map((h) => h.instanceId)).toEqual(['test-b']);
-    expect(left[0]?.queues).toEqual(['enrich']);
+    // The point: stopping one leaves the OTHER one alone.
+    expect(await mine()).toEqual(['test-b']);
+    expect(
+      (await readWorkerHeartbeats(redis)).find((h) => h.instanceId === 'test-b')?.queues,
+    ).toEqual(['enrich']);
 
     await b.stop();
   });

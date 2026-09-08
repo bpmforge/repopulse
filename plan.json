@@ -7272,10 +7272,14 @@
         "Members cannot reach admin endpoints through the UI"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-08 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Baseline: the /admin landing page shows no setup progress and no system health at all."
+        "Baseline: the /admin landing page shows no setup progress and no system health at all.",
+        "DONE 2026-09-08. NEW apps/web/src/widgets/admin/SystemStatus.tsx on the /admin/ landing page, ABOVE Connections rather than replacing it - /admin/ has always rendered Connections and moving it would break every bookmark and every test treating that URL as the connections screen.",
+        "Polls /admin/system every 30s via refetchInterval, which will not stack a second request while one is pending. A FAILED request drops to the frame error state and does NOT keep rendering the last-known components - a stale green panel from a response that no longer arrives is the exact lie the endpoint was built to stop. State is shown in WORDS beside the dot, so meaning survives greyscale and a pasted screenshot.",
+        "Verified in the running app at 1440x900: six components, plain-language reasons, working action links; the demo stack worker reported \"1 worker instance is running and consuming queues\", which proves the W17-06 heartbeat reaches the UI end to end. Screenshot docs/work/product-completion/evidence/w17-08-settings-health.png",
+        "CAUGHT BY THE FULL SUITE, not by the unit run: heartbeat.test.ts and the system route test asserted exact heartbeat counts and wiped every heartbeat key, so they failed the moment a real worker was running and would have deleted that worker's key. Both now scope to their own instance ids, and the dead-worker case skips rather than fakes when a real worker is up."
       ]
     },
     {

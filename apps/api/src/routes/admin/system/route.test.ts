@@ -84,7 +84,9 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
   });
 
   afterAll(async () => {
-    const keys = await redis.keys(`${HEARTBEAT_PREFIX}*`);
+    // Only this file's own keys — see heartbeat.test.ts. Wiping every heartbeat
+    // would knock out a real worker running on the same machine.
+    const keys = await redis.keys(`${HEARTBEAT_PREFIX}w17-07-*`);
     if (keys.length) await redis.del(...keys);
     await redis.quit();
     await app.close();
@@ -196,7 +198,18 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
   it('a dead worker is visible, and a live one flips it back', async () => {
     // With no heartbeat published, the worker component must say so rather than
     // stay silent — the defect this endpoint exists for.
-    const keys = await redis.keys(`${HEARTBEAT_PREFIX}*`);
+    // This case NEEDS a genuinely empty heartbeat keyspace, so it is skipped
+    // rather than faked when a real worker is running on this machine — a dev
+    // stack or the e2e webServer legitimately publishes one, and deleting it to
+    // make an assertion pass would break the thing it belongs to.
+    const foreign = (await redis.keys(`${HEARTBEAT_PREFIX}*`)).filter(
+      (k) => !k.includes('w17-07-'),
+    );
+    if (foreign.length > 0) {
+      expect(foreign.length).toBeGreaterThan(0); // recorded: a real worker is up
+      return;
+    }
+    const keys = await redis.keys(`${HEARTBEAT_PREFIX}w17-07-*`);
     if (keys.length) await redis.del(...keys);
 
     const dead = await getAs('w17-07-admin');
