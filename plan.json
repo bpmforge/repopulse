@@ -7409,10 +7409,14 @@
         "No backend change is made"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-12 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Spacing and type treatment come from IMPLEMENTATION-PLAN.md §4. Chart colours stay sourced from the same tokens."
+        "Spacing and type treatment come from IMPLEMENTATION-PLAN.md §4. Chart colours stay sourced from the same tokens.",
+        "DONE 2026-09-08. NEW apps/web/src/styles/contrast.test.ts computes WCAG ratios from the REAL theme.css, in both themes, including the /15 tint case. theme.css had carried a careful AA claim in a comment since W4-12 whose own text explained why it was never enforced: \"jsdom component tests cannot compute contrast so the suite stayed green\". A colour is a number.",
+        "It immediately found EIGHT real AA failures in the shipped theme: dark fg-faint 4.33 on surface-2, dark crit 4.35 on its own tint, dark accent-fg on accent 3.54 (every primary button), light fg-faint 4.26, and light ok/warn/crit/info between 3.92 and 4.46 on their own tints. All fixed with measured replacements, each recorded beside the token.",
+        "THE INSTRUCTIVE FAILURE: darkening --color-accent to fix white-on-button dropped LINK text to 4.18:1, and axe reported 128 colour-contrast violations across the app. My synthetic test had passed, because it checked accent-fg ON accent and never accent AS text. Resolved with a split token - accent (light, for text) and accent-strong (dark, for fills) - and the test now asserts BOTH directions. The real-DOM axe run is what caught it; the unit test alone would have shipped it.",
+        "NEW PageHeader/SectionHeader (the page/section type levels were indistinguishable - /admin used text-lg, 18px, for a PAGE title) and NEW Button (70 button elements, no primitive, four different focus-ring spellings and some with none). Both given real callers immediately rather than left as an unused kit."
       ]
     },
     {

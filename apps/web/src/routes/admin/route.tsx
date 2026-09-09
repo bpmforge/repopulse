@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
-import { WidgetFrame } from '../../components/index.js';
+import { PageHeader, WidgetFrame } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { MeContext } from '../../widgets/org/contracts.js';
 
@@ -51,7 +51,14 @@ function AdminLayout() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="admin">
-      <h1 className="text-lg font-semibold">Admin</h1>
+      {/* W17-12: was `text-lg font-semibold`, i.e. the same 18px a SECTION
+          title uses elsewhere — so the page and section levels were
+          indistinguishable and a reader could not tell where they were. */}
+      <PageHeader
+        title="Settings"
+        description="Connections, models, analysis policy, members, and the health of this install."
+        testId="admin-header"
+      />
       <nav className="flex gap-1 border-b border-border" aria-label="Admin sections">
         {TABS.map((tab) => (
           <Link

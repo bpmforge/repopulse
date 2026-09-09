@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import { Button, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 
 // Settings → system health (W17-08, consumes W17-07's /admin/system).
@@ -89,14 +89,9 @@ export function SystemStatus() {
               Checked {relative(data.checkedAt)}
               {isFetching ? ' · refreshing' : ''}
             </p>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="rounded-md border border-border px-2 py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              data-testid="system-status-refresh"
-            >
+            <Button size="sm" onClick={() => void refetch()} data-testid="system-status-refresh">
               Refresh
-            </button>
+            </Button>
           </div>
 
           <ul className="flex flex-col gap-2" data-testid="system-status-list">
@@ -147,15 +142,16 @@ export function SystemStatus() {
               reading plain language first is the point, and the raw payload is
               what they paste into an issue when it is not enough. */}
           <div>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowDetail((v) => !v)}
               aria-expanded={showDetail}
-              className="text-xs text-fg-muted underline-offset-2 hover:text-fg hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="px-0"
               data-testid="system-status-diagnostics-toggle"
             >
               {showDetail ? 'Hide diagnostics' : 'Show diagnostics'}
-            </button>
+            </Button>
             {showDetail ? (
               <pre
                 className="mt-2 max-h-64 overflow-auto rounded-md border border-border p-2 text-[11px] leading-relaxed"
