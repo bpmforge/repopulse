@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- RepoPulse (W17-13). Same geometry as components/brand/RepoPulseMark.tsx.
+       Standalone rather than generated, because a favicon is fetched by the
+       browser before any JS runs — there is nothing to render it from.
+       currentColor is replaced by an explicit colour here for the same reason:
+       an SVG favicon has no inherited colour to take. -->
+  <circle cx="4.5" cy="12" r="2.25" fill="#6e7bff"/>
+  <circle cx="19.5" cy="12" r="2.25" fill="#6e7bff"/>
+  <path d="M7 12 H9.5 L11.5 5.5 L14 18.5 L16 12 H17.25"
+        stroke="#6e7bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -4,6 +4,7 @@ import { useUiStore } from '../store/uiStore.js';
 import { SyncStatusChip } from '../primitives/SyncStatusChip.js';
 import { ThemeToggle } from './ThemeToggle.js';
 import { UserMenu } from './UserMenu.js';
+import { RepoPulseWordmark } from '../brand/RepoPulseMark.js';
 
 // Left rail (UX §3.1): collapsible 240px/64px. Active item = accent bar + tinted
 // background. Bottom: sync-status chip, theme toggle, user menu. PRs/Findings
@@ -153,7 +154,10 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
       data-collapsed={collapsed}
     >
       <div className="flex items-center justify-between px-3 py-3">
-        {!collapsed && <span className="font-semibold text-fg">RepoPulse</span>}
+        {/* W17-13: the mark shows in BOTH states. Collapsed, the rail used to
+            carry no brand at all — just a column of icons with nothing saying
+            what application this is. */}
+        <RepoPulseWordmark markOnly={collapsed} />
         {/* Hidden when the window forces the collapse: the button could not
             change anything, and a control that visibly does nothing is worse
             than no control. */}

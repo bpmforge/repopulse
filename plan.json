@@ -7441,10 +7441,14 @@
         "Decorative instances are aria-hidden and standalone brand links have an accessible name"
       ],
       "points": 2,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-13 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Baseline: the rail renders a text wordmark and no mark at all. No continuously pulsing animation; no marketing website."
+        "Baseline: the rail renders a text wordmark and no mark at all. No continuously pulsing animation; no marketing website.",
+        "DONE 2026-09-08. NEW components/brand/RepoPulseMark.tsx: two filled commit nodes joined by one line carrying a single pulse kink. currentColor throughout, so one asset serves dark, light, monochrome and print with no variants. No text inside the mark, no gradient, no fork - two converging strokes blur into one at 16px, which is where a favicon spends its life.",
+        "DESIGNED AGAINST A SCREENSHOT, not from the description. The first version spanned y 7.5..16.5 - only the middle third of a square - so as a favicon it was a small squiggle in a lot of empty tab, and at 16px the nodes crowded the line. Rendered three variants side by side at 16/24/32/48 and took the one whose beat still reads at 16px (y 4.5..19.5). Evidence: docs/work/product-completion/evidence/w17-13-mark-sizes.png, four backgrounds x four sizes.",
+        "The collapsed rail previously carried NO brand at all - a column of icons with nothing saying which application it was. It now shows the mark alone, which is why the mark-only variant carries the accessible name and the mark+wordmark variant does not: a screen reader should hear RepoPulse exactly once.",
+        "NEW apps/web/public/favicon.svg (there was no favicon of any kind) linked from index.html. The geometry is duplicated on purpose - a favicon is fetched before any JS runs - and a test asserts the two paths stay identical."
       ]
     },
     {

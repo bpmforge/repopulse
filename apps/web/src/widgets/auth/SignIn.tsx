@@ -8,6 +8,7 @@ import {
   useAuthProviders,
   type LocalLoginResult,
 } from './contracts.js';
+import { RepoPulseMark } from '../../components/brand/RepoPulseMark.js';
 
 // The sign-in screen (W15-04, D14).
 //
@@ -100,7 +101,12 @@ export function SignIn({ expired }: SignInProps) {
           </p>
         ) : null}
 
-        <h1 className="text-base font-medium">RepoPulse</h1>
+        {/* W17-13: mark + wordmark. The mark is aria-hidden inside the
+            wordmark, so the h1 still announces "RepoPulse" exactly once. */}
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+          <RepoPulseMark size={28} />
+          RepoPulse
+        </h1>
         <p className="mt-2 text-sm text-fg-muted">
           {expired
             ? 'Your session ended. Sign in again to pick up where you left off — nothing was lost.'
