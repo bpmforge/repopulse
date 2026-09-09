@@ -49,7 +49,7 @@ const ICON_PATHS: Record<IconName, string[]> = {
   ],
 };
 
-function RailIcon({ name }: { name: IconName }) {
+export function RailIcon({ name }: { name: IconName }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -81,19 +81,65 @@ interface NavItem {
   badge?: number;
 }
 
+/**
+ * Primary destinations (W17-14, IMPLEMENTATION-PLAN.md §4).
+ *
+ * Nine flat entries became six plus a Workspace group. Nine is past the point
+ * where a list is scanned rather than read, and the nine were not peers: three
+ * of them (My Focus, Pull Requests, Saved Views) are personal working surfaces,
+ * not places you go to answer "what is wrong with our code?".
+ *
+ * TWO ARE RENAMED IN PRESENTATION ONLY, and the URLs are deliberately untouched:
+ * "Findings" reads like a database table, "Reviews" like something you do; and
+ * "Admin" describes who may enter rather than what is inside. /findings and
+ * /admin still resolve, every bookmark still works, and the admin RBAC gate is
+ * exactly where it was.
+ */
 const NAV: NavItem[] = [
-  { to: '/', label: 'Org Overview', icon: 'overview' },
-  { to: '/repos', label: 'Repos', icon: 'repos' },
-  { to: '/pull-requests', label: 'Pull Requests', icon: 'prs' },
-  // W4-07: the rail had no My Focus entry, so the screen was reachable only by
-  // typing the URL — while __root.tsx already carried its breadcrumb label.
-  { to: '/me', label: 'My Focus', icon: 'focus' },
-  { to: '/findings', label: 'Findings', icon: 'findings' },
-  { to: '/plans', label: 'Plans', icon: 'plans' },
+  { to: '/', label: 'Overview', icon: 'overview' },
+  { to: '/repos', label: 'Repositories', icon: 'repos' },
+  { to: '/findings', label: 'Reviews', icon: 'findings' },
+  { to: '/plans', label: 'Improvement plans', icon: 'plans' },
   { to: '/reports', label: 'Reports', icon: 'reports' },
-  { to: '/views', label: 'Views', icon: 'views' },
-  { to: '/admin', label: 'Admin', icon: 'admin' },
+  { to: '/admin', label: 'Settings', icon: 'admin' },
 ];
+
+/**
+ * The Workspace group — one click away, never deleted.
+ *
+ * W4-07 had to ADD My Focus to the rail because it was reachable only by typing
+ * the URL. Removing these would repeat that mistake, so they are grouped and
+ * labelled rather than dropped, and the group shows an active state when you
+ * are inside one of them.
+ */
+const SECONDARY_NAV: NavItem[] = [
+  { to: '/me', label: 'My Focus', icon: 'focus' },
+  { to: '/pull-requests', label: 'Pull Requests', icon: 'prs' },
+  { to: '/views', label: 'Saved Views', icon: 'views' },
+];
+
+/** Every destination, in render order. Exported for the narrow-screen drawer. */
+export function navGroups(isAdmin: boolean): { label: string | null; items: NavItem[] }[] {
+  return [
+    { label: null, items: NAV.filter((i) => i.to !== '/admin' || isAdmin) },
+    { label: 'Workspace', items: SECONDARY_NAV },
+  ];
+}
+
+export type { NavItem };
+
+/**
+ * Test id for a destination, derived from its PATH rather than its label.
+ *
+ * W17-14 renamed two labels in presentation only, and every rail test broke —
+ * because the ids were built from the display text. The path is the stable
+ * contract (that is the entire point of renaming presentation and not routes),
+ * so it is what the id is built from now. A future rename cannot break a test
+ * that is not about naming.
+ */
+export function navTestId(to: string): string {
+  return to === '/' ? 'home' : to.replace(/^\//, '').replace(/\//g, '-');
+}
 
 export interface RailProps {
   /** Per-user badge counts keyed by path (e.g. review queue, new findings). */
@@ -144,7 +190,7 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
   const collapsed = stored || narrow;
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const items = NAV.filter((item) => item.to !== '/admin' || isAdmin);
+  const groups = navGroups(isAdmin);
 
   return (
     <nav
@@ -174,8 +220,23 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
         </button>
       </div>
 
-      <ul className="flex flex-1 flex-col gap-0.5 px-2">
-        {items.map((item) => {
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
+      {groups.map((group) => (
+      <ul key={group.label ?? 'primary'} className="flex flex-col gap-0.5 px-2">
+        {group.label && !collapsed ? (
+          <li
+            className="px-2.5 pt-2 pb-1 text-xs font-medium uppercase tracking-wide text-fg-faint"
+            aria-hidden="true"
+          >
+            {group.label}
+          </li>
+        ) : null}
+        {group.label && collapsed ? (
+          // Collapsed, a text heading has nowhere to go, so the groups are
+          // separated by a rule instead — the grouping still reads.
+          <li className="mx-2 my-1 border-t border-border" aria-hidden="true" />
+        ) : null}
+        {group.items.map((item) => {
           const active = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
           const badge = badges[item.to];
           return (
@@ -188,7 +249,7 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
                     ? 'border-l-2 border-accent bg-accent/10 text-fg'
                     : 'border-l-2 border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg'
                 }`}
-                data-testid={`rail-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                data-testid={`rail-${navTestId(item.to)}`}
                 aria-current={active ? 'page' : undefined}
                 title={collapsed ? item.label : undefined}
               >
@@ -206,6 +267,8 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
           );
         })}
       </ul>
+      ))}
+      </div>
 
       <div className="flex flex-col gap-1 border-t border-border px-3 py-2">
         {!collapsed && <SyncStatusChip connection={sseConnection} />}

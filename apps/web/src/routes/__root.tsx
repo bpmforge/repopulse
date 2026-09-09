@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createRootRouteWithContext,
   Outlet,
@@ -7,6 +7,8 @@ import {
 } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { Rail } from '../components/shell/Rail.js';
+import { NavDrawer } from '../components/shell/NavDrawer.js';
+import { RepoPulseWordmark } from '../components/brand/RepoPulseMark.js';
 import { Topbar } from '../components/shell/Topbar.js';
 import { DemoBanner } from '../components/shell/DemoBanner.js';
 import { CommandPalette } from '../components/palette/CommandPalette.js';
@@ -281,10 +283,45 @@ function AppShell() {
   // name here, because the URL only carries an id (W16-42).
   const entityCrumb = useUiStore((s) => s.entityCrumb);
 
+  // W17-14 drawer state. Lives in the shell rather than the drawer so the
+  // trigger and the panel share it, and so focus can return to the trigger.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerTriggerRef = useRef<HTMLButtonElement>(null);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-fg">
-      <Rail search={preservedSearch} badges={railBadges} />
+      {/* W17-14: the rail is DESKTOP only now. Below 768px it used to collapse
+          to a column of unlabelled icons that ate 56px of a 390px screen
+          permanently; narrow screens get the labelled drawer instead. */}
+      <div className="hidden md:flex">
+        <Rail search={preservedSearch} badges={railBadges} />
+      </div>
+      <NavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        badges={railBadges}
+        search={preservedSearch}
+        returnFocusTo={drawerTriggerRef}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* The drawer's trigger. Labelled in words, not a bare hamburger, and
+            it reports its own state — a control that opens something must say
+            so (aria-expanded / aria-controls). */}
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+          <button
+            type="button"
+            ref={drawerTriggerRef}
+            onClick={() => setDrawerOpen(true)}
+            aria-expanded={drawerOpen}
+            aria-controls="nav-drawer"
+            className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="nav-drawer-trigger"
+          >
+            <span aria-hidden="true">☰</span>
+            Menu
+          </button>
+          <RepoPulseWordmark />
+        </div>
         <DemoBanner />
         {/* Says why personalized views are empty for someone whose account is
             not connected to a committer — at the shell, because that is true on

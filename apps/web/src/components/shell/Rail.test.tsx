@@ -78,7 +78,7 @@ describe('narrow windows (W16-05, F21)', () => {
     const rail = await screen.findByTestId('rail');
     expect(rail).toHaveAttribute('data-collapsed', 'true');
     // Labels gone, icons kept — that is what buys the width back.
-    expect(screen.queryByText('Org Overview')).toBeNull();
+    expect(screen.queryByText('Overview')).toBeNull();
   });
 
   it('stays expanded on a wide window', async () => {
@@ -86,7 +86,7 @@ describe('narrow windows (W16-05, F21)', () => {
     renderRail({});
     const rail = await screen.findByTestId('rail');
     expect(rail).toHaveAttribute('data-collapsed', 'false');
-    expect(screen.getByText('Org Overview')).toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
   });
 
   it('hides the toggle when the window is what forced the collapse', async () => {

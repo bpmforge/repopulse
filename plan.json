@@ -7472,11 +7472,15 @@
         "Route paths are unchanged for renamed destinations"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-14 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
         "Baseline: nine flat primary destinations, and at 390px a bare column of nine unlabelled icons with no drawer and no labels.",
-        "Findings becomes Reviews and Admin becomes Settings in PRESENTATION only — /findings and /admin keep their paths. My Focus, Pull Requests and Saved Views move to a secondary group, never deleted."
+        "Findings becomes Reviews and Admin becomes Settings in PRESENTATION only — /findings and /admin keep their paths. My Focus, Pull Requests and Saved Views move to a secondary group, never deleted.",
+        "DONE 2026-09-08. Nine flat rail entries became SIX primary plus a Workspace group (My Focus, Pull Requests, Saved Views). Nothing was deleted - W4-07 had to ADD My Focus to the rail because it was reachable only by typing the URL, and dropping these would repeat that. Findings -> Reviews and Admin -> Settings are PRESENTATION ONLY: /findings and /admin are untouched, asserted by e2e against every one of the nine paths.",
+        "NEW components/shell/NavDrawer.tsx replaces the narrow-screen icon rail, which was nine UNLABELLED icons eating 56px of a 390px screen with only a title attribute a touch device never shows. Hand-rolled because no dialog primitive is installed and adding a dependency needs a TECH_STACK amendment (PLAYBOOK refusal condition) - so the four behaviours a library would give are implemented AND tested: Escape closes, Tab is trapped both ways, focus returns to the trigger rather than the body, and choosing a destination closes it.",
+        "e2e/nav.spec.ts (10 tests) proves the acceptance directly: all nine destinations by pasted URL, renamed ones keeping their hrefs, Back, Workspace-group active state, keyboard-only drawer operation, and NO page-level horizontal overflow at 390px - the measured baseline defect.",
+        "Rail test ids now derive from the PATH, not the display label. Renaming two labels broke five tests, which is the coupling this ticket argues against: the path is the stable contract, so a future rename cannot break a test that is not about naming."
       ]
     },
     {
