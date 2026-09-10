@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
+import { useOverlayLayout } from '../../widgets/findings/layout.js';
 import {
   ALL_DIMENSIONS as DIMENSIONS,
   DIMENSIONS_AWAITING_PRODUCER,
@@ -45,6 +46,11 @@ const LIST = { endpoint: '/findings' } as const;
 
 const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as const;
 
+/** The HTTP status behind a failed by-id fetch, if the error carries one. */
+function statusOf(error: unknown): number | undefined {
+  return (error as { status?: number } | null | undefined)?.status;
+}
+
 function FindingsExplorer() {
   const [dimension, setDimension] = useState('');
   const [status, setStatus] = useState('open');
@@ -61,7 +67,25 @@ function FindingsExplorer() {
   // link behave the same as a click.
   const navigate = useNavigate({ from: Route.fullPath });
   const openId = Route.useSearch().finding ?? null;
+  /**
+   * The row control that opened the current finding, so closing can hand
+   * focus back to it (W17-22). Set on click, read once on close. Held as an
+   * id rather than an element because the row may have re-rendered — or been
+   * paged out — in between.
+   */
+  const returnFocusTo = useRef<number | null>(null);
+  /**
+   * Open, switch, or close — three navigations with two history behaviours.
+   *
+   * Opening from the list and closing back to it are PUSHED: each is a place
+   * someone may want Back or Forward to return to, and a reload lands on the
+   * same one. Switching row to row while one is open REPLACES: triage is a
+   * queue, and pushing an entry per row would make Back walk every finding
+   * someone glanced at instead of leaving the screen (W16-16).
+   */
   const setOpenId = (id: number | null) => {
+    if (id === openId) return;
+    const switching = id !== null && openId !== null;
     void navigate({
       // The other global filters ride along — dropping them would make opening
       // a finding silently reset the window and repo pickers (DASHBOARD §1).
@@ -69,12 +93,24 @@ function FindingsExplorer() {
         ...prev,
         ...(id === null ? { finding: undefined } : { finding: id }),
       }),
-      // REPLACE, not push. Triage is a queue: pushing a history entry per row
-      // would make Back walk every finding someone glanced at instead of
-      // leaving the screen.
-      replace: true,
+      replace: switching,
     });
   };
+  const openFromRow = (id: number) => {
+    returnFocusTo.current = id;
+    setOpenId(id);
+  };
+  const close = () => {
+    returnFocusTo.current = returnFocusTo.current ?? openId;
+    setOpenId(null);
+  };
+
+  /**
+   * Two presentations, one state (W17-22). Wide: the panel below the list.
+   * Narrow: an overlay dialog over it, because a 390px column has no room for
+   * both. Which one is drawn never changes what `?finding=` means.
+   */
+  const overlay = useOverlayLayout();
 
   /**
    * Scroll the detail panel into view when one opens (W16-05, F14).
@@ -87,12 +123,25 @@ function FindingsExplorer() {
    * `block: 'nearest'` rather than 'start': when the panel is already visible,
    * moving the page anyway would yank the row the person just clicked out from
    * under the cursor.
+   *
+   * In overlay mode the dialog takes FOCUS instead: a keyboard user must land
+   * inside the thing now covering the list, and Escape must be heard from it.
    */
   const detailRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (openId === null) return;
-    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [openId]);
+    if (openId === null) {
+      // Closed: hand focus back to the row that opened it, if the row is
+      // still on the page. Paged away or filtered out, there is nothing
+      // honest to focus and the browser's default is left alone.
+      const id = returnFocusTo.current;
+      returnFocusTo.current = null;
+      if (id === null) return;
+      document.querySelector<HTMLElement>(`[data-testid="finding-open-${id}"]`)?.focus();
+      return;
+    }
+    if (overlay) detailRef.current?.focus();
+    else detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [openId, overlay]);
   const [note, setNote] = useState('');
   const [triage, setTriage] = useState(false);
 
@@ -101,17 +150,38 @@ function FindingsExplorer() {
   // since W4-02; nothing joined them.
   const repos = Route.useSearch().repos;
 
+  const filterQuery = {
+    ...(repos ? { repo_id: repos } : {}),
+    ...(dimension ? { dimension } : {}),
+    ...(status ? { status } : {}),
+    ...(severityMin ? { severity_min: severityMin } : {}),
+    ...(verifyStatus ? { verify_status: verifyStatus } : {}),
+    ...(scannerKey ? { scanner_key: scannerKey } : {}),
+    ...(inChain ? { in_chain: 'true' } : {}),
+  } as const;
+
+  /**
+   * Keyset paging (W17-22). The API has returned `next_cursor` since W6-04 and
+   * the explorer showed the first fifty and no way to the fifty-first. The
+   * cursors walked so far are a stack: Next pushes the page's `next_cursor`,
+   * Previous pops. Held against the filters that produced them — a filter
+   * change is a new list, and a cursor into the old one would be a 400.
+   *
+   * Deliberately NOT in the URL: a cursor is opaque and encodes a position in
+   * a list that reorders as findings are triaged. The finding is what a link
+   * carries; the by-id fetch below covers a selection the page no longer holds.
+   */
+  const filterKey = JSON.stringify(filterQuery);
+  const [paging, setPaging] = useState<{ key: string; cursors: string[] }>({
+    key: filterKey,
+    cursors: [],
+  });
+  const cursors = paging.key === filterKey ? paging.cursors : [];
+  const cursor = cursors[cursors.length - 1];
+
   const listDescriptor = {
     endpoint: '/findings',
-    query: {
-      ...(repos ? { repo_id: repos } : {}),
-      ...(dimension ? { dimension } : {}),
-      ...(status ? { status } : {}),
-      ...(severityMin ? { severity_min: severityMin } : {}),
-      ...(verifyStatus ? { verify_status: verifyStatus } : {}),
-      ...(scannerKey ? { scanner_key: scannerKey } : {}),
-      ...(inChain ? { in_chain: 'true' } : {}),
-    },
+    query: { ...filterQuery, ...(cursor ? { cursor } : {}) },
   } as const;
 
   const { data, isLoading, isError, error, refetch } = useApiQuery<{
@@ -146,13 +216,89 @@ function FindingsExplorer() {
    * RECIPIENT'S view — a link to a dismissed finding, opened by someone whose
    * Status is the default "open", found nothing. Enabled only in that case, so
    * an ordinary click costs no extra request: the row is already in hand.
+   * Since W17-22 the same fetch covers a selection on a page other than the
+   * one showing.
    */
   const inList = openId !== null ? items.find((f) => f.id === openId) : undefined;
   const fetched = useApiQuery<Finding>(
     { endpoint: '/findings/{id}', path: { id: String(openId ?? '') } },
     { enabled: openId !== null && !inList && !isLoading },
   );
-  const openFinding = inList ?? (openId !== null ? fetched.data : undefined);
+  // NEVER THE PREVIOUS ONE (W17-22, acceptance 4). useApiQuery keeps the last
+  // answer on screen while the next loads, which is right for a chart under a
+  // changing window and wrong here: #99's evidence under a URL that says #100
+  // is the previous selection shown for an id this workspace may not be
+  // allowed to see. Placeholder data is a loading state, not a finding.
+  const fetchedNow = fetched.isPlaceholderData ? undefined : fetched.data;
+  const openFinding = inList ?? (openId !== null ? fetchedNow : undefined);
+  const fetchStatus = statusOf(fetched.error);
+  const fetchPending =
+    openId !== null &&
+    openFinding === undefined &&
+    !fetched.isError &&
+    (isLoading || fetched.isPending || fetched.isPlaceholderData);
+
+  /** A row is one wide click target; only the checkbox is exempt (W17-22). */
+  const onRowClick = (f: Finding) => (e: MouseEvent<HTMLTableRowElement>) => {
+    if ((e.target as HTMLElement).closest('input, a')) return;
+    openFromRow(f.id);
+  };
+  const onRowKey = (f: Finding) => (e: KeyboardEvent<HTMLTableRowElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    openFromRow(f.id);
+  };
+
+  const detail =
+    openId === null ? null : openFinding ? (
+      <FindingDetail
+        finding={openFinding}
+        onClose={close}
+        invalidate={[queryKeyFor(listDescriptor), queryKeyFor({ endpoint: '/findings/stats' })]}
+      />
+    ) : fetchPending ? (
+      <div className="text-sm text-fg-muted" data-testid="finding-loading">
+        Opening finding #{openId}…
+      </div>
+    ) : fetchStatus === 403 ? (
+      // Distinct from not-found: the finding exists and this account may not
+      // read it. Nothing of it is shown, and retrying will not change that.
+      <div
+        className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
+        data-testid="finding-forbidden"
+      >
+        You are not permitted to view finding #{openId}. Ask a workspace admin if you think you
+        should be.
+      </div>
+    ) : fetched.isError && fetchStatus !== 404 ? (
+      <div
+        className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
+        data-testid="finding-load-failed"
+      >
+        Finding #{openId} could not be loaded ({fetched.error.message}).{' '}
+        <button
+          type="button"
+          className="text-accent underline underline-offset-2"
+          onClick={() => void fetched.refetch()}
+        >
+          Retry
+        </button>
+      </div>
+    ) : (
+      // NOT SILENCE (W16-16), and now only for a finding that genuinely is
+      // not there (W16-32). The by-id fetch covers the filters case, so
+      // reaching here means the id does not exist in this workspace —
+      // deleted, mistyped, or somebody else's (which the API answers with the
+      // same 404, so a link cannot probe for ids).
+      <div
+        className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
+        data-testid="finding-not-in-view"
+      >
+        Finding #{openId} is not in this workspace. It may have been deleted, or the link may be for
+        a different RepoPulse install.
+      </div>
+    );
 
   return (
     <div className="flex flex-col gap-4" data-testid="findings">
@@ -365,7 +511,20 @@ function FindingsExplorer() {
           </thead>
           <tbody data-testid="finding-rows">
             {items.map((f) => (
-              <tr key={f.id} className="border-t border-border" data-testid={`finding-${f.id}`}>
+              // THE WHOLE ROW OPENS IT (W17-22). The baseline capture clicked a
+              // row at 1440px and the URL did not change: the only control was
+              // the title text, and on a wide table most of a row is not the
+              // title. The button stays as the accessible control; the row is
+              // the pointer target around it. `aria-current` marks the open one
+              // so the list says which row the panel belongs to.
+              <tr
+                key={f.id}
+                className={`cursor-pointer border-t border-border ${f.id === openId ? 'bg-accent/5' : ''}`}
+                data-testid={`finding-${f.id}`}
+                aria-current={f.id === openId ? 'true' : undefined}
+                onClick={onRowClick(f)}
+                onKeyDown={onRowKey(f)}
+              >
                 <td className="py-1">
                   <input
                     type="checkbox"
@@ -386,23 +545,60 @@ function FindingsExplorer() {
                 <th scope="row" className="py-1 text-left font-normal">
                   <button
                     type="button"
-                    className="text-accent hover:underline"
+                    className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     data-testid={`finding-open-${f.id}`}
-                    onClick={() => setOpenId(f.id === openId ? null : f.id)}
+                    aria-expanded={f.id === openId}
+                    onClick={(e) => {
+                      // The row handler would open it too; one navigation.
+                      e.stopPropagation();
+                      openFromRow(f.id);
+                    }}
                   >
                     {f.title}
                   </button>
                 </th>
                 <td className="py-1 text-xs">{f.repo.name}</td>
-                <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
+                <td className="py-1 font-mono text-xs" data-testid={`finding-file-${f.id}`}>
+                  {locationOf(f)}
+                </td>
                 <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
-                <td className="py-1 text-xs whitespace-nowrap" data-testid={`finding-verify-${f.id}`}>
+                <td
+                  className="py-1 text-xs whitespace-nowrap"
+                  data-testid={`finding-verify-${f.id}`}
+                >
                   {VERIFY_LABEL[f.verify_status]}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {(cursors.length > 0 || data?.next_cursor) && (
+          <div className="mt-2 flex items-center gap-2 text-xs" data-testid="findings-paging">
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-1 hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="findings-prev-page"
+              disabled={cursors.length === 0}
+              onClick={() => setPaging({ key: filterKey, cursors: cursors.slice(0, -1) })}
+            >
+              Previous page
+            </button>
+            <span className="text-fg-muted">Page {cursors.length + 1}</span>
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-1 hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="findings-next-page"
+              disabled={!data?.next_cursor}
+              onClick={() => {
+                if (data?.next_cursor) {
+                  setPaging({ key: filterKey, cursors: [...cursors, data.next_cursor] });
+                }
+              }}
+            >
+              Next page
+            </button>
+          </div>
+        )}
       </WidgetFrame>
 
       {triage && (
@@ -413,35 +609,36 @@ function FindingsExplorer() {
         />
       )}
 
-      {openId !== null &&
-        (openFinding ? (
-          <div ref={detailRef}>
-            <FindingDetail
-              finding={openFinding}
-              onClose={() => setOpenId(null)}
-              invalidate={[
-                queryKeyFor(listDescriptor),
-                queryKeyFor({ endpoint: '/findings/stats' }),
-              ]}
-            />
-          </div>
-        ) : fetched.isLoading ? (
-          <div ref={detailRef} className="text-sm text-fg-muted" data-testid="finding-loading">
-            Opening finding #{openId}…
-          </div>
-        ) : (
-          // NOT SILENCE (W16-16), and now only for a finding that genuinely is
-          // not there (W16-32). The by-id fetch covers the filters case, so
-          // reaching here means the id does not exist in this workspace —
-          // deleted, mistyped, or somebody else's.
+      {detail !== null &&
+        (overlay ? (
           <div
             ref={detailRef}
-            className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
-            data-testid="finding-not-in-view"
+            className="fixed inset-0 z-40 overflow-auto bg-bg/95 p-4 backdrop-blur"
+            role="dialog"
+            aria-modal="true"
+            aria-label={openFinding?.title ?? `Finding #${openId}`}
+            tabIndex={-1}
+            data-testid="finding-overlay"
+            onKeyDown={(e) => {
+              // Reaches here only from the loading / not-found / forbidden
+              // states — the panel itself handles (and stops) its own Escape.
+              if (e.key === 'Escape') close();
+            }}
           >
-            Finding #{openId} is not in this workspace. It may have been deleted, or the link may
-            be for a different RepoPulse install.
+            <div className="mb-2 flex justify-end">
+              <button
+                type="button"
+                className="text-xs text-fg-muted underline underline-offset-2"
+                data-testid="finding-overlay-close"
+                onClick={close}
+              >
+                Back to the list
+              </button>
+            </div>
+            {detail}
           </div>
+        ) : (
+          <div ref={detailRef}>{detail}</div>
         ))}
     </div>
   );

@@ -7704,10 +7704,11 @@
         "A deep link cannot expose another workspace finding, and not-found or forbidden never shows the previous selection"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-22 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Baseline defect to fix: clicking a findings row wrote finding=65659 into the URL at 390px but NOT at 1440px in the same build, so selection is not consistently URL state today."
+        "Baseline defect to fix: clicking a findings row wrote finding=65659 into the URL at 390px but NOT at 1440px in the same build, so selection is not consistently URL state today.",
+        "Closed 2026-09-10: selection is URL state at every width (whole row is the click target; the title button was the only control, so a wide-table click off the text did nothing); open/close PUSH history and row-to-row switches REPLACE; narrow viewports get an overlay dialog that takes focus and hands it back to the opening row on Escape; keyset paging (Previous/Next) keeps ?finding= and the by-id fetch covers an off-page selection; 404/403 never show the previous finding (placeholder data is treated as loading, not a finding). No API change. Tests: routes/findings/index.test.tsx 13 (new), widgets/findings/FindingDetail.test.tsx 4 (new, XSS payloads in detail + triage). Gate: lint 0, typecheck 0, 2261 passed / 8 skipped across 299 files. NOT verified in a live browser."
       ]
     },
     {

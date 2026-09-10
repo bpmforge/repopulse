@@ -25,7 +25,10 @@ export function FindingDetail({
   } as const;
   const { data: history } = useApiQuery<{ items: FindingEvent[] }>(historyDescriptor);
 
-  const transition = useApiMutation<{ status: string; note: string; dismiss_reason?: string }, unknown>(
+  const transition = useApiMutation<
+    { status: string; note: string; dismiss_reason?: string },
+    unknown
+  >(
     { endpoint: '/findings/{id}', path: { id: finding.id }, method: 'PATCH' },
     // The panel's OWN history query is invalidated too. Without it the audit
     // trail the user just added to keeps showing the previous state — the
@@ -35,7 +38,19 @@ export function FindingDetail({
 
   return (
     <WidgetFrame title={finding.title} state="ready">
-      <div className="flex flex-col gap-3" data-testid="finding-detail">
+      {/* Escape closes, from anywhere inside the panel (W17-22). On the element
+          rather than window so it cannot collide with the triage queue's own
+          Escape, and the note field is not exempt: Escape is not a keystroke a
+          note needs. */}
+      <div
+        className="flex flex-col gap-3"
+        data-testid="finding-detail"
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape') return;
+          e.stopPropagation();
+          onClose();
+        }}
+      >
         <div className="flex flex-wrap gap-3 text-xs text-fg-muted">
           <span>{SEVERITY_LABEL[finding.severity]}</span>
           <span>confidence {finding.confidence}/5</span>
@@ -77,8 +92,8 @@ export function FindingDetail({
             // longer be the line this finding is about — worth one sentence
             // rather than a link that silently means something else.
             <p className="mt-1 text-xs text-fg-faint" data-testid="finding-forge-ref-note">
-              Opens the default branch — this finding records no commit, so the
-              lines may have moved since it was raised.
+              Opens the default branch — this finding records no commit, so the lines may have moved
+              since it was raised.
             </p>
           )}
         </div>
@@ -93,8 +108,8 @@ export function FindingDetail({
           <ul className="mt-1 flex flex-col gap-0.5 text-xs" data-testid="finding-history">
             {(history?.items ?? []).map((e, i) => (
               <li key={i}>
-                <span className="text-fg-muted">{e.at.slice(0, 10)}</span> {e.from_status ?? 'new'} →{' '}
-                {e.to_status}{' '}
+                <span className="text-fg-muted">{e.at.slice(0, 10)}</span> {e.from_status ?? 'new'}{' '}
+                → {e.to_status}{' '}
                 {/* THREE STATES (W16-59). An analysis pass reopening a finding
                     must not look like a colleague doing it — and now that a
                     removed account nulls the actor id, a departed colleague
@@ -155,7 +170,11 @@ export function FindingDetail({
           >
             Dismiss
           </button>
-          <button type="button" className="text-xs text-fg-muted underline underline-offset-2" onClick={onClose}>
+          <button
+            type="button"
+            className="text-xs text-fg-muted underline underline-offset-2"
+            onClick={onClose}
+          >
             Close
           </button>
         </div>
