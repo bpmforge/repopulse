@@ -54,6 +54,14 @@ die() {
   exit 1
 }
 
+# A variable the way compose resolves it: the shell first, then deploy/.env
+# (W17-28). Both up.sh and scan-db-sync.sh read SCAN_RULES_DIR through this so
+# the directory the worker mounts is the directory the sync fills.
+env_value() { # $1 name -> shell value, else the .env line, else empty
+  if [ -n "${!1:-}" ]; then printf '%s' "${!1}"
+  elif [ -f .env ]; then sed -n "s/^$1=//p" .env | tail -n1; fi
+}
+
 # How long to wait for the stack to become healthy. A cold first run has to pull
 # or build images, so this is generous; CI and tests override it.
 : "${REPOPULSE_UP_TIMEOUT:=300}"
@@ -108,6 +116,7 @@ fi
 # Absolute, because podman-compose does not resolve a relative bind-mount source
 # against the compose file's directory — it resolves it against the caller's cwd,
 # or not at all. `pwd` here is deploy/, since we cd'd above.
+SCAN_RULES_DIR="$(env_value SCAN_RULES_DIR)"
 : "${SCAN_RULES_DIR:=$(pwd)/scan-rules}"
 export SCAN_RULES_DIR
 
@@ -133,10 +142,21 @@ export SCAN_RUNTIME
 if [ -z "${CONTAINER_SOCKET:-}" ]; then
   if [ "$RT" = docker ]; then
     CONTAINER_SOCKET=/var/run/docker.sock
-  elif [ "$(id -u)" = 0 ]; then
-    CONTAINER_SOCKET=/run/podman/podman.sock
   else
-    CONTAINER_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+    # Ask podman first (W17-28): `podman info` reports the socket path AS THE
+    # SERVER SEES IT, which is the path the daemon can bind into scan-runner.
+    # Under podman machine that is the VM's path and differs from anything
+    # derivable on the macOS client. It answers with a unix:// scheme; compose
+    # wants the bare path. The derivation below is the fallback for a podman
+    # that does not report one.
+    CONTAINER_SOCKET="$(podman info --format '{{.Host.RemoteSocket.Path}}' 2>/dev/null | sed 's#^unix://##' || true)"
+    if [ -z "$CONTAINER_SOCKET" ]; then
+      if [ "$(id -u)" = 0 ]; then
+        CONTAINER_SOCKET=/run/podman/podman.sock
+      else
+        CONTAINER_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+      fi
+    fi
   fi
 fi
 export CONTAINER_SOCKET
@@ -172,6 +192,47 @@ echo "scan rules: $SCAN_RULES_DIR"
 if [ -z "$(ls -A "$SCAN_RULES_DIR" 2>/dev/null | grep -v '^README.md$\|^\.gitignore$' || true)" ]; then
   echo "  (empty — dependency scanning will report itself unavailable until you"
   echo "   run deploy/scan-db-sync.sh, which needs ~2 GB for the grype database)"
+fi
+
+# ------------------------------------------------------- images (W17-28) -----
+# A compose file with no `build:` is a bundle install: the images must ALREADY
+# be loaded under the exact name and tag .env pins, because there is no source
+# here to build them from. Checked before `up`, because what compose says when
+# an image is missing and cannot be built is a pull attempt against a registry
+# that does not exist ("localhost/repopulse/api: name unknown"), which sends
+# the operator looking at their network instead of at `load`.
+#
+# The two variables are read the way compose reads them: the shell first, then
+# deploy/.env. Left unset, compose would fall back to :dev — the floating tag
+# a bundle exists to avoid — so an unset version is refused here as well.
+if [ -f compose.yaml ] && ! grep -q '^    build:' compose.yaml; then
+  version="$(env_value REPOPULSE_VERSION)"
+  prefix="$(env_value REPOPULSE_IMAGE_PREFIX)"
+  : "${prefix:=repopulse}"
+  case "$version" in
+    '' | dev | latest)
+      die "REPOPULSE_VERSION is '${version:-unset}' in deploy/.env, but this compose file has no
+build: stanzas — it runs pre-built images and must name which. Set
+REPOPULSE_VERSION (and SCAN_IMAGE) in deploy/.env to the version that was
+loaded; a bundle's install.sh writes both."
+      ;;
+  esac
+  missing=""
+  for name in migrate api worker scan-runner web; do
+    img="$prefix/$name:$version"
+    if ! "$RT" image exists "$img" 2>/dev/null && ! "$RT" image inspect "$img" >/dev/null 2>&1; then
+      missing="$missing
+    $img"
+    fi
+  done
+  if [ -n "$missing" ]; then
+    die "IMAGES NOT LOADED. deploy/.env pins version $version but these are not present:$missing
+
+Nothing was started. Load the bundle's images first:
+    $RT load -i images/repopulse-images.tar
+(or run ./install.sh from the bundle directory, which does this and checks it)."
+  fi
+  echo "images:     $prefix/*:$version (all present)"
 fi
 
 # ------------------------------------------------------------------- up ------
@@ -225,12 +286,31 @@ Logs:
     $RT logs $migrate_id"
   fi
   if [ "${m_code:-1}" != "0" ]; then
+    # W17-28: the one cause worth naming. Postgres sets its password ONLY when
+    # it initialises an empty volume, so a data volume left behind by an
+    # earlier install (or a deploy/.env regenerated after the old one was
+    # lost) fails every connection with 28P01 — and the migration is the
+    # first thing to notice. Seen on the bundle smoke against a volume from a
+    # month-old install. Without this hint the operator is sent to read a
+    # Node stack trace ending in `auth_failed`.
+    hint=""
+    if "$RT" logs "$migrate_id" 2>&1 | grep -q "28P01\|password authentication failed"; then
+      hint="
+The migration could not AUTHENTICATE to Postgres (28P01). The data volume
+'${REPOPULSE_PROJECT}_pgdata' already existed with a different password than
+deploy/.env now holds — Postgres only sets the password when it initialises
+an empty volume. Either restore the deploy/.env that matches that volume, or,
+if the old data is not wanted, remove it and start again:
+    $RT compose -p $REPOPULSE_PROJECT -f compose.yaml down
+    $RT volume rm ${REPOPULSE_PROJECT}_pgdata ${REPOPULSE_PROJECT}_redisdata   # DESTROYS that data
+"
+    fi
     die "DATABASE MIGRATION FAILED (exit ${m_code:-unknown}).
 
 The stack is not usable: the schema was not applied. Nothing else was started
 against it on purpose, because an API serving a half-migrated database is worse
 than an API that is down.
-
+$hint
 Logs:
     $RT logs $migrate_id"
   fi
@@ -279,4 +359,7 @@ if [ -n "$failed" ]; then
 fi
 
 echo
-echo "All services running. Open http://localhost:${REPOPULSE_PORT:-8099}"
+# The port the way compose resolved it — shell, then .env — so an install
+# configured with --port=8199 is not told to open 8099 (W17-28).
+port="$(env_value REPOPULSE_PORT)"
+echo "All services running. Open http://localhost:${port:-8099}"

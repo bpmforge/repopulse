@@ -49,6 +49,8 @@ describe('deploy/up.sh behaviour (W17-04)', () => {
       composeUpRc?: number;
       composeUpOut?: string;
       providerRc?: number;
+      /** W17-28: what `image exists <name>` answers. Default: present. */
+      imagesPresent?: boolean;
     },
   ): string {
     const bin = path.join(dir, 'bin');
@@ -73,6 +75,11 @@ if [ "$1" = "compose" ]; then
   # any 'compose ... up -d ...'
   echo "${opts.composeUpOut ?? 'stub: compose up ran'}"
   exit ${opts.composeUpRc ?? 0}
+fi
+
+if [ "$1" = "image" ]; then
+  # W17-28: 'image exists <name>' / 'image inspect <name>' in bundle mode.
+  exit ${opts.imagesPresent === false ? 1 : 0}
 fi
 
 if [ "$1" = "ps" ]; then
@@ -112,17 +119,28 @@ exit 1
   /** Run up.sh with a scratch deploy dir so the repo's own .env is untouched. */
   async function runUp(
     env: Record<string, string>,
-    opts: { withEnvFile?: boolean; envFile?: string; bin?: string } = {},
+    opts: { withEnvFile?: boolean; envFile?: string; bin?: string; bundle?: boolean } = {},
   ): Promise<{ code: number; out: string }> {
     const deployDir = path.join(dir, 'deploy');
     mkdirSync(deployDir, { recursive: true });
     // Copy the script under test next to a scratch .env; up.sh cd's to its own
     // directory, so this keeps every side effect inside the temp dir.
     await run('cp', [upSh, path.join(deployDir, 'up.sh')]);
-    await run('cp', [
-      path.join(repoRoot, 'deploy/compose.yaml'),
-      path.join(deployDir, 'compose.yaml'),
-    ]);
+    if (opts.bundle) {
+      // W17-28: a bundle's compose file is the same file with no build:
+      // stanzas, which is what puts up.sh into "images must be loaded" mode.
+      const { stdout } = await run('bash', [
+        path.join(repoRoot, 'deploy/bundle.sh'),
+        'strip-compose',
+        path.join(repoRoot, 'deploy/compose.yaml'),
+      ]);
+      writeFileSync(path.join(deployDir, 'compose.yaml'), stdout);
+    } else {
+      await run('cp', [
+        path.join(repoRoot, 'deploy/compose.yaml'),
+        path.join(deployDir, 'compose.yaml'),
+      ]);
+    }
     // W17-27: a real install always has SCAN_RUNNER_TOKEN (configure.mjs
     // generates it); the fixture mirrors that so the token refusal, tested on
     // its own below, does not mask the migrate/health behaviour under test.
@@ -290,6 +308,53 @@ exit 1
 
     expect(code).toBe(0);
     expect(out).toContain('runtime:    docker');
+  });
+
+  // W17-28: bundle mode. With no build: in compose.yaml the images must already
+  // be loaded under the name .env pins, and up.sh says so BEFORE compose can
+  // turn a missing image into a registry error.
+  const bundleEnv = (extra = '') =>
+    `POSTGRES_USER=x\nSCAN_RUNNER_TOKEN=test-token-not-a-secret\n${extra}`;
+
+  it('bundle mode: refuses to run pre-built images without a pinned version', async () => {
+    stubRuntime('podman', { services: allHealthy });
+    const { code, out } = await runUp({}, { bundle: true, envFile: bundleEnv() });
+
+    expect(code).not.toBe(0);
+    expect(out).toContain("REPOPULSE_VERSION is 'unset' in deploy/.env");
+    expect(out).not.toContain('compose up ran');
+  });
+
+  it('bundle mode: refuses when the pinned images are not loaded, naming them and the fix', async () => {
+    stubRuntime('podman', { services: allHealthy, imagesPresent: false });
+    const { code, out } = await runUp(
+      {},
+      {
+        bundle: true,
+        envFile: bundleEnv('REPOPULSE_VERSION=1.2.3\nREPOPULSE_IMAGE_PREFIX=localhost/repopulse\n'),
+      },
+    );
+
+    expect(code).not.toBe(0);
+    expect(out).toContain('IMAGES NOT LOADED');
+    expect(out).toContain('localhost/repopulse/api:1.2.3');
+    expect(out).toContain('podman load -i images/repopulse-images.tar');
+    expect(out).not.toContain('compose up ran');
+  });
+
+  it('bundle mode: starts when every pinned image is present', async () => {
+    stubRuntime('podman', { services: allHealthy });
+    const { code, out } = await runUp(
+      {},
+      {
+        bundle: true,
+        envFile: bundleEnv('REPOPULSE_VERSION=1.2.3\nREPOPULSE_IMAGE_PREFIX=localhost/repopulse\n'),
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(out).toContain('images:     localhost/repopulse/*:1.2.3 (all present)');
+    expect(out).toContain('All services running');
   });
 
   it('never uses a destructive down -v anywhere in the script', async () => {
