@@ -7531,10 +7531,12 @@
         "Empty actions are accompanied by coverage state rather than a universal clean bill of health"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-16 \u2014 IMPLEMENTATION-PLAN.md \u00a75. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "At most three actions. Reuse the existing ranking arithmetic; no new AI call and no invented effort estimate. Ingestion failures are an operational notice, not a code vulnerability."
+        "At most three actions. Reuse the existing ranking arithmetic; no new AI call and no invented effort estimate. Ingestion failures are an operational notice, not a code vulnerability.",
+        "2026-09-10 claimed by Foreman after W17-15 29c8cc2",
+        "2026-09-10 done. GET /org/top-actions + pure selectTopActions/summarizeCoverage in @repopulse/insights. 15 api tests (12 DB-backed) + 17 insights tests. Web card is W17-17."
       ]
     },
     {

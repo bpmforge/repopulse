@@ -7,6 +7,8 @@ export * from './plans/engine.js';
 export * from './agreements/index.js';
 export * from './findings/index.js';
 export * from './narrative/pulse.js';
+export * from './actions/top-actions.js';
+export * from './actions/coverage.js';
 export * from './intents/index.js';
 export * from './risk/model.js';
 export * from './risk/price.js';
