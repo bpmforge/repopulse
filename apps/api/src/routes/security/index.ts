@@ -82,6 +82,17 @@ export function rejectedEverything(funnel: Record<string, unknown> | null | unde
  */
 export const STALE_RUN_AFTER_MS = 60 * 60 * 1000;
 
+/** The dimensions the Security tab lists findings from (packages/shared dimensions.ts). */
+export const SECURITY_DIMENSIONS: ReadonlySet<string> = new Set([
+  'security',
+  'secrets',
+  'dependency',
+  'sast',
+  'iac',
+  'chain',
+  'compound',
+]);
+
 function startedLongAgo(startedAt: Date | null | undefined, now = Date.now()): boolean {
   if (!startedAt) return false;
   return now - startedAt.getTime() > STALE_RUN_AFTER_MS;
@@ -89,13 +100,15 @@ function startedLongAgo(startedAt: Date | null | undefined, now = Date.now()): b
 
 export function stateOf(
   enabled: boolean,
-  run: {
-    status: string;
-    partial: boolean | null;
-    error?: string | null;
-    validationFunnel?: Record<string, unknown> | null;
-    startedAt?: Date | null;
-  } | undefined,
+  run:
+    | {
+        status: string;
+        partial: boolean | null;
+        error?: string | null;
+        validationFunnel?: Record<string, unknown> | null;
+        startedAt?: Date | null;
+      }
+    | undefined,
 ): ScannerState {
   if (!enabled) return 'not_enabled';
   if (!run) return 'never_run';
@@ -193,6 +206,10 @@ export default async function securityRoutes(
 
     const findings = await db
       .select({
+        id: read.findings.id,
+        title: read.findings.title,
+        file: read.findings.file,
+        lineStart: read.findings.lineStart,
         severity: read.findings.severity,
         dimension: read.findings.dimension,
         scannerKey: read.findings.scannerKey,
@@ -321,6 +338,24 @@ export default async function securityRoutes(
       open_by_severity: openBySeverity,
       open_total: findings.length,
       scanners,
+      // THE FINDINGS THEMSELVES, linkable (W17-20). Every count on this tab
+      // was a number with no row behind it: a scan that found something
+      // produced a screen that looked the same as one that had not, except
+      // for a digit. Ten worst, security-shaped dimensions only — code health
+      // and performance findings have their own tabs.
+      top_findings: findings
+        .filter((f) => SECURITY_DIMENSIONS.has(f.dimension))
+        .sort((a, b) => b.severity - a.severity || a.id - b.id)
+        .slice(0, 10)
+        .map((f) => ({
+          id: f.id,
+          title: f.title,
+          severity: f.severity,
+          dimension: f.dimension,
+          scanner_key: f.scannerKey,
+          file: f.file,
+          line: f.lineStart,
+        })),
       secrets: {
         open: findings.filter((f) => f.dimension === 'secrets').length,
         // Two clocks, not one: stream mode says "we are watching new commits"

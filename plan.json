@@ -7648,10 +7648,11 @@
         "Duplicate submission is prevented while a job is pending, with server authorization and idempotency retained"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-20 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "No findings in a completed scan requires a successful applicable run. A confirmed second-model judgment is not a proven exploit."
+        "No findings in a completed scan requires a successful applicable run. A confirmed second-model judgment is not a proven exploit.",
+        "Closed 2026-09-10: useScanRun follows a manual scan to its end (poll while running/queued, stop on any terminal state, bounded 5-min pickup wait that becomes a sentence); RunScanButton locks while the table reports a run in flight and unlocks on terminal state, shows the API's detail and a 403's who-can-press-it; code-health API now uses the security route's stateOf (a running scan_run read as '✓ ran clean'); Security payload carries top_findings (real ids, linked); dependency and complexity empty copy derived from the scanner's state. Scope note: two minimal API edits (code-health state, security top_findings) declared in docs/STATUS.md."
       ]
     },
     {
