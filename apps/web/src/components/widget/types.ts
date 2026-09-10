@@ -29,6 +29,8 @@ export type WidgetType =
   | 'top-risks'
   // W10-05.
   | 'risk-axes'
+  // W17-17. Its own type, same reason as the ones above.
+  | 'top-actions'
   | 'my-prs'
   | 'my-queue'
   | 'text';

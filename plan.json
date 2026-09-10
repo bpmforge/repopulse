@@ -7561,10 +7561,12 @@
         "No demo totals are hardcoded"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-17 \u2014 IMPLEMENTATION-PLAN.md \u00a75. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Baseline measured at 1440x900: the fold lands on the HEADINGS of Repo health and Needs attention, so no actionable item is above it. Current order is setup checklist, Weekly pulse, Delivery KPIs, Repo health, Needs attention."
+        "Baseline measured at 1440x900: the fold lands on the HEADINGS of Repo health and Needs attention, so no actionable item is above it. Current order is setup checklist, Weekly pulse, Delivery KPIs, Repo health, Needs attention.",
+        "2026-09-10 claimed and completed after W17-16 56d3429. NEW widgets/org/TopActionsCard.tsx, registered as type 'top-actions' in widgets/org/register.tsx and placed FIRST in orgWidgets. One line outside write_scope: the WidgetType union in components/widget/types.ts, which a new widget type cannot exist without.",
+        "Placement is reasoned + unit-tested (WidgetGrid auto-places in array order), NOT browser-measured at 1440x900 \u2014 the dev stack was not up and e2e/org-overview.spec.ts is outside write_scope."
       ]
     },
     {

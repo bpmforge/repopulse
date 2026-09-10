@@ -37,6 +37,62 @@ export interface AttentionItems {
 }
 
 /**
+ * GET /org/top-actions — at most three things worth doing next (W17-16).
+ *
+ * Mirrors `serializeTopActions` in apps/api/src/routes/org/top-actions.ts
+ * field-for-field. The route takes NO querystring: `collectTopActions` is
+ * window-independent, because "what should we do next" is a question about the
+ * current state of the warehouse rather than about a reporting period.
+ */
+export interface TopActionsResponse {
+  actions: TopActionItem[];
+  /**
+   * Present ONLY when `actions` is empty, and the whole reason an empty card is
+   * not a clean bill of health: "we measured nine repositories and nothing is
+   * pressing" and "we have never measured anything" must not render the same.
+   */
+  coverage: TopActionsCoverage | null;
+  generated_at: string;
+}
+
+export interface TopActionItem {
+  id: string;
+  kind: 'finding' | 'plan_item';
+  title: string;
+  reason: string;
+  repo_id: number | null;
+  repo_name: string | null;
+  /** Plan items only — nobody has estimated a finding. */
+  effort: string | null;
+  target:
+    | { kind: 'finding'; finding_id: number; repo_id: number }
+    | { kind: 'plan_item'; plan_id: number; plan_item_id: number };
+  /** The server's own deep link. The card asserts against it rather than re-deriving it. */
+  href: string;
+}
+
+export interface TopActionsCoverage {
+  basis: 'none' | 'partial' | 'full';
+  repos_total: number;
+  repos_measured: number;
+  repos_never_measured: number;
+  repos_stale: number;
+  notices: TopActionsNotice[];
+  unsupported: string[];
+  /** Rendered VERBATIM. Recomputing it here would fork summarizeCoverage. */
+  summary: string;
+}
+
+export interface TopActionsNotice {
+  repo_id: number;
+  repo_name: string;
+  capability: string;
+  /** `failed` (it ran and broke) vs `not_configured` (it never ran). */
+  state: string;
+  detail: string;
+}
+
+/**
  * The repository a cross-repo row belongs to. Same shape the Findings explorer
  * carries (widgets/findings/contracts.ts) so every list names a repository the
  * same way; `org` travels with `name` because two connected orgs may both have

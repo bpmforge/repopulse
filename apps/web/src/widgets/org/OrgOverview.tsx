@@ -34,9 +34,16 @@ function orgSyncPct(progress: Record<number, { phase: string; pct: number }>): n
  * point of one grid engine: the built-in home and a user-defined view differ by
  * config, not by code.
  */
-function orgWidgets(window: string, search: Record<string, string>): Widget[] {
+export function orgWidgets(window: string, search: Record<string, string>): Widget[] {
   const options = { window, search };
   return [
+    // W17-17. FIRST, above the pulse. Measured at 1440x900, the fold used to
+    // land on the TITLES of Repo health and Needs attention: everything a
+    // visitor could see without scrolling reported state, and nothing proposed
+    // a move. Row ORDER is what places this — WidgetGrid ignores the saved `y`
+    // and auto-places in array order — so the other widgets' y values are left
+    // exactly as they were rather than renumbered into diff noise.
+    { id: 'org-top-actions', type: 'top-actions', layout: { x: 0, y: 0, w: 12, h: 2 }, options },
     // Pinned at the top (R-A7): the pulse is what someone reads if they read
     // one thing, so it sits above the tiles rather than below them.
     { id: 'org-pulse', type: 'weekly-pulse', layout: { x: 0, y: 0, w: 12, h: 2 }, options },
