@@ -7503,11 +7503,12 @@
         "Saved x/y/w/h data is never silently reinterpreted or migrated"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "Handoff task RP-15 \u2014 IMPLEMENTATION-PLAN.md \u00a75. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
         "Do not solve an overview redesign by changing every user saved view position.",
-        "2026-09-10 claimed by Foreman \u2014 demo smoke FAIL (migrate missing postgres pkg); starting W17-15 after recording smoke evidence"
+        "2026-09-10 claimed by Foreman \u2014 demo smoke FAIL (migrate missing postgres pkg); starting W17-15 after recording smoke evidence",
+        "2026-09-10 done \u2014 WidgetGrid places widgets with CSS custom properties (--wg-x/w/h) consumed by md:-only arbitrary-property classes; grid-cols-1 below md so a 390px viewport stacks. Saved y is NOT used as an absolute row (stored y is not a guaranteed packing; row order follows array order via auto-placement). Clamping is display-only \u2014 data-x/y/w/h echo the stored numbers verbatim. Verified the arbitrary-property classes actually compile by running the Tailwind v4 CLI over styles/theme.css and grepping the emitted @media (width >= 48rem) block for grid-column-start/grid-column-end/grid-row-end. Tests: widget.test.tsx +3 (raw attrs preserved under clamp, no mutation of input widgets, responsive class contract), contracts.test.ts +1 (out-of-range x/y/w/h plus options/query round-trip through fromWidgets(toWidgets)); the two placement tests were run against the pre-change WidgetGrid and failed. Gate: lint 0, typecheck 0, test 2115 passed / 8 skipped. NOT verified in a live browser at 390/768/1440 \u2014 the responsive claim rests on the class contract plus the Tailwind emit check, not on captured renderings."
       ]
     },
     {

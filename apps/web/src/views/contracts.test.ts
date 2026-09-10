@@ -12,7 +12,9 @@ describe('view layout narrowing', () => {
       window: '30d',
       layout: [{ id: 'a', type: 'kpi', layout: { x: 0, y: 0, w: 12, h: 1 } }],
     });
-    expect(fromWidgets(widgets)).toEqual([{ id: 'a', type: 'kpi', layout: { x: 0, y: 0, w: 12, h: 1 } }]);
+    expect(fromWidgets(widgets)).toEqual([
+      { id: 'a', type: 'kpi', layout: { x: 0, y: 0, w: 12, h: 1 } },
+    ]);
   });
 
   it('SKIPS a malformed entry instead of crashing the page', () => {
@@ -21,8 +23,28 @@ describe('view layout narrowing', () => {
     expect(toWidget({ type: 'kpi' })).toBeNull();
     expect(toWidget({ id: 'x' })).toBeNull();
     expect(
-      toWidgets({ repo_ids: [], window: '30d', layout: [{ nonsense: true }, { id: 'ok', type: 'kpi' }] }),
+      toWidgets({
+        repo_ids: [],
+        window: '30d',
+        layout: [{ nonsense: true }, { id: 'ok', type: 'kpi' }],
+      }),
     ).toHaveLength(1);
+  });
+
+  // W17-15. The grid clamps x/w/h for DISPLAY; the stored numbers must survive a
+  // load/save cycle regardless, including values the grid cannot honour and the
+  // options/query keys the basic round-trip above does not carry.
+  it('round-trips out-of-range placement and options/query untouched', () => {
+    const layout = [
+      {
+        id: 'a',
+        type: 'kpi',
+        layout: { x: 8, y: 7, w: 8, h: 20 },
+        options: { label: 'Cycle time' },
+        query: { key: ['metrics'], path: '/metrics' },
+      },
+    ];
+    expect(fromWidgets(toWidgets({ repo_ids: [], window: '30d', layout }))).toEqual(layout);
   });
 
   it('defaults a missing size rather than rendering a zero-width widget', () => {
