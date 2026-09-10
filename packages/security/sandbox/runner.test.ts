@@ -226,7 +226,7 @@ describe('how the runner translates a request', () => {
     await podman.run(request());
     expect(calls[0]?.cmd).toBe('podman-remote');
     expect(calls[0]?.argv.slice(0, 3)).toEqual(['--url', 'unix:///run/container.sock', 'run']);
-    expect(calls[0]?.argv).toContain('--timeout=30');
+    expect(calls[0]?.argv).toContain('--timeout=35');
     expect(calls[0]?.argv.some((a) => a.startsWith('--name=repopulse-scan-'))).toBe(true);
 
     const docker = new ScanRunner(

@@ -51,8 +51,9 @@ describe('sandbox profile (NFR-14)', () => {
     expect(argv).toContain('--memory=512m');
     expect(argv).toContain('--cpus=2.00');
     // Podman's own kill switch, so a container outlives neither its budget nor
-    // this process.
-    expect(argv).toContain('--timeout=60');
+    // this process — set a margin ABOVE the runner's timer so it never wins
+    // the race and turns a timeout into a plain failure.
+    expect(argv).toContain('--timeout=65');
   });
 
   it('gives the RUNTIME a PATH and the container nothing (W8-12)', () => {
@@ -123,7 +124,7 @@ describe('podman vs docker argv (W17-27)', () => {
     const argv = buildPodmanArgs(profile);
     expect(argv).toContain(`--volume=/scratch/snap-abc:${SCAN_MOUNT_PATH}:ro,noexec`);
     expect(argv).toContain('--volume=/rules/pack:/rules:ro,noexec');
-    expect(argv).toContain('--timeout=60');
+    expect(argv).toContain('--timeout=65');
   });
 
   it('docker: --mount readonly binds and NO --timeout, which docker run rejects', () => {

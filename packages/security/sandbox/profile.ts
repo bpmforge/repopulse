@@ -153,8 +153,14 @@ function tmpfsArgs(args: SandboxProfileArgs): string[] {
  * a repository is full of executable files someone else wrote. `--timeout` is
  * podman's own kill switch, in seconds, as a backstop to the runner's timer —
  * if the spawning process dies the container still does not outlive its
- * budget.
+ * budget. It is set BACKSTOP_MARGIN_S above the runner's own timer, never
+ * equal to it: at the same nominal budget the two raced, and whichever fired
+ * first named the outcome. When podman won, `podman run` exited non-zero a
+ * few ms before the runner's timer and a scan that ran out of time was
+ * recorded as `failed` (seen under full-suite load on podman machine). The
+ * runner's timer is the one that classifies; podman's only has to exist.
  */
+export const BACKSTOP_MARGIN_S = 5;
 export function buildPodmanArgs(args: SandboxProfileArgs): string[] {
   const argv = coreArgs(args);
   argv.push(
@@ -165,7 +171,7 @@ export function buildPodmanArgs(args: SandboxProfileArgs): string[] {
     argv.push(`--volume=${mount.hostPath}:${mount.containerPath}:ro,noexec`);
   }
   argv.push(...limitArgs(args.budget), ...tmpfsArgs(args));
-  argv.push(`--timeout=${Math.max(1, Math.ceil(args.budget.wallClockMs / 1000))}`);
+  argv.push(`--timeout=${Math.ceil(args.budget.wallClockMs / 1000) + BACKSTOP_MARGIN_S}`);
   argv.push(args.image, ...args.command);
   return argv;
 }
