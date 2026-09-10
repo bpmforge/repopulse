@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   core,
@@ -244,7 +244,17 @@ describeIfDb('collectTopActions (W17-16)', () => {
     await db.delete(read.findings).where(inArray(read.findings.repoId, repoIds));
     // In the hook, not at the end of the test body: a failing assertion would
     // otherwise leave the row behind and poison whatever runs next.
-    await db.delete(security.scanRuns).where(eq(security.scanRuns.scannerKey, 'depscan'));
+    // Scoped to this suite's repositories, like the two deletes above it: an
+    // unscoped scannerKey predicate would clear every depscan run in the dev
+    // database, not the one row the test inserted.
+    await db
+      .delete(security.scanRuns)
+      .where(
+        and(
+          eq(security.scanRuns.scannerKey, 'depscan'),
+          inArray(security.scanRuns.repoId, repoIds),
+        ),
+      );
     await db
       .delete(plansSchema.planItems)
       .where(inArray(plansSchema.planItems.workspaceId, [workspaceId, otherWorkspaceId]));
