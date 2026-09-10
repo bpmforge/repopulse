@@ -10,13 +10,21 @@ export const Route = createFileRoute('/reports/')({ component: ReportCenter });
 
 const LIST = { endpoint: '/reports' } as const;
 
-interface ReportRow {
+export interface ReportRow {
   id: number;
   type: string;
-  status: 'queued' | 'running' | 'ready' | 'failed';
+  /**
+   * The four the worker writes. Typed open (W17-26) because the screen must
+   * treat anything it does not recognise as SETTLED: a status added later
+   * (`cancelled`, say) that this code kept polling on would be the infinite
+   * poll all over again, under a new name.
+   */
+  status: 'queued' | 'running' | 'ready' | 'failed' | (string & {});
   generated_at: string;
   error: string | null;
   has_pdf: boolean;
+  /** The row says ready, the PDF on disk is gone (W17-26). */
+  artifact_missing?: boolean;
 }
 
 const TYPES = [
@@ -28,12 +36,44 @@ const TYPES = [
 ] as const;
 
 /** Paired glyph + word, never colour alone (UX_SPEC §7). */
-const STATUS: Record<ReportRow['status'], string> = {
+const STATUS: Record<string, string> = {
   queued: '◷ queued',
   running: '◐ running',
   ready: '✓ ready',
   failed: '✕ failed',
+  cancelled: '⊘ cancelled',
 };
+
+/**
+ * How long a queued/running row is polled before the screen stops asking
+ * (W17-26). A print takes seconds (REPORTS.md §3 budgets 30s) and BullMQ
+ * retries it once after 5s; a row still non-terminal after this long is a
+ * worker that died mid-job or a queue nobody is draining, and polling it for
+ * the life of the tab is the infinite poll this ticket closes. The row stays
+ * on screen with a Refresh so a human can still ask.
+ */
+export const STALE_AFTER_MS = 15 * 60 * 1000;
+
+export function isPending(r: ReportRow): boolean {
+  return r.status === 'queued' || r.status === 'running';
+}
+
+export function isStalled(r: ReportRow, now: number = Date.now()): boolean {
+  return isPending(r) && now - Date.parse(r.generated_at) > STALE_AFTER_MS;
+}
+
+/** The poll interval for a list: 3s while any young job is in flight, else off. */
+export function pollInterval(
+  list: { items: ReportRow[] } | undefined,
+  now: number = Date.now(),
+): number | false {
+  return list?.items.some((r) => isPending(r) && !isStalled(r, now)) ? 3000 : false;
+}
+
+/** A failed job, or a ready one whose PDF is gone, can be queued again. */
+export function canRetry(r: ReportRow): boolean {
+  return r.status === 'failed' || (r.status === 'ready' && r.artifact_missing === true);
+}
 
 function ReportCenter() {
   const [type, setType] = useState<string>('repo_health');
@@ -47,9 +87,10 @@ function ReportCenter() {
     //
     // WHILE THERE IS SOMETHING TO WAIT FOR, and not otherwise (W16-12). The
     // old flat 3000 asked every three seconds for the life of the tab, long
-    // after every report had settled.
-    refetchInterval: (list) =>
-      list?.items.some((r) => r.status === 'queued' || r.status === 'running') ? 3000 : false,
+    // after every report had settled. Terminal is anything that is not
+    // queued/running, and a job non-terminal for longer than STALE_AFTER_MS
+    // counts as settled too (W17-26).
+    refetchInterval: (list) => pollInterval(list),
     // AND WHILE THE TAB IS HIDDEN. TanStack pauses the interval on
     // `visibilityState: 'hidden'` and defaults this to false — right for a
     // dashboard nobody is looking at, wrong for work the user asked for and
@@ -65,10 +106,10 @@ function ReportCenter() {
   const [annotation, setAnnotation] = useState('');
   const [compare, setCompare] = useState<number[]>([]);
 
-  const generate = useApiMutation<{ type: string; window_days: number; annotation: string }, { id: number }>(
-    { endpoint: '/reports', method: 'POST' },
-    { invalidate: [queryKeyFor(LIST)] },
-  );
+  const generate = useApiMutation<
+    { type: string; window_days: number; annotation: string },
+    { id: number }
+  >({ endpoint: '/reports', method: 'POST' }, { invalidate: [queryKeyFor(LIST)] });
 
   const items = data?.items ?? [];
 
@@ -122,7 +163,10 @@ function ReportCenter() {
             data-testid="generate-report"
             disabled={generate.isPending}
             onClick={() =>
-              generate.mutate({ type, window_days: windowDays, annotation }, { onSuccess: () => setAnnotation('') })
+              generate.mutate(
+                { type, window_days: windowDays, annotation },
+                { onSuccess: () => setAnnotation('') },
+              )
             }
           >
             Generate
@@ -136,7 +180,11 @@ function ReportCenter() {
 
       <WidgetFrame
         title="History"
-        state={frameState({ isLoading, isError, isEmpty: data !== undefined && items.length === 0 })}
+        state={frameState({
+          isLoading,
+          isError,
+          isEmpty: data !== undefined && items.length === 0,
+        })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No reports yet — generate one above."
@@ -154,57 +202,17 @@ function ReportCenter() {
           </thead>
           <tbody data-testid="report-rows">
             {items.map((r) => (
-              <tr key={r.id} className="border-t border-border" data-testid={`report-${r.id}`}>
-                <th scope="row" className="py-1 text-left font-normal">
-                  {TYPES.find((t) => t.id === r.type)?.label ?? r.type}
-                </th>
-                <td className="py-1 text-xs">{r.generated_at.slice(0, 16).replace('T', ' ')}</td>
-                <td className="py-1" data-testid={`report-status-${r.id}`}>
-                  {STATUS[r.status] ?? r.status}
-                  {/* The reason travels with the failure. A bare "failed" sends
-                      someone to logs they may not have access to. */}
-                  {r.error && <span className="ml-2 text-xs text-crit">{r.error.slice(0, 120)}</span>}
-                </td>
-                <td className="py-1">
-                  <input
-                    type="checkbox"
-                    aria-label={`Compare report ${r.id}`}
-                    data-testid={`report-compare-${r.id}`}
-                    disabled={r.status !== 'ready'}
-                    checked={compare.includes(r.id)}
-                    onChange={(e) =>
-                      setCompare((c) =>
-                        e.target.checked ? [...c, r.id].slice(-2) : c.filter((id) => id !== r.id),
-                      )
-                    }
-                  />
-                </td>
-                <td className="py-1">
-                  <div className="flex gap-2">
-                    <Link
-                      to="/print/reports/$reportId"
-                      params={{ reportId: String(r.id) }}
-                      className="text-xs text-accent hover:underline"
-                      data-testid={`report-view-${r.id}`}
-                    >
-                      View
-                    </Link>
-                    {r.has_pdf && (
-                      // A plain link, not fetch(): the download streams through
-                      // the API behind the session check, and letting the
-                      // browser handle it keeps a multi-megabyte PDF out of JS
-                      // memory.
-                      <a
-                        href={`/api/v1/reports/${r.id}/download`}
-                        className="text-xs text-accent hover:underline"
-                        data-testid={`report-download-${r.id}`}
-                      >
-                        PDF
-                      </a>
-                    )}
-                  </div>
-                </td>
-              </tr>
+              <HistoryRow
+                key={r.id}
+                row={r}
+                compared={compare.includes(r.id)}
+                onCompare={(checked) =>
+                  setCompare((c) =>
+                    checked ? [...c, r.id].slice(-2) : c.filter((id) => id !== r.id),
+                  )
+                }
+                onRefresh={() => void refetch()}
+              />
             ))}
           </tbody>
         </table>
@@ -215,10 +223,125 @@ function ReportCenter() {
   );
 }
 
+function HistoryRow({
+  row: r,
+  compared,
+  onCompare,
+  onRefresh,
+}: {
+  row: ReportRow;
+  compared: boolean;
+  onCompare: (checked: boolean) => void;
+  onRefresh: () => void;
+}) {
+  // Same row, queued again (W17-26): the pinned params travel with the id, so
+  // a retry measures the same moment the failed run was asked to measure.
+  const retry = useApiMutation<Record<string, never>, { id: number; status: string }>(
+    { endpoint: '/reports/{id}/retry', path: { id: r.id }, method: 'POST' },
+    { invalidate: [queryKeyFor(LIST)] },
+  );
+  const stalled = isStalled(r);
+
+  return (
+    <tr className="border-t border-border" data-testid={`report-${r.id}`}>
+      <th scope="row" className="py-1 text-left font-normal">
+        {TYPES.find((t) => t.id === r.type)?.label ?? r.type}
+      </th>
+      <td className="py-1 text-xs">{r.generated_at.slice(0, 16).replace('T', ' ')}</td>
+      <td className="py-1" data-testid={`report-status-${r.id}`}>
+        {STATUS[r.status] ?? r.status}
+        {/* The reason travels with the failure. A bare "failed" sends
+            someone to logs they may not have access to. */}
+        {r.error && <span className="ml-2 text-xs text-crit">{r.error.slice(0, 120)}</span>}
+        {r.status === 'ready' && r.artifact_missing && (
+          // Not "failed": the generation succeeded and the stored data may
+          // still be viewable. What is gone is the file behind the download.
+          <span className="ml-2 text-xs text-warn" data-testid={`report-artifact-missing-${r.id}`}>
+            PDF no longer on disk — retry to regenerate it
+          </span>
+        )}
+        {stalled && (
+          <span className="ml-2 text-xs text-fg-muted" data-testid={`report-stalled-${r.id}`}>
+            no progress for over 15 minutes; polling paused
+          </span>
+        )}
+        {retry.isError && (
+          <span className="ml-2 text-xs text-crit" data-testid={`report-retry-error-${r.id}`}>
+            {retry.error.message}
+          </span>
+        )}
+      </td>
+      <td className="py-1">
+        <input
+          type="checkbox"
+          aria-label={`Compare report ${r.id}`}
+          data-testid={`report-compare-${r.id}`}
+          disabled={r.status !== 'ready'}
+          checked={compared}
+          onChange={(e) => onCompare(e.target.checked)}
+        />
+      </td>
+      <td className="py-1">
+        <div className="flex gap-2">
+          <Link
+            to="/print/reports/$reportId"
+            params={{ reportId: String(r.id) }}
+            className="text-xs text-accent hover:underline"
+            data-testid={`report-view-${r.id}`}
+          >
+            View
+          </Link>
+          {r.has_pdf && (
+            // A plain link, not fetch(): the download streams through
+            // the API behind the session check, and letting the
+            // browser handle it keeps a multi-megabyte PDF out of JS
+            // memory.
+            <a
+              href={`/api/v1/reports/${r.id}/download`}
+              className="text-xs text-accent hover:underline"
+              data-testid={`report-download-${r.id}`}
+            >
+              PDF
+            </a>
+          )}
+          {canRetry(r) && (
+            <button
+              type="button"
+              className="text-xs text-accent hover:underline disabled:opacity-50"
+              data-testid={`report-retry-${r.id}`}
+              disabled={retry.isPending}
+              onClick={() => retry.mutate({})}
+            >
+              Retry
+            </button>
+          )}
+          {stalled && (
+            <button
+              type="button"
+              className="text-xs text-accent hover:underline"
+              data-testid={`report-refresh-${r.id}`}
+              onClick={onRefresh}
+            >
+              Refresh
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 interface DiffResponse {
   comparable: boolean;
   reason?: string;
-  deltas: { sectionId: string; label: string; before: number | null; after: number | null; delta: number | null; onlyOneSide: boolean }[];
+  deltas: {
+    sectionId: string;
+    label: string;
+    before: number | null;
+    after: number | null;
+    delta: number | null;
+    onlyOneSide: boolean;
+  }[];
 }
 
 /**
@@ -235,7 +358,11 @@ function ReportDiff({ before, after }: { before: number; after: number }) {
   return (
     <WidgetFrame
       title={`Comparing #${before} → #${after}`}
-      state={frameState({ isLoading, isError, isEmpty: data?.comparable === true && data.deltas.length === 0 })}
+      state={frameState({
+        isLoading,
+        isError,
+        isEmpty: data?.comparable === true && data.deltas.length === 0,
+      })}
       {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="These reports contain no comparable rows."
     >
@@ -261,14 +388,20 @@ function ReportDiff({ before, after }: { before: number; after: number }) {
             {(data?.deltas ?? []).map((d, i) => (
               <tr key={`${d.sectionId}-${d.label}-${i}`} className="border-t border-border">
                 <td className="py-1 text-xs text-fg-muted">{d.sectionId}</td>
-                <th scope="row" className="py-1 text-left font-normal">{d.label}</th>
+                <th scope="row" className="py-1 text-left font-normal">
+                  {d.label}
+                </th>
                 <td className="py-1 tabular-nums">{d.before ?? '—'}</td>
                 <td className="py-1 tabular-nums">{d.after ?? '—'}</td>
                 <td className="py-1 tabular-nums">
                   {d.delta === null
                     ? // Never rendered as a number: a row present on one side
                       // only has not moved, it has appeared or gone.
-                      (d.onlyOneSide ? (d.after === null ? 'gone' : 'new') : '—')
+                      d.onlyOneSide
+                      ? d.after === null
+                        ? 'gone'
+                        : 'new'
+                      : '—'
                     : `${d.delta > 0 ? '▲' : d.delta < 0 ? '▼' : ''} ${Math.round(d.delta * 100) / 100}`}
                 </td>
               </tr>

@@ -78,11 +78,33 @@ const TITLES: Record<string, string> = {
   org_exec: 'Organisation Executive Summary',
   security_posture: 'Security Posture',
   delivery_dora: 'Delivery / DORA',
+  code_health: 'Code Health',
 };
 
-function cell(v: unknown): string {
+/**
+ * Print layout (W17-26). Chrome breaks a page wherever the content happens to
+ * end, and a table row split across two pages reads as two broken rows; a
+ * heading orphaned at a page foot introduces nothing. `break-inside-avoid`
+ * on ROWS rather than on tables: a table longer than a page with the rule on
+ * the whole table is pushed to a fresh page and still split, leaving a blank
+ * gap behind it. `overflow-wrap: anywhere` is what stops a long path, URL or
+ * commit sha from pushing the last column past the printable width, where it
+ * is clipped rather than wrapped — the A4 body is ~186mm, not the 900px this
+ * page has on screen.
+ */
+const TABLE = 'w-full table-auto text-xs';
+const ROW = 'border-t border-border break-inside-avoid';
+const CELL = 'py-0.5 pr-2 align-top [overflow-wrap:anywhere]';
+const HEADING = 'mb-1 text-sm font-medium break-after-avoid';
+
+export function cell(v: unknown): string {
   if (v === null || v === undefined) return '—';
   if (typeof v === 'number') return String(Math.round(v * 100) / 100);
+  if (typeof v === 'boolean') return v ? 'yes' : 'no';
+  // An array or object printed `String(v)` as "[object Object]" — a cell that
+  // says the table is broken rather than what the assembler put in it.
+  if (Array.isArray(v)) return v.map(cell).join(', ');
+  if (typeof v === 'object') return JSON.stringify(v);
   return String(v);
 }
 
@@ -129,7 +151,7 @@ function PrintReport() {
   const snapshotAt = new Date(report.params.snapshotAt).toISOString().slice(0, 19).replace('T', ' ');
 
   return (
-    <div className="mx-auto max-w-[900px] bg-bg p-8 text-fg" data-testid="print-report">
+    <div className="mx-auto max-w-[900px] bg-bg p-8 text-fg print:max-w-none print:p-0" data-testid="print-report">
       {/*
         W16-05 (F13). This route renders no shell — no rail, no topbar — because
         it is printed by a headless browser and every live subscription is one
@@ -149,7 +171,7 @@ function PrintReport() {
       </Link>
 
       {/* Cover (REPORTS.md §5). */}
-      <header className="mb-8 border-b border-border pb-4">
+      <header className="mb-8 border-b border-border pb-4 break-inside-avoid">
         <h1 className="text-lg font-semibold" data-testid="print-title">
           {TITLES[report.params.type] ?? report.params.type}
         </h1>
@@ -166,14 +188,14 @@ function PrintReport() {
       </header>
 
       {/* Basis box (§5.2): what the numbers are and are not built from. */}
-      <section className="mb-6 rounded-md border border-border p-3" data-testid="print-basis">
+      <section className="mb-6 rounded-md border border-border p-3 break-inside-avoid" data-testid="print-basis">
         <h2 className="text-sm font-medium">Basis</h2>
         <p className="mt-1 text-xs text-fg-muted">
           All figures read metric snapshots computed at or before {snapshotAt}. Regenerating this
           report with the same scope reproduces these numbers exactly.
         </p>
         {report.dataQuality.length > 0 && (
-          <table className="mt-2 w-full text-xs">
+          <table className={`mt-2 ${TABLE}`}>
             <thead>
               <tr className="text-left text-fg-muted">
                 <th scope="col">Repository</th>
@@ -184,14 +206,14 @@ function PrintReport() {
             </thead>
             <tbody>
               {report.dataQuality.map((d) => (
-                <tr key={d.repoId} className="border-t border-border">
+                <tr key={d.repoId} className={ROW}>
                   {/* W16-05 (F11): this printed the numeric id while the next
                       paragraph of the same report used org/name. */}
-                  <td>{d.repoName ?? d.repoId}</td>
-                  <td>{d.phase}</td>
+                  <td className={CELL}>{d.repoName ?? d.repoId}</td>
+                  <td className={CELL}>{d.phase}</td>
                   {/* Paired mark + text, never colour alone (UX_SPEC §7). */}
-                  <td>{d.partial ? '⚠ partial' : '✓ full'}</td>
-                  <td>{cell(d.syncLagHours)}</td>
+                  <td className={CELL}>{d.partial ? '⚠ partial' : '✓ full'}</td>
+                  <td className={CELL}>{cell(d.syncLagHours)}</td>
                 </tr>
               ))}
             </tbody>
@@ -211,7 +233,7 @@ function PrintReport() {
             // FR-REPORTS-2: never blank. The reason is the content — "no
             // findings" and "nothing has analysed this repo" are different
             // facts and a reader has to be able to tell them apart.
-            <div className="rounded-md border border-border bg-surface p-3">
+            <div className="rounded-md border border-border bg-surface p-3 break-inside-avoid">
               <h2 className="text-sm font-medium">{sectionTitle(section.id)}</h2>
               <p className="mt-1 text-xs text-fg-muted">{section.reason}</p>
             </div>
@@ -219,12 +241,12 @@ function PrintReport() {
 
           {section.kind === 'table' && (
             <>
-              <h2 className="mb-1 text-sm font-medium">{sectionTitle(section.id)}</h2>
-              <table className="w-full text-xs">
+              <h2 className={HEADING}>{sectionTitle(section.id)}</h2>
+              <table className={TABLE}>
                 <thead>
                   <tr className="text-left text-fg-muted">
                     {(section.columns ?? []).map((c) => (
-                      <th key={c} scope="col">
+                      <th key={c} scope="col" className="pr-2 align-bottom">
                         {c}
                       </th>
                     ))}
@@ -232,9 +254,9 @@ function PrintReport() {
                 </thead>
                 <tbody>
                   {(section.rows ?? []).map((row, ri) => (
-                    <tr key={ri} className="border-t border-border">
+                    <tr key={ri} className={ROW}>
                       {row.map((v, ci) => (
-                        <td key={ci}>{cell(v)}</td>
+                        <td key={ci} className={CELL}>{cell(v)}</td>
                       ))}
                     </tr>
                   ))}
@@ -245,8 +267,8 @@ function PrintReport() {
 
           {section.kind === 'score_breakdown' && (
             <>
-              <h2 className="mb-1 text-sm font-medium">Health score breakdown</h2>
-              <table className="w-full text-xs">
+              <h2 className={HEADING}>Health score breakdown</h2>
+              <table className={TABLE}>
                 <thead>
                   <tr className="text-left text-fg-muted">
                     <th scope="col">Sub-score</th>
@@ -259,13 +281,13 @@ function PrintReport() {
                 </thead>
                 <tbody>
                   {((section as unknown as { rows: Record<string, unknown>[] }).rows ?? []).map((r, ri) => (
-                    <tr key={ri} className="border-t border-border">
-                      <td>{cell(r.subScore)}</td>
-                      <td>{cell(r.input)}</td>
-                      <td>{cell(r.rawValue)}</td>
-                      <td>{cell(r.normalized)}</td>
-                      <td>{cell(r.weight)}</td>
-                      <td>{cell(r.contribution)}</td>
+                    <tr key={ri} className={ROW}>
+                      <td className={CELL}>{cell(r.subScore)}</td>
+                      <td className={CELL}>{cell(r.input)}</td>
+                      <td className={CELL}>{cell(r.rawValue)}</td>
+                      <td className={CELL}>{cell(r.normalized)}</td>
+                      <td className={CELL}>{cell(r.weight)}</td>
+                      <td className={CELL}>{cell(r.contribution)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -278,10 +300,10 @@ function PrintReport() {
       {/* Appendix A — definitions from the catalog, so a report can never
           contradict the tooltip the same reader saw on screen. */}
       <section data-testid="print-appendix">
-        <h2 className="mb-1 text-sm font-medium">Appendix A — metric definitions</h2>
-        <dl className="text-xs">
+        <h2 className={HEADING}>Appendix A — metric definitions</h2>
+        <dl className="text-xs [overflow-wrap:anywhere]">
           {report.appendix.definitions.map((d) => (
-            <div key={d.id} className="mb-1.5">
+            <div key={d.id} className="mb-1.5 break-inside-avoid">
               <dt className="font-medium">
                 {d.id} · {d.name} ({d.unit})
               </dt>

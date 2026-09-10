@@ -7817,10 +7817,11 @@
         "Recreating the worker does not silently turn a ready report into a broken download"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-26 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Include measured coverage, missing analysis, dates and evidence basis. Never imply audit certification."
+        "Include measured coverage, missing analysis, dates and evidence basis. Never imply audit certification.",
+        "Closed 2026-09-10: generate → poll → view → download → reload → retry all covered by DB-backed route tests; poll stops on every non-queued/running status and after a 15-minute stall; has_pdf is a fact about the disk (artifact_missing names the ready-but-fileless state); POST /reports/:id/retry re-queues the SAME row with its pinned params (failed or ready-with-missing-PDF only, guarded UPDATE so N presses queue one job); worker replay guard + write-then-rename artifacts so a recreated worker cannot turn a ready report into a truncated or failed download; print route rows/cells carry break-inside-avoid + overflow-wrap:anywhere, cells never print [object Object]. Scope note: print route (routes/print/reports/$reportId.tsx) edited outside write_scope for acceptance #3. Gate: lint 0, typecheck 0, test 2350 passed / 8 skipped across 311 files. NOT verified in a live browser; the PDF layout claim rests on the CSS, not on rendered pages."
       ]
     },
     {

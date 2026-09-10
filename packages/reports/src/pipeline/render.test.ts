@@ -1,8 +1,8 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { renderReport, reportDir, uriToPath } from './render.js';
+import { artifactPresent, renderReport, reportDir, uriToPath } from './render.js';
 import type { ReportData } from '../types/index.js';
 
 // Report artifact pipeline (W5-04, REPORTS.md §3).
@@ -93,5 +93,71 @@ describe('report artifact pipeline', () => {
       },
     });
     expect(seen).toBe('http://localhost:5173/print/reports/4242');
+  });
+});
+
+describe('artifact integrity across a re-render (W17-26)', () => {
+  let dir: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'repopulse-reports-w17-26-'));
+  });
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('a print that fails on a re-render leaves the previous PDF whole', async () => {
+    // A replayed job (worker recreated mid-run) re-renders over the artifacts.
+    // With a plain writeFile the PDF is truncated the moment the write opens,
+    // so a failure after that point — or a crash during it — left a row that
+    // said ready over a zero-byte or half-written file. The rename-based write
+    // never exposes a partial file under the real name.
+    const first = await renderReport(DATA, 200, {
+      dataDir: dir,
+      printBaseUrl: 'http://x',
+      printToPdf: () => Promise.resolve(Buffer.from('%PDF-1.4 the good one')),
+    });
+    const before = await readFile(uriToPath(first.pdfUri));
+
+    await expect(
+      renderReport(DATA, 200, {
+        dataDir: dir,
+        printBaseUrl: 'http://x',
+        printToPdf: () => Promise.reject(new Error('browser gone')),
+      }),
+    ).rejects.toThrow('browser gone');
+
+    expect(await readFile(uriToPath(first.pdfUri))).toEqual(before);
+    expect(await artifactPresent(first.pdfUri)).toBe(true);
+  });
+
+  it('leaves no temp file behind, on success or on failure', async () => {
+    await renderReport(DATA, 201, {
+      dataDir: dir,
+      printBaseUrl: 'http://x',
+      printToPdf: () => Promise.resolve(Buffer.from('%PDF')),
+    });
+    await renderReport(DATA, 201, {
+      dataDir: dir,
+      printBaseUrl: 'http://x',
+      printToPdf: () => Promise.reject(new Error('nope')),
+    }).catch(() => undefined);
+    const names = await readdir(reportDir(dir, 7, 201));
+    expect(names.sort()).toEqual(['report.json', 'report.pdf']);
+  });
+
+  it('artifactPresent is false for a missing, empty or null artifact', async () => {
+    const result = await renderReport(DATA, 202, {
+      dataDir: dir,
+      printBaseUrl: 'http://x',
+      printToPdf: () => Promise.resolve(Buffer.from('%PDF')),
+    });
+    expect(await artifactPresent(result.pdfUri)).toBe(true);
+    expect(await artifactPresent(null)).toBe(false);
+    expect(await artifactPresent('file:///nowhere/at/all.pdf')).toBe(false);
+    // Zero bytes is a broken download with a valid path — the exact shape a
+    // truncated write leaves — and must not count as present.
+    await writeFile(uriToPath(result.pdfUri), '');
+    expect(await artifactPresent(result.pdfUri)).toBe(false);
   });
 });

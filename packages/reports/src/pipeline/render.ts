@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { ReportData } from '../types/index.js';
 
@@ -78,6 +78,26 @@ async function playwrightPrint(url: string, data: ReportData): Promise<Buffer> {
 }
 
 /**
+ * Write-then-rename (W17-26). A `writeFile` straight onto `report.pdf`
+ * truncates the file first and fills it afterwards, so a worker recreated in
+ * the middle of a re-render — BullMQ replays a stalled job on the new worker —
+ * left a zero-length or half-written PDF under a row that still said `ready`.
+ * The rename is atomic on one filesystem: the old bytes stay whole until the
+ * new ones are complete, and a crash in between leaves only a `.tmp` beside
+ * them.
+ */
+async function writeAtomic(path: string, content: string | Buffer): Promise<void> {
+  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    await writeFile(tmp, content);
+    await rename(tmp, path);
+  } catch (err) {
+    await rm(tmp, { force: true });
+    throw err;
+  }
+}
+
+/**
  * Stores the ReportData, prints it, stores the PDF. Returns URIs, never blobs —
  * the DB holds pointers (REPORTS.md §3) so a report is downloadable without
  * loading megabytes through Postgres.
@@ -95,12 +115,12 @@ export async function renderReport(
   // Stored BEFORE printing: if the print fails, the data that produced it is
   // still on disk and a regeneration does not have to re-read the warehouse
   // (whose snapshots may have moved on).
-  await writeFile(jsonPath, JSON.stringify(data, null, 2), 'utf8');
+  await writeAtomic(jsonPath, JSON.stringify(data, null, 2));
 
   const url = `${deps.printBaseUrl.replace(/\/$/, '')}/print/reports/${reportId}`;
   const pdf = await (deps.printToPdf ?? playwrightPrint)(url, data);
   const pdfPath = join(dir, 'report.pdf');
-  await writeFile(pdfPath, pdf);
+  await writeAtomic(pdfPath, pdf);
 
   return { jsonUri: `file://${jsonPath}`, pdfUri: `file://${pdfPath}`, bytes: pdf.byteLength };
 }
@@ -108,4 +128,23 @@ export async function renderReport(
 /** file:// URI → path, for streaming a download back through the API. */
 export function uriToPath(uri: string): string {
   return uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
+}
+
+/**
+ * Whether a stored artifact URI still points at a non-empty file (W17-26).
+ *
+ * The row says `ready`; this says whether the download behind it would work.
+ * They disagree after a volume is recreated, a scratch dir is cleaned, or a
+ * worker dies mid-write — and every screen that offered a PDF link off the
+ * row alone offered a link to a 410. Zero bytes counts as absent: a truncated
+ * file is a broken download with a valid path.
+ */
+export async function artifactPresent(uri: string | null | undefined): Promise<boolean> {
+  if (!uri) return false;
+  try {
+    const s = await stat(uriToPath(uri));
+    return s.isFile() && s.size > 0;
+  } catch {
+    return false;
+  }
 }
