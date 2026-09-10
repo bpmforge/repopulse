@@ -82,3 +82,74 @@ export function planProgress(plan: Plan): { done: number; total: number; regress
     regressed: plan.items.filter((i) => i.status === 'regressed').length,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Scope (W17-24). A plan is generated FOR a set of repositories (empty = the
+// whole workspace) and keeps that scope. Everything that names a scope on
+// screen goes through these, so a label can never claim more or less than the
+// row records.
+
+export interface GenerateRequest {
+  window: string;
+  repo_ids: number[];
+}
+
+/** POST /plans answer. `reused` = an identical plan already existed; no row written. */
+export interface GenerateResult {
+  id: number;
+  item_count: number;
+  reused: boolean;
+  repo_ids: number[];
+  window: string;
+}
+
+/** Repo id → "org/name", from `/repos`. */
+export type RepoNames = Record<number, string>;
+
+/** The topbar's `?repos=` CSV (or `all`) as sorted, de-duplicated ids. */
+export function repoIdsFromFilter(repos: string | undefined | null): number[] {
+  if (!repos || repos === 'all') return [];
+  const ids = repos
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return [...new Set(ids)].sort((a, b) => a - b);
+}
+
+/** Same repositories, regardless of order or repetition. */
+export function sameScope(a: readonly number[], b: readonly number[]): boolean {
+  const left = [...new Set(a)].sort((x, y) => x - y);
+  const right = [...new Set(b)].sort((x, y) => x - y);
+  return left.length === right.length && left.every((id, i) => id === right[i]);
+}
+
+/**
+ * The scope in words. Names when every repository is known; a COUNT when any
+ * is not — "3 repositories" is true where "acme/api, #77" would be a guess.
+ */
+export function planScopeLabel(repoIds: readonly number[], names?: RepoNames): string {
+  const ids = [...new Set(repoIds)].sort((a, b) => a - b);
+  if (ids.length === 0) return 'the whole workspace';
+  const named = ids.map((id) => names?.[id]);
+  if (named.every((n): n is string => typeof n === 'string' && n.length > 0)) {
+    return named.join(', ');
+  }
+  return ids.length === 1 ? '1 repository' : `${ids.length} repositories`;
+}
+
+/** The URL search that scopes the Plans page to one repository. */
+export function planSearchForRepo(repoId: number): { repos: string } {
+  return { repos: String(repoId) };
+}
+
+/**
+ * The findings an item is about, when the generator recorded them. Only the
+ * finding-sourced catalog entries do (their evidence carries the ids the
+ * FINDINGS snapshot clustered); a metric item has none and gets none — the
+ * link is drawn from what the row holds, never inferred.
+ */
+export function findingIdsOf(item: Pick<PlanItem, 'evidence'>): number[] {
+  const raw = item.evidence.findingIds;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((id): id is number => Number.isInteger(id) && (id as number) > 0);
+}

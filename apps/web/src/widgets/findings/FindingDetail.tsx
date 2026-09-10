@@ -8,6 +8,7 @@ import {
   type Finding,
   type FindingEvent,
 } from './contracts.js';
+import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -226,6 +227,9 @@ export function FindingDetail({
                 ? 'Copy failed — select the text instead'
                 : 'Copy review summary'}
           </button>
+          {/* To the plan for this finding's repository (W17-24): a link that
+              carries the id, and only navigates. */}
+          <PlanForRepoLink repoId={finding.repo.id} />
           <button
             type="button"
             className="text-xs text-fg-muted underline underline-offset-2"

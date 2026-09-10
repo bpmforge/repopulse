@@ -1,4 +1,9 @@
-import { CATALOG_V1, type CatalogEntry, type MetricSet, type VerifyCriterion } from './catalog.v1.js';
+import {
+  CATALOG_V1,
+  type CatalogEntry,
+  type MetricSet,
+  type VerifyCriterion,
+} from './catalog.v1.js';
 
 // Plan generation and verification (W5-06, IMPROVEMENT_PLANS.md §2/§3).
 //
@@ -104,6 +109,43 @@ export function generatePlanItems(params: GenerateParams): ProposedItem[] {
     }));
 }
 
+/**
+ * A plan's scope as one canonical key (W17-24): the workspace, the window and
+ * the repositories, sorted and de-duplicated so `[2,1]` and `[1,2,2]` name the
+ * same plan. The route serialises concurrent generations on this key, and the
+ * empty repo list is the whole workspace, as it always has been.
+ */
+export function normalizeRepoIds(repoIds: readonly number[]): number[] {
+  return [...new Set(repoIds.filter((id) => Number.isInteger(id) && id > 0))].sort((a, b) => a - b);
+}
+
+export function planScopeKey(
+  workspaceId: number,
+  window: string,
+  repoIds: readonly number[],
+): string {
+  return `plan:${workspaceId}:${window}:${normalizeRepoIds(repoIds).join(',')}`;
+}
+
+/**
+ * Would generating again produce the plan that already exists? (W17-24)
+ *
+ * Generation is deterministic over the warehouse, so two presses of the button
+ * seconds apart — or two tabs — propose the same catalog ids in the same order.
+ * A second plan with identical content is not a second plan: it duplicates the
+ * board, and worse, it re-proposes as `proposed` the items a person has already
+ * accepted in the first one. Compared as the ORDERED list of catalog ids, with
+ * the existing plan's dismissed items left out (a dismissal suppresses the id
+ * from generation, so the fresh list never contains it).
+ */
+export function isSameProposal(
+  fresh: readonly { catalogId: string }[],
+  existing: readonly { catalogId: string; status: string }[],
+): boolean {
+  const kept = existing.filter((i) => i.status !== 'dismissed').map((i) => i.catalogId);
+  return kept.length === fresh.length && kept.every((id, index) => id === fresh[index]?.catalogId);
+}
+
 function readCriterionValue(metrics: MetricSet, criterion: VerifyCriterion): number | null {
   const metric = metrics[criterion.metricKey];
   if (!metric) return null;
@@ -134,12 +176,7 @@ export function evaluateCriterion(metrics: MetricSet, criterion: VerifyCriterion
 }
 
 export type ItemStatus =
-  | 'proposed'
-  | 'accepted'
-  | 'in_progress'
-  | 'done'
-  | 'regressed'
-  | 'dismissed';
+  'proposed' | 'accepted' | 'in_progress' | 'done' | 'regressed' | 'dismissed';
 
 export interface VerifyDecision {
   next: ItemStatus;
@@ -188,4 +225,11 @@ export function verifyTransition(
 }
 
 export { CATALOG_V1, CATALOG_VERSION, findCatalogEntry } from './catalog.v1.js';
-export type { CatalogEntry, Effort, MetricSet, MetricValue, PlanSource, VerifyCriterion } from './catalog.v1.js';
+export type {
+  CatalogEntry,
+  Effort,
+  MetricSet,
+  MetricValue,
+  PlanSource,
+  VerifyCriterion,
+} from './catalog.v1.js';

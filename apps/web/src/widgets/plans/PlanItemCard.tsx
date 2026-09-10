@@ -1,10 +1,12 @@
 import { useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
   criterionInWords,
+  findingIdsOf,
   metricInWords,
   type MetricNames,
   type PlanItem,
 } from './contracts.js';
+import { InternalLink } from './InternalLink.js';
 
 // One ranked plan item (W5-07, UX_SPEC §4.h2).
 
@@ -23,6 +25,7 @@ const STATUS_LABEL: Record<PlanItem['status'], string> = {
 };
 
 export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricNames?: MetricNames }) {
+  const findingIds = findingIdsOf(item);
   const transition = useApiMutation<{ status: string }, unknown>(
     { endpoint: '/plans/items/{id}', path: { id: item.id }, method: 'PATCH' },
     { invalidate: [queryKeyFor(LIST)] },
@@ -57,6 +60,28 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
           {(item.evidence.metricKeys as string[])
             .map((k) => metricInWords(k, metricNames))
             .join(', ')}
+        </p>
+      )}
+
+      {/* The findings the generator clustered into this item (W17-24) — the
+          ids the row carries, linked back to the review they came from. A
+          metric item has none, and shows none. */}
+      {findingIds.length > 0 && (
+        <p className="mt-1 text-xs text-fg-faint" data-testid={`plan-item-findings-${item.id}`}>
+          Findings:{' '}
+          {findingIds.map((id, i) => (
+            <span key={id}>
+              {i > 0 && ', '}
+              <InternalLink
+                to="/findings"
+                search={{ finding: String(id) }}
+                className="text-accent underline-offset-2 hover:underline"
+                testId={`plan-item-finding-${item.id}-${id}`}
+              >
+                #{id}
+              </InternalLink>
+            </span>
+          ))}
         </p>
       )}
 

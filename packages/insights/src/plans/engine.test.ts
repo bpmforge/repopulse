@@ -4,6 +4,9 @@ import {
   CATALOG_V1,
   evaluateCriterion,
   generatePlanItems,
+  isSameProposal,
+  normalizeRepoIds,
+  planScopeKey,
   rankInputFor,
   riskOfBreachingSet,
   verifyTransition,
@@ -252,5 +255,53 @@ describe('rank input is effective_risk, not raw severity (W9-10, FR-RISK-5)', ()
     // now come out in a different order, which is what a version records.
     // v3 was the rank-rule change; v4 and v5 add the W10 register entries.
     expect(CATALOG_VERSION).toBe('v6');
+  });
+});
+
+describe('one plan per scope (W17-24)', () => {
+  it('names the same scope for the same repositories in any order', () => {
+    // A double-click and a second tab must land on ONE key, and `[2,1]` is not
+    // a different scope from `[1,2]`.
+    expect(planScopeKey(1, '30d', [2, 1, 2])).toBe(planScopeKey(1, '30d', [1, 2]));
+    expect(normalizeRepoIds([3, 1, 3, 0, -1, 2.5])).toEqual([1, 3]);
+  });
+
+  it('separates the whole workspace from a repository, and one window from another', () => {
+    expect(planScopeKey(1, '30d', [])).not.toBe(planScopeKey(1, '30d', [1]));
+    expect(planScopeKey(1, '30d', [1])).not.toBe(planScopeKey(1, '90d', [1]));
+    expect(planScopeKey(1, '30d', [1])).not.toBe(planScopeKey(2, '30d', [1]));
+  });
+
+  it('treats an identical ordered proposal as the plan that already exists', () => {
+    const fresh = [{ catalogId: 'unreviewed-merges' }, { catalogId: 'stale-queue' }];
+    expect(
+      isSameProposal(fresh, [
+        { catalogId: 'unreviewed-merges', status: 'accepted' },
+        { catalogId: 'stale-queue', status: 'proposed' },
+      ]),
+    ).toBe(true);
+  });
+
+  it('ignores the existing plan\'s dismissed items, which generation never re-proposes', () => {
+    const fresh = [{ catalogId: 'stale-queue' }];
+    expect(
+      isSameProposal(fresh, [
+        { catalogId: 'unreviewed-merges', status: 'dismissed' },
+        { catalogId: 'stale-queue', status: 'proposed' },
+      ]),
+    ).toBe(true);
+  });
+
+  it('is a NEW plan when the content or the order differs', () => {
+    expect(
+      isSameProposal(
+        [{ catalogId: 'a' }, { catalogId: 'b' }],
+        [{ catalogId: 'b', status: 'proposed' }, { catalogId: 'a', status: 'proposed' }],
+      ),
+    ).toBe(false);
+    expect(isSameProposal([{ catalogId: 'a' }], [])).toBe(false);
+    expect(isSameProposal([], [{ catalogId: 'a', status: 'proposed' }])).toBe(false);
+    // Two empty plans are the same empty plan.
+    expect(isSameProposal([], [])).toBe(true);
   });
 });

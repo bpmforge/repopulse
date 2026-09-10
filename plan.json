@@ -7759,10 +7759,11 @@
         "Merely visiting a page never creates a plan"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-24 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Do not add a schema field with no producer. If the generator does not already record source finding ids, keep repository scope honest instead of inventing the link."
+        "Do not add a schema field with no producer. If the generator does not already record source finding ids, keep repository scope honest instead of inventing the link.",
+        "Closed 2026-09-10: POST /plans serialises generation per scope (workspace+window+sorted repo_ids) with pg_advisory_xact_lock and answers 200 reused:true when the newest active plan for that exact scope already has the identical ordered item list; repo_ids validated against the workspace (404). Web: /plans honours ?repos= (filterScope flipped), GeneratePlanButton names the scope it generates and echoes the server's; plan headers/tile state the row's own scope; list narrows only to plans with exactly the filtered scope; FindingDetail links to /plans?repos=<repo id> (navigation only); PlanItemCard links evidence.findingIds the generator already records — no schema field added. Out-of-scope touches declared in STATUS.md."
       ]
     },
     {

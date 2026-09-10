@@ -1,11 +1,16 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
-import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { useApiQuery } from '../../api/useApiQuery.js';
 import { PlanItemCard } from '../../widgets/plans/PlanItemCard.js';
+import { GeneratePlanButton } from '../../widgets/plans/GeneratePlanButton.js';
 import {
   planProgress,
+  planScopeLabel,
+  repoIdsFromFilter,
+  sameScope,
   type MetricNames,
   type Plan,
+  type RepoNames,
 } from '../../widgets/plans/contracts.js';
 
 // Plans page (W5-07, UX_SPEC §4.h2). The rail has linked to /plans since W4-02
@@ -34,34 +39,56 @@ function PlansPage() {
   const metricNames: MetricNames = Object.fromEntries(
     (catalog?.items ?? []).map((m) => [m.id, m.name]),
   );
-  const generate = useApiMutation<{ window: string }, { id: number }>(
-    { endpoint: '/plans', method: 'POST' },
-    { invalidate: [queryKeyFor(LIST)] },
+
+  // THE SCOPE IS THE TOPBAR'S REPO FILTER (W17-24), and it means exactly one
+  // thing on this page: the repositories the next plan is generated for, and
+  // the plans listed are those with exactly that scope. A finding's panel
+  // links here with its repository in `?repos=`, so nobody copies an id. The
+  // shell fetches the same /repos list for the picker; this read is the names.
+  const scopeIds = repoIdsFromFilter(search.repos);
+  const { data: repoList } = useApiQuery<{ items: { id: number; org: string; name: string }[] }>({
+    endpoint: '/repos',
+    query: { window: search.window },
+  });
+  const repoNames: RepoNames = Object.fromEntries(
+    (repoList?.items ?? []).map((r) => [r.id, `${r.org}/${r.name}`]),
   );
 
-  const plans = data?.items ?? [];
+  const allPlans = data?.items ?? [];
+  // With no filter, every plan is listed, each under its own scope. With one,
+  // only plans generated for EXACTLY that scope — a workspace-wide plan is not
+  // a plan for the selected repository, and showing it under that heading
+  // would say it was.
+  const plans = scopeIds.length === 0 ? allPlans : allPlans.filter((p) => sameScope(p.repo_ids, scopeIds));
+  const hidden = allPlans.length - plans.length;
 
   return (
     <div className="flex flex-col gap-4" data-testid="plans">
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <h1 className="flex-1 text-lg font-semibold">Improvement plans</h1>
-        <button
-          type="button"
-          className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          data-testid="generate-plan"
-          disabled={generate.isPending}
-          onClick={() => generate.mutate({ window: search.window })}
-        >
-          Generate plan
-        </button>
+        <GeneratePlanButton window={search.window} repoIds={scopeIds} repoNames={repoNames} />
       </div>
+      {scopeIds.length > 0 && (
+        <p className="text-xs text-fg-muted" data-testid="plans-scope-note">
+          Showing plans generated for exactly {planScopeLabel(scopeIds, repoNames)}
+          {hidden > 0 ? ` · ${hidden} plan${hidden === 1 ? '' : 's'} with another scope hidden` : ''}
+          {' · '}
+          <Link to="/plans" search={{ window: search.window }} className="text-accent hover:underline">
+            show every scope
+          </Link>
+        </p>
+      )}
 
       <WidgetFrame
         title="Plans"
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && plans.length === 0 })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
-        emptyMessage="No plans yet. Generate one from the current metrics — items are proposed only where a threshold is actually breached, so a healthy workspace produces an empty plan."
+        emptyMessage={
+          scopeIds.length > 0 && allPlans.length > 0
+            ? `No plan has been generated for exactly ${planScopeLabel(scopeIds, repoNames)} yet. Generate one, or show every scope.`
+            : 'No plans yet. Generate one from the current metrics — items are proposed only where a threshold is actually breached, so a healthy workspace produces an empty plan.'
+        }
       >
         <div className="flex flex-col gap-4">
           {plans.map((plan) => {
@@ -79,8 +106,9 @@ function PlansPage() {
             return (
               <section key={plan.id} data-testid={`plan-${plan.id}`}>
                 <div className="mb-2 flex flex-wrap items-baseline gap-2">
-                  <h2 className="text-sm font-medium">
-                    {plan.window} · {plan.repo_ids.length > 0 ? `${plan.repo_ids.length} repos` : 'all repos'}
+                  {/* The plan's OWN scope, from its row — never the filter's. */}
+                  <h2 className="text-sm font-medium" data-testid={`plan-scope-${plan.id}`}>
+                    {plan.window} · {planScopeLabel(plan.repo_ids, repoNames)}
                   </h2>
                   <span className="text-xs text-fg-muted" data-testid={`plan-progress-${plan.id}`}>
                     {progress.done}/{progress.total} verified

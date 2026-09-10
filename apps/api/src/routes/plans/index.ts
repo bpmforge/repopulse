@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, facts, plans as plansSchema, read, type Database } from '@repopulse/shared';
+import { auditLog, core, facts, plans as plansSchema, read, type Database } from '@repopulse/shared';
 import {
   AGREEMENT_CATALOG_ID,
   CATALOG_VERSION,
@@ -8,6 +8,9 @@ import {
   computeExceptions,
   findCatalogEntry,
   generatePlanItems,
+  isSameProposal,
+  normalizeRepoIds,
+  planScopeKey,
   type Agreement,
   type AgreementKind,
   type MetricSet,
@@ -24,6 +27,9 @@ import { actorLoginFor } from '../../lib/actor.js';
 export interface PlansRoutesOptions {
   db: Database;
 }
+
+/** The generator runs inside one transaction (W17-24); its readers take either. */
+type Queryable = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
 
 const HUMAN_TRANSITIONS: Record<string, string[]> = {
   proposed: ['accepted', 'dismissed'],
@@ -48,7 +54,7 @@ function fail(
 
 /** Latest snapshot per metric for the scope, shaped for the catalog. */
 async function metricsForScope(
-  db: Database,
+  db: Queryable,
   workspaceId: number,
   repoIds: number[],
   window: string,
@@ -84,7 +90,7 @@ async function metricsForScope(
  * dismissed, so an agreement can only ADD an item nobody has raised or refused.
  */
 async function agreementSourcedItems(
-  db: Database,
+  db: Queryable,
   workspaceId: number,
   already: ReadonlySet<string>,
 ): Promise<
@@ -175,7 +181,20 @@ export default async function plansRoutes(
 ): Promise<void> {
   const { db } = opts;
 
-  /** POST /plans — evaluate the catalog over a scope and store ranked items. */
+  /**
+   * POST /plans — evaluate the catalog over a scope and store ranked items.
+   *
+   * ONE PLAN PER SCOPE PER CONTENT (W17-24). Generation is serialised on the
+   * scope (workspace + window + repositories) with a transaction-scoped
+   * advisory lock, and inside the lock the fresh proposal is compared with the
+   * newest active plan for that scope: identical content is the SAME plan,
+   * answered 200 with `reused: true`, not a second row. Two presses of the
+   * button, or two tabs, therefore land on one plan — and the items a person
+   * has already accepted in it are not re-proposed beside it.
+   *
+   * Never called by a GET. Listing plans, opening a finding or landing on the
+   * Plans page with a repository in the URL reads only.
+   */
   app.post<{ Body: { repo_ids?: unknown; window?: unknown; from_report_id?: unknown } }>(
     '/plans',
     async (request, reply) => {
@@ -185,73 +204,135 @@ export default async function plansRoutes(
         return fail(request, reply, 401, 'No active session');
       }
       const window = typeof request.body?.window === 'string' ? request.body.window : '30d';
-      const repoIds = Array.isArray(request.body?.repo_ids)
-        ? (request.body.repo_ids as unknown[]).map(Number).filter(Number.isInteger)
+      const requested = Array.isArray(request.body?.repo_ids)
+        ? (request.body.repo_ids as unknown[]).map(Number)
         : [];
-
-      // Dismissals are per catalog id and survive regeneration (FR-PLANS-2).
-      // Without this the next generation undoes a human decision, and the
-      // dismiss button becomes something people learn to ignore.
-      const dismissed = await db
-        .selectDistinct({ catalogId: plansSchema.planItems.catalogId })
-        .from(plansSchema.planItems)
-        .where(
-          and(
-            eq(plansSchema.planItems.workspaceId, workspaceId),
-            eq(plansSchema.planItems.status, 'dismissed'),
-          ),
-        );
-
-      const metrics = await metricsForScope(db, workspaceId, repoIds, window);
-      const dismissedIds = dismissed.map((d) => d.catalogId);
-      const proposed = generatePlanItems({ metrics, dismissedCatalogIds: dismissedIds });
-
-      // Agreement breaches feed the SAME catalog entries (IMPROVEMENT_PLANS.md
-      // §1), marked source='agreement'. Deduped against what the metric pass
-      // already proposed: a team that agreed a PR-size limit AND breaches the
-      // metric threshold has one problem, not two, and listing it twice makes
-      // the plan look padded.
-      const agreementItems = await agreementSourcedItems(
-        db,
-        workspaceId,
-        new Set([...proposed.map((p) => p.catalogId), ...dismissedIds]),
-      );
-      const allProposed = [...proposed, ...agreementItems].map((item, index) => ({
-        ...item,
-        rank: index + 1,
-      }));
-
-      const [plan] = await db
-        .insert(plansSchema.improvementPlans)
-        .values({
-          workspaceId,
-          repoIds,
-          window,
-          catalogVersion: CATALOG_VERSION,
-          status: 'active',
-          createdBy: userId,
-          ...(Number.isInteger(Number(request.body?.from_report_id))
-            ? { createdFromReportId: Number(request.body.from_report_id) }
-            : {}),
-        })
-        .returning();
-
-      if (allProposed.length > 0) {
-        await db.insert(plansSchema.planItems).values(
-          allProposed.map((item) => ({
-            workspaceId,
-            planId: plan!.id,
-            rank: item.rank,
-            catalogId: item.catalogId,
-            source: item.source,
-            evidence: item.evidence,
-            recommendation: item.recommendation,
-            effort: item.effort,
-            status: 'proposed',
-            verifyCriterion: item.verifyCriterion as unknown as Record<string, unknown>,
-          })),
-        );
+      if (requested.some((id) => !Number.isInteger(id) || id <= 0)) {
+        return fail(request, reply, 400, 'Invalid body', 'repo_ids must be positive integers');
       }
+      const repoIds = normalizeRepoIds(requested);
+
+      // The scope is recorded on the plan and shown as its label, so it must
+      // name repositories this workspace can see. Another workspace's id is a
+      // 404 (Law 5), and an unknown id is the same 404 — a plan "for repo 99"
+      // where 99 is nothing would be a label with nothing behind it.
+      if (repoIds.length > 0) {
+        const known = await db
+          .select({ id: core.repos.id })
+          .from(core.repos)
+          .where(and(eq(core.repos.workspaceId, workspaceId), inArray(core.repos.id, repoIds)));
+        if (known.length !== repoIds.length) return fail(request, reply, 404, 'Not Found');
+      }
+
+      const fromReportId = Number.isInteger(Number(request.body?.from_report_id))
+        ? Number(request.body.from_report_id)
+        : undefined;
+
+      const result = await db.transaction(async (tx) => {
+        // Held until commit: a concurrent generation for the same scope waits
+        // here, then sees the plan this one wrote and reuses it.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${planScopeKey(workspaceId, window, repoIds)}))`,
+        );
+
+        // Dismissals are per catalog id and survive regeneration (FR-PLANS-2).
+        // Without this the next generation undoes a human decision, and the
+        // dismiss button becomes something people learn to ignore.
+        const dismissed = await tx
+          .selectDistinct({ catalogId: plansSchema.planItems.catalogId })
+          .from(plansSchema.planItems)
+          .where(
+            and(
+              eq(plansSchema.planItems.workspaceId, workspaceId),
+              eq(plansSchema.planItems.status, 'dismissed'),
+            ),
+          );
+
+        const metrics = await metricsForScope(tx, workspaceId, repoIds, window);
+        const dismissedIds = dismissed.map((d) => d.catalogId);
+        const proposed = generatePlanItems({ metrics, dismissedCatalogIds: dismissedIds });
+
+        // Agreement breaches feed the SAME catalog entries (IMPROVEMENT_PLANS.md
+        // §1), marked source='agreement'. Deduped against what the metric pass
+        // already proposed: a team that agreed a PR-size limit AND breaches the
+        // metric threshold has one problem, not two, and listing it twice makes
+        // the plan look padded.
+        const agreementItems = await agreementSourcedItems(
+          tx,
+          workspaceId,
+          new Set([...proposed.map((p) => p.catalogId), ...dismissedIds]),
+        );
+        const allProposed = [...proposed, ...agreementItems].map((item, index) => ({
+          ...item,
+          rank: index + 1,
+        }));
+
+        // The newest active plan for EXACTLY this scope — same window, same
+        // repositories, same catalog. A plan for the whole workspace is not the
+        // plan for one of its repositories.
+        const candidates = await tx
+          .select({ id: plansSchema.improvementPlans.id, repoIds: plansSchema.improvementPlans.repoIds })
+          .from(plansSchema.improvementPlans)
+          .where(
+            and(
+              eq(plansSchema.improvementPlans.workspaceId, workspaceId),
+              eq(plansSchema.improvementPlans.window, window),
+              eq(plansSchema.improvementPlans.catalogVersion, CATALOG_VERSION),
+              eq(plansSchema.improvementPlans.status, 'active'),
+            ),
+          )
+          .orderBy(desc(plansSchema.improvementPlans.createdAt), desc(plansSchema.improvementPlans.id))
+          .limit(50);
+        const existing = candidates.find(
+          (c) => planScopeKey(workspaceId, window, c.repoIds) === planScopeKey(workspaceId, window, repoIds),
+        );
+        if (existing) {
+          const items = await tx
+            .select({ catalogId: plansSchema.planItems.catalogId, status: plansSchema.planItems.status })
+            .from(plansSchema.planItems)
+            .where(
+              and(
+                eq(plansSchema.planItems.workspaceId, workspaceId),
+                eq(plansSchema.planItems.planId, existing.id),
+              ),
+            )
+            .orderBy(plansSchema.planItems.rank);
+          if (isSameProposal(allProposed, items)) {
+            return { id: existing.id, itemCount: items.length, reused: true as const };
+          }
+        }
+
+        const [plan] = await tx
+          .insert(plansSchema.improvementPlans)
+          .values({
+            workspaceId,
+            repoIds,
+            window,
+            catalogVersion: CATALOG_VERSION,
+            status: 'active',
+            createdBy: userId,
+            ...(fromReportId === undefined ? {} : { createdFromReportId: fromReportId }),
+          })
+          .returning();
+
+        if (allProposed.length > 0) {
+          await tx.insert(plansSchema.planItems).values(
+            allProposed.map((item) => ({
+              workspaceId,
+              planId: plan!.id,
+              rank: item.rank,
+              catalogId: item.catalogId,
+              source: item.source,
+              evidence: item.evidence,
+              recommendation: item.recommendation,
+              effort: item.effort,
+              status: 'proposed',
+              verifyCriterion: item.verifyCriterion as unknown as Record<string, unknown>,
+            })),
+          );
+        }
+        return { id: plan!.id, itemCount: allProposed.length, reused: false as const };
+      });
 
       auditLog(request.log, {
         event: 'plan.generated',
@@ -259,11 +340,20 @@ export default async function plansRoutes(
         workspaceId,
         ip: request.ip,
         ua: request.headers['user-agent'] ?? null,
-        planId: plan!.id,
-        itemCount: allProposed.length,
+        planId: result.id,
+        itemCount: result.itemCount,
+        // A reuse is still the answer to a generate request, so it is logged
+        // as one — with the fact that no row was written.
+        reused: result.reused,
       });
 
-      return reply.code(201).send({ id: plan!.id, item_count: allProposed.length });
+      return reply.code(result.reused ? 200 : 201).send({
+        id: result.id,
+        item_count: result.itemCount,
+        reused: result.reused,
+        repo_ids: repoIds,
+        window,
+      });
     },
   );
 
