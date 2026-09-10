@@ -7675,8 +7675,9 @@
         "The page contains no unmeasured runtime numbers and executes no customer code"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
+        "Closed 2026-09-10: Performance tab is a performance-FINDINGS review (widgets/findings/PerformanceReview + performance.ts): lists /findings?dimension=performance, reuses FindingDetail, open finding is URL state so evidence and recommendation survive reload. Coverage sentence folds W17-10 capabilities (perf scanner + ai_review) into no_provider / not_run / in_progress / failed / measured - five different sentences, a later failure never erases an earlier success. First sentence says nothing was timed; tests pin no runtime number, no runtime claim, API calls only to capabilities+findings, no eval/Function/Worker/innerHTML in source. Scope note: delivery cadence (RepoPerformance) moved to activity.tsx (outside write_scope, two lines) so the Activity link is honest; declared in docs/STATUS.md. Gate: lint clean, typecheck clean, 2244 tests passing (295 files, 2 skipped).",
         "Handoff task RP-21 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
         "These are code-review suggestions, not measured latency, CPU, throughput or memory. Delivery metrics link separately to Activity."
       ]
