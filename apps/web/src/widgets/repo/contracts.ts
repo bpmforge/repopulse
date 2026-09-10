@@ -67,6 +67,43 @@ export const PULSE_METRICS = [
   { key: 'M10', label: 'Issue throughput', unit: '' },
 ] as const;
 
+/**
+ * The Performance tab's metrics (W17-19): the delivery numbers nothing else on
+ * the repo screen shows. Cycle time, churn, coverage and throughput belong to
+ * Pulse and CI duration belongs to the CI tab — repeating them here would be
+ * two screens answering the same question with two renderings of it.
+ */
+export const DELIVERY_METRICS = [
+  { key: 'M12', label: 'Deployment frequency', unit: 'per window' },
+  { key: 'M11', label: 'Releases', unit: 'per window' },
+] as const;
+
+/**
+ * The DORA components METRICS.md M12 names and v1 does NOT compute
+ * (packages/metrics/src/catalog.ts: "MTTR (not computed in v1)"). Listed on the
+ * tab rather than omitted: a DORA panel showing one of the four, silently, reads
+ * as "your lead time is fine" — the same unmeasured-passes-for-measured defect
+ * W17-18 removed from scoring.
+ */
+export const UNCOMPUTED_DORA = [
+  'Lead time for changes',
+  'Change failure rate',
+  'Time to restore service',
+] as const;
+
+/**
+ * How many rows each Activity section shows (W17-19). Five: enough to say what
+ * is moving, few enough that the tab stays a digest and the "all →" link stays
+ * the way to the full list rather than a second copy of it.
+ */
+export const ACTIVITY_LIMIT = 5;
+
+/** The last point that carries a number; null = the metric was never measured. */
+export function latestValue(series: MetricSeries | undefined): number | null {
+  const points = (series?.points ?? []).filter((p) => p.value !== null);
+  return points.length === 0 ? null : (points[points.length - 1]!.value as number);
+}
+
 /** Ratio metrics are stored 0..1 (METRICS.md); charts with a % axis must scale. */
 export function scaleForUnit(value: number, unit: string): number {
   return unit === '%' ? value * 100 : value;

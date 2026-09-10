@@ -32,10 +32,12 @@ import { Route as ViewsIndexRouteImport } from './routes/views/index'
 import { Route as ViewsViewIdRouteImport } from './routes/views/$viewId'
 import { Route as PrintReportsReportIdRouteImport } from './routes/print/reports/$reportId'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
+import { Route as ReposRepoIdActivityRouteImport } from './routes/repos/$repoId/activity'
 import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
 import { Route as ReposRepoIdCodeHealthRouteImport } from './routes/repos/$repoId/code-health'
 import { Route as ReposRepoIdFindingsRouteImport } from './routes/repos/$repoId/findings'
 import { Route as ReposRepoIdHotspotsRouteImport } from './routes/repos/$repoId/hotspots'
+import { Route as ReposRepoIdPerformanceRouteImport } from './routes/repos/$repoId/performance'
 import { Route as ReposRepoIdPrFlowRouteImport } from './routes/repos/$repoId/pr-flow'
 import { Route as ReposRepoIdSecurityRouteImport } from './routes/repos/$repoId/security'
 import { Route as ReposRepoIdFilesSplatRouteImport } from './routes/repos/$repoId/files/$'
@@ -157,6 +159,11 @@ const ReposRepoIdIndexRoute = ReposRepoIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
+const ReposRepoIdActivityRoute = ReposRepoIdActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
 const ReposRepoIdCiRoute = ReposRepoIdCiRouteImport.update({
   id: '/ci',
   path: '/ci',
@@ -175,6 +182,11 @@ const ReposRepoIdFindingsRoute = ReposRepoIdFindingsRouteImport.update({
 const ReposRepoIdHotspotsRoute = ReposRepoIdHotspotsRouteImport.update({
   id: '/hotspots',
   path: '/hotspots',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
+const ReposRepoIdPerformanceRoute = ReposRepoIdPerformanceRouteImport.update({
+  id: '/performance',
+  path: '/performance',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
 const ReposRepoIdPrFlowRoute = ReposRepoIdPrFlowRouteImport.update({
@@ -226,10 +238,12 @@ export interface FileRoutesByFullPath {
   '/setup/': typeof SetupIndexRoute
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
+  '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
+  '/repos/$repoId/performance': typeof ReposRepoIdPerformanceRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
@@ -258,10 +272,12 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupIndexRoute
   '/views': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
+  '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
+  '/repos/$repoId/performance': typeof ReposRepoIdPerformanceRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
   '/repos/$repoId': typeof ReposRepoIdIndexRoute
@@ -293,10 +309,12 @@ export interface FileRoutesById {
   '/setup/': typeof SetupIndexRoute
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
+  '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
   '/repos/$repoId/hotspots': typeof ReposRepoIdHotspotsRoute
+  '/repos/$repoId/performance': typeof ReposRepoIdPerformanceRoute
   '/repos/$repoId/pr-flow': typeof ReposRepoIdPrFlowRoute
   '/repos/$repoId/security': typeof ReposRepoIdSecurityRoute
   '/repos/$repoId/': typeof ReposRepoIdIndexRoute
@@ -329,10 +347,12 @@ export interface FileRouteTypes {
     | '/setup/'
     | '/views/'
     | '/print/reports/$reportId'
+    | '/repos/$repoId/activity'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
+    | '/repos/$repoId/performance'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/security'
     | '/repos/$repoId/'
@@ -361,10 +381,12 @@ export interface FileRouteTypes {
     | '/setup'
     | '/views'
     | '/print/reports/$reportId'
+    | '/repos/$repoId/activity'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
+    | '/repos/$repoId/performance'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/security'
     | '/repos/$repoId'
@@ -395,10 +417,12 @@ export interface FileRouteTypes {
     | '/setup/'
     | '/views/'
     | '/print/reports/$reportId'
+    | '/repos/$repoId/activity'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
     | '/repos/$repoId/hotspots'
+    | '/repos/$repoId/performance'
     | '/repos/$repoId/pr-flow'
     | '/repos/$repoId/security'
     | '/repos/$repoId/'
@@ -586,6 +610,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReposRepoIdIndexRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
+    '/repos/$repoId/activity': {
+      id: '/repos/$repoId/activity'
+      path: '/activity'
+      fullPath: '/repos/$repoId/activity'
+      preLoaderRoute: typeof ReposRepoIdActivityRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
     '/repos/$repoId/ci': {
       id: '/repos/$repoId/ci'
       path: '/ci'
@@ -612,6 +643,13 @@ declare module '@tanstack/react-router' {
       path: '/hotspots'
       fullPath: '/repos/$repoId/hotspots'
       preLoaderRoute: typeof ReposRepoIdHotspotsRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
+    '/repos/$repoId/performance': {
+      id: '/repos/$repoId/performance'
+      path: '/performance'
+      fullPath: '/repos/$repoId/performance'
+      preLoaderRoute: typeof ReposRepoIdPerformanceRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
     '/repos/$repoId/pr-flow': {
@@ -681,10 +719,12 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 )
 
 interface ReposRepoIdRouteRouteChildren {
+  ReposRepoIdActivityRoute: typeof ReposRepoIdActivityRoute
   ReposRepoIdCiRoute: typeof ReposRepoIdCiRoute
   ReposRepoIdCodeHealthRoute: typeof ReposRepoIdCodeHealthRoute
   ReposRepoIdFindingsRoute: typeof ReposRepoIdFindingsRoute
   ReposRepoIdHotspotsRoute: typeof ReposRepoIdHotspotsRoute
+  ReposRepoIdPerformanceRoute: typeof ReposRepoIdPerformanceRoute
   ReposRepoIdPrFlowRoute: typeof ReposRepoIdPrFlowRoute
   ReposRepoIdSecurityRoute: typeof ReposRepoIdSecurityRoute
   ReposRepoIdIndexRoute: typeof ReposRepoIdIndexRoute
@@ -694,10 +734,12 @@ interface ReposRepoIdRouteRouteChildren {
 }
 
 const ReposRepoIdRouteRouteChildren: ReposRepoIdRouteRouteChildren = {
+  ReposRepoIdActivityRoute: ReposRepoIdActivityRoute,
   ReposRepoIdCiRoute: ReposRepoIdCiRoute,
   ReposRepoIdCodeHealthRoute: ReposRepoIdCodeHealthRoute,
   ReposRepoIdFindingsRoute: ReposRepoIdFindingsRoute,
   ReposRepoIdHotspotsRoute: ReposRepoIdHotspotsRoute,
+  ReposRepoIdPerformanceRoute: ReposRepoIdPerformanceRoute,
   ReposRepoIdPrFlowRoute: ReposRepoIdPrFlowRoute,
   ReposRepoIdSecurityRoute: ReposRepoIdSecurityRoute,
   ReposRepoIdIndexRoute: ReposRepoIdIndexRoute,
