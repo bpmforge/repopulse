@@ -5,11 +5,15 @@ import {
   evaluateCriterion,
   generatePlanItems,
   isSameProposal,
+  lastVerificationOf,
   normalizeRepoIds,
+  observeCriterion,
   planScopeKey,
   rankInputFor,
+  recordVerification,
   riskOfBreachingSet,
   verifyTransition,
+  type ItemStatus,
 } from './engine.js';
 import type { MetricSet } from './catalog.v1.js';
 
@@ -303,5 +307,78 @@ describe('one plan per scope (W17-24)', () => {
     expect(isSameProposal([], [{ catalogId: 'a', status: 'proposed' }])).toBe(false);
     // Two empty plans are the same empty plan.
     expect(isSameProposal([], [])).toBe(true);
+  });
+});
+
+describe('explained, evidence-based progress (W17-25)', () => {
+  const criterion = { metricKey: 'M5', op: 'gte' as const, target: 0.8, windowDays: 30 };
+
+  it('walks the whole lifecycle on evidence alone: accepted → in_progress → done → regressed → done', () => {
+    // The fixture the acceptance asks for, end to end through the pure rules.
+    // proposed → accepted and accepted → in_progress are human decisions
+    // (asserted on the route); everything after that is the verifier's, and
+    // every step names the number it moved on.
+    let status: ItemStatus = 'in_progress';
+    const step = (metrics: MetricSet) => {
+      const { outcome, observed } = observeCriterion(metrics, criterion);
+      const decision = verifyTransition(status, outcome, criterion, observed);
+      if (decision) status = decision.next;
+      return decision;
+    };
+
+    expect(step({ M5: { value: 0.5, dims: {} } })).toBeNull();
+    expect(status).toBe('in_progress');
+
+    const done = step({ M5: { value: 0.9, dims: {} } });
+    expect(done?.next).toBe('done');
+    expect(done?.reason).toContain('0.9');
+    expect(done?.reason).toContain('0.8');
+
+    const back = step({ M5: { value: 0.3, dims: {} } });
+    expect(back?.next).toBe('regressed');
+    expect(back?.reason).toContain('0.3');
+
+    expect(step({ M5: { value: 0.85, dims: {} } })?.next).toBe('done');
+    expect(status).toBe('done');
+  });
+
+  it('a missing measurement is unknown, and unknown moves nothing in any state', () => {
+    const { outcome, observed } = observeCriterion({}, criterion);
+    expect(outcome).toBe('unknown');
+    expect(observed).toBeNull();
+    for (const state of ['accepted', 'in_progress', 'done', 'regressed'] as const) {
+      expect(verifyTransition(state, 'unknown', criterion, null), state).toBeNull();
+    }
+  });
+
+  it('records the last verification on the evidence without touching what raised the item', () => {
+    const evidence = { metricKeys: ['M5'], value: 0.4 };
+    const checked = recordVerification(evidence, {
+      outcome: 'broken',
+      observed: 0.5,
+      checkedAt: '2026-09-10T02:00:00.000Z',
+    });
+    expect(checked).toMatchObject({ metricKeys: ['M5'], value: 0.4 });
+    expect(lastVerificationOf(checked)).toEqual({
+      outcome: 'broken',
+      observed: 0.5,
+      checkedAt: '2026-09-10T02:00:00.000Z',
+    });
+    // Re-recording replaces rather than accumulates: the evidence is a
+    // pointer to the latest check, not a second event log.
+    const again = recordVerification(checked, {
+      outcome: 'unknown',
+      observed: null,
+      checkedAt: '2026-09-11T02:00:00.000Z',
+    });
+    expect(lastVerificationOf(again)?.outcome).toBe('unknown');
+    expect(Object.keys(again)).toEqual(['metricKeys', 'value', 'lastVerification']);
+  });
+
+  it('reads no verification from evidence that carries none or carries junk', () => {
+    expect(lastVerificationOf({ metricKeys: ['M5'] })).toBeNull();
+    expect(lastVerificationOf({ lastVerification: 'yes' })).toBeNull();
+    expect(lastVerificationOf({ lastVerification: { outcome: 'fine', checkedAt: 'x' } })).toBeNull();
+    expect(lastVerificationOf({ lastVerification: { outcome: 'holds', observed: 'n', checkedAt: 'x' } })).toBeNull();
   });
 });

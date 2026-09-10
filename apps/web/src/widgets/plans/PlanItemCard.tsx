@@ -3,6 +3,7 @@ import {
   criterionInWords,
   findingIdsOf,
   metricInWords,
+  progressInWords,
   type MetricNames,
   type PlanItem,
 } from './contracts.js';
@@ -32,6 +33,9 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
   );
 
   const regressed = item.status === 'regressed';
+  // WHY it is where it is (W17-25): the verifier's last check, in words that
+  // cite the number and the criterion. A human state gets no sentence.
+  const progress = progressInWords(item, metricNames);
 
   return (
     <li
@@ -51,6 +55,15 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
       <p className="mt-1 text-xs text-fg-muted" data-testid={`plan-item-criterion-${item.id}`}>
         {criterionInWords(item.verify_criterion, metricNames)}
       </p>
+
+      {progress && (
+        <p
+          className={`mt-1 text-xs ${regressed ? 'text-warn' : 'text-fg-muted'}`}
+          data-testid={`plan-item-progress-${item.id}`}
+        >
+          {progress}
+        </p>
+      )}
 
       {/* Evidence keys, not a copy of the data — the item points at the
           numbers that raised it so a reader can go and check. */}
@@ -121,13 +134,10 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
         )}
         {/* No "mark done" button anywhere, deliberately: an item closes when
             its metric actually moves (W5-06 nightly verify). A manual close
-            would make the whole verification story decorative. */}
-        {(item.status === 'in_progress' || item.status === 'done') && (
-          <span className="text-xs text-fg-faint">
-            {item.status === 'done'
-              ? `Verified ${item.verified_at?.slice(0, 10) ?? ''}`
-              : 'Closes automatically once the metric holds.'}
-          </span>
+            would make the whole verification story decorative. The progress
+            line above says what the last check saw. */}
+        {item.status === 'in_progress' && (
+          <span className="text-xs text-fg-faint">Closes automatically once the metric holds.</span>
         )}
       </div>
     </li>

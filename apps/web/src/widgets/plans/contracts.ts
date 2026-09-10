@@ -153,3 +153,73 @@ export function findingIdsOf(item: Pick<PlanItem, 'evidence'>): number[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((id): id is number => Number.isInteger(id) && (id as number) > 0);
 }
+
+// ---------------------------------------------------------------------------
+// Progress, explained (W17-25). The verifier records what it last saw on the
+// item's evidence (`lastVerification`); the card turns that into the sentence
+// that says WHY the item is where it is. Every sentence cites the number and
+// the criterion, and none claims a measurement that was not made.
+
+export type VerifyOutcome = 'holds' | 'broken' | 'unknown';
+
+export interface LastVerification {
+  outcome: VerifyOutcome;
+  observed: number | null;
+  checkedAt: string;
+}
+
+/** The verifier's last check, when the row carries one and it is well-formed. */
+export function lastVerificationOf(item: Pick<PlanItem, 'evidence'>): LastVerification | null {
+  const raw = item.evidence.lastVerification;
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Record<string, unknown>;
+  const outcome = v.outcome;
+  if (outcome !== 'holds' && outcome !== 'broken' && outcome !== 'unknown') return null;
+  if (v.observed !== null && typeof v.observed !== 'number') return null;
+  if (typeof v.checkedAt !== 'string') return null;
+  return { outcome, observed: v.observed as number | null, checkedAt: v.checkedAt };
+}
+
+const day = (iso: string | null | undefined): string => (iso ? iso.slice(0, 10) : 'an unknown date');
+
+/**
+ * Why the item is in its status, or null when there is nothing to claim.
+ *
+ * `proposed` and `dismissed` are human states with no verification behind
+ * them, so they get no sentence rather than an invented one.
+ */
+export function progressInWords(item: PlanItem, names?: MetricNames): string | null {
+  const c = item.verify_criterion;
+  const metric = metricInWords(c.metricKey, names);
+  const bound = `${c.op === 'gte' ? 'at least' : 'at most'} ${c.target}`;
+  const last = lastVerificationOf(item);
+  const unmeasured = (when: string) =>
+    `${metric} was not measured at the last check (${when}), so this cannot close or reopen until it is.`;
+
+  switch (item.status) {
+    case 'accepted':
+    case 'in_progress': {
+      if (!last) return 'Not checked yet: the nightly verifier has not run for this item since it was accepted.';
+      if (last.outcome === 'unknown') return `Unknown: ${unmeasured(day(last.checkedAt))}`;
+      if (last.outcome === 'broken') {
+        return `Open because ${metric} was ${last.observed} on ${day(last.checkedAt)}; needs ${bound}.`;
+      }
+      return `${metric} was ${last.observed} on ${day(last.checkedAt)}, which meets ${bound}; closes on the next check.`;
+    }
+    case 'done': {
+      if (!last) return `Done: verified ${day(item.verified_at)}.`;
+      if (last.outcome === 'unknown') {
+        return `Done: verified ${day(item.verified_at)}. ${unmeasured(day(last.checkedAt))}`;
+      }
+      return `Done because ${metric} was ${last.observed} on ${day(last.checkedAt)}, meeting ${bound}.`;
+    }
+    case 'regressed': {
+      if (!last || last.outcome === 'unknown') {
+        return `Regressed: ${metric} stopped meeting ${bound}. ${last ? unmeasured(day(last.checkedAt)) : ''}`.trim();
+      }
+      return `Regressed because ${metric} was ${last.observed} on ${day(last.checkedAt)}, which does not meet ${bound}.`;
+    }
+    default:
+      return null;
+  }
+}

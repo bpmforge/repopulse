@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, plans as plansSchema, read, type Database } from '@repopulse/shared';
 import { buildApp } from '../../app.js';
@@ -292,6 +292,66 @@ describeIfLiveInfra('one plan per scope (W17-24)', () => {
     const res = await generate({ window: WINDOW, repo_ids: [repoId, 2_147_483_000] });
     expect(res.status).toBe(404);
     expect(await countPlans()).toBe(before);
+  });
+
+  // W17-25: no human path to done, and no double-write under a race.
+  async function patchItem(id: number, status: string) {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/plans/items/${id}`,
+      headers: CSRF,
+      cookies: { repopulse_sid: cookie },
+      payload: { status },
+    });
+    return res.statusCode;
+  }
+  async function firstItemOf(planId: number) {
+    const [row] = await db
+      .select()
+      .from(plansSchema.planItems)
+      .where(eq(plansSchema.planItems.planId, planId))
+      .orderBy(plansSchema.planItems.rank)
+      .limit(1);
+    return row!;
+  }
+  async function eventsTo(itemId: number, to: string) {
+    return db
+      .select()
+      .from(plansSchema.planItemEvents)
+      .where(and(eq(plansSchema.planItemEvents.planItemId, itemId), eq(plansSchema.planItemEvents.toStatus, to)));
+  }
+
+  it('a person cannot set done (or regressed) from ANY state, and no event says they did', async () => {
+    const plan = await generate({ window: WINDOW, repo_ids: [repoId] });
+    const item = await firstItemOf(plan.body.id);
+    expect(item.status).toBe('proposed');
+
+    expect(await patchItem(item.id, 'done')).toBe(409);
+    expect(await patchItem(item.id, 'accepted')).toBe(200);
+    expect(await patchItem(item.id, 'done')).toBe(409);
+    expect(await patchItem(item.id, 'in_progress')).toBe(200);
+    expect(await patchItem(item.id, 'done')).toBe(409);
+    expect(await patchItem(item.id, 'regressed')).toBe(409);
+
+    // Even from the verifier's own states.
+    for (const state of ['done', 'regressed']) {
+      await db.update(plansSchema.planItems).set({ status: state }).where(eq(plansSchema.planItems.id, item.id));
+      expect(await patchItem(item.id, 'done')).toBe(409);
+    }
+    expect(await eventsTo(item.id, 'done')).toHaveLength(0);
+    expect(await eventsTo(item.id, 'regressed')).toHaveLength(0);
+    expect((await firstItemOf(plan.body.id)).status).toBe('regressed');
+  });
+
+  it('two people who both read proposed cannot both accept it', async () => {
+    const plan = await generate({ window: WINDOW, repo_ids: [repoId] });
+    const item = await firstItemOf(plan.body.id);
+    await db.update(plansSchema.planItems).set({ status: 'proposed' }).where(eq(plansSchema.planItems.id, item.id));
+    const before = (await eventsTo(item.id, 'accepted')).length;
+
+    const codes = await Promise.all([patchItem(item.id, 'accepted'), patchItem(item.id, 'accepted')]);
+    expect(codes.sort()).toEqual([200, 409]);
+    expect((await eventsTo(item.id, 'accepted')).length).toBe(before + 1);
   });
 
   it('listing plans never creates one', async () => {

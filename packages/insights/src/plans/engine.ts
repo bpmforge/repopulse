@@ -161,18 +161,67 @@ function readCriterionValue(metrics: MetricSet, criterion: VerifyCriterion): num
 export type VerifyOutcome = 'holds' | 'broken' | 'unknown';
 
 /**
- * Does the criterion hold right now?
+ * Does the criterion hold right now, and against which number?
  *
  * `unknown` is a distinct answer from `broken`, and the distinction is the
  * whole point: a metric that stopped being computed must NOT flip an item to
  * regressed. That would tell a team their fix came undone when in truth we
  * stopped measuring — the most expensive kind of wrong this product can be.
+ *
+ * The observed value travels with the outcome (W17-25) so a transition can
+ * cite it: "done because M5 was 0.9" is a claim a reader can check, "done" is
+ * not.
  */
+export function observeCriterion(
+  metrics: MetricSet,
+  criterion: VerifyCriterion,
+): { outcome: VerifyOutcome; observed: number | null } {
+  const observed = readCriterionValue(metrics, criterion);
+  if (observed === null) return { outcome: 'unknown', observed };
+  const holds = criterion.op === 'gte' ? observed >= criterion.target : observed <= criterion.target;
+  return { outcome: holds ? 'holds' : 'broken', observed };
+}
+
 export function evaluateCriterion(metrics: MetricSet, criterion: VerifyCriterion): VerifyOutcome {
-  const value = readCriterionValue(metrics, criterion);
-  if (value === null) return 'unknown';
-  const holds = criterion.op === 'gte' ? value >= criterion.target : value <= criterion.target;
-  return holds ? 'holds' : 'broken';
+  return observeCriterion(metrics, criterion).outcome;
+}
+
+/**
+ * What the verifier last saw for an item (W17-25).
+ *
+ * Kept on the item's `evidence` under one key, replaced on every check, so the
+ * UI can say "unknown: not measured at the last check" instead of showing an
+ * in-progress item as if nothing had ever looked at it. It is NOT an event:
+ * the event log records transitions, and a nightly check that changes nothing
+ * is not one. No schema field is added — the same route W17-24 took for
+ * `findingIds`.
+ */
+export interface Verification {
+  outcome: VerifyOutcome;
+  /** The number read against the criterion; null when it could not be read. */
+  observed: number | null;
+  /** ISO timestamp of the check. */
+  checkedAt: string;
+}
+
+const VERIFICATION_KEY = 'lastVerification';
+
+export function recordVerification(
+  evidence: Record<string, unknown>,
+  verification: Verification,
+): Record<string, unknown> {
+  return { ...evidence, [VERIFICATION_KEY]: { ...verification } };
+}
+
+export function lastVerificationOf(evidence: Record<string, unknown> | null | undefined): Verification | null {
+  const raw = evidence?.[VERIFICATION_KEY];
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Record<string, unknown>;
+  const outcome = v.outcome;
+  if (outcome !== 'holds' && outcome !== 'broken' && outcome !== 'unknown') return null;
+  if (v.observed !== null && typeof v.observed !== 'number') return null;
+  if (typeof v.checkedAt !== 'string') return null;
+  return { outcome, observed: v.observed as number | null, checkedAt: v.checkedAt };
 }
 
 export type ItemStatus =
@@ -194,29 +243,29 @@ export function verifyTransition(
   current: ItemStatus,
   outcome: VerifyOutcome,
   criterion: VerifyCriterion,
+  observed?: number | null,
 ): VerifyDecision | null {
   if (outcome === 'unknown') return null;
 
+  // The reason names the number the decision rests on (W17-25). An audit row
+  // saying "held" without the value is a conclusion; with it, it is evidence.
+  const bound = `${criterion.op === 'gte' ? '≥' : '≤'} ${criterion.target}`;
+  const seen = typeof observed === 'number' ? `${criterion.metricKey} = ${observed}` : criterion.metricKey;
+
   // Accepted or in-progress work that now meets its criterion is done.
   if ((current === 'accepted' || current === 'in_progress') && outcome === 'holds') {
-    return {
-      next: 'done',
-      reason: `${criterion.metricKey} ${criterion.op === 'gte' ? '≥' : '≤'} ${criterion.target} held for ${criterion.windowDays}d`,
-    };
+    return { next: 'done', reason: `${seen} meets ${bound} (${criterion.windowDays}d window)` };
   }
 
   // Something that was done and is no longer. Reopened rather than silently
   // re-proposed, so the history shows it came back.
   if (current === 'done' && outcome === 'broken') {
-    return {
-      next: 'regressed',
-      reason: `${criterion.metricKey} no longer meets ${criterion.op === 'gte' ? '≥' : '≤'} ${criterion.target}`,
-    };
+    return { next: 'regressed', reason: `${seen} no longer meets ${bound}` };
   }
 
   // A regression that has recovered goes back to done.
   if (current === 'regressed' && outcome === 'holds') {
-    return { next: 'done', reason: `${criterion.metricKey} meets ${criterion.target} again` };
+    return { next: 'done', reason: `${seen} meets ${bound} again` };
   }
 
   // proposed/dismissed are human states: the verifier never accepts work on

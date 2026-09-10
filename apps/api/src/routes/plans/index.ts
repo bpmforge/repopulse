@@ -31,7 +31,12 @@ export interface PlansRoutesOptions {
 /** The generator runs inside one transaction (W17-24); its readers take either. */
 type Queryable = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
 
-const HUMAN_TRANSITIONS: Record<string, string[]> = {
+/**
+ * What a person may do to an item. `done` and `regressed` appear in NO list:
+ * they are the verifier's to set from a measured number (W5-06, W17-25), and
+ * a hand-set done would make the whole verification story decorative.
+ */
+export const HUMAN_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
   proposed: ['accepted', 'dismissed'],
   accepted: ['in_progress', 'dismissed'],
   in_progress: ['accepted', 'dismissed'],
@@ -40,6 +45,10 @@ const HUMAN_TRANSITIONS: Record<string, string[]> = {
   regressed: ['accepted', 'in_progress', 'dismissed'],
   dismissed: ['proposed'],
 };
+
+export function humanTransitionAllowed(from: string, to: string): boolean {
+  return (HUMAN_TRANSITIONS[from] ?? []).includes(to);
+}
 
 function fail(
   req: FastifyRequest,
@@ -435,7 +444,7 @@ export default async function plansRoutes(
       if (!item) return fail(request, reply, 404, 'Not Found');
 
       const allowed = HUMAN_TRANSITIONS[item.status] ?? [];
-      if (!allowed.includes(next)) {
+      if (!humanTransitionAllowed(item.status, next)) {
         // 409, not 400: the request is well-formed, the STATE forbids it. A
         // human marking something done by hand would also defeat the point of
         // automatic verification, so `done` is not in any allowed list.
@@ -449,22 +458,40 @@ export default async function plansRoutes(
       }
 
       const now = new Date();
-      await db
-        .update(plansSchema.planItems)
-        .set({ status: next, statusChangedBy: userId, statusChangedAt: now })
-        .where(eq(plansSchema.planItems.id, id));
       // The login beside the id (W16-59), so a plan's history keeps saying who
       // accepted an item after that account is gone.
       const actorLogin = await actorLoginFor(db, userId);
-      await db.insert(plansSchema.planItemEvents).values({
-        workspaceId,
-        planItemId: id,
-        fromStatus: item.status,
-        toStatus: next,
-        actorUserId: userId,
-        actorLogin,
-        reason: 'human transition',
+      // Status write and history row in ONE transaction, guarded on the status
+      // that was read (W17-25, as W17-23 did for findings): two people who
+      // both read `proposed` cannot both accept it and write two events — the
+      // second gets the same 409 an invalid transition gets.
+      const applied = await db.transaction(async (tx) => {
+        const updated = await tx
+          .update(plansSchema.planItems)
+          .set({ status: next, statusChangedBy: userId, statusChangedAt: now })
+          .where(and(eq(plansSchema.planItems.id, id), eq(plansSchema.planItems.status, item.status)))
+          .returning({ id: plansSchema.planItems.id });
+        if (updated.length === 0) return false;
+        await tx.insert(plansSchema.planItemEvents).values({
+          workspaceId,
+          planItemId: id,
+          fromStatus: item.status,
+          toStatus: next,
+          actorUserId: userId,
+          actorLogin,
+          reason: 'human transition',
+        });
+        return true;
       });
+      if (!applied) {
+        return fail(
+          request,
+          reply,
+          409,
+          'Transition not allowed',
+          `item ${id} was no longer ${item.status} when the change was applied`,
+        );
+      }
 
       auditLog(request.log, {
         event: 'plan.item.transitioned',

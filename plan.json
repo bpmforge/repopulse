@@ -7788,9 +7788,10 @@
         "Humans still cannot set done directly"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Handoff task RP-25 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them."
+        "Handoff task RP-25 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
+        "Closed 2026-09-10: verifier records every check on the item's evidence (lastVerification: outcome + observed + checkedAt, no schema field), guards its status write on the status it read inside one transaction with the event, and never stamps verified_at on an unknown check; PATCH gains the same guard and exports HUMAN_TRANSITIONS (done/regressed in no list, property-tested); PlanItemCard explains each status from the recorded check. Race proven with a staged row lock, not timing. Gate: lint 0, typecheck 0, test 2330 passed / 8 skipped across 307 files."
       ]
     },
     {
