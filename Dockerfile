@@ -29,6 +29,7 @@ COPY packages/ingest/package.json packages/ingest/
 COPY packages/insights/package.json packages/insights/
 COPY packages/metrics/package.json packages/metrics/
 COPY packages/reports/package.json packages/reports/
+COPY packages/security/package.json packages/security/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile
 
@@ -57,6 +58,7 @@ COPY packages/ingest/package.json packages/ingest/
 COPY packages/insights/package.json packages/insights/
 COPY packages/metrics/package.json packages/metrics/
 COPY packages/reports/package.json packages/reports/
+COPY packages/security/package.json packages/security/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile --prod \
  && pnpm store prune || true
@@ -82,6 +84,17 @@ FROM base AS api
 ENV NODE_ENV=production
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
+# pnpm isolates workspace package deps — copy each package's node_modules
+# or ERR_MODULE_NOT_FOUND fires at runtime (postgres, drizzle-orm, etc.).
+COPY --from=prod-deps /app/packages/analysis/node_modules ./packages/analysis/node_modules
+COPY --from=prod-deps /app/packages/auth/node_modules ./packages/auth/node_modules
+COPY --from=prod-deps /app/packages/forge/node_modules ./packages/forge/node_modules
+COPY --from=prod-deps /app/packages/ingest/node_modules ./packages/ingest/node_modules
+COPY --from=prod-deps /app/packages/insights/node_modules ./packages/insights/node_modules
+COPY --from=prod-deps /app/packages/metrics/node_modules ./packages/metrics/node_modules
+COPY --from=prod-deps /app/packages/reports/node_modules ./packages/reports/node_modules
+COPY --from=prod-deps /app/packages/security/node_modules ./packages/security/node_modules
+COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=runtime-src /app ./
 # tsx globally, and the process is started with it DIRECTLY rather than through
 # `pnpm --filter ... exec`. Two reasons, both found by running the image:
@@ -101,6 +114,17 @@ FROM base AS worker
 ENV NODE_ENV=production
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
+# pnpm isolates workspace package deps — copy each package's node_modules
+# or ERR_MODULE_NOT_FOUND fires at runtime (postgres, drizzle-orm, etc.).
+COPY --from=prod-deps /app/packages/analysis/node_modules ./packages/analysis/node_modules
+COPY --from=prod-deps /app/packages/auth/node_modules ./packages/auth/node_modules
+COPY --from=prod-deps /app/packages/forge/node_modules ./packages/forge/node_modules
+COPY --from=prod-deps /app/packages/ingest/node_modules ./packages/ingest/node_modules
+COPY --from=prod-deps /app/packages/insights/node_modules ./packages/insights/node_modules
+COPY --from=prod-deps /app/packages/metrics/node_modules ./packages/metrics/node_modules
+COPY --from=prod-deps /app/packages/reports/node_modules ./packages/reports/node_modules
+COPY --from=prod-deps /app/packages/security/node_modules ./packages/security/node_modules
+COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=runtime-src /app ./
 RUN npm install -g tsx@4.23.1 && npm cache clean --force
 RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
@@ -127,6 +151,17 @@ FROM base AS migrate
 ENV NODE_ENV=production
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
+# pnpm isolates workspace package deps — copy each package's node_modules
+# or ERR_MODULE_NOT_FOUND fires at runtime (postgres, drizzle-orm, etc.).
+COPY --from=prod-deps /app/packages/analysis/node_modules ./packages/analysis/node_modules
+COPY --from=prod-deps /app/packages/auth/node_modules ./packages/auth/node_modules
+COPY --from=prod-deps /app/packages/forge/node_modules ./packages/forge/node_modules
+COPY --from=prod-deps /app/packages/ingest/node_modules ./packages/ingest/node_modules
+COPY --from=prod-deps /app/packages/insights/node_modules ./packages/insights/node_modules
+COPY --from=prod-deps /app/packages/metrics/node_modules ./packages/metrics/node_modules
+COPY --from=prod-deps /app/packages/reports/node_modules ./packages/reports/node_modules
+COPY --from=prod-deps /app/packages/security/node_modules ./packages/security/node_modules
+COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=runtime-src /app ./
 # The generated SQL and drizzle's bookkeeping table — the same ones drizzle-kit
 # writes, so the two are interchangeable.
