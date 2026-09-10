@@ -106,6 +106,26 @@ export interface SecurityFinding {
   line: number | null;
 }
 
+/**
+ * What the scan sandbox can run right now (W17-27). Mirrors
+ * packages/security/sandbox/tooling.ts — vuln_db is a fact about a file's age
+ * on the host, and the unsupported list is deliberate absences with reasons.
+ */
+export interface SecurityTooling {
+  vuln_db: {
+    present: boolean;
+    schema: string | null;
+    builtAt: string | null;
+    ageDays: number | null;
+    maxAgeDays: number;
+    stale: boolean | null;
+    source: string | null;
+    reason: string | null;
+  };
+  scan_tools: string[];
+  unsupported_tools: { tool: string; reason: string }[];
+}
+
 export interface RepoSecurity {
   repo: { id: number; org: string; name: string };
   open_by_severity: Record<string, number>;
@@ -116,6 +136,8 @@ export interface RepoSecurity {
    * payload from an older API renders the rest of the tab rather than nothing.
    */
   top_findings?: SecurityFinding[];
+  /** Optional for the same reason as top_findings. */
+  tooling?: SecurityTooling;
   secrets: {
     open: number;
     /** Two clocks: watching new commits vs having looked back. */

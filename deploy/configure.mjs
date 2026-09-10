@@ -206,6 +206,8 @@ function main() {
     SESSION_SECRET: hex32(),
     TOKEN_ENC_KEY: hex32(),
     WEBHOOK_SECRET: hex32(),
+    // W17-27: the worker → scan-runner bearer token. Per install, like the rest.
+    SCAN_RUNNER_TOKEN: hex32(),
     ADMIN_EMAIL: adminEmail,
     ADMIN_PASSWORD: adminPassword,
   };

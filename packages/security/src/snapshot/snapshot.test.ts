@@ -348,3 +348,36 @@ describe('snapshotForScan (C1a, Law 7)', () => {
     ).rejects.toBeInstanceOf(SnapshotUnsupportedError);
   });
 });
+
+// W17-27. The packaged worker sets SNAPSHOT_ROOT to the scratch volume the
+// scan-runner can bind out of; the first packaged scan extracted into the OS
+// temp dir anyway because nothing read the variable, and every request was
+// refused. This pins the variable to the one place all six call sites reach.
+describe('SNAPSHOT_ROOT (W17-27)', () => {
+  const before = process.env.SNAPSHOT_ROOT;
+  afterEach(() => {
+    if (before === undefined) delete process.env.SNAPSHOT_ROOT;
+    else process.env.SNAPSHOT_ROOT = before;
+  });
+
+  it('extracts under $SNAPSHOT_ROOT when no root is passed, and an explicit root still wins', async () => {
+    const envRoot = path.join(tmp('w17-27-envroot-'), 'scratch');
+    process.env.SNAPSHOT_ROOT = envRoot;
+    const bytes = tarball((dir) => writeFileSync(path.join(dir, 'a.ts'), 'const a = 1;\n'));
+
+    const seen = await withSnapshot({ bytes, commitSha: 'abc' }, async (snap) => snap.dir);
+    expect(path.dirname(seen)).toBe(envRoot);
+    expect(path.basename(seen).startsWith(SNAPSHOT_PREFIX)).toBe(true);
+
+    const explicit = tmp('w17-27-explicit-');
+    const seen2 = await withSnapshot({ bytes, commitSha: 'abc', root: explicit }, async (snap) => snap.dir);
+    expect(path.dirname(seen2)).toBe(explicit);
+  });
+
+  it('an empty SNAPSHOT_ROOT means unset, not the current directory', async () => {
+    process.env.SNAPSHOT_ROOT = '';
+    const bytes = tarball((dir) => writeFileSync(path.join(dir, 'a.ts'), 'const a = 1;\n'));
+    const seen = await withSnapshot({ bytes, commitSha: 'abc' }, async (snap) => snap.dir);
+    expect(path.dirname(seen)).toBe(path.join(tmpdir(), 'repopulse-snapshots'));
+  });
+});

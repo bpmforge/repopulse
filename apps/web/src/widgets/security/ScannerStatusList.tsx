@@ -1,4 +1,9 @@
-import { hasMeasuredCount, scannerStateLabel, type ScannerStatus } from './contracts.js';
+import {
+  hasMeasuredCount,
+  scannerStateLabel,
+  type ScannerStatus,
+  type SecurityTooling,
+} from './contracts.js';
 
 // Per-scanner coverage (W8-10, NFR-15).
 //
@@ -178,6 +183,66 @@ export function ScannerErrorDetail({ scannerKey, error }: { scannerKey: string; 
             podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
           </code>{' '}
           — see docs/RUNNING.md → Scan tools.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What the sandbox can run, stated under the coverage table (W17-27).
+ *
+ * Two lines a reader can act on before pressing Run: whether the CVE database
+ * is there and how old it is (grype refuses one older than maxAgeDays, so a
+ * stale database is a scan that WILL fail, not one that might), and which
+ * tools this build deliberately does not run. Each unsupported tool carries
+ * its reason in a title, so "why no govulncheck" is answered on the spot.
+ */
+export function ScanToolingNote({ tooling }: { tooling: SecurityTooling }) {
+  const db = tooling.vuln_db;
+  const built = db.builtAt
+    ? new Date(db.builtAt).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    : null;
+  return (
+    <div className="mt-2 flex flex-col gap-1 text-xs text-fg-muted" data-testid="scan-tooling">
+      <div data-testid="vuln-db-status" data-present={db.present} data-stale={db.stale ?? 'unknown'}>
+        {db.present ? (
+          <>
+            Vulnerability database: built {built ?? 'on an unknown date'}
+            {db.ageDays !== null && <> ({db.ageDays} day{db.ageDays === 1 ? '' : 's'} old)</>}
+            {db.stale === true && (
+              <>
+                {' '}
+                — <strong>stale</strong>: grype refuses a database older than {db.maxAgeDays} days,
+                so the CVE scan will fail until deploy/scan-db-sync.sh runs again.
+              </>
+            )}
+            {db.stale === false && <> — current.</>}
+          </>
+        ) : (
+          <>
+            Vulnerability database: <strong>not synced</strong>
+            {db.reason ? <> — {db.reason}</> : null}. CVE scanning cannot run without it, and that
+            is not a clean bill of health.
+          </>
+        )}
+      </div>
+      {tooling.unsupported_tools.length > 0 && (
+        <div data-testid="unsupported-tools">
+          Not in this build:{' '}
+          {tooling.unsupported_tools.map((t, i) => (
+            <span key={t.tool}>
+              {i > 0 ? ', ' : ''}
+              <span className="underline decoration-dotted" title={t.reason}>
+                {t.tool}
+              </span>
+            </span>
+          ))}
+          .
         </div>
       )}
     </div>

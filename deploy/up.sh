@@ -119,7 +119,55 @@ export SCAN_RULES_DIR
 # person can understand and fix; the second is not.
 mkdir -p "$SCAN_RULES_DIR"
 
+# ------------------------------------------------------- scan-runner (W17-27)
+# The scan-runner service is the one container holding the runtime's socket,
+# so the socket path has to be known here, on the host, and it differs by
+# runtime and by rootless-ness. Explicit CONTAINER_SOCKET wins; otherwise:
+#   rootless podman  $XDG_RUNTIME_DIR/podman/podman.sock   (systemctl --user enable --now podman.socket)
+#   root podman      /run/podman/podman.sock               (systemctl enable --now podman.socket)
+#   docker           /var/run/docker.sock
+# A missing socket is refused HERE, with the command that creates it, rather
+# than discovered as a scan-runner that restarts forever.
+: "${SCAN_RUNTIME:=$RT}"
+export SCAN_RUNTIME
+if [ -z "${CONTAINER_SOCKET:-}" ]; then
+  if [ "$RT" = docker ]; then
+    CONTAINER_SOCKET=/var/run/docker.sock
+  elif [ "$(id -u)" = 0 ]; then
+    CONTAINER_SOCKET=/run/podman/podman.sock
+  else
+    CONTAINER_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+  fi
+fi
+export CONTAINER_SOCKET
+# A WARNING, not a refusal: under podman machine (macOS) the path lives inside
+# the VM and is not visible here, so absence proves nothing on that host. On a
+# Linux host it almost always means the API socket was never enabled — and the
+# verification below then names scan-runner as not running, because a bind
+# mount whose source is missing fails at container creation. The instruction
+# is printed here, ahead of that, so the failure arrives with its fix.
+if [ ! -S "$CONTAINER_SOCKET" ]; then
+  echo "WARNING: CONTAINER_SOCKET=$CONTAINER_SOCKET is not a socket on this machine." >&2
+  if [ "$RT" = docker ]; then
+    echo "         scan-runner needs the docker socket. Is the daemon running? Set" >&2
+    echo "         CONTAINER_SOCKET if it listens elsewhere." >&2
+  else
+    echo "         scan-runner needs the podman API socket. Enable it with" >&2
+    echo "           systemctl --user enable --now podman.socket   # rootless" >&2
+    echo "           sudo systemctl enable --now podman.socket     # root" >&2
+    echo "         (under podman machine on macOS the path is the VM's; ignore this)." >&2
+  fi
+fi
+
 echo "runtime:    $RT (compose project: $REPOPULSE_PROJECT)"
+echo "scan-runner: $SCAN_RUNTIME via $CONTAINER_SOCKET, listening on the internal scan network"
+if ! grep -qE '^SCAN_RUNNER_TOKEN=.+' .env; then
+  die "SCAN_RUNNER_TOKEN is missing from deploy/.env. It is the shared secret between
+the worker and the scan-runner; without it the runner refuses to start. Add a
+long random value, e.g.:
+    echo \"SCAN_RUNNER_TOKEN=$(openssl rand -hex 32)\" >> deploy/.env
+(deploy/configure.mjs generates it for new installs.)"
+fi
 echo "scan rules: $SCAN_RULES_DIR"
 if [ -z "$(ls -A "$SCAN_RULES_DIR" 2>/dev/null | grep -v '^README.md$\|^\.gitignore$' || true)" ]; then
   echo "  (empty — dependency scanning will report itself unavailable until you"
@@ -155,7 +203,7 @@ inspect_field() { # $1 = container id, $2 = go template -> value, or empty
   "$RT" inspect "$1" --format "$2" 2>/dev/null || true
 }
 
-EXPECTED="postgres redis api worker web"
+EXPECTED="postgres redis api worker scan-runner web"
 
 # migrate is a one-shot job, so "running" is the wrong question for it — but
 # "exited" was the wrong answer. A migration that fails also exits, and the old

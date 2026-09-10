@@ -12,6 +12,9 @@ export * from './snapshot/sources.js';
 // spawns a scan tool.
 export * from '../sandbox/profile.js';
 export * from '../sandbox/run.js';
+export * from '../sandbox/tooling.js';
+export * from '../sandbox/runner-protocol.js';
+export * from '../sandbox/runner-client.js';
 export * from './scanners/secrets/rulepack.js';
 export * from './scanners/secrets/detect.js';
 export * from './scanners/secrets/verify.js';

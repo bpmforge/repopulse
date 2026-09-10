@@ -1,7 +1,17 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, read, security, type Database } from '@repopulse/shared';
-import { SCANNER_DEFAULTS, emptyVexFunnel, isEnabled, listScanners } from '@repopulse/security';
+import {
+  SCANNER_DEFAULTS,
+  SCAN_TOOLS,
+  UNSUPPORTED_TOOLS,
+  emptyVexFunnel,
+  isEnabled,
+  listScanners,
+  readVulnDbStatus,
+  scanRulesDir,
+} from '@repopulse/security';
+import path from 'node:path';
 import { sendProblem } from '../../lib/problem.js';
 import vexRoutes from './vex.js';
 
@@ -356,6 +366,18 @@ export default async function securityRoutes(
           file: f.file,
           line: f.lineStart,
         })),
+      // WHAT THE SANDBOX CAN RUN, before anyone presses Run (W17-27,
+      // acceptance 3). The vulnerability database is DATA refreshed nightly
+      // on the host, so "dependency scanning is available" is a claim about
+      // a file's age, read here off the same read-only mount the scan
+      // container gets. The unsupported list is named rather than implied:
+      // a reader looking for govulncheck or an IaC scanner finds the answer
+      // here instead of in a scan that quietly reports nothing.
+      tooling: {
+        vuln_db: readVulnDbStatus(path.join(scanRulesDir(), 'vuln-db')),
+        scan_tools: SCAN_TOOLS.map((t) => t.tool),
+        unsupported_tools: UNSUPPORTED_TOOLS,
+      },
       secrets: {
         open: findings.filter((f) => f.dimension === 'secrets').length,
         // Two clocks, not one: stream mode says "we are watching new commits"

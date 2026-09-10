@@ -25,12 +25,33 @@ URL="http://localhost:${PORT}"
 # podman on this machine, docker elsewhere — whichever is present.
 if command -v docker >/dev/null 2>&1; then
   COMPOSE=(docker compose)
+  RT=docker
 elif command -v podman >/dev/null 2>&1; then
   COMPOSE=(podman compose)
+  RT=podman
 else
   echo "Neither docker nor podman is installed." >&2
   exit 1
 fi
+
+# The scan path (W17-27). scan-runner holds the runtime's socket and starts
+# each scan container as a sibling; the compose file needs to know where that
+# socket is and where the synced rules live. Both derived here, both
+# overridable. Under podman machine (macOS) the socket path is the VM's, which
+# `podman info` reports and which the VM can bind — the macOS-side path cannot
+# be mounted into a container.
+: "${SCAN_RUNTIME:=$RT}"
+if [ -z "${CONTAINER_SOCKET:-}" ]; then
+  if [ "$RT" = docker ]; then
+    CONTAINER_SOCKET=/var/run/docker.sock
+  else
+    # podman info answers with a unix:// scheme; compose wants the bare path.
+    CONTAINER_SOCKET="$(podman info --format '{{.Host.RemoteSocket.Path}}' 2>/dev/null | sed 's#^unix://##' || true)"
+    : "${CONTAINER_SOCKET:=/run/user/$(id -u)/podman/podman.sock}"
+  fi
+fi
+: "${SCAN_RULES_DIR:=$(pwd)/deploy/scan-rules}"
+export SCAN_RUNTIME CONTAINER_SOCKET SCAN_RULES_DIR
 
 case "${1:-up}" in
   down)
@@ -87,7 +108,7 @@ fi
 # docker compose), and "Up" is what both print for a running one.
 ps_out="$("${COMPOSE[@]}" -f "$COMPOSE_FILE" ps 2>/dev/null || true)"
 missing=""
-for svc in postgres redis forge api worker web; do
+for svc in postgres redis forge api worker scan-runner web; do
   if ! printf '%s\n' "$ps_out" | grep -E "[_-]${svc}[_-]1" | grep -q "Up"; then
     missing="${missing} ${svc}"
   fi
@@ -128,7 +149,11 @@ cat <<EOF
   Optional, also in the UI:
     Admin → Models     point Tier-2 at a local LLM (nothing else needs it)
     Admin → Settings   bot list, stale-PR window, health weights
-    Repo → Security    run the scanners
+    Repo → Security    run the scanners — through the real scan-runner, on
+                       ${CONTAINER_SOCKET}. Needs the scan image:
+                         podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
+                       and, for CVEs, a synced database:
+                         SCAN_RULES_DIR=${SCAN_RULES_DIR} ./deploy/scan-db-sync.sh
 
   Stop it:   ./deploy/demo.sh down
   Start over: ./deploy/demo.sh reset

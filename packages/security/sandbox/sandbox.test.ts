@@ -3,7 +3,16 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildSandboxArgs, runtimeEnv, SCAN_MOUNT_PATH } from './profile.js';
+import {
+  buildDockerArgs,
+  buildPodmanArgs,
+  buildSandboxArgs,
+  runtimeEnv,
+  runtimeFlavour,
+  SCAN_CONTAINER_LABEL,
+  SCAN_MOUNT_PATH,
+  scanContainerName,
+} from './profile.js';
 import { parseSandboxOutput, runInSandbox, stderrTail } from './run.js';
 
 // Sandbox profile + runner (W8-03, SECURITY_SUITE.md 2.2, NFR-14).
@@ -65,6 +74,86 @@ describe('sandbox profile (NFR-14)', () => {
   it('puts the image and its command last, after every flag', () => {
     const argv = args();
     expect(argv.slice(-3)).toEqual(['localhost/repopulse/scan:test', 'scan', '--json']);
+  });
+});
+
+// Two runtimes, two builders (W17-27, acceptance 4). The RP-01 probe found the
+// single builder pushing podman's `--timeout` at docker, which `docker run`
+// rejects — so every tool-based scan on a docker host failed before the
+// container existed. Each builder is now asserted against the flag set its
+// runtime documents, and the shared boundary is asserted on both.
+describe('podman vs docker argv (W17-27)', () => {
+  const profile = {
+    image: 'localhost/repopulse/scan:test',
+    snapshotDir: '/scratch/snap-abc',
+    command: ['scan', '--json'] as const,
+    budget,
+    extraMounts: [{ hostPath: '/rules/pack', containerPath: '/rules' }],
+    writablePaths: ['/opt/opengrep/.opengrep'],
+    containerName: 'repopulse-scan-t1',
+  };
+
+  const SHARED = [
+    'run',
+    '--rm',
+    '--name=repopulse-scan-t1',
+    `--label=${SCAN_CONTAINER_LABEL}`,
+    '--network=none',
+    '--read-only',
+    '--user=65534:65534',
+    '--security-opt=no-new-privileges',
+    '--cap-drop=ALL',
+    '--pids-limit=256',
+    `--workdir=${SCAN_MOUNT_PATH}`,
+    '--memory=512m',
+    '--cpus=2.00',
+    '--tmpfs=/tmp:rw,noexec,nosuid,size=256m,mode=1777',
+    '--tmpfs=/opt/opengrep/.opengrep:rw,noexec,nosuid,size=16m,mode=1777',
+  ];
+
+  it('both builders carry the whole boundary, the image and the command', () => {
+    for (const argv of [buildPodmanArgs(profile), buildDockerArgs(profile)]) {
+      for (const flag of SHARED) expect(argv).toContain(flag);
+      expect(argv.slice(-3)).toEqual(['localhost/repopulse/scan:test', 'scan', '--json']);
+      expect(argv.some((a) => a.startsWith('--env') || a === '-e')).toBe(false);
+    }
+  });
+
+  it('podman: ro,noexec binds and the --timeout backstop', () => {
+    const argv = buildPodmanArgs(profile);
+    expect(argv).toContain(`--volume=/scratch/snap-abc:${SCAN_MOUNT_PATH}:ro,noexec`);
+    expect(argv).toContain('--volume=/rules/pack:/rules:ro,noexec');
+    expect(argv).toContain('--timeout=60');
+  });
+
+  it('docker: --mount readonly binds and NO --timeout, which docker run rejects', () => {
+    const argv = buildDockerArgs(profile);
+    expect(argv).toContain(
+      `--mount=type=bind,source=/scratch/snap-abc,target=${SCAN_MOUNT_PATH},readonly`,
+    );
+    expect(argv).toContain('--mount=type=bind,source=/rules/pack,target=/rules,readonly');
+    expect(argv.some((a) => a.startsWith('--timeout'))).toBe(false);
+    // docker's bind mounts cannot say noexec; asserting the absence is what
+    // stops someone "fixing" the builder with a flag docker will refuse.
+    expect(argv.some((a) => a.startsWith('--volume'))).toBe(false);
+    expect(argv.some((a) => a.includes('noexec') && a.includes('bind'))).toBe(false);
+  });
+
+  it('picks the builder from the runtime binary name, path or wrapper included', () => {
+    expect(runtimeFlavour('podman')).toBe('podman');
+    expect(runtimeFlavour('podman-remote')).toBe('podman');
+    expect(runtimeFlavour('/opt/homebrew/bin/podman')).toBe('podman');
+    expect(runtimeFlavour('docker')).toBe('docker');
+    expect(runtimeFlavour('/usr/bin/docker')).toBe('docker');
+    expect(buildSandboxArgs(profile, 'docker')).toEqual(buildDockerArgs(profile));
+    expect(buildSandboxArgs(profile)).toEqual(buildPodmanArgs(profile));
+  });
+
+  it('names every run uniquely so a timed-out container can be removed by name', () => {
+    const a = scanContainerName(() => 1_700_000_000_000);
+    const b = scanContainerName(() => 1_700_000_000_000);
+    expect(a).not.toBe(b);
+    expect(a).toMatch(/^repopulse-scan-[a-z0-9-]+$/);
   });
 });
 

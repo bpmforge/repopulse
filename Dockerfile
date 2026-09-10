@@ -143,6 +143,35 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.WORKER_HEALTH_PORT||3301)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["tsx", "apps/api/src/workers/index.ts"]
 
+# ---------- runtime: scan-runner ----------
+# W17-27. The ONE service allowed to start a container, and nothing else.
+#
+# The worker above deliberately has no runtime binary, no socket, no
+# privilege: it holds forge credentials and the database, so it must not be
+# able to start containers. But a scan IS a container. This image is the same
+# runtime tree as the worker plus two CLIENTS — podman-remote and docker-cli —
+# that speak to whichever daemon socket compose mounts at /run/container.sock.
+# It contains no daemon, no conmon, no crun and no storage: it cannot run a
+# container by itself, only ask the host's runtime to. What it asks for is
+# decided by packages/security/sandbox/runner-server.ts, which refuses any
+# request that names an image other than SCAN_IMAGE or a path outside the
+# scratch volume and the rules directory.
+#
+# Alpine 3.24 (this node base) ships podman-remote 5.8 and docker-cli 29 —
+# checked in-image, because Alpine 3.20's podman-remote 5.2 client rejected
+# mount options the 5.8 server accepts and the failure read as a bad profile.
+FROM worker AS scan-runner
+USER root
+RUN apk add --no-cache podman-remote docker-cli && rm -rf /var/cache/apk/*
+USER app
+# A GET of the status document proves the process is up AND can answer the
+# runtime queries that document is built from. The listener is either a TCP
+# address (the packaged stack: SCAN_RUNNER_LISTEN=http://0.0.0.0:3310) or a
+# unix socket, so the probe reads the same variable the server does.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD node -e "const a=process.env.SCAN_RUNNER_LISTEN||process.env.SCAN_RUNNER_SOCKET||'/run/repopulse/scan-runner.sock';const o=a.startsWith('http://')?{host:'127.0.0.1',port:new URL(a).port}:{socketPath:a};require('http').request({...o,path:'/v1/status'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).end()"
+CMD ["tsx", "packages/security/sandbox/runner-server.ts"]
+
 # ---------- one-shot: migrate ----------
 # Runs to completion before api/worker start. Drizzle records applied
 # migrations, so a second `up` on an existing install is a no-op, not a

@@ -112,7 +112,7 @@ exit 1
   /** Run up.sh with a scratch deploy dir so the repo's own .env is untouched. */
   async function runUp(
     env: Record<string, string>,
-    opts: { withEnvFile?: boolean; bin?: string } = {},
+    opts: { withEnvFile?: boolean; envFile?: string; bin?: string } = {},
   ): Promise<{ code: number; out: string }> {
     const deployDir = path.join(dir, 'deploy');
     mkdirSync(deployDir, { recursive: true });
@@ -123,8 +123,14 @@ exit 1
       path.join(repoRoot, 'deploy/compose.yaml'),
       path.join(deployDir, 'compose.yaml'),
     ]);
+    // W17-27: a real install always has SCAN_RUNNER_TOKEN (configure.mjs
+    // generates it); the fixture mirrors that so the token refusal, tested on
+    // its own below, does not mask the migrate/health behaviour under test.
     if (opts.withEnvFile !== false)
-      writeFileSync(path.join(deployDir, '.env'), 'POSTGRES_USER=x\n');
+      writeFileSync(
+        path.join(deployDir, '.env'),
+        opts.envFile ?? 'POSTGRES_USER=x\nSCAN_RUNNER_TOKEN=test-token-not-a-secret\n',
+      );
 
     try {
       const { stdout, stderr } = await run('bash', [path.join(deployDir, 'up.sh')], {
@@ -148,6 +154,8 @@ exit 1
     redis: 'running:0:healthy',
     api: 'running:0:none',
     worker: 'running:0:none',
+    // W17-27: the scan-runner sidecar is a long-running service up.sh verifies.
+    'scan-runner': 'running:0:none',
     web: 'running:0:none',
   };
 
@@ -158,6 +166,15 @@ exit 1
     expect(code).not.toBe(0);
     expect(out).toContain('deploy/.env is missing');
     expect(out).toContain('cp deploy/.env.example deploy/.env');
+  });
+
+  it('refuses to start without SCAN_RUNNER_TOKEN in .env, naming the fix (W17-27)', async () => {
+    stubRuntime('podman', { services: allHealthy });
+    const { code, out } = await runUp({}, { envFile: 'POSTGRES_USER=x\n' });
+
+    expect(code).not.toBe(0);
+    expect(out).toContain('SCAN_RUNNER_TOKEN is missing from deploy/.env');
+    expect(out).toContain('deploy/configure.mjs');
   });
 
   it('rejects an unknown RUNTIME instead of silently detecting one', async () => {
@@ -235,21 +252,25 @@ exit 1
     expect(out).toContain('compose exited 125');
   });
 
-  it('waits for an unhealthy-but-starting service instead of failing instantly', { timeout: 20000 }, async () => {
-    // postgres declares a healthcheck; "starting" must not count as up, and must
-    // not be judged on the first inspect either.
-    stubRuntime('podman', {
-      services: { ...allHealthy, postgres: 'running:0:starting' },
-    });
-    const started = Date.now();
-    const { code, out } = await runUp({ REPOPULSE_UP_TIMEOUT: '3' });
-    const elapsed = Date.now() - started;
+  it(
+    'waits for an unhealthy-but-starting service instead of failing instantly',
+    { timeout: 20000 },
+    async () => {
+      // postgres declares a healthcheck; "starting" must not count as up, and must
+      // not be judged on the first inspect either.
+      stubRuntime('podman', {
+        services: { ...allHealthy, postgres: 'running:0:starting' },
+      });
+      const started = Date.now();
+      const { code, out } = await runUp({ REPOPULSE_UP_TIMEOUT: '3' });
+      const elapsed = Date.now() - started;
 
-    expect(code).not.toBe(0);
-    expect(out).toMatch(/not running:.*postgres/);
-    // It actually waited rather than giving up on the first look.
-    expect(elapsed).toBeGreaterThan(2500);
-  });
+      expect(code).not.toBe(0);
+      expect(out).toMatch(/not running:.*postgres/);
+      // It actually waited rather than giving up on the first look.
+      expect(elapsed).toBeGreaterThan(2500);
+    },
+  );
 
   it('starts cleanly, from a path containing a space, and honours the project name', async () => {
     stubRuntime('podman', { services: allHealthy });
