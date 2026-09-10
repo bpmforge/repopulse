@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, inArray, notInArray } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   core,
@@ -143,12 +143,84 @@ describeIfDb('collectTopActions (W17-16)', () => {
   let repoId: number;
   let repoTwoId: number;
   let otherRepoId: number;
-  const connectionIds: number[] = [];
-  const repoIds: number[] = [];
+  const workspaceIds: number[] = [];
   let scanRunId: number;
   let otherScanRunId: number;
 
   const NOW = new Date('2026-09-10T12:00:00.000Z');
+
+  /**
+   * Delete every row this suite can write into `wsIds`, children first.
+   *
+   * Every FK in this schema is NO ACTION — nothing cascades — and a single FK
+   * error aborts the WHOLE hook, skipping the deletes queued behind it. That is
+   * not hypothetical: two `plan_item_events` rows pointed at this suite's plan
+   * items, so `afterEach`'s `delete(planItems)` threw on every run and cleaned
+   * nothing, leaving 74 plan items and 66 active plans in `w17-16-a` for the
+   * next run to read as candidate actions. Hence: events before their parents,
+   * and event deletes scoped by the CHILD's id rather than by workspace, since
+   * the writer of an event need not be the owner of the item.
+   *
+   * `keepMeasurements` is the difference between the between-tests reset and
+   * the whole-suite teardown: the succeeded scan runs and the repositories are
+   * built once in `beforeAll` and every test depends on them.
+   */
+  async function wipeWorkspaces(
+    wsIds: number[],
+    { keepMeasurements }: { keepMeasurements: boolean },
+  ): Promise<void> {
+    if (wsIds.length === 0) return;
+
+    const itemIds = (
+      await db
+        .select({ id: plansSchema.planItems.id })
+        .from(plansSchema.planItems)
+        .where(inArray(plansSchema.planItems.workspaceId, wsIds))
+    ).map((r) => r.id);
+    if (itemIds.length > 0) {
+      await db
+        .delete(plansSchema.planItemEvents)
+        .where(inArray(plansSchema.planItemEvents.planItemId, itemIds));
+    }
+    await db.delete(plansSchema.planItems).where(inArray(plansSchema.planItems.workspaceId, wsIds));
+    await db
+      .delete(plansSchema.improvementPlans)
+      .where(inArray(plansSchema.improvementPlans.workspaceId, wsIds));
+
+    const findingIds = (
+      await db
+        .select({ id: read.findings.id })
+        .from(read.findings)
+        .where(inArray(read.findings.workspaceId, wsIds))
+    ).map((r) => r.id);
+    if (findingIds.length > 0) {
+      await db.delete(read.findingEvents).where(inArray(read.findingEvents.findingId, findingIds));
+    }
+    await db.delete(read.findings).where(inArray(read.findings.workspaceId, wsIds));
+
+    // Any run a TEST inserted goes; the two `beforeAll` built are the fixture.
+    // Scoped by id and not by `scannerKey`, so a run under a scanner a future
+    // test adds cannot survive to be counted as a measurement next time.
+    const keptRunIds = keepMeasurements
+      ? [scanRunId, otherScanRunId].filter((id): id is number => typeof id === 'number')
+      : [];
+    await db
+      .delete(security.scanRuns)
+      .where(
+        keptRunIds.length > 0
+          ? and(
+              inArray(security.scanRuns.workspaceId, wsIds),
+              notInArray(security.scanRuns.id, keptRunIds),
+            )
+          : inArray(security.scanRuns.workspaceId, wsIds),
+      );
+    if (keepMeasurements) return;
+
+    // By workspace, not by the four known forge ids: a stale repository row in
+    // these workspaces is counted by `reposTotal`, whatever it is called.
+    await db.delete(core.repos).where(inArray(core.repos.workspaceId, wsIds));
+    await db.delete(core.forgeConnections).where(inArray(core.forgeConnections.workspaceId, wsIds));
+  }
 
   beforeAll(async () => {
     db = createDb(databaseUrl as string);
@@ -161,9 +233,18 @@ describeIfDb('collectTopActions (W17-16)', () => {
         .returning();
       return ws!.id;
     };
+    // Fixed slugs on purpose. A run-unique suffix would also isolate the run,
+    // but it leaves three orphan workspaces behind per run AND makes a second
+    // run prove nothing, because it would never touch what the first left.
     workspaceId = await mkWorkspace('w17-16-a', 'W17-16 A');
     otherWorkspaceId = await mkWorkspace('w17-16-b', 'W17-16 B');
     unmeasuredWorkspaceId = await mkWorkspace('w17-16-c', 'W17-16 C');
+    workspaceIds.push(workspaceId, otherWorkspaceId, unmeasuredWorkspaceId);
+
+    // Before anything is created, not after: a prior run killed between its
+    // last test and `afterAll` leaves findings hanging off these repositories,
+    // and creating over that is what makes the first insert throw.
+    await wipeWorkspaces(workspaceIds, { keepMeasurements: false });
 
     const mkConnection = async (wsId: number, fp: string): Promise<number> => {
       const [c] = await db
@@ -179,7 +260,6 @@ describeIfDb('collectTopActions (W17-16)', () => {
           status: 'active',
         })
         .returning();
-      connectionIds.push(c!.id);
       return c!.id;
     };
 
@@ -189,7 +269,6 @@ describeIfDb('collectTopActions (W17-16)', () => {
       forgeRepoId: string,
       name: string,
     ): Promise<number> => {
-      await db.delete(core.repos).where(eq(core.repos.forgeRepoId, forgeRepoId));
       const [r] = await db
         .insert(core.repos)
         .values({
@@ -205,7 +284,6 @@ describeIfDb('collectTopActions (W17-16)', () => {
           tier2Auto: false,
         })
         .returning();
-      repoIds.push(r!.id);
       return r!.id;
     };
 
@@ -240,34 +318,14 @@ describeIfDb('collectTopActions (W17-16)', () => {
     otherScanRunId = await mkScanRun(otherWorkspaceId, otherRepoId);
   });
 
+  // In the hook, not at the end of the test body: a failing assertion would
+  // otherwise leave the rows behind and poison whatever runs next.
   afterEach(async () => {
-    await db.delete(read.findings).where(inArray(read.findings.repoId, repoIds));
-    // In the hook, not at the end of the test body: a failing assertion would
-    // otherwise leave the row behind and poison whatever runs next.
-    // Scoped to this suite's repositories, like the two deletes above it: an
-    // unscoped scannerKey predicate would clear every depscan run in the dev
-    // database, not the one row the test inserted.
-    await db
-      .delete(security.scanRuns)
-      .where(
-        and(
-          eq(security.scanRuns.scannerKey, 'depscan'),
-          inArray(security.scanRuns.repoId, repoIds),
-        ),
-      );
-    await db
-      .delete(plansSchema.planItems)
-      .where(inArray(plansSchema.planItems.workspaceId, [workspaceId, otherWorkspaceId]));
-    await db
-      .delete(plansSchema.improvementPlans)
-      .where(inArray(plansSchema.improvementPlans.workspaceId, [workspaceId, otherWorkspaceId]));
+    await wipeWorkspaces(workspaceIds, { keepMeasurements: true });
   });
 
   afterAll(async () => {
-    await db.delete(read.findings).where(inArray(read.findings.repoId, repoIds));
-    await db.delete(security.scanRuns).where(inArray(security.scanRuns.repoId, repoIds));
-    await db.delete(core.repos).where(inArray(core.repos.id, repoIds));
-    await db.delete(core.forgeConnections).where(inArray(core.forgeConnections.id, connectionIds));
+    await wipeWorkspaces(workspaceIds, { keepMeasurements: false });
     await db.$client.end();
   });
 
