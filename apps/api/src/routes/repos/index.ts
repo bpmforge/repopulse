@@ -93,15 +93,29 @@ export default async function reposRoutes(
     const items = await Promise.all(
       repos.map(async (r) => {
         const health = await repoHealth(db, workspaceId, r.id, window, r.pushedAt, nowMs);
+        // UNKNOWN is a third state, not a low number (W17-18).
+        //
+        // computeHealthScore sums contributions, so a repo where every
+        // sub-score was dropped for want of inputs sums an EMPTY set to 0 —
+        // and scoreLetter(0) is 'E'. Serialized as `{score: 0, letter: 'E'}`
+        // that is a verdict the warehouse never reached, and it ranks a repo
+        // nobody has ingested below every genuinely unhealthy one. Same
+        // discipline the sub-scores themselves already follow: unmeasured is
+        // excluded, never scored.
+        const measured = health.subScores.length > 0;
         return {
           id: r.id,
           org: r.org,
           name: r.name,
           sync: r.syncStatus,
           health: {
-            score: Math.round(health.score),
-            letter: health.letter,
-            basis: health.tier1Only ? 'Tier-1 only' : 'full',
+            score: measured ? Math.round(health.score) : null,
+            // Null together with the score: a letter beside a null score would
+            // be the same claim by another name.
+            letter: measured ? health.letter : null,
+            measured,
+            // Not "Tier-1 only" either — there is no tier of evidence here.
+            basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
             delta: null,
           },
           links: repoLinks(r.id),
@@ -308,7 +322,12 @@ export default async function reposRoutes(
         defaultBranchRuns?: number;
         prRuns?: number;
         duration?: { medianMs: number | null; p90Ms: number | null };
-        flakiness?: { workflowName: string; flakinessRatio: number | null; rerunGroups: number; flippedGroups: number }[];
+        flakiness?: {
+          workflowName: string;
+          flakinessRatio: number | null;
+          rerunGroups: number;
+          flippedGroups: number;
+        }[];
         flakinessWorkflows?: number;
       };
 

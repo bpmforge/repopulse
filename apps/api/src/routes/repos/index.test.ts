@@ -27,7 +27,10 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
   let app: FastifyInstance;
   const db: Database = createDb(databaseUrl as string);
   let repoId: number;
-
+  // A repository nothing has ever measured (W17-18): no snapshots AND no
+  // pushed_at, so not even the activity sub-score survives. Its health is
+  // UNKNOWN, which is not the same fact as "scored 0".
+  let unmeasuredRepoId: number;
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -96,7 +99,12 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     const wsId = ws!.id;
     const [connUser] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w4-01-conn', forgeUserId: 'w4-01-conn', login: 'w4-01-conn' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w4-01-conn',
+        forgeUserId: 'w4-01-conn',
+        login: 'w4-01-conn',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w4-01-conn' } })
       .returning();
     const [conn] = await db
@@ -130,6 +138,25 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
       })
       .returning();
     repoId = repo!.id;
+    const [unmeasured] = await db
+      .insert(core.repos)
+      .values({
+        workspaceId: wsId,
+        connectionId: conn!.id,
+        forgeRepoId: 'r-w1718',
+        // Same NAME as the measured repo, different org: the list has to keep
+        // these two apart (W17-18 acceptance 1).
+        org: 'globex',
+        name: 'w401',
+        defaultBranch: 'main',
+        isPrivate: true,
+        isArchived: false,
+        syncStatus: 'pending_backfill',
+        tier2Auto: false,
+        pushedAt: null,
+      })
+      .returning();
+    unmeasuredRepoId = unmeasured!.id;
     // The fixture user's forge identity (forge_user_id matches the login code).
     const [id] = await db
       .insert(core.identities)
@@ -269,6 +296,44 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
       cookies: { repopulse_sid: cookie },
     });
     expect(stats.json().merged_prs).toBe(1);
+  });
+
+  it('reports UNKNOWN health rather than a score of 0 for a repo nothing has measured (W17-18)', async () => {
+    const cookie = await loginAs(app, FIXTURE);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/v1/repos',
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(list.statusCode).toBe(200);
+    const items = list.json().items as {
+      id: number;
+      org: string;
+      name: string;
+      health: { score: number | null; letter: string | null; measured: boolean; basis: string };
+    }[];
+
+    const unmeasured = items.find((r) => r.id === unmeasuredRepoId);
+    expect(unmeasured).toBeDefined();
+    // The defect: computeHealthScore sums an EMPTY set of sub-scores to 0, and
+    // scoreLetter(0) is 'E'. Serialized as `{score: 0, letter: 'E'}` that is a
+    // verdict the warehouse never reached — and it sorts as the unhealthiest
+    // repository in the workspace.
+    expect(unmeasured!.health.measured).toBe(false);
+    expect(unmeasured!.health.score).toBeNull();
+    expect(unmeasured!.health.letter).toBeNull();
+    // Nor is it "Tier-1 only": there is no tier of evidence here at all.
+    expect(unmeasured!.health.basis).toBe('not measured');
+
+    // The measured repo still carries a real number — this must not turn every
+    // score null.
+    const measured = items.find((r) => r.id === repoId);
+    expect(measured!.health.measured).toBe(true);
+    expect(typeof measured!.health.score).toBe('number');
+
+    // Acceptance 1: the two rows share a name and are told apart by org.
+    expect(measured!.name).toBe(unmeasured!.name);
+    expect(measured!.org).not.toBe(unmeasured!.org);
   });
 
   it('a foreign repo id → 404 (tenancy, Law 5)', async () => {
