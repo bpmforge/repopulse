@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
@@ -45,6 +45,12 @@ export const Route = createFileRoute('/findings/')({
 const LIST = { endpoint: '/findings' } as const;
 
 const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as const;
+
+/** POST /findings/bulk — applied ids and the ones the lifecycle refused. */
+interface BulkResult {
+  applied: number[];
+  skipped: { id: number; reason: string }[];
+}
 
 /** The HTTP status behind a failed by-id fetch, if the error carries one. */
 function statusOf(error: unknown): number | undefined {
@@ -196,7 +202,13 @@ function FindingsExplorer() {
     endpoint: '/scanners',
   });
 
-  const bulk = useApiMutation<{ ids: number[]; status: string; note: string }, unknown>(
+  /**
+   * What the last bulk action did, kept after the selection clears (W17-23).
+   * The API applies what it can and reports the rest per id, and a bar that
+   * simply emptied read as "all forty done" when three were already resolved.
+   */
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const bulk = useApiMutation<{ ids: number[]; status: string; note: string }, BulkResult>(
     { endpoint: '/findings/bulk', method: 'POST' },
     {
       invalidate: [
@@ -450,30 +462,50 @@ function FindingsExplorer() {
                 onChange={(e) => setNote(e.target.value)}
               />
             </label>
-            {(['confirmed', 'dismissed'] as const).map((target) => (
-              <button
-                key={target}
-                type="button"
-                className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                data-testid={`bulk-${target}`}
-                disabled={bulk.isPending || note.trim() === ''}
-                onClick={() =>
-                  bulk.mutate(
-                    { ids: selected, status: target, note },
-                    {
-                      onSuccess: () => {
-                        setSelected([]);
-                        setNote('');
+            {(['confirmed', 'dismissed'] as const).map((target) => {
+              // Only the button that was pressed waits (W17-23); the other
+              // stays live rather than the whole bar greying out.
+              const pending = bulk.isPending && bulk.variables?.status === target;
+              return (
+                <button
+                  key={target}
+                  type="button"
+                  className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  data-testid={`bulk-${target}`}
+                  disabled={pending || note.trim() === ''}
+                  aria-busy={pending || undefined}
+                  onClick={() =>
+                    bulk.mutate(
+                      { ids: selected, status: target, note },
+                      {
+                        onSuccess: (result) => {
+                          setSelected([]);
+                          setNote('');
+                          setBulkResult(result);
+                        },
                       },
-                    },
-                  )
-                }
-              >
-                Mark {target}
-              </button>
-            ))}
+                    )
+                  }
+                >
+                  {pending ? `Marking ${target}…` : `Mark ${target}`}
+                </button>
+              );
+            })}
           </div>
+          <ErrorNote error={bulk.error} testId="bulk-error" className="mt-2" />
         </WidgetFrame>
+      )}
+
+      {bulkResult && (
+        <p className="text-xs text-fg-muted" data-testid="bulk-result" role="status">
+          Applied to {bulkResult.applied.length}
+          {bulkResult.skipped.length > 0
+            ? `, skipped ${bulkResult.skipped.length} (${bulkResult.skipped
+                .map((s) => `#${s.id}: ${s.reason}`)
+                .join('; ')})`
+            : ''}
+          .
+        </p>
       )}
 
       <WidgetFrame

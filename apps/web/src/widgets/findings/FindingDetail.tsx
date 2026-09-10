@@ -1,11 +1,20 @@
 import { useState } from 'react';
-import { WidgetFrame } from '../../components/index.js';
+import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
-import { locationOf, SEVERITY_LABEL, type Finding, type FindingEvent } from './contracts.js';
+import {
+  locationOf,
+  reviewSummary,
+  SEVERITY_LABEL,
+  type Finding,
+  type FindingEvent,
+} from './contracts.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
 const DISMISS_REASONS = ['false_positive', 'accepted_risk', 'not_applicable', 'duplicate'] as const;
+
+const ACTION_BUTTON =
+  'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
 
 export function FindingDetail({
   finding,
@@ -18,6 +27,7 @@ export function FindingDetail({
 }) {
   const [note, setNote] = useState('');
   const [reason, setReason] = useState<string>('false_positive');
+  const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const historyDescriptor = {
     endpoint: '/findings/{id}/history',
@@ -35,6 +45,32 @@ export function FindingDetail({
     // change looks like it did not happen.
     { invalidate: [...invalidate, queryKeyFor(historyDescriptor)] },
   );
+
+  /**
+   * Which action is in flight, if any (W17-23). Only THAT control is disabled:
+   * `isPending` alone greyed out both Confirm and Dismiss, so a slow confirm
+   * read as "the panel is broken" rather than "one request is running". The
+   * status shown is never taken from the request — it is `finding.status`,
+   * re-read from the API once the mutation invalidates the list, so a failed
+   * write leaves the chip exactly where the database has it.
+   */
+  const pending = transition.isPending ? transition.variables?.status : undefined;
+
+  const copySummary = () => {
+    const text = reviewSummary(finding, history?.items ?? []);
+    // Clipboard access can be refused (insecure origin, denied permission).
+    // The button then says so rather than claiming success — and nothing
+    // else happens either way: no request leaves the browser for this.
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      setCopied('failed');
+      return;
+    }
+    void clipboard
+      .writeText(text)
+      .then(() => setCopied('copied'))
+      .catch(() => setCopied('failed'));
+  };
 
   return (
     <WidgetFrame title={finding.title} state="ready">
@@ -57,6 +93,9 @@ export function FindingDetail({
           <span>{finding.dimension.replace('_', ' ')}</span>
           <span>seen {finding.occurrence_count}×</span>
           <span>Tier {finding.tier}</span>
+          {/* The status, from the server's copy of the finding — never from
+              the button that was just pressed (W17-23). */}
+          <span data-testid="finding-status">status {finding.status.replace('_', ' ')}</span>
         </div>
 
         {/* The quote is why anyone should believe the finding — it is validated
@@ -154,21 +193,38 @@ export function FindingDetail({
           </label>
           <button
             type="button"
-            className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className={ACTION_BUTTON}
             data-testid="finding-confirm"
-            disabled={transition.isPending || note.trim() === ''}
+            disabled={pending === 'confirmed' || note.trim() === ''}
+            aria-busy={pending === 'confirmed' || undefined}
             onClick={() => transition.mutate({ status: 'confirmed', note })}
           >
-            Confirm
+            {pending === 'confirmed' ? 'Confirming…' : 'Confirm'}
           </button>
           <button
             type="button"
-            className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className={ACTION_BUTTON}
             data-testid="finding-dismiss"
-            disabled={transition.isPending || note.trim() === ''}
+            disabled={pending === 'dismissed' || note.trim() === ''}
+            aria-busy={pending === 'dismissed' || undefined}
             onClick={() => transition.mutate({ status: 'dismissed', note, dismiss_reason: reason })}
           >
-            Dismiss
+            {pending === 'dismissed' ? 'Dismissing…' : 'Dismiss'}
+          </button>
+          {/* Plain text to the clipboard, nothing to the forge (W17-23). A
+              review is acted on in a PR thread or a ticket, and this is the
+              way there that does not require RepoPulse to write to either. */}
+          <button
+            type="button"
+            className={ACTION_BUTTON}
+            data-testid="finding-copy-summary"
+            onClick={copySummary}
+          >
+            {copied === 'copied'
+              ? 'Copied'
+              : copied === 'failed'
+                ? 'Copy failed — select the text instead'
+                : 'Copy review summary'}
           </button>
           <button
             type="button"
@@ -178,6 +234,10 @@ export function FindingDetail({
             Close
           </button>
         </div>
+        {/* A refused write says so where the button is (W17-23). Before this a
+            409 — someone else triaged it first, or the row is in a state this
+            action cannot leave — vanished, and the panel simply did nothing. */}
+        <ErrorNote error={transition.error} testId="finding-action-error" />
         {/* The note is required by the API too — a dismissal with no reason is
             unreviewable six months later, which is exactly when it matters. */}
         {note.trim() === '' && (

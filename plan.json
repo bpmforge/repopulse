@@ -7731,10 +7731,11 @@
         "Only the submitting action is disabled while pending"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-23 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Do not add a control that marks remediation verified without new evidence."
+        "Do not add a control that marks remediation verified without new evidence.",
+        "Closed 2026-09-10: API transition + history row now atomic (one transaction, UPDATE guarded on the status that was read, so a concurrent decision is a 409 rather than a silent overwrite); 5 DB-backed tests in apps/api/src/routes/findings/transitions.test.ts. Web: only the pressed action is disabled while pending (detail panel, bulk bar), a refused write is shown beside the button via ErrorNote, the status chip is always the server's copy, triage counters/cursor move on the API's answer not the keypress, and Copy review summary writes plain text to the clipboard only (test asserts no fetch). Scope note: apps/web/src/routes/findings/index.tsx touched for the bulk bar. No verified-remediation control added."
       ]
     },
     {

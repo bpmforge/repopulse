@@ -9,7 +9,15 @@ import type { Finding } from './contracts.js';
 // "1 of 3" to "2 of 2". Every decision silently skipped the finding after it —
 // on the screen whose entire purpose is not missing one.
 
-const mutate = vi.hoisted(() => vi.fn());
+// The mock ANSWERS, like the API does (W17-23): the queue now advances and
+// counts on the server's success, not on the keypress, so a mutate that never
+// calls back would leave every stepper test stuck on item one.
+const mutate = vi.hoisted(() =>
+  vi.fn((_body: unknown, opts?: { onSuccess?: () => void; onSettled?: () => void }) => {
+    opts?.onSuccess?.();
+    opts?.onSettled?.();
+  }),
+);
 vi.mock('../../api/useApiQuery.js', () => ({
   useApiMutation: () => ({ mutate, isPending: false }),
 }));
@@ -59,9 +67,7 @@ function decideAndRefetch(
 
 describe('the triage stepper (W16-52)', () => {
   it('moves to the NEXT finding after a decision, never past it', () => {
-    const { rerender } = render(
-      <TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />,
-    );
+    const { rerender } = render(<TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />);
     expect(screen.getByTestId('triage-position').textContent).toBe('1 of 3');
 
     decideAndRefetch(rerender, 'c', [THREE[1]!, THREE[2]!]);
@@ -75,9 +81,7 @@ describe('the triage stepper (W16-52)', () => {
     // "1 of 3" becoming "2 of 2" is the visible half of the skip, and it is
     // what makes a stepper feel untrustworthy even before anyone notices a
     // finding was missed.
-    const { rerender } = render(
-      <TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />,
-    );
+    const { rerender } = render(<TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />);
     decideAndRefetch(rerender, 'c', [THREE[1]!, THREE[2]!]);
     expect(screen.getByTestId('triage-position').textContent).toBe('2 of 3');
     decideAndRefetch(rerender, 'd', [THREE[2]!]);
@@ -87,9 +91,7 @@ describe('the triage stepper (W16-52)', () => {
   it('lets k go back to a finding already decided', () => {
     // Decided items stay in the run: someone who confirms by mistake has to be
     // able to return to it, and a queue that drops them cannot offer that.
-    const { rerender } = render(
-      <TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />,
-    );
+    const { rerender } = render(<TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />);
     decideAndRefetch(rerender, 'c', [THREE[1]!, THREE[2]!]);
     fireEvent.keyDown(window, { key: 'k' });
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('first');

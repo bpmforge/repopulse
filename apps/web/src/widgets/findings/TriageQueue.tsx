@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ErrorNote } from '../../components/index.js';
 import { useApiMutation } from '../../api/useApiQuery.js';
 import { SEVERITY_LABEL, VERIFY_LABEL, type Finding } from './contracts.js';
 
@@ -7,6 +8,8 @@ import { SEVERITY_LABEL, VERIFY_LABEL, type Finding } from './contracts.js';
 // Fully keyboard operable is the requirement (NFR-5), and it is also the point:
 // triaging forty findings with a mouse is a job nobody finishes. j/k move,
 // c/d/e act, Esc leaves.
+
+type Decision = 'confirmed' | 'dismissed';
 
 export function TriageQueue({
   findings,
@@ -36,6 +39,18 @@ export function TriageQueue({
     confirmed: 0,
     dismissed: 0,
   });
+  /**
+   * The decision in flight, and the last one refused (W17-23).
+   *
+   * The counters used to move the instant a key was pressed, before the API
+   * had answered — so a 409 (someone else got there first) or a 400 (the note
+   * was blanked) still read "1 confirmed" on the way out, and the session
+   * summary feeds the false-positive rate. Now a decision counts when the
+   * server says it happened, the cursor waits on a refused one so it can be
+   * retried, and the refusal is shown against the finding it was for.
+   */
+  const [inFlight, setInFlight] = useState<{ id: number; status: Decision } | null>(null);
+  const [refused, setRefused] = useState<{ id: number; error: unknown } | null>(null);
 
   const current = queue[index];
 
@@ -52,31 +67,51 @@ export function TriageQueue({
   );
 
   useEffect(() => {
+    function decide(status: Decision) {
+      if (!current) return;
+      // Only the SAME decision on the SAME finding is held back while it is
+      // pending (W17-23) — a second `c` would be a duplicate write. Moving on
+      // and deciding the next finding is not, and must not wait.
+      if (inFlight?.id === current.id && inFlight.status === status) return;
+      const id = current.id;
+      const at = index;
+      setInFlight({ id, status });
+      setRefused((r) => (r?.id === id ? null : r));
+      transition.mutate(
+        status === 'confirmed'
+          ? { status, note }
+          : { status, note, dismiss_reason: 'false_positive' },
+        {
+          onSuccess: () => {
+            setDone((d) => ({ ...d, [status]: d[status] + 1 }));
+            // Advance only if the cursor is still on the finding decided:
+            // someone who pressed j while waiting has already moved.
+            setIndex((i) => (i === at ? Math.min(i + 1, queue.length - 1) : i));
+          },
+          onError: (error) => setRefused({ id, error }),
+          onSettled: () => setInFlight((f) => (f?.id === id && f.status === status ? null : f)),
+        },
+      );
+    }
     function onKey(e: KeyboardEvent) {
       // Ignore while typing the note, or every keystroke would triage.
       if (e.target instanceof HTMLInputElement) return;
       if (e.key === 'Escape') onExit();
       if (e.key === 'j') setIndex((i) => Math.min(i + 1, queue.length - 1));
       if (e.key === 'k') setIndex((i) => Math.max(i - 1, 0));
-      if (!current) return;
-      if (e.key === 'c') {
-        transition.mutate({ status: 'confirmed', note });
-        setDone((d) => ({ ...d, confirmed: d.confirmed + 1 }));
-        setIndex((i) => Math.min(i + 1, queue.length - 1));
-      }
-      if (e.key === 'd') {
-        transition.mutate({ status: 'dismissed', note, dismiss_reason: 'false_positive' });
-        setDone((d) => ({ ...d, dismissed: d.dismissed + 1 }));
-        setIndex((i) => Math.min(i + 1, queue.length - 1));
-      }
+      if (e.key === 'c') decide('confirmed');
+      if (e.key === 'd') decide('dismissed');
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [current, queue.length, note, onExit, transition]);
+  }, [current, index, inFlight, queue.length, note, onExit, transition]);
 
   if (!current) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/95 p-8" data-testid="triage-queue">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-bg/95 p-8"
+        data-testid="triage-queue"
+      >
         <div className="text-center">
           <p className="text-lg">Queue empty.</p>
           <button type="button" className="mt-2 text-sm text-accent underline" onClick={onExit}>
@@ -86,6 +121,8 @@ export function TriageQueue({
       </div>
     );
   }
+
+  const pendingHere = inFlight?.id === current.id ? inFlight.status : null;
 
   return (
     <div
@@ -109,6 +146,8 @@ export function TriageQueue({
         <span className="font-mono">
           {current.file}:{current.line_range[0]}
         </span>
+        {/* The server's status, never the key just pressed (W17-23). */}
+        <span data-testid="triage-status">status {current.status.replace('_', ' ')}</span>
       </div>
 
       {/* Evidence inline — the whole reason a stepper beats a list: the thing
@@ -135,6 +174,13 @@ export function TriageQueue({
         <kbd className="rounded border border-border px-1">d</kbd> dismiss as false positive
         <kbd className="rounded border border-border px-1">esc</kbd> exit
       </div>
+
+      {pendingHere && (
+        <p className="text-xs text-fg-muted" data-testid="triage-pending" aria-live="polite">
+          {pendingHere === 'confirmed' ? 'Confirming…' : 'Dismissing…'}
+        </p>
+      )}
+      {refused?.id === current.id && <ErrorNote error={refused.error} testId="triage-error" />}
 
       {/* The exit summary carries the false-positive count, which is the same
           number the analysis-quality widget reads — triage is where that metric
