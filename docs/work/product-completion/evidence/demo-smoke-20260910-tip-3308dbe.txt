@@ -1,0 +1,8 @@
+RepoPulse cold demo smoke — PASS
+Date: 2026-09-10 ~14:41 ET
+Host: Bradford-M5-Max
+Tip: 3308dbe (codex/repopulse-product-completion)
+Command: ./deploy/demo.sh up
+GET http://localhost:8090/healthz -> 200
+GET http://localhost:8090/ -> 200
+Context: Bradford demo-readiness ask via Athena.
