@@ -117,7 +117,7 @@ export function OrgOverview({ search }: Props) {
                 <Link
                   to="/admin"
                   data-testid="welcome-connect"
-                  className="rounded-sm border border-border bg-accent px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   Connect an organization
                 </Link>

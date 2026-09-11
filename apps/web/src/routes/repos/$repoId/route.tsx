@@ -98,8 +98,11 @@ function RepoLayout() {
   }, [repoId, repoName, setEntityCrumb]);
 
   const tabs = (
+    // W17-31: ten tabs in a row scroll within the strip, not the page. Measured
+    // at 390px the unscrollable strip pushed <main> 292px wide of the viewport
+    // on every repository tab. Same fix as the Settings strip.
     <nav
-      className="flex gap-1 border-b border-border"
+      className="flex gap-1 overflow-x-auto border-b border-border"
       data-testid="repo-tabs"
       aria-label="Repository sections"
     >
@@ -111,7 +114,7 @@ function RepoLayout() {
           search={preserved as never}
           activeOptions={{ exact: tab.exact ?? false }}
           activeProps={{ 'data-active': 'true' }}
-          className="rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="shrink-0 whitespace-nowrap rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid={`repo-tab-${tab.label.toLowerCase().replace(/\s/g, '-')}`}
         >
           {tab.label}

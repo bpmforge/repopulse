@@ -59,7 +59,15 @@ function AdminLayout() {
         description="Connections, models, analysis policy, members, and the health of this install."
         testId="admin-header"
       />
-      <nav className="flex gap-1 border-b border-border" aria-label="Admin sections">
+      {/* W17-31: the strip scrolls WITHIN ITSELF on narrow screens. Nine tabs
+          that could not wrap or scroll pushed <main> 440px past a 390px
+          viewport, so every Settings screen scrolled sideways — the page-level
+          overflow the ticket forbids. `shrink-0` + nowrap keeps each tab
+          readable; `overflow-x-auto` keeps the overflow inside the strip. */}
+      <nav
+        className="flex gap-1 overflow-x-auto border-b border-border"
+        aria-label="Admin sections"
+      >
         {TABS.map((tab) => (
           <Link
             key={tab.label}
@@ -67,7 +75,7 @@ function AdminLayout() {
             search={preserved as never}
             activeOptions={{ exact: tab.exact ?? false }}
             activeProps={{ 'data-active': 'true' }}
-            className="rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="shrink-0 whitespace-nowrap rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid={`admin-tab-${tab.label.toLowerCase()}`}
           >
             {tab.label}

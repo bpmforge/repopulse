@@ -76,7 +76,9 @@ function RecentPrs({ repoId, window, search }: Props) {
               to="/repos/$repoId/prs/$number"
               params={{ repoId, number: String(pr.number) }}
               search={search as never}
-              className="text-accent underline-offset-2 hover:underline"
+              // W17-31: py-1 lifts the hit target to 24px (WCAG 2.2 target-size);
+              // axe flagged the bare text links on the Activity tab as serious.
+              className="py-1 text-accent underline-offset-2 hover:underline"
             >
               #{pr.number}
             </Link>
@@ -177,7 +179,7 @@ function HotFiles({ repoId, window, search }: Props) {
               to="/repos/$repoId/files/$"
               params={{ repoId, _splat: h.path } as never}
               search={search as never}
-              className="truncate font-mono text-xs text-accent underline-offset-2 hover:underline"
+              className="truncate py-1 font-mono text-xs text-accent underline-offset-2 hover:underline"
             >
               {h.path}
             </Link>

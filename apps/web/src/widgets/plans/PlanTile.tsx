@@ -7,7 +7,7 @@ import { planProgress, planScopeLabel, type Plan } from './contracts.js';
 // Org Overview plan tile (W5-07). Drills to the Plans page.
 
 export function PlanTile(_props: WidgetComponentProps) {
-  const { data, isLoading, isError, error } = useApiQuery<{ items: Plan[] }>({ endpoint: '/plans' });
+  const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Plan[] }>({ endpoint: '/plans' });
   const plan = data?.items[0];
   const progress = plan ? planProgress(plan) : null;
 
@@ -15,6 +15,8 @@ export function PlanTile(_props: WidgetComponentProps) {
     <WidgetFrame
       title="Improvement plan"
       state={frameState({ isLoading, isError, isEmpty: data !== undefined && !plan })}
+      // W17-31: every failed frame offers Retry, like the rest of the overview.
+      onRetry={() => void refetch()}
       {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="No plan yet — generate one from the Plans page."
     >

@@ -526,84 +526,90 @@ function FindingsExplorer() {
             : 'No findings match these filters. Findings appear once an analysis run completes for a repository.'
         }
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Findings across every analysed repository</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">
-                <span className="sr-only">Select</span>
-              </th>
-              <th scope="col">Severity</th>
-              <th scope="col">Finding</th>
-              <th scope="col">Repository</th>
-              <th scope="col">File</th>
-              <th scope="col">Status</th>
-              <th scope="col">Verification</th>
-            </tr>
-          </thead>
-          <tbody data-testid="finding-rows">
-            {items.map((f) => (
-              // THE WHOLE ROW OPENS IT (W17-22). The baseline capture clicked a
-              // row at 1440px and the URL did not change: the only control was
-              // the title text, and on a wide table most of a row is not the
-              // title. The button stays as the accessible control; the row is
-              // the pointer target around it. `aria-current` marks the open one
-              // so the list says which row the panel belongs to.
-              <tr
-                key={f.id}
-                className={`cursor-pointer border-t border-border ${f.id === openId ? 'bg-accent/5' : ''}`}
-                data-testid={`finding-${f.id}`}
-                aria-current={f.id === openId ? 'true' : undefined}
-                onClick={onRowClick(f)}
-                onKeyDown={onRowKey(f)}
-              >
-                <td className="py-1">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select finding ${f.id}`}
-                    data-testid={`finding-select-${f.id}`}
-                    checked={selected.includes(f.id)}
-                    onChange={(e) =>
-                      setSelected((s) =>
-                        e.target.checked ? [...s, f.id] : s.filter((i) => i !== f.id),
-                      )
-                    }
-                  />
-                </td>
-                {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
-                <td className="py-1 whitespace-nowrap">
-                  {SEVERITY_LABEL[f.severity] ?? f.severity}
-                </td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  <button
-                    type="button"
-                    className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                    data-testid={`finding-open-${f.id}`}
-                    aria-expanded={f.id === openId}
-                    onClick={(e) => {
-                      // The row handler would open it too; one navigation.
-                      e.stopPropagation();
-                      openFromRow(f.id);
-                    }}
-                  >
-                    {f.title}
-                  </button>
+        {/* W17-31: the table scrolls inside its own wrapper. Six columns of
+            min-content pushed <main> 272px past a 390px viewport (and 134px
+            past 768), so the whole Reviews screen scrolled sideways — visible
+            in the RP-01 baseline shot as a file column cut off mid-word. */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <caption className="sr-only">Findings across every analysed repository</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">
+                  <span className="sr-only">Select</span>
                 </th>
-                <td className="py-1 text-xs">{f.repo.name}</td>
-                <td className="py-1 font-mono text-xs" data-testid={`finding-file-${f.id}`}>
-                  {locationOf(f)}
-                </td>
-                <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
-                <td
-                  className="py-1 text-xs whitespace-nowrap"
-                  data-testid={`finding-verify-${f.id}`}
-                >
-                  {VERIFY_LABEL[f.verify_status]}
-                </td>
+                <th scope="col">Severity</th>
+                <th scope="col">Finding</th>
+                <th scope="col">Repository</th>
+                <th scope="col">File</th>
+                <th scope="col">Status</th>
+                <th scope="col">Verification</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody data-testid="finding-rows">
+              {items.map((f) => (
+                // THE WHOLE ROW OPENS IT (W17-22). The baseline capture clicked a
+                // row at 1440px and the URL did not change: the only control was
+                // the title text, and on a wide table most of a row is not the
+                // title. The button stays as the accessible control; the row is
+                // the pointer target around it. `aria-current` marks the open one
+                // so the list says which row the panel belongs to.
+                <tr
+                  key={f.id}
+                  className={`cursor-pointer border-t border-border ${f.id === openId ? 'bg-accent/5' : ''}`}
+                  data-testid={`finding-${f.id}`}
+                  aria-current={f.id === openId ? 'true' : undefined}
+                  onClick={onRowClick(f)}
+                  onKeyDown={onRowKey(f)}
+                >
+                  <td className="py-1">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select finding ${f.id}`}
+                      data-testid={`finding-select-${f.id}`}
+                      checked={selected.includes(f.id)}
+                      onChange={(e) =>
+                        setSelected((s) =>
+                          e.target.checked ? [...s, f.id] : s.filter((i) => i !== f.id),
+                        )
+                      }
+                    />
+                  </td>
+                  {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
+                  <td className="py-1 whitespace-nowrap">
+                    {SEVERITY_LABEL[f.severity] ?? f.severity}
+                  </td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    <button
+                      type="button"
+                      className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      data-testid={`finding-open-${f.id}`}
+                      aria-expanded={f.id === openId}
+                      onClick={(e) => {
+                        // The row handler would open it too; one navigation.
+                        e.stopPropagation();
+                        openFromRow(f.id);
+                      }}
+                    >
+                      {f.title}
+                    </button>
+                  </th>
+                  <td className="py-1 text-xs">{f.repo.name}</td>
+                  <td className="py-1 font-mono text-xs" data-testid={`finding-file-${f.id}`}>
+                    {locationOf(f)}
+                  </td>
+                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td
+                    className="py-1 text-xs whitespace-nowrap"
+                    data-testid={`finding-verify-${f.id}`}
+                  >
+                    {VERIFY_LABEL[f.verify_status]}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {(cursors.length > 0 || data?.next_cursor) && (
           <div className="mt-2 flex items-center gap-2 text-xs" data-testid="findings-paging">
             <button

@@ -25,12 +25,14 @@ const MARK: Record<PulseBullet['direction'], string> = {
 };
 
 export function PulseCard(_props: WidgetComponentProps) {
-  const { data, isLoading, isError, error } = useApiQuery<PulseResponse>({ endpoint: '/org/pulse' });
+  const { data, isLoading, isError, error, refetch } = useApiQuery<PulseResponse>({ endpoint: '/org/pulse' });
 
   return (
     <WidgetFrame
       title="Weekly pulse"
       state={frameState({ isLoading, isError, isEmpty: data !== undefined && data.bullets.length === 0 })}
+      // W17-31: every failed frame offers Retry, like the rest of the overview.
+      onRetry={() => void refetch()}
       {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="Nothing to summarise yet."
     >

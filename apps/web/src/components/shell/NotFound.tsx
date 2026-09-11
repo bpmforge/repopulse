@@ -23,7 +23,7 @@ export function NotFound() {
         <a
           href="/"
           data-testid="not-found-home"
-          className="rounded-sm border border-border bg-accent px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           Go to Org Overview
         </a>

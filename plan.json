@@ -7991,7 +7991,7 @@
         "Screenshots show all named states, and request-failure and empty screens match populated screens in quality"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-31 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
         "Compare against the RP-01 baseline screenshots; do not blindly accept new snapshots."

@@ -12,7 +12,7 @@ import type { OrgSecurity } from './contracts.js';
 // nothing", and a reader who cannot see that will read it as an audit.
 
 export function SecurityRollupTile() {
-  const { data, isLoading, isError, error } = useApiQuery<OrgSecurity>({
+  const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSecurity>({
     endpoint: '/org/security',
   });
 
@@ -23,6 +23,8 @@ export function SecurityRollupTile() {
     <WidgetFrame
       title="Security"
       state={state}
+      // W17-31: every failed frame offers Retry, like the rest of the overview.
+      onRetry={() => void refetch()}
       {...(error ? { errorMessage: error.message, error } : {})}
       testId="security-rollup"
     >

@@ -13,7 +13,7 @@ import type { TopRisksResponse } from './contracts.js';
 // implies the other 195 do not exist.
 
 export function TopRisksCard({ repoId }: { repoId?: string }) {
-  const { data, isLoading, isError, error } = useApiQuery<TopRisksResponse>({
+  const { data, isLoading, isError, error, refetch } = useApiQuery<TopRisksResponse>({
     endpoint: '/risk/top',
     query: repoId ? { repo_id: repoId } : {},
   });
@@ -25,6 +25,8 @@ export function TopRisksCard({ repoId }: { repoId?: string }) {
     <WidgetFrame
       title="Top risks"
       state={state}
+      // W17-31: every failed frame offers Retry, like the rest of the overview.
+      onRetry={() => void refetch()}
       {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="No priced findings yet. Findings are priced by the nightly job — an empty card here means nothing has been scanned or nothing has been priced, not that there is no risk."
       testId="top-risks"

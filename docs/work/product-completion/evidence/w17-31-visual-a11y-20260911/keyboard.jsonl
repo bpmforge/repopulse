@@ -1,0 +1,9 @@
+{"workflow":"overview→repos→repo→hotspots","tabsToRailRepos":3,"tabsToHotspotsTab":6,"result":"pass"}
+{"workflow":"reviews→open→escape","opener":"finding-open-95191","result":"pass"}
+{"workflow":"plans→generate, overview tile→plans","tabsToGenerate":16,"tabsToTile":29,"result":"pass"}
+{"workflow":"reports→type→generate","tabsToGenerate":3,"result":"pass"}
+{"workflow":"settings→sync tab","tabsToTab":15,"result":"pass"}
+{"workflow":"global filter window","tabsToFilter":13,"from":"30d","to":"90d","result":"pass"}
+{"workflow":"command palette","result":"pass"}
+{"workflow":"sign-in tab order","focusedIds":["signin-email","signin-password","signin-submit","signin-github","signin-email","signin-password","signin-submit","signin-github","signin-email","signin-password"],"result":"pass"}
+{"workflow":"narrow menu→reviews","tabsToTrigger":1,"tabsToLink":3,"result":"pass"}
