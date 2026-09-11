@@ -8018,7 +8018,7 @@
         "Measurements are repeated rather than drawn from one noisy browser run"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-32 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
         "If no valid baseline exists, report measured values without claiming an improvement. Never weaken data freshness to hide latency."

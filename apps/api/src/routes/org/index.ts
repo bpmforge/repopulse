@@ -6,7 +6,7 @@ import { core, plans, read, type Database } from '@repopulse/shared';
 import { buildPulse, computeMetricTrend } from '@repopulse/insights';
 import { readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
-import { repoHealth } from './health.js';
+import { repoHealthMany } from './health.js';
 import { collectTopActions, serializeTopActions } from './top-actions.js';
 
 // Org composites (UX §4.a, FR-INSIGHTS-2/3/4, FR-API-2). Warehouse-only —
@@ -80,22 +80,22 @@ export default async function orgRoutes(
         .from(core.repos)
         .where(eq(core.repos.workspaceId, workspaceId));
 
-      const tiles = await Promise.all(
-        repos.map(async (r) => {
-          const health = await repoHealth(opts.db, workspaceId, r.id, window, r.pushedAt, nowMs);
-          return {
-            id: r.id,
-            name: r.name,
-            health: {
-              score: Math.round(health.score),
-              letter: health.letter,
-              basis: health.tier1Only ? 'Tier-1 only' : 'full',
-              // delta needs a prior health snapshot series — a later enrichment.
-              delta: null,
-            },
-          };
-        }),
-      );
+      // One batched read for every repo (W17-32), not one loader call per row.
+      const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
+      const tiles = repos.map((r) => {
+        const health = healths.get(r.id)!;
+        return {
+          id: r.id,
+          name: r.name,
+          health: {
+            score: Math.round(health.score),
+            letter: health.letter,
+            basis: health.tier1Only ? 'Tier-1 only' : 'full',
+            // delta needs a prior health snapshot series — a later enrichment.
+            delta: null,
+          },
+        };
+      });
       return reply.send({ items: tiles });
     },
   );
@@ -118,8 +118,9 @@ export default async function orgRoutes(
         .where(eq(core.repos.workspaceId, workspaceId));
 
       const items = [];
+      const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
       for (const r of repos) {
-        const health = await repoHealth(opts.db, workspaceId, r.id, window, r.pushedAt, nowMs);
+        const health = healths.get(r.id)!;
         if (['C', 'D', 'E'].includes(health.letter)) {
           items.push({
             repo_id: r.id,

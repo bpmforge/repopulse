@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, read, security, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
@@ -39,17 +39,56 @@ function fail(
   return reply;
 }
 
-/** Keyset cursor `${severity}:${id}` — findings sort by severity then id. */
-export function encodeCursor(severity: number, id: number): string {
-  return Buffer.from(`${severity}:${id}`).toString('base64url');
+// KEYSET CURSOR — one shape per sort (W17-32).
+//
+// A keyset cursor has to carry every column the ORDER BY uses, or the "after
+// this row" predicate and the ordering disagree and pages skip and repeat rows.
+// The cursor used to be `${severity}:${id}` for BOTH sorts while the default
+// sort ordered by effective_risk first: walking 10,000 findings under
+// sort=risk returned 610 distinct rows, 270 of them twice, and 9,390 never.
+//
+//   severity: `${severity}:${id}`
+//   risk:     `r:${effective_risk | '-'}:${severity}:${id}`   ('-' = unpriced)
+//
+// effective_risk travels as the numeric's own text (never through a float), so
+// the predicate compares exactly what Postgres ordered by.
+export type FindingSort = 'risk' | 'severity';
+export type FindingCursor =
+  | { sort: 'severity'; severity: number; id: number }
+  | { sort: 'risk'; risk: string | null; severity: number; id: number };
+
+const RISK_TEXT = /^-?\d+(\.\d+)?$/;
+
+export function encodeCursor(
+  sort: FindingSort,
+  row: { severity: number; id: number; effectiveRisk: string | null },
+): string {
+  const text =
+    sort === 'risk'
+      ? `r:${row.effectiveRisk ?? '-'}:${row.severity}:${row.id}`
+      : `${row.severity}:${row.id}`;
+  return Buffer.from(text).toString('base64url');
 }
-export function decodeCursor(cursor: string): { severity: number; id: number } | null {
+export function decodeCursor(cursor: string): FindingCursor | null {
   try {
-    const [sev, id] = Buffer.from(cursor, 'base64url').toString('utf8').split(':');
-    const severity = Number(sev);
-    const parsed = Number(id);
-    if (!Number.isInteger(severity) || !Number.isInteger(parsed)) return null;
-    return { severity, id: parsed };
+    const parts = Buffer.from(cursor, 'base64url').toString('utf8').split(':');
+    const tail = (sev: string | undefined, id: string | undefined) => {
+      const severity = Number(sev);
+      const parsed = Number(id);
+      if (!Number.isInteger(severity) || !Number.isInteger(parsed)) return null;
+      return { severity, id: parsed };
+    };
+    if (parts[0] === 'r' && parts.length === 4) {
+      const [, risk, sev, id] = parts;
+      if (risk !== '-' && !RISK_TEXT.test(risk ?? '')) return null;
+      const t = tail(sev, id);
+      return t ? { sort: 'risk', risk: risk === '-' ? null : (risk ?? null), ...t } : null;
+    }
+    if (parts.length === 2) {
+      const t = tail(parts[0], parts[1]);
+      return t ? { sort: 'severity', ...t } : null;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -353,15 +392,30 @@ export default async function findingsRoutes(
     // Keyset, not offset: the list is ordered by severity and new findings
     // arrive at the top, so an offset page would skip or repeat rows while
     // someone is reading — which presents as "findings are missing".
+    const sort: FindingSort = q.sort === 'severity' ? 'severity' : 'risk';
     if (q.cursor) {
       const decoded = decodeCursor(q.cursor);
-      if (!decoded) return fail(request, reply, 400, 'Invalid cursor');
-      filters.push(
-        or(
-          lt(read.findings.severity, decoded.severity),
-          and(eq(read.findings.severity, decoded.severity), lt(read.findings.id, decoded.id)),
-        )!,
-      );
+      // A cursor minted under the other sort orders by different columns; it
+      // is not "after" anything in this list.
+      if (!decoded || decoded.sort !== sort) return fail(request, reply, 400, 'Invalid cursor');
+      const afterSeverityId = or(
+        lt(read.findings.severity, decoded.severity),
+        and(eq(read.findings.severity, decoded.severity), lt(read.findings.id, decoded.id)),
+      )!;
+      if (decoded.sort === 'severity') {
+        filters.push(afterSeverityId);
+      } else if (decoded.risk === null) {
+        // Inside the trailing NULLS LAST block: only unpriced rows remain.
+        filters.push(and(isNull(read.findings.effectiveRisk), afterSeverityId)!);
+      } else {
+        filters.push(
+          or(
+            lt(read.findings.effectiveRisk, decoded.risk),
+            and(eq(read.findings.effectiveRisk, decoded.risk), afterSeverityId),
+            isNull(read.findings.effectiveRisk),
+          )!,
+        );
+      }
     }
 
     const rows = await findingsQuery(db)
@@ -372,7 +426,7 @@ export default async function findingsRoutes(
       // sort is retained because "show me everything critical" is a real
       // question, just not the default one.
       .orderBy(
-        ...(q.sort === 'severity'
+        ...(sort === 'severity'
           ? [desc(read.findings.severity), desc(read.findings.id)]
           : [
               // NULLS LAST: an unpriced finding has not been judged low-risk,
@@ -389,7 +443,7 @@ export default async function findingsRoutes(
     const last = page[page.length - 1];
     return reply.send({
       items: page.map(toFinding),
-      next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.severity, last.id) : null,
+      next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(sort, last) : null,
     });
   });
 

@@ -6,7 +6,7 @@ import { core, facts, type Database } from '@repopulse/shared';
 import { rankHotspots } from '@repopulse/insights';
 import { computeReviewLoad, readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
-import { repoHealth } from '../org/health.js';
+import { repoHealth, repoHealthMany } from '../org/health.js';
 import { repoCapabilities } from '../../lib/capability.js';
 
 // Drill-down levels 1–2 (FR-API-5, API_DESIGN §2 'repos'). Warehouse-only.
@@ -90,38 +90,38 @@ export default async function reposRoutes(
       })
       .from(core.repos)
       .where(eq(core.repos.workspaceId, workspaceId));
-    const items = await Promise.all(
-      repos.map(async (r) => {
-        const health = await repoHealth(db, workspaceId, r.id, window, r.pushedAt, nowMs);
-        // UNKNOWN is a third state, not a low number (W17-18).
-        //
-        // computeHealthScore sums contributions, so a repo where every
-        // sub-score was dropped for want of inputs sums an EMPTY set to 0 —
-        // and scoreLetter(0) is 'E'. Serialized as `{score: 0, letter: 'E'}`
-        // that is a verdict the warehouse never reached, and it ranks a repo
-        // nobody has ingested below every genuinely unhealthy one. Same
-        // discipline the sub-scores themselves already follow: unmeasured is
-        // excluded, never scored.
-        const measured = health.subScores.length > 0;
-        return {
-          id: r.id,
-          org: r.org,
-          name: r.name,
-          sync: r.syncStatus,
-          health: {
-            score: measured ? Math.round(health.score) : null,
-            // Null together with the score: a letter beside a null score would
-            // be the same claim by another name.
-            letter: measured ? health.letter : null,
-            measured,
-            // Not "Tier-1 only" either — there is no tier of evidence here.
-            basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
-            delta: null,
-          },
-          links: repoLinks(r.id),
-        };
-      }),
-    );
+    // One batched read for every repo (W17-32), not one loader call per row.
+    const healths = await repoHealthMany(db, workspaceId, repos, window, nowMs);
+    const items = repos.map((r) => {
+      const health = healths.get(r.id)!;
+      // UNKNOWN is a third state, not a low number (W17-18).
+      //
+      // computeHealthScore sums contributions, so a repo where every
+      // sub-score was dropped for want of inputs sums an EMPTY set to 0 —
+      // and scoreLetter(0) is 'E'. Serialized as `{score: 0, letter: 'E'}`
+      // that is a verdict the warehouse never reached, and it ranks a repo
+      // nobody has ingested below every genuinely unhealthy one. Same
+      // discipline the sub-scores themselves already follow: unmeasured is
+      // excluded, never scored.
+      const measured = health.subScores.length > 0;
+      return {
+        id: r.id,
+        org: r.org,
+        name: r.name,
+        sync: r.syncStatus,
+        health: {
+          score: measured ? Math.round(health.score) : null,
+          // Null together with the score: a letter beside a null score would
+          // be the same claim by another name.
+          letter: measured ? health.letter : null,
+          measured,
+          // Not "Tier-1 only" either — there is no tier of evidence here.
+          basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
+          delta: null,
+        },
+        links: repoLinks(r.id),
+      };
+    });
     return reply.send({ items });
   });
 
