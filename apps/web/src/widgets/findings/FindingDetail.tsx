@@ -104,7 +104,7 @@ export function FindingDetail({
             evidence rather than as the model's paraphrase. */}
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Evidence</h3>
-          <pre className="mt-1 overflow-x-auto rounded-md border border-border bg-surface-2 p-2 font-mono text-xs whitespace-pre-wrap">
+          <pre className="mt-1 overflow-x-auto panel-inset p-2 font-mono text-xs whitespace-pre-wrap">
             {finding.evidence}
           </pre>
           <p className="mt-1 font-mono text-xs text-fg-faint">
@@ -171,7 +171,7 @@ export function FindingDetail({
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Note (required)
             <input
-              className="w-72 rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="w-72 panel px-2 py-1 text-sm"
               data-testid="finding-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -180,7 +180,7 @@ export function FindingDetail({
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Dismiss reason
             <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="panel px-2 py-1 text-sm"
               data-testid="finding-dismiss-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}

@@ -194,12 +194,12 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
 
   return (
     <nav
-      className={`flex h-full flex-col border-r border-border bg-surface ${collapsed ? 'w-16' : 'w-60'}`}
+      className={`flex h-full flex-col border-r border-border bg-[var(--rail-bg)] ${collapsed ? 'w-16' : 'w-60'}`}
       aria-label="Primary"
       data-testid="rail"
       data-collapsed={collapsed}
     >
-      <div className="flex items-center justify-between px-3 py-3">
+      <div className="flex items-center justify-between px-3 pt-4 pb-3">
         {/* W17-13: the mark shows in BOTH states. Collapsed, the rail used to
             carry no brand at all — just a column of icons with nothing saying
             what application this is. */}
@@ -211,7 +211,7 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
           type="button"
           hidden={narrow}
           onClick={toggleRail}
-          className="rounded-sm px-1.5 py-1 text-fg-muted hover:text-fg"
+          className="rounded-md px-1.5 py-1 text-fg-faint hover:bg-surface-2 hover:text-fg"
           data-testid="rail-collapse"
           aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
           aria-expanded={!collapsed}
@@ -225,7 +225,7 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
       <ul key={group.label ?? 'primary'} className="flex flex-col gap-0.5 px-2">
         {group.label && !collapsed ? (
           <li
-            className="px-2.5 pt-2 pb-1 text-xs font-medium uppercase tracking-wide text-fg-faint"
+            className="px-2.5 pt-3 pb-1 text-xs font-medium text-fg-faint"
             aria-hidden="true"
           >
             {group.label}
@@ -244,21 +244,23 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
               <Link
                 to={item.to}
                 search={search}
-                className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm ${
+                className={`group relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm ${
                   active
-                    ? 'border-l-2 border-accent bg-accent/10 text-fg'
-                    : 'border-l-2 border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg'
+                    ? 'bg-surface-2 font-medium text-fg'
+                    : 'text-fg-muted hover:bg-surface-2/60 hover:text-fg'
                 }`}
                 data-testid={`rail-${navTestId(item.to)}`}
                 aria-current={active ? 'page' : undefined}
                 title={collapsed ? item.label : undefined}
               >
-                <span className="flex w-4 shrink-0 items-center justify-center">
+                <span
+                  className={`flex w-4 shrink-0 items-center justify-center ${active ? 'text-accent' : 'text-fg-faint group-hover:text-fg-muted'}`}
+                >
                   <RailIcon name={item.icon} />
                 </span>
                 {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                 {!collapsed && badge !== undefined && badge > 0 && (
-                  <span className="rounded-full bg-accent/20 px-1.5 text-xs tabular-nums text-accent">
+                  <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent">
                     {badge}
                   </span>
                 )}

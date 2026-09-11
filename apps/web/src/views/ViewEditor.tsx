@@ -64,7 +64,7 @@ export function ViewEditor({ widgets, onChange }: ViewEditorProps) {
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="add-widget"
           onClick={() => setPicker((v) => !v)}
           aria-expanded={picker}
@@ -105,7 +105,7 @@ export function ViewEditor({ widgets, onChange }: ViewEditorProps) {
         {widgets.map((widget, index) => (
           <li
             key={widget.id}
-            className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-3 py-2"
+            className="flex flex-wrap items-center gap-2 panel px-3 py-2"
             data-testid={`edit-widget-${widget.id}`}
           >
             <span className="min-w-0 flex-1 truncate text-sm">

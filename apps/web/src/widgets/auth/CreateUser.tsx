@@ -52,7 +52,7 @@ export function CreateUser() {
 
   return (
     <section
-      className="rounded-md border border-border bg-surface p-4"
+      className="panel p-4"
       data-testid="create-user"
       aria-labelledby="create-user-title"
     >

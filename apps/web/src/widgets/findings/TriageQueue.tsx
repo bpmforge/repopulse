@@ -152,7 +152,7 @@ export function TriageQueue({
 
       {/* Evidence inline — the whole reason a stepper beats a list: the thing
           you need in order to decide is already on screen. */}
-      <pre className="overflow-x-auto rounded-md border border-border bg-surface-2 p-3 font-mono text-xs whitespace-pre-wrap">
+      <pre className="overflow-x-auto panel-inset p-3 font-mono text-xs whitespace-pre-wrap">
         {current.evidence}
       </pre>
       <p className="text-sm">{current.recommendation}</p>
@@ -160,7 +160,7 @@ export function TriageQueue({
       <label className="flex max-w-lg flex-col gap-1 text-xs text-fg-muted">
         Note applied to each decision
         <input
-          className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+          className="panel px-2 py-1 text-sm"
           data-testid="triage-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}

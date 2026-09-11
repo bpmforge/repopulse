@@ -277,7 +277,7 @@ function FindingsExplorer() {
       // Distinct from not-found: the finding exists and this account may not
       // read it. Nothing of it is shown, and retrying will not change that.
       <div
-        className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
+        className="panel p-3 text-sm text-fg-muted"
         data-testid="finding-forbidden"
       >
         You are not permitted to view finding #{openId}. Ask a workspace admin if you think you
@@ -285,7 +285,7 @@ function FindingsExplorer() {
       </div>
     ) : fetched.isError && fetchStatus !== 404 ? (
       <div
-        className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
+        className="panel p-3 text-sm text-fg-muted"
         data-testid="finding-load-failed"
       >
         Finding #{openId} could not be loaded ({fetched.error.message}).{' '}
@@ -304,7 +304,7 @@ function FindingsExplorer() {
       // deleted, mistyped, or somebody else's (which the API answers with the
       // same 404, so a link cannot probe for ids).
       <div
-        className="rounded-md border border-border bg-surface p-3 text-sm text-fg-muted"
+        className="panel p-3 text-sm text-fg-muted"
         data-testid="finding-not-in-view"
       >
         Finding #{openId} is not in this workspace. It may have been deleted, or the link may be for
@@ -330,7 +330,7 @@ function FindingsExplorer() {
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Dimension
           <select
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="filter-dimension"
             value={dimension}
             onChange={(e) => setDimension(e.target.value)}
@@ -350,7 +350,7 @@ function FindingsExplorer() {
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Status
           <select
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="filter-status"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -366,7 +366,7 @@ function FindingsExplorer() {
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Min severity
           <select
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="filter-severity"
             value={severityMin}
             onChange={(e) => setSeverityMin(e.target.value)}
@@ -382,7 +382,7 @@ function FindingsExplorer() {
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Scanner
           <select
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="filter-scanner"
             value={scannerKey}
             onChange={(e) => setScannerKey(e.target.value)}
@@ -407,7 +407,7 @@ function FindingsExplorer() {
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Verification
           <select
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="filter-verify"
             value={verifyStatus}
             onChange={(e) => setVerifyStatus(e.target.value)}
@@ -456,7 +456,7 @@ function FindingsExplorer() {
             <label className="flex flex-col gap-1 text-xs text-fg-muted">
               Note (required)
               <input
-                className="w-72 rounded-md border border-border bg-surface px-2 py-1 text-sm"
+                className="w-72 panel px-2 py-1 text-sm"
                 data-testid="bulk-note"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}

@@ -46,7 +46,7 @@ export function RiskDecompositionPopover({
       )}
       {open && factors && (
         <div
-          className="absolute left-0 top-full z-10 mt-1 w-72 rounded-md border border-border bg-surface p-2 text-xs shadow"
+          className="absolute left-0 top-full z-10 mt-1 w-72 panel p-2 text-xs shadow"
           data-testid={`${testId ?? 'risk'}-popover`}
         >
           <p className="mb-1">

@@ -66,7 +66,7 @@ export function IntentControl({ repoId, path }: { repoId: number; path: string }
           : 'No intent set — this file behaves normally everywhere.'}
       </p>
       <input
-        className="w-full max-w-md rounded-md border border-border bg-surface px-2 py-1 text-xs"
+        className="w-full max-w-md panel px-2 py-1 text-xs"
         data-testid="intent-note"
         placeholder="Why (optional)"
         value={note}

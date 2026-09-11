@@ -233,7 +233,7 @@ function PrintReport() {
             // FR-REPORTS-2: never blank. The reason is the content — "no
             // findings" and "nothing has analysed this repo" are different
             // facts and a reader has to be able to tell them apart.
-            <div className="rounded-md border border-border bg-surface p-3 break-inside-avoid">
+            <div className="panel p-3 break-inside-avoid">
               <h2 className="text-sm font-medium">{sectionTitle(section.id)}</h2>
               <p className="mt-1 text-xs text-fg-muted">{section.reason}</p>
             </div>

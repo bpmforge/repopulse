@@ -80,7 +80,7 @@ export function PasswordChange() {
   return (
     <div className="flex min-h-screen w-screen items-center justify-center bg-bg p-6 text-fg">
       <main
-        className="w-full max-w-sm rounded-md border border-border bg-surface p-6"
+        className="w-full max-w-sm panel p-6"
         data-testid="password-change"
       >
         <h1 className="text-base font-medium">Choose a new password</h1>

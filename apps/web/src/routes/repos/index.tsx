@@ -204,7 +204,7 @@ function RepoList() {
               value={q}
               onChange={(e) => patchSearch({ q: e.target.value })}
               placeholder="acme/api"
-              className="w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="w-full panel-inset px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -216,7 +216,7 @@ function RepoList() {
               data-testid="repo-list-sort"
               value={sort}
               onChange={(e) => patchSearch({ sort: e.target.value as RepoSort })}
-              className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="panel-inset px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
               {SORTS.map((s) => (
                 <option key={s} value={s}>
@@ -247,7 +247,7 @@ function RepoList() {
                 data-testid={`repo-row-${repo.id}`}
                 // The full path, for the case truncation eats one end of it.
                 title={`${repo.org}/${repo.name}`}
-                className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="flex items-center justify-between gap-2 panel px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               >
                 <span className="flex min-w-0 flex-col">
                   {/* Org FIRST and quiet, name second and prominent: the org

@@ -16,7 +16,7 @@ export function Topbar({ value, onChange, repoOptions, personOptions, scope, act
   const sseConnection = useUiStore((s) => s.sseConnection);
   return (
     <header
-      className="flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2"
+      className="flex items-center justify-between gap-3 bg-bg px-4 pt-3 pb-1"
       data-testid="topbar"
     >
       <FilterBar

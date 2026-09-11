@@ -93,7 +93,7 @@ export function FileDetailScreen({ repoId, path }: Props) {
           cannot distinguish a deletion from a quiet file. */}
       {(staleFile || (data?.previous_paths.length ?? 0) > 0) && (
         <div
-          className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-fg-muted"
+          className="panel-inset px-3 py-2 text-xs text-fg-muted"
           role="note"
           data-testid="file-history-banner"
         >

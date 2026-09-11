@@ -10,10 +10,11 @@
 
 @theme {
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Inter', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
 
   /* Dark-first semantic roles (Primer-derived).
@@ -27,11 +28,11 @@
    * the background with the same hue as the text eats the contrast, and jsdom
    * component tests cannot compute contrast so the suite stayed green.
    * Re-measure against the tint, not the page background, before changing these. */
-  --color-bg: #0d1117;
-  --color-surface: #161b22;
-  --color-surface-2: #1c2129;
-  --color-border: #30363d;
-  --color-border-strong: #444c56;
+  --color-bg: #0a0d14;
+  --color-surface: #10141c;
+  --color-surface-2: #171c26;
+  --color-border: #222a36;
+  --color-border-strong: #3d4757;
 
   --color-fg: #e6edf3;
   --color-fg-muted: #9da7b3;
@@ -43,6 +44,11 @@
 
   /* Two accents, because one value cannot satisfy both directions (W17-12).
    *
+   * Visual refresh 2026-09-11: the accent is the PULSE — a teal at hue ~175,
+   * far enough from --color-ok (hue ~130) that a link never reads as a pass
+   * state, and the one colour in the product that means "RepoPulse", not
+   * "good/bad". Text accent 10.7:1 on bg; white on accent-strong 5.2:1.
+   *
    * --color-accent is TEXT: links and selected labels. It must clear 4.5:1
    * AGAINST the surfaces (5.35 / 4.89 / 4.57 here), so it has to stay light.
    * --color-accent-strong is a FILL that white sits on, so it has to be dark
@@ -53,8 +59,8 @@
    * 128 colour-contrast violations across the app. The synthetic test missed it
    * because it checked accent-fg ON accent and never accent AS text — it does
    * both now. */
-  --color-accent: #6e7bff;
-  --color-accent-strong: #5f6bdd;
+  --color-accent: #2fd6c5;
+  --color-accent-strong: #0f7a70;
   --color-accent-fg: #ffffff;
 
   --color-ok: #3fb950;
@@ -80,9 +86,9 @@
 
 /* Light theme: override the same custom properties. */
 :root[data-theme='light'] {
-  --color-bg: #ffffff;
-  --color-surface: #f6f8fa;
-  --color-surface-2: #eef1f4;
+  --color-bg: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef1f5;
   --color-border: #d0d7de;
   --color-border-strong: #afb8c1;
 
@@ -100,8 +106,8 @@
   /* Light needs no split: #4f46e5 is 6.29:1 as text on white AND 6.29:1 with
      white on it. accent-strong is declared anyway so components can name one
      role in both themes. */
-  --color-accent: #4f46e5;
-  --color-accent-strong: #4f46e5;
+  --color-accent: #0c766c;
+  --color-accent-strong: #0c766c;
   --color-accent-fg: #ffffff;
 
   /* W17-12: was #1a7f37 — 3.92:1 on its own /15 tint. #166e30 is 4.79:1. */
@@ -128,6 +134,59 @@
   --color-health-attend: #a40e26;
 }
 
+/* Non-colour tokens (visual refresh). Outside @theme on purpose: the contrast
+   test parses hex `--color-*` tokens out of the two blocks above and nothing
+   else should live there. Dark elevation is LUMINANCE, not shadow: a raised
+   panel is a lighter surface with a 1px inner highlight along its top edge —
+   the cue a real lit surface gives — and the shadow only appears in light. */
+:root {
+  --panel-highlight: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+  --panel-shadow: 0 0 0 0 transparent;
+  /* Plain rgb, not color-mix: axe's contrast engine mis-reads a color-mix()
+     inside a gradient as an opaque grey and reports every child as failing. */
+  --glow: rgb(47 214 197 / 0.14);
+  --rail-bg: var(--color-bg);
+}
+:root[data-theme='light'] {
+  --panel-highlight: inset 0 1px 0 0 rgb(255 255 255 / 0.9);
+  --panel-shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.04);
+  --glow: rgb(12 118 108 / 0.09);
+  --rail-bg: #ffffff;
+}
+
+/* The panel. One utility for the 60+ places that used to spell the same four
+   classes by hand, so elevation and radius change in one place. `panel-link`
+   is the interactive variant: the border lifts on hover and the whole card is
+   the target, so a mouse user is never hunting for the one clickable word. */
+@utility panel {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--panel-highlight), var(--panel-shadow);
+}
+/* A panel inside a panel: one step lighter, one step tighter, no highlight —
+   nested elevation reads as clutter if every level is dressed the same. */
+@utility panel-inset {
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+/* No transition on purpose: a background-color transition also animates the
+   THEME switch, and axe sampled the rows mid-blend (#989ca2 under grey text,
+   2.2:1) the instant after the toggle was clicked. */
+@utility panel-link {
+  &:hover {
+    border-color: var(--color-border-strong);
+    background-color: var(--color-surface-2);
+  }
+}
+/* The hero variant carries the one decorative moment in the product: a faint
+   pulse-coloured glow in its top-left corner. Used on the panels that answer
+   the question a screen exists for, never on the supporting ones. */
+@utility panel-hero {
+  background-image: radial-gradient(120% 80% at 0% 0%, var(--glow), transparent 60%);
+}
+
 html,
 body,
 #root {
@@ -140,6 +199,23 @@ body {
   color: var(--color-fg);
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 { letter-spacing: -0.01em; }
+
+/* Links that sit inside running text must not rely on colour alone
+   (WCAG 1.4.1; axe link-in-text-block — RELEASE-CHECKLIST E-2). Standalone
+   navigation links opt out with `no-underline`. */
+p a.text-accent, td a.text-accent {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
+}
+
+select, input[type='text'], input[type='search'], input[type='email'], input[type='password'] {
+  accent-color: var(--color-accent);
 }
 
 /* Respect reduced-motion globally (UX §2.1); charts also set animation:false. */

@@ -331,7 +331,7 @@ function AppShell() {
         <CommandPalette />
         <Topbar value={search} onChange={onFilterChange} scope={scope} repoOptions={repoOptions} />
         <Breadcrumb crumbs={deriveCrumbs(pathname, entityCrumb)} search={preservedSearch} />
-        <main className="min-h-0 flex-1 overflow-auto p-4" data-testid="main">
+        <main className="min-h-0 flex-1 overflow-auto p-5" data-testid="main">
           <Outlet />
         </main>
       </div>

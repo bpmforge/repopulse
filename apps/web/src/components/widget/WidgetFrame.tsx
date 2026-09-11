@@ -79,14 +79,14 @@ export function WidgetFrame({
 }: WidgetFrameProps) {
   return (
     <section
-      className={`flex h-full flex-col rounded-md border border-border bg-surface ${className}`}
+      className={`panel flex h-full flex-col ${className}`}
       data-testid={testId}
       data-state={state}
       aria-busy={state === 'loading' || state === 'syncing'}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+      <header className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-1">
         <div className="flex items-center gap-1.5">
-          <h3 className="text-sm font-medium text-fg">{title}</h3>
+          <h3 className="text-sm font-semibold text-fg">{title}</h3>
           {definitionHref && (
             <a
               href={definitionHref}
@@ -101,7 +101,7 @@ export function WidgetFrame({
         {drillDown}
       </header>
 
-      <div className="min-h-0 flex-1 p-3" data-testid={`widget-state-${state}`}>
+      <div className="min-h-0 flex-1 px-4 pt-2 pb-4" data-testid={`widget-state-${state}`}>
         {state === 'loading' && <FrameSkeleton />}
         {state === 'syncing' && (
           <div className="flex flex-col gap-2">

@@ -120,7 +120,7 @@ function ReportCenter() {
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Report
             <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="panel px-2 py-1 text-sm"
               data-testid="report-type"
               value={type}
               onChange={(e) => setType(e.target.value)}
@@ -135,7 +135,7 @@ function ReportCenter() {
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Window
             <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="panel px-2 py-1 text-sm"
               data-testid="report-window"
               value={windowDays}
               onChange={(e) => setWindowDays(Number(e.target.value))}
@@ -150,7 +150,7 @@ function ReportCenter() {
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Context (optional)
             <input
-              className="w-72 rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="w-72 panel px-2 py-1 text-sm"
               data-testid="report-annotation"
               placeholder="e.g. this quarter includes the payments migration"
               value={annotation}

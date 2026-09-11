@@ -115,7 +115,7 @@ export function Connections() {
           <select
             id="connection-provider"
             data-testid="connection-provider"
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             value={provider}
             onChange={(e) => setProvider(e.target.value as 'github' | 'gitlab' | 'gitea')}
           >
@@ -139,7 +139,7 @@ export function Connections() {
             // not worth an exemption to the rule that keeps forge hosts in one
             // place.
             placeholder={provider === 'gitea' ? 'https://git.example.com' : 'leave blank for GitHub'}
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="connection-base-url"
           />
           <label className="text-xs text-fg-muted" htmlFor="connection-credential">
@@ -160,14 +160,14 @@ export function Connections() {
             value={credential}
             onChange={(e) => setCredential(e.target.value)}
             placeholder="ghp_… — a classic PAT, or a fine-grained token with read access"
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="connection-credential"
           />
           <div className="flex items-center gap-3">
             <button
               type="submit"
               disabled={create.isPending || credential.trim() === ''}
-              className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="panel-inset px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="connection-submit"
             >
               {create.isPending ? 'Connecting…' : 'Connect'}

@@ -165,7 +165,7 @@ export function CommandPalette() {
       aria-modal="true"
       aria-label="Command palette"
     >
-      <div className="mt-24 w-full max-w-md rounded-md border border-border bg-surface shadow">
+      <div className="mt-24 w-full max-w-md panel shadow">
         <input
           ref={inputRef}
           type="text"

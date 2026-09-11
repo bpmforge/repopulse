@@ -58,7 +58,7 @@ export function HealthTileGrid({ window, search }: Props) {
                 to="/repos/$repoId"
                 params={{ repoId: String(repo.id) }}
                 search={search as never}
-                className="block rounded-md border border-border bg-surface p-3 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="block panel p-3 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid={`health-tile-${repo.id}`}
               >
                 <div className="flex items-center justify-between gap-2">

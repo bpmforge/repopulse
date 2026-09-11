@@ -81,7 +81,7 @@ export function SignIn({ expired }: SignInProps) {
   return (
     <div className="flex min-h-screen w-screen items-center justify-center bg-bg p-6 text-fg">
       <main
-        className="w-full max-w-sm rounded-md border border-border bg-surface p-6"
+        className="w-full max-w-sm panel p-6"
         data-testid="signin"
       >
         {/* W16-02 (F2). The demo banner is in the shell, which only mounts

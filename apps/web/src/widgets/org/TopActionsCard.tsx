@@ -60,7 +60,7 @@ function noticeLabel(state: string): string {
  */
 function ActionRow({ action, search }: { action: TopActionItem; search: Record<string, string> }) {
   const className =
-    'flex flex-col gap-0.5 rounded-md border border-border bg-surface px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+    'panel-inset panel-link flex flex-col gap-0.5 px-3 py-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
   const body = (
     <>
       <span className="flex items-center gap-2">
@@ -167,8 +167,11 @@ export function TopActionsCard({ search }: Props) {
       }
       {...(coverage ? { emptyAction: <CoverageNote coverage={coverage} /> } : {})}
       testId="top-actions-card"
+      className="panel-hero"
     >
-      <ul className="flex flex-col gap-2" data-testid="top-actions">
+      {/* Three across from md: the rows are one line of title plus one of
+          context, and stacked they pushed everything else below the fold. */}
+      <ul className="grid grid-cols-1 gap-2 md:grid-cols-3" data-testid="top-actions">
         {actions.map((action) => (
           <ActionRow key={action.id} action={action} search={search} />
         ))}
