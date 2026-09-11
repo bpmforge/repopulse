@@ -87,6 +87,27 @@ Rows whose proof is a prior ticket's evidence are marked with that ticket; those
 - `.gitleaks.toml` has no allowlist for the test placeholders, so the SC-18 gate exits 1 until one is added (a security-control edit, not made here).
 - Fixture recorder does not scrub `temp_clone_token` (secrets-triage.md, follow-up).
 
+## 6b. Residual register (carried from W17 tickets)
+
+Accepted residuals and known gaps. None of these alone flip HOLD (E-1/E-2 do); they must travel with any GO decision.
+
+| ID | Residual | Source | Status |
+|---|---|---|---|
+| R-01 | Docker engine untested (podman-only evidence) | W17-27/28/30/33/34 | accepted |
+| R-02 | amd64 / non-arm64 images and bundle untested | W17-28/33/34 | accepted |
+| R-03 | Docker-on-docker / privileged docker socket on worker unproven | W17-27 | accepted (do not reopen unless Bradford asks) |
+| R-04 | Real-forge half of customer journey **BLOCKED** — no `SMOKE_FORGE_PAT` on host; W11-05 stays blocked | W17-30 | BLOCKED |
+| R-05 | nginx DNS sticky (compose overlay / demo networking) | W17-30 | accepted for now |
+| R-06 | 390px @ 200% zoom horizontal overflow on 14/28 paths (`test.fail`, below WCAG reflow floor) | W17-31 / E-3 | declared residual |
+| R-07 | Findings vs Reviews breadcrumb / rail label mismatch | W17-31 | accepted residual |
+| R-08 | Security scanner `all_rejected` label conflates dedupe-noop with true rejections | W17-30 | small follow-up |
+| R-09 | Repo / health-tiles / attention list payloads unpaged (grow with N) | W17-32 | accepted residual |
+| R-10 | `GITHUB_APP_PRIVATE_KEY` / `WEBHOOK_SECRET` written by `configure.mjs` but unread | W17-33 | template fix pending |
+| R-11 | Gitea/GitLab webhook delivery untested (receiver reads GitHub headers; rely on nightly reconcile) | W17-33 | hypothesis / untested |
+| R-12 | Packaged scan (W17-27) and backup/restore drill (W17-29) not re-executed on tip `53374d6` | W17-34 §5 | prior-SHA evidence only |
+| R-13 | Stale / attachable vuln-db residual from packaged proof path | W17-27 | accepted residual |
+| R-14 | gitleaks exits 1 without allowlist for test placeholders; live PAT may exist in untracked `.env.smoke` | W17-34 S-1 | operator follow-up |
+
 ## 7. What has to happen before GO
 
 1. Fix E-1 (overview widget widths or the spec's contract) and E-2 (visible link affordance on exception-list links) in product code, on a new commit.
