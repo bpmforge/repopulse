@@ -1,0 +1,11 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T05:56:16Z
+9: ✓ |@repopulse/security| sandbox/runner.test.ts (27 tests | 1 skipped) 31819ms
+32:   ✓ code_health_tools scan (W9-02) > a failing tool run leaves a FAILED scan_run, not a clean one  3272ms
+41:   ✓ lizard + jscpd, actually run (FR-CH-2) > a broken tool run FAILS the scan rather than reporting a clean tree  3170ms
+181:{"level":30,"time":1789106294655,"pid":50002,"hostname":"Bradford-M5-Max-128GB.local","name":"repopulse-api","reqId":"req-d","audit":true,"event":"finding.status_changed","actorUserId":48167,"workspaceId":1,"ip":"127.0.0.1","ua":"lightMyRequest","bulk":true,"appliedCount":2,"skippedCount":1,"toStatus":"confirmed","ts":"2026-09-11T05:58:14.655Z","msg":"audit:finding.status_changed"}
+617: ↓ |@repopulse/security| src/scanners/dependency/pipeline.live.test.ts (4 tests | 4 skipped)
+618: ↓ |@repopulse/security| src/scanners/dependency/run.integration.test.ts (4 tests | 4 skipped)
+1574: Test Files  314 passed | 2 skipped (316)
+1575:      Tests  2435 passed | 9 skipped (2444)
+1577:   Duration  221.25s (transform 2.86s, setup 5.36s, collect 44.59s, tests 126.91s, environment 12.56s, prepare 8.45s)
+EXIT=0  end 2026-09-11T05:59:58Z

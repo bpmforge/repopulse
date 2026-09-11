@@ -1,0 +1,11 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  2026-09-11T06:21:22Z
+== tracked files that look like build output / generated snapshots
+(grep EXIT=1 — 1 means none)
+== tracked files > 1 MB
+2400700 docs/design/canvas/repopulse-ui-canvas.html
+(done)
+== git-tracked .env* files
+.env.example
+deploy/.env.example
+== drizzle migrations are source, listed for completeness
+59

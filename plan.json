@@ -8078,10 +8078,12 @@
         "RELEASE-CHECKLIST.md records every acceptance item as PASS, FAIL or BLOCKED with its evidence"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-34 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Any unresolved required gate means release-blocked, however finished the interface looks. Stop before publishing, merging or deploying."
+        "Any unresolved required gate means release-blocked, however finished the interface looks. Stop before publishing, merging or deploying.",
+        "Claimed 2026-09-11 on tip 53374d6. Working-tree plan.json had been re-serialised with \\uXXXX escapes (2448-line churn); restored from HEAD and only this ticket edited.",
+        "Closed 2026-09-11 with recommendation HOLD. Evidence dir docs/work/product-completion/evidence/w17-34-release-20260911/, checklist docs/work/product-completion/RELEASE-CHECKLIST.md. Same-SHA (53374d6) results: lint 0, typecheck 0, vitest 2435 passed / 9 skipped x3 runs, validators arch/plan/traceability/compose/egress-audit PASS, bundle check PASS (140.5 KB initial gz, budget 200), bundle rebuilt from 53374d6 (repopulse-0.1.0-rc1-linux-arm64.tar.gz sha256 a3e6a169…) and clean-install smoke PASS (install exit 0, /healthz 200, bootstrap login 200, torn down with down -v), gitleaks 17/25 findings all triaged as placeholders/identifiers/expired fixture value — none a live secret in git. FAIL: e2e gate 150 pass / 3 fail — org-overview.spec 2x2-heroes assertion (deterministic in isolation; the overview layout no longer varies panel width since W17-17 placed top-actions first, spec was outside that ticket write_scope and never re-run) and quality.spec axe on /admin/agreements dark+light (serious link-in-text-block once W5-08 exception lists carry PR links; passes only on the empty seed — reproduced deterministically in gate-e2e-axe-repro.txt). The listed 390px@200% ✘ is a declared test.fail expected failure, not a third failure. Release is HOLD until those two are fixed on a new SHA and the full gate re-run there."
       ]
     }
   ]

@@ -1,0 +1,19 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T06:21:03Z
+== disabled/focused test markers in tracked test files (excluding node_modules)
+e2e/smoke-real-forge.spec.ts:41:  test.skip(!PAT, 'set SMOKE_FORGE_PAT in .env.smoke to run the real-forge smoke');
+(grep EXIT=0)
+
+== vitest skipped explanation: files reported '2 skipped' / '9 skipped'
+packages/security/src/scanners/dependency/pipeline.live.test.ts:42:const describeIfScannable = ready ? describe : describe.skip;
+packages/security/src/scanners/dependency/run.integration.test.ts:42:  databaseUrl && scanImage && checkVulnDb(vulnDb).ok ? describe : describe.skip;
+packages/security/sandbox/runner.test.ts:438:const describeLive = podmanAvailable && liveImage ? describe : describe.skip;
+packages/security/sandbox/runner.test.ts:662:(dockerAvailable ? describe : describe.skip)('scan-runner on a real docker', () => {
+
+== playwright test.skip / fixme / test.only in e2e/
+e2e/smoke-real-forge.spec.ts:41:  test.skip(!PAT, 'set SMOKE_FORGE_PAT in .env.smoke to run the real-forge smoke');
+(grep EXIT=0)
+end 2026-09-11T06:21:03Z
+
+== addendum 2026-09-11T06:37:03Z (verifier discrepancy 3): expected-failure markers in e2e/
+e2e/quality.spec.ts:547:      test.fail(
+(the one hit is the declared W17-31 residual: 390px at 200% zoom; it runs and its failure is the expected outcome — see RELEASE-CHECKLIST.md row E-3)

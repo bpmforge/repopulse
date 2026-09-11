@@ -1,0 +1,116 @@
+== 2026-09-11T06:25:37Z clean-install smoke of the bundle built from SHA 53374d6 (checksum a3e6a169…), host Darwin arm64, podman version 6.1.0
+== 1 shasum
+repopulse-0.1.0-rc1-linux-arm64.tar.gz: OK
+== 2 extract
+REPOPULSE_VERSION=0.1.0-rc1
+REPOPULSE_IMAGE_PREFIX=localhost/repopulse
+PLATFORM=linux/arm64
+GIT_SHA=53374d685f193a9f9e66cdd7e32908746d3fdc44
+GIT_DIRTY=true
+BUILT_AT=2026-09-11T06:21:50Z
+== 3 install (disposable project rp-w1734, port 8399)
+RepoPulse 0.1.0-rc1 (linux/arm64), built from 53374d685f193a9f9e66cdd7e32908746d3fdc44
+== verifying checksums
+runtime: podman (podman version 6.1.0)
+== loading images (this reads 1.8G; a minute or two)
+Loaded image: localhost/repopulse/migrate:0.1.0-rc1
+Loaded image: localhost/repopulse/api:0.1.0-rc1
+Loaded image: localhost/repopulse/worker:0.1.0-rc1
+Loaded image: localhost/repopulse/scan-runner:0.1.0-rc1
+Loaded image: localhost/repopulse/web:0.1.0-rc1
+Loaded image: localhost/repopulse/scan:0.1.0-rc1
+Loaded image: docker.io/library/postgres:16
+Loaded image: docker.io/library/redis:7-alpine
+images:  6 loaded as localhost/repopulse/<name>:0.1.0-rc1
+== writing deploy/.env
+[32mWrote deploy/.env[0m [2m(mode 0600)[0m
+  URL:   http://localhost:8399
+  Port:  127.0.0.1:8399
+  Admin: w1734@example.com
+  Generated: POSTGRES_PASSWORD, REDIS_PASSWORD, SESSION_SECRET,
+             TOKEN_ENC_KEY, WEBHOOK_SECRET [2m(values not printed)[0m
+  [31mBACK UP TOKEN_ENC_KEY SEPARATELY FROM YOUR DATABASE DUMP.[0m
+  It decrypts stored forge credentials. A database restored without
+  it cannot use any connection it contains.
+  Next:  deploy/up.sh
+== starting
+WARNING: CONTAINER_SOCKET=/run/user/501/podman/podman.sock is not a socket on this machine.
+         scan-runner needs the podman API socket. Enable it with
+           systemctl --user enable --now podman.socket   # rootless
+           sudo systemctl enable --now podman.socket     # root
+         (under podman machine on macOS the path is the VM's; ignore this).
+runtime:    podman (compose project: rp-w1734)
+scan-runner: podman via /run/user/501/podman/podman.sock, listening on the internal scan network
+scan rules: /Users/bmatthews/tmp/rp-w1734-smoke/repopulse-0.1.0-rc1-linux-arm64/deploy/scan-rules
+images:     localhost/repopulse/*:0.1.0-rc1 (all present)
+[4m>>>> Executing external compose provider "/opt/homebrew/bin/podman-compose". Please see podman-compose(1) for how to disable this message. <<<<
+[0m9a56851f1a97e0586f85f8d7f7652e65cb589b2409d965c5d6e275dfc2551907
+43064e70a75c153a0ea5abed66b08e2981b7b43088bd59fb4b9f1a20ae4b62b0
+4db3e6a3d53f80868d06a7e9c347d9249ed1121b5886f04eb62f8d5de36fe74d
+e27bd912a070106efd85492f3c764a6f234d2e2088455a83831a18f604cb47f5
+22e49439e0366ae871d72b6cd227e88ddfd85ef88768c13d431d9b2e89f58c51
+f6535c8e1d4aa434040b37b5dca3c87bb2f4f4ec13dae4355ddbb261844d4249
+29f4093b57ddff42ce3aaa38337b6584d21b8802b125b05fd2e5b19357be83d9
+40dccebf970bb42c58eb418bc23c6c14331b8020604227ce6eb9b9351aa273ec
+c9dd03578e2d6fc7c32be1468e914a1f9122706a685ba59f8ee2efa4bd2a3714
+6581a3f51c12a89f798e704ffcf53596ab28d3e23b6608479f896db744af46ea
+rp-w1734_postgres_1
+rp-w1734_redis_1
+rp-w1734_scan-runner_1
+rp-w1734_migrate_1
+rp-w1734_api_1
+rp-w1734_worker_1
+rp-w1734_web_1
+All services running. Open http://localhost:8399
+== INSTALL EXIT 0
+== 4 healthz
+/healthz 200
+/ 200
+/api/v1/me/context 401
+== 5 login with X-Requested-With: repopulse
+{"must_change_password":true} login 200
+== 6 containers
+rp-w1734_postgres_1 Up 13 seconds (healthy)
+rp-w1734_redis_1 Up 12 seconds (healthy)
+rp-w1734_scan-runner_1 Up 12 seconds
+rp-w1734_api_1 Up 6 seconds
+rp-w1734_worker_1 Up 5 seconds
+rp-w1734_web_1 Up 4 seconds
+== 7 images loaded
+localhost/repopulse/api:0.1.0-rc1 261e47364e6b
+localhost/repopulse/api:demo b901cb7a7d03
+localhost/repopulse/api:dev b60648df67e2
+localhost/repopulse/api:slim 66ae95134749
+localhost/repopulse/migrate:0.1.0-rc1 41e8de5b99f1
+localhost/repopulse/migrate:demo 21fbd4e43cd3
+localhost/repopulse/migrate:dev 76b403cfd6b4
+localhost/repopulse/migrate:slim dee2c701e11b
+localhost/repopulse/scan-runner:0.1.0-rc1 4c45878b6749
+localhost/repopulse/scan-runner:demo 22e98f302697
+localhost/repopulse/scan:0.1.0-rc1 27e08cb8bdc1
+localhost/repopulse/scan:dev ec4f3ab2083f
+localhost/repopulse/web:0.1.0-rc1 72081a11b424
+localhost/repopulse/web:demo df349597935a
+localhost/repopulse/web:dev 5765cc094e96
+localhost/repopulse/worker:0.1.0-rc1 d839a3017c21
+localhost/repopulse/worker:demo ef712e9a0f0e
+localhost/repopulse/worker:dev b6eb03ad3c54
+localhost/repopulse/worker:slim a9d5adc08399
+== 8 manifest source
+"git_sha": "53374d685f193a9f9e66cdd7e32908746d3fdc44"
+"dirty": true
+== 2026-09-11T06:26:00Z done
+== 9 teardown 2026-09-11T06:26:14Z
+backup.sh compose.yaml configure.mjs configure.sh restore.sh rulepacks scan-db-sync.sh scan-rules up.sh 
+(podman-compose down -v)
+rp-w1734_scan-runner_1
+rp-w1734_redis_1
+rp-w1734_postgres_1
+rp-w1734_pgdata
+rp-w1734_redisdata
+4db3e6a3d53f80868d06a7e9c347d9249ed1121b5886f04eb62f8d5de36fe74d
+rp-w1734_default
+rp-w1734_scan
+remaining rp-w1734 containers: 0
+remaining rp-w1734 volumes: 0
+== 2026-09-11T06:26:26Z torn down

@@ -1,0 +1,62 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T05:52:20Z
+    at commitLayoutMountEffects_complete (/Users/bmatthews/Code/repopulse/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:24727:9) undefined
+stderr | src/routes/print/reports/$reportId.test.tsx > print route layout (W17-26) > a cell never prints [object Object]
+Error: Not implemented: window.scrollTo
+    at module.exports (/Users/bmatthews/Code/repopulse/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /Users/bmatthews/Code/repopulse/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at Object.fn (file:///Users/bmatthews/Code/repopulse/node_modules/.pnpm/@tanstack+router-core@1.171.15/node_modules/@tanstack/router-core/src/scroll-restoration.ts:350:13)
+    at file:///Users/bmatthews/Code/repopulse/node_modules/.pnpm/@tanstack+router-core@1.171.15/node_modules/@tanstack/router-core/src/router.ts:1298:18
+    at Set.forEach (<anonymous>)
+    at RouterCore.emit (file:///Users/bmatthews/Code/repopulse/node_modules/.pnpm/@tanstack+router-core@1.171.15/node_modules/@tanstack/router-core/src/router.ts:1296:22)
+    at file:///Users/bmatthews/Code/repopulse/node_modules/.pnpm/@tanstack+react-router@1.170.18_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@tanstack/react-router/src/Match.tsx:276:14
+    at commitHookEffectListMount (/Users/bmatthews/Code/repopulse/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/Users/bmatthews/Code/repopulse/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/Users/bmatthews/Code/repopulse/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:24727:9) undefined
+ ✓ |@repopulse/web| src/routes/print/reports/$reportId.test.tsx (3 tests) 45ms
+ ✓ |@repopulse/web| src/widgets/org/HotspotLeaderboard.test.tsx (4 tests) 41ms
+ ✓ |@repopulse/web| src/widgets/plans/PlanItemCard.test.tsx (13 tests) 39ms
+ ✓ |@repopulse/web| src/components/widget/widget.test.tsx (9 tests) 41ms
+ ✓ |@repopulse/web| src/components/widget/WidgetFrame.observability.test.tsx (9 tests) 38ms
+ ✓ |@repopulse/web| src/widgets/findings/TriageQueue.reliability.test.tsx (3 tests) 37ms
+ ✓ |@repopulse/web| src/widgets/findings/TriageQueue.test.tsx (3 tests) 35ms
+ ✓ |@repopulse/web| src/widgets/findings/FindingDetail.actions.test.tsx (6 tests) 34ms
+ ✓ |@repopulse/web| src/components/brand/RepoPulseMark.test.tsx (11 tests) 32ms
+ ✓ |@repopulse/web| src/widgets/security/ScannerStatusList.test.tsx (18 tests) 33ms
+ ✓ |@repopulse/web| src/widgets/org/KpiRow.test.tsx (2 tests) 31ms
+ ✓ |@repopulse/web| src/components/primitives/primitives.test.tsx (8 tests) 28ms
+ ✓ |@repopulse/web| src/widgets/auth/ForgeLinkBanner.test.tsx (4 tests) 29ms
+ ✓ |@repopulse/web| src/components/primitives/KpiTile.test.tsx (4 tests) 28ms
+ ✓ |@repopulse/web| src/components/primitives/TrendDelta.test.tsx (5 tests) 26ms
+ ✓ |@repopulse/web| src/widgets/security/ValidationFunnelPanel.test.tsx (12 tests) 23ms
+ ✓ |@repopulse/web| src/widgets/org/TopActionsCard.test.tsx (9 tests) 22ms
+ ✓ |@repopulse/web| src/widgets/repo/healthwhy.test.tsx (8 tests) 22ms
+ ✓ |@repopulse/web| src/widgets/findings/FindingDetail.test.tsx (4 tests) 21ms
+ ✓ |@repopulse/web| src/widgets/risk/risk.test.tsx (6 tests) 18ms
+ ✓ |@repopulse/web| src/components/primitives/ReportMarkdown.test.tsx (6 tests) 14ms
+ ✓ |@repopulse/web| src/widgets/plans/PlanForRepoLink.test.tsx (4 tests) 15ms
+ ✓ |@repopulse/web| src/widgets/security/useScanRun.test.tsx (9 tests) 14ms
+ ✓ |@repopulse/web| src/components/shell/DemoBanner.test.tsx (4 tests) 10ms
+ ✓ |@repopulse/web| src/sse/useSyncStream.test.ts (9 tests) 4ms
+ ✓ |@repopulse/web| src/api/client.test.ts (7 tests) 4ms
+ ✓ |@repopulse/web| src/styles/contrast.test.ts (44 tests) 3ms
+ ✓ |@repopulse/web| src/widgets/findings/performance.test.ts (11 tests) 2ms
+ ✓ |@repopulse/web| src/widgets/findings/contracts.test.ts (5 tests) 2ms
+ ✓ |@repopulse/web| src/widgets/plans/contracts.test.ts (8 tests) 2ms
+ ✓ |@repopulse/web| src/widgets/org/register.test.tsx (7 tests) 2ms
+ ✓ |@repopulse/web| src/routes/findings-link.test.ts (6 tests) 2ms
+ ✓ |@repopulse/web| src/widgets/security/contracts.test.ts (6 tests) 2ms
+ ✓ |@repopulse/web| src/widgets/repo/prflow.test.tsx (6 tests) 2ms
+ ✓ |@repopulse/web| src/views/contracts.test.ts (4 tests) 2ms
+ ✓ |@repopulse/web| src/api/filterScope.test.ts (7 tests) 2ms
+ ✓ |@repopulse/web| src/widgets/findings/location.test.ts (5 tests) 1ms
+ ✓ |@repopulse/web| src/routes/crumbs.test.ts (5 tests) 2ms
+ ✓ |@repopulse/web| src/components/palette/CommandPalette.test.tsx (5 tests) 1ms
+ ✓ |@repopulse/web| src/views/templates.registration.test.ts (6 tests) 1ms
+ ✓ |@repopulse/web| src/lib/docs.test.ts (3 tests) 1ms
+ ✓ |@repopulse/web| src/widgets/org/delta.test.ts (4 tests) 1ms
+ ✓ |@repopulse/web| src/lib/version.test.ts (1 test) 1ms
+ Test Files  314 passed | 2 skipped (316)
+      Tests  2435 passed | 9 skipped (2444)
+   Start at  01:52:21
+   Duration  222.28s (transform 2.86s, setup 5.35s, collect 44.82s, tests 127.71s, environment 12.55s, prepare 8.43s)
+EXIT=0  end 2026-09-11T05:56:03Z

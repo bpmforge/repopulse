@@ -1,0 +1,9 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T06:09:52Z
+== isolation 1: pnpm e2e e2e/org-overview.spec.ts
+EXIT=1
+15:  ✘  5 [chromium] › e2e/org-overview.spec.ts:110:1 › the org overview composes through WidgetGrid with 2x2 heroes (W4-21, R-D2) (291ms)
+24:    Error: every panel is the same width — that is a spreadsheet
+42:  1 failed
+44:  6 passed (11.8s)
+45: ELIFECYCLE  Command failed with exit code 1.
+== isolation 2: pnpm e2e e2e/quality.spec.ts --grep 'every listed screen'

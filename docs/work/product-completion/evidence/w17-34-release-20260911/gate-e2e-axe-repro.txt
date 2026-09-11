@@ -1,0 +1,80 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T06:24:09Z
+== axe repro: admin + a11y specs (both touch agreements) then quality axe, single worker, to reproduce the full-run failure
+
+> repopulse@0.1.0 e2e /Users/bmatthews/Code/repopulse
+> playwright test e2e/admin.spec.ts e2e/a11y.spec.ts e2e/quality.spec.ts --workers\=1 --grep 'agreement|every listed screen'
+
+
+Running 5 tests using 1 worker
+
+(node:65877) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/a11y.spec.ts:54:5 › /admin/agreements passes axe in the dark theme (449ms)
+  ✓  2 [chromium] › e2e/a11y.spec.ts:54:5 › /admin/agreements passes axe in the light theme (415ms)
+  ✓  3 [chromium] › e2e/admin.spec.ts:183:1 › agreements are admin-configurable and show real exception lists (W5-08) (481ms)
+  ✘  4 [chromium] › e2e/quality.spec.ts:157:3 › axe: screens the standing a11y spec never reached › every listed screen, dark theme, 1440px (9.6s)
+(node:65945) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  5 [chromium] › e2e/quality.spec.ts:166:3 › axe: screens the standing a11y spec never reached › every listed screen, light theme, 1440px (9.1s)
+
+
+  1) [chromium] › e2e/quality.spec.ts:157:3 › axe: screens the standing a11y spec never reached › every listed screen, dark theme, 1440px 
+
+    Error: serious/critical a11y violations on settings-agreements @1440 dark
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "serious:link-in-text-block (6 nodes: .text-xs:nth-child(1) > .hover\\:underline.text-accent[href$=\"prs/5\"])",
+    + ]
+
+       at helpers/axe.ts:105
+
+      103 |     ),
+      104 |     `serious/critical a11y violations on ${screen}`,
+    > 105 |   ).toEqual([]);
+          |     ^
+      106 | }
+      107 |
+        at expectNoSeriousA11yViolations (/Users/bmatthews/Code/repopulse/e2e/helpers/axe.ts:105:5)
+        at /Users/bmatthews/Code/repopulse/e2e/quality.spec.ts:162:7
+
+    Error Context: test-results/quality-axe-screens-the-st-6a209-ed-screen-dark-theme-1440px-chromium/error-context.md
+
+  2) [chromium] › e2e/quality.spec.ts:166:3 › axe: screens the standing a11y spec never reached › every listed screen, light theme, 1440px 
+
+    Error: serious/critical a11y violations on settings-agreements @1440 light
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "serious:link-in-text-block (6 nodes: .text-xs:nth-child(1) > .hover\\:underline.text-accent[href$=\"prs/5\"])",
+    + ]
+
+       at helpers/axe.ts:105
+
+      103 |     ),
+      104 |     `serious/critical a11y violations on ${screen}`,
+    > 105 |   ).toEqual([]);
+          |     ^
+      106 | }
+      107 |
+        at expectNoSeriousA11yViolations (/Users/bmatthews/Code/repopulse/e2e/helpers/axe.ts:105:5)
+        at /Users/bmatthews/Code/repopulse/e2e/quality.spec.ts:176:7
+
+    Error Context: test-results/quality-axe-screens-the-st-dcc52-d-screen-light-theme-1440px-chromium/error-context.md
+
+  2 failed
+    [chromium] › e2e/quality.spec.ts:157:3 › axe: screens the standing a11y spec never reached › every listed screen, dark theme, 1440px 
+    [chromium] › e2e/quality.spec.ts:166:3 › axe: screens the standing a11y spec never reached › every listed screen, light theme, 1440px 
+  3 passed (26.6s)
+ ELIFECYCLE  Command failed with exit code 1.
+EXIT=1  end 2026-09-11T06:24:36Z

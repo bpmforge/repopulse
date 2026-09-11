@@ -1,0 +1,18 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T06:20:56Z
+note: gate-lint-typecheck.txt recorded typecheck output but its EXIT line was blank; re-captured here
+packages/metrics typecheck$ tsc --noEmit -p tsconfig.json
+packages/metrics typecheck: Done
+packages/auth typecheck: Done
+packages/forge typecheck: Done
+apps/web typecheck: Done
+packages/insights typecheck$ tsc --noEmit -p tsconfig.json
+packages/ingest typecheck$ tsc --noEmit -p tsconfig.json
+packages/insights typecheck: Done
+packages/ingest typecheck: Done
+packages/security typecheck$ tsc --noEmit -p tsconfig.json
+packages/reports typecheck$ tsc --noEmit -p tsconfig.json
+packages/reports typecheck: Done
+packages/security typecheck: Done
+apps/api typecheck$ tsc --noEmit -p tsconfig.json
+apps/api typecheck: Done
+EXIT=0  end 2026-09-11T06:21:07Z
