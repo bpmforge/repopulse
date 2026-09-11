@@ -1,14 +1,18 @@
 # RepoPulse operations runbook
 
-Upgrade, backup, restore and rollback for a **customer-hosted** install.
+Backup, restore, upgrade and rollback for a **customer-hosted** install.
 
-Everything here is runnable by an admin with `deploy/compose.yaml`, `deploy/.env`
-and a container runtime. No repository checkout, no access to anything of ours,
-and no shell inside the database container beyond what these commands do for
-you. Substitute `docker` for `podman` throughout if that is what you run.
+Everything here is runnable by an admin with the install directory
+(`deploy/compose.yaml`, `deploy/.env`, the `deploy/*.sh` scripts) and a
+container runtime. No repository checkout, no access to anything of ours, and
+no shell inside the database container beyond what these commands do for you.
 
-Every procedure below **has been executed**, not just written. Where a step
-exists because something failed during that execution, it says so.
+Every procedure below **has been executed** on linux/arm64 under rootless
+Podman 5.8 with podman-compose 1.6 (the drill record is in
+`docs/work/product-completion/evidence/`). Docker is untested: substitute
+`docker` for `podman` and expect the same script behaviour, but nobody has
+watched it. Where a step exists because something failed during that
+execution, it says so.
 
 ---
 
@@ -17,7 +21,7 @@ exists because something failed during that execution, it says so.
 A backup is **two things**:
 
 1. the Postgres dump, and
-2. `TOKEN_ENC_KEY` from your `.env`.
+2. `TOKEN_ENC_KEY` from your `deploy/.env`.
 
 Every forge credential in the dump is encrypted with that key. A dump without
 it restores into an install whose connections can never authenticate — which
@@ -30,7 +34,7 @@ the same envelope.
 ## Backup
 
 ```sh
-cd /path/to/repopulse
+cd /path/to/repopulse                 # the install directory
 ./deploy/backup.sh                    # writes repopulse-<timestamp>.sql here
 OUT_DIR=/backups ./deploy/backup.sh   # or somewhere else
 ```
@@ -89,12 +93,35 @@ To check only the key against a running project, without restoring:
 
 ## Upgrade
 
+### From a new bundle (the customer path)
+
+1. Extract the new bundle **beside** the old one; do not overwrite it.
+2. Take a backup: `./deploy/backup.sh` in the old directory.
+3. Copy `deploy/.env` from the old directory into the new one.
+4. In the new `deploy/.env`, set `REPOPULSE_VERSION` and `SCAN_IMAGE` to the
+   new version (the last lines of the file; `install.sh` tells you if they
+   disagree with the bundle).
+5. `podman compose -f deploy/compose.yaml down` in the **old** directory.
+6. `./install.sh` in the new directory. Checksums are verified, the new images
+   load beside the old ones, `.env` is kept byte for byte, migrations run once
+   before the API starts, and the data volumes are shared by compose project
+   name, so nothing is copied.
+7. `curl -f http://127.0.0.1:${REPOPULSE_PORT:-8099}/healthz && echo OK`
+
+Only one bundle version existed when this was drilled, so the rerun that was
+recorded is an **upgrade-style rerun of the same version** on existing
+volumes: `.env` preserved, data intact, migrate reporting up to date. A
+version step with a pending migration has been exercised only in the failure
+direction (below) and by a fresh-volume install applying every migration.
+
+### From a checkout
+
 ```sh
 cd /path/to/repopulse
 ./deploy/backup.sh                                     # 1. always, first
 podman compose -f deploy/compose.yaml down             # 2. stop the old code
 ./deploy/up.sh --build                                # 3. migrate + start + verify
-curl -f http://127.0.0.1:${REPOPULSE_PORT:-8080}/healthz && echo OK
+curl -f http://127.0.0.1:${REPOPULSE_PORT:-8099}/healthz && echo OK
 ```
 
 **`up -d --build` on its own is not an upgrade.** Verified on Podman: it
@@ -102,20 +129,21 @@ rebuilds images and re-runs migrations while leaving the running containers
 untouched, so the upgrade appears to succeed and every service keeps executing
 the old code. `down` first.
 
-**Downtime: about 45 seconds** on a warm image cache (measured: 44s from `down`
-to `/healthz` answering 200, on an M2 with images already built). A cold build
-is several minutes; pull or build the images *before* the `down` if that matters
-to you.
+**Downtime: about ten seconds** from `down` to `/healthz` answering 200 on a
+warm image cache (measured in the drill). A cold build is several minutes;
+pull or build the images *before* the `down` if that matters to you.
+
+### What happens when a migration fails
 
 Migrations run as a one-shot job that the API waits on, so the API never starts
 against a schema it does not understand. Running `up` again later is a no-op:
 the migration ledger is in the database.
 
 **If a migration fails, the upgrade stops there** — proven by shipping a
-deliberately broken migration through `up.sh` (W17-29): it exits non-zero with
-`DATABASE MIGRATION FAILED`, api, worker and web are stopped, the ledger count
-is unchanged and the failed migration's partial work is rolled back (drizzle
-applies pending migrations in one transaction). Your data is as it was.
+deliberately broken migration through `up.sh`: it exits non-zero with
+`DATABASE MIGRATION FAILED`, api, worker, web and scan-runner are stopped, the
+ledger count is unchanged and the failed migration's partial work is rolled
+back (pending migrations apply in one transaction). Your data is as it was.
 Postgres and Redis keep running. Fix the cause (or roll back, below), remove
 the failed one-shot so the next `up` is not judged on it, and run `up.sh`
 again:
@@ -126,13 +154,13 @@ podman rm -f $(podman ps -a --filter label=com.docker.compose.service=migrate -q
 ./deploy/up.sh
 ```
 
-(`up.sh` stops the app tier itself on a failed migration because podman-compose
-1.6 starts api and worker regardless of `service_completed_successfully`;
-docker compose honours it. Measured, W17-29.)
+(`up.sh` stops the application tier itself on a failed migration because
+podman-compose 1.6 starts api and worker regardless of
+`service_completed_successfully`; docker compose honours it. Measured.)
 
 **Migrations are forward-only.** There is no down-migration and this runbook
 will not pretend one is safe: rolling back is restoring the pre-upgrade dump
-(next section), which is why step 1 above is not optional.
+(next section), which is why the backup step is not optional.
 
 **Check you are actually running the new code**, because the failure mode above
 is silent:
@@ -145,11 +173,20 @@ podman ps        # uptimes should be seconds, not the age of the last deploy
 
 ## Rollback
 
-For when an upgrade is wrong and you want the previous version back.
+For when an upgrade is wrong and you want the previous version back. Code and
+data roll back separately.
+
+**Code:** the previous bundle directory still exists (you extracted beside it)
+and its `.env` still pins the previous version, whose images are still loaded.
+From a checkout, edit `REPOPULSE_VERSION` (and `SCAN_IMAGE`) in `deploy/.env`
+back to the tag you were running; tag before you upgrade if you build your
+own images (`podman tag localhost/repopulse/api:dev localhost/repopulse/api:$(date +%F)`).
+
+**Data:**
 
 ```sh
-podman compose -f deploy/compose.yaml down
-# put the previous image tag back — edit REPOPULSE_VERSION (and SCAN_IMAGE) in deploy/.env
+podman compose -f deploy/compose.yaml down                       # in the NEW directory
+cd /path/to/previous-bundle
 podman compose -f deploy/compose.yaml up -d postgres redis      # the data tier only
 ./deploy/restore.sh --project=repopulse --production --no-migrate repopulse-<pre-upgrade>.sql
 ```
@@ -172,15 +209,6 @@ Three things in that command are load-bearing, and all were found by running it:
   the database half-restored. Dropping `public` and `drizzle` outright is the
   only path that works in both directions — and rollback is the direction you
   need it in.
-
-**Rolling the DATA back is proven. Rolling the CODE back needs versioned image
-tags**, which this install does not yet publish (W11-01). Until it does,
-"previous version" means an image you built and tagged yourself. Tag before you
-upgrade:
-
-```sh
-podman tag repopulse/api:dev repopulse/api:$(date +%F)
-```
 
 ---
 
@@ -231,8 +259,25 @@ with no manifest loads, fails the decrypt check, exits non-zero, app not
 started; missing key refused → a deliberately broken migration halts `up.sh`
 with data and ledger untouched → recovery → stopped services recover → the
 upgrade sequence → the key value is absent from the entire log. It refuses to
-run against the project named `repopulse`. The record of the last run is in
-`docs/work/product-completion/evidence/`.
+run against the project named `repopulse`. 44 checks; the record of the last
+run is in `docs/work/product-completion/evidence/`.
+
+---
+
+## Routine care
+
+**Scan data, nightly.** `deploy/scan-db-sync.sh` from cron (INSTALL.md). A
+`Built:` date under `deploy/scan-rules/vuln-db` that stops moving means the
+job is not running, and dependency scans will start refusing the database
+after five days — loudly, naming its age, which is the better failure.
+
+**Restart the stack, not one service.** `podman compose -f deploy/compose.yaml
+down && ./deploy/up.sh`, about ten seconds on a warm image cache. See below
+for why.
+
+**Check the worker from Admin.** "Background worker — Not working" means no
+heartbeat in the last minute; `./deploy/up.sh` brings it back and reports what
+it found.
 
 ---
 
@@ -241,49 +286,61 @@ run against the project named `repopulse`. The record of the last run is in
 **`SCAN_RULES_DIR` must be an absolute path.** podman-compose does not resolve
 a relative bind source against the compose file's directory, so `./scan-rules`
 becomes wherever you happened to be standing — or nothing, and the worker fails
-with `statfs /var/lib/repopulse/scan-rules: no such file or directory`, naming
-the *container* path and sending you looking in the wrong place.
+with `statfs ...: no such file or directory`, naming the *container* path and
+sending you looking in the wrong place. Leave it blank to use the shipped
+`deploy/scan-rules`.
 
-**The scan-rules directory has to exist before `up`.** It ships empty with a
-README; `deploy/scan-db-sync.sh` fills it. `deploy/up.sh` creates it for you —
-which is why it is the documented way in, and why a bare `compose up` is not:
-that path started five of six services and still exited 0 (W16-04).
+**The scan-data directory has to exist before `up`.** It ships with a README;
+`deploy/scan-db-sync.sh` fills it. `deploy/up.sh` creates it for you — which is
+why it is the documented way in, and why a bare `compose up` is not: that path
+started five of six services and still exited 0.
 
 **Everything stuck in `Created`.** Something with a health check is not healthy.
 `podman ps -a` says which, `podman logs <container>` says why.
 
-**The worker will not start, `Invalid argument` on a tmpfs mount.** Fixed in the
-shipped compose file (the scratch tmpfs uses the short form, which both runtimes
-pass through verbatim). If you have edited it into the long `type: tmpfs` form,
-podman-compose renders `mode: 0700` as `mode=448` and crun rejects the mount.
+**`DATABASE MIGRATION FAILED` on a host that has run RepoPulse before.** A
+`repopulse_pgdata` volume from an earlier install under a different password
+is still there. `up.sh` names the cause (Postgres `28P01`) and the two ways
+out: restore the matching `deploy/.env`, or remove the volume knowingly —
+which destroys that data.
+
+**The worker will not start, `Invalid argument` on a tmpfs mount.** Fixed in
+the shipped compose file (the scratch tmpfs uses the short form, which both
+runtimes pass through verbatim). If you have edited it into the long
+`type: tmpfs` form, podman-compose renders `mode: 0700` as `mode=448` and crun
+rejects the mount.
 
 **A restarted api is invisible to web until web is recreated.** nginx resolves
 the `api` upstream once, at startup. Restart (or crash-and-restart) the api
 container alone and it gets a new address; `/healthz` and every API call
 through the published port then hang until web is recreated — while `podman ps`
-and `up.sh` both say every service is running. Measured in the W17-29 drill:
+and `up.sh` both say every service is running. Measured in the drill:
 `compose stop api; up.sh` → `All services running`, `/healthz` timed out;
-`down` + `up.sh` → 200. So **restart the stack, not one service**: `podman
-compose -f deploy/compose.yaml down && ./deploy/up.sh` (about 8 seconds on a
-warm image cache). Making web re-resolve is a change to the web image, not to
-this runbook.
+`down` + `up.sh` → 200. So **restart the stack, not one service**. Making web
+re-resolve is a change to the web image, not to this runbook.
 
 **The runtime does not restart a crashed container for you.** `restart:
-unless-stopped` is in the compose file, but on rootless podman (podman machine,
-5.8) a worker killed with SIGKILL stayed dead for the 60 seconds the drill
-watched it. `up.sh` brought it back. Do not rely on the restart policy for
-recovery; rely on `up.sh` (and see the previous item about web).
+unless-stopped` is in the compose file, but on rootless podman a worker killed
+with SIGKILL stayed dead for the 60 seconds the drill watched it. `up.sh`
+brought it back. Do not rely on the restart policy for recovery; rely on
+`up.sh` (and see the previous item about web).
 
 **`podman compose rm` does not exist.** podman-compose 1.6 has no `rm`
-subcommand, and the W11-03 restore script's `compose rm -sf ... || true` had
-been silently doing nothing under podman since it was written — the restore
-loaded underneath a running api and worker. The scripts now `stop` and then
-remove containers through the runtime by their compose labels; if you script
-against this stack yourself, do the same (`podman ps -a --filter
-label=com.docker.compose.service=<svc> -q | xargs podman rm -f`). Remove web
-before api and api/worker before migrate: podman turns `depends_on` into a
-container requirement and refuses the other order.
+subcommand, and an earlier `restore.sh` had been silently doing nothing under
+podman — the restore loaded underneath a running api and worker. The scripts
+now `stop` and then remove containers through the runtime by their compose
+labels; if you script against this stack yourself, do the same (`podman ps -a
+--filter label=com.docker.compose.service=<svc> -q | xargs podman rm -f`).
+Remove web before api and api/worker before migrate: podman turns
+`depends_on` into a container requirement and refuses the other order.
 
-**Migration output looks alarming and is not.** The migrate job prints Postgres
-NOTICE objects — `schema "drizzle" already exists, skipping`. They are notices,
-not errors. The line that matters is the last one: `[migrate] up to date`.
+**Migration output looks alarming and is not.** The migrate job may print
+Postgres NOTICE lines — `schema "drizzle" already exists, skipping`. They are
+notices, not errors. The line that matters is the last one: `[migrate] up to
+date (N migration(s) already applied)` or `[migrate] applied N migration(s)`.
+
+**`scan-runner` is not running on Linux.** Almost always the Podman API socket
+is not enabled: `systemctl --user enable --now podman.socket`, then `up.sh`.
+Until it is, every tool-based scan reports the sandbox as unavailable and no
+findings are written — which the Security tab says, rather than showing a
+clean result.

@@ -1,87 +1,86 @@
 # Installing RepoPulse in your own environment
 
-RepoPulse runs as five containers on one host: a web front end, an API, a
-background worker, PostgreSQL and Redis. It reads your repositories through the
-forge's API and **never clones them** — nothing of your source is stored beyond
-the metrics and findings you see in the dashboard.
+RepoPulse runs as six long-running containers on one host — web, API,
+background worker, a scan-runner sidecar, PostgreSQL and Redis — plus a
+one-shot migration job that runs before the API starts. It reads your
+repositories through the forge's API and **never clones them**: nothing of your
+source is stored beyond the metrics and findings you see in the dashboard.
 
 **You do not need an account with GitHub, or with us, to install this.** You
-fill in a file, start the stack, and sign in with an administrator account this
-install creates for you. Connecting a forge is a later step, done from inside
-the product by someone who is already signed in — and until you do it, the
-product runs, it just has nothing to measure yet.
+run one script, sign in with the administrator account that script creates,
+and connect a forge later from inside the product. Until you do, the product
+runs; it just has nothing to measure yet.
+
+Every command in this document was run on **linux/arm64 under rootless Podman
+5.8** (`podman-compose` 1.6). Docker and amd64 hosts are untested — the
+scripts carry Docker code paths, but nothing has run on one. Substitute
+`docker` for `podman` at your own risk and tell us what happened.
 
 ## What you need
 
-- A container runtime: Podman 5+ or Docker 24+, with the `compose` subcommand
-- ~4 GB of disk for images, plus room for your warehouse (a few hundred MB for
-  most orgs)
-- A hostname you will reach this install at, and a TLS terminator in front of it
-  (nginx, Caddy, Traefik, a cloud load balancer — RepoPulse does not terminate
-  TLS itself)
+- A container runtime: Podman 5+ with `podman-compose`, or Docker 24+ with the
+  compose plugin
+- About 4 GB of disk for images, plus room for your warehouse (a few hundred MB
+  for most organisations), plus 5 GB under the scan-data directory if you want
+  dependency (CVE) scanning
+- A hostname you will reach this install at, and a TLS terminator in front of
+  it (nginx, Caddy, Traefik, a cloud load balancer — RepoPulse does not
+  terminate TLS itself)
 
 Later, when you want repository data, you will also need an account on your
-forge that can register a GitHub App or mint a Gitea token — see
+forge that can register a GitHub App or mint a Gitea or GitLab token — see
 [Connect your forge](#connect-your-forge). Nothing before that step requires it.
 
-An LLM is **optional**. Tier-1 metrics — health scores, hotspots, PR cycle time,
-review coverage, CI trends, DORA — need no model at all. Tiers 2 and 3 are
-opt-in and point at your own LM Studio host or your own Anthropic API key.
+An LLM is **optional**. Tier-1 metrics — health scores, hotspots, PR cycle
+time, review coverage, CI trends, delivery cadence — need no model at all.
+Tiers 2 and 3 are configured later from **Admin → Models** and point at your
+own OpenAI-compatible endpoint (LM Studio, for example) or your own hosted API
+key.
 
-## Configure
+## Install from the bundle
 
-```bash
-cp deploy/.env.example deploy/.env
-```
+This is the customer path. The bundle is a directory of images and scripts
+that needs **a container runtime and nothing else**: no source checkout, no
+Node, no registry access, no network at install time. There is one bundle per
+CPU architecture, and `install.sh` refuses to load one onto another.
 
-Fill in `deploy/.env`. Every secret is yours to generate — nothing ships with a
-default:
-
-```bash
-openssl rand -hex 24   # POSTGRES_PASSWORD, REDIS_PASSWORD
-openssl rand -hex 32   # SESSION_SECRET, TOKEN_ENC_KEY
-```
-
-Then paste the two database passwords into `DATABASE_URL` and `REDIS_URL`, and
-set `PUBLIC_BASE_URL` / `API_BASE_URL` to the URL your users will open.
-
-Add the first administrator. These two lines are what let you in the first
-time; without them — and with no other account — a fresh install has no door:
+Bundles are **not published anywhere yet**. There is no download URL and no
+registry; a bundle is built with `deploy/bundle.sh` from a checkout and handed
+to you as a `.tar.gz` with a `.sha256` beside it.
 
 ```bash
-ADMIN_EMAIL=you@example.com
-ADMIN_PASSWORD=<at least 12 characters>
+shasum -a 256 -c repopulse-<version>-linux-<arch>.tar.gz.sha256   # or: sha256sum -c
+tar -xzf repopulse-<version>-linux-<arch>.tar.gz
+cd repopulse-<version>-linux-<arch>
+ADMIN_PASSWORD='a long passphrase' ./install.sh --url=https://repopulse.example.com --admin-email=you@example.com
 ```
 
-The API creates that account on its first boot and marks it **must change
-password**, so the value above is a one-use credential, not a standing one. A
-password shorter than the minimum fails the boot rather than creating a weak
-administrator. The bootstrap is idempotent on "a local account with a password
-exists", so editing `ADMIN_EMAIL` afterwards creates nothing — add further
-people from **Admin → Members** instead.
+`install.sh` does five things and stops with a sentence when any of them fails:
 
-> **Back up `TOKEN_ENC_KEY` separately from your database dump.** It decrypts the
-> forge credentials stored in Postgres. A dump without the key is unusable; the
-> key without a dump is harmless. Losing it means every connected organisation
-> must be re-authorised.
+1. verifies every file against `SHA256SUMS` — a truncated or altered copy is
+   refused before anything is loaded (`CHECKSUM MISMATCH`);
+2. checks the CPU architecture against `VERSION` (`ARCHITECTURE MISMATCH`);
+3. loads the images as `localhost/repopulse/<name>:<version>` and confirms
+   each one is present — `localhost/` is the runtime's name for "loaded
+   here", not a registry;
+4. writes `deploy/.env` **once**, with every secret generated, the URL you gave,
+   and the version pinned. A rerun never rewrites it;
+5. starts the stack with `deploy/up.sh`, which waits for each service and
+   **exits non-zero naming any that did not come up**. A loading page is not
+   proof: the web tier answers while the worker is dead, which is why the
+   script checks.
 
-Every variable is documented in [CONFIG.md](CONFIG.md) — purpose, default, and
-what breaks if it is wrong. Wrong or missing configuration fails at startup with
-a message naming each variable; the API will not half-boot.
+The administrator password comes from `ADMIN_PASSWORD` in the environment or a
+`deploy/admin-password` file, never from an argument, so it does not land in
+shell history. It must be at least 12 characters; a shorter one fails the boot
+rather than creating a weak administrator.
 
-`GITHUB_APP_*` and the `OIDC_*` group are **not** required and can stay blank.
-Each one you fill in adds a way to sign in; leaving them all blank leaves
-password accounts, which is a complete configuration, not a degraded one.
-
-## Start
-
-```bash
-podman compose -f deploy/compose.yaml up -d     # or: docker compose
-```
-
-The first run builds the images (several minutes) and applies database
-migrations before the API starts. Re-running `up` later is safe — migrations are
-recorded, so an already-migrated database is left alone.
+`--url=` is the address your users will open, and it must match the callback
+you later register on your GitHub App. `--port=` (default `8099`) is the one
+port the stack publishes, bound to `127.0.0.1` until you set
+`REPOPULSE_BIND=0.0.0.0` in `deploy/.env` **after** your TLS terminator is in
+place. Nothing else — not Postgres, not Redis — is reachable from outside the
+compose network.
 
 Check it:
 
@@ -89,125 +88,163 @@ Check it:
 curl -f http://127.0.0.1:8099/healthz && echo OK
 ```
 
-Only the web container publishes a port, and it binds to `127.0.0.1` by default
-so nothing is exposed before you have put TLS in front of it. Postgres and Redis
-are reachable only on the internal network. To expose the web port on a LAN
-interface, set `REPOPULSE_BIND=0.0.0.0` — **after** your terminator is in place.
+Then open the URL. The rest of this document applies from here on, whichever
+way you installed.
+
+Day to day, from the bundle directory:
+
+```bash
+deploy/up.sh                                   # start (or restart) and verify; safe to rerun
+podman compose -f deploy/compose.yaml down     # stop; data stays in the volumes
+deploy/backup.sh                               # dump the database beside a manifest
+deploy/scan-db-sync.sh                         # refresh scan rules + fetch the CVE database
+```
+
+Data lives in two named volumes, `repopulse_pgdata` and `repopulse_redisdata`.
+`down` keeps them; only `down -v` deletes them. Upgrading, rolling back and
+restoring are in [RUNBOOK.md](RUNBOOK.md).
+
+## Install from a checkout
+
+The same stack, built on the host. Use this when you are evaluating from the
+source repository rather than a bundle. It needs the runtime, `git`, and about
+ten minutes for the first image build.
+
+```bash
+git clone <this repository> repopulse && cd repopulse
+ADMIN_PASSWORD='a long passphrase' deploy/configure.sh --url=https://repopulse.example.com --admin-email=you@example.com
+deploy/up.sh --build
+curl -f http://127.0.0.1:8099/healthz && echo OK
+```
+
+`configure.sh` writes `deploy/.env` exactly as `install.sh` does — every secret
+generated, mode `0600`, never rewritten on a rerun — and needs no Node on the
+host: when Node is absent it runs inside the migration image with no network.
+`deploy/.env.example` documents every line it writes and is the file to read
+before editing anything by hand.
+
+Use `deploy/up.sh`, not `compose up` directly. A bare `compose up` returned
+success while leaving the worker dead (its bind-mount source did not exist),
+and the web tier answered 200 either way. `up.sh` creates the scan-data
+directory, verifies the stack afterwards, and on a failed migration stops the
+application containers itself rather than letting them run against a schema
+they do not understand.
+
+## Configuration you may want to change
+
+Everything is in `deploy/.env`, and every variable is documented in
+[CONFIG.md](CONFIG.md) — purpose, default, and what breaks if it is wrong.
+Wrong or missing configuration fails at startup with a message naming each
+variable; the API will not half-boot.
+
+Three things are worth knowing on day one:
+
+- **Back up `TOKEN_ENC_KEY` separately from your database dump.** It decrypts
+  the forge credentials stored in Postgres. A dump without the key is unusable;
+  the key without a dump is harmless. Losing it means every connected
+  organisation must be re-authorised.
+- **`GITHUB_APP_*` and the `OIDC_*` group can stay blank.** Each one you fill
+  in adds a way to sign in; leaving them blank leaves password accounts, which
+  is a complete configuration, not a degraded one.
+- **Remove `ADMIN_PASSWORD` after your first sign-in.** The bootstrap never
+  overwrites a password that has been changed, so the line is inert, but a
+  live credential in a file is a live credential.
 
 ## Sign in
 
-Open `PUBLIC_BASE_URL`. The sign-in screen offers exactly the doors this
-deployment configured — that is why it is worth looking at rather than
-guessing: with nothing but the two `ADMIN_*` lines you get an email and
-password form, and nothing else.
+Open the URL you gave `install.sh`. The sign-in screen offers exactly the
+doors this deployment configured: with nothing but the admin account you get an
+email and password form, and nothing else.
 
 Sign in as `ADMIN_EMAIL`. You are asked to set a new password before anything
-else is reachable, because the one in `deploy/.env` has been sitting in a file
-on disk since you typed it. Once that is done, remove `ADMIN_PASSWORD` from
-`deploy/.env`: it is inert — the bootstrap never overwrites a password that has
-been changed — but a live credential in a file is a live credential.
+else is reachable, because the one you typed has been sitting in a file on disk
+since then. You are now an administrator of a working install with no data in
+it. **Admin → Setup** lists what is outstanding: which sign-in methods are live,
+configuration problems, whether a forge is connected, whether any repositories
+are selected, and whether any webhook delivery has arrived. It reports whether
+each variable is *set*, never its value.
 
-You are now an administrator of a working install with no data in it. **Admin →
-Setup** lists what is outstanding; the forge rows on it are what stands between
-you and real numbers, not between you and a usable product.
+Add further people from **Admin → Members**. The bootstrap is idempotent on "a
+local account with a password exists", so editing `ADMIN_EMAIL` afterwards
+creates nothing.
 
 The other two doors, if you want them:
 
 - **Single sign-on (OIDC).** Set the `OIDC_*` group in `deploy/.env` and
-  restart. RepoPulse offers your IdP as a button; a half-configured group fails
-  the boot on purpose, because the alternative is discovering it at the
-  callback, after someone has already authenticated.
-- **GitHub sign-in.** Comes with registering a GitHub App, below. It lets people
-  sign in with their forge account instead of a password — and, because the
-  account then carries a forge identity, personalized screens ("my open PRs")
-  can find their work without anyone linking it by hand.
+  restart the stack. RepoPulse offers your identity provider as a button; a
+  half-configured group fails the boot on purpose, because the alternative is
+  discovering it at the callback, after someone has already authenticated. No
+  real identity provider was connected in this release's evidence; the callback
+  and the refusal are unit-tested.
+- **GitHub sign-in.** Comes with registering a GitHub App, below. It lets
+  people sign in with their forge account instead of a password, and because
+  the account then carries a forge identity, personalised screens ("my open
+  PRs") can find their work without anyone linking it by hand.
 
 ## Connect your forge
 
-RepoPulse authenticates as **your** App against **your** organisation. There is
-no shared RepoPulse App and no RepoPulse-hosted anything: your source, your
-tokens and your findings never leave your install.
+RepoPulse authenticates as **your** App or token against **your**
+organisation. There is no shared RepoPulse App and nothing hosted by us: your
+source, your tokens and your findings never leave your install.
 
 You do this from **Admin → Connections**, signed in as the administrator you
-just created.
+just created. The form takes three things: the forge kind (GitHub, GitLab or
+Gitea), a base URL for a self-hosted instance (blank for github.com), and an
+**access token**. Each connection has its own base URL, so one install can
+watch more than one forge. The token is encrypted at rest with
+`TOKEN_ENC_KEY` before it is stored, and the screen shows only its fingerprint
+afterwards.
 
-### GitHub
+A rejected credential is reported by name — `bad_token`, `bad_scope` or
+`no_repos` — so you can tell "wrong token" from "right token, wrong scopes"
+from "this account can see nothing". The recorded journey exercised the
+rejected case before the accepted one.
 
-Create an App at **Settings → Developer settings → GitHub Apps → New GitHub
-App** (an *organisation* App if the repositories belong to an org):
+In this release's evidence the whole connect-and-backfill path was run in a
+browser against a **fixture forge** that answers the real client code. The
+run against `api.github.com` is a separate credentialed test that was
+**blocked** on the evidence host for want of a token, and no real Gitea or
+GitLab instance was connected. What follows is what the code does; it has not
+been proven against your forge by us.
 
-| Field | Value |
-|---|---|
-| GitHub App name | anything; it is shown to your users when they authorise |
-| Homepage URL | your `PUBLIC_BASE_URL` |
-| Callback URL | `<API_BASE_URL>/auth/callback` |
-| Request user authorization (OAuth) during installation | ticked |
-| Webhook URL | `<PUBLIC_BASE_URL>/api/v1/webhooks/github` |
-| Webhook secret | the `WEBHOOK_SECRET` from your `.env` |
+**Read-only, every scope.** RepoPulse never writes to your repositories. It
+opens no branches, pushes no commits, comments on no pull requests, and
+**never clones** — analysis reads an API tarball into an ephemeral scratch
+directory that is deleted after the scan. If a scope with write access seems
+to be needed, something is wrong.
 
-**Repository permissions — read-only, every one of them** (C5 / SC-25):
-
-| Permission | Access | Why RepoPulse needs it |
+| Forge | Token | Scopes |
 |---|---|---|
-| Contents | Read-only | Commit history and the ephemeral tarball the scanners read |
-| Metadata | Read-only | Repository list, default branch, archived flag (mandatory on every App) |
-| Pull requests | Read-only | PR flow, review coverage, cycle time |
-| Checks | Read-only | CI pass rate and flakiness |
+| GitHub | a classic personal access token, or a fine-grained token with read access to the repositories | `repo` (read), `read:org` |
+| GitLab | a personal access token | `read_api` |
+| Gitea | **Settings → Applications → Generate New Token** | `read:repository`, `read:organization`, `read:user` |
 
-Subscribe to these events: **Push**, **Pull request**, **Pull request review**,
-**Check suite**, **Check run**.
+A self-hosted forge over plain `http://` is rejected unless it is a loopback
+address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape
+hatch, not a deployment option.
 
-RepoPulse never writes to your repositories. It opens no branches, pushes no
-commits, comments on no pull requests, and **never clones** — analysis reads an
-API tarball into an ephemeral scratch directory that is deleted after the scan.
-If you are ever asked to grant write access, something is wrong.
+### The GitHub App variables are for sign-in, not for data
 
-**The private key.** Generate one at the bottom of the App page; the browser
-downloads a `.pem` once and GitHub never shows it again. Put the file somewhere
-the containers can read it and point `GITHUB_APP_PRIVATE_KEY_PATH` at it, or
-paste its contents into `GITHUB_APP_PRIVATE_KEY`. Treat it like a password: it
-authenticates as the App to every repository the App is installed on. If it
-leaks, delete it on the App page and generate a new one — old keys keep working
-until you do.
-
-Copy the **App ID**, **Client ID** and **Client secret** into `deploy/.env`,
-then **Install App** on the organisation and choose the repositories. Filling in
-`GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` also turns on GitHub
-sign-in, which is why the button appears after this restart and not before.
-
-### Gitea
-
-Gitea has no App concept, so a token stands in for one.
-
-1. As a user with read access to the repositories you want tracked, go to
-   **Settings → Applications → Generate New Token**.
-2. Scopes: **`read:repository`**, **`read:organization`**, **`read:user`** —
-   read-only, same rule as GitHub.
-3. Set `FORGE_BASE_URL` to your Gitea base URL (`https://gitea.example.com`)
-   and paste the token when you add the connection in **Admin → Connections**.
-   The token is encrypted at rest with `TOKEN_ENC_KEY` before it is stored.
-4. Webhooks: **Repository settings → Webhooks → Add webhook → Gitea**, target
-   `<PUBLIC_BASE_URL>/api/v1/webhooks/gitea`, secret = your `WEBHOOK_SECRET`,
-   events **Push**, **Pull request**, **Pull request review**.
-
-A self-hosted Gitea over plain `http://` is rejected unless it is a loopback
-address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape hatch,
-not a deployment option.
+`GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` in `deploy/.env` add a
+**Sign in with GitHub** button; they do not connect anything. Register an App
+(or an OAuth App) under **Settings → Developer settings** with
+Callback URL `<API_BASE_URL>/auth/callback`, copy the client id and secret in,
+and restart the stack. Leave them blank and nothing is lost but the button.
+`GITHUB_APP_ID` is accepted and stored; installation-token flows are not part
+of this release, and a private key variable is read by nothing, so do not put
+one in the file.
 
 ### Connecting without the web UI
 
-**Admin → Connections** is reachable with the administrator account above, so
-this is no longer the only way to connect a forge on a fresh install. It stays
-because two things still want it: scripting an install that is built rather than
-clicked, and a bootstrap host that cannot receive webhook deliveries at all, for
-which the browser flow's webhook registration would only fail.
+For an install that is scripted rather than clicked, from a **checkout** (the
+CLI is not in the bundle):
 
 ```bash
 # --dry-run first: connects, lists what the token can see, selects nothing
 FORGE_TOKEN=<your token> pnpm connect:forge \
   --provider gitea --base-url https://git.example.com --dry-run
 
-# then select everything it found, or name repositories explicitly
+# then select everything it found, or name repositories with --repos
 FORGE_TOKEN=<your token> pnpm connect:forge \
   --provider gitea --base-url https://git.example.com --all
 ```
@@ -215,39 +252,46 @@ FORGE_TOKEN=<your token> pnpm connect:forge \
 **The token is read from the environment, never from an argument** — an
 argument is visible in your shell history and in `ps` output for every user on
 the machine. It is encrypted with `TOKEN_ENC_KEY` through the same code path the
-API uses, and the command prints its fingerprint, never the token.
-
-A rejected credential is reported by name — `bad_token`, `bad_scope` or
-`no_repos` — rather than as a stack trace, so you can tell "wrong token" from
-"right token, wrong scopes" from "this account can see nothing".
-
-Backfill is enqueued for each selected repository; the worker drains it.
-Webhook registration is skipped in this path and the nightly reconcile covers
-the gap.
+API uses, and the command prints its fingerprint, never the token. A rejected
+credential is reported by name — `bad_token`, `bad_scope` or `no_repos` —
+rather than as a stack trace. Backfill is enqueued for each selected
+repository; the worker drains it. Webhook registration is skipped in this path
+and the nightly reconcile covers the gap.
 
 ## Select repositories
 
-In **Admin → Connections**, connect the organisation your App is installed on.
-Then choose which repositories to track — nothing is ingested until you do.
-Backfill starts immediately; the Org Overview shows per-repo progress while it
-runs and fills in as history lands.
-
-**Admin → Setup** lists what is still outstanding: which sign-in methods are
-live, configuration problems, whether a forge is connected, whether any
-repositories are selected, and whether any webhook delivery has arrived yet. It
-reports whether each variable is *set*, never its value.
+In **Admin → Connections**, connect the organisation, then choose which
+repositories to track — nothing is ingested until you do. Backfill starts
+immediately; **Admin → Sync** shows per-repository progress while it runs, and
+the screens fill in as history lands. In the recorded journey three
+repositories went from selected to `live` and every screen showed that run's
+data.
 
 ### Webhooks
 
-Webhook deliveries are how RepoPulse notices a push without polling. Until your
-first push after connecting, "no delivery yet" is expected — it is not evidence
-the webhook is wrong, and not evidence it is right. After a push, the setup
-screen shows the timestamp of the most recent delivery. If nothing arrives:
+Webhook deliveries are how RepoPulse notices a push without polling. Until
+your first push after connecting, "no delivery yet" is expected — it is not
+evidence the webhook is wrong, and not evidence it is right. After a push,
+**Admin → Setup** shows the timestamp of the most recent delivery. If nothing
+arrives:
 
 - your forge must be able to reach `PUBLIC_BASE_URL` (a private install behind
-  a firewall cannot receive them; ingestion still works on the reconcile cron),
-- the webhook secret must match `WEBHOOK_SECRET` exactly,
-- deliveries with a bad signature are rejected and logged, not silently dropped.
+  a firewall cannot receive them; ingestion still works on the nightly
+  reconcile),
+- the token must be allowed to manage hooks on the repository, or the
+  registration is skipped and recorded,
+- deliveries with a bad signature are rejected with 401 and logged, not
+  silently dropped.
+
+You do not configure the webhook by hand. When you connect, RepoPulse
+registers a hook on each selected repository with a secret it generates for
+that connection and stores encrypted; the receiver is
+`<PUBLIC_BASE_URL>/api/v1/webhooks/github`, and it verifies GitHub's signature
+format. The `WEBHOOK_SECRET` line that `install.sh` writes into `deploy/.env`
+is not read by this release and can be ignored. RepoPulse asks Gitea and
+GitLab to register a hook too, but their deliveries were not exercised in this
+release's evidence; treat the nightly reconcile as the freshness mechanism for
+those forges.
 
 ## Scan data
 
@@ -261,102 +305,103 @@ Run it once now, then nightly:
 
 ```bash
 deploy/scan-db-sync.sh
-# then, in root's crontab:
+# then, in root's crontab (adjust the path to your bundle directory):
 0 3 * * * /opt/repopulse/deploy/scan-db-sync.sh >> /var/log/repopulse-scan-sync.log 2>&1
 ```
 
-> **Provision 5 GB of disk under `SCAN_RULES_DIR`.** The vulnerability database
-> is **~1.9 GiB**, and a refresh stages the new copy beside the live one before
-> swapping them by rename, so a sync briefly holds two — which a 4 GB volume
-> cannot do. The first run downloads all of it and takes a minute or two on a
-> fast connection. The script checks free space first and refuses to start if
-> there is not enough, rather than filling the disk your database is on at three
-> in the morning.
+> **Provision 5 GB of disk under the scan-data directory** (`deploy/scan-rules`
+> beside the compose file unless you set `SCAN_RULES_DIR`). The vulnerability
+> database is **about 1.9 GiB**, and a refresh stages the new copy beside the
+> live one before swapping them by rename, so a sync briefly holds two — which
+> a 4 GB volume cannot do. The script checks free space first and refuses to
+> start if there is not enough, rather than filling the disk your database is
+> on at three in the morning.
 
 The database is downloaded from Anchore by *your* install rather than shipped
 inside our image, because it aggregates 26 upstream feeds (NVD, GitHub
 Advisories, CISA KEV, EPSS, and the distributions) that are each licensed on
-their own terms and are not ours to redistribute. You get CISA KEV and EPSS
-scores as part of it — no extra feed, no API key, no account.
-
-The host doing the sync needs outbound HTTPS to `grype.anchore.io`. It does
-**not** need any scanner installed: the fetch runs inside the RepoPulse scan
-image using the same pinned binary that will later read the database, so the
-two can never disagree about its format. If your egress is filtered, that one
-hostname is the only thing to allow — and it is allowed for the *host*, never
-for the scan container.
+their own terms and are not ours to redistribute. The host doing the sync needs
+outbound HTTPS to `grype.anchore.io` and nothing else; it does **not** need any
+scanner installed, because the fetch runs inside the RepoPulse scan image using
+the same pinned binary that will later read the database.
 
 **If you skip this step**, dependency scanning does not fail — it reports
-nothing. A repository with no findings then looks exactly like a repository
-that is clean, which is the one failure mode worth going out of your way to
-avoid. `SCAN_SYNC_VULN_DB=0` turns the download off deliberately; the script
-says so on every run when it is set.
+itself unavailable on the repository's Security tab, naming this script. That
+is deliberate: a repository with no findings must not look like a repository
+that is clean. `SCAN_SYNC_VULN_DB=0` turns the download off knowingly; the
+script says so on every run when it is set.
 
 Check what the scanners can currently see:
 
 ```bash
-ls "$SCAN_RULES_DIR"                 # expect: rulepacks  rulepacks.sha256  vuln-db
-podman run --rm --network=none -v "$SCAN_RULES_DIR/vuln-db:/vuln-db:ro" \
-  localhost/repopulse/scan:dev grype db status
+ls deploy/scan-rules                 # expect: rulepacks  rulepacks.sha256  vuln-db
 ```
 
-`Status: valid` with a `Built:` timestamp from your last sync means the offline
-database is readable exactly as the scanner will read it. A build date that
-stops moving means your cron entry is not running — and stale vulnerability
-data is quietly wrong rather than loudly broken, so it is worth an alert.
+In the recorded journey the CVE scanner first reported `no vulnerability
+database ... run deploy/scan-db-sync.sh`, and after the database was attached
+it ran and reported its tool versions. A build date that stops moving means
+your cron entry is not running — and stale vulnerability data is quietly wrong
+rather than loudly broken, so it is worth an alert.
 
-## Upgrading
+## Put TLS in front
 
-```bash
-git pull                                          # or pull new image tags
-podman compose -f deploy/compose.yaml down
-podman compose -f deploy/compose.yaml up -d --build
-```
+RepoPulse publishes one plain-HTTP port. Your terminator should:
 
-Migrations run as a one-shot job before the API restarts.
+- forward `/` to that port, including `/api/` and the server-sent events stream
+  at `/api/v1/events` (buffering off, long read timeout);
+- expose `POST /api/v1/webhooks/github` on the public vhost if your forge is on
+  the internet, and everything else only where your users are — the webhook
+  handler authenticates every delivery by signature and does nothing but verify
+  and enqueue, so the worst case for an attacker is a rejected 401;
+- set `REPOPULSE_BIND=0.0.0.0` in `deploy/.env` only once that is in place, and
+  `NODE_ENV=production` (the default the scripts write) so session cookies carry
+  the Secure flag.
 
-> **`up -d --build` alone is not enough.** Verified on Podman: it rebuilds the
-> images and re-runs migrations, but leaves the already-running containers
-> untouched — so the upgrade *appears* to succeed while every service keeps
-> executing the old code. `down` first (or pass `--force-recreate`). Confirm
-> afterwards with `podman ps`: the containers should show an uptime of seconds,
-> not the age of your previous deployment.
-
-## Backing up
-
-```bash
-podman exec repopulse_postgres_1 pg_dump -U repopulse repopulse > repopulse-$(date +%F).sql
-```
-
-Store `TOKEN_ENC_KEY` somewhere else. A dump plus that key is a complete restore.
+[DEPLOYMENT.md](DEPLOYMENT.md) has the topology, ports and monitoring detail.
 
 ## Troubleshooting
+
+**`CHECKSUM MISMATCH`** — the tarball was truncated or altered in transit.
+Re-copy it and check `.tar.gz.sha256` before extracting. Nothing was loaded.
+
+**`IMAGES NOT LOADED`** from `up.sh` — `deploy/.env` pins a version whose
+images are not present. Run `./install.sh` again; it reloads them
+idempotently. Nothing was started.
+
+**`STACK IS NOT HEALTHY`** — `up.sh` names the services that did not come up
+and prints the `logs` command. `scan-runner` not running on Linux almost
+always means the Podman API socket is not enabled:
+`systemctl --user enable --now podman.socket`.
+
+**`DATABASE MIGRATION FAILED`** — the schema was not applied and the
+application containers were stopped on purpose. The log command it prints has
+the reason. The common one on a reused host is a `repopulse_pgdata` volume left
+by an earlier install under a different password: `up.sh` says so, and the two
+ways out are restoring the matching `deploy/.env` or removing the volume
+knowingly.
 
 **Everything is stuck in `Created`.** Something with a health check is not
 healthy yet — usually Postgres or Redis. `podman ps -a` shows which;
 `podman logs <container>` says why.
 
-**`redis ... exited (127)` with a `setpriv` error.** The Redis container needs to
-run as the `redis` user; the shipped compose already sets this. If you have
-edited it, do not drop `CAP_SETUID`/`CAP_SETGID` without also setting
-`user: redis`.
-
-**nginx exits with `host not found in upstream`.** The web container resolves the
-API address at startup. It defaults to the `api` service; if you run the API
-elsewhere, set `API_UPSTREAM` to its address.
-
 **The sign-in screen offers no password form.** It should always offer one, so
 this means the browser could not read the API's list of providers — check that
-the web container is reaching the API (`API_UPSTREAM`) before looking at
-anything to do with authentication.
+the web container is reaching the API before looking at anything to do with
+authentication. If you restarted only the `api` container, restart the whole
+stack: `web` resolves the API address once at startup.
 
-**"Invalid email or password" for `ADMIN_EMAIL`.** The account is created on the
-API's first boot, so it does not exist if that boot failed or if a local account
-with a password already existed when you added the variables. `podman logs` on
-the api container prints the bootstrap outcome on every start. Setting
-`ADMIN_EMAIL` to a second address later does *not* create a second admin.
+**"Invalid email or password" for `ADMIN_EMAIL`.** The account is created on
+the API's first boot, so it does not exist if that boot failed or if a local
+account with a password already existed when you added the variables. The API
+log prints the bootstrap outcome on every start. Setting `ADMIN_EMAIL` to a
+second address later does *not* create a second admin.
 
 **GitHub sign-in redirects then fails.** The Callback URL on your GitHub App
 must match `<API_BASE_URL>/auth/callback` exactly, including scheme and port.
 Password and OIDC sign-in are unaffected, so this is not a reason to be locked
 out — sign in with your administrator account and fix the App.
+
+**Scans report "unavailable".** The `scan-runner` service cannot reach the
+runtime socket, or the scan image is missing; `podman logs` on it says which.
+A scanner that reads **"(not in this build)"** is a different thing: there is
+no code for it in this release, and no tool you can install will change that.

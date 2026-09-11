@@ -8050,10 +8050,11 @@
         "No registry or download link is presented as live before publication"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-33 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Explicitly state that runtime APM, coverage ingestion and other unshipped capabilities are absent. Relabel internal-only hostnames and stale paths."
+        "Explicitly state that runtime APM, coverage ingestion and other unshipped capabilities are absent. Relabel internal-only hostnames and stale paths.",
+        "Closed 2026-09-11: README, INSTALL, RUNNING, DEPLOYMENT, RUNBOOK rewritten from the W17-28/29/30/32 evidence; CONFIG.md regenerated with no drift. Acceptance 1 proven by following the README from an extracted bundle into a disposable project (evidence w17-33-readme-install-20260911.md): install exit 0, /healthz 200, bootstrap login 200 must_change_password. Capability matrix in README with configuration / evidence type / status / limits; runtime APM, coverage ingestion, IaC and the rest of NON_GOALS §D15 read as absent. Corrections found while grounding the docs: connections take a personal access token (the form), not a GitHub App; GITHUB_APP_PRIVATE_KEY and WEBHOOK_SECRET are written by configure.mjs but read by nothing (webhook secrets are per-connection) — documented as inert, the template fix is outside this write_scope. bpmforge/ThreatForge hostnames, compose.prod.yml, quadlet, restore-drill.sh and GITHUB_PAT removed. Docker and amd64 stated untested throughout."
       ]
     },
     {
