@@ -294,6 +294,19 @@ export interface GatewayResolverOptions {
    * file-editing-and-restarting the whole feature exists to remove.
    */
   ttlMs?: number;
+  /**
+   * How long an ABSENT gateway (null) is reused, in ms. Shorter than ttlMs on
+   * purpose.
+   *
+   * The W17-30 journey found the case: the worker boots, caches "no provider"
+   * for the default workspace, the operator adds a model in Admin → Models
+   * and runs a scan — and for the rest of the minute the row reads "No model
+   * is configured … add one in Admin → Models", which they just did. A built
+   * gateway is expensive to rebuild (a decrypt, every row resolved); a null is
+   * one SELECT, so it can be re-asked within seconds while a sweep over forty
+   * repos still shares the answer.
+   */
+  absentTtlMs?: number;
   now?: () => number;
 }
 
@@ -304,16 +317,17 @@ export function createGatewayResolver(
   options: GatewayResolverOptions = {},
 ): GatewayResolver {
   const ttlMs = options.ttlMs ?? 60_000;
+  const absentTtlMs = options.absentTtlMs ?? Math.min(ttlMs, 5_000);
   const now = options.now ?? (() => Date.now());
   const cache = new Map<number, { at: number; built: WorkerGateway | null }>();
 
   return {
     async for(workspaceId: number): Promise<WorkerGateway | null> {
       const hit = cache.get(workspaceId);
-      // A cached NULL counts. A workspace with no provider is a settled answer,
-      // not a miss — re-deriving it on every scan would query the table for
-      // every repo in the sweep to reach the same nothing.
-      if (hit && now() - hit.at < ttlMs) return hit.built;
+      // A cached NULL counts, but for less long. A workspace with no provider
+      // is a settled answer inside one sweep; across a minute it is the answer
+      // an admin is in the middle of changing.
+      if (hit && now() - hit.at < (hit.built ? ttlMs : absentTtlMs)) return hit.built;
 
       const built = await buildWorkerGateway(db, env, tokenKey, workspaceId);
       cache.set(workspaceId, { at: now(), built });

@@ -1,0 +1,12 @@
+{
+  "ticket": "W17-30",
+  "tip": "6ea12db",
+  "dirty_paths_at_run": 14,
+  "started_at": "2026-09-11T03:11:21Z",
+  "finished_at": "2026-09-11T03:20:52Z",
+  "exit_code": 0,
+  "stack": "deploy/compose.demo.yaml + deploy/compose.journey.yaml",
+  "runtime": "podman",
+  "url": "http://localhost:8090",
+  "scan_rules_dir": "/Users/bmatthews/code/repopulse/deploy/journey/.rules"
+}

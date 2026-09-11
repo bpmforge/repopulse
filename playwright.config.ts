@@ -35,7 +35,10 @@ export default defineConfig({
   // with no storageState. Run here it finds the e2e stack instead — no demo
   // banner, no pre-filled credentials — and fails for reasons that say nothing
   // about the demo. testDir alone does not exclude a subdirectory.
-  testIgnore: ['demo/**'],
+  // e2e/journey/ belongs to playwright.journey.config.ts (W17-30): it drives
+  // the packaged demo stack on its own port and signs in as the bootstrap
+  // admin. Same reasoning — run here it would find the wrong stack.
+  testIgnore: ['demo/**', 'journey/**'],
   globalSetup: './e2e/global-setup.ts',
   timeout: 30_000,
   fullyParallel: false,

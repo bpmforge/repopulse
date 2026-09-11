@@ -163,9 +163,7 @@ export default async function runRoutes(
       );
 
       const requested = request.body?.scanner_key;
-      const keys = requested
-        ? enabledKeys.filter((key) => key === requested)
-        : enabledKeys;
+      const keys = requested ? enabledKeys.filter((key) => key === requested) : enabledKeys;
 
       if (keys.length === 0) {
         return fail(
@@ -204,9 +202,22 @@ export default async function runRoutes(
         // so there is nothing in the return value to tell the two apart. The
         // first version of this tried and reported every second press as a
         // fresh start, which is the exact lie the response exists to avoid.
-        if (await queue.getJob(jobId)) {
-          alreadyRunning.push(key);
-          continue;
+        const taken = await queue.getJob(jobId);
+        if (taken) {
+          // "Already running" has to mean RUNNING. A job that finished inside
+          // the window still holds its id (BullMQ keeps completed and failed
+          // records), and the W17-30 journey found what that does: the CVE
+          // scan fails in 30 ms for want of a database, the operator runs
+          // scan-db-sync and presses again, and for the rest of five minutes
+          // the answer is "already running" about a job that is over. The
+          // window is for double-presses, not for punishing the fix.
+          const state = await taken.getState();
+          if (state === 'completed' || state === 'failed') {
+            await taken.remove();
+          } else {
+            alreadyRunning.push(key);
+            continue;
+          }
         }
 
         await queue.add(

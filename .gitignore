@@ -23,3 +23,6 @@ deploy/.env
 # must never be committed.
 .data/
 **/.data/
+
+# The journey run stages its own scan-rules directory here (deploy/journey.sh).
+deploy/journey/.rules/

@@ -7932,7 +7932,13 @@
       "stories": [],
       "write_scope": [
         "e2e/**",
-        "deploy/**"
+        "deploy/**",
+        "playwright.journey.config.ts",
+        "playwright.config.ts",
+        "apps/api/src/routes/runs/index.ts",
+        "apps/api/src/routes/runs/index.test.ts",
+        "apps/api/src/workers/gateway.ts",
+        "apps/api/src/workers/gateway.providers.test.ts"
       ],
       "depends_on": [
         "W17-09",
@@ -7958,10 +7964,11 @@
         "Automated fixture evidence and authorized real-integration evidence are both recorded, and neither substitutes for the other"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-30 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Reconciles W11-05, which stays blocked until this passes. If real-forge credentials are unavailable that part stays explicitly BLOCKED; production data is never the default."
+        "Reconciles W11-05, which stays blocked until this passes. If real-forge credentials are unavailable that part stays explicitly BLOCKED; production data is never the default.",
+        "DONE 2026-09-11 (podman, linux/arm64): fixture half PASS, 13 of 13 steps in 9.5 min from a reset demo stack — evidence in docs/work/product-completion/evidence/w17-30-journey-20260911.md. Real-forge half BLOCKED: no SMOKE_FORGE_PAT on this host; W11-05 stays blocked. write_scope widened (W17-29 precedent) to the two api fixes the journey found: runs route dedupe treated a finished job as running; gateway resolver cached an absent provider for 60 s. Residual: a recovered owasp_web re-run reads all_rejected when its one proposal is deduplicated against the open finding (created 0 / rejected 0)."
       ]
     },
     {
