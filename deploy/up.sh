@@ -305,11 +305,19 @@ if the old data is not wanted, remove it and start again:
     $RT volume rm ${REPOPULSE_PROJECT}_pgdata ${REPOPULSE_PROJECT}_redisdata   # DESTROYS that data
 "
     fi
+    # STOP THE APP TIER OURSELVES (W17-29). docker compose holds api and worker
+    # back when a `service_completed_successfully` dependency fails;
+    # podman-compose 1.6 does not — measured in the W17-29 drill, api and
+    # worker were running against the un-migrated schema while this message
+    # said nothing had been started. The promise below is now kept by hand,
+    # on both providers.
+    "${COMPOSE[@]}" -p "$REPOPULSE_PROJECT" -f compose.yaml stop web api worker scan-runner >/dev/null 2>&1 || true
     die "DATABASE MIGRATION FAILED (exit ${m_code:-unknown}).
 
-The stack is not usable: the schema was not applied. Nothing else was started
-against it on purpose, because an API serving a half-migrated database is worse
-than an API that is down.
+The stack is not usable: the schema was not applied. api, worker and web have
+been stopped on purpose, because an API serving a half-migrated database is
+worse than an API that is down. Postgres and Redis are still running; your
+data is as it was (migrations apply in one transaction).
 $hint
 Logs:
     $RT logs $migrate_id"

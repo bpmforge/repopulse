@@ -39,6 +39,19 @@ The script refuses to report success on a dump that ended early: it checks for
 the `PostgreSQL database dump complete` trailer. A truncated dump is still a
 file, and the moment you find out otherwise should not be the restore.
 
+It writes two files: `repopulse-<timestamp>.sql` and, beside it,
+`repopulse-<timestamp>.sql.manifest` — the dump's sha256, the row counts of
+`workspaces`, `repos`, `forge_connections` and `pull_requests` at the moment
+of the dump, the number of applied migrations, and a **fingerprint** of
+`TOKEN_ENC_KEY` (the first 16 hex characters of its sha256). The fingerprint
+identifies the key; it cannot reproduce it, so the manifest is safe to keep
+with the dump. It is what lets `restore.sh` refuse a wrong key *before* it
+drops anything. The script also refuses to run at all if `.env` holds no key
+or a malformed one: a dump taken then is a dump no key will ever open.
+
+Backing up is non-destructive, so the project defaults to the live install
+(`repopulse`); `--project=<name>` backs up another one.
+
 Nightly, from cron:
 
 ```
@@ -47,23 +60,30 @@ Nightly, from cron:
 
 ### Verify a backup (do this occasionally, not never)
 
-Restore it into a scratch container that touches nothing of your install:
+Restore it into a **second, disposable compose project** — a whole stack on
+another port and another set of volumes, sharing nothing with your install
+but the images and your `.env`:
 
 ```sh
-podman run -d --name rp-verify -p 55433:5432 \
-  -e POSTGRES_USER=repopulse -e POSTGRES_DB=repopulse -e POSTGRES_PASSWORD=scratch \
-  docker.io/library/postgres:16
-
-podman exec -i -e PGPASSWORD=scratch rp-verify \
-  psql -U repopulse -d repopulse -v ON_ERROR_STOP=1 --quiet < repopulse-<timestamp>.sql
-
-podman exec -e PGPASSWORD=scratch rp-verify psql -U repopulse -d repopulse -tAc \
-  "select (select count(*) from repos), (select count(*) from workspaces)"
-
-podman rm -f rp-verify
+cd /path/to/repopulse
+REPOPULSE_PROJECT=rp-verify REPOPULSE_PORT=8199 ./deploy/up.sh
+./deploy/restore.sh --project=rp-verify --yes /backups/repopulse-<timestamp>.sql
+#   ... rows before / rows after / "forge credentials: N of N decrypt" / All services running
+curl -fs http://127.0.0.1:8199/healthz
+podman compose -p rp-verify -f deploy/compose.yaml down -v      # -v: its volumes go too
 ```
 
-An untested backup is a hypothesis.
+That exercises everything a real restore does — including that every stored
+forge credential decrypts with the key in your `.env` — and if the numbers
+under `rows after` are not the numbers you expect, you have learned it on a
+Tuesday afternoon and not during the outage. An untested backup is a
+hypothesis.
+
+To check only the key against a running project, without restoring:
+
+```sh
+./deploy/restore.sh --project=repopulse --verify-only
+```
 
 ---
 
@@ -91,6 +111,29 @@ Migrations run as a one-shot job that the API waits on, so the API never starts
 against a schema it does not understand. Running `up` again later is a no-op:
 the migration ledger is in the database.
 
+**If a migration fails, the upgrade stops there** — proven by shipping a
+deliberately broken migration through `up.sh` (W17-29): it exits non-zero with
+`DATABASE MIGRATION FAILED`, api, worker and web are stopped, the ledger count
+is unchanged and the failed migration's partial work is rolled back (drizzle
+applies pending migrations in one transaction). Your data is as it was.
+Postgres and Redis keep running. Fix the cause (or roll back, below), remove
+the failed one-shot so the next `up` is not judged on it, and run `up.sh`
+again:
+
+```sh
+podman logs $(podman ps -a --filter label=com.docker.compose.service=migrate -q | head -1)
+podman rm -f $(podman ps -a --filter label=com.docker.compose.service=migrate -q)
+./deploy/up.sh
+```
+
+(`up.sh` stops the app tier itself on a failed migration because podman-compose
+1.6 starts api and worker regardless of `service_completed_successfully`;
+docker compose honours it. Measured, W17-29.)
+
+**Migrations are forward-only.** There is no down-migration and this runbook
+will not pretend one is safe: rolling back is restoring the pre-upgrade dump
+(next section), which is why step 1 above is not optional.
+
 **Check you are actually running the new code**, because the failure mode above
 is silent:
 
@@ -106,12 +149,17 @@ For when an upgrade is wrong and you want the previous version back.
 
 ```sh
 podman compose -f deploy/compose.yaml down
-# put the previous image tag back — edit REPOPULSE_VERSION in deploy/.env
-./deploy/restore.sh --no-migrate repopulse-<pre-upgrade>.sql
+# put the previous image tag back — edit REPOPULSE_VERSION (and SCAN_IMAGE) in deploy/.env
+podman compose -f deploy/compose.yaml up -d postgres redis      # the data tier only
+./deploy/restore.sh --project=repopulse --production --no-migrate repopulse-<pre-upgrade>.sql
 ```
 
-Two things in that command are load-bearing, and both were found by running it:
+Three things in that command are load-bearing, and all were found by running it:
 
+- **`--project=repopulse --production`.** The restore drops every schema in
+  the database it is pointed at, so it never assumes which one. `repopulse`
+  is the live install's compose project and is refused unless you add
+  `--production`; any other name is a disposable copy (see *Verify a backup*).
 - **`--no-migrate`.** Restoring an older dump and then migrating forward
   re-applies exactly the migrations you are rolling back from: you end up at
   the new schema with the old data in it. The flag skips them, and it also
@@ -141,19 +189,50 @@ podman tag repopulse/api:dev repopulse/api:$(date +%F)
 Same-version restore into a working stack:
 
 ```sh
-./deploy/restore.sh repopulse-<timestamp>.sql
+./deploy/restore.sh --project=repopulse --production repopulse-<timestamp>.sql
 ```
 
 It stops the app containers, drops and reloads the schemas, runs migrations —
-so a dump from an older version is brought forward — and starts everything
-again. `TOKEN_ENC_KEY` must be the one that was in use when the dump was taken;
-the script refuses to run if it is unset, because the alternative is a
-successful restore whose every forge connection then fails to decrypt.
+so a dump from an older version is brought forward — checks what it loaded,
+and starts everything again through `up.sh`. On the way it prints `rows
+before:` and `rows after:` (the four tables the manifest records) so the
+outcome is on record, and it will not report success unless:
+
+1. the dump matches the sha256 in its manifest (a truncated or edited dump is
+   refused before anything is dropped);
+2. `TOKEN_ENC_KEY` in `.env` has the fingerprint the manifest recorded (a
+   different key is refused before anything is dropped);
+3. after loading, **every stored forge credential decrypts** — checked inside
+   the api image with the product's own vault code, not a copy of it. If any
+   fails, the restore exits non-zero with `RESTORE INCOMPLETE`, the app
+   containers stay down, and the fix is to put the right key in `.env` and run
+   `./deploy/restore.sh --project=repopulse --verify-only`.
+
+The key must be the one in use when the dump was taken. An unset or malformed
+key is refused outright, because the alternative is a successful-looking
+restore whose every forge connection then fails to decrypt. Neither the key
+nor any decrypted value is ever printed. A dump from before the manifest
+existed still restores; check 3 is then the only guard, and it still fails
+the restore rather than passing it.
 
 After a restore, check two things:
 
 1. your repository list is back, and
-2. a forge sync still works — which is the test of whether the key matched.
+2. a forge sync still works — which is the end-to-end test of the key.
+
+### The drill (how the above was proven)
+
+`scripts/drill-backup-restore.sh` (repository checkout, podman or docker,
+images already built) runs the whole story against two disposable projects it
+creates and destroys: seed a marker row and a forge credential → backup →
+refusals (no target, live target) → restore into the other project → row
+counts equal, credential decrypts → wrong key refused by manifest; wrong key
+with no manifest loads, fails the decrypt check, exits non-zero, app not
+started; missing key refused → a deliberately broken migration halts `up.sh`
+with data and ledger untouched → recovery → stopped services recover → the
+upgrade sequence → the key value is absent from the entire log. It refuses to
+run against the project named `repopulse`. The record of the last run is in
+`docs/work/product-completion/evidence/`.
 
 ---
 
@@ -177,6 +256,33 @@ that path started five of six services and still exited 0 (W16-04).
 shipped compose file (the scratch tmpfs uses the short form, which both runtimes
 pass through verbatim). If you have edited it into the long `type: tmpfs` form,
 podman-compose renders `mode: 0700` as `mode=448` and crun rejects the mount.
+
+**A restarted api is invisible to web until web is recreated.** nginx resolves
+the `api` upstream once, at startup. Restart (or crash-and-restart) the api
+container alone and it gets a new address; `/healthz` and every API call
+through the published port then hang until web is recreated — while `podman ps`
+and `up.sh` both say every service is running. Measured in the W17-29 drill:
+`compose stop api; up.sh` → `All services running`, `/healthz` timed out;
+`down` + `up.sh` → 200. So **restart the stack, not one service**: `podman
+compose -f deploy/compose.yaml down && ./deploy/up.sh` (about 8 seconds on a
+warm image cache). Making web re-resolve is a change to the web image, not to
+this runbook.
+
+**The runtime does not restart a crashed container for you.** `restart:
+unless-stopped` is in the compose file, but on rootless podman (podman machine,
+5.8) a worker killed with SIGKILL stayed dead for the 60 seconds the drill
+watched it. `up.sh` brought it back. Do not rely on the restart policy for
+recovery; rely on `up.sh` (and see the previous item about web).
+
+**`podman compose rm` does not exist.** podman-compose 1.6 has no `rm`
+subcommand, and the W11-03 restore script's `compose rm -sf ... || true` had
+been silently doing nothing under podman since it was written — the restore
+loaded underneath a running api and worker. The scripts now `stop` and then
+remove containers through the runtime by their compose labels; if you script
+against this stack yourself, do the same (`podman ps -a --filter
+label=com.docker.compose.service=<svc> -q | xargs podman rm -f`). Remove web
+before api and api/worker before migrate: podman turns `depends_on` into a
+container requirement and refuses the other order.
 
 **Migration output looks alarming and is not.** The migrate job prints Postgres
 NOTICE objects — `schema "drizzle" already exists, skipping`. They are notices,

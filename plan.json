@@ -7916,10 +7916,12 @@
         "The script refuses an unspecified or production target by default"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
         "Handoff task RP-29 — IMPLEMENTATION-PLAN.md §5. That document holds the full steps; this ticket is the board's index into it and does not restate them.",
-        "Restore into a DIFFERENT disposable compose project. Never print or commit the encryption key. Never promise a destructive down-migration is safe."
+        "Restore into a DIFFERENT disposable compose project. Never print or commit the encryption key. Never promise a destructive down-migration is safe.",
+        "HANDOFF: write_scope widened to deploy/up.sh (one change: on a failed migration it now stops web/api/worker/scan-runner itself, because podman-compose 1.6 does not honour service_completed_successfully — measured, api and worker were running against the un-migrated schema while the message said nothing had been started) and apps/api/test/ops/deploy-restore.test.ts (new, 15 tests; the W17-05/W17-28 precedent for deploy/** tickets carrying their tests there), plus docs/work/product-completion/evidence/ for the drill record.",
+        "Closed 2026-09-10 (podman, linux/arm64; docker untested, none on host): scripts/drill-backup-restore.sh — two disposable compose projects, seed marker + a credential encrypted in-image with the real vault, backup with manifest (sha256, row counts, migration count, key FINGERPRINT), restore into the OTHER project: rows identical before/after, credential decrypts (checked inside the api image by packages/auth, never a shell copy), /healthz 200; --no-migrate rollback shape; wrong key refused pre-load by manifest, wrong key without manifest loads then 0 of 1 decrypt → RESTORE INCOMPLETE exit 1 app not started, missing key refused; broken migration through up.sh → MIGRATION FAILED, api/worker stopped, ledger 29→29, rollback of the partial table, data intact, recovery; stopped services via up.sh; upgrade sequence 10s; key + plaintext absent from the whole log. 44 checks. The drill found that the W11-03 restore.sh never stopped anything under podman (podman-compose has no rm subcommand, hidden by || true) and had no -p (stopped the LIVE project when PROJECT=other) — both fixed; and that a restarted api is invisible to web (nginx resolves once) — documented, remedy is down + up.sh, web-image fix is a FOLLOW-UP. restore.sh now refuses an unspecified target and --project=repopulse without --production. Evidence: docs/work/product-completion/evidence/w17-29-backup-restore-drill-20260910.{md,log}."
       ]
     },
     {
