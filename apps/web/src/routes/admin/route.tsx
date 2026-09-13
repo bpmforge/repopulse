@@ -65,7 +65,7 @@ function AdminLayout() {
           overflow the ticket forbids. `shrink-0` + nowrap keeps each tab
           readable; `overflow-x-auto` keeps the overflow inside the strip. */}
       <nav
-        className="flex gap-1 overflow-x-auto border-b border-border"
+        className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
         aria-label="Admin sections"
       >
         {TABS.map((tab) => (
@@ -75,7 +75,7 @@ function AdminLayout() {
             search={preserved as never}
             activeOptions={{ exact: tab.exact ?? false }}
             activeProps={{ 'data-active': 'true' }}
-            className="shrink-0 whitespace-nowrap rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid={`admin-tab-${tab.label.toLowerCase()}`}
           >
             {tab.label}

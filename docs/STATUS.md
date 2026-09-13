@@ -3968,3 +3968,9 @@ the fix is a one-line UPDATE renaming the key.
   files) · contrast.test 44/44 · `pnpm e2e` 153 passed / 0 failed / 1 skipped
   (the 390px@200% test.fail residual R-06 unchanged). HOLD can be re-evaluated:
   the two blockers are green; R-01..R-14 residuals still travel with any GO.
+- 2026-09-13 visual refresh merged to codex/repopulse-product-completion (ff) and pushed both
+  remotes. Second pass (feat/visual-refresh-2): repo/admin tab strips (pill hover, teal
+  underline on the active tab, repo title 24px), DataTable (13px header, softer row rules,
+  rounded load-more), sign-in screen (hero glow behind the card, 40px inputs on the page
+  ground, filled primary button). Gate: lint 0 · typecheck 0 · web vitest 530/530 ·
+  `pnpm e2e` 153 passed / 0 failed / 1 skipped.

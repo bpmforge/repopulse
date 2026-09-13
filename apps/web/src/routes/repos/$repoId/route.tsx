@@ -102,7 +102,7 @@ function RepoLayout() {
     // at 390px the unscrollable strip pushed <main> 292px wide of the viewport
     // on every repository tab. Same fix as the Settings strip.
     <nav
-      className="flex gap-1 overflow-x-auto border-b border-border"
+      className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
       data-testid="repo-tabs"
       aria-label="Repository sections"
     >
@@ -114,7 +114,7 @@ function RepoLayout() {
           search={preserved as never}
           activeOptions={{ exact: tab.exact ?? false }}
           activeProps={{ 'data-active': 'true' }}
-          className="shrink-0 whitespace-nowrap rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid={`repo-tab-${tab.label.toLowerCase().replace(/\s/g, '-')}`}
         >
           {tab.label}
@@ -148,7 +148,7 @@ function RepoLayout() {
     return (
       <div className="flex flex-col gap-4" data-testid="repo-detail">
         <header className="flex flex-wrap items-center gap-3">
-          <h1 className="text-lg font-semibold" data-testid="repo-name">
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="repo-name">
             {repoId}
           </h1>
         </header>
@@ -205,7 +205,7 @@ function RepoLayout() {
   return (
     <div className="flex flex-col gap-4" data-testid="repo-detail">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold" data-testid="repo-name">
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="repo-name">
           {fresh ? `${fresh.org}/${fresh.name}` : 'Loading…'}
         </h1>
         <div className="flex flex-wrap items-center gap-4">
