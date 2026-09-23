@@ -169,7 +169,7 @@ SQL
 PLAINTEXT="drill-token-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 # The token goes in through the environment (never argv, never the log) and is
 # encrypted by packages/auth's own encryptCredential inside the api image.
-(cd "$SRC_DIR" && SCAN_RULES_DIR="$SRC_DIR/scan-rules" "$RUNTIME" compose -p "$SRC" -f compose.yaml \
+(cd "$SRC_DIR" && SCAN_RULES_DIR="$SRC_DIR/scan-rules" EXTRA_CA_DIR="$SRC_DIR/ca" "$RUNTIME" compose -p "$SRC" -f compose.yaml \
   run --rm --no-deps -T -e DRILL_TOKEN="$PLAINTEXT" api sh -c 'cd /app/apps/api && exec tsx -' <<'TS'
 import { credentials } from '@repopulse/auth';
 import { createDb } from '@repopulse/shared';

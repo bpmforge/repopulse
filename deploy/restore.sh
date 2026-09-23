@@ -161,6 +161,14 @@ DEPLOY_DIR="$(cd "$(dirname "$COMPOSE_FILE")" && pwd)"
 if [ -z "${SCAN_RULES_DIR:-}" ]; then SCAN_RULES_DIR="$DEPLOY_DIR/scan-rules"; fi
 export SCAN_RULES_DIR
 mkdir -p "$SCAN_RULES_DIR"
+# Same for the optional internal-CA directory (api + worker mount it). Read
+# from .env first, so an operator's EXTRA_CA_DIR is kept, not replaced.
+if [ -z "${EXTRA_CA_DIR:-}" ] && [ -f "$ENV_FILE" ]; then
+  EXTRA_CA_DIR="$(sed -n 's/^EXTRA_CA_DIR=//p' "$ENV_FILE" | tail -n1)"
+fi
+if [ -z "${EXTRA_CA_DIR:-}" ]; then EXTRA_CA_DIR="$DEPLOY_DIR/ca"; fi
+export EXTRA_CA_DIR
+mkdir -p "$EXTRA_CA_DIR"
 
 psql_in() { # $1 container; SQL on stdin; -tA output
   "$RUNTIME" exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" "$1" \
