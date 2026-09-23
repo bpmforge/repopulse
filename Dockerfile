@@ -82,6 +82,10 @@ RUN pnpm --filter @repopulse/web exec vite build
 # ---------- runtime: api ----------
 FROM base AS api
 ENV NODE_ENV=production
+# The app binds loopback unless HOST says otherwise (W17-37). In a container
+# the web proxy reaches it over the compose network, so bind every interface
+# INSIDE the container; compose publishes no host port for api or worker.
+ENV HOST=0.0.0.0
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
 # pnpm isolates workspace package deps — copy each package's node_modules
@@ -112,6 +116,10 @@ CMD ["tsx", "apps/api/src/index.ts"]
 # ---------- runtime: worker ----------
 FROM base AS worker
 ENV NODE_ENV=production
+# The app binds loopback unless HOST says otherwise (W17-37). In a container
+# the web proxy reaches it over the compose network, so bind every interface
+# INSIDE the container; compose publishes no host port for api or worker.
+ENV HOST=0.0.0.0
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
 # pnpm isolates workspace package deps — copy each package's node_modules

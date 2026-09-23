@@ -9,6 +9,8 @@ import type { DbOrTx } from './db.js';
 export interface CursorState {
   cursorValue: string | null;
   backfillDone: boolean;
+  /** W17-35: why the entity holds no data. Omitted = the fetch succeeded (null). */
+  lastError?: string | null;
 }
 
 export async function writeCursor(
@@ -25,12 +27,14 @@ export async function writeCursor(
       entityType,
       cursorValue: state.cursorValue,
       backfillDone: state.backfillDone,
+      lastError: state.lastError ?? null,
     })
     .onConflictDoUpdate({
       target: [core.syncCursors.repoId, core.syncCursors.entityType],
       set: {
         cursorValue: state.cursorValue,
         backfillDone: state.backfillDone,
+        lastError: state.lastError ?? null,
         updatedAt: new Date(),
       },
     });

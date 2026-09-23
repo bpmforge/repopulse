@@ -38,7 +38,7 @@ export interface RepoSyncStatus {
   repoName?: string;
   phase: SyncPhase;
   percentComplete: number;
-  entities: Record<string, { cursorAt: string | null; done: boolean }>;
+  entities: Record<string, { cursorAt: string | null; done: boolean; error: string | null }>;
   budget: { remaining: number; limit: number; resetAt: string | null; spent24h: number };
   lagSeconds: number | null;
   lastError: { at: string; message: string; jobId: string | null } | null;

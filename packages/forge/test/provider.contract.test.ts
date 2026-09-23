@@ -31,6 +31,7 @@ describe('GitHubProvider contract (W1-06, zero network)', () => {
       supportsDeployments: true,
       supportsRawDiff: false,
       maxPerPage: 100,
+      webhookScheme: 'hub-signature',
     });
   });
 

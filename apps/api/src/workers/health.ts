@@ -74,6 +74,8 @@ export interface WorkerHealthServerOptions {
   redis: Redis;
   registry: Registry;
   port: number;
+  /** Interface to bind; loopback unless the caller says otherwise (W17-37). */
+  host?: string;
 }
 
 export function startWorkerHealthServer(opts: WorkerHealthServerOptions): Server {
@@ -111,6 +113,6 @@ export function startWorkerHealthServer(opts: WorkerHealthServerOptions): Server
     res.writeHead(404);
     res.end();
   });
-  server.listen(opts.port);
+  server.listen(opts.port, opts.host ?? '127.0.0.1');
   return server;
 }

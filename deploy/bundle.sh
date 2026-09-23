@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Produce a portable install bundle (W17-28).
 #
-#   deploy/bundle.sh --version=0.2.0 [--out=dist] [--no-build] [--no-base-pull]
+#   deploy/bundle.sh --version=0.2.0 [--out=dist] [--no-build] [--no-base-pull] [--arch=amd64|arm64]
 #   deploy/bundle.sh strip-compose deploy/compose.yaml     # the compose rewrite, alone
 #
 # WHAT A BUNDLE IS. One tarball a customer copies to a host that has a container
@@ -29,9 +29,12 @@
 # on the customer host, loaded from the archive. Publishing is a separate,
 # separately authorised step and this script does not do it.
 #
-# ONE ARCHITECTURE PER BUNDLE: the one this host's runtime builds natively.
-# Cross-building under emulation was not attempted and is not claimed; the
-# bundle name carries the arch and install.sh refuses a mismatched host.
+# ONE ARCHITECTURE PER BUNDLE: by default the one this host's runtime builds
+# natively. --arch= builds for another one under emulation (every build and
+# base-image pull gets --platform); the manifest then records "emulated": true,
+# because an image that built under qemu/Rosetta is not proof it runs well on
+# real hardware. The bundle name carries the arch and install.sh refuses a
+# mismatched host.
 # ARCHITECTURES.md is the declared matrix and is maintained from smoke results,
 # not from this script's opinion.
 
@@ -68,12 +71,14 @@ VERSION=""
 OUT="dist"
 BUILD=1
 PULL_BASE=1
+TARGET_ARCH=""
 for arg in "$@"; do
   case "$arg" in
     --version=*) VERSION="${arg#--version=}" ;;
     --out=*) OUT="${arg#--out=}" ;;
     --no-build) BUILD=0 ;;
     --no-base-pull) PULL_BASE=0 ;;
+    --arch=*) TARGET_ARCH="${arg#--arch=}" ;;
     -h | --help)
       sed -n '2,32p' "$0"
       exit 0
@@ -94,6 +99,11 @@ esac
 # as a version rather than a branch name.
 [[ "$VERSION" =~ ^[0-9][A-Za-z0-9_.-]{0,127}$ ]] ||
   die "--version=$VERSION is not a valid image tag (start with a digit; [A-Za-z0-9_.-] only)."
+
+case "$TARGET_ARCH" in
+  '' | amd64 | arm64) ;;
+  *) die "--arch=$TARGET_ARCH is not supported (amd64 or arm64)." ;;
+esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -127,6 +137,13 @@ case "$RT_ARCH" in
   x86_64) RT_ARCH=amd64 ;;
   aarch64) RT_ARCH=arm64 ;;
 esac
+EMULATED=false
+PLATFORM_ARGS=()
+if [ -n "$TARGET_ARCH" ]; then
+  if [ "$TARGET_ARCH" != "$RT_ARCH" ]; then EMULATED=true; fi
+  RT_ARCH="$TARGET_ARCH"
+  PLATFORM_ARGS=(--platform "${RT_OS}/${RT_ARCH}")
+fi
 PLATFORM="${RT_OS}/${RT_ARCH}"
 
 PREFIX="localhost/repopulse"
@@ -140,7 +157,7 @@ if [ -n "$(git status --porcelain 2>/dev/null)" ]; then GIT_DIRTY=true; fi
 BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "bundle:   $NAME"
-echo "runtime:  $RT $RT_VERSION building for $PLATFORM"
+echo "runtime:  $RT $RT_VERSION building for $PLATFORM (emulated=$EMULATED)"
 echo "source:   $GIT_SHA (dirty=$GIT_DIRTY)"
 
 # --------------------------------------------------------------- images -----
@@ -154,10 +171,10 @@ BASE_IMAGES="docker.io/library/postgres:16 docker.io/library/redis:7-alpine"
 if [ "$BUILD" = 1 ]; then
   for target in migrate api worker scan-runner web; do
     echo "== build $PREFIX/$target:$VERSION (Dockerfile target $target)"
-    "$RT" build -f Dockerfile --target "$target" -t "$PREFIX/$target:$VERSION" .
+    "$RT" build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -f Dockerfile --target "$target" -t "$PREFIX/$target:$VERSION" .
   done
   echo "== build $PREFIX/scan:$VERSION (Containerfile.scan)"
-  "$RT" build -f Containerfile.scan -t "$PREFIX/scan:$VERSION" .
+  "$RT" build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -f Containerfile.scan -t "$PREFIX/scan:$VERSION" .
 fi
 for target in $OURS; do
   "$RT" image exists "$PREFIX/$target:$VERSION" 2>/dev/null ||
@@ -172,7 +189,7 @@ done
 if [ "$PULL_BASE" = 1 ]; then
   for img in $BASE_IMAGES; do
     echo "== pull $img"
-    "$RT" pull "$img" >/dev/null
+    "$RT" pull ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} "$img" >/dev/null
   done
 fi
 
@@ -232,6 +249,7 @@ image_json() { # $1 image -> {"name":..,"id":..,"digest":..,"size":..}
   echo "  \"platform\": \"$PLATFORM\","
   echo "  \"os\": \"$RT_OS\","
   echo "  \"arch\": \"$RT_ARCH\","
+  echo "  \"emulated\": $EMULATED,"
   echo "  \"built_at\": \"$BUILT_AT\","
   echo "  \"built_with\": {\"runtime\": \"$RT\", \"version\": \"$RT_VERSION\", \"host\": \"$(uname -s)/$(uname -m)\"},"
   echo "  \"source\": {\"git_sha\": \"$GIT_SHA\", \"dirty\": $GIT_DIRTY},"

@@ -126,6 +126,14 @@ export interface ForgeCapabilities {
   hasRateLimits: boolean; // Gitea self-hosted false -> budgeter becomes pass-through
   supportsTarball: boolean; // W8-03: source archive download for snapshot scanners (C1a)
   maxPerPage: number; // GitHub 100 / Gitea MAX_RESPONSE_ITEMS (50 default)
+  /**
+   * How this forge authenticates a webhook delivery, which decides the receiver
+   * route its hook is registered at (W17-36). 'hub-signature': an
+   * X-Hub-Signature-256 HMAC over the body — GitHub, and Gitea, which sends the
+   * GitHub-compatible headers too (verified live, 1.24.7). 'gitlab-token': the
+   * shared secret itself in X-Gitlab-Token.
+   */
+  webhookScheme: 'hub-signature' | 'gitlab-token';
 }
 
 export interface SinceQuery {

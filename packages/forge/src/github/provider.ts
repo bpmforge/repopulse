@@ -1,4 +1,9 @@
-import { resolveTarball, createFetchDownloader, type TarballDownloader } from '../client/tarball.js';
+import { assertListOk } from '../client/errors.js';
+import {
+  resolveTarball,
+  createFetchDownloader,
+  type TarballDownloader,
+} from '../client/tarball.js';
 import type { ForgeRequest, ForgeResponse } from '../client/budgeted-client.js';
 import type { ForgeProvider } from '../provider.js';
 import type {
@@ -59,6 +64,7 @@ export const GITHUB_CAPABILITIES: ForgeCapabilities = {
   hasRateLimits: true,
   supportsTarball: true, // /tarball/{sha} → 302 codeload (W8-03)
   maxPerPage: 100,
+  webhookScheme: 'hub-signature',
 };
 
 // The provider depends only on "something that runs a budgeted forge request"
@@ -116,7 +122,14 @@ export class GitHubProvider implements ForgeProvider {
     return this.client.request(ctx, { method: 'GET', url, family, getHeaders: this.getHeaders });
   }
 
-  private pageOf<Raw, T>(res: ForgeResponse, map: (r: Raw) => T): Page<T> {
+  private pageOf<Raw, T>(
+    res: ForgeResponse,
+    map: (r: Raw) => T,
+    // Backfill entity lists pass this: an HTTP error must reject, not read as
+    // an empty page (W17-35). The enrichment lists do not, yet — see W17-35.
+    check?: { entity: string; emptyOn?: readonly number[] },
+  ): Page<T> {
+    if (check && assertListOk(res, check.entity, check.emptyOn) === 'empty') return { items: [] };
     const items = (Array.isArray(res.body) ? (res.body as Raw[]) : []).map(map);
     const next = nextPageCursor(linkHeaderOf(res.headers));
     return { items, ...(next ? { nextCursor: next } : {}) };
@@ -131,7 +144,7 @@ export class GitHubProvider implements ForgeProvider {
       withPage(`${this.base}/user/repos?per_page=100&sort=pushed&direction=desc`, cursor),
       'commits',
     );
-    return this.pageOf<RawRepo, ForgeRepo>(res, normalizeRepo);
+    return this.pageOf<RawRepo, ForgeRepo>(res, normalizeRepo, { entity: 'repos' });
   }
 
   async getRepo(ctx: CallCtx, fullName: string): Promise<ForgeRepo> {
@@ -143,7 +156,11 @@ export class GitHubProvider implements ForgeProvider {
     let url = `${this.base}/repos/${repo}/commits?per_page=${q.perPage ?? 100}`;
     if (q.since) url += `&since=${encodeURIComponent(q.since)}`;
     const res = await this.get(ctx, withPage(url, q.cursor), 'commits');
-    return this.pageOf<RawCommit, ForgeCommit>(res, normalizeCommit);
+    // 409 "Git Repository is empty." — no commits yet, not a failure.
+    return this.pageOf<RawCommit, ForgeCommit>(res, normalizeCommit, {
+      entity: 'commits',
+      emptyOn: [409],
+    });
   }
 
   async getCommitFiles(
@@ -180,6 +197,9 @@ export class GitHubProvider implements ForgeProvider {
         getHeaders: this.getHeaders,
         body: { query, variables },
       });
+      // A non-2xx here (401, a 403 without rate-limit headers) has no GraphQL
+      // `errors` array; say what it was rather than failing on a missing `data`.
+      assertListOk(res, 'prs');
       const payload = res.body as { data?: unknown; errors?: { message: string }[] };
       if (payload.errors?.length) {
         throw new Error(`graphql: ${payload.errors.map((e) => e.message).join('; ')}`);
@@ -245,7 +265,7 @@ export class GitHubProvider implements ForgeProvider {
       withPage(`${this.base}/repos/${repo}/releases?per_page=100`, cursor),
       'releases',
     );
-    return this.pageOf<RawRelease, ForgeRelease>(res, normalizeRelease);
+    return this.pageOf<RawRelease, ForgeRelease>(res, normalizeRelease, { entity: 'releases' });
   }
 
   async listDeployments(
@@ -258,14 +278,16 @@ export class GitHubProvider implements ForgeProvider {
       withPage(`${this.base}/repos/${repo}/deployments?per_page=100`, cursor),
       'releases',
     );
-    return this.pageOf<RawDeployment, ForgeDeployment>(res, (d) => normalizeDeployment(d));
+    return this.pageOf<RawDeployment, ForgeDeployment>(res, (d) => normalizeDeployment(d), {
+      entity: 'deployments',
+    });
   }
 
   async listIssues(ctx: CallCtx, repo: string, q: SinceQuery): Promise<Page<ForgeIssue>> {
     let url = `${this.base}/repos/${repo}/issues?state=all&per_page=${q.perPage ?? 100}`;
     if (q.since) url += `&since=${encodeURIComponent(q.since)}`;
     const res = await this.get(ctx, withPage(url, q.cursor), 'issues');
-    return this.pageOf<RawIssue, ForgeIssue>(res, normalizeIssue);
+    return this.pageOf<RawIssue, ForgeIssue>(res, normalizeIssue, { entity: 'issues' });
   }
 
   async getFileContent(

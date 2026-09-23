@@ -68,8 +68,18 @@ case "$host_arch" in
   aarch64 | arm64) host_arch=arm64 ;;
 esac
 want_arch="${PLATFORM#*/}"
+# REPOPULSE_ALLOW_EMULATED_ARCH=1 is a TEST hatch: it lets a build host smoke a
+# cross-built bundle under qemu/Rosetta emulation. Emulated is slow and proves
+# the images start, not that they perform; never set it on a real install.
+arch_mismatch() {
+  if [ "${REPOPULSE_ALLOW_EMULATED_ARCH:-}" = 1 ]; then
+    echo "WARNING: $1 — continuing under emulation because REPOPULSE_ALLOW_EMULATED_ARCH=1 (testing only)." >&2
+  else
+    die "$2"
+  fi
+}
 if [ "$host_arch" != "$want_arch" ]; then
-  die "ARCHITECTURE MISMATCH: this bundle holds $PLATFORM images and this host is $(uname -m).
+  arch_mismatch "host is $(uname -m), bundle is $PLATFORM" "ARCHITECTURE MISMATCH: this bundle holds $PLATFORM images and this host is $(uname -m).
 The images will not run here. Use the bundle built for $host_arch, or build
 one on a $host_arch host (deploy/bundle.sh in the source repository).
 See ARCHITECTURES.md for what has actually been tested."
@@ -104,7 +114,7 @@ if [ "$RT" = podman ]; then
   rt_arch="$("$RT" info --format '{{.Host.Arch}}' 2>/dev/null || true)"
   case "$rt_arch" in x86_64) rt_arch=amd64 ;; aarch64) rt_arch=arm64 ;; esac
   if [ -n "$rt_arch" ] && [ "$rt_arch" != "$want_arch" ]; then
-    die "ARCHITECTURE MISMATCH: this bundle holds $PLATFORM images but podman here runs $rt_arch containers."
+    arch_mismatch "podman runs $rt_arch, bundle is $PLATFORM" "ARCHITECTURE MISMATCH: this bundle holds $PLATFORM images but podman here runs $rt_arch containers."
   fi
 fi
 

@@ -15,6 +15,7 @@ import {
 } from './processors.js';
 import { startWorkerHealthServer } from './health.js';
 import { startWorkerHeartbeat } from './heartbeat.js';
+import { listenHost } from '../lib/listen-host.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
@@ -914,6 +915,7 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
     redis: healthRedis,
     registry: metricsRegistry,
     port: healthPort,
+    host: listenHost(),
   });
 
   // AFTER the consumers exist (W17-06). The heartbeat asserts "this instance can

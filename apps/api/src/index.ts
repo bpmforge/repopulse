@@ -4,6 +4,7 @@ import { credentials } from '@repopulse/auth';
 import { buildApp } from './app.js';
 import { local, oidc } from '@repopulse/auth';
 import { formatEnvProblems, validateEnv } from './routes/setup/env-registry.js';
+import { listenHost } from './lib/listen-host.js';
 
 // W11-02, acceptance 4: wrong or missing config fails HERE, with a message
 // naming every variable at fault — not a stack trace, and not a half-booted
@@ -83,7 +84,7 @@ app.log.info({ bootstrap: bootstrap.status }, 'local admin bootstrap');
 // shipped container must not import a dev-tooling file.
 const port = Number(process.env.PORT ?? 3300);
 
-app.listen({ port, host: '0.0.0.0' }).catch((err) => {
+app.listen({ port, host: listenHost() }).catch((err) => {
   app.log.error(err);
   process.exitCode = 1;
 });

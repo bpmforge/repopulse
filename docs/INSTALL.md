@@ -203,8 +203,10 @@ rejected case before the accepted one.
 In this release's evidence the whole connect-and-backfill path was run in a
 browser against a **fixture forge** that answers the real client code. The
 run against `api.github.com` is a separate credentialed test that was
-**blocked** on the evidence host for want of a token, and no real Gitea or
-GitLab instance was connected. What follows is what the code does; it has not
+**blocked** on the evidence host for want of a token at the time. A
+throwaway Gitea 1.24.7 was connected on 2026-09-23 (discover → select →
+backfill → live, commit counts matching Gitea's own); no GitLab instance has
+been connected. Beyond that, what follows is what the code does; it has not
 been proven against your forge by us.
 
 **RepoPulse never writes to your code.** It opens no branches, pushes no
@@ -226,7 +228,11 @@ repository still backfills and goes live; it just gets no live updates.
 > push webhook is refused (403) — the repository goes live with *"live updates
 > unavailable — webhook registration failed"* — and the issues fetch is refused
 > too. Creating a webhook is a write in Gitea: add `write:repository` (and
-> `read:issue` for issues) if you want live updates.
+> `read:issue` for issues) if you want live updates. Any entity the forge
+> refuses is named in **Admin → Sync** (for example *"issues not ingested —
+> HTTP 403: token does not have at least one of required scope(s):
+> [read:issue]"*) instead of looking like a repository with no issues; fix the
+> token and the next sync clears it.
 
 A self-hosted forge over plain `http://` is rejected unless it is a loopback
 address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape
@@ -315,13 +321,23 @@ arrives:
 
 You do not configure the webhook by hand. When you connect, RepoPulse
 registers a hook on each selected repository with a secret it generates for
-that connection and stores encrypted; the receiver is
-`<PUBLIC_BASE_URL>/api/v1/webhooks/github`, and it verifies GitHub's signature
-format. The `WEBHOOK_SECRET` line that `install.sh` writes into `deploy/.env`
-is not read by this release and can be ignored. RepoPulse asks Gitea and
-GitLab to register a hook too, but their deliveries were not exercised in this
-release's evidence; treat the nightly reconcile as the freshness mechanism for
-those forges.
+that connection and stores encrypted. The `WEBHOOK_SECRET` line that
+`install.sh` writes into `deploy/.env` is not read by this release and can be
+ignored. Where the hook points depends on the forge:
+
+| Forge | Receiver | How a delivery is authenticated |
+|---|---|---|
+| GitHub | `<PUBLIC_BASE_URL>/api/v1/webhooks/github` | `X-Hub-Signature-256` HMAC over the body |
+| Gitea | `<PUBLIC_BASE_URL>/api/v1/webhooks/github` | the same header — Gitea sends GitHub-compatible headers alongside its own |
+| GitLab | `<PUBLIC_BASE_URL>/api/v1/webhooks/gitlab` | `X-Gitlab-Token` (GitLab sends the secret itself, not a signature) |
+
+Evidence, 2026-09-23 (W17-36): a live Gitea 1.24.7 hook created exactly the
+way RepoPulse creates it delivered push, issues, pull_request and release
+events with `X-GitHub-Event`, `X-GitHub-Delivery` and a valid
+`X-Hub-Signature-256`; a captured delivery is replayed through the receiver
+in the test suite. GitLab deliveries are tested against GitLab's documented
+headers but have **not** been received from a live GitLab. On any forge the
+nightly reconcile still repairs whatever a missed delivery left behind.
 
 ## Scan data
 

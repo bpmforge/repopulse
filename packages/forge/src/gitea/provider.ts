@@ -1,4 +1,5 @@
 import { resolveTarball } from '../client/tarball.js';
+import { assertListOk } from '../client/errors.js';
 import type { ForgeResponse } from '../client/budgeted-client.js';
 // ForgeHttpClient is declared alongside the GitHub adapter; both adapters take
 // the same injected transport so the BudgetedClient serves either (Law 7).
@@ -68,6 +69,7 @@ export const GITEA_CAPABILITIES: ForgeCapabilities = {
   hasRateLimits: false, // budgeter passes through; politeness cap below
   supportsTarball: true, // /archive/{sha}.tar.gz answers with bytes, no redirect
   maxPerPage: GITEA_MAX_PER_PAGE,
+  webhookScheme: 'hub-signature',
 };
 
 export interface GiteaProviderOptions {
@@ -108,9 +110,13 @@ export class GiteaProvider implements ForgeProvider {
     family: EndpointFamily,
     map: (r: Raw) => T,
     perPage = GITEA_MAX_PER_PAGE,
+    // Backfill entity lists pass this: an HTTP error must reject, not read as
+    // an empty page (W17-35). The enrichment lists do not, yet — see W17-35.
+    check?: { entity: string; emptyOn?: readonly number[] },
   ): Promise<Page<T>> {
     const page = pageOfCursor(cursor);
     const res = await this.get(ctx, withPage(baseUrl, page, perPage), family);
+    if (check && assertListOk(res, check.entity, check.emptyOn) === 'empty') return { items: [] };
     const raw = Array.isArray(res.body) ? (res.body as Raw[]) : [];
     const items = raw.map(map);
     const next = nextPageCursor(page, raw.length, perPage, totalCountOf(res.headers));
@@ -124,6 +130,8 @@ export class GiteaProvider implements ForgeProvider {
       cursor,
       'commits',
       normalizeRepo,
+      undefined,
+      { entity: 'repos' },
     );
   }
 
@@ -142,6 +150,8 @@ export class GiteaProvider implements ForgeProvider {
       'commits',
       normalizeCommit,
       q.perPage ?? GITEA_MAX_PER_PAGE,
+      // 409 "Git Repository is empty." — no commits yet, not a failure.
+      { entity: 'commits', emptyOn: [409] },
     );
   }
 
@@ -180,6 +190,7 @@ export class GiteaProvider implements ForgeProvider {
       'pulls',
       normalizePR,
       q.perPage ?? GITEA_MAX_PER_PAGE,
+      { entity: 'prs' },
     );
   }
 
@@ -243,6 +254,8 @@ export class GiteaProvider implements ForgeProvider {
       cursor,
       'commits',
       normalizeRelease,
+      undefined,
+      { entity: 'releases' },
     );
   }
 
@@ -271,6 +284,7 @@ export class GiteaProvider implements ForgeProvider {
       'issues',
       normalizeIssue,
       q.perPage ?? GITEA_MAX_PER_PAGE,
+      { entity: 'issues' },
     );
   }
 

@@ -1,7 +1,8 @@
-import { ForgeBudgetParkedError } from '@repopulse/forge';
+import { ForgeBudgetParkedError, ForgeHttpError } from '@repopulse/forge';
 import type { CallCtx, ForgeProvider, Lane, SinceQuery } from '@repopulse/forge';
 import type { Database } from '@repopulse/shared';
 import { writeCursor } from './cursor.js';
+import { entityErrorText, readEntityError, updateRepoEntityError } from './entity-error.js';
 import { IdentityResolver } from './identity.js';
 import {
   upsertCommits,
@@ -125,6 +126,12 @@ export interface BackfillResult {
   nextCursor?: string;
   /** Present when the budget floor was hit — re-enqueue with this delay. */
   parkedUntilMs?: number;
+  /**
+   * W17-35: the forge permanently refused this entity (401/403/404/410/422).
+   * The entity is finished — so the repo can still complete on the others —
+   * and the refusal is recorded on sync_cursors and repos.last_error.
+   */
+  failed?: { status: number; message: string };
 }
 
 /**
@@ -145,6 +152,8 @@ export async function ingestEntityPages(
   let cursor = params.cursor;
   let pages = 0;
   let itemsTotal = 0;
+  // A failure recorded by an earlier run, cleared by the first page that lands.
+  let recordedError = await readEntityError(deps.db, params.repoId, params.entityType);
 
   while (pages < maxPages) {
     const q: SinceQuery = {
@@ -165,6 +174,22 @@ export async function ingestEntityPages(
           ...(err.resumeAt !== null ? { parkedUntilMs: err.resumeAt } : {}),
         };
       }
+      if (err instanceof ForgeHttpError && err.permanent) {
+        // Retrying cannot change a 403, and reading it as "no items" is what
+        // hid a token without read:issue behind a repo that looked complete.
+        const message = entityErrorText(params.entityType, err);
+        await deps.db.transaction(async (tx) => {
+          await writeCursor(tx, scope, params.entityType, {
+            cursorValue: cursor ?? null,
+            backfillDone: true,
+            lastError: message,
+          });
+          await updateRepoEntityError(tx, params.repoId, recordedError, message);
+        });
+        return { pages, itemsTotal, done: true, failed: { status: err.status, message } };
+      }
+      // 5xx that outlived the client's retries, a 429, a network error: fail the
+      // job so the queue retries it and dead-letters it if it persists.
       throw err;
     }
 
@@ -175,7 +200,11 @@ export async function ingestEntityPages(
         cursorValue: page.nextCursor ?? null,
         backfillDone: page.nextCursor === undefined,
       });
+      if (recordedError !== null) {
+        await updateRepoEntityError(tx, params.repoId, recordedError, null);
+      }
     });
+    recordedError = null;
 
     pages++;
     itemsTotal += page.count;
