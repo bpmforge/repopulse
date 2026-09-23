@@ -138,7 +138,9 @@ describeIfLiveInfra('backfill entity ingest (W2-03, FR-INGEST-2/3/4)', () => {
     await db.delete(facts.deployments).where(eq(facts.deployments.workspaceId, workspaceId));
     await db.delete(core.syncCursors).where(eq(core.syncCursors.workspaceId, workspaceId));
     await db.delete(core.repos).where(eq(core.repos.workspaceId, workspaceId));
-    await db.delete(core.forgeConnections).where(eq(core.forgeConnections.id, connectionId));
+    // By workspace, not this run's id: an interrupted earlier run leaves its connection
+    // behind, and the workspace delete below then fails on the FK.
+    await db.delete(core.forgeConnections).where(eq(core.forgeConnections.workspaceId, workspaceId));
     await db.delete(core.identities).where(eq(core.identities.workspaceId, workspaceId));
     await db.delete(core.users).where(eq(core.users.forgeUserId, 'w2-03-user'));
     await db.delete(core.workspaces).where(eq(core.workspaces.id, workspaceId));
