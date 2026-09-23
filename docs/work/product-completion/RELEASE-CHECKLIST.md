@@ -116,10 +116,17 @@ published. Evidence: `evidence/v1-last-code-20260923/` (`red-evidence.txt`, `gat
   `pnpm e2e` still reseeds the dev Default workspace — that is its design (seeded dev stack).
 - **Main was red on two gates, fixed here:** `pnpm typecheck` (packages/forge, from W17-39) and
   `validate-arch.sh` rule 4 (a W17-39 test named the public GitHub API host).
-- **Gate on `8a94757`:** lint 0 · typecheck 0 · vitest **2500 passed / 14 skipped** (baseline
-  2492 / 14) · full e2e **153 passed, 1 skipped (real-forge smoke), 0 failed, 0 flaky**; the ✘ at
-  `quality.spec.ts:538` is the declared `test.fail` (R-06). `e5f009d` changes only a test file
-  (8/8 green) and the board; all five validators PASS on it.
+- **Follow-ups found after the first gate:** the enrichment `fanOut` continuation could loop
+  forever on a repo whose enrich jobs complete without handling their item (revoked connection);
+  it now carries the outstanding count and stops when a round made no progress (`a04a91b`, RED
+  first). The e2e run on `a04a91b` failed `ingest-flow.spec.ts:42` once — a spec race (one picker
+  per connection, `.first()` resolving the checkbox and the submit button in different pickers;
+  `gate-e2e-ingest-flow-race.txt`); the spec now pins to its own connection's picker
+  (`data-connection-id`), 9/9 on `--repeat-each=3`.
+- **Gate on the branch head `d9b5d46`:** lint 0 · typecheck 0 · vitest **2501 passed / 14 skipped**
+  (baseline 2492 / 14) · full e2e **154 specs: 153 passed, 1 skipped (real-forge smoke, needs a
+  PAT), 0 failed, 0 flaky**; the ✘ at `quality.spec.ts:538` is the declared `test.fail` (R-06),
+  counted as passed. All five validators PASS.
 
 Verdict unchanged: **HOLD on founder items only** (§6). No code item remains open on the v1 path.
 

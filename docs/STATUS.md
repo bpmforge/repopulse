@@ -4058,7 +4058,9 @@ the fix is a one-line UPDATE renaming the key.
   `<dev>_test` database (created + migrated by vitest.config.ts via scripts/test-db.mjs); a
   sentinel dev-DB connection survives the seed reset. `pnpm e2e` still reseeds the dev stack by
   design. Two gates were red on main and are fixed here: `pnpm typecheck` (packages/forge TS2379,
-  W17-39) and validate-arch rule 4 (api.github.com in a W17-39 ingest test). Gate: lint 0 ·
-  typecheck 0 · vitest 2500 passed / 14 skipped · e2e 153 passed / 1 skipped / 0 failed / 0
+  W17-39) and validate-arch rule 4 (api.github.com in a W17-39 ingest test). Also: fanOut
+  continuation stops when a round made no progress (no endless loop on a revoked connection);
+  ingest-flow e2e race fixed (spec pinned to its own connection's picker). Gate on d9b5d46: lint 0 ·
+  typecheck 0 · vitest 2501 passed / 14 skipped · e2e 153 passed / 1 skipped / 0 failed / 0
   flaky (✘ quality.spec.ts:538 = declared test.fail). Evidence:
   docs/work/product-completion/evidence/v1-last-code-20260923/.
