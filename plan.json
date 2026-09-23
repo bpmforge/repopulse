@@ -8229,9 +8229,11 @@
         "RED first: tests fail on main by behaviour (resolved empty / last_error null / scan succeeded on a 403), then pass; full gate green"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals: RELEASE-CHECKLIST residual R-15, the follow-up W17-35 disclosed (its notes: \"the enrichment lists (PR files, check runs, reviews) are still lenient\")."
+        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals: RELEASE-CHECKLIST residual R-15, the follow-up W17-35 disclosed (its notes: \"the enrichment lists (PR files, check runs, reviews) are still lenient\").",
+        "ROOT CAUSE CANDIDATES, ranked + checked: (1) the adapters read a non-2xx detail body as empty — CONFIRMED: github listReviews/listCheckRuns/getCommitFiles/getPullRequestFiles and the gitea/gitlab equivalents never looked at res.status (BudgetedClient returns 4xx, and 5xx after retries, rather than throwing); RED contract test: 8 of 9 cases resolved [] / {items: []} / zero stats. (2) enrichPullRequest/enrichCommitChurn swallowing a throw — RULED OUT by reading: neither has a catch, the silence was upstream. (3) the scanners masking it — their catch already writes a FAILED scan_run, so once the fetch rejects they record it; the defect was again the adapter (RED: diffOf resolved [] on a 403).",
+        "DONE 2026-09-23 on fix/v1-residuals. FIX: all three adapters assertListOk on reviews, check runs/statuses/pipelines, PR files and commit detail (entities reviews/checks/pr_files/commit_files). Ingest: fetchOrRefusal + recordEnrichmentOutcome (entity-error.ts) — a permanent refusal is recorded on sync_cursors (backfill_done=true so refinePhase never reads it as history) and as a repos.last_error fragment (row-locked, cleared on the next successful fetch of that entity); reviews and checks are guarded separately so one refusal does not cost the other; the PR is still stamped enriched_at; a refused commit is stamped stats_source=unavailable (migration 0030: new CHECK values, rollback note in the file) and leaves the churn work-list without reading as zero churn. Anything retryable (5xx after client retries, 429, network, budget park) throws: enrich queue attempts 3 then DLQ. RESIDUAL (disclosed): a dead-lettered enrich job leaves its PR/commit pending and the repo in backfilling until something re-enqueues it — same shape as W17-35. RED: forge 8 failed, ingest 6 failed, security 2 failed (evidence/v1-residuals-20260923/red-evidence.txt). Gate: lint 0, typecheck 0, vitest 2483 passed / 9 skipped (baseline 2466)."
       ]
     },
     {

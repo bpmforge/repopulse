@@ -1,5 +1,7 @@
+import { and, eq } from 'drizzle-orm';
 import type { CallCtx, ForgeDiffFile, ForgeProvider } from '@repopulse/forge';
-import type { Database } from '@repopulse/shared';
+import { facts, type Database } from '@repopulse/shared';
+import { fetchOrRefusal, recordEnrichmentOutcome } from './entity-error.js';
 import { upsertCommitFiles, type RepoScope } from './writers.js';
 
 // Enrichment phase (INGESTION §2/§8, research §8): fills per-commit file churn
@@ -39,16 +41,42 @@ export async function enrichCommitChurn(
   const ctx: CallCtx = { lane: 'reconcile', repoId: String(params.repoId) };
   const scope: RepoScope = { workspaceId: params.workspaceId, repoId: params.repoId };
 
-  // Collect all file pages (network) before the write transaction.
-  const allFiles: ForgeDiffFile[] = [];
-  let cursor: string | undefined;
-  let stats = { additions: 0, deletions: 0 };
-  do {
-    const page = await deps.provider.getCommitFiles(ctx, params.repo, params.sha, cursor);
-    allFiles.push(...page.items);
-    stats = page.stats;
-    cursor = page.nextCursor;
-  } while (cursor !== undefined);
+  // Collect all file pages (network) before the write transaction. A
+  // permanent refusal comes back as { refused } (W17-38); anything retryable
+  // throws so the queue retries the job.
+  const fetched = await fetchOrRefusal(async () => {
+    const files: ForgeDiffFile[] = [];
+    let cursor: string | undefined;
+    let stats = { additions: 0, deletions: 0 };
+    do {
+      const page = await deps.provider.getCommitFiles(ctx, params.repo, params.sha, cursor);
+      files.push(...page.items);
+      stats = page.stats;
+      cursor = page.nextCursor;
+    } while (cursor !== undefined);
+    return { files, stats };
+  });
 
-  return deps.db.transaction((tx) => upsertCommitFiles(tx, scope, params.sha, allFiles, stats));
+  return deps.db.transaction(async (tx) => {
+    if (fetched.refused) {
+      // Not 'detail' — nothing was measured — but out of the work-list, so one
+      // vanished SHA cannot hold the repo in backfilling. The reason is on
+      // sync_cursors('commit_files') and repos.last_error.
+      await tx
+        .update(facts.commits)
+        .set({ statsSource: 'unavailable' })
+        .where(and(eq(facts.commits.repoId, params.repoId), eq(facts.commits.sha, params.sha)));
+      await recordEnrichmentOutcome(tx, scope, 'commit_files', fetched.refused);
+      return 0;
+    }
+    const n = await upsertCommitFiles(
+      tx,
+      scope,
+      params.sha,
+      fetched.value.files,
+      fetched.value.stats,
+    );
+    await recordEnrichmentOutcome(tx, scope, 'commit_files', null);
+    return n;
+  });
 }

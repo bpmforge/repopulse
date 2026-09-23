@@ -3,6 +3,7 @@ import { facts } from '@repopulse/shared';
 import type { CallCtx, ForgeCheckRun, ForgeProvider } from '@repopulse/forge';
 import type { Database } from '@repopulse/shared';
 import type { DbOrTx } from './db.js';
+import { fetchOrRefusal, recordEnrichmentOutcome } from './entity-error.js';
 import { IdentityResolver } from './identity.js';
 import { upsertCheckRuns, upsertReviews, type RepoScope } from './writers.js';
 
@@ -52,28 +53,42 @@ export async function enrichPullRequest(
   const scope: RepoScope = { workspaceId: params.workspaceId, repoId: params.repoId };
 
   // Network first, outside the transaction — same discipline as the page
-  // ingest loop, so a slow forge never holds a write lock.
-  const reviews = await deps.provider.listReviews(ctx, params.repo, params.prNumber);
+  // ingest loop, so a slow forge never holds a write lock. Each fetch is
+  // guarded on its own (W17-38): a token without the checks scope must not
+  // cost the reviews, and neither refusal may read as "zero" — it is recorded.
+  // A transient failure throws out of here and the queue retries the job.
+  const reviews = await fetchOrRefusal(() =>
+    deps.provider.listReviews(ctx, params.repo, params.prNumber),
+  );
 
-  const checks: ForgeCheckRun[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await deps.provider.listCheckRuns(ctx, params.repo, {
-      headSha: params.headSha,
-      ...(cursor ? { cursor } : {}),
-    });
-    checks.push(...page.items);
-    cursor = page.nextCursor;
-  } while (cursor !== undefined);
+  const checks = await fetchOrRefusal(async () => {
+    const all: ForgeCheckRun[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await deps.provider.listCheckRuns(ctx, params.repo, {
+        headSha: params.headSha,
+        ...(cursor ? { cursor } : {}),
+      });
+      all.push(...page.items);
+      cursor = page.nextCursor;
+    } while (cursor !== undefined);
+    return all;
+  });
 
   return deps.db.transaction(async (tx) => {
     const resolver = new IdentityResolver(tx, params.workspaceId, deps.provider_kind ?? 'github');
-    const r = await upsertReviews(tx, scope, resolver, params.prNumber, reviews);
-    const c = await upsertCheckRuns(tx, scope, checks);
+    const r = reviews.refused
+      ? 0
+      : await upsertReviews(tx, scope, resolver, params.prNumber, reviews.value);
+    const c = checks.refused ? 0 : await upsertCheckRuns(tx, scope, checks.value);
+    await recordEnrichmentOutcome(tx, scope, 'reviews', reviews.refused ?? null);
+    await recordEnrichmentOutcome(tx, scope, 'checks', checks.refused ?? null);
     // Stamp the PR as enriched so the work-list below stops returning it. This
     // is the reviews/checks analogue of commits.stats_source='detail'; without
     // a marker the predicate would have to count child rows, and a PR with
     // genuinely zero reviews AND zero checks would look permanently pending.
+    // Stamped on a refusal too: the reason is recorded above, and an
+    // unstampable PR would hold the repo in backfilling forever.
     await tx
       .update(facts.pullRequests)
       .set({ enrichedAt: new Date() })

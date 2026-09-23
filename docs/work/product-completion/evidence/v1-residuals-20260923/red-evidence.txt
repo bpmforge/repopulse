@@ -1,0 +1,45 @@
+# RED on main-equivalent code (fix/v1-residuals @ eae2bf4, before the fix)
+$ npx vitest run packages/forge/test/enrich-errors.contract.test.ts
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > GitHub: a 403 on check runs rejects, naming the entity 4ms
+     → expected { items: [] } to be an instance of ForgeHttpError
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > GitHub: a 403 on reviews rejects 1ms
+     → promise resolved "[]" instead of rejecting
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > GitHub: a 404 on PR files rejects 1ms
+     → promise resolved "{ items: [] }" instead of rejecting
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > GitHub: a 422 on a commit (no such SHA) rejects instead of recording zero churn 0ms
+     → promise resolved "{ items: [], stats: { …(2) } }" instead of rejecting
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > Gitea: a 403 on reviews rejects 0ms
+     → promise resolved "[]" instead of rejecting
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > Gitea: a 502 on commit statuses rejects (retryable, not "no CI") 1ms
+     → expected { items: [] } to match object { status: 502, entity: 'checks' }
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > Gitea: a 404 on PR files and on a commit reject 0ms
+     → promise resolved "{ items: [] }" instead of rejecting
+   × enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > GitLab: a 403 on approvals, pipelines, MR diffs and commit detail rejects 0ms
+     → promise resolved "[]" instead of rejecting
+   ✓ enrichment fetches surface HTTP errors instead of reading them as empty (W17-38) > a 2xx still resolves normally (the check is not a blanket reject) 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  8 failed | 1 passed (9)
+
+$ npx vitest run packages/ingest/src/backfill/enrich-errors.integration.test.ts
+   × enrichment fetch errors are recorded, not absorbed (W17-38) > a 403 on reviews is recorded, check runs are still written, and the PR still drains 14ms
+     → .toMatch() expects to receive a string, but got object
+   × enrichment fetch errors are recorded, not absorbed (W17-38) > an enrichment error row does not flip the sync phase back to history 14ms
+     → .toMatch() expects to receive a string, but got undefined
+   × enrichment fetch errors are recorded, not absorbed (W17-38) > a 5xx on check runs fails the job and leaves the PR un-enriched for the retry 12ms
+     → promise resolved "{ reviews: +0, checks: +0 }" instead of rejecting
+   × enrichment fetch errors are recorded, not absorbed (W17-38) > clears the recorded refusal once the entity fetches successfully 6ms
+     → .toMatch() expects to receive a string, but got object
+   × enrichment fetch errors are recorded, not absorbed (W17-38) > a 404 on a commit is recorded, not written as zero churn, and still drains 5ms
+     → .toMatch() expects to receive a string, but got object
+   × enrichment fetch errors are recorded, not absorbed (W17-38) > a 5xx on a commit fails the job and leaves the commit pending 4ms
+     → promise resolved "+0" instead of rejecting
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  6 failed (6)
+
+$ npx vitest run packages/security/src/scanners/secrets/diff-errors.test.ts
+   × secrets diff fetch does not read a refusal as an empty diff (W17-38) > rejects on a 403 for a PR diff 4ms
+     → promise resolved "[]" instead of rejecting
+   × secrets diff fetch does not read a refusal as an empty diff (W17-38) > rejects on a 404 for a commit diff 0ms
+     → promise resolved "[]" instead of rejecting
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed (2)

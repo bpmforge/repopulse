@@ -46,6 +46,11 @@ export const commits = pgTable(
     additions: integer('additions'),
     deletions: integer('deletions'),
     filesCount: integer('files_count'),
+    // 'unavailable' (W17-38): the forge permanently refused the detail fetch
+    // (404/422 on a vanished SHA, 403 on scope). Nothing was measured, so it is
+    // not 'detail' — a churn metric must never read it as zero — but it leaves
+    // the enrichment work-list, or one refused commit would hold the repo in
+    // backfilling forever. The reason is on sync_cursors('commit_files').
     statsSource: text('stats_source'),
   },
   (t) => [
@@ -60,7 +65,7 @@ export const commits = pgTable(
     ),
     check(
       'commits_stats_source_check',
-      sql`${t.statsSource} is null or ${t.statsSource} in ('detail', 'stats_api', 'graphql')`,
+      sql`${t.statsSource} is null or ${t.statsSource} in ('detail', 'stats_api', 'graphql', 'unavailable')`,
     ),
   ],
 );

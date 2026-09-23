@@ -21,7 +21,10 @@ export const syncCursors = pgTable(
     repoId: bigint('repo_id', { mode: 'number' })
       .notNull()
       .references(() => repos.id),
-    // DATABASE.md §5: text + CHECK, not a pg enum (likely to grow).
+    // DATABASE.md §5: text + CHECK, not a pg enum (likely to grow). The
+    // enrichment entities (reviews, checks, commit_files) get a row only to
+    // carry a refusal (W17-38); it is always written backfill_done=true so the
+    // sync-status phase never reads it as unfinished history.
     entityType: text('entity_type').notNull(),
     // updated_at watermark | page cursor | delivery id — null before first sync.
     cursorValue: text('cursor_value'),
@@ -37,7 +40,7 @@ export const syncCursors = pgTable(
     index('sync_cursors_workspace_id_idx').on(t.workspaceId),
     check(
       'sync_cursors_entity_type_check',
-      sql`${t.entityType} in ('commits', 'prs', 'reviews', 'pr_files', 'checks', 'issues', 'releases', 'deployments', 'workflow_runs')`,
+      sql`${t.entityType} in ('commits', 'prs', 'reviews', 'pr_files', 'checks', 'issues', 'releases', 'deployments', 'workflow_runs', 'commit_files')`,
     ),
   ],
 );

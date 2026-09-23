@@ -110,8 +110,8 @@ export class GiteaProvider implements ForgeProvider {
     family: EndpointFamily,
     map: (r: Raw) => T,
     perPage = GITEA_MAX_PER_PAGE,
-    // Backfill entity lists pass this: an HTTP error must reject, not read as
-    // an empty page (W17-35). The enrichment lists do not, yet — see W17-35.
+    // Every list passes this: an HTTP error must reject, not read as an empty
+    // page (W17-35 backfill lists, W17-38 enrichment fetches).
     check?: { entity: string; emptyOn?: readonly number[] },
   ): Promise<Page<T>> {
     const page = pageOfCursor(cursor);
@@ -170,6 +170,7 @@ export class GiteaProvider implements ForgeProvider {
     _cursor?: ForgeCursor,
   ): Promise<Page<ForgeDiffFile> & { stats: { additions: number; deletions: number } }> {
     const res = await this.get(ctx, `${this.base}/repos/${repo}/git/commits/${sha}`, 'commits');
+    assertListOk(res, 'commit_files');
     const body = res.body as RawGiteaCommit;
     return {
       items: (body.files ?? []).map(normalizeCommitFile),
@@ -212,11 +213,14 @@ export class GiteaProvider implements ForgeProvider {
       cursor,
       'pulls',
       normalizePrFile,
+      undefined,
+      { entity: 'pr_files' },
     );
   }
 
   async listReviews(ctx: CallCtx, repo: string, n: number): Promise<ForgeReview[]> {
     const res = await this.get(ctx, `${this.base}/repos/${repo}/pulls/${n}/reviews`, 'pulls');
+    assertListOk(res, 'reviews');
     const raw = Array.isArray(res.body) ? (res.body as RawGiteaReview[]) : [];
     return raw.map((r) => normalizeReview(r, n)).filter((r): r is ForgeReview => r !== null);
   }
@@ -240,6 +244,8 @@ export class GiteaProvider implements ForgeProvider {
       q.cursor,
       'checks',
       (s) => normalizeStatus(s, sha),
+      undefined,
+      { entity: 'checks' },
     );
   }
 
