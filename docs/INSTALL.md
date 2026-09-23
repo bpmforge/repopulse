@@ -12,9 +12,12 @@ and connect a forge later from inside the product. Until you do, the product
 runs; it just has nothing to measure yet.
 
 Every command in this document was run on **linux/arm64 under rootless Podman
-5.8** (`podman-compose` 1.6). Docker and amd64 hosts are untested — the
-scripts carry Docker code paths, but nothing has run on one. Substitute
-`docker` for `podman` at your own risk and tell us what happened.
+5.8** (`podman-compose` 1.6). An **amd64** bundle has been built and
+installed only under emulation on that same arm64 host (2026-09-23; see
+`ARCHITECTURES.md` in the bundle for exactly what ran), never on real amd64
+hardware. **Docker is untested** — the scripts carry Docker code paths, but
+nothing has run on one. Substitute `docker` for `podman` at your own risk and
+tell us what happened.
 
 ## What you need
 
@@ -44,8 +47,9 @@ that needs **a container runtime and nothing else**: no source checkout, no
 Node, no registry access, no network at install time. There is one bundle per
 CPU architecture, and `install.sh` refuses to load one onto another.
 
-Bundles are **not published anywhere yet**. There is no download URL and no
-registry; a bundle is built with `deploy/bundle.sh` from a checkout and handed
+Bundles are **not published anywhere yet**, and v1 ships as a bundle only:
+publishing images to a registry is deliberately deferred past v1. There is no
+download URL and no registry; a bundle is built with `deploy/bundle.sh` from a checkout and handed
 to you as a `.tar.gz` with a `.sha256` beside it.
 
 ```bash

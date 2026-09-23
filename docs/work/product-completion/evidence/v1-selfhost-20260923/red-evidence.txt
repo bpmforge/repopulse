@@ -1,0 +1,81 @@
+   × worker health server bind (W17-37) > the worker health server binds the host it is given, loopback by default 4ms
+     → expected '::' to be '127.0.0.1' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed (1)
+   × cross-arch bundle build (W11-01, 2026-09-23) > the web asset build stage runs on $BUILDPLATFORM, never under emulation 4ms
+     → expected '# RepoPulse — one multi-stage build, …' to match /^FROM --platform=\$BUILDPLATFORM \S+…/m
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 8 passed (9)
+   × list calls surface HTTP errors instead of reading them as empty (W17-35) > Gitea: a 403 on issues rejects with ForgeHttpError carrying the status 4ms
+   × list calls surface HTTP errors instead of reading them as empty (W17-35) > GitHub: a 403 on issues rejects with ForgeHttpError 3ms
+     → promise resolved "{ items: [] }" instead of rejecting
+   × list calls surface HTTP errors instead of reading them as empty (W17-35) > GitLab: a 403 on issues rejects with ForgeHttpError 1ms
+     → promise resolved "{ items: [] }" instead of rejecting
+   × list calls surface HTTP errors instead of reading them as empty (W17-35) > a 5xx that survived the client retries also rejects rather than reading as empty 0ms
+     → promise resolved "{ items: [] }" instead of rejecting
+   × list calls surface HTTP errors instead of reading them as empty (W17-35) > listRepos rejects on 401, so a bad token cannot connect as "0 repositories" 0ms
+     → promise resolved "{ items: [] }" instead of rejecting
+   ✓ list calls surface HTTP errors instead of reading them as empty (W17-35) > Gitea: 409 on commits (empty repository) is an empty last page 0ms
+   ✓ list calls surface HTTP errors instead of reading them as empty (W17-35) > GitHub: 409 on commits (empty repository) is an empty last page 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |@repopulse/forge| test/list-errors.contract.test.ts > list calls surface HTTP errors instead of reading them as empty (W17-35) > Gitea: a 403 on issues rejects with ForgeHttpError carrying the status
+ FAIL  |@repopulse/forge| test/list-errors.contract.test.ts > list calls surface HTTP errors instead of reading them as empty (W17-35) > GitHub: a 403 on issues rejects with ForgeHttpError
+AssertionError: promise resolved "{ items: [] }" instead of rejecting
+ FAIL  |@repopulse/forge| test/list-errors.contract.test.ts > list calls surface HTTP errors instead of reading them as empty (W17-35) > GitLab: a 403 on issues rejects with ForgeHttpError
+AssertionError: promise resolved "{ items: [] }" instead of rejecting
+ FAIL  |@repopulse/forge| test/list-errors.contract.test.ts > list calls surface HTTP errors instead of reading them as empty (W17-35) > a 5xx that survived the client retries also rejects rather than reading as empty
+AssertionError: promise resolved "{ items: [] }" instead of rejecting
+ FAIL  |@repopulse/forge| test/list-errors.contract.test.ts > list calls surface HTTP errors instead of reading them as empty (W17-35) > listRepos rejects on 401, so a bad token cannot connect as "0 repositories"
+   × backfill entity fetch errors are recorded, not absorbed (W17-35) > a 403 on issues is recorded on the repo and the entity, and still finishes the entity 10ms
+     → .toMatch() expects to receive a string, but got object
+   × backfill entity fetch errors are recorded, not absorbed (W17-35) > keeps an earlier repo error (the webhook one) rather than overwriting it 7ms
+     → Target cannot be null or undefined.
+   × backfill entity fetch errors are recorded, not absorbed (W17-35) > clears the entity error once the same entity fetches successfully (token fixed) 7ms
+     → column "last_error" does not exist
+   × backfill entity fetch errors are recorded, not absorbed (W17-35) > a 5xx that outlived the client retries fails the job and checkpoints nothing 6ms
+     → promise resolved "{ pages: 1, itemsTotal: +0, done: true }" instead of rejecting
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+TypeError: .toMatch() expects to receive a string, but got object
+    152|     const lastError = await repoLastError(repoId);
+    153|     expect(lastError).toMatch(/issues/);
+    154|     expect(lastError).toMatch(/403/);
+    155|     expect(lastError).toContain('read:issue');
+AssertionError: Target cannot be null or undefined.
+    178|     const lastError = (await repoLastError(repoId)) ?? '';
+    179|     expect(lastError).toContain(webhook);
+    180|     expect(lastError.match(/issues not ingested/g)).toHaveLength(1);
+PostgresError: column "last_error" does not exist
+ ❯ ErrorResponse ../../node_modules/.pnpm/postgres@3.4.9/node_modules/postgres/src/connection.js:815:30
+route RED: available-repos -> expected 500 to be 502
+   × listen host (W17-37) > honours an explicit LISTEN_HOST (the container images set 0.0.0.0) 3ms
+     → expected '127.0.0.1' to be '0.0.0.0' // Object.is equality
+   × listen host (W17-37) > ignores a generic HOST (a shell or CI hostname), staying on loopback 0ms
+     → expected 'build-box.lan' to be '127.0.0.1' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 1 passed (3)
+   ✓ connections routes (W2-01, FR-INGEST-1, FR-AUTH-5) > a member cannot create a connection (👑 admin only → 403) 27ms
+   ✓ connections routes (W2-01, FR-INGEST-1, FR-AUTH-5) > a bad token → 400 with the bad_token kind (distinct actionable error) 4ms
+   × connections routes (W2-01, FR-INGEST-1, FR-AUTH-5) > keeps a nested namespace intact: org is everything before the LAST slash 12ms
+     → expected { forge_repo_id: '301', …(4) } to match object { org: 'platform/tools', …(1) }
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 9 passed (10)
+   × webhook receiver per forge (W17-36) > accepts a captured Gitea 1.24.7 delivery at /webhooks/github, on the Gitea repo 11ms
+     → expected 401 to be 202 // Object.is equality
+   ✓ webhook receiver per forge (W17-36) > rejects the same Gitea delivery when one body byte changes 2ms
+   × webhook receiver per forge (W17-36) > GitLab: X-Gitlab-Token + "Merge Request Hook" at /webhooks/gitlab → 202, pull_requests delta 1ms
+     → expected 404 to be 202 // Object.is equality
+   × webhook receiver per forge (W17-36) > GitLab: a wrong token → 401, nothing enqueued 1ms
+     → expected 404 to be 401 // Object.is equality
+   × webhook receiver per forge (W17-36) > GitLab: the GitHub connection secret cannot authenticate a GitLab-path delivery 0ms
+     → expected 404 to be 401 // Object.is equality
+ ✓ |@repopulse/api| src/routes/webhooks/index.test.ts (5 tests) 79ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |@repopulse/api| src/routes/webhooks/providers.test.ts > webhook receiver per forge (W17-36) > GitLab: X-Gitlab-Token + "Merge Request Hook" at /webhooks/gitlab → 202, pull_requests delta
+ FAIL  |@repopulse/api| src/routes/webhooks/providers.test.ts > webhook receiver per forge (W17-36) > GitLab: a wrong token → 401, nothing enqueued
+      Tests  4 failed | 6 passed (10)
+   ✓ connections routes (W2-01, FR-INGEST-1, FR-AUTH-5) > a member cannot create a connection (👑 admin only → 403) 27ms
+   ✓ connections routes (W2-01, FR-INGEST-1, FR-AUTH-5) > a bad token → 400 with the bad_token kind (distinct actionable error) 4ms
+   × connections routes (W2-01, FR-INGEST-1, FR-AUTH-5) > rebuilds a stored gitlab connection against its own kind + base URL (https://gitlab.internal.example) 15ms
+     → expected 'https://repopulse.example/webhooks/gi…' to match /\/webhooks\/gitlab$/webhooks\
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 8 passed (9)

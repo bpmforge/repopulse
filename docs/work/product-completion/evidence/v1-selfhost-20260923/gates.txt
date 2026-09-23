@@ -1,0 +1,25 @@
+# gates on 39439c8 (release/v1-selfhost, final code SHA)
+## pnpm lint
+EXIT=0
+## pnpm typecheck
+EXIT=0
+## pnpm test
+ Test Files  319 passed | 2 skipped (321)
+      Tests  2464 passed | 9 skipped (2473)
+EXIT=0
+
+# earlier run on 425daa4 (superseded; kept for the record)
+## pnpm lint
+
+EXIT=0
+## pnpm typecheck
+EXIT=0
+## pnpm test
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |@repopulse/analysis| src/t2/live.integration.test.ts > tier-2 against a live LM Studio host > completes a real prompt and returns usable JSON text
+ Test Files  1 failed | 318 passed | 2 skipped (321)
+      Tests  1 failed | 2459 passed | 9 skipped (2469)
+EXIT=1
+## t2 live failure detail
+71:        "message": "Failed to load model \"qwen/qwen3-coder-next\". Error: Operation canceled.",
+1602:        "message": "Failed to load model \"qwen/qwen3-coder-next\". Error: Operation canceled.",

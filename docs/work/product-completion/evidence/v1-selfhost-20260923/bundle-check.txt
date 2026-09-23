@@ -1,0 +1,6 @@
+
+Initial JS (gzipped, from dist/index.html):
+  index-DZcdpSSq.js                          140.8 KB
+  TOTAL                                      140.8 KB  (budget 200 KB)
+
+EXIT=0
