@@ -137,6 +137,7 @@ export class GiteaProvider implements ForgeProvider {
 
   async getRepo(ctx: CallCtx, fullName: string): Promise<ForgeRepo> {
     const res = await this.get(ctx, `${this.base}/repos/${fullName}`, 'commits');
+    assertListOk(res, 'repo'); // W17-39: never normalize an error body
     return normalizeRepo(res.body as RawGiteaRepo);
   }
 

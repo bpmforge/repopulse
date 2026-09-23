@@ -26,7 +26,12 @@ export async function seedWorkspaceAndConnection(
 
   const [user] = await db
     .insert(core.users)
-    .values({ authProvider: 'github', authSubject: opts.forgeUserId, forgeUserId: opts.forgeUserId, login: opts.forgeUserId })
+    .values({
+      authProvider: 'github',
+      authSubject: opts.forgeUserId,
+      forgeUserId: opts.forgeUserId,
+      login: opts.forgeUserId,
+    })
     .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: opts.forgeUserId } })
     .returning();
   if (!user) throw new Error('user upsert returned no row');

@@ -149,6 +149,9 @@ export class GitHubProvider implements ForgeProvider {
 
   async getRepo(ctx: CallCtx, fullName: string): Promise<ForgeRepo> {
     const res = await this.get(ctx, `${this.base}/repos/${fullName}`, 'commits');
+    // An error body normalized into a repo would carry no feature flags and
+    // read as "unknown" at best; say what happened instead (W17-39).
+    assertListOk(res, 'repo');
     return normalizeRepo(res.body as RawRepo);
   }
 

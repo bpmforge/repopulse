@@ -1,5 +1,5 @@
 import { ForgeBudgetParkedError, ForgeHttpError } from '@repopulse/forge';
-import type { CallCtx, ForgeProvider, Lane, SinceQuery } from '@repopulse/forge';
+import type { CallCtx, ForgeProvider, ForgeRepoFeatures, Lane, SinceQuery } from '@repopulse/forge';
 import type { Database } from '@repopulse/shared';
 import { writeCursor } from './cursor.js';
 import { entityErrorText, readEntityError, updateRepoEntityError } from './entity-error.js';
@@ -34,8 +34,53 @@ export const PAGINATED_ENTITIES: readonly PaginatedEntity[] = [
 
 const DEFAULT_MAX_PAGES = 20;
 
+// W17-39: entities a repository owner can switch off, and the forges that
+// actually report the switch in repo metadata. GitHub exposes only has_issues
+// (its PRs and releases cannot be disabled through the API); asking GitHub
+// about an empty releases list would spend a call to learn nothing.
+const FEATURE_OF: Partial<Record<PaginatedEntity, keyof ForgeRepoFeatures>> = {
+  issues: 'issues',
+  prs: 'pullRequests',
+  releases: 'releases',
+};
+const REPORTED_FEATURES: Record<ForgeProvider['kind'], readonly (keyof ForgeRepoFeatures)[]> = {
+  github: ['issues'],
+  gitea: ['issues', 'pullRequests', 'releases'],
+  gitlab: ['issues', 'pullRequests', 'releases'],
+};
+
+/**
+ * Is this entity's feature switched OFF on the repo? Only an explicit `false`
+ * from the forge counts; a flag it did not send, or metadata it would not
+ * serve, is "unknown" — and unknown keeps the W17-35 error, because a 404 is
+ * also what a missing repo or a revoked token looks like. A budget park is
+ * returned so the caller can park rather than guess.
+ */
+async function featureSwitchedOff(
+  provider: ForgeProvider,
+  ctx: CallCtx,
+  repo: string,
+  entity: PaginatedEntity,
+): Promise<boolean | ForgeBudgetParkedError> {
+  const key = FEATURE_OF[entity];
+  // `?? []`: test doubles and future adapters may carry a kind not listed here.
+  if (!key || !(REPORTED_FEATURES[provider.kind] ?? []).includes(key)) return false;
+  try {
+    return (await provider.getRepo(ctx, repo)).features?.[key] === false;
+  } catch (err) {
+    if (err instanceof ForgeBudgetParkedError) return err;
+    return false;
+  }
+}
+
 interface FetchedPage {
   count: number;
+  /**
+   * Items that are really this entity. GitHub's /issues also lists pull
+   * requests — with Issues switched off it lists ONLY pull requests (git/git,
+   * observed live) — so a page of them is not evidence the feature is on.
+   */
+  substantive: number;
   nextCursor: string | undefined;
   /** Applies the fetched page's upserts inside the checkpoint transaction. */
   apply: (
@@ -59,6 +104,7 @@ async function fetchPage(
       const page = await provider.listPullRequests(ctx, repo, q);
       return {
         count: page.items.length,
+        substantive: page.items.length,
         nextCursor: page.nextCursor,
         apply: (tx, scope, resolver) => upsertPullRequests(tx, scope, resolver, page.items),
       };
@@ -67,6 +113,7 @@ async function fetchPage(
       const page = await provider.listCommits(ctx, repo, q);
       return {
         count: page.items.length,
+        substantive: page.items.length,
         nextCursor: page.nextCursor,
         apply: (tx, scope, resolver) => upsertCommits(tx, scope, resolver, page.items),
       };
@@ -75,6 +122,7 @@ async function fetchPage(
       const page = await provider.listIssues(ctx, repo, q);
       return {
         count: page.items.length,
+        substantive: page.items.filter((i) => !i.isPullRequest).length,
         nextCursor: page.nextCursor,
         apply: (tx, scope, resolver) => upsertIssues(tx, scope, resolver, page.items),
       };
@@ -83,6 +131,7 @@ async function fetchPage(
       const page = await provider.listReleases(ctx, repo, q.cursor);
       return {
         count: page.items.length,
+        substantive: page.items.length,
         nextCursor: page.nextCursor,
         apply: (tx, scope) => upsertReleases(tx, scope, page.items),
       };
@@ -91,6 +140,7 @@ async function fetchPage(
       const page = await provider.listDeployments(ctx, repo, q.cursor);
       return {
         count: page.items.length,
+        substantive: page.items.length,
         nextCursor: page.nextCursor,
         apply: (tx, scope) => upsertDeployments(tx, scope, page.items),
       };
@@ -132,6 +182,11 @@ export interface BackfillResult {
    * and the refusal is recorded on sync_cursors and repos.last_error.
    */
   failed?: { status: number; message: string };
+  /**
+   * W17-39: the repo has this feature switched off. Finished and empty, with no
+   * error recorded — "not enabled on this repo" is information, not a failure.
+   */
+  notEnabled?: true;
 }
 
 /**
@@ -155,6 +210,28 @@ export async function ingestEntityPages(
   // A failure recorded by an earlier run, cleared by the first page that lands.
   let recordedError = await readEntityError(deps.db, params.repoId, params.entityType);
 
+  const parkedAt = (err: ForgeBudgetParkedError): BackfillResult => ({
+    pages,
+    itemsTotal,
+    done: false,
+    ...(cursor ? { nextCursor: cursor } : {}),
+    ...(err.resumeAt !== null ? { parkedUntilMs: err.resumeAt } : {}),
+  });
+  // Finish the entity as "not enabled": empty, done, no error — and remove any
+  // error an earlier run recorded for it (a pre-W17-39 run read the 404 as one).
+  const finishNotEnabled = async (): Promise<BackfillResult> => {
+    await deps.db.transaction(async (tx) => {
+      await writeCursor(tx, scope, params.entityType, {
+        cursorValue: null,
+        backfillDone: true,
+        lastError: null,
+        featureDisabled: true,
+      });
+      await updateRepoEntityError(tx, params.repoId, recordedError, null);
+    });
+    return { pages, itemsTotal, done: true, notEnabled: true };
+  };
+
   while (pages < maxPages) {
     const q: SinceQuery = {
       ...(cursor ? { cursor } : {}),
@@ -166,15 +243,14 @@ export async function ingestEntityPages(
     } catch (err) {
       if (err instanceof ForgeBudgetParkedError) {
         // Park: no rows written this round; resume from the same cursor after reset.
-        return {
-          pages,
-          itemsTotal,
-          done: false,
-          ...(cursor ? { nextCursor: cursor } : {}),
-          ...(err.resumeAt !== null ? { parkedUntilMs: err.resumeAt } : {}),
-        };
+        return parkedAt(err);
       }
       if (err instanceof ForgeHttpError && err.permanent) {
+        // A switched-off feature answers 404 on Gitea (1.24.7, observed live),
+        // exactly like a missing repo or a revoked token: the metadata decides.
+        const off = await featureSwitchedOff(deps.provider, ctx, params.repo, params.entityType);
+        if (off instanceof ForgeBudgetParkedError) return parkedAt(off);
+        if (off) return finishNotEnabled();
         // Retrying cannot change a 403, and reading it as "no items" is what
         // hid a token without read:issue behind a repo that looked complete.
         const message = entityErrorText(params.entityType, err);
@@ -191,6 +267,15 @@ export async function ingestEntityPages(
       // 5xx that outlived the client's retries, a 429, a network error: fail the
       // job so the queue retries it and dead-letters it if it persists.
       throw err;
+    }
+
+    // GitHub answers a switched-off Issues with 200: empty, or pull requests
+    // only. On the first page of a walk with nothing real in it, ask the repo;
+    // if the feature is off, stop here rather than walk every PR via /issues.
+    if (pages === 0 && !params.cursor && page.substantive === 0) {
+      const off = await featureSwitchedOff(deps.provider, ctx, params.repo, params.entityType);
+      if (off instanceof ForgeBudgetParkedError) return parkedAt(off);
+      if (off) return finishNotEnabled();
     }
 
     await deps.db.transaction(async (tx) => {

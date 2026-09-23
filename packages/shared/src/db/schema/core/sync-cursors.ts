@@ -33,6 +33,10 @@ export const syncCursors = pgTable(
     // "HTTP 403 — token lacks read:issue"). Null when the last fetch succeeded.
     // backfill_done alone could not tell "finished" from "never allowed to look".
     lastError: text('last_error'),
+    // W17-39: the repository has this feature switched OFF (issues disabled on
+    // a Gitea repo answers 404; on GitHub, 200 with nothing). Finished, empty,
+    // and informational — never an error. Reset by the next normal page.
+    featureDisabled: boolean('feature_disabled').notNull().default(false),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

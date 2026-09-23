@@ -40,7 +40,12 @@ describeIfLiveInfra('ingest retention sweeps (W3-13, DATABASE §4, NFR-11)', () 
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w3-13-user', forgeUserId: 'w3-13-user', login: 'w3-13-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w3-13-user',
+        forgeUserId: 'w3-13-user',
+        login: 'w3-13-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w3-13-user' } })
       .returning();
     userId = user!.id;
@@ -85,15 +90,13 @@ describeIfLiveInfra('ingest retention sweeps (W3-13, DATABASE §4, NFR-11)', () 
       },
     ]);
     // a reports row — MUST survive every sweep (immutability).
-    await db
-      .insert(read.reports)
-      .values({
-        workspaceId,
-        type: 'repo_health',
-        params: {},
-        status: 'ready',
-        generatedBy: userId,
-      });
+    await db.insert(read.reports).values({
+      workspaceId,
+      type: 'repo_health',
+      params: {},
+      status: 'ready',
+      generatedBy: userId,
+    });
   });
 
   afterAll(async () => {

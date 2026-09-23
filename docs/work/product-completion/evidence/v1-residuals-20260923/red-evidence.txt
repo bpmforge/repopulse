@@ -43,3 +43,43 @@ $ npx vitest run packages/security/src/scanners/secrets/diff-errors.test.ts
      → promise resolved "[]" instead of rejecting
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
       Tests  2 failed (2)
+
+# W17-39 (R-16) RED on 361ce5d, before the fix. Two ingest cases ('unknown', 'gh-none') fail on the not-yet-existing sync_cursors.feature_disabled column read by the test helper, not by behaviour; the other five fail by behaviour.
+
+$ npx vitest run packages/forge/test/repo-features.contract.test.ts
+   × getRepo reports which features the repository has switched off (W17-39) > GitHub: has_issues=false 4ms
+     → expected undefined to match object { issues: false }
+   × getRepo reports which features the repository has switched off (W17-39) > Gitea: has_issues, has_pull_requests, has_releases (1.24.7 shape) 0ms
+     → expected undefined to deeply equal { issues: false, …(2) }
+   × getRepo reports which features the repository has switched off (W17-39) > GitLab: *_access_level "disabled", and the older issues_enabled=false 0ms
+     → expected undefined to deeply equal { issues: false, …(2) }
+   ✓ getRepo reports which features the repository has switched off (W17-39) > a flag the forge did not send is unknown, not "disabled" 0ms
+   × getRepo reports which features the repository has switched off (W17-39) > getRepo rejects on an HTTP error instead of normalizing the error body 1ms
+     → promise resolved "{ externalId: 'undefined', …(7) }" instead of rejecting
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  4 failed | 1 passed (5)
+
+$ npx vitest run packages/ingest/src/backfill/feature-disabled.integration.test.ts
+   × a disabled forge feature reads as "not enabled", not as an error (W17-39) > Gitea: 404 on issues with has_issues=false is "not enabled", with no error anywhere 12ms
+     → expected { pages: +0, itemsTotal: +0, …(2) } to match object { done: true, notEnabled: true }
+   × a disabled forge feature reads as "not enabled", not as an error (W17-39) > Gitea: 404 on pulls with has_pull_requests=false is "not enabled" too 5ms
+     → expected { pages: +0, itemsTotal: +0, …(2) } to match object { done: true, notEnabled: true }
+   × a disabled forge feature reads as "not enabled", not as an error (W17-39) > clears the error a pre-fix run recorded for the same disabled feature 6ms
+     → expected 'live updates unavailable — webhook re…' to be 'live updates unavailable — webhook re…' // Object.is equality
+   ✓ a disabled forge feature reads as "not enabled", not as an error (W17-39) > Gitea: 404 on issues with has_issues=true is still the W17-35 error 5ms
+   × a disabled forge feature reads as "not enabled", not as an error (W17-39) > metadata that cannot be read is "unknown" and keeps the error 6ms
+     → Cannot convert undefined or null to object
+   × a disabled forge feature reads as "not enabled", not as an error (W17-39) > GitHub: 200 [] with has_issues=false is "not enabled" 4ms
+     → expected { Object (pages, itemsTotal, ...) } to match object { done: true, notEnabled: true }
+   × a disabled forge feature reads as "not enabled", not as an error (W17-39) > GitHub: pull requests only (git/git shape) with has_issues=false is "not enabled", nothing written 13ms
+     → canned client: no response for GET https://api.github.com/repos/acme/gh-prs-only/issues?state=all&per_page=100&page=2
+   × a disabled forge feature reads as "not enabled", not as an error (W17-39) > GitHub: 200 [] with has_issues=true is simply a repo with no issues 3ms
+     → Cannot convert undefined or null to object
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  7 failed | 1 passed (8)
+
+$ npx vitest run apps/web/src/widgets/admin/SyncOps.test.tsx
+   × SyncOps — features not enabled on a repo (W17-39) > says "not enabled on this repo" for a disabled feature, outside the error column 1013ms
+     → Unable to find an element by: [data-testid="sync-not-enabled-1"]
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed (1)

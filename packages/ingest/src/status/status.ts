@@ -21,7 +21,16 @@ export interface SyncStatus {
   phase: SyncStatusPhase;
   percentComplete: number;
   /** `error` (W17-35): why a finished entity holds no data, e.g. a 403 on issues. */
-  entities: Record<string, { cursorAt: string | null; done: boolean; error: string | null }>;
+  entities: Record<
+    string,
+    {
+      cursorAt: string | null;
+      done: boolean;
+      error: string | null;
+      /** W17-39: the feature is switched off on the repo — informational, not an error. */
+      notEnabled: boolean;
+    }
+  >;
   budget: { remaining: number; limit: number; resetAt: string | null; spent24h: number };
   lagSeconds: number | null;
   lastError: { at: string; message: string; jobId: string | null } | null;
@@ -120,6 +129,7 @@ export async function repoSyncStatus(
       cursorValue: core.syncCursors.cursorValue,
       backfillDone: core.syncCursors.backfillDone,
       lastError: core.syncCursors.lastError,
+      featureDisabled: core.syncCursors.featureDisabled,
       updatedAt: core.syncCursors.updatedAt,
     })
     .from(core.syncCursors)
@@ -131,6 +141,7 @@ export async function repoSyncStatus(
       cursorAt: c.updatedAt ? c.updatedAt.toISOString() : null,
       done: c.backfillDone,
       error: c.lastError,
+      notEnabled: c.featureDisabled,
     };
   }
 

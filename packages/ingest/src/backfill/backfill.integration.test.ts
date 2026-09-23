@@ -108,7 +108,12 @@ describeIfLiveInfra('backfill entity ingest (W2-03, FR-INGEST-2/3/4)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w2-03-user', forgeUserId: 'w2-03-user', login: 'w2-03-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w2-03-user',
+        forgeUserId: 'w2-03-user',
+        login: 'w2-03-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w2-03-user' } })
       .returning();
     const [conn] = await db
@@ -140,7 +145,9 @@ describeIfLiveInfra('backfill entity ingest (W2-03, FR-INGEST-2/3/4)', () => {
     await db.delete(core.repos).where(eq(core.repos.workspaceId, workspaceId));
     // By workspace, not this run's id: an interrupted earlier run leaves its connection
     // behind, and the workspace delete below then fails on the FK.
-    await db.delete(core.forgeConnections).where(eq(core.forgeConnections.workspaceId, workspaceId));
+    await db
+      .delete(core.forgeConnections)
+      .where(eq(core.forgeConnections.workspaceId, workspaceId));
     await db.delete(core.identities).where(eq(core.identities.workspaceId, workspaceId));
     await db.delete(core.users).where(eq(core.users.forgeUserId, 'w2-03-user'));
     await db.delete(core.workspaces).where(eq(core.workspaces.id, workspaceId));

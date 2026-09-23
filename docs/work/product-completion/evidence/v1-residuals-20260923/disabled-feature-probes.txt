@@ -1,0 +1,22 @@
+# W17-39 (R-16) — how each forge answers a list for a feature switched OFF. Live probes, 2026-09-23.
+
+## GitHub (anonymous, api.github.com)
+torvalds/linux  has_issues=False   GET /repos/torvalds/linux/issues?state=all&per_page=1  -> HTTP 200 []
+git/git         has_issues=False   GET /repos/git/git/issues?state=all&per_page=100       -> HTTP 200, 100 items, all 100 carry `pull_request` (PRs only)
+torvalds/linux                     GET /repos/torvalds/linux/issues/1                    -> HTTP 410
+=> the LIST never errors; only repo metadata (has_issues) distinguishes "disabled" from "no issues".
+   (The residual note on W17-35 guessed 410 for the list; that is the single-issue answer only.)
+
+## Gitea 1.24.7 (throwaway gitea/gitea:1.24.7 on 127.0.0.1, repo w3admin/noissues,
+## PATCH has_issues=false, has_releases=false, has_pull_requests=false; one issue existed beforehand)
+GET issues?state=all&type=issues -> 404 {"errors":null,"message":"The target couldn't be found.","url":".../api/swagger"}
+GET releases                     -> 200 []
+GET pulls?state=all              -> 404 {"errors":null,"message":"The target couldn't be found.", ...}
+GET issues/1                     -> 404
+=> the same 404 a missing repo / revoked access gives; after W17-35 this read as
+   "issues not ingested — HTTP 404". Repo metadata has_issues / has_pull_requests / has_releases decides.
+
+## GitLab
+Not observed live: anonymous GET /projects/:id on gitlab.com omits *_access_level. The adapter reads
+issues_access_level / merge_requests_access_level / releases_access_level ('disabled' = off) and the older
+issues_enabled / merge_requests_enabled, per GitLab's Projects API docs. Contract-tested only.

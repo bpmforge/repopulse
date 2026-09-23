@@ -134,6 +134,7 @@ export class GitLabProvider implements ForgeProvider {
 
   async getRepo(ctx: CallCtx, fullName: string): Promise<ForgeRepo> {
     const res = await this.get(ctx, `${this.base}/projects/${projectPath(fullName)}`, 'commits');
+    assertListOk(res, 'repo'); // W17-39: never normalize an error body
     return normalizeRepo(res.body as RawGitlabProject);
   }
 

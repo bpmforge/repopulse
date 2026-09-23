@@ -89,7 +89,12 @@ describeIfLiveInfra('connect flow (W2-01, FR-INGEST-1)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w2-01-user', forgeUserId: 'w2-01-user', login: 'w2-01-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w2-01-user',
+        forgeUserId: 'w2-01-user',
+        login: 'w2-01-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w2-01-user' } })
       .returning();
     createdBy = user!.id;
