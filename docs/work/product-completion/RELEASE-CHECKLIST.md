@@ -9,11 +9,11 @@ tagged, published or deployed; the branch is pushed to both remotes.
 
 | | |
 |---|---|
-| Candidate commit | `94878ba` (docs/evidence-only on top of the final code commit `39439c8`; `git diff 39439c8 94878ba` touches no product source, Dockerfile, deploy script or test). This checklist lands in one further docs-only commit |
+| Candidate commit | **`814fb55`** (final code commit). Every gate, validator, bundle build and smoke below ran on it. This checklist and the evidence land in one docs-only commit on top |
 | Base | `main` @ `8ba54ff` |
 | Evidence directory | `docs/work/product-completion/evidence/v1-selfhost-20260923/` |
 | Host | macOS / Apple M2 Max (arm64), Node 22, pnpm 9.15.9, podman client 6.1.0 → podman machine (applehv, server 5.8.2, qemu-user-static binfmt, Rosetta off), podman-compose 1.6, gitleaks 8.30.1. **No Docker** (no docker, colima, nerdctl or lima) |
-| Bundles | `repopulse-0.1.0-rc2-linux-arm64.tar.gz` sha256 `e0eb6419…46be23` (704 MB, built from `94878ba`, dirty=false) · `repopulse-0.1.0-rc2-linux-amd64.tar.gz` sha256 `e7cd1d26…4e890ee3` (720 MB, cross-built under emulation from `39439c8`; the only later commit is docs). Both in `$HOME/tmp/`, not in git, not in any registry. v1 is bundle-only (founder decision); registry publish is deferred |
+| Bundles | `repopulse-0.1.0-rc2-linux-arm64.tar.gz` sha256 `109f86ec…a03860` and `repopulse-0.1.0-rc2-linux-amd64.tar.gz` sha256 `3c509e2b…635f31` (amd64 cross-built under emulation). Both built from `814fb55` with dirty=false. Both in `$HOME/tmp/`, not in git, not in any registry. v1 is bundle-only (founder decision); registry publish is deferred |
 
 Status vocabulary as before: **PASS** ran on the candidate code, exit 0,
 evidence attached. **FAIL** ran and did not pass. **BLOCKED** cannot run
@@ -23,21 +23,21 @@ here; reason given.
 
 | # | Check | Status | Evidence | Notes |
 |---|---|---|---|---|
-| G-1 | `pnpm lint` | PASS | `gates.txt` | on `39439c8` |
-| G-2 | `pnpm typecheck` | PASS | `gates.txt` | on `39439c8` |
-| G-3 | `pnpm test` | PASS | `gates.txt` | `39439c8`: 319 files passed / 2 skipped, **2464 passed / 9 skipped**, exit 0 (baseline on `8ba54ff` was 2437/9). Earlier runs on this branch: `425daa4` 2459 passed + 1 failed; independent verifier 2461 passed + 1 failed. The one failure both times was `packages/analysis/src/t2/live.integration.test.ts` against the LAN LM Studio host ("Failed to load model qwen/qwen3-coder-next … Operation canceled"). The branch does not touch `packages/analysis`, and the same test passed on the final run. One full run on the final SHA, not three |
-| G-4 | `pnpm e2e` (full Playwright) | PASS | `gate-e2e.txt` | `39439c8`: **153 passed, 1 skipped** (the real-forge spec, which needs a PAT and runs in G-4b), exit 0. The ✘ at `quality.spec.ts:538` is the declared `test.fail` residual (R-06), which Playwright counts as passed. The 09-11 failures E-1 and E-2 no longer reproduce; `3662936` on main fixed them |
-| G-4b | Real-forge smoke `SMOKE_REAL_FORGE=1 E2E_API_PORT=3011 pnpm e2e --grep "real forge"` | PASS | `real-forge-smoke.txt` | `39439c8`, founder-approved. Used the fine-grained PAT from the untracked `.env.smoke`; the token was never printed, and every log was grep-checked for it (0 hits). api.github.com → connect → discover → select → backfill → `bpmforge/quarry` **live**, 9 commits, 74 commit files, all five entity cursors done with no error. Warehouse rows were created by this run (connection at 19:03:34Z). Webhook registration got 403, as expected for a read-only token, and is recorded in `last_error` |
-| G-5 | `validate-arch.sh` | PASS | `validators.txt` | on `94878ba` |
+| G-1 | `pnpm lint` | PASS | `gates.txt` | on `814fb55` |
+| G-2 | `pnpm typecheck` | PASS | `gates.txt` | on `814fb55` |
+| G-3 | `pnpm test` | PASS | `gates.txt` | `814fb55`: 319 files passed / 2 skipped, **2466 passed / 9 skipped**, exit 0 (baseline on `8ba54ff` was 2437/9). Earlier runs on this branch: `39439c8` 2464/9 green; `425daa4` 2459 passed + 1 failed; independent verifier 2461 passed + 1 failed. The one failure both times was `packages/analysis/src/t2/live.integration.test.ts` against the LAN LM Studio host ("Failed to load model qwen/qwen3-coder-next … Operation canceled"). The branch does not touch `packages/analysis`, and the same test passed on the final run. Two consecutive green runs on the last two code SHAs (`39439c8`, `814fb55`), not three on one |
+| G-4 | `pnpm e2e` (full Playwright) | PASS | `gate-e2e.txt` | `814fb55`: **153 passed, 1 skipped** (the real-forge spec, which needs a PAT and runs in G-4b), exit 0. The ✘ at `quality.spec.ts:538` is the declared `test.fail` residual (R-06), which Playwright counts as passed. The 09-11 failures E-1 and E-2 no longer reproduce; `3662936` on main fixed them |
+| G-4b | Real-forge smoke `SMOKE_REAL_FORGE=1 E2E_API_PORT=3011 pnpm e2e --grep "real forge"` | PASS | `real-forge-smoke.txt` | `814fb55` (and identically on `39439c8` and `425daa4`), founder-approved. Used the fine-grained PAT from the untracked `.env.smoke`; the token was never printed, and every log was grep-checked for it (0 hits). api.github.com → connect → discover → select → backfill → `bpmforge/quarry` **live**, 9 commits, 74 commit files, all five entity cursors done with no error. Warehouse rows were created by this run (connection at 19:37:50Z). Webhook registration got 403, as expected for a read-only token, and is recorded in `last_error` |
+| G-5 | `validate-arch.sh` | PASS | `validators.txt` | on `814fb55` |
 | G-6 | `validate-plan.mjs` | PASS | `validators.txt` | 18 pre-existing sizing warnings on done tickets |
 | G-7 | `validate-traceability.mjs` | PASS | `validators.txt` | |
 | G-8 | `validate-compose.sh` | PASS | `validators.txt` | |
 | G-9 | `validate-egress-audit.sh` | PASS | `validators.txt` | |
 | G-10 | `pnpm check:bundle` | PASS | `validators.txt` | Initial JS is 140.8 KB gzipped against a 200 KB budget |
-| G-11 | arm64 bundle build (`deploy/bundle.sh --version=0.1.0-rc2`) | PASS | `arm64-bundle-build.txt` | Built from `94878ba`, dirty=false, in 171 s |
-| G-12 | arm64 clean-install smoke, outside the repo, disposable project | PASS | `arm64-clean-install-smoke.log` | Steps: `shasum -c` OK → extract → `install.sh --port=8396` exit 0 in 18 s. Then `/healthz` 200, `/` 200, `/api/v1/me/context` 401. Admin login 200 (`must_change_password`), forced password change 200, `/setup/status` 200. Then `down` → `up.sh` 12 s, migrate "up to date" (no re-migrate), and login with the **changed** password 200 (data persisted). Then `down -v`: 0 containers, 0 volumes. That log's first pass shows 400s from a curl-quoting mistake in the harness; the recorded re-run below it is the result |
-| G-13 | **amd64** bundle build | PASS (under emulation) | `amd64-bundle-build.txt` | Cross-built with `--arch=amd64` under qemu-user. The first two attempts failed identically: `vite build` → esbuild's Go runtime `fatal error: lfstack.push` under qemu. Fixed in `2e4c7c2`, where the SPA builds on `$BUILDPLATFORM` (RED test in `deploy-up.test.ts`). The final build from `39439c8` took 143 s with cached layers; a cold build reached the web step in 288 s |
-| G-14 | **amd64** install smoke | PASS **with a deviation**, emulated | `amd64-smoke-final.log` | `install.sh` (`REPOPULSE_ALLOW_EMULATED_ARCH=1` test hatch) exit 0 in 49 s. Then `/healthz` 200, `/` 200, `/api/v1/me/context` 401, admin login 200, forced password change 200, re-login 200, `/setup/status` 200. api, worker, web, migrate and postgres all ran **amd64** images. **Deviation:** upstream amd64 `redis:7-alpine` segfaults under qemu-user (`qemu: uncaught target signal 11`, first attempt, `amd64-smoke-attempt1-2e4c7c2.log`), so the native arm64 redis was substituted. Not covered: real amd64 CPUs, Docker, restart/persistence on amd64, and scans |
+| G-11 | arm64 bundle build (`deploy/bundle.sh --version=0.1.0-rc2`) | PASS | `bundles.txt` | Built from `814fb55`, dirty=false, in 217 s |
+| G-12 | arm64 clean-install smoke, outside the repo, disposable project | PASS | `arm64-clean-install-smoke.log` | Steps: `shasum -c` OK → extract → `install.sh --port=8396` exit 0 in 28 s. Then `/healthz` 200, `/` 200, `/api/v1/me/context` 401. Admin login 200 (`must_change_password`), forced password change 200, `/setup/status` 200. A bad-signature POST to `/api/v1/webhooks/github` **through nginx** returns 401 (not 403). All images are arm64. Then `down` → `up.sh` 10 s, migrate "up to date" (no re-migrate), and login with the **changed** password 200 (data persisted). Then `down -v`: 0 containers, 0 volumes |
+| G-13 | **amd64** bundle build | PASS (under emulation) | `bundles.txt` | Cross-built with `--arch=amd64` under qemu-user. The first two attempts, on `425daa4`, failed identically: `vite build` → esbuild's Go runtime `fatal error: lfstack.push` under qemu. Fixed in `2e4c7c2`, where the SPA builds on `$BUILDPLATFORM` (RED test in `deploy-up.test.ts`). Final build from `814fb55` took 157 s with cached layers; a cold build reached the web step in 288 s |
+| G-14 | **amd64** install smoke | PASS **with a deviation**, emulated | `amd64-smoke-final.log` | `install.sh` (`REPOPULSE_ALLOW_EMULATED_ARCH=1` test hatch) exit 0 in 50 s. Then `/healthz` 200, `/` 200, `/api/v1/me/context` 401, admin login 200, forced password change 200, `/setup/status` 200, and the webhook bad-signature check 401. Then `down` → `up.sh` 43 s, no re-migrate, and login with the changed password 200 (data persisted), then `down -v` clean. api, worker, web, migrate and postgres ran **amd64** images. **Deviation:** upstream amd64 `redis:7-alpine` segfaults under qemu-user (`qemu: uncaught target signal 11`, first attempt: `amd64-smoke-attempt1-2e4c7c2.log`), so the native arm64 redis was substituted. Not covered: real amd64 CPUs, Docker, scans |
 | G-15 | Docker engine | **BLOCKED** | — | No Docker on this host. The founder's "amd64 + Docker" acceptance (W11-01) needs a real amd64 machine with Docker |
 
 ## 2. Code fixes on this branch (RED first; evidence in `red-evidence.txt`)
@@ -47,11 +47,12 @@ here; reason given.
 | W17-35 | Backfill entity fetch errors were absorbed silently: adapters read any non-2xx list response as an empty page. Now `ForgeHttpError` is raised; a permanent refusal is recorded on `sync_cursors.last_error` (migration 0029) and in `repos.last_error`, and the entity still finishes; 5xx errors fail the job so it retries or dead-letters; discovery returns 502 | 5 contract tests resolved `{items: []}`. 4 integration tests: `last_error` null, and a 502 that checkpointed `done` |
 | W17-36 | Webhook receiver per forge. Gitea delivery was verified **live** (1.24.7 sends GitHub-compatible headers and `X-Hub-Signature-256`), and a captured delivery is replayed in tests. The receiver now verifies against each candidate connection. New `/webhooks/gitlab` route (`X-Gitlab-Token`), chosen through `ForgeCapabilities.webhookScheme`. GitLab subgroup paths are kept intact | Gitea delivery on a path shared with GitHub: 401. `/webhooks/gitlab`: 404. Subgroup stored as `platform`/`tools` |
 | W17-37 | The api and the worker health server bound every interface. They now use `LISTEN_HOST` (default `127.0.0.1`); the images set `0.0.0.0`, and only web publishes a port, on `REPOPULSE_BIND` | Health server bound `::`; a generic `HOST=build-box.lan` was honoured |
+| W17-36 (assembled app) | Pre-existing since W1-08: the CSRF plugin exempted `/webhooks`, but the receiver lives at `/api/v1/webhooks/*`. In the real app **every** delivery, GitHub's included, got 403 before its signature was checked, which is why Setup only ever showed "no delivery yet". Found by an app-level test (`app.test.ts`); fixed in `814fb55` | `app.test.ts`: both routes returned 403. After the fix they return 401 "Invalid webhook signature", and do so through nginx in G-12/G-14 |
 | W11-01 (partial) | `bundle.sh --arch=`, the `install.sh` emulation test hatch, and the web build on `$BUILDPLATFORM` | `deploy-up.test.ts` BUILDPLATFORM assertion |
 
 ## 3. Independent verifier (V-1)
 
-A separate agent session, given commands rather than conclusions, re-ran
+A separate agent session (run on `425daa4`/`2e4c7c2`), given commands rather than conclusions, re-ran
 lint, typecheck, the validators and the full vitest suite. It broke each fix
 and confirmed the named test went RED, then restored it. Report:
 `independent-verifier.md`. It could not refute W17-35, W17-36 or W17-37.
@@ -104,7 +105,10 @@ It did not run e2e (resource contention); G-4 above did.
 3. **W14-01.** Add a Gitea token for `git.bpmforge.com`, or re-scope the ticket
    to "a real customer Gitea" if the dogfood deployment stays deferred.
 4. Rotate or delete the PAT in `.env.smoke`, and decide on the
-   `.gitleaks.toml` allowlist (R-14).
+   `.gitleaks.toml` allowlist (R-14). The dev database on this workstation
+   now holds the smoke's GitHub connections, with that PAT encrypted, so a
+   `pnpm dev` worker would reconcile `bpmforge/quarry` with it. Rotating the
+   token, or purging those rows, ends that.
 5. Merge `release/v1-selfhost` → `main`, tag, and publish or hand out the bundle.
    Each of these is a separate founder authorisation.
 
@@ -120,6 +124,7 @@ It did not run e2e (resource contention); G-4 above did.
 | R-12 | Packaged scan / restore drill not re-run | unchanged: prior-SHA evidence only (scans not exercised on rc2) |
 | R-14 | gitleaks full-history exits 1; live PAT in `.env.smoke` | unchanged |
 | R-06, R-07, R-08, R-09, R-13 | as in the 09-11 register below | unchanged |
+| R-16 (new) | A forge list for a feature that is DISABLED (issues off, and so on) used to read as empty; if the forge answers it with a 4xx, it now shows as a permanent "issues not ingested — HTTP …". GitHub documents only 200/301/404/422 for listing issues, so the real answer is unverified | disclosed on W17-35; add it to `emptyOn` once observed live |
 | R-15 (new) | The enrichment lists (PR files, check runs, reviews) still read an HTTP error as empty | follow-up on W17-35; making them throw would strand a repo in `backfilling` |
 
 ---

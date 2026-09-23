@@ -1,14 +1,9 @@
-# pnpm e2e on 39439c8
-  ✓   22 [chromium] › e2e/admin.spec.ts:85:1 › a member sees ask-an-admin rather than a wall of failed requests (155ms)
-  ✘  122 [chromium] › e2e/quality.spec.ts:538:5 › no horizontal overflow at 390px, 200% zoom (6.8s)
+# pnpm e2e on 814fb55
+  ✓   22 [chromium] › e2e/admin.spec.ts:85:1 › a member sees ask-an-admin rather than a wall of failed requests (150ms)
+  ✘  122 [chromium] › e2e/quality.spec.ts:538:5 › no horizontal overflow at 390px, 200% zoom (7.3s)
   1 skipped
-  153 passed (4.0m)
+  153 passed (4.1m)
 EXIT=0
-(the ✘ at quality.spec.ts:538 is the declared test.fail residual E-3/R-06, counted as passed by Playwright)
+(✘ quality.spec.ts:538 = declared test.fail residual R-06, counted as passed)
 
-# earlier run on 425daa4
-  ✓   22 [chromium] › e2e/admin.spec.ts:85:1 › a member sees ask-an-admin rather than a wall of failed requests (458ms)
-  ✘  122 [chromium] › e2e/quality.spec.ts:538:5 › no horizontal overflow at 390px, 200% zoom (8.8s)
-  1 skipped
-  153 passed (5.2m)
-EXIT=0
+# superseded: 39439c8 and 425daa4 (both 153 passed / 1 skipped)

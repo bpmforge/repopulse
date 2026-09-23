@@ -79,3 +79,8 @@ route RED: available-repos -> expected 500 to be 502
      → expected 'https://repopulse.example/webhooks/gi…' to match /\/webhooks\/gitlab$/webhooks\
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
       Tests  1 failed | 8 passed (9)
+
+== CSRF webhook exemption (814fb55): apps/api/src/app.test.ts on 39439c8
+   × POST /api/v1/webhooks/github reaches the receiver (401 bad signature, not CSRF/session) → expected 403 to be 401
+   × POST /api/v1/webhooks/gitlab reaches the receiver (401 bad signature, not CSRF/session) → expected 403 to be 401
+   after the fix: 11/11 (app.test.ts + plugins)

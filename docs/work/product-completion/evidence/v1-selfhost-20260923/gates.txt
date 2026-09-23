@@ -1,4 +1,14 @@
-# gates on 39439c8 (release/v1-selfhost, final code SHA)
+# FINAL gates on 814fb55 (release/v1-selfhost final code commit)
+## pnpm lint
+EXIT=0
+## pnpm typecheck
+EXIT=0
+## pnpm test
+ Test Files  319 passed | 2 skipped (321)
+      Tests  2466 passed | 9 skipped (2475)
+EXIT=0
+
+# superseded earlier runs
 ## pnpm lint
 EXIT=0
 ## pnpm typecheck
@@ -8,7 +18,7 @@ EXIT=0
       Tests  2464 passed | 9 skipped (2473)
 EXIT=0
 
-# earlier run on 425daa4 (superseded; kept for the record)
+## 425daa4 (superseded; kept for the record)
 ## pnpm lint
 
 EXIT=0
@@ -23,3 +33,7 @@ EXIT=1
 ## t2 live failure detail
 71:        "message": "Failed to load model \"qwen/qwen3-coder-next\". Error: Operation canceled.",
 1602:        "message": "Failed to load model \"qwen/qwen3-coder-next\". Error: Operation canceled.",
+## 39439c8
+ Test Files  319 passed | 2 skipped (321)
+      Tests  2464 passed | 9 skipped (2473)
+EXIT=0

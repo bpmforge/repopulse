@@ -4014,12 +4014,14 @@ the fix is a one-line UPDATE renaming the key.
   verified LIVE (1.24.7 sends GitHub-compatible headers + X-Hub-Signature-256, captured delivery
   replayed in tests); receiver verifies per candidate connection; new /webhooks/gitlab
   (X-Gitlab-Token) chosen via ForgeCapabilities.webhookScheme; GitLab subgroup paths kept intact
-  (splitRepoFullName). **W17-37 done** — api + worker health bind LISTEN_HOST (default
+  (splitRepoFullName); and — found only at the assembled-app level — the CSRF hook exempted
+  '/webhooks' while the receiver lives at /api/v1/webhooks, so EVERY real delivery (GitHub's
+  too) was refused 403 before its signature was checked; fixed in 814fb55. **W17-37 done** — api + worker health bind LISTEN_HOST (default
   127.0.0.1; images set 0.0.0.0; only web is published). Deploy: bundle.sh --arch=, web assets
   built on $BUILDPLATFORM (esbuild aborts under qemu). Board: W7-05/06/07, W12-10, W14-03, W16-09
   deferred off the v1 path; W16-34 closed as superseded by W17-03 (never diagnosed); W11-01
-  re-scoped to amd64 + Docker (publish deferred). Gate on 39439c8: lint 0 · typecheck 0 · vitest
-  2464 passed / 9 skipped · e2e 153 passed / 1 skipped · real-forge smoke PASS (bpmforge/quarry
-  live). Bundles 0.1.0-rc2: arm64 clean install + restart PASS; amd64 built + install-smoked
-  under qemu only (native redis substituted — amd64 redis segfaults under qemu). No Docker on the
-  host. Verdict HOLD on founder items only — docs/work/product-completion/RELEASE-CHECKLIST.md.
+  re-scoped to amd64 + Docker (publish deferred). Gate on 814fb55: lint 0 · typecheck 0 · vitest
+  2466 passed / 9 skipped · e2e 153 passed / 1 skipped · real-forge smoke PASS (bpmforge/quarry
+  live). Bundles 0.1.0-rc2 from 814fb55: arm64 clean install + restart PASS; amd64 built +
+  install + restart smoked under qemu only (native redis substituted — amd64 redis segfaults
+  under qemu). No Docker on the host. Verdict HOLD on founder items only — docs/work/product-completion/RELEASE-CHECKLIST.md.

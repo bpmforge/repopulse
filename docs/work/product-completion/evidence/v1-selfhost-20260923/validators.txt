@@ -1,36 +1,30 @@
-# validators on 94878ba
+# validators on 814fb55
 === bash scripts/validate-arch.sh
-PASS  rule 6 — no git clone anywhere; getTarball called only from the snapshot service (C1a)
 PASS  rule 7 — scan tools spawn only inside packages/security/sandbox (NFR-14)
 
 validate-arch: all rules PASS
 EXIT=0
 === node scripts/validate-plan.mjs
-  - W16-48: acceptance has 1 criteria, expected 2-5
   - W16-59: points 13 not in {1,2,3,5,8}
 
 OK: plan.json is valid.
 EXIT=0
 === node scripts/validate-traceability.mjs
-  - W2 design doc never referenced by a ticket: docs/design/CANVAS.md
   - W2 design doc never referenced by a ticket: docs/design/canvas
 
 OK: traceability chain has no dangling references.
 EXIT=0
 === bash scripts/validate-compose.sh
-PASS  rule env-documented — every deploy/compose.yaml variable appears in .env.example
 PASS  rule no-default-secrets — every secret in deploy/.env.example is blank
 
 validate-compose: all rules PASS
 EXIT=0
 === bash scripts/validate-egress-audit.sh
-PASS  repopulse_app UPDATE on egress_audit denied
 PASS  repopulse_app DELETE on egress_audit denied
 
 validate-egress-audit: all checks PASS
 EXIT=0
 === pnpm check:bundle
-Initial JS (gzipped, from dist/index.html):
   index-DZcdpSSq.js                          140.8 KB
   TOTAL                                      140.8 KB  (budget 200 KB)
 

@@ -1,20 +1,9 @@
-# real-forge smoke on 39439c8
-  ✓  1 [chromium] › e2e/smoke-real-forge.spec.ts:43:3 › real forge › ingests real repositories from api.github.com (3.3s)
-  1 passed (9.7s)
+# real-forge smoke on 814fb55
+Command: set -a; . ./.env.smoke; set +a; SMOKE_REAL_FORGE=1 E2E_API_PORT=3011 pnpm e2e --grep 'real forge'  (PAT from untracked .env.smoke; never printed; all logs grep-checked for it: 0 hits)
+  ✓  1 [chromium] › e2e/smoke-real-forge.spec.ts:43:3 › real forge › ingests real repositories from api.github.com (3.2s)
+  1 passed (9.4s)
 EXIT=0
-warehouse after the run (connection created by this run at 19:03:34Z): repo|status|last_error|conn_created|commits|commit_files|cursors
-bpmforge/quarry|live|live updates unavailable — webhook registration failed: forge responded 403|2026-09-23 19:03:34.807082+00|9|74|deployments:true:- issues:true:- prs:true:- releases:true:- commits:true:-
+warehouse after the run (connection created by this run): repo|status|last_error|conn_created|commits|commit_files|cursors
+bpmforge/quarry|live|live updates unavailable — webhook registration failed: forge responded 403|2026-09-23 19:37:50.020378+00|9|74|prs:true:- issues:true:- deployments:true:- releases:true:- commits:true:-
 
-# earlier run on 425daa4
-[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
-> repopulse@0.1.0 e2e /Users/bmatthews/Code/repopulse
-> playwright test --grep 'real forge'
-Running 1 test using 1 worker
-  ✓  1 [chromium] › e2e/smoke-real-forge.spec.ts:43:3 › real forge › ingests real repositories from api.github.com (4.1s)
-  1 passed (11.6s)
-EXIT=0
-
-## warehouse state after the run (queried 2026-09-23 18:17Z; connection created 18:16:58Z by this run)
-repo_id|repo|sync_status|last_error|conn_id|provider|conn_created|commits|commit_files|prs|issues|cursors(entity:done:error:updated)
-53755|bpmforge/quarry|live|live updates unavailable — webhook registration failed: forge responded 403|31356|github|2026-09-23 18:16:58.845945+00|9|74|0|0|releases:true:-:18:17 issues:true:-:18:17 deployments:true:-:18:17 commits:true:-:18:17 prs:true:-:18:17
-Command: set -a; . ./.env.smoke; set +a; SMOKE_REAL_FORGE=1 E2E_API_PORT=3011 pnpm e2e --grep 'real forge'  (token read from the untracked .env.smoke; never printed; logs grep-checked for it: 0 hits)
+# superseded: identical PASS on 39439c8 (19:03Z) and 425daa4 (18:16Z)
