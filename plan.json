@@ -8271,6 +8271,32 @@
       "notes": [
         "FILED + CLAIMED 2026-09-23 on fix/v1-residuals: RELEASE-CHECKLIST residual R-16, disclosed on W17-35."
       ]
+    },
+    {
+      "id": "W17-40",
+      "title": "pnpm test calls the developer's LM Studio by default and evicts other tools' models",
+      "phase": 17,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/t2/live.integration.test.ts",
+        "apps/api/src/workers/gateway.live.test.ts",
+        "docs/TESTING.md",
+        "docs/CONFIG.md",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The two live LM Studio tests (packages/analysis t2/live.integration.test.ts, apps/api workers/gateway.live.test.ts) run ONLY when LMSTUDIO_LIVE=1 and skip cleanly otherwise; a configured LMSTUDIO_BASE_URLS alone is not consent, because .env carries it for the product",
+        "pnpm test makes ZERO LM Studio requests by default — verified by a request counter on every :1234 fetch/http.request in the test processes AND by the LM Studio server log, not assumed",
+        "With LMSTUDIO_LIVE=1 the tests still run against the configured / local host as before"
+      ],
+      "points": 1,
+      "status": "in_progress",
+      "notes": [
+        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals (coordinator request, cause traced by the Dokima agent): t2/live always appended http://localhost:1234 as a candidate so it never skipped, and warmed qwen/qwen3-coder-next with \"ping\" (max_tokens 8, 2 retries => bursts of three); gateway.live.test.ts fetched localhost:1234/v1/models AT IMPORT and drove data[0] — whatever model was listed first. Both evicted other tools' models from LM Studio on every pnpm test."
+      ]
     }
   ]
 }
