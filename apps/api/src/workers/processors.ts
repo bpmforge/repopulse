@@ -3,6 +3,7 @@ import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { core, read } from '@repopulse/shared';
 import { readWorkspaceSettings } from '../lib/workspace-settings.js';
 import {
+  addReplacingFinished,
   commitsNeedingChurn,
   enrichCommitChurn,
   enrichPullRequest,
@@ -20,6 +21,7 @@ import {
   syncPhaseToRepoStatus,
   repoSyncStatus,
   PAGINATED_ENTITIES,
+  readCursor,
   type BackfillJobData,
   type DeltaJobData,
   type SyncStreamEvent,
@@ -148,10 +150,19 @@ async function processPlan(deps: ProcessorDeps, data: { workspaceId: number; rep
       (PAGINATED_ENTITIES as readonly string[]).includes(spec.entityType),
   );
 
+  let enqueued = 0;
   for (const spec of paginated) {
-    // jobId comes from the planner so a re-planned repo collapses onto the same
-    // jobs instead of duplicating an entire backfill.
-    await deps.backfillQueue.add(
+    // A re-plan (the nightly sweep rescuing an `error` repo, W17-41) must not
+    // re-walk history that already finished — that is forge budget spent to
+    // learn nothing — and must resume an unfinished entity from its checkpoint
+    // rather than from page one.
+    const cursor = await readCursor(deps.db, spec.repoId, spec.entityType);
+    if (cursor?.backfillDone) continue;
+    // jobId comes from the planner so a re-planned repo collapses onto a job
+    // still in flight instead of duplicating it; a FINISHED job under that id
+    // is replaced, or the re-plan would be silently absorbed by it.
+    await addReplacingFinished(
+      deps.backfillQueue,
       spec.entityType,
       {
         workspaceId: data.workspaceId,
@@ -159,9 +170,11 @@ async function processPlan(deps: ProcessorDeps, data: { workspaceId: number; rep
         repo: resolved.repoFullName,
         entityType: spec.entityType,
         since: spec.since,
+        ...(cursor?.cursorValue ? { cursor: cursor.cursorValue } : {}),
       } satisfies BackfillJobData,
       { jobId: spec.jobId },
     );
+    enqueued++;
   }
   // queued --plan_ran--> history, which stores as 'backfilling'. Guarded on the
   // current value rather than written blindly: a re-planned repo that is
@@ -174,7 +187,14 @@ async function processPlan(deps: ProcessorDeps, data: { workspaceId: number; rep
     .set({ syncStatus: syncPhaseToRepoStatus(nextPhase('queued', 'plan_ran')) })
     .where(and(eq(core.repos.id, data.repoId), eq(core.repos.syncStatus, 'pending_backfill')));
 
-  return { planned: paginated.length, deferredToEnrich: specs.length - paginated.length };
+  // Nothing left to walk: no entity job will finish to trigger the enrichment
+  // fan-out, so do it here. This is the path a repo rescued from a dead-lettered
+  // enrich job takes (W17-41).
+  if (enqueued === 0 && (await isHistoryBackfillComplete(deps.db, data.repoId))) {
+    await startEnrichment(deps, data.workspaceId, data.repoId);
+  }
+
+  return { planned: enqueued, deferredToEnrich: specs.length - paginated.length };
 }
 
 /**
@@ -203,7 +223,61 @@ async function maybeSnapshot(deps: ProcessorDeps, data: BackfillJobData): Promis
   // churn. Nothing enqueued enrich work before this, which is why the queue had
   // no consumer AND no producer — registering a processor alone would have
   // been a consumer for a queue nothing feeds.
-  await fanOutEnrichment(deps, data.workspaceId, data.repoId);
+  await startEnrichment(deps, data.workspaceId, data.repoId);
+  return true;
+}
+
+/**
+ * Fan out enrichment; if there was nothing to enrich, finish the repo now.
+ *
+ * The live flip used to happen only at the end of an enrich job, so a repo
+ * with no commit or PR awaiting enrichment — an empty repo, or one whose last
+ * pending item was the dead-lettered job's — had no job left to flip it and
+ * sat in `backfilling` forever (W17-41).
+ */
+async function startEnrichment(
+  deps: ProcessorDeps,
+  workspaceId: number,
+  repoId: number,
+): Promise<void> {
+  const fanned = await fanOutEnrichment(deps, workspaceId, repoId);
+  if (fanned.commits + fanned.prs > 0) return;
+  if (await goLiveIfEnriched(deps, workspaceId, repoId)) {
+    await emitSyncStatus(deps, workspaceId, repoId, 'sync.done');
+  }
+}
+
+/**
+ * enrichment --> live (§2: "enrichment queue drained"). Guarded on the current
+ * value for the same reason processPlan is: many churn jobs finish
+ * concurrently and all observe drained, so the losers must no-op rather than
+ * throw an illegal transition into the DLQ. Returns true only for the caller
+ * whose UPDATE actually flipped the repo.
+ */
+async function goLiveIfEnriched(
+  deps: ProcessorDeps,
+  workspaceId: number,
+  repoId: number,
+): Promise<boolean> {
+  if (!(await isFullyEnriched(deps, repoId))) return false;
+  const live = syncPhaseToRepoStatus(nextPhase('enrichment', 'enrichment_complete'));
+  const updated = await deps.db
+    .update(core.repos)
+    .set({ syncStatus: live })
+    .where(and(eq(core.repos.id, repoId), eq(core.repos.syncStatus, 'backfilling')))
+    .returning({ id: core.repos.id });
+  if (updated.length === 0) return false;
+  // Recompute now that churn exists: the snapshot taken when history finished
+  // could not see any file-level data yet. Replacing a finished job of the same
+  // key: a repo that recovers from a stall on the day it first went live must
+  // still get its recompute.
+  const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  await addReplacingFinished(
+    deps.snapshotQueue,
+    'compute',
+    { workspaceId, repoId },
+    { jobId: `${jobId.snapshot(repoId, yyyymmdd)}-enriched` },
+  );
   return true;
 }
 
@@ -220,31 +294,49 @@ async function fanOutEnrichment(
   workspaceId: number,
   repoId: number,
 ): Promise<{ commits: number; prs: number }> {
-  const commits = await commitsNeedingChurn(deps.db, repoId);
+  const commits = await commitsNeedingChurn(deps.db, repoId, ENRICH_FAN_OUT_LIMIT);
   for (const commit of commits) {
     // jobId.enrich is the §6 idempotency key: re-planning a repo, or two entity
     // jobs both completing the history, collapse onto the same jobs instead of
     // re-fetching every commit's files.
-    await deps.enrichQueue.add(
+    // A finished job under the key is replaced (W17-41): a commit still in this
+    // list after its job completed or dead-lettered has not been handled.
+    await addReplacingFinished(
+      deps.enrichQueue,
       'commitFiles',
       { workspaceId, repoId, sha: commit.sha },
       { jobId: jobId.enrich(repoId, commit.sha) },
     );
   }
 
-  const prs = await prsNeedingEnrichment(deps.db, repoId);
+  const prs = await prsNeedingEnrichment(deps.db, repoId, ENRICH_FAN_OUT_LIMIT);
   for (const pr of prs) {
     // Keyed on the PR number rather than a SHA so it stays distinct from the
     // churn job for the same head commit.
-    await deps.enrichQueue.add(
+    await addReplacingFinished(
+      deps.enrichQueue,
       'prDetail',
       { workspaceId, repoId, prNumber: pr.number, headSha: pr.headSha },
       { jobId: `${jobId.enrich(repoId, String(pr.number))}-pr` },
     );
   }
 
+  // A full batch means more may be waiting. The fan-out is capped so one round
+  // cannot flood the queue, but nothing ever asked for the NEXT round: a repo
+  // with more than one batch of commits or PRs drained the first and sat in
+  // `backfilling` forever (W17-41). A `fanOut` job queued behind the batch —
+  // same queue, same priority, so BullMQ runs it after the batch's jobs are
+  // picked up — asks again. No jobId: two concurrent fan-outs queueing two
+  // continuations costs one idempotent extra round, nothing more.
+  if (commits.length === ENRICH_FAN_OUT_LIMIT || prs.length === ENRICH_FAN_OUT_LIMIT) {
+    await deps.enrichQueue.add('fanOut', { workspaceId, repoId });
+  }
+
   return { commits: commits.length, prs: prs.length };
 }
+
+/** One enrichment round per repo (commitsNeedingChurn / prsNeedingEnrichment cap). */
+const ENRICH_FAN_OUT_LIMIT = 500;
 
 /**
  * Both halves of enrichment must be drained before `live` (§2). Checking only
@@ -358,6 +450,8 @@ export function enrichProcessor(deps: ProcessorDeps) {
       prNumber?: number;
       headSha?: string;
     };
+    if (job.name === 'fanOut') return continueFanOut(deps, data.workspaceId, data.repoId);
+
     const resolved = await providerForRepo(deps, data.workspaceId, data.repoId);
     if (!resolved) return { skipped: 'no active connection' };
 
@@ -385,36 +479,30 @@ export function enrichProcessor(deps: ProcessorDeps) {
             ),
           };
 
-    // enrichment --> live (§2: "enrichment queue drained"). Guarded on the
-    // current value for the same reason processPlan is: many churn jobs finish
-    // concurrently and all observe drained, so the losers must no-op rather
-    // than throw an illegal transition into the DLQ.
-    let becameLive = false;
-    if (await isFullyEnriched(deps, data.repoId)) {
-      const live = syncPhaseToRepoStatus(nextPhase('enrichment', 'enrichment_complete'));
-      const updated = await deps.db
-        .update(core.repos)
-        .set({ syncStatus: live })
-        .where(and(eq(core.repos.id, data.repoId), eq(core.repos.syncStatus, 'backfilling')))
-        .returning({ id: core.repos.id });
-      becameLive = updated.length > 0;
-      if (becameLive) {
-        // Recompute now that churn exists: the snapshot taken when history
-        // finished could not see any file-level data yet.
-        const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        await deps.snapshotQueue.add(
-          'compute',
-          { workspaceId: data.workspaceId, repoId: data.repoId },
-          { jobId: `${jobId.snapshot(data.repoId, yyyymmdd)}-enriched` },
-        );
-      }
-    }
+    const becameLive = await goLiveIfEnriched(deps, data.workspaceId, data.repoId);
     // `sync.done` fires exactly once per repo, on the guarded UPDATE that
     // actually flipped it live — the concurrent losers return 0 rows, so the
     // client gets one "finished syncing" toast rather than one per churn job.
     if (becameLive) await emitSyncStatus(deps, data.workspaceId, data.repoId, 'sync.done');
     return { ...outcome, ...(becameLive ? { becameLive: true } : {}) };
   };
+}
+
+/**
+ * The next enrichment round for a repo whose last round was a full batch.
+ * Only while the repo is still backfilling: a repo moved to `error` by a dead
+ * letter waits for the nightly sweep, and a live one has nothing to finish.
+ */
+async function continueFanOut(deps: ProcessorDeps, workspaceId: number, repoId: number) {
+  const [repo] = await deps.db
+    .select({ syncStatus: core.repos.syncStatus })
+    .from(core.repos)
+    .where(and(eq(core.repos.id, repoId), eq(core.repos.workspaceId, workspaceId)))
+    .limit(1);
+  if (repo?.syncStatus !== 'backfilling')
+    return { skipped: `repo is ${repo?.syncStatus ?? 'gone'}` };
+  await startEnrichment(deps, workspaceId, repoId);
+  return { fannedOut: true };
 }
 
 /**

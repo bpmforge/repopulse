@@ -5,3 +5,31 @@ AssertionError: expected 'repopulse' not to be 'repopulse' // Object.is equality
  FAIL  |@repopulse/shared| src/testing/seed/dev-db-isolation.integration.test.ts > the test suite is isolated from the developer database (W17-42) > a real forge connection in the dev DB's Default workspace survives the suite's seed reset
 AssertionError: the developer connection must survive pnpm test: expected [] to have a length of 1 but got +0
       Tests  2 failed (2)
+
+# W17-41 RED (source changes stashed, new tests kept), 2026-09-23
+   × a dead-lettered sync job is visible and recoverable (W17-41) > an exhausted enrich job moves its repo to error with the cause, keeping earlier fragments 10278ms
+   × a dead-lettered sync job is visible and recoverable (W17-41) > the nightly sweep re-plans it and the dead-lettered work is actually re-enqueued 15ms
+   × a dead-lettered sync job is visible and recoverable (W17-41) > a repo with more than one fan-out batch of commits is not stranded after the first 36ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: a sync that gave up must not read as still backfilling: expected 'backfilling' to be 'error' // Object.is equality
+AssertionError: the retried stall is cleared: the given combination of arguments (null and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+AssertionError: expected undefined to be truthy
+      Tests  3 failed (3)
+
+# BullMQ probe: a plain re-add under a failed job's id is ignored
+state after exhaust: failed
+after plain re-add: state failed data {}
+
+# W17-41 GREEN
+ ✓ |@repopulse/api| src/workers/stalled-sync.integration.test.ts (3 tests) 1214ms
+   ✓ a dead-lettered sync job is visible and recoverable (W17-41) > a repo with more than one fan-out batch of commits is not stranded after the first  895ms
+ ✓ |@repopulse/ingest| src/queues/dlq.integration.test.ts (1 test) 261ms
+ ✓ |@repopulse/ingest| src/queues/shutdown.test.ts (3 tests) 6ms
+ ✓ |@repopulse/ingest| src/queues/topology.test.ts (4 tests) 2ms
+ ✓ |@repopulse/ingest| src/queues/stall.test.ts (3 tests) 2ms
+ ✓ |@repopulse/ingest| src/queues/dlq.test.ts (3 tests) 2ms
+      Tests  17 passed (17)
+
+# Gate after W17-41: lint=0 typecheck=0
+ Test Files  326 passed | 4 skipped (330)
+      Tests  2500 passed | 14 skipped (2514)
