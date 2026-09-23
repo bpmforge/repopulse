@@ -1,4 +1,14 @@
+import 'dotenv/config';
 import { defineConfig } from 'vitest/config';
+// @ts-expect-error -- plain .mjs helper shared with scripts/, no type declarations
+import { useTestDatabase } from './scripts/test-db.mjs';
+
+// W17-42: the suite runs against its own `<dev name>_test` database, never the
+// one `.env` names — the seed reset wipes the Default workspace's connections
+// and repos. This runs in the main process before any worker is spawned, and
+// the workers inherit the rewritten DATABASE_URL; `dotenv/config` in the test
+// files never overrides a variable that is already set. See scripts/test-db.mjs.
+await useTestDatabase();
 
 export default defineConfig({
   test: {
