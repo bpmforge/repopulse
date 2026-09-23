@@ -1,8 +1,8 @@
 # RepoPulse — one multi-stage build, four runtime targets (W11-01).
 #
-# Targets: api, worker, migrate, web. They share the dependency and build stages
-# so a full `compose build` resolves the pnpm workspace ONCE rather than four
-# times.
+# Targets: api, worker, migrate, web (+ scan-runner). The runtime targets share
+# one production install (prod-deps); the web target's static assets come from
+# a full install on the BUILD platform (web-build).
 #
 # Node is pinned to the same version as .nvmrc and pnpm to package.json's
 # packageManager field. A container that silently runs a different Node major
@@ -16,31 +16,11 @@ ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 
-# ---------- deps ----------
-# Manifests only, so a source-only edit reuses the cached install layer.
-FROM base AS deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/api/package.json apps/api/
-COPY apps/web/package.json apps/web/
-COPY packages/analysis/package.json packages/analysis/
-COPY packages/auth/package.json packages/auth/
-COPY packages/forge/package.json packages/forge/
-COPY packages/ingest/package.json packages/ingest/
-COPY packages/insights/package.json packages/insights/
-COPY packages/metrics/package.json packages/metrics/
-COPY packages/reports/package.json packages/reports/
-COPY packages/security/package.json packages/security/
-COPY packages/shared/package.json packages/shared/
-RUN pnpm install --frozen-lockfile
-
-# ---------- source ----------
-FROM deps AS source
-COPY . .
-
 # ---------- prod-deps ----------
-# The runtime stages must NOT inherit `source`: that carries the full dev
-# toolchain (vitest, playwright, eslint, typescript, drizzle-kit) and made the
-# api and worker images 1.68 GB, all of it pulled by every customer on install.
+# The runtime stages must NOT carry the full dev install (only the web-build
+# stage below has it): that is the dev toolchain (vitest, playwright, eslint,
+# typescript, drizzle-kit), and inheriting it once made the api and worker
+# images 1.68 GB, all of it pulled by every customer on install.
 #
 # A plain --prod install is not sufficient, because this workspace ships
 # TypeScript: every package's `exports` points at ./src/*.ts and nothing is
@@ -73,7 +53,31 @@ COPY apps/api/src apps/api/src
 COPY packages packages
 
 # ---------- web build ----------
-FROM source AS web-build
+# ON THE BUILD PLATFORM, not the target one (W11-01, 2026-09-23). The SPA's
+# output is static files, identical on every arch, and esbuild (inside vite) is
+# a Go binary: cross-building the amd64 bundle on an arm64 host ran it under
+# qemu-user, where the Go runtime aborts (`fatal error: lfstack.push`) every
+# time. Only the nginx image below is the target arch. When build and target
+# are the same platform this is simply a second native install of the same
+# lockfile. BUILDPLATFORM is set automatically by buildah/podman and BuildKit.
+FROM --platform=$BUILDPLATFORM node:22.23.1-alpine AS web-build
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+WORKDIR /app
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/analysis/package.json packages/analysis/
+COPY packages/auth/package.json packages/auth/
+COPY packages/forge/package.json packages/forge/
+COPY packages/ingest/package.json packages/ingest/
+COPY packages/insights/package.json packages/insights/
+COPY packages/metrics/package.json packages/metrics/
+COPY packages/reports/package.json packages/reports/
+COPY packages/security/package.json packages/security/
+COPY packages/shared/package.json packages/shared/
+RUN pnpm install --frozen-lockfile
+COPY . .
 # The SPA talks only to /api/v1 on its own origin (Law 4), so there is no API
 # URL to bake in at build time — nginx routes it. That is what keeps one image
 # usable at any customer hostname.
