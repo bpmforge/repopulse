@@ -195,6 +195,10 @@ e2e run.
   a configured `LMSTUDIO_BASE_URLS` is not consent, because `.env` carries it for the
   product, and the tests used to warm/load models on the developer's own LM Studio and
   evict other tools' models.
+- **The vitest suite owns its database (W17-42).** `vitest.config.ts` (via
+  `scripts/test-db.mjs`) points `DATABASE_URL` at `<dev name>_test` on the same server,
+  creating and migrating it on first use; the seed reset wipes the Default workspace, so it
+  must never run against the dev DB. `pnpm e2e` is separate: it drives and reseeds the dev stack.
 
 ## 9. Coverage expectations
 
