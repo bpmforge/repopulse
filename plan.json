@@ -8085,6 +8085,98 @@
         "Claimed 2026-09-11 on tip 53374d6. Working-tree plan.json had been re-serialised with \\uXXXX escapes (2448-line churn); restored from HEAD and only this ticket edited.",
         "Closed 2026-09-11 with recommendation HOLD. Evidence dir docs/work/product-completion/evidence/w17-34-release-20260911/, checklist docs/work/product-completion/RELEASE-CHECKLIST.md. Same-SHA (53374d6) results: lint 0, typecheck 0, vitest 2435 passed / 9 skipped x3 runs, validators arch/plan/traceability/compose/egress-audit PASS, bundle check PASS (140.5 KB initial gz, budget 200), bundle rebuilt from 53374d6 (repopulse-0.1.0-rc1-linux-arm64.tar.gz sha256 a3e6a169…) and clean-install smoke PASS (install exit 0, /healthz 200, bootstrap login 200, torn down with down -v), gitleaks 17/25 findings all triaged as placeholders/identifiers/expired fixture value — none a live secret in git. FAIL: e2e gate 150 pass / 3 fail — org-overview.spec 2x2-heroes assertion (deterministic in isolation; the overview layout no longer varies panel width since W17-17 placed top-actions first, spec was outside that ticket write_scope and never re-run) and quality.spec axe on /admin/agreements dark+light (serious link-in-text-block once W5-08 exception lists carry PR links; passes only on the empty seed — reproduced deterministically in gate-e2e-axe-repro.txt). The listed 390px@200% ✘ is a declared test.fail expected failure, not a third failure. Release is HOLD until those two are fixed on a new SHA and the full gate re-run there."
       ]
+    },
+    {
+      "id": "W17-35",
+      "title": "Backfill entity fetch errors are absorbed silently (403 on issues reads as 'no issues')",
+      "phase": 17,
+      "module": "ingest",
+      "stories": [],
+      "write_scope": [
+        "packages/forge/src/**",
+        "packages/forge/test/**",
+        "packages/ingest/src/**",
+        "packages/shared/src/db/schema/core/sync-cursors.ts",
+        "packages/shared/drizzle/**",
+        "apps/web/src/widgets/admin/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A permanent HTTP failure (401/403/404/410/422) on one backfill entity is recorded on that entity and in repos.last_error naming the entity and status, and does not stop the other entities or the repo reaching live (W14-01: no failure absorbed silently, FR-INGEST-8)",
+        "A transient failure (5xx after the client's retries) fails the job so BullMQ retries and dead-letters it, instead of checkpointing backfill_done over zero rows",
+        "An empty repository (409 on commits) is still an empty, finished entity, not an error",
+        "RED first: the tests fail on main by behaviour (resolved empty / last_error null), then pass; full gate green"
+      ],
+      "points": 3,
+      "status": "in_progress",
+      "notes": [
+        "FILED 2026-09-23 from the throwaway Gitea 1.24.7 run recorded on W14-01: with read:repository/organization/user scopes the issues request got 403, yet the repo went live and last_error mentioned only the webhook.",
+        "ROOT CAUSE CANDIDATES, ranked, with how each was checked: (1) the adapters' list helpers read any non-2xx body as a non-array and return an EMPTY page, so ingestEntityPages checkpoints backfill_done=true over zero rows - CONFIRMED by reading gitea/provider.ts paged(), github pageOf(), gitlab paged() and BudgetedClient.request (returns 4xx responses, and 5xx after retries, rather than throwing), and by the RED contract test: listIssues on a 403 resolves {items: []}. (2) the backfill job threw and the DLQ absorbed it - RULED OUT: a thrown entity job never checkpoints its cursor, so isHistoryBackfillComplete could not be true and the repo could not have gone live, which it did. (3) the reconcile sweep clearing last_error - not the cause (requeueErrorRepos only touches repos in status error), but checked so a recorded failure is re-recorded, not erased, by the nightly sweep.",
+        "SIDE EFFECT, intended: listRepos now rejects on 401/403, so connect's smoke check (which already classifies by err.status) refuses a bad token instead of accepting it as a connection with 0 repositories."
+      ]
+    },
+    {
+      "id": "W17-36",
+      "title": "Webhook receiver is GitHub-shaped: verify Gitea delivery, give GitLab a route that can accept it",
+      "phase": 17,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/webhooks/**",
+        "apps/api/src/routes/connections/**",
+        "apps/api/src/index.ts",
+        "apps/api/src/demo.ts",
+        "packages/forge/src/**",
+        "packages/ingest/src/webhooks/**",
+        "docs/INSTALL.md",
+        "docs/research/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The shape a real Gitea delivery arrives in (headers + payload) is captured from a live Gitea and replayed through the receiver in a test that signs with a test-only secret",
+        "GitLab hooks register at a URL whose handler verifies X-Gitlab-Token and resolves the project path, with accept and reject tests",
+        "Existing hooks registered at /api/v1/webhooks/github keep working"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-09-23 (release/v1-selfhost). RELEASE-CHECKLIST residual R-11: Gitea/GitLab webhook delivery untested; every provider registers at /api/v1/webhooks/github."
+      ]
+    },
+    {
+      "id": "W17-37",
+      "title": "API and worker health server listen on every interface by default",
+      "phase": 17,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/index.ts",
+        "apps/api/src/workers/**",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "apps/api/test/**",
+        "Dockerfile",
+        "docs/CONFIG.md",
+        "docs/RUNNING.md",
+        "docs/INSTALL.md",
+        "deploy/.env.example",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A host-run api and worker bind 127.0.0.1 unless HOST says otherwise (dev printed 'Server listening at http://192.168.13.113:13300')",
+        "The packaged api/worker images set HOST=0.0.0.0 so the compose network still reaches them; only the web proxy publishes a host port, on REPOPULSE_BIND (default 127.0.0.1)",
+        "HOST is registered in env-registry and documented"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-09-23 (release/v1-selfhost)."
+      ]
     }
   ]
 }
