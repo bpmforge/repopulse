@@ -3,6 +3,7 @@ import { core, type Database } from '@repopulse/shared';
 import type { ForgeProvider } from '@repopulse/forge';
 import { ingestEntityPages, type PaginatedEntity } from '../backfill/backfill.js';
 import { _highWatermark } from '../webhooks/delta.js';
+import { withoutStallFragments } from '../queues/stall.js';
 
 // Nightly reconciliation sweep (INGESTION §5, FR-INGEST-7). Lane=reconcile,
 // runs per repo. Real forge calls go through the BudgetedClient, whose ETag
@@ -81,14 +82,17 @@ export interface RequeueDeps {
  */
 export async function requeueErrorRepos(deps: RequeueDeps, workspaceId: number): Promise<number[]> {
   const errored = await deps.db
-    .select({ id: core.repos.id })
+    .select({ id: core.repos.id, lastError: core.repos.lastError })
     .from(core.repos)
     .where(and(eq(core.repos.workspaceId, workspaceId), eq(core.repos.syncStatus, 'error')));
   const requeued: number[] = [];
   for (const r of errored) {
+    // Clear only the stall this retry answers (W17-41). The rest of the line is
+    // per-entity refusals (W17-35/38) and the webhook-registration failure,
+    // which a re-plan does not re-record for entities that already finished.
     await deps.db
       .update(core.repos)
-      .set({ syncStatus: 'pending_backfill', lastError: null })
+      .set({ syncStatus: 'pending_backfill', lastError: withoutStallFragments(r.lastError) })
       .where(eq(core.repos.id, r.id));
     await deps.enqueuePlan({ workspaceId, repoId: r.id });
     requeued.push(r.id);

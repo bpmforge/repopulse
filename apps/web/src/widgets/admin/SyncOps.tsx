@@ -100,7 +100,9 @@ export function SyncOps() {
       header: 'Last error',
       cell: (row) =>
         row.lastError ? (
-          <span className="text-crit" title={row.lastError.at}>
+          // The cell truncates; the full line (several fragments joined by
+          // " · " — refusals, a stalled sync) is one hover away.
+          <span className="text-crit" title={`${row.lastError.message}\n${row.lastError.at}`}>
             {row.lastError.message.slice(0, 60)}
           </span>
         ) : (

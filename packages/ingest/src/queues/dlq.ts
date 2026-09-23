@@ -1,6 +1,7 @@
 import type { Job, Queue, Worker } from 'bullmq';
 import { core, type Database } from '@repopulse/shared';
 import { QUEUE, safeJobId } from './topology.js';
+import { markRepoStalled } from './stall.js';
 
 // Dead-letter handling (NFR-11, INGESTION §6): when a job exhausts its
 // attempts, copy it + the last error to the `ingest.dlq` queue AND a
@@ -82,7 +83,8 @@ export async function deadLetter(
  * the poison job to the DLQ + job_failure ledger. Earlier attempts (still
  * retrying) are ignored — only exhausted jobs dead-letter (INGESTION §6). A
  * job with no resolvable workspaceId is skipped rather than crashing the
- * listener.
+ * listener. An exhausted backfill/enrich job also moves its repo to `error`
+ * (stall.ts), which the nightly sweep re-plans.
  */
 export function attachDeadLetter(
   worker: Worker,
@@ -100,5 +102,9 @@ export function attachDeadLetter(
     void deadLetter(db, dlqQueue, buildFailureRecord(worker.name, job, err, workspaceId)).catch(
       (e: unknown) => onError?.(e),
     );
+    // W17-41: a dead-lettered backfill/enrich job leaves its repo's initial
+    // sync unfinished — say so on the repo instead of leaving it `backfilling`.
+    // Independent of the ledger write above: either failing must not cost the other.
+    void markRepoStalled(db, worker.name, job, err).catch((e: unknown) => onError?.(e));
   });
 }

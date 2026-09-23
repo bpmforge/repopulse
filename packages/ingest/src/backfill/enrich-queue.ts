@@ -61,9 +61,14 @@ export async function commitsNeedingChurn(
  * `live`.
  */
 export async function isEnrichmentDrained(db: DbOrTx, repoId: number): Promise<boolean> {
+  return (await countCommitsNeedingChurn(db, repoId)) === 0;
+}
+
+/** How many commits still await churn — the fan-out's progress measure (W17-41). */
+export async function countCommitsNeedingChurn(db: DbOrTx, repoId: number): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(facts.commits)
     .where(NEEDS_CHURN(repoId));
-  return (row?.n ?? 0) === 0;
+  return row?.n ?? 0;
 }

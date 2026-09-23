@@ -99,6 +99,37 @@ Studio files). Evidence: `evidence/v1-residuals-20260923/`.
   Founder item 4 is reduced to rotating the PAT. **Finding:** `pnpm test` destroys any real
   forge connection a developer adds to the dev DB's Default workspace.
 
+## 4c. Addendum 2026-09-23 — `fix/v1-last-code` (not merged)
+
+Branched from `main` `1740747`; pushed to both remotes. Nothing merged, tagged or
+published. Evidence: `evidence/v1-last-code-20260923/` (`red-evidence.txt`, `gate-e2e.txt`).
+
+- **W17-41 done (R-15 remainder)** — a dead-lettered backfill or enrich job no longer leaves its
+  repo in `backfilling`: the repo goes to `error` with a "sync stalled" reason shown first in
+  Admin → Sync, and the nightly reconcile sweep re-plans it. The re-plan now actually re-runs the
+  work (BullMQ had been silently ignoring re-adds under a finished job's id), skips finished history,
+  and keeps the per-entity refusal fragments. Found and fixed while doing it: enrichment stopped
+  after the first 500 commits/PRs, and a repo with nothing to enrich never went live. Recovery
+  cadence is the nightly sweep (`RECONCILE_CRON`, default 03:17), not a shorter backoff.
+- **W17-42 done** — `pnpm test` runs against its own `<dev>_test` database; the developer's dev DB
+  (and any real forge connection in it) is no longer touched by the unit/integration suite.
+  `pnpm e2e` still reseeds the dev Default workspace — that is its design (seeded dev stack).
+- **Main was red on two gates, fixed here:** `pnpm typecheck` (packages/forge, from W17-39) and
+  `validate-arch.sh` rule 4 (a W17-39 test named the public GitHub API host).
+- **Follow-ups found after the first gate:** the enrichment `fanOut` continuation could loop
+  forever on a repo whose enrich jobs complete without handling their item (revoked connection);
+  it now carries the outstanding count and stops when a round made no progress (`a04a91b`, RED
+  first). The e2e run on `a04a91b` failed `ingest-flow.spec.ts:42` once — a spec race (one picker
+  per connection, `.first()` resolving the checkbox and the submit button in different pickers;
+  `gate-e2e-ingest-flow-race.txt`); the spec now pins to its own connection's picker
+  (`data-connection-id`), 9/9 on `--repeat-each=3`.
+- **Gate on the branch head `d9b5d46`:** lint 0 · typecheck 0 · vitest **2501 passed / 14 skipped**
+  (baseline 2492 / 14) · full e2e **154 specs: 153 passed, 1 skipped (real-forge smoke, needs a
+  PAT), 0 failed, 0 flaky**; the ✘ at `quality.spec.ts:538` is the declared `test.fail` (R-06),
+  counted as passed. All five validators PASS.
+
+Verdict unchanged: **HOLD on founder items only** (§6). No code item remains open on the v1 path.
+
 ## 5. Board changes (plan.json)
 
 - **Filed and closed:** W17-35, W17-36 and W17-37.
@@ -151,8 +182,9 @@ Studio files). Evidence: `evidence/v1-residuals-20260923/`.
 | R-14 | gitleaks full-history exits 1; live PAT in `.env.smoke` | unchanged |
 | R-06, R-07, R-08, R-09, R-13 | as in the 09-11 register below | unchanged |
 | R-16 | A forge list for a DISABLED feature (issues off, …) read as an error (Gitea 404) or as "no issues" (GitHub 200) | **resolved — W17-39.** Observed live: Gitea 1.24.7 404 on /issues and /pulls, 200 [] on /releases; GitHub has_issues=false → /issues 200, empty or PRs only (410 only on a single issue). Repo metadata decides; shown as "not enabled on this repo". GitLab flags are from docs, not observed live |
-| R-15 | The enrichment lists (PR files, check runs, reviews) read an HTTP error as empty | **resolved — W17-38** (commit files too). Refusal recorded per entity + repos.last_error; PR/commit still marked handled so the repo reaches live; 5xx retries then DLQ. Remaining: a dead-lettered enrich job leaves its PR/commit pending (repo stays `backfilling`) until re-enqueued — same shape as W17-35 |
+| R-15 | The enrichment lists (PR files, check runs, reviews) read an HTTP error as empty | **resolved — W17-38** (commit files too), and its remainder **resolved — W17-41**: a dead-lettered backfill/enrich job moves the repo to `error` ("sync stalled") and the nightly sweep recovers it; >500-item enrichment and empty repos no longer strand the repo |
 | R-17 (new) | `pnpm test` evicted models from the developer's LM Studio | **resolved — W17-40**: live tests opt-in via `LMSTUDIO_LIVE=1`; 0 requests measured |
+| R-18 (new) | `pnpm test` wiped real forge connections from the dev DB (seed reset of the Default workspace) | **resolved — W17-42**: vitest runs on `<dev>_test`; `pnpm e2e` still reseeds the dev stack by design |
 
 ---
 

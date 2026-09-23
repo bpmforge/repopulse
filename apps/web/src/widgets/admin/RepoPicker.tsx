@@ -43,7 +43,11 @@ export function RepoPicker({ connectionId, connectionsKey }: Props) {
       onRetry={() => void refetch()}
       emptyMessage="This credential can see no repositories. Check its scopes, or that it has access to the organisation."
     >
-      <div className="flex flex-col gap-3" data-testid="repo-picker">
+      <div
+        className="flex flex-col gap-3"
+        data-testid="repo-picker"
+        data-connection-id={connectionId}
+      >
         <ul className="flex max-h-64 flex-col gap-1 overflow-auto">
           {items.map((repo) => {
             const id = repo.forge_repo_id;

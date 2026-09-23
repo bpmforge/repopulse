@@ -4046,3 +4046,21 @@ the fix is a one-line UPDATE renaming the key.
   16 completed BullMQ job records were removed by hand. Finding: `pnpm test` destroys any real
   forge connection a developer adds to the dev DB's Default workspace. Gate: lint 0 · typecheck 0 · vitest 2492 passed /
   14 skipped.
+- 2026-09-23 fix/v1-last-code (from main 1740747; pushed, not merged). **W17-41 done** — a
+  dead-lettered backfill/enrich job moves its repo from `backfilling` to `error` with a
+  "sync stalled — <lane> job <name> …" fragment first in last_error (budget park told apart from
+  an error; live repos never downgraded); the nightly sweep's re-plan now really re-runs work:
+  BullMQ silently ignores an add under a completed/failed job's id (probed), so finished jobs are
+  replaced (addReplacingFinished), done entities are skipped and unfinished ones resume from their
+  checkpoint, requeue keeps refusal fragments. Also: enrichment fan-out stopped after 500
+  commits/PRs (a `fanOut` continuation now asks for the next batch) and a repo with nothing to
+  enrich had no job to flip it live. **W17-42 done** — `pnpm test` runs on its own
+  `<dev>_test` database (created + migrated by vitest.config.ts via scripts/test-db.mjs); a
+  sentinel dev-DB connection survives the seed reset. `pnpm e2e` still reseeds the dev stack by
+  design. Two gates were red on main and are fixed here: `pnpm typecheck` (packages/forge TS2379,
+  W17-39) and validate-arch rule 4 (api.github.com in a W17-39 ingest test). Also: fanOut
+  continuation stops when a round made no progress (no endless loop on a revoked connection);
+  ingest-flow e2e race fixed (spec pinned to its own connection's picker). Gate on d9b5d46: lint 0 ·
+  typecheck 0 · vitest 2501 passed / 14 skipped · e2e 153 passed / 1 skipped / 0 failed / 0
+  flaky (✘ quality.spec.ts:538 = declared test.fail). Evidence:
+  docs/work/product-completion/evidence/v1-last-code-20260923/.
