@@ -207,11 +207,13 @@ run against `api.github.com` is a separate credentialed test that was
 GitLab instance was connected. What follows is what the code does; it has not
 been proven against your forge by us.
 
-**Read-only, every scope.** RepoPulse never writes to your repositories. It
-opens no branches, pushes no commits, comments on no pull requests, and
-**never clones** — analysis reads an API tarball into an ephemeral scratch
-directory that is deleted after the scan. If a scope with write access seems
-to be needed, something is wrong.
+**RepoPulse never writes to your code.** It opens no branches, pushes no
+commits, comments on no pull requests, and **never clones** — analysis reads
+an API tarball into an ephemeral scratch directory that is deleted after the
+scan. The one thing it creates on the forge is a **push webhook** per selected
+repository, for live updates, and on some forges that needs a write-level
+scope: on Gitea it does (see the note under the table). Without it the
+repository still backfills and goes live; it just gets no live updates.
 
 | Forge | Token | Scopes |
 |---|---|---|
