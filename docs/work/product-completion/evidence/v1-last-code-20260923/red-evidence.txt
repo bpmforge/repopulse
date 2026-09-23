@@ -33,3 +33,19 @@ after plain re-add: state failed data {}
 # Gate after W17-41: lint=0 typecheck=0
  Test Files  326 passed | 4 skipped (330)
       Tests  2500 passed | 14 skipped (2514)
+
+# W17-41 follow-up: fan-out continuation loop guard
+## RED (guard absent)
+   × a dead-lettered sync job is visible and recoverable (W17-41) > a fan-out round that handled nothing does not queue another (no endless loop) 469ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: no progress since the last round: stop asking: expected [ Job{ …(22) } ] to have a length of +0 but got 1
+      Tests  1 failed | 3 passed (4)
+## GREEN
+      Tests  15 passed (15)
+
+# Mutation: fanOutEnrichment commitFiles with a plain queue.add instead of addReplacingFinished
+   × a dead-lettered sync job is visible and recoverable (W17-41) > the nightly sweep re-plans it and the dead-lettered work is actually re-enqueued 34ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: the dead-lettered commit is queued again, not absorbed by its failed job id: expected 'failed' to match /^(waiting|prioritized)$/
+      Tests  1 failed | 3 passed (4)
+(restored; 4/4 pass)

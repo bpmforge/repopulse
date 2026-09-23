@@ -328,4 +328,41 @@ describeIfLiveInfra('a dead-lettered sync job is visible and recoverable (W17-41
       /^(waiting|prioritized)$/,
     );
   }, 30_000);
+  it('a fan-out round that handled nothing does not queue another (no endless loop)', async () => {
+    // An enrich job can complete without handling its item — e.g. the repo's
+    // connection was revoked, providerForRepo returns null and the job ends
+    // "skipped". Replacing completed jobs then re-adds the same batch, which
+    // is full again, which would queue another continuation forever.
+    const deps = {
+      db,
+      tokenKey: KEY,
+      backfillQueue,
+      snapshotQueue,
+      enrichQueue,
+      reconcileQueue,
+    } as unknown as ProcessorDeps;
+    const [big] = await db
+      .select({ id: core.repos.id })
+      .from(core.repos)
+      .where(eq(core.repos.forgeRepoId, 'big'));
+    const bigId = big!.id;
+    // Everything pending again: nothing was handled since the last round.
+    await db
+      .update(facts.commits)
+      .set({ statsSource: null })
+      .where(eq(facts.commits.repoId, bigId));
+    await enrichQueue.obliterate({ force: true });
+
+    const continuations = async () =>
+      (await enrichQueue.getJobs(['waiting', 'prioritized'])).filter(
+        (j) => j.name === 'fanOut' && (j.data as { repoId: number }).repoId === bigId,
+      );
+    await backfillProcessor(deps)({ name: 'plan', data: { workspaceId, repoId: bigId } } as Job);
+    const [first] = await continuations();
+    expect(first, 'a full batch asks for the next one').toBeTruthy();
+    await first!.remove();
+
+    await enrichProcessor(deps)(first!);
+    expect(await continuations(), 'no progress since the last round: stop asking').toHaveLength(0);
+  }, 30_000);
 });

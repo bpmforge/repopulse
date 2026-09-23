@@ -5,6 +5,8 @@ import { readWorkspaceSettings } from '../lib/workspace-settings.js';
 import {
   addReplacingFinished,
   commitsNeedingChurn,
+  countCommitsNeedingChurn,
+  countPrsNeedingEnrichment,
   enrichCommitChurn,
   enrichPullRequest,
   isEnrichmentDrained,
@@ -328,11 +330,28 @@ async function fanOutEnrichment(
   // same queue, same priority, so BullMQ runs it after the batch's jobs are
   // picked up — asks again. No jobId: two concurrent fan-outs queueing two
   // continuations costs one idempotent extra round, nothing more.
+  //
+  // The continuation carries how much was outstanding, and only fans out again
+  // if that number has dropped. An enrich job can COMPLETE without handling its
+  // item (a revoked connection: providerForRepo is null, the job ends
+  // "skipped"), and since completed jobs are replaced, an unguarded
+  // continuation would re-add the same full batch forever.
   if (commits.length === ENRICH_FAN_OUT_LIMIT || prs.length === ENRICH_FAN_OUT_LIMIT) {
-    await deps.enrichQueue.add('fanOut', { workspaceId, repoId });
+    await deps.enrichQueue.add('fanOut', {
+      workspaceId,
+      repoId,
+      outstanding: await outstandingEnrichment(deps, repoId),
+    });
   }
 
   return { commits: commits.length, prs: prs.length };
+}
+
+async function outstandingEnrichment(deps: ProcessorDeps, repoId: number): Promise<number> {
+  return (
+    (await countCommitsNeedingChurn(deps.db, repoId)) +
+    (await countPrsNeedingEnrichment(deps.db, repoId))
+  );
 }
 
 /** One enrichment round per repo (commitsNeedingChurn / prsNeedingEnrichment cap). */
@@ -450,7 +469,10 @@ export function enrichProcessor(deps: ProcessorDeps) {
       prNumber?: number;
       headSha?: string;
     };
-    if (job.name === 'fanOut') return continueFanOut(deps, data.workspaceId, data.repoId);
+    if (job.name === 'fanOut') {
+      const { outstanding } = job.data as { outstanding?: number };
+      return continueFanOut(deps, data.workspaceId, data.repoId, outstanding);
+    }
 
     const resolved = await providerForRepo(deps, data.workspaceId, data.repoId);
     if (!resolved) return { skipped: 'no active connection' };
@@ -493,7 +515,12 @@ export function enrichProcessor(deps: ProcessorDeps) {
  * Only while the repo is still backfilling: a repo moved to `error` by a dead
  * letter waits for the nightly sweep, and a live one has nothing to finish.
  */
-async function continueFanOut(deps: ProcessorDeps, workspaceId: number, repoId: number) {
+async function continueFanOut(
+  deps: ProcessorDeps,
+  workspaceId: number,
+  repoId: number,
+  outstandingBefore: number | undefined,
+) {
   const [repo] = await deps.db
     .select({ syncStatus: core.repos.syncStatus })
     .from(core.repos)
@@ -501,6 +528,14 @@ async function continueFanOut(deps: ProcessorDeps, workspaceId: number, repoId: 
     .limit(1);
   if (repo?.syncStatus !== 'backfilling')
     return { skipped: `repo is ${repo?.syncStatus ?? 'gone'}` };
+  // No progress since the round that queued this: whatever is blocking those
+  // items will block the next round too. The repo stays backfilling with its
+  // items pending; the next plan (a reconnect, or the sweep after an error)
+  // starts the fan-out again.
+  const outstanding = await outstandingEnrichment(deps, repoId);
+  if (outstandingBefore !== undefined && outstanding >= outstandingBefore) {
+    return { skipped: 'no progress since the last round', outstanding };
+  }
   await startEnrichment(deps, workspaceId, repoId);
   return { fannedOut: true };
 }

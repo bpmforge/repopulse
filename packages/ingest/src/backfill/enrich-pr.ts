@@ -123,9 +123,14 @@ export async function prsNeedingEnrichment(
 
 /** True when every PR in the repo has had its reviews/checks fetched. */
 export async function isPrEnrichmentDrained(db: DbOrTx, repoId: number): Promise<boolean> {
+  return (await countPrsNeedingEnrichment(db, repoId)) === 0;
+}
+
+/** How many PRs still await reviews/checks — the fan-out's progress measure (W17-41). */
+export async function countPrsNeedingEnrichment(db: DbOrTx, repoId: number): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(facts.pullRequests)
     .where(and(eq(facts.pullRequests.repoId, repoId), isNull(facts.pullRequests.enrichedAt)));
-  return (row?.n ?? 0) === 0;
+  return row?.n ?? 0;
 }
