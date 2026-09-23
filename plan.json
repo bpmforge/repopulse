@@ -8304,6 +8304,61 @@
         "FILED + CLAIMED 2026-09-23 on fix/v1-residuals (coordinator request, cause traced by the Dokima agent): t2/live always appended http://localhost:1234 as a candidate so it never skipped, and warmed qwen/qwen3-coder-next with \"ping\" (max_tokens 8, 2 retries => bursts of three); gateway.live.test.ts fetched localhost:1234/v1/models AT IMPORT and drove data[0] — whatever model was listed first. Both evicted other tools' models from LM Studio on every pnpm test.",
         "DONE 2026-09-23. Both live tests gate on LMSTUDIO_LIVE=1 (analysis t2 live: describe.skip and no host list; gateway.live: no import-time fetch). docs/TESTING.md records the opt-in. RED/GREEN by measurement, not assumption: request counter preload on every :1234 fetch/http.request in all vitest processes — before 9 requests (5 models, 4 chat completions) and LM Studio log +9; after 0 and +0; full pnpm test 0 from our processes (the LM Studio log grew +23 in the window, all Jarvis traffic from another session, classified by body: 0 ping, 0 RepoPulse probes). Evidence: evidence/v1-residuals-20260923/lmstudio-requests.txt. Gate: lint 0, typecheck 0, vitest 2492 passed / 14 skipped (the +5 skipped are the two live files)."
       ]
+    },
+    {
+      "id": "W17-41",
+      "title": "A dead-lettered backfill/enrich job leaves its repo in backfilling forever (R-15 residual)",
+      "phase": 17,
+      "stories": [],
+      "points": 3,
+      "status": "in_progress",
+      "module": "ingest",
+      "write_scope": [
+        "packages/ingest/src/**",
+        "apps/api/src/workers/**",
+        "apps/api/test/**",
+        "apps/web/src/**",
+        "e2e/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W17-38"
+      ],
+      "acceptance": [
+        "When a backfill (plan or entity) or enrich job exhausts its attempts, its repo leaves backfilling for the visible error state: sync_status=error and a repos.last_error fragment naming the queue, the job and the cause (budget park vs forge/network error); a live repo is never downgraded",
+        "The nightly reconcile sweep (requeueErrorRepos) recovers it: the re-plan actually re-runs work — a re-add of a job id whose previous job is completed or failed replaces it (waiting/active/delayed still dedupe), and a repo whose history is already complete goes straight to snapshot + enrichment fan-out; only the stall fragment is cleared, W17-35/38 refusal fragments survive",
+        "RED first against real BullMQ (test prefix): on main the repo stays backfilling after the dead letter and the re-fan-out adds no job for the dead-lettered id; full gate green"
+      ],
+      "notes": [
+        "FILED + CLAIMED 2026-09-23 on fix/v1-last-code: residual disclosed on W17-35 and W17-38 (RELEASE-CHECKLIST R-15 remaining)."
+      ]
+    },
+    {
+      "id": "W17-42",
+      "title": "pnpm test wipes the dev database (seed reset deletes real forge connections in the Default workspace)",
+      "phase": 17,
+      "stories": [],
+      "points": 2,
+      "status": "in_progress",
+      "module": "infra",
+      "write_scope": [
+        "vitest.config.ts",
+        "scripts/**",
+        "package.json",
+        "packages/shared/src/testing/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The vitest suite runs against its own database (<dev name>_test, created + migrated on demand), never the database .env names; refuses to run if the two resolve to the same database",
+        "A test asserts a pre-existing non-test forge connection in the dev database Default workspace survives the seed reset the suite performs (RED on main)",
+        "The offline run (DOTENV_CONFIG_PATH=/dev/null pnpm test) is unaffected; full gate green"
+      ],
+      "notes": [
+        "FILED + CLAIMED 2026-09-23 on fix/v1-last-code: finding recorded on fix/v1-residuals (RELEASE-CHECKLIST §4b) — the first pnpm test of that branch deleted the real-forge smoke connection."
+      ]
     }
   ]
 }
