@@ -45,7 +45,12 @@ const auth = createAuthHeaderProvider({ kind: 'pat', token: 'w17-39-test' });
 const GT = 'https://git.example.com/api/v1/repos';
 const gitea = (canned: Canned) =>
   new GiteaProvider({ client: clientOver(canned), auth, baseUrl: 'https://git.example.com' });
-const github = (canned: Canned) => new GitHubProvider({ client: clientOver(canned), auth });
+// A GHES-style base URL rather than the public host: validate-arch rule 4 keeps
+// the public GitHub API host out of everything but packages/forge; the adapter under
+// test builds every URL from this base either way.
+const GH = 'https://ghe.example.com/api/v3';
+const github = (canned: Canned) =>
+  new GitHubProvider({ client: clientOver(canned), auth, baseUrl: GH });
 
 const GITEA_404 = { status: 404, body: { message: "The target couldn't be found." } };
 const giteaRepo = (name: string, flags: Record<string, boolean>) => ({
@@ -79,8 +84,7 @@ const GT_ISSUES = (name: string) =>
   `${GT}/acme/${name}/issues?state=all&type=issues&page=1&limit=50`;
 const GT_PULLS = (name: string) =>
   `${GT}/acme/${name}/pulls?state=all&sort=recentupdate&page=1&limit=50`;
-const GH_ISSUES = (name: string) =>
-  `https://api.github.com/repos/acme/${name}/issues?state=all&per_page=100`;
+const GH_ISSUES = (name: string) => `${GH}/repos/acme/${name}/issues?state=all&per_page=100`;
 
 describeIfLiveInfra(
   'a disabled forge feature reads as "not enabled", not as an error (W17-39)',
@@ -284,7 +288,7 @@ describeIfLiveInfra(
           db,
           provider: github({
             [GH_ISSUES('gh-empty')]: { status: 200, body: [] },
-            ['https://api.github.com/repos/acme/gh-empty']: githubRepo('gh-empty', false),
+            [`${GH}/repos/acme/gh-empty`]: githubRepo('gh-empty', false),
           }),
         },
         { workspaceId, repoId, repo: 'acme/gh-empty', entityType: 'issues' },
@@ -303,7 +307,7 @@ describeIfLiveInfra(
         state: 'open',
         created_at: '2026-09-01T00:00:00Z',
         closed_at: null,
-        pull_request: { url: 'https://api.github.com/repos/acme/gh-prs-only/pulls/12' },
+        pull_request: { url: `${GH}/repos/acme/gh-prs-only/pulls/12` },
       };
       const result = await ingestEntityPages(
         {
@@ -313,10 +317,10 @@ describeIfLiveInfra(
               status: 200,
               body: [prAsIssue],
               headers: {
-                link: '<https://api.github.com/repos/acme/gh-prs-only/issues?state=all&per_page=100&page=2>; rel="next"',
+                link: `<${GH}/repos/acme/gh-prs-only/issues?state=all&per_page=100&page=2>; rel="next"`,
               },
             },
-            ['https://api.github.com/repos/acme/gh-prs-only']: githubRepo('gh-prs-only', false),
+            [`${GH}/repos/acme/gh-prs-only`]: githubRepo('gh-prs-only', false),
           }),
         },
         { workspaceId, repoId, repo: 'acme/gh-prs-only', entityType: 'issues' },
@@ -335,7 +339,7 @@ describeIfLiveInfra(
           db,
           provider: github({
             [GH_ISSUES('gh-none')]: { status: 200, body: [] },
-            ['https://api.github.com/repos/acme/gh-none']: githubRepo('gh-none', true),
+            [`${GH}/repos/acme/gh-none`]: githubRepo('gh-none', true),
           }),
         },
         { workspaceId, repoId, repo: 'acme/gh-none', entityType: 'issues' },

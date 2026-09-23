@@ -8311,7 +8311,7 @@
       "phase": 17,
       "stories": [],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "module": "ingest",
       "write_scope": [
         "packages/ingest/src/**",
@@ -8331,7 +8331,9 @@
         "RED first against real BullMQ (test prefix): on main the repo stays backfilling after the dead letter and the re-fan-out adds no job for the dead-lettered id; full gate green"
       ],
       "notes": [
-        "FILED + CLAIMED 2026-09-23 on fix/v1-last-code: residual disclosed on W17-35 and W17-38 (RELEASE-CHECKLIST R-15 remaining)."
+        "FILED + CLAIMED 2026-09-23 on fix/v1-last-code: residual disclosed on W17-35 and W17-38 (RELEASE-CHECKLIST R-15 remaining).",
+        "ROOT CAUSES, ranked + checked: (1) nothing on dead letter touched the repo — CONFIRMED by reading dlq.ts (ledger + DLQ copy only) and RED (repo stays backfilling). (2) the sweep re-plan could not re-run the work — CONFIRMED: BullMQ ignores an add under the id of a completed/failed job (probe: failed job, plain re-add, state stays failed, data unchanged); topology keeps both (removeOnComplete 1000, removeOnFail false). (3) requeueErrorRepos nulled last_error, dropping W17-35/38 refusals — CONFIRMED by reading. Found on the way: fan-out capped at 500 with no next round (repo with >500 commits/PRs never live) and a repo with nothing to enrich had no job to flip it live.",
+        "DONE 2026-09-23 on fix/v1-last-code (8a94757). stall.ts: markRepoStalled (backfill + enrich queues, in-flight repos only, stall fragment first, budget vs error), withoutStallFragments, addReplacingFinished (replaces completed/failed only). processPlan skips done entities, resumes from the checkpoint, fans enrichment out when history is complete; startEnrichment flips live when nothing is left; full batch queues a fanOut continuation. Admin -> Sync title shows the full line. RESIDUAL: recovery cadence is the nightly sweep (03:17, RECONCILE_CRON), not a bounded backoff; a re-activated repo with done cursors no longer re-walks history (gaps repaired by the nightly reconcile once live). RED: stalled-sync.integration.test.ts 3 failed; GREEN 3 passed. Gate: lint 0, typecheck 0, vitest 2500 passed / 14 skipped; e2e 153 passed / 1 skipped."
       ]
     },
     {
@@ -8340,7 +8342,7 @@
       "phase": 17,
       "stories": [],
       "points": 2,
-      "status": "in_progress",
+      "status": "done",
       "module": "infra",
       "write_scope": [
         "vitest.config.ts",
@@ -8357,7 +8359,8 @@
         "The offline run (DOTENV_CONFIG_PATH=/dev/null pnpm test) is unaffected; full gate green"
       ],
       "notes": [
-        "FILED + CLAIMED 2026-09-23 on fix/v1-last-code: finding recorded on fix/v1-residuals (RELEASE-CHECKLIST §4b) — the first pnpm test of that branch deleted the real-forge smoke connection."
+        "FILED + CLAIMED 2026-09-23 on fix/v1-last-code: finding recorded on fix/v1-residuals (RELEASE-CHECKLIST §4b) — the first pnpm test of that branch deleted the real-forge smoke connection.",
+        "ROOT CAUSES, ranked + checked: (1) the suite and the dev app share one database — CONFIRMED: every test file reads DATABASE_URL via dotenv/config from .env; RED test: suite DB name == dev DB name. (2) the seed reset is too broad — true (wipeWorkspace deletes every connection in Default) but correct for a database the suite owns; not changed. DONE 2026-09-23 (033cd17): vitest.config.ts -> scripts/test-db.mjs derives <name>_test, creates it on first use, migrates with the shipped drizzle migrator, sets DATABASE_URL before workers spawn. Offline run unaffected (2 skipped). pnpm e2e still reseeds the dev Default workspace by design (disclosed). RED: dev-db-isolation.integration.test.ts 2 failed; GREEN 2 passed; its only dev-DB write is its own sentinel row, deleted in finally. Also fixed on this branch: pnpm typecheck was red on main 1740747 (packages/forge TS2379 from W17-39), 4c0a49c."
       ]
     }
   ]
