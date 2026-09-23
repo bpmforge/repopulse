@@ -279,6 +279,46 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   // W17-35: listRepos now rejects on an HTTP error instead of returning an
   // empty list. Discovery must turn that into a problem that names the forge's
   // answer, not a bare 500 — and certainly not "this token can see 0 repos".
+  // GitLab subgroups (W17-36 verifier finding): `platform/tools/widget` was
+  // split on EVERY slash into org `platform`, name `tools`, so the stored row
+  // named a project that does not exist — its API calls and its webhook
+  // lookup (full-path match) could never succeed.
+  it('keeps a nested namespace intact: org is everything before the LAST slash', async () => {
+    const nested: ForgeRepo = {
+      ...REPOS[0]!,
+      externalId: '301',
+      name: 'widget',
+      fullName: 'platform/tools/widget',
+    };
+    smokeBehavior = () => Promise.resolve([nested]);
+    const cookie = await loginAs(app, ADMIN);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { provider: 'gitlab', auth_kind: 'pat', credential: TOKEN },
+    });
+    expect(created.statusCode).toBe(201);
+    const connId = created.json().id as number;
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/api/v1/connections/${connId}/available-repos`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(listed.json().items[0]).toMatchObject({ org: 'platform/tools', name: 'widget' });
+    const selected = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_forge_ids: ['301'] },
+    });
+    expect(selected.statusCode).toBe(200);
+    const rows = await db.select().from(core.repos).where(eq(core.repos.connectionId, connId));
+    expect(rows.map((r) => `${r.org}|${r.name}`)).toEqual(['platform/tools|widget']);
+    expect(registerWebhook.mock.calls.at(-1)![1]).toBe('platform/tools/widget');
+    smokeBehavior = () => Promise.resolve(REPOS);
+  });
+
   it('available-repos answers 502 naming the forge status when the forge refuses the listing', async () => {
     smokeBehavior = () => Promise.resolve(REPOS);
     const cookie = await loginAs(app, ADMIN);

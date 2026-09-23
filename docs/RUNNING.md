@@ -157,12 +157,13 @@ separate from the dev ports on purpose: a `pnpm dev` left running in another
 terminal must not be mistaken for the API under test.
 
 **Everything a host-run process opens binds loopback (127.0.0.1)** — the API
-and the worker `/healthz` since W17-37 (`HOST`, default `127.0.0.1`; it used
+and the worker `/healthz` since W17-37 (`LISTEN_HOST`, default `127.0.0.1` — not `HOST`, which shells
+set to the machine name; it used
 to be every interface, which put the dev API and the worker's `/metrics` on
 the LAN), the Vite dev server by Vite's own default, and the data tier by
-`compose.dev.yaml`. Set `HOST=0.0.0.0` only when something outside this
+`compose.dev.yaml`. Set `LISTEN_HOST=0.0.0.0` only when something outside this
 machine genuinely has to reach the API, such as a Gitea in a container
-delivering webhooks. The container images set `HOST=0.0.0.0` themselves: in
+delivering webhooks. The container images set `LISTEN_HOST=0.0.0.0` themselves: in
 `deploy/compose.yaml` only the web proxy publishes a host port (on
 `REPOPULSE_BIND`, default `127.0.0.1`), and the api and worker are reachable
 only over the compose network.

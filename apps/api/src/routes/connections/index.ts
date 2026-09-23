@@ -7,6 +7,7 @@ import { credentials } from '@repopulse/auth';
 import { activateRepos, createConnection, ConnectValidationError } from '@repopulse/ingest';
 import {
   ForgeHttpError,
+  splitRepoFullName,
   type CallCtx,
   type ForgeProvider,
   type GitHubAuth,
@@ -274,11 +275,11 @@ export default async function connectionsRoutes(
       }
       return reply.send({
         items: repos.items.map((r) => {
-          const [org, name] = r.fullName.split('/');
+          const { org, name } = splitRepoFullName(r.fullName, r.name);
           return {
             forge_repo_id: r.externalId,
-            org: org ?? '',
-            name: name ?? r.name,
+            org,
+            name,
             is_private: r.isPrivate,
             is_archived: r.isArchived,
           };
@@ -320,11 +321,11 @@ export default async function connectionsRoutes(
         throw err;
       }
       const candidates = listed.items.map((r) => {
-        const [org, name] = r.fullName.split('/');
+        const { org, name } = splitRepoFullName(r.fullName, r.name);
         return {
           forgeRepoId: r.externalId,
-          org: org ?? '',
-          name: name ?? r.name,
+          org,
+          name,
           defaultBranch: r.defaultBranch,
           isPrivate: r.isPrivate,
           isArchived: r.isArchived,

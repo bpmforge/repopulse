@@ -174,3 +174,19 @@ export interface ForgeTarball {
   /** Where the bytes actually came from, for the audit trail (codeload, not the API host). */
   sourceHost: string;
 }
+
+/**
+ * Split a forge full name into the (org, name) pair stored on a repo row, at
+ * the LAST slash. GitLab namespaces nest (`platform/tools/widget`), and a split
+ * on every slash stored org `platform`, name `tools` — a project that does not
+ * exist, so every API call and webhook lookup for it failed. `${org}/${name}`
+ * always rebuilds the original.
+ */
+export function splitRepoFullName(
+  fullName: string,
+  fallbackName = '',
+): { org: string; name: string } {
+  const i = fullName.lastIndexOf('/');
+  if (i === -1) return { org: '', name: fullName || fallbackName };
+  return { org: fullName.slice(0, i), name: fullName.slice(i + 1) || fallbackName };
+}

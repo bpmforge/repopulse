@@ -242,7 +242,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '3300',
   },
   {
-    name: 'HOST',
+    name: 'LISTEN_HOST',
     scope: 'shared',
     required: false,
     purpose:
