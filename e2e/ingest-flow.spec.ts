@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginAsFixture } from './helpers/auth.js';
 import { installEgressGuard } from './helpers/egress-guard.js';
 import {
@@ -12,6 +12,28 @@ import {
 } from '@repopulse/shared';
 import { waitForIngestedRepo } from './helpers/warehouse.js';
 
+/**
+ * Create a connection and return the repo picker that belongs to IT.
+ *
+ * There is one picker per connection, each loading its repo list on its own,
+ * and every test here adds a connection. `getByTestId('repo-option-…').first()`
+ * resolved to whichever picker had loaded first while `repo-select-submit`
+ * .first() could resolve to another — a real run checked a box in one picker
+ * and waited 30 s on the disabled "Track 0" button of the next. Pinning by the
+ * id the create call returns makes the pair deterministic.
+ */
+async function connectAndPick(page: Page) {
+  await page.goto('/admin');
+  await page.getByTestId('connection-credential').fill(FAKE_TOKEN);
+  const created = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && /\/api\/v1\/connections$/.test(r.url()),
+  );
+  await page.getByTestId('connection-submit').click();
+  const { id } = (await (await created).json()) as { id: number };
+  await expect(page.getByTestId('connection-result')).toBeVisible();
+  return page.locator(`[data-testid="repo-picker"][data-connection-id="${id}"]`);
+}
+
 // The operator's real path: connect a credential, then CHOOSE repositories.
 // Creating a connection only stores a credential — selecting repos is what
 // creates repo rows, registers webhooks and enqueues the backfill plans. Until
@@ -20,38 +42,31 @@ import { waitForIngestedRepo } from './helpers/warehouse.js';
 
 test('an operator can connect and then select repositories to track', async ({ page }) => {
   await loginAsFixture(page);
-  await page.goto('/admin');
-
-  await page.getByTestId('connection-credential').fill(FAKE_TOKEN);
-  await page.getByTestId('connection-submit').click();
-  await expect(page.getByTestId('connection-result')).toBeVisible();
+  const picker = await connectAndPick(page);
 
   // The picker lists what the credential can actually see — served by the fake
   // forge, so these are the repos it advertises, not seeder rows.
   const first = FAKE_REPOS[0]!;
-  const option = page.getByTestId(`repo-option-${first.id}`).first();
+  const option = picker.getByTestId(`repo-option-${first.id}`);
   await expect(option).toBeVisible();
   await option.check();
 
-  await page.getByTestId('repo-select-submit').first().click();
+  await picker.getByTestId('repo-select-submit').click();
   // Success means repo rows were created, webhooks registered and backfill
   // plans enqueued — the API does all three in that one call.
-  await expect(page.getByTestId('repo-select-result').first()).toBeVisible();
+  await expect(picker.getByTestId('repo-select-result')).toBeVisible();
 });
 
 test('selecting a repo enqueues backfill work rather than silently succeeding', async ({
   page,
 }) => {
   await loginAsFixture(page);
-  await page.goto('/admin');
-  await page.getByTestId('connection-credential').fill(FAKE_TOKEN);
-  await page.getByTestId('connection-submit').click();
-  await expect(page.getByTestId('connection-result')).toBeVisible();
+  const picker = await connectAndPick(page);
 
   const first = FAKE_REPOS[0]!;
-  await page.getByTestId(`repo-option-${first.id}`).first().check();
-  await page.getByTestId('repo-select-submit').first().click();
-  await expect(page.getByTestId('repo-select-result').first()).toBeVisible();
+  await picker.getByTestId(`repo-option-${first.id}`).check();
+  await picker.getByTestId('repo-select-submit').click();
+  await expect(picker.getByTestId('repo-select-result')).toBeVisible();
 
   // The repo must now exist in OUR warehouse and appear on the sync screen —
   // proof the selection created rows rather than just returning 200.
@@ -74,10 +89,7 @@ test('the full pipeline runs: history backfilled, enrichment drained, repo live'
   // asserting rather than assuming.
   const guard = await installEgressGuard(page);
   await loginAsFixture(page);
-  await page.goto('/admin');
-  await page.getByTestId('connection-credential').fill(FAKE_TOKEN);
-  await page.getByTestId('connection-submit').click();
-  await expect(page.getByTestId('connection-result')).toBeVisible();
+  const picker = await connectAndPick(page);
 
   // Deliberately the SECOND fixture repo. The two tests above both select
   // FAKE_REPOS[0], and globalSetup seeds once for the whole suite — so asserting
@@ -85,9 +97,9 @@ test('the full pipeline runs: history backfilled, enrichment drained, repo live'
   // would keep passing if this test's own path broke. Owning a repo no other
   // spec touches is what makes the assertion mean something in a full run.
   const mine = FAKE_REPOS[1]!;
-  await page.getByTestId(`repo-option-${mine.id}`).first().check();
-  await page.getByTestId('repo-select-submit').first().click();
-  await expect(page.getByTestId('repo-select-result').first()).toBeVisible();
+  await picker.getByTestId(`repo-option-${mine.id}`).check();
+  await picker.getByTestId('repo-select-submit').click();
+  await expect(picker.getByTestId('repo-select-result')).toBeVisible();
 
   const [org, name] = mine.full_name.split('/') as [string, string];
   const ingested = await waitForIngestedRepo(org, name);
