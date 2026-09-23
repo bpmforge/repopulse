@@ -135,3 +135,22 @@ describe('container healthchecks use binaries the image HAS (W17-06)', () => {
     expect(worker.slice(worker.indexOf('HEALTHCHECK'))).toContain('WORKER_HEALTH_PORT');
   });
 });
+
+describe('cross-arch bundle build (W11-01, 2026-09-23)', () => {
+  // `deploy/bundle.sh --arch=amd64` on an arm64 host died in `vite build`:
+  // esbuild is a Go binary, and under qemu-user emulation the Go runtime
+  // aborts (`fatal error: lfstack.push`) — twice, deterministically. The SPA's
+  // output is static files that are identical on every arch, so the web build
+  // runs on the BUILD platform and only nginx is the target arch.
+  const dockerfile = read('Dockerfile');
+
+  it('the web asset build stage runs on $BUILDPLATFORM, never under emulation', () => {
+    expect(dockerfile).toMatch(/^FROM --platform=\$BUILDPLATFORM \S+ AS web-build$/m);
+  });
+
+  it('the runtime stages stay on the target platform (no --platform on them)', () => {
+    for (const name of ['base', 'web']) {
+      expect(dockerfile).toMatch(new RegExp(`^FROM (?!--platform)\\S+ AS ${name}$`, 'm'));
+    }
+  });
+});

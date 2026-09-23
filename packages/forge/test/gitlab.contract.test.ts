@@ -36,6 +36,7 @@ describe('GitLabProvider contract (W12-01, zero network)', () => {
       reportsTotalCounts: true,
       hasRateLimits: true,
       maxPerPage: 100,
+      webhookScheme: 'gitlab-token',
     });
   });
 

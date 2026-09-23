@@ -143,8 +143,10 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     name: 'FORGE_BASE_URL',
     scope: 'api',
     required: false,
-    purpose: 'Self-hosted Gitea base URL. Absent means github.com.',
-    ifWrong: 'Gitea connections point at the wrong host and every sync fails with 404s.',
+    purpose:
+      'Fallback forge base URL for a connection saved without one. Each connection stores its own kind and base URL (Admin → Connections), so this is optional. Absent means github.com.',
+    ifWrong:
+      'Only connections with no stored base URL are affected: they point at the wrong host and every sync fails with 404s.',
     validate: isUrl,
   },
   {
@@ -238,6 +240,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     purpose: 'API listen port.',
     ifWrong: 'The reverse proxy cannot reach the API.',
     default: '3300',
+  },
+  {
+    name: 'LISTEN_HOST',
+    scope: 'shared',
+    required: false,
+    purpose:
+      'Interface the API and the worker /healthz server bind. Loopback by default so a host-run process is not on the LAN; the container images set 0.0.0.0 so the web proxy can reach the api over the compose network (only the web port is published, on REPOPULSE_BIND).',
+    ifWrong:
+      "0.0.0.0 on a host-run process exposes the API and the worker's /metrics to every network the machine is on. 127.0.0.1 inside a container makes the api unreachable from the web proxy (502).",
+    default: '127.0.0.1',
   },
   {
     name: 'NODE_ENV',

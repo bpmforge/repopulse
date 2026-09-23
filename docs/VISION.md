@@ -55,8 +55,11 @@ the product** (D1a, 2026-08-13).
 
 The MVP is the **health dashboard slice**, end to end:
 
-1. Log in with GitHub OAuth (D6).
-2. Connect a GitHub org; backfill 12 months of history within rate budget (C1).
+1. Sign in with a local account — the bootstrap admin the install creates (D14;
+   GitHub sign-in is optional, added by registering your own GitHub App).
+2. Connect a forge with a personal access token (GitHub, GitLab or Gitea, each
+   connection with its own base URL); backfill 12 months of history within rate
+   budget (C1).
 3. See the Tier-1 metric catalog (churn, hotspots, bus factor, PR cycle-time stages,
    review coverage %, merged-without-review rate, PR size distribution, stale PRs,
    CI pass rate/duration, issue throughput, release cadence, DORA approximations)
@@ -64,8 +67,13 @@ The MVP is the **health dashboard slice**, end to end:
 4. Webhooks keep data current after backfill; nightly reconciliation catches gaps.
 5. Personalized views work ("my PRs", "my review load").
 
-LLM review (Tier 2/3), PDF packs, and the Gitea adapter are wave 2+ — designed for
-now (module boundaries exist), built later. See SCOPE.md.
+LLM review (Tier 2/3), PDF packs, and the Gitea adapter were scoped as wave 2+
+and have since been built (the Gitea adapter W7-02, first run against a real
+Gitea 1.24.7 on 2026-09-23; a GitLab adapter W12). See SCOPE.md and STATUS.md.
+
+> Updated 2026-09-23 (release/v1-selfhost): items 1-2 previously read "Log in
+> with GitHub OAuth (D6)" and "Connect a GitHub org". D14 (2026-08-20) replaced
+> forge sign-in with local accounts and connection-by-token.
 
 ## North-star outcomes per persona
 

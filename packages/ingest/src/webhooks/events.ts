@@ -48,6 +48,23 @@ export function routeEvent(event: string): DeltaKind | null {
   return EVENT_TO_DELTA[event] ?? null;
 }
 
+// GitLab names its events differently (`X-Gitlab-Event: "Merge Request Hook"`)
+// and registers one boolean per family (gitlab/provider.ts registerWebhook).
+// Each maps onto the same delta a GitHub-named event would (W17-36).
+const GITLAB_EVENT_TO_DELTA: Record<string, DeltaKind> = {
+  'Push Hook': 'push_commits',
+  'Merge Request Hook': 'pull_requests',
+  'Issue Hook': 'issues',
+  'Pipeline Hook': 'checks',
+  'Release Hook': 'releases',
+  'Deployment Hook': 'deployments',
+};
+
+/** Map a GitLab `X-Gitlab-Event` value to a delta kind, or null if we don't act on it. */
+export function routeGitlabEvent(event: string): DeltaKind | null {
+  return GITLAB_EVENT_TO_DELTA[event] ?? null;
+}
+
 export interface DeltaJobData {
   workspaceId: number;
   repoId: number;

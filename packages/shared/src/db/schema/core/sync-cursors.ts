@@ -26,6 +26,10 @@ export const syncCursors = pgTable(
     // updated_at watermark | page cursor | delivery id — null before first sync.
     cursorValue: text('cursor_value'),
     backfillDone: boolean('backfill_done').notNull().default(false),
+    // W17-35: why this entity holds no data, when the forge refused it (e.g.
+    // "HTTP 403 — token lacks read:issue"). Null when the last fetch succeeded.
+    // backfill_done alone could not tell "finished" from "never allowed to look".
+    lastError: text('last_error'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

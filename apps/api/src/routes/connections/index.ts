@@ -5,7 +5,13 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { core, type Database } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { activateRepos, createConnection, ConnectValidationError } from '@repopulse/ingest';
-import type { CallCtx, ForgeProvider, GitHubAuth } from '@repopulse/forge';
+import {
+  ForgeHttpError,
+  splitRepoFullName,
+  type CallCtx,
+  type ForgeProvider,
+  type GitHubAuth,
+} from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
 import { requireAdmin } from '../../lib/rbac.js';
 import { buildDiscoveryProvider, type ForgeKind } from './provider-factory.js';
@@ -21,6 +27,20 @@ import {
 
 const WEBHOOK_EVENTS = ['pull_request', 'push', 'check_run', 'check_suite', 'issues', 'deployment'];
 const CTX: CallCtx = { lane: 'user' };
+
+/**
+ * Where a forge's hook must point (W17-36), decided by its capability rather
+ * than its name (FR-FORGE-7 capability gate). GitHub and Gitea share
+ * /webhooks/github; GitLab's token scheme has its own route.
+ */
+export function webhookUrlFor(
+  githubUrl: string,
+  scheme: ForgeProvider['capabilities']['webhookScheme'],
+): string {
+  return scheme === 'gitlab-token'
+    ? githubUrl.replace(/\/webhooks\/github$/, '/webhooks/gitlab')
+    : githubUrl;
+}
 
 export interface EnqueueBackfillPlan {
   // The `plan {repoId}` job (INGESTION §6) — the planner reads the repo row for
@@ -242,14 +262,24 @@ export default async function connectionsRoutes(
         return fail(request, reply, 404, 'Not Found');
 
       const forge = await providerForConnection(row);
-      const repos = await forge.listRepos(CTX);
+      let repos: Awaited<ReturnType<typeof forge.listRepos>>;
+      try {
+        repos = await forge.listRepos(CTX);
+      } catch (err) {
+        // W17-35: the adapters reject on an HTTP error rather than returning an
+        // empty list, so say what the forge answered instead of a bare 500.
+        if (err instanceof ForgeHttpError) {
+          return fail(request, reply, 502, 'The forge refused the repository listing', err.message);
+        }
+        throw err;
+      }
       return reply.send({
         items: repos.items.map((r) => {
-          const [org, name] = r.fullName.split('/');
+          const { org, name } = splitRepoFullName(r.fullName, r.name);
           return {
             forge_repo_id: r.externalId,
-            org: org ?? '',
-            name: name ?? r.name,
+            org,
+            name,
             is_private: r.isPrivate,
             is_archived: r.isArchived,
           };
@@ -281,12 +311,21 @@ export default async function connectionsRoutes(
         return fail(request, reply, 404, 'Not Found');
 
       const forge = await providerForConnection(row);
-      const candidates = (await forge.listRepos(CTX)).items.map((r) => {
-        const [org, name] = r.fullName.split('/');
+      let listed: Awaited<ReturnType<typeof forge.listRepos>>;
+      try {
+        listed = await forge.listRepos(CTX);
+      } catch (err) {
+        if (err instanceof ForgeHttpError) {
+          return fail(request, reply, 502, 'The forge refused the repository listing', err.message);
+        }
+        throw err;
+      }
+      const candidates = listed.items.map((r) => {
+        const { org, name } = splitRepoFullName(r.fullName, r.name);
         return {
           forgeRepoId: r.externalId,
-          org: org ?? '',
-          name: name ?? r.name,
+          org,
+          name,
           defaultBranch: r.defaultBranch,
           isPrivate: r.isPrivate,
           isArchived: r.isArchived,
@@ -299,7 +338,13 @@ export default async function connectionsRoutes(
           db,
           sealSecret: (pt) => credentials.sealSecret(pt, tokenKey),
           registerWebhook: (repoFullName, secret) =>
-            forge.registerWebhook(CTX, repoFullName, opts.webhookUrl, secret, WEBHOOK_EVENTS),
+            forge.registerWebhook(
+              CTX,
+              repoFullName,
+              webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme),
+              secret,
+              WEBHOOK_EVENTS,
+            ),
           enqueuePlan: (repoId) =>
             opts.enqueueBackfillPlan({ workspaceId: ctx.workspaceId, repoId }),
           generateSecret: () => randomBytes(32).toString('hex'),

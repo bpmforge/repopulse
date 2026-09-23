@@ -126,6 +126,14 @@ export interface ForgeCapabilities {
   hasRateLimits: boolean; // Gitea self-hosted false -> budgeter becomes pass-through
   supportsTarball: boolean; // W8-03: source archive download for snapshot scanners (C1a)
   maxPerPage: number; // GitHub 100 / Gitea MAX_RESPONSE_ITEMS (50 default)
+  /**
+   * How this forge authenticates a webhook delivery, which decides the receiver
+   * route its hook is registered at (W17-36). 'hub-signature': an
+   * X-Hub-Signature-256 HMAC over the body — GitHub, and Gitea, which sends the
+   * GitHub-compatible headers too (verified live, 1.24.7). 'gitlab-token': the
+   * shared secret itself in X-Gitlab-Token.
+   */
+  webhookScheme: 'hub-signature' | 'gitlab-token';
 }
 
 export interface SinceQuery {
@@ -165,4 +173,20 @@ export interface ForgeTarball {
   bytes: Uint8Array;
   /** Where the bytes actually came from, for the audit trail (codeload, not the API host). */
   sourceHost: string;
+}
+
+/**
+ * Split a forge full name into the (org, name) pair stored on a repo row, at
+ * the LAST slash. GitLab namespaces nest (`platform/tools/widget`), and a split
+ * on every slash stored org `platform`, name `tools` — a project that does not
+ * exist, so every API call and webhook lookup for it failed. `${org}/${name}`
+ * always rebuilds the original.
+ */
+export function splitRepoFullName(
+  fullName: string,
+  fallbackName = '',
+): { org: string; name: string } {
+  const i = fullName.lastIndexOf('/');
+  if (i === -1) return { org: '', name: fullName || fallbackName };
+  return { org: fullName.slice(0, i), name: fullName.slice(i + 1) || fallbackName };
 }

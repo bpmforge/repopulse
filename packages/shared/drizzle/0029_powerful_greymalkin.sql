@@ -1,0 +1,13 @@
+-- Migration 0029 (W17-35): record WHY a backfill entity holds no data.
+--
+-- WHY. A 403 on /issues (a token without read:issue) used to read as an empty
+-- page: the entity checkpointed backfill_done and nothing, anywhere, said the
+-- issues had never been fetched. backfill_done cannot tell "finished" from
+-- "never allowed to look"; this column can. Null = the last fetch succeeded.
+--
+-- TENANCY. sync_cursors already carries workspace_id (indexed); a new nullable
+-- column on an existing tenant-scoped table changes nothing there.
+--
+-- ROLLBACK. ALTER TABLE "sync_cursors" DROP COLUMN "last_error"; — loses only the
+-- per-entity reason; repos.last_error still holds the summary.
+ALTER TABLE "sync_cursors" ADD COLUMN "last_error" text;

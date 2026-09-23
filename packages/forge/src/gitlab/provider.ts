@@ -1,3 +1,4 @@
+import { assertListOk } from '../client/errors.js';
 import type { ForgeResponse } from '../client/budgeted-client.js';
 import type { ForgeHttpClient } from '../github/provider.js';
 import type { ForgeProvider } from '../provider.js';
@@ -67,6 +68,7 @@ export const GITLAB_CAPABILITIES: ForgeCapabilities = {
   // callers branch on this flag and will simply skip snapshot scanners.
   supportsTarball: false,
   maxPerPage: GITLAB_MAX_PER_PAGE,
+  webhookScheme: 'gitlab-token',
 };
 
 export interface GitLabProviderOptions {
@@ -105,8 +107,12 @@ export class GitLabProvider implements ForgeProvider {
     family: EndpointFamily,
     map: (r: Raw) => T,
     perPage = GITLAB_MAX_PER_PAGE,
+    // Backfill entity lists pass this: an HTTP error must reject, not read as
+    // an empty page (W17-35).
+    check?: { entity: string; emptyOn?: readonly number[] },
   ): Promise<Page<T>> {
     const res = await this.get(ctx, withPage(baseUrl, pageOfCursor(cursor), perPage), family);
+    if (check && assertListOk(res, check.entity, check.emptyOn) === 'empty') return { items: [] };
     const raw = Array.isArray(res.body) ? (res.body as Raw[]) : [];
     const next = nextPageCursor(res.headers);
     return { items: raw.map(map), ...(next ? { nextCursor: next } : {}) };
@@ -121,6 +127,8 @@ export class GitLabProvider implements ForgeProvider {
       cursor,
       'commits',
       normalizeRepo,
+      undefined,
+      { entity: 'repos' },
     );
   }
 
@@ -139,6 +147,7 @@ export class GitLabProvider implements ForgeProvider {
       'commits',
       normalizeCommit,
       q.perPage ?? GITLAB_MAX_PER_PAGE,
+      { entity: 'commits' },
     );
   }
 
@@ -187,6 +196,7 @@ export class GitLabProvider implements ForgeProvider {
       'pulls',
       normalizePR,
       q.perPage ?? GITLAB_MAX_PER_PAGE,
+      { entity: 'prs' },
     );
   }
 
@@ -260,6 +270,8 @@ export class GitLabProvider implements ForgeProvider {
       cursor,
       'releases',
       normalizeRelease,
+      undefined,
+      { entity: 'releases' },
     );
   }
 
@@ -277,22 +289,30 @@ export class GitLabProvider implements ForgeProvider {
         status?: string;
       },
       ForgeDeployment
-    >(ctx, `${this.base}/projects/${projectPath(repo)}/deployments`, cursor, 'commits', (d) => ({
-      externalId: String(d.id),
-      sha: d.sha ?? '',
-      environment: d.environment?.name ?? 'unknown',
-      createdAt: d.created_at ?? '',
-      latestStatus:
-        d.status === 'success'
-          ? 'success'
-          : d.status === 'failed'
-            ? 'failure'
-            : d.status === 'canceled'
-              ? 'inactive'
-              : d.status === 'running' || d.status === 'created'
-                ? 'pending'
-                : null,
-    }));
+    >(
+      ctx,
+      `${this.base}/projects/${projectPath(repo)}/deployments`,
+      cursor,
+      'commits',
+      (d) => ({
+        externalId: String(d.id),
+        sha: d.sha ?? '',
+        environment: d.environment?.name ?? 'unknown',
+        createdAt: d.created_at ?? '',
+        latestStatus:
+          d.status === 'success'
+            ? 'success'
+            : d.status === 'failed'
+              ? 'failure'
+              : d.status === 'canceled'
+                ? 'inactive'
+                : d.status === 'running' || d.status === 'created'
+                  ? 'pending'
+                  : null,
+      }),
+      undefined,
+      { entity: 'deployments' },
+    );
     return page;
   }
 
@@ -306,6 +326,7 @@ export class GitLabProvider implements ForgeProvider {
       'issues',
       normalizeIssue,
       q.perPage ?? GITLAB_MAX_PER_PAGE,
+      { entity: 'issues' },
     );
   }
 

@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { core, type Database } from '@repopulse/shared';
-import type { ForgeRepo } from '@repopulse/forge';
+import { splitRepoFullName, type ForgeRepo } from '@repopulse/forge';
 
 // Connect flow (FR-INGEST-1, INGESTION §1). Orchestration only — this module
 // never imports @repopulse/auth (ARCHITECTURE §3 forbids ingest→auth), so the
@@ -55,11 +55,11 @@ export interface CandidateRepo {
 }
 
 function toCandidate(r: ForgeRepo): CandidateRepo {
-  const [org, name] = r.fullName.split('/');
+  const { org, name } = splitRepoFullName(r.fullName, r.name);
   return {
     forgeRepoId: r.externalId,
-    org: org ?? '',
-    name: name ?? r.name,
+    org,
+    name,
     defaultBranch: r.defaultBranch,
     isPrivate: r.isPrivate,
     isArchived: r.isArchived,

@@ -20,7 +20,8 @@ export interface SyncStatus {
   repoName: string;
   phase: SyncStatusPhase;
   percentComplete: number;
-  entities: Record<string, { cursorAt: string | null; done: boolean }>;
+  /** `error` (W17-35): why a finished entity holds no data, e.g. a 403 on issues. */
+  entities: Record<string, { cursorAt: string | null; done: boolean; error: string | null }>;
   budget: { remaining: number; limit: number; resetAt: string | null; spent24h: number };
   lagSeconds: number | null;
   lastError: { at: string; message: string; jobId: string | null } | null;
@@ -118,16 +119,18 @@ export async function repoSyncStatus(
       entityType: core.syncCursors.entityType,
       cursorValue: core.syncCursors.cursorValue,
       backfillDone: core.syncCursors.backfillDone,
+      lastError: core.syncCursors.lastError,
       updatedAt: core.syncCursors.updatedAt,
     })
     .from(core.syncCursors)
     .where(eq(core.syncCursors.repoId, repoId));
 
-  const entities: Record<string, { cursorAt: string | null; done: boolean }> = {};
+  const entities: SyncStatus['entities'] = {};
   for (const c of cursorRows) {
     entities[c.entityType] = {
       cursorAt: c.updatedAt ? c.updatedAt.toISOString() : null,
       done: c.backfillDone,
+      error: c.lastError,
     };
   }
 

@@ -30,6 +30,45 @@ describeIfLiveInfra('api app skeleton (W1-04)', () => {
     await db.$client.end();
   });
 
+  // W17-36, checked in the ASSEMBLED app: a forge sends no session and no
+  // X-Requested-With, so the CSRF/session layers must let /api/v1/webhooks/*
+  // through to the receiver's own signature/token check. A route-only test
+  // (providers.test.ts mounts the routes on a bare Fastify) cannot see that.
+  for (const [route, headers] of [
+    [
+      'github',
+      {
+        'x-hub-signature-256': 'sha256=' + '0'.repeat(64),
+        'x-github-event': 'push',
+        'x-github-delivery': 'app-level-1',
+      },
+    ],
+    [
+      'gitlab',
+      {
+        'x-gitlab-token': 'wrong',
+        'x-gitlab-event': 'Push Hook',
+        'x-gitlab-event-uuid': 'app-level-2',
+      },
+    ],
+  ] as const) {
+    it(`POST /api/v1/webhooks/${route} reaches the receiver (401 bad signature, not CSRF/session)`, async () => {
+      const app = buildApp(baseOptions);
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/v1/webhooks/${route}`,
+        headers: { 'content-type': 'application/json', ...headers },
+        payload: JSON.stringify({
+          repository: { full_name: 'nobody/nothing' },
+          project: { path_with_namespace: 'nobody/nothing' },
+        }),
+      });
+      expect(response.statusCode).toBe(401);
+      expect(response.json().title).toBe('Invalid webhook signature');
+      await app.close();
+    });
+  }
+
   it('responds ok on /healthz (checks Postgres + Redis, no session required)', async () => {
     const app = buildApp(baseOptions);
     const response = await app.inject({ method: 'GET', url: '/healthz' });

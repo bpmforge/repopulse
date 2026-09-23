@@ -1,0 +1,74 @@
+# arm64 bundle, native build from 814fb55: 217s
+runtime:  podman 5.8.2 building for linux/arm64 (emulated=false)
+source:   814fb55778b86db03117d6f685f91761e63c75a7 (dirty=false)
+== build localhost/repopulse/migrate:0.1.0-rc2 (Dockerfile target migrate)
+== build localhost/repopulse/api:0.1.0-rc2 (Dockerfile target api)
+== build localhost/repopulse/worker:0.1.0-rc2 (Dockerfile target worker)
+== build localhost/repopulse/scan-runner:0.1.0-rc2 (Dockerfile target scan-runner)
+== build localhost/repopulse/web:0.1.0-rc2 (Dockerfile target web)
+== build localhost/repopulse/scan:0.1.0-rc2 (Containerfile.scan)
+== pull docker.io/library/postgres:16
+== pull docker.io/library/redis:7-alpine
+== save images -> /Users/bmatthews/tmp/rp-bundle-arm64/repopulse-0.1.0-rc2-linux-arm64/images/repopulse-images.tar
+== stage deploy/
+== pack /Users/bmatthews/tmp/rp-bundle-arm64/repopulse-0.1.0-rc2-linux-arm64.tar.gz
+EXIT=0
+sha256 109f86ec42ab3fa583a1c413495c75b5c2820094df7f71e978fde1e5c1a03860  repopulse-0.1.0-rc2-linux-arm64.tar.gz
+
+# amd64 bundle, cross-built under qemu-user from 814fb55: 157s (cached layers)
+runtime:  podman 5.8.2 building for linux/amd64 (emulated=true)
+source:   814fb55778b86db03117d6f685f91761e63c75a7 (dirty=false)
+== build localhost/repopulse/migrate:0.1.0-rc2 (Dockerfile target migrate)
+== build localhost/repopulse/api:0.1.0-rc2 (Dockerfile target api)
+== build localhost/repopulse/worker:0.1.0-rc2 (Dockerfile target worker)
+== build localhost/repopulse/scan-runner:0.1.0-rc2 (Dockerfile target scan-runner)
+== build localhost/repopulse/web:0.1.0-rc2 (Dockerfile target web)
+== build localhost/repopulse/scan:0.1.0-rc2 (Containerfile.scan)
+== pull docker.io/library/postgres:16
+== pull docker.io/library/redis:7-alpine
+== save images -> /Users/bmatthews/tmp/rp-bundle-amd64/repopulse-0.1.0-rc2-linux-amd64/images/repopulse-images.tar
+== stage deploy/
+== pack /Users/bmatthews/tmp/rp-bundle-amd64/repopulse-0.1.0-rc2-linux-amd64.tar.gz
+EXIT=0
+sha256 3c509e2b043c67c564634bc84dc5dcf98102043cdc6e454818972ac620635f31  repopulse-0.1.0-rc2-linux-amd64.tar.gz
+(both in $HOME/tmp/rp-bundle-{arm64,amd64}/, not in git, not published)
+
+# amd64 bundle builds under qemu-user emulation (podman 5.8.2, applehv VM, arm64 host). Attempts 1-2 failed identically in vite build (esbuild Go runtime under qemu); fixed by 2e4c7c2 (web-build on $BUILDPLATFORM).
+bundle-amd64-attempt2 (425daa4, before the fix): == build localhost/repopulse/migrate:0.1.0-rc2 (Dockerfile target migrate)
+bundle-amd64-attempt2 (425daa4, before the fix): == build localhost/repopulse/api:0.1.0-rc2 (Dockerfile target api)
+bundle-amd64-attempt2 (425daa4, before the fix): == build localhost/repopulse/worker:0.1.0-rc2 (Dockerfile target worker)
+bundle-amd64-attempt2 (425daa4, before the fix): == build localhost/repopulse/scan-runner:0.1.0-rc2 (Dockerfile target scan-runner)
+bundle-amd64-attempt2 (425daa4, before the fix): == build localhost/repopulse/web:0.1.0-rc2 (Dockerfile target web)
+bundle-amd64-attempt2 (425daa4, before the fix): runtime: lfstack.push invalid packing: node=0xffff81230280 cnt=0x1 packed=0xffff812302800001 -> node=0xffffffff81230280
+bundle-amd64-attempt2 (425daa4, before the fix): fatal error: lfstack.push
+bundle-amd64-attempt2 (425daa4, before the fix): runtime.(*lfstack).push(0xc0005841c0?, 0x3?)
+bundle-amd64-attempt2 (425daa4, before the fix): 	runtime/lfstack.go:29 +0x125 fp=0xc0004c7f48 sp=0xc0004c7f08 pc=0x40bd05
+bundle-amd64-attempt2 (425daa4, before the fix): Error: building at STEP "RUN pnpm --filter @repopulse/web exec vite build": while running runtime: exit status 1
+bundle-amd64-attempt2 (425daa4, before the fix): EXIT=1
+bundle-amd64-attempt1 (425daa4, before the fix): == build localhost/repopulse/migrate:0.1.0-rc2 (Dockerfile target migrate)
+bundle-amd64-attempt1 (425daa4, before the fix): == build localhost/repopulse/api:0.1.0-rc2 (Dockerfile target api)
+bundle-amd64-attempt1 (425daa4, before the fix): == build localhost/repopulse/worker:0.1.0-rc2 (Dockerfile target worker)
+bundle-amd64-attempt1 (425daa4, before the fix): == build localhost/repopulse/scan-runner:0.1.0-rc2 (Dockerfile target scan-runner)
+bundle-amd64-attempt1 (425daa4, before the fix): == build localhost/repopulse/web:0.1.0-rc2 (Dockerfile target web)
+bundle-amd64-attempt1 (425daa4, before the fix): runtime: lfstack.push invalid packing: node=0xffff45f37880 cnt=0x1 packed=0xffff45f378800001 -> node=0xffffffff45f37880
+bundle-amd64-attempt1 (425daa4, before the fix): fatal error: lfstack.push
+bundle-amd64-attempt1 (425daa4, before the fix): runtime.(*lfstack).push(0xc0005841c0?, 0x3?)
+bundle-amd64-attempt1 (425daa4, before the fix): 	runtime/lfstack.go:29 +0x125 fp=0xc00054df48 sp=0xc00054df08 pc=0x40bd05
+# final build (39439c8), 143s with cached layers
+bundle:   repopulse-0.1.0-rc2-linux-amd64
+runtime:  podman 5.8.2 building for linux/amd64 (emulated=true)
+source:   39439c89c5310f04788ac59785ab2e3bb38e7a74 (dirty=true)
+== build localhost/repopulse/migrate:0.1.0-rc2 (Dockerfile target migrate)
+== build localhost/repopulse/api:0.1.0-rc2 (Dockerfile target api)
+== build localhost/repopulse/worker:0.1.0-rc2 (Dockerfile target worker)
+== build localhost/repopulse/scan-runner:0.1.0-rc2 (Dockerfile target scan-runner)
+== build localhost/repopulse/web:0.1.0-rc2 (Dockerfile target web)
+== build localhost/repopulse/scan:0.1.0-rc2 (Containerfile.scan)
+== pull docker.io/library/postgres:16
+== pull docker.io/library/redis:7-alpine
+== save images -> /Users/bmatthews/tmp/rp-bundle-amd64/repopulse-0.1.0-rc2-linux-amd64/images/repopulse-images.tar
+== stage deploy/
+== pack /Users/bmatthews/tmp/rp-bundle-amd64/repopulse-0.1.0-rc2-linux-amd64.tar.gz
+bundle:   /Users/bmatthews/tmp/rp-bundle-amd64/repopulse-0.1.0-rc2-linux-amd64.tar.gz
+EXIT=0
+sha256 e7cd1d26fac52e706470bfad0ce16563944cae9c54b71241b14d49ba4e890ee3  repopulse-0.1.0-rc2-linux-amd64.tar.gz (720 MB; location $HOME/tmp/rp-bundle-amd64/, not in git, not published)

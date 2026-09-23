@@ -4,7 +4,12 @@ import { createServer, type Server } from 'node:http';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { core, createDb, type Database } from '@repopulse/shared';
-import type { ForgeProvider, ForgeRepo, GitHubAuth } from '@repopulse/forge';
+import {
+  ForgeHttpError,
+  type ForgeProvider,
+  type ForgeRepo,
+  type GitHubAuth,
+} from '@repopulse/forge';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
@@ -61,6 +66,7 @@ function fakeProvider(
   return {
     listRepos: () => smokeBehavior().then((items) => ({ items })),
     registerWebhook,
+    capabilities: { webhookScheme: kind === 'gitlab' ? 'gitlab-token' : 'hub-signature' },
   } as unknown as ForgeProvider;
 }
 
@@ -70,7 +76,6 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   const db: Database = createDb(databaseUrl as string);
   const tokenKey = randomBytes(32);
   const enqueueBackfillPlan = vi.fn(async () => {});
-
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -144,7 +149,12 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     ] as const) {
       const [u] = await db
         .insert(core.users)
-        .values({ authProvider: 'github', authSubject: forgeUserId, forgeUserId, login: forgeUserId })
+        .values({
+          authProvider: 'github',
+          authSubject: forgeUserId,
+          forgeUserId,
+          login: forgeUserId,
+        })
         .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: forgeUserId } })
         .returning();
       await db
@@ -266,12 +276,78 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
   });
 
   // The stored-connection routes must rebuild the provider from the ROW's forge
+  // W17-35: listRepos now rejects on an HTTP error instead of returning an
+  // empty list. Discovery must turn that into a problem that names the forge's
+  // answer, not a bare 500 — and certainly not "this token can see 0 repos".
+  // GitLab subgroups (W17-36 verifier finding): `platform/tools/widget` was
+  // split on EVERY slash into org `platform`, name `tools`, so the stored row
+  // named a project that does not exist — its API calls and its webhook
+  // lookup (full-path match) could never succeed.
+  it('keeps a nested namespace intact: org is everything before the LAST slash', async () => {
+    const nested: ForgeRepo = {
+      ...REPOS[0]!,
+      externalId: '301',
+      name: 'widget',
+      fullName: 'platform/tools/widget',
+    };
+    smokeBehavior = () => Promise.resolve([nested]);
+    const cookie = await loginAs(app, ADMIN);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { provider: 'gitlab', auth_kind: 'pat', credential: TOKEN },
+    });
+    expect(created.statusCode).toBe(201);
+    const connId = created.json().id as number;
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/api/v1/connections/${connId}/available-repos`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(listed.json().items[0]).toMatchObject({ org: 'platform/tools', name: 'widget' });
+    const selected = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_forge_ids: ['301'] },
+    });
+    expect(selected.statusCode).toBe(200);
+    const rows = await db.select().from(core.repos).where(eq(core.repos.connectionId, connId));
+    expect(rows.map((r) => `${r.org}|${r.name}`)).toEqual(['platform/tools|widget']);
+    expect(registerWebhook.mock.calls.at(-1)![1]).toBe('platform/tools/widget');
+    smokeBehavior = () => Promise.resolve(REPOS);
+  });
+
+  it('available-repos answers 502 naming the forge status when the forge refuses the listing', async () => {
+    smokeBehavior = () => Promise.resolve(REPOS);
+    const cookie = await loginAs(app, ADMIN);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { provider: 'github', auth_kind: 'pat', credential: TOKEN },
+    });
+    expect(created.statusCode).toBe(201);
+    smokeBehavior = () =>
+      Promise.reject(new ForgeHttpError(403, 'repos', 'Resource not accessible by token'));
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/api/v1/connections/${created.json().id as number}/available-repos`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(listed.statusCode).toBe(502);
+    expect(listed.json().detail).toContain('HTTP 403');
+    expect(listed.json().detail).toContain('Resource not accessible by token');
+  });
+
   // kind + base URL. Before this fix they passed neither, so a Gitea (or GHES)
   // connection was rebuilt as a github.com provider: a 500, and the self-hosted
   // token sent to api.github.com.
   for (const [provider, baseUrl] of [
     ['gitea', 'https://gitea.internal.example'],
     ['github', 'https://ghe.acme.example/api/v3'],
+    ['gitlab', 'https://gitlab.internal.example'],
   ] as const) {
     it(`rebuilds a stored ${provider} connection against its own kind + base URL (${baseUrl})`, async () => {
       smokeBehavior = () => Promise.resolve(REPOS);
@@ -303,6 +379,12 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
       });
       expect(selected.statusCode).toBe(200);
       expect(providerBuilds).toEqual([{ kind: provider, baseUrl }]);
+      // W17-36: GitLab cannot be verified by the GitHub/Gitea receiver, so its
+      // hook must point at the route that reads X-Gitlab-Token.
+      const hookUrl = registerWebhook.mock.calls.at(-1)![2];
+      expect(hookUrl).toMatch(
+        provider === 'gitlab' ? /\/webhooks\/gitlab$/ : /\/webhooks\/github$/,
+      );
     });
   }
 });

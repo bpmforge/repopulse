@@ -2713,7 +2713,7 @@
     },
     {
       "id": "W7-05",
-      "title": "Production containers: quadlet/compose, secrets, TLS, migration job",
+      "title": "Production containers: quadlet/compose, secrets, TLS, migration job (DEFERRED: bpmforge dogfood hosting, off the v1 self-host release path)",
       "phase": 7,
       "module": "deploy",
       "stories": [
@@ -2738,12 +2738,13 @@
       "status": "blocked",
       "notes": [
         "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md.",
-        "BLOCKER CORRECTED 2026-08-21. The 2026-08-19 note was batch-applied across W7-05/06/07 and over-states this one: it claimed a GitHub App under the bpmforge org is required. Nothing in this ticket's acceptance mentions GitHub — it is quadlets, TLS, secrets, migrations, SC-20 hardening and backups. The only real blocker is a deploy target with DNS and TLS. Under D14 (2026-08-20) a standalone install needs no forge at all to run or to sign in."
+        "BLOCKER CORRECTED 2026-08-21. The 2026-08-19 note was batch-applied across W7-05/06/07 and over-states this one: it claimed a GitHub App under the bpmforge org is required. Nothing in this ticket's acceptance mentions GitHub — it is quadlets, TLS, secrets, migrations, SC-20 hardening and backups. The only real blocker is a deploy target with DNS and TLS. Under D14 (2026-08-20) a standalone install needs no forge at all to run or to sign in.",
+        "DEFERRED 2026-09-23, founder decision on the v1 self-host release (release/v1-selfhost). This ticket is bpmforge hosting its OWN dogfood install (quadlets, repopulse.bpmforge.com TLS, bpmforge backup volume). VISION.md: 'bpmforge's own deployment is the dogfood install, not the product'. The customer-installable artifact is W11-01 (portable compose + install bundle), which v1 ships instead. Stays blocked, NOT done: nothing in its acceptance was delivered; it is simply no longer a v1 release gate. Reopen when bpmforge decides to host a dogfood/SaaS instance."
       ]
     },
     {
       "id": "W7-06",
-      "title": "Prod deploy runbook execution + observability verification",
+      "title": "Prod deploy runbook execution + observability verification (DEFERRED: bpmforge dogfood hosting, off the v1 self-host release path)",
       "phase": 7,
       "module": "deploy",
       "stories": [
@@ -2768,12 +2769,13 @@
       "notes": [
         "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md.",
         "BLOCKER CORRECTED 2026-08-21, same batch-applied error as W7-05: no GitHub App is required to execute a deploy runbook, verify observability or run a restore drill. The real blocker is a deploy target with DNS and TLS.",
-        "ACCEPTANCE 2 IS STALE AGAINST D14 (2026-08-20, which post-dates this ticket). It reads 'Prod smoke on https://repopulse.bpmforge.com: OAuth login, connect an org, ...'. Under D14 authentication is standalone — a local account or generic OIDC — and forge OAuth is one option among several, never a requirement. The smoke should sign in with a LOCAL admin account, which is also the path a self-hosting customer takes. Rewrite when the ticket is claimed; do not quietly satisfy it with GitHub OAuth."
+        "ACCEPTANCE 2 IS STALE AGAINST D14 (2026-08-20, which post-dates this ticket). It reads 'Prod smoke on https://repopulse.bpmforge.com: OAuth login, connect an org, ...'. Under D14 authentication is standalone — a local account or generic OIDC — and forge OAuth is one option among several, never a requirement. The smoke should sign in with a LOCAL admin account, which is also the path a self-hosting customer takes. Rewrite when the ticket is claimed; do not quietly satisfy it with GitHub OAuth.",
+        "DEFERRED 2026-09-23, founder decision on the v1 self-host release. Executes the bpmforge production runbook on repopulse.bpmforge.com — the dogfood/SaaS deployment, not the self-hosted product. Customer-side operation is covered by docs/INSTALL.md + docs/RUNBOOK.md and the bundle smoke (W17-28/W17-34). Stays blocked, not done; not a v1 release gate."
       ]
     },
     {
       "id": "W7-07",
-      "title": "Production GitHub App + webhook registration + prod OAuth app",
+      "title": "Production GitHub App + webhook registration + prod OAuth app (DEFERRED: bpmforge dogfood hosting, off the v1 self-host release path)",
       "phase": 7,
       "module": "infra",
       "stories": [],
@@ -2795,7 +2797,8 @@
       "notes": [
         "Created 2026-07-18 as the production-side split-off of the original W0-05. Holds the parts that genuinely require a live deploy (prod OAuth callback + real webhook delivery at repopulse.bpmforge.com) — none of which gate any W1/W2 CODE ticket, all of which are fixture/synthetic-payload tested. This is a deploy-milestone human task, sequenced after W7-05 (containers/TLS) and naturally before/with W7-06 (prod deploy runbook execution).",
         "BLOCKED 2026-08-19 by the standing loop: needs production infrastructure only Brad can provide — a deploy target with DNS and TLS, and a GitHub App registered under the bpmforge org. Set to blocked rather than left todo so the claimable set stops offering work nothing can finish. See docs/STATUS.md.",
-        "SCOPE CLARIFIED 2026-08-21. Under D14 this ticket is OPTIONAL for a standalone deployment: nobody needs a GitHub App to install RepoPulse, to sign in, or to connect a Gitea organisation — that absurdity is precisely what D14 was written to remove. It is required only to INGEST GitHub repositories. On the Gitea-first path Brad is actually on, this can stay parked indefinitely without blocking anything else."
+        "SCOPE CLARIFIED 2026-08-21. Under D14 this ticket is OPTIONAL for a standalone deployment: nobody needs a GitHub App to install RepoPulse, to sign in, or to connect a Gitea organisation — that absurdity is precisely what D14 was written to remove. It is required only to INGEST GitHub repositories. On the Gitea-first path Brad is actually on, this can stay parked indefinitely without blocking anything else.",
+        "DEFERRED 2026-09-23, founder decision on the v1 self-host release. A bpmforge-owned GitHub App/OAuth app only matters to a bpmforge-hosted instance. Self-hosters register their own App (optional, sign-in only) or connect with a token (D14, INSTALL.md 'The GitHub App variables are for sign-in, not for data'). Stays blocked, not done; not a v1 release gate."
       ]
     },
     {
@@ -4099,7 +4102,7 @@
     },
     {
       "id": "W11-01",
-      "title": "Portable container images + generic compose artifact",
+      "title": "Portable container images + generic compose artifact (v1: install bundle on amd64 + Docker; registry publish DEFERRED)",
       "phase": 11,
       "module": "deploy",
       "stories": [],
@@ -4111,10 +4114,10 @@
       ],
       "depends_on": [],
       "acceptance": [
-        "Multi-arch (amd64+arm64) images for api, web and workers build in CI and publish to a public registry with immutable version tags plus a digest — never :latest only",
+        "v1 is BUNDLE-ONLY (founder decision 2026-09-23): deploy/bundle.sh produces a linux/amd64 bundle, and on a real amd64 host running Docker it installs and runs — configure -> up -> /healthz 200 -> admin login -> /setup/status 200 — recorded in deploy/bundle/ARCHITECTURES.md",
         "A single deploy/compose.yaml brings up api+web+workers+Postgres 16+Redis on a clean machine with ONLY a filled .env, no bpmforge-specific units, hostnames or volumes anywhere in it",
         "Migrations run as a one-shot job before app start; a second compose up on an existing install is a no-op, not a re-migrate",
-        "Verified on a machine that has never built the repo: pull images, fill .env, up, reach the login page — recorded in docs/INSTALL.md with the exact commands run"
+        "Registry publish of multi-arch images (original acceptance 1) is DEFERRED past v1 and stated as such in INSTALL.md/ARCHITECTURES.md, not implied"
       ],
       "points": 5,
       "status": "blocked",
@@ -4134,7 +4137,9 @@
         "BLOCKED 2026-08-19. The two remaining acceptance items cannot be done here, and neither is a matter of effort. (1) Acceptance 1 — multi-arch images built in CI and published to a PUBLIC registry with immutable digests — is now CONTRARY to a founder decision, not merely blocked by it: W11-04 decided proprietary, no distribution, nothing public until a clean self-hosted install is proven (W11-05). Writing the publish workflow speculatively is the specific thing the earlier pass warned against, because an unused pipeline pointed at a public registry is what gets enabled by accident. CI has also never run on this repo (Actions billing), so \"builds in CI\" could not be demonstrated even if publishing were wanted. (2) Acceptance 4 — verification on a machine that has never built the repo — needs a second physical machine and is W11-05 by design.",
         "WHAT IS ALREADY DONE AND VERIFIED RUNNING stays done: the four-target Dockerfile, deploy/compose.yaml with nothing bpmforge-specific in it, the nginx template, .env.example, docs/INSTALL.md, migrations as a one-shot job that is a no-op on a second up, and slim runtime images (api/worker 465 MB, migrate 330 MB). Acceptances 2 and 3 are met and were proven by running the stack, not by reading it.",
         "TO UNBLOCK, from Brad: either (a) reverse the no-publish decision and name a registry, or (b) confirm acceptance 1 should be REWRITTEN to \"images build reproducibly for both arches locally, publishing deferred\" — which is a scope change and therefore his call, not mine. Acceptance 4 unblocks when a clean host is available for W11-05.",
-        "2026-09-10 (W17-28): the local-archive half now has evidence — deploy/bundle.sh produces a versioned, checksummed, no-registry bundle that installed and persisted data on a host path without the repo, Node or pnpm (podman, linux/arm64 only; docs/work/product-completion/evidence/w17-28-bundle-smoke-20260910.md). Still BLOCKED on the same two founder decisions: no publishing (acceptance 1) and no second-arch/clean-host run (acceptance 4 → W17-30/W11-05). Nothing here names a registry."
+        "2026-09-10 (W17-28): the local-archive half now has evidence — deploy/bundle.sh produces a versioned, checksummed, no-registry bundle that installed and persisted data on a host path without the repo, Node or pnpm (podman, linux/arm64 only; docs/work/product-completion/evidence/w17-28-bundle-smoke-20260910.md). Still BLOCKED on the same two founder decisions: no publishing (acceptance 1) and no second-arch/clean-host run (acceptance 4 → W17-30/W11-05). Nothing here names a registry.",
+        "ORIGINAL ACCEPTANCE, preserved verbatim before the v1 re-scope (2026-09-23): (1) 'Multi-arch (amd64+arm64) images for api, web and workers build in CI and publish to a public registry with immutable version tags plus a digest — never :latest only'; (2) 'A single deploy/compose.yaml brings up api+web+workers+Postgres 16+Redis on a clean machine with ONLY a filled .env, no bpmforge-specific units, hostnames or volumes anywhere in it'; (3) 'Migrations run as a one-shot job before app start; a second compose up on an existing install is a no-op, not a re-migrate'; (4) 'Verified on a machine that has never built the repo: pull images, fill .env, up, reach the login page — recorded in docs/INSTALL.md with the exact commands run'.",
+        "RE-SCOPED + PROGRESS 2026-09-23 (release/v1-selfhost). Evidence toward new acceptance 1, NOT yet meeting it: no Docker exists on the build Mac (no docker/colima/nerdctl/lima) and no amd64 hardware, so the amd64 bundle was cross-built and smoked under podman + qemu-user emulation instead. Two fixes it forced: bundle.sh --arch= (with 'emulated': true in the manifest) and the SPA build on $BUILDPLATFORM (esbuild's Go runtime aborts under qemu: fatal error lfstack.push, twice). Final bundle from 39439c8 (sha256 e7cd1d26…, 720 MB): install.sh (REPOPULSE_ALLOW_EMULATED_ARCH=1) 49s -> /healthz 200, admin login 200, forced password change 200, /setup/status 200; api/worker/web/migrate/postgres amd64. Deviation: upstream amd64 redis:7-alpine segfaults under qemu-user, native arm64 redis substituted. Evidence: docs/work/product-completion/evidence/v1-selfhost-20260923/amd64-smoke-final.log, amd64-bundle-build.txt. Acceptance 2/3 were already evidenced (W17-28/W17-29). Stays BLOCKED on one thing: a real amd64 host with Docker — the same run W11-05 needs, so do them together."
       ]
     },
     {
@@ -4262,7 +4267,8 @@
         "The real acceptance test for D1a: not that WE can deploy it, but that someone else can, from the docs alone. Expect this to find gaps in W11-02s config reference — that is its job.",
         "BLOCKED 2026-08-19 — this ticket is a HUMAN acceptance test by design and cannot be honestly performed from here. Its three acceptance items each need something I do not have: (1) a machine with no repo checkout, and a person following only the docs — I am the wrong reader, because I wrote them and would fill gaps from memory without noticing; (2) a real forge App registered against a real org, which is the same blocker as W7-07 and decision (d); (3) a customer-supplied LM Studio endpoint for the Tier-2 half.",
         "WHAT IS ALREADY PROVEN AND WHAT IS NOT: the compose path itself is exercised (W13-06 runs it from a fresh .env with fresh volumes), backup/restore/upgrade/rollback were executed against a live populated stack (W11-03), and the config reference cannot drift from the code (W11-02). What none of that establishes is the thing this ticket exists for: that a person who has never seen the repo can get from docs/INSTALL.md to a working install and a generated report.",
-        "TO UNBLOCK, from Brad: a spare host (a VM is fine), a throwaway GitHub App on a scratch org, and an hour following docs/INSTALL.md top to bottom WITHOUT reading the code — recording every place the docs were wrong, ambiguous or silent. The doc gaps it finds are the deliverable, not the install."
+        "TO UNBLOCK, from Brad: a spare host (a VM is fine), a throwaway GitHub App on a scratch org, and an hour following docs/INSTALL.md top to bottom WITHOUT reading the code — recording every place the docs were wrong, ambiguous or silent. The doc gaps it finds are the deliverable, not the install.",
+        "2026-09-23 (release/v1-selfhost): the forge half no longer needs a GitHub App — D14 local sign-in plus a PAT is the documented path (INSTALL.md 'Connect your forge'; the App is optional, sign-in only). The real-forge smoke (api.github.com, fine-grained PAT, bpmforge/quarry) passed on 39439c8: connect -> discover -> select -> backfill -> live, 9 commits / 74 files, all five entity cursors done with no error, webhook refused 403 as expected for a read-only token (evidence/v1-selfhost-20260923/real-forge-smoke.txt). What is still Brad's and still the point of this ticket: a clean amd64 VM with Docker, the bundle (not a checkout), and a person following only the docs. Run W11-01's amd64+Docker acceptance in the same session."
       ]
     },
     {
@@ -4586,7 +4592,7 @@
     },
     {
       "id": "W12-10",
-      "title": "Provision Postgres + Redis in CI and turn the live-infra gate on (SUPERSEDED by W14-03)",
+      "title": "Provision Postgres + Redis in CI and turn the live-infra gate on (SUPERSEDED by W14-03; DEFERRED: off the v1 self-host release path)",
       "phase": 12,
       "module": "infra",
       "stories": [],
@@ -4613,7 +4619,8 @@
         "VERIFIED AS FAR AS IS POSSIBLE OFFLINE: the workflow parses and the job carries both services, both healthchecks, all three env vars and the migrate step in the right order. More usefully, the CI condition was SIMULATED locally — a brand-new empty database (repopulse_cisim), migrated from scratch, then the full suite run against it with REQUIRE_LIVE_INFRA=1: 122 files, 589 tests, zero skipped, zero failures. The expected fallout from running 37 never-in-CI suites did not materialise on a fresh DB. That is a strong proxy for the CI environment, not a substitute for it.",
         "ALSO OBSERVED, NOT FIXED: the nightly-e2e job has no data tier either and would fail the moment the budget is restored, since `pnpm e2e` needs a seeded stack. Out of scope here (it needs the API and web servers plus the seeder in CI, not two service containers) — worth its own ticket.",
         "USER ACTION REQUIRED: the Actions budget/spending limit on the bpmforge org has to be raised before any of this executes. Until then every gate in this repo is a local gate, and the validators, lint, typecheck and test steps in ci.yml are decorative.",
-        "SUPERSEDED 2026-08-21 by W14-03, and this ticket should NOT be read as 'raise the GitHub Actions spending limit'. W14-03 records the actual decision, filed 2026-08-19: 'Brad: GitHub should be repo storage only; Actions costs too much.' Raising the Actions budget spends money on the vendor we are moving off. The ci.yml job written here is still correct and still wanted — postgres:16 + redis:7.2 services, db:migrate before lint, REQUIRE_LIVE_INFRA=1 — but its destination is a Gitea act_runner, which is what W14-03 exists to do. Kept blocked rather than closed because the live-infra gate genuinely is not on anywhere yet; it unblocks THROUGH W14-03, not through billing."
+        "SUPERSEDED 2026-08-21 by W14-03, and this ticket should NOT be read as 'raise the GitHub Actions spending limit'. W14-03 records the actual decision, filed 2026-08-19: 'Brad: GitHub should be repo storage only; Actions costs too much.' Raising the Actions budget spends money on the vendor we are moving off. The ci.yml job written here is still correct and still wanted — postgres:16 + redis:7.2 services, db:migrate before lint, REQUIRE_LIVE_INFRA=1 — but its destination is a Gitea act_runner, which is what W14-03 exists to do. Kept blocked rather than closed because the live-infra gate genuinely is not on anywhere yet; it unblocks THROUGH W14-03, not through billing.",
+        "DEFERRED 2026-09-23 with W14-03, founder decision on the v1 self-host release: hosted CI for bpmforge's own repository is not part of what a customer installs. v1 gates are run locally and recorded per SHA in RELEASE-CHECKLIST.md (and pre-push). Stays blocked, not done."
       ]
     },
     {
@@ -4851,7 +4858,8 @@
         "PREP DONE 2026-08-19, WAITING ON A HUMAN. FORGE_BASE_URL=https://git.bpmforge.com is set in deploy/.env and documented in deploy/.env.example; api and worker were force-recreated and both now carry it (verified with printenv inside each container); the stack answers /healthz 200 on :8099. The only remaining step is a Gitea token, which only Brad can mint.",
         "CORRECTION TO AN EARLIER CLAIM IN THIS SESSION: I said deploy/compose.yaml does not pass FORGE_BASE_URL through. It does — api and worker both declare env_file: [.env], so every variable in that file reaches them. The grep that produced the claim looked for an explicit environment: entry and missed the env_file line. No compose change was needed.",
         "BLOCKED 2026-08-19 (was in_progress). Everything that can be done without a credential is done and verified: FORGE_BASE_URL is set and reaching the containers, the deployed api resolves git.bpmforge.com and reads its version endpoint (1.26.2), and the stack answers /healthz on :8099. The remaining step is a Gitea access token with read scopes, entered through the Connections UI — anonymous API reads return 404 for these repositories, so this genuinely cannot be done credential-free.",
-        "MOVED FROM in_progress TO blocked so the board stops showing work in flight that nobody can advance. What is needed from Brad: a Gitea token (Settings -> Applications, read scopes) pasted into Admin -> Connections against https://git.bpmforge.com. CORRECTED 2026-09-23: it was not automatic. Until fix/forge-provider-dispatch, available-repos and select-repos rebuilt every stored connection as a github.com provider, so a Gitea connection 500'd at discovery and its token went to api.github.com. Against a throwaway Gitea 1.24.7 after the fix, discovery -> select -> backfill -> live works with the token alone, but with the read-only scopes INSTALL.md listed (read:repository/organization/user) webhook registration is 403 (repo goes live with 'live updates unavailable') and the issues fetch is 403; write:repository + read:issue are needed for live updates. Webhook DELIVERY from Gitea was not verified. Whatever git.bpmforge.com breaks beyond that is still what this ticket exists to find."
+        "MOVED FROM in_progress TO blocked so the board stops showing work in flight that nobody can advance. What is needed from Brad: a Gitea token (Settings -> Applications, read scopes) pasted into Admin -> Connections against https://git.bpmforge.com. CORRECTED 2026-09-23: it was not automatic. Until fix/forge-provider-dispatch, available-repos and select-repos rebuilt every stored connection as a github.com provider, so a Gitea connection 500'd at discovery and its token went to api.github.com. Against a throwaway Gitea 1.24.7 after the fix, discovery -> select -> backfill -> live works with the token alone, but with the read-only scopes INSTALL.md listed (read:repository/organization/user) webhook registration is 403 (repo goes live with 'live updates unavailable') and the issues fetch is 403; write:repository + read:issue are needed for live updates. Webhook DELIVERY from Gitea was not verified. Whatever git.bpmforge.com breaks beyond that is still what this ticket exists to find.",
+        "2026-09-23 (release/v1-selfhost) — evidence, ticket stays BLOCKED. Acceptance 3 ('whatever the first real instance breaks is fixed or filed — no failure absorbed silently') is now met for what the throwaway Gitea 1.24.7 found: the silent 403 on issues is W17-35 (fixed: recorded per entity and in last_error, visible in Admin -> Sync), webhook DELIVERY from Gitea was verified live and is W17-36 (Gitea's hooks send GitHub-compatible headers; captured delivery replayed in a test), and the read-only-scope webhook 403 is documented in INSTALL.md. NOT met: acceptance 1/2/4 name git.bpmforge.com and the deployed stack — this was a throwaway local Gitea, and the dogfood stack is deferred (W7-05). Close only when a real instance has been ingested; the remaining step is still a Gitea token for git.bpmforge.com."
       ]
     },
     {
@@ -4892,7 +4900,7 @@
     },
     {
       "id": "W14-03",
-      "title": "Move CI off GitHub Actions onto Gitea Actions with a local runner",
+      "title": "Move CI off GitHub Actions onto Gitea Actions with a local runner (DEFERRED: bpmforge infrastructure, off the v1 self-host release path)",
       "phase": 14,
       "module": "infra",
       "stories": [],
@@ -4922,7 +4930,8 @@
         "Acceptance 3 — a deliberately broken commit turns the gate RED, proven not assumed — is unreachable without a runner, and it is the item that matters most. A CI system nobody has seen fail is a CI system nobody has tested.",
         "Acceptance 4 (remove the GitHub workflow) is deliberately NOT done, as a sequencing judgement rather than an oversight: deleting it before the replacement is proven would leave the repo with no CI definition at all. Remove it in the same change that first shows a red Gitea run.",
         "TO UNBLOCK, from Brad: a registration token, a host for the daemon, and a yes to installing it. docs/RUNNING.md now carries the exact `act_runner register` command with labels, the launchd/systemd note, and the instruction to prove RED before trusting green.",
-        "Standing context restated in docs/RUNNING.md because it keeps mattering: no green check in this repository has ever meant anything. GitHub Actions has never run (no billing); every gate this project has passed was run locally."
+        "Standing context restated in docs/RUNNING.md because it keeps mattering: no green check in this repository has ever meant anything. GitHub Actions has never run (no billing); every gate this project has passed was run locally.",
+        "DEFERRED 2026-09-23, founder decision on the v1 self-host release. bpmforge's CI runner is internal infrastructure, not part of the self-hosted product; the v1 release is gated by locally re-run gates on one SHA (docs/work/product-completion/RELEASE-CHECKLIST.md). Stays blocked, not done."
       ]
     },
     {
@@ -5638,10 +5647,11 @@
         "THE SEAM: requestHeadersFor() is synchronous and static. Vertex needs a cached expiring token and the device flow needs a refreshing stored one, so auth has to become async and per-request. Per-request rather than per-build, because createGatewayResolver caches a WorkerGateway for 60s and a token minted at build time would be correct only by accident of that TTL.",
         "DEVICE FLOW (copilot, openai_subscription) is the honest split: it needs a human at a browser once per install, so it can never be exercised by `pnpm test` or `pnpm e2e:demo` at all — a different class of blocker from the other two, and a different surface (an interactive route plus a write-back path into the encrypted columns, which hostsFromProviders does not have).",
         "DO NOT flip `supported: false` -> true for a kind that cannot complete a real call. That is the dependency_cve mistake (W16-36): a criterion met while the capability is absent.",
-        "BLOCKED 2026-09-08: explicitly OUT OF SCOPE for the standalone product release (IMPLEMENTATION-PLAN.md §1, \"unfinished non-API-key model authentication\"). API-key providers ship; Vertex AI, Bedrock and Copilot auth do not. Parked, not abandoned, and not done."
+        "BLOCKED 2026-09-08: explicitly OUT OF SCOPE for the standalone product release (IMPLEMENTATION-PLAN.md §1, \"unfinished non-API-key model authentication\"). API-key providers ship; Vertex AI, Bedrock and Copilot auth do not. Parked, not abandoned, and not done.",
+        "DEFERRED 2026-09-23, founder decision on the v1 self-host release: moved OFF the release path explicitly (it was already out of scope per IMPLEMENTATION-PLAN.md §1). API-key providers ship in v1. Stays blocked, not done."
       ],
       "id": "W16-09",
-      "title": "Provider auth beyond API keys: Vertex AI, Bedrock, GitHub Copilot, OpenAI subscription plans",
+      "title": "Provider auth beyond API keys: Vertex AI, Bedrock, GitHub Copilot, OpenAI subscription plans (DEFERRED: off the v1 self-host release path)",
       "module": "analysis",
       "points": 8,
       "write_scope": [
@@ -6285,13 +6295,13 @@
     },
     {
       "id": "W16-34",
-      "title": "Full-suite runs fail intermittently under memory pressure",
+      "title": "Full-suite runs fail intermittently under memory pressure (CLOSED: superseded by W17-03 — never diagnosed)",
       "phase": 16,
       "module": "api",
       "stories": [],
       "depends_on": [],
       "points": 2,
-      "status": "blocked",
+      "status": "done",
       "write_scope": [
         "e2e/**",
         "apps/api/src/workers/**",
@@ -6314,7 +6324,8 @@
         "So the `write EPIPE` is a client- or host-side socket teardown, not Redis refusing, timing out or exhausting anything. That kills the 'memory pressure on the data tier' reading and points at the podman VM's networking or the host, which is where the next attempt should look.",
         "Three consecutive full runs immediately after the hook's failure: exit 0, 1820 passing, no stray dev processes. Still NOT reproducible on demand, and deliberately not 'fixed' by loosening an ioredis retry setting — papering over an undiagnosed transport fault with a client-side retry would hide the next one too.",
         "BLOCKED 2026-09-08, superseded by W17-03, which owns the root-cause work under the product-completion handoff. Deliberately NOT marked done: it was never diagnosed. The evidence above is the starting point for W17-03, not a closed record.",
-        "FOURTH DATA POINT 2026-09-08 (W17-06), and the best lead yet: the podman VM DIED TWICE in one session, unprompted. Once before any test ran (machine reported 'last up 2 weeks ago'), once mid-session where a running worker died with AggregateError [ECONNREFUSED] 127.0.0.1:5432 and podman ps answered 'Cannot connect to Podman ... dial tcp 127.0.0.1:53314: connection refused'. A VM dying under a running suite drops every Postgres and Redis socket at once, which is exactly a client-side write EPIPE with a Redis server that reports nothing wrong - because from its side nothing did. Still NOT a demonstrated cause of the 15-test accounts/auth-local failure, so this ticket stays blocked; but check `podman machine list` and the VM log first on the next occurrence. docs/TESTING.md section 11."
+        "FOURTH DATA POINT 2026-09-08 (W17-06), and the best lead yet: the podman VM DIED TWICE in one session, unprompted. Once before any test ran (machine reported 'last up 2 weeks ago'), once mid-session where a running worker died with AggregateError [ECONNREFUSED] 127.0.0.1:5432 and podman ps answered 'Cannot connect to Podman ... dial tcp 127.0.0.1:53314: connection refused'. A VM dying under a running suite drops every Postgres and Redis socket at once, which is exactly a client-side write EPIPE with a Redis server that reports nothing wrong - because from its side nothing did. Still NOT a demonstrated cause of the 15-test accounts/auth-local failure, so this ticket stays blocked; but check `podman machine list` and the VM log first on the next occurrence. docs/TESTING.md section 11.",
+        "CLOSED 2026-09-23 AS SUPERSEDED BY W17-03, by founder decision on the v1 self-host release — this OVERRIDES W17-03's closing note ('W16-34 stays blocked rather than done'). Marked done so the board stops carrying a duplicate of work W17-03 owned; it is NOT a claim that acceptance 1 was met. Evidence: W17-03 (done 2026-09-08) found and fixed the symptom (packages/auth/src/session/plugin.ts Redis client had no error listener: 6 unhandled ioredis events with a competing dev stack -> 0), ran three consecutive full runs at 1922/1922, and ruled out leaked apps, connection accumulation and memory pressure with measurements (docs/TESTING.md §11). Since then the suite has run clean repeatedly (2435/2435 x3 on 53374d6, W17-34; 2437 on 8ba54ff). The 15-test accounts/auth-local failure was never reproduced; if it recurs, file a NEW ticket starting from docs/TESTING.md §11 and the podman-VM lead above."
       ]
     },
     {
@@ -8084,6 +8095,106 @@
         "Any unresolved required gate means release-blocked, however finished the interface looks. Stop before publishing, merging or deploying.",
         "Claimed 2026-09-11 on tip 53374d6. Working-tree plan.json had been re-serialised with \\uXXXX escapes (2448-line churn); restored from HEAD and only this ticket edited.",
         "Closed 2026-09-11 with recommendation HOLD. Evidence dir docs/work/product-completion/evidence/w17-34-release-20260911/, checklist docs/work/product-completion/RELEASE-CHECKLIST.md. Same-SHA (53374d6) results: lint 0, typecheck 0, vitest 2435 passed / 9 skipped x3 runs, validators arch/plan/traceability/compose/egress-audit PASS, bundle check PASS (140.5 KB initial gz, budget 200), bundle rebuilt from 53374d6 (repopulse-0.1.0-rc1-linux-arm64.tar.gz sha256 a3e6a169…) and clean-install smoke PASS (install exit 0, /healthz 200, bootstrap login 200, torn down with down -v), gitleaks 17/25 findings all triaged as placeholders/identifiers/expired fixture value — none a live secret in git. FAIL: e2e gate 150 pass / 3 fail — org-overview.spec 2x2-heroes assertion (deterministic in isolation; the overview layout no longer varies panel width since W17-17 placed top-actions first, spec was outside that ticket write_scope and never re-run) and quality.spec axe on /admin/agreements dark+light (serious link-in-text-block once W5-08 exception lists carry PR links; passes only on the empty seed — reproduced deterministically in gate-e2e-axe-repro.txt). The listed 390px@200% ✘ is a declared test.fail expected failure, not a third failure. Release is HOLD until those two are fixed on a new SHA and the full gate re-run there."
+      ]
+    },
+    {
+      "id": "W17-35",
+      "title": "Backfill entity fetch errors are absorbed silently (403 on issues reads as 'no issues')",
+      "phase": 17,
+      "module": "ingest",
+      "stories": [],
+      "write_scope": [
+        "packages/forge/src/**",
+        "packages/forge/test/**",
+        "packages/ingest/src/**",
+        "packages/shared/src/db/schema/core/sync-cursors.ts",
+        "packages/shared/drizzle/**",
+        "apps/web/src/widgets/admin/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A permanent HTTP failure (401/403/404/410/422) on one backfill entity is recorded on that entity and in repos.last_error naming the entity and status, and does not stop the other entities or the repo reaching live (W14-01: no failure absorbed silently, FR-INGEST-8)",
+        "A transient failure (5xx after the client's retries) fails the job so BullMQ retries and dead-letters it, instead of checkpointing backfill_done over zero rows",
+        "An empty repository (409 on commits) is still an empty, finished entity, not an error",
+        "RED first: the tests fail on main by behaviour (resolved empty / last_error null), then pass; full gate green"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "FILED 2026-09-23 from the throwaway Gitea 1.24.7 run recorded on W14-01: with read:repository/organization/user scopes the issues request got 403, yet the repo went live and last_error mentioned only the webhook.",
+        "ROOT CAUSE CANDIDATES, ranked, with how each was checked: (1) the adapters' list helpers read any non-2xx body as a non-array and return an EMPTY page, so ingestEntityPages checkpoints backfill_done=true over zero rows - CONFIRMED by reading gitea/provider.ts paged(), github pageOf(), gitlab paged() and BudgetedClient.request (returns 4xx responses, and 5xx after retries, rather than throwing), and by the RED contract test: listIssues on a 403 resolves {items: []}. (2) the backfill job threw and the DLQ absorbed it - RULED OUT: a thrown entity job never checkpoints its cursor, so isHistoryBackfillComplete could not be true and the repo could not have gone live, which it did. (3) the reconcile sweep clearing last_error - not the cause (requeueErrorRepos only touches repos in status error), but checked so a recorded failure is re-recorded, not erased, by the nightly sweep.",
+        "SIDE EFFECT, intended: listRepos now rejects on 401/403, so connect's smoke check (which already classifies by err.status) refuses a bad token instead of accepting it as a connection with 0 repositories.",
+        "DONE 2026-09-23. RED first, by behaviour: packages/forge/test/list-errors.contract.test.ts (5 failed: 'promise resolved { items: [] } instead of rejecting' for a 403 on issues on Gitea/GitHub/GitLab, a 502, a 401 listRepos) and packages/ingest/src/backfill/entity-errors.integration.test.ts (4 failed: last_error null after a 403; a 502 resolved { pages: 1, itemsTotal: 0, done: true } — a 5xx checkpointed backfill_done too). FIX: ForgeHttpError + assertListOk in forge/client/errors.ts; the five backfill list methods and listRepos on all three adapters reject on non-2xx (409 on commits = empty repo, still an empty finished page; 304 passes); GitHub's GraphQL PR list rejects on non-2xx too. ingestEntityPages records a PERMANENT refusal (400/401/403/404/410/422) on sync_cursors.last_error (migration 0029, nullable column, rollback note in the file) and as a fragment of repos.last_error (row-locked splice, keeps the webhook message, no duplicates, cleared when the entity next succeeds), finishes the entity so the repo still completes; anything else throws so BullMQ retries/dead-letters. Sync status exposes entities[x].error. available-repos and select answer 502 naming the forge status instead of a bare 500. NOT CHANGED, deliberately: the enrichment lists (PR files, check runs, reviews) are still lenient — making them throw would leave a repo stuck in backfilling on one 403; follow-up if wanted. Gate: lint 0, typecheck 0, vitest 2459 passed / 9 skipped / 1 failed — the one failure is packages/analysis t2/live.integration.test.ts against the LAN LM Studio host ('Failed to load model qwen/qwen3-coder-next. Error: Operation canceled', reproduced alone; untouched code, external host).",
+        "VERIFIER FOLLOW-UPS (2026-09-23, accepted, not fixed): (1) a recorded refusal clears only when that entity next fetches successfully — the nightly reconcile does re-list every entity (reconcile.ts SWEEP_ENTITIES -> ingestEntityPages), so a fixed token clears it on the next sweep; requeueErrorRepos is not involved. (2) GitLab listCommits has no empty-project exception; GitLab is believed to answer 200 [] for an empty project, unverified live. (3) In the break test, the 409-empty-repo and 'clears once fixed' cases do not depend on assertListOk, so they pin adjacent behaviour, not this fix.",
+        "RESIDUAL R-16 (disclosed, not fixed): a repo whose forge has a FEATURE DISABLED (issues off, releases off) used to read as 'no issues'; if the forge answers that list with a 4xx it now shows as a permanent 'issues not ingested — HTTP <status>' in Admin -> Sync. GitHub's docs for GET /repos/{owner}/{repo}/issues list only 200/301/404/422 (no 410), so the disabled-issues answer is unverified; add it to the adapter's emptyOn with a contract test once observed live."
+      ]
+    },
+    {
+      "id": "W17-36",
+      "title": "Webhook receiver is GitHub-shaped: verify Gitea delivery, give GitLab a route that can accept it",
+      "phase": 17,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/routes/webhooks/**",
+        "apps/api/src/routes/connections/**",
+        "apps/api/src/index.ts",
+        "apps/api/src/demo.ts",
+        "packages/forge/src/**",
+        "packages/ingest/src/webhooks/**",
+        "docs/INSTALL.md",
+        "docs/research/**",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The shape a real Gitea delivery arrives in (headers + payload) is captured from a live Gitea and replayed through the receiver in a test that signs with a test-only secret",
+        "GitLab hooks register at a URL whose handler verifies X-Gitlab-Token and resolves the project path, with accept and reject tests",
+        "Existing hooks registered at /api/v1/webhooks/github keep working"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "FILED 2026-09-23 (release/v1-selfhost). RELEASE-CHECKLIST residual R-11: Gitea/GitLab webhook delivery untested; every provider registers at /api/v1/webhooks/github.",
+        "DONE 2026-09-23. VERIFIED LIVE: throwaway gitea/gitea:1.24-rootless + a header/body capture server on a private podman network (nothing published but 127.0.0.1:13999 for the API; all removed afterwards). A hook created exactly as GiteaProvider.registerWebhook does delivered issues, pull_request, push and release; every delivery carried X-GitHub-Event, X-GitHub-Delivery and X-Hub-Signature-256 'sha256=<hex>' (verified against the secret) alongside X-Gitea-*, with repository.full_name — so /webhooks/github accepts Gitea unchanged. The captured issues delivery is the fixture apps/api/src/routes/webhooks/fixtures/gitea-1.24.7-issues-opened.json. Gitea kept these of our requested events: push, issues, pull_request (+ its own expansions); check_run/check_suite/deployment are silently dropped. FOUND AND FIXED: (1) the receiver took the FIRST repo row matching org/name across all connections, so the same path on github.com and on a Gitea rejected the genuine Gitea delivery (RED: 401) — it now tries each candidate's secret, restricted to the route's providers, and matches the full path (GitLab subgroups). (2) GitLab registered at /webhooks/github, which cannot read X-Gitlab-Token or project.path_with_namespace (RED: 404 at /webhooks/gitlab) — new /webhooks/gitlab route (delivery id: webhook-id, Idempotency-Key, else X-Gitlab-Event-UUID, per docs.gitlab.com 'Delivery headers'), event map in ingest routeGitlabEvent, and registration picks the route from a new ForgeCapabilities.webhookScheme ('hub-signature' | 'gitlab-token') so the FR-FORGE-7 capability gate holds. GitLab is tested against its documented headers, NOT a live GitLab.",
+        "CORRECTION 2026-09-23 after the independent verifier (evidence/v1-selfhost-20260923/independent-verifier.md): the note above claimed GitLab subgroups work; they did not. Connect split a forge full name on EVERY slash, so `platform/tools/widget` was stored as org `platform`, name `tools` — a project that does not exist, so its API calls and the webhook's full-path lookup both failed (the webhook test hand-inserted org `platform/tools`, a row production never created). Pre-existing, now fixed: splitRepoFullName (forge/types.ts) splits at the LAST slash, used by connect.ts and both connections routes. RED: connections route test 'keeps a nested namespace intact' failed ({ org: 'platform', name: 'tools' }). Remaining verifier notes, accepted as follow-ups, not fixed: the webhook candidate query has no ORDER BY (correctness does not depend on it — every candidate's secret is tried).",
+        "FOUND AT THE ASSEMBLED-APP LEVEL 2026-09-23 (pre-existing since W1-08, c6ed48f): the CSRF plugin exempted only the bare '/webhooks' prefix, but the receiver is mounted under /api/v1, so EVERY real delivery — GitHub's included — was refused 403 'Missing or invalid X-Requested-With header' before its signature was checked. That is why 'no delivery yet' was all Admin -> Setup ever showed. Route-level tests mount webhookRoutes on a bare Fastify and could not see it. RED: apps/api/src/app.test.ts 'POST /api/v1/webhooks/{github,gitlab} reaches the receiver' got 403; fixed by exempting '/api/v1/webhooks' in plugins/csrf-header.ts, now 401 'Invalid webhook signature' for a bad signature. Still not proven end to end with a live forge posting to a running stack (the Gitea capture proved the delivery SHAPE, not the path through nginx+CSRF)."
+      ]
+    },
+    {
+      "id": "W17-37",
+      "title": "API and worker health server listen on every interface by default",
+      "phase": 17,
+      "module": "api",
+      "stories": [],
+      "write_scope": [
+        "apps/api/src/index.ts",
+        "apps/api/src/workers/**",
+        "apps/api/src/routes/setup/env-registry.ts",
+        "apps/api/test/**",
+        "Dockerfile",
+        "docs/CONFIG.md",
+        "docs/RUNNING.md",
+        "docs/INSTALL.md",
+        "deploy/.env.example",
+        "docs/STATUS.md",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A host-run api and worker bind 127.0.0.1 unless HOST says otherwise (dev printed 'Server listening at http://192.168.13.113:13300')",
+        "The packaged api/worker images set HOST=0.0.0.0 so the compose network still reaches them; only the web proxy publishes a host port, on REPOPULSE_BIND (default 127.0.0.1)",
+        "HOST is registered in env-registry and documented"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "FILED 2026-09-23 (release/v1-selfhost).",
+        "DONE 2026-09-23. RED: apps/api/src/workers/health-bind.test.ts — the worker health server bound '::' (every interface). FIX: HOST env (lib/listen-host.ts, default 127.0.0.1) for the api listen and the worker /healthz+/metrics server; Dockerfile api and worker targets set ENV HOST=0.0.0.0 so the compose network still reaches them — deploy/compose.yaml publishes no port for api/worker, only web on REPOPULSE_BIND (default 127.0.0.1), unchanged. HOST in env-registry + regenerated CONFIG.md; RUNNING.md documents it. demo.ts and e2e/server.ts already bound 127.0.0.1.",
+        "RENAMED 2026-09-23 after the independent verifier: the variable is LISTEN_HOST, not HOST. HOST is set to the machine's hostname by zsh and exported by some shells/CI runners; reading it would bind whatever that name resolves to — the LAN. RED: listen-host.test.ts 'ignores a generic HOST' failed (returned 'build-box.lan'). Dockerfile, env-registry, CONFIG.md, RUNNING.md updated."
       ]
     }
   ]

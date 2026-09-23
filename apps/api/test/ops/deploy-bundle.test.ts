@@ -123,6 +123,12 @@ describe('deploy/bundle.sh (W17-28)', () => {
       expect(out).toContain('not a valid image tag');
     });
 
+    it('refuses an --arch it cannot build for, before touching a runtime', async () => {
+      const { code, out } = await sh(bundleSh, ['--version=0.1.0-rc1', '--arch=sparc']);
+      expect(code).not.toBe(0);
+      expect(out).toContain('--arch=sparc is not supported');
+    });
+
     it('accepts a release tag and then needs a runtime, in that order', async () => {
       const { code, out } = await sh(bundleSh, ['--version=0.1.0-rc1']);
       expect(code).not.toBe(0);
@@ -222,6 +228,15 @@ describe('bundle install.sh (W17-28)', () => {
     expect(out).toContain('linux/mips64');
     expect(out).toContain('ARCHITECTURES.md');
     expect(out).not.toContain('loading images');
+  });
+
+  it('the emulation test hatch downgrades an arch mismatch to a warning, and says so', async () => {
+    const b = await fakeBundle({ platform: 'linux/mips64' });
+    const { code, out } = await install(b, { REPOPULSE_ALLOW_EMULATED_ARCH: '1' });
+    expect(code).not.toBe(0); // still needs a runtime; the point is it got that far
+    expect(out).toContain('continuing under emulation');
+    expect(out).toContain('testing only');
+    expect(out).toContain('Neither podman nor docker is on PATH');
   });
 
   it('passes its own gates and then needs a runtime, in that order', async () => {
