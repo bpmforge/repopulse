@@ -4,7 +4,8 @@
 check that can run on this workstation passed on the candidate commit. What
 is left needs hardware or a person this host does not have: a real amd64
 machine with Docker (W11-01 / W11-05), a clean-VM human run of the docs
-(W11-05), and a real Gitea instance ingested (W14-01). Nothing was merged,
+(W11-05), and a real Gitea instance ingested (W14-01 — since met on a real
+Gitea 1.24.7 and closed under a re-scope, see §4b; ratification owed). Nothing was merged,
 tagged, published or deployed; the branch is pushed to both remotes.
 
 | | |
@@ -91,8 +92,12 @@ Studio files). Evidence: `evidence/v1-residuals-20260923/`.
   (PRs, issues, releases, 106 metric snapshots); git.bpmforge.com dogfood deferred with
   W7-05/W7-06. Founder ratification of the narrowed acceptance is owed.
 - **Dev DB** — the real-forge smoke's GitHub connection (31661, `bpmforge/quarry`, the
-  `.env.smoke` PAT encrypted) is gone, and so are its BullMQ job records. Founder item 4
-  is reduced to rotating the PAT.
+  `.env.smoke` PAT encrypted) is gone. It was NOT a targeted delete: the first `pnpm test`
+  of this branch removed it, because the seed reset (`packages/shared/src/testing/seed/seed.ts`)
+  wipes every connection and repo in the Default workspace — the demo seed too, which the
+  e2e run re-created. The 16 completed BullMQ job records for its repo were removed by hand.
+  Founder item 4 is reduced to rotating the PAT. **Finding:** `pnpm test` destroys any real
+  forge connection a developer adds to the dev DB's Default workspace.
 
 ## 5. Board changes (plan.json)
 
@@ -105,7 +110,9 @@ Studio files). Evidence: `evidence/v1-residuals-20260923/`.
 - **W11-01:** re-scoped to "bundle on amd64 + Docker; registry publish
   deferred". The original acceptance is preserved in a note. It stays blocked
   on a real amd64 Docker host.
-- **W11-05 and W14-01:** updated with today's evidence; both stay blocked.
+- **W11-05 and W14-01:** updated with today's evidence; both stayed blocked on
+  `release/v1-selfhost`. W14-01 was later re-scoped and closed on
+  `fix/v1-residuals` (§4b); W11-05 stays blocked.
 - **VISION.md:** the MVP lines were updated to cover D14 local accounts + PAT
   and the built Gitea adapter.
 - **Setup copy:** no longer says "Register your own GitHub App".
@@ -126,8 +133,8 @@ Studio files). Evidence: `evidence/v1-residuals-20260923/`.
    git.bpmforge.com dogfood run travels with W7-05/W7-06.
 4. Rotate or delete the PAT in `.env.smoke`, and decide on the
    `.gitleaks.toml` allowlist (R-14). ~~The dev database holds the smoke's
-   GitHub connections~~ — purged 2026-09-23 (§4b); rotating the token is what
-   remains.
+   GitHub connections~~ — gone 2026-09-23, removed by the test suite's seed
+   reset rather than a targeted delete (§4b); rotating the token is what remains.
 5. Merge `release/v1-selfhost` → `main`, tag, and publish or hand out the bundle.
    Each of these is a separate founder authorisation.
 

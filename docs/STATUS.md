@@ -4041,5 +4041,8 @@ the fix is a one-line UPDATE renaming the key.
   connect:forge → worker → live, widget repo 4 commits / 1 PR / 1 issue / 1 release / 106 metric
   snapshots; git.bpmforge.com dogfood deferred with W7-05/06; founder ratification owed. Dev DB:
   the real-forge smoke's GitHub connection + bpmforge/quarry rows (encrypted .env.smoke PAT) are
-  gone and its 16 BullMQ job records removed. Gate: lint 0 · typecheck 0 · vitest 2492 passed /
+  gone — removed by this branch's first `pnpm test` (the seed reset wipes every connection/repo
+  in the Default workspace; demo seed re-created by the e2e run), not by a targeted delete; its
+  16 completed BullMQ job records were removed by hand. Finding: `pnpm test` destroys any real
+  forge connection a developer adds to the dev DB's Default workspace. Gate: lint 0 · typecheck 0 · vitest 2492 passed /
   14 skipped.
