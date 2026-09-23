@@ -3974,3 +3974,16 @@ the fix is a one-line UPDATE renaming the key.
   rounded load-more), sign-in screen (hero glow behind the card, 40px inputs on the page
   ground, filled primary button). Gate: lint 0 · typecheck 0 · web vitest 530/530 ·
   `pnpm e2e` 153 passed / 0 failed / 1 skipped.
+- 2026-09-14 dev data tier moved off the default ports: Postgres host port 5432 → **15432**,
+  Redis 6379 → **16379** (compose.dev.yaml `POSTGRES_PORT`/`REDIS_PORT` defaults, `.env.example`
+  URLs, `scripts/dev-up.sh` message, `scripts/setup.mjs` probe now reads `ports.config.mjs`,
+  which gained `postgres`/`redis`; RUNNING.md port table). Inside the compose network the
+  services keep 5432/6379; only the host side moves, so deploy/ compose files are untouched.
+  Reason: same as the 33xx/52xx block — a second local Postgres is the collision that costs
+  the most, because the symptom is a wrong database answering, not a refused port.
+  Existing checkouts: update DATABASE_URL/REDIS_URL in `.env`, then `podman compose -f
+  compose.dev.yaml down && scripts/dev-up.sh` (volumes persist). Also: the W6-01 live LM
+  Studio test now prefers `LMSTUDIO_MODEL` when the host lists it instead of the first
+  `/v1/models` entry — the first entry was an experimental ablated 9B that returned
+  reasoning_content with empty content, failing the suite on a model the product would
+  never be pointed at.

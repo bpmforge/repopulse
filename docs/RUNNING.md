@@ -132,7 +132,8 @@ default credential.
 ## Ports
 
 RepoPulse deliberately does not use the framework defaults. `5173` (Vite),
-`3000` and `3001` are what every other project on a machine also picks, and
+`3000` and `3001`, Postgres's `5432` and Redis's `6379` are what every other
+project on a machine also picks, and
 sharing a machine with one of them is enough to lose a test run — Playwright
 found `5173` held by an unrelated app and refused to start.
 
@@ -146,6 +147,8 @@ found `5173` held by an unrelated app and refused to start.
 | e2e fake forge | 9099 | `E2E_FAKE_FORGE_PORT` |
 | Demo container (web) | 8090 | `REPOPULSE_DEMO_PORT` |
 | Container stack (web) | 8099 | `REPOPULSE_PORT` in `deploy/.env` |
+| Postgres (dev data tier, host side) | 15432 | `POSTGRES_PORT` + `DATABASE_URL` |
+| Redis (dev data tier, host side) | 16379 | `REDIS_PORT` + `REDIS_URL` |
 
 The defaults live in **`ports.config.mjs`**, which the dev runner, the Vite
 config and the Playwright config all import — one file, so they cannot drift

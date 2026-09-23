@@ -7,7 +7,11 @@
 // and refused to start. Defaults that every tool picks are defaults that every
 // project fights over.
 //
-// So RepoPulse owns 33xx for services and 52xx for the dev web server. Nothing
+// So RepoPulse owns 33xx for services, 52xx for the dev web server, and the
+// dev data tier sits on 15432/16379 — Postgres and Redis at a glance, but not
+// the 5432/6379 that Homebrew services and every other project's compose file
+// publish. A second local Postgres is the collision that costs the most,
+// because the symptom is a wrong database answering, not a refused port. Nothing
 // here is magic; the point is that they are OURS, they are in one file, and a
 // second project's `npm run dev` cannot silently take one.
 //
@@ -51,6 +55,14 @@ export const PORTS = {
   demoE2eWorkerHealth: Number(process.env.DEMO_E2E_WORKER_HEALTH_PORT ?? 3321),
   demoE2eFakeForge: Number(process.env.DEMO_E2E_FAKE_FORGE_PORT ?? 3322),
   demoE2eWeb: Number(process.env.DEMO_E2E_WEB_PORT ?? 5283),
+  /**
+   * The dev data tier's HOST ports (compose.dev.yaml publishes them on
+   * loopback). Inside the compose network the services keep 5432/6379; only
+   * the host side moves. `.env.example` spells the same numbers in
+   * DATABASE_URL / REDIS_URL, and compose reads POSTGRES_PORT / REDIS_PORT.
+   */
+  postgres: Number(process.env.POSTGRES_PORT ?? 15432),
+  redis: Number(process.env.REDIS_PORT ?? 16379),
 };
 
 /** `http://localhost:<port>` for a key, so callers never re-spell the host. */
