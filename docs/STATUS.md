@@ -4005,3 +4005,21 @@ the fix is a one-line UPDATE renaming the key.
   "live updates unavailable") and on issues; write:repository + read:issue register the hook.
   Webhook delivery Gitea → api not verified (container could not reach host loopback).
   Gate: lint 0 · typecheck 0 · vitest 2437 passed / 9 skipped (was 2435).
+- 2026-09-23 release/v1-selfhost (from main 8ba54ff; not merged). **W17-35 done** — backfill
+  entity fetch errors were absorbed silently: every adapter read a non-2xx list body as an empty
+  page, so a 403 on issues checkpointed backfill_done over zero rows. List calls now reject
+  (ForgeHttpError; 409 on commits = empty repo); a permanent refusal is recorded per entity
+  (sync_cursors.last_error, migration 0029) and in repos.last_error, the entity still finishes,
+  5xx retries/dead-letters; discovery answers 502. **W17-36 done** — Gitea webhook delivery
+  verified LIVE (1.24.7 sends GitHub-compatible headers + X-Hub-Signature-256, captured delivery
+  replayed in tests); receiver verifies per candidate connection; new /webhooks/gitlab
+  (X-Gitlab-Token) chosen via ForgeCapabilities.webhookScheme; GitLab subgroup paths kept intact
+  (splitRepoFullName). **W17-37 done** — api + worker health bind LISTEN_HOST (default
+  127.0.0.1; images set 0.0.0.0; only web is published). Deploy: bundle.sh --arch=, web assets
+  built on $BUILDPLATFORM (esbuild aborts under qemu). Board: W7-05/06/07, W12-10, W14-03, W16-09
+  deferred off the v1 path; W16-34 closed as superseded by W17-03 (never diagnosed); W11-01
+  re-scoped to amd64 + Docker (publish deferred). Gate on 39439c8: lint 0 · typecheck 0 · vitest
+  2464 passed / 9 skipped · e2e 153 passed / 1 skipped · real-forge smoke PASS (bpmforge/quarry
+  live). Bundles 0.1.0-rc2: arm64 clean install + restart PASS; amd64 built + install-smoked
+  under qemu only (native redis substituted — amd64 redis segfaults under qemu). No Docker on the
+  host. Verdict HOLD on founder items only — docs/work/product-completion/RELEASE-CHECKLIST.md.

@@ -1,0 +1,14 @@
+source:   94878ba8d59d650990faae820a4da588b283bda6 (dirty=false)
+== build localhost/repopulse/migrate:0.1.0-rc2 (Dockerfile target migrate)
+== build localhost/repopulse/api:0.1.0-rc2 (Dockerfile target api)
+== build localhost/repopulse/worker:0.1.0-rc2 (Dockerfile target worker)
+== build localhost/repopulse/scan-runner:0.1.0-rc2 (Dockerfile target scan-runner)
+== build localhost/repopulse/web:0.1.0-rc2 (Dockerfile target web)
+== build localhost/repopulse/scan:0.1.0-rc2 (Containerfile.scan)
+== pull docker.io/library/postgres:16
+== pull docker.io/library/redis:7-alpine
+== save images -> /Users/bmatthews/tmp/rp-bundle-arm64/repopulse-0.1.0-rc2-linux-arm64/images/repopulse-images.tar
+== stage deploy/
+== pack /Users/bmatthews/tmp/rp-bundle-arm64/repopulse-0.1.0-rc2-linux-arm64.tar.gz
+EXIT=0
+sha256 e0eb6419820691626b8d7402a2cd490059b28e98429eda652a4475ef8a46be23  repopulse-0.1.0-rc2-linux-arm64.tar.gz (704M; $HOME/tmp/rp-bundle-arm64/, not in git, not published; 171s build)
