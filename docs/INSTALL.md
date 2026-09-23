@@ -219,6 +219,13 @@ to be needed, something is wrong.
 | GitLab | a personal access token | `read_api` |
 | Gitea | **Settings → Applications → Generate New Token** | `read:repository`, `read:organization`, `read:user` |
 
+> **Gitea, measured 2026-09-23 against Gitea 1.24.7:** with only the three read
+> scopes above, repositories are discovered and backfilled, but registering the
+> push webhook is refused (403) — the repository goes live with *"live updates
+> unavailable — webhook registration failed"* — and the issues fetch is refused
+> too. Creating a webhook is a write in Gitea: add `write:repository` (and
+> `read:issue` for issues) if you want live updates.
+
 A self-hosted forge over plain `http://` is rejected unless it is a loopback
 address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape
 hatch, not a deployment option.

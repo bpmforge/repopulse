@@ -3987,3 +3987,21 @@ the fix is a one-line UPDATE renaming the key.
   `/v1/models` entry — the first entry was an experimental ablated 9B that returned
   reasoning_content with empty content, failing the suite on a model the product would
   never be pointed at.
+- 2026-09-23 fix/forge-provider-dispatch (from feat/data-tier-ports). **Release blocker
+  fixed:** `providerForConnection()` in routes/connections rebuilt every STORED connection
+  with auth only, so `GET /connections/:id/available-repos` and `POST /connections/:id/repos`
+  built a github.com provider for Gitea/GitLab/GHES rows — a 500, and the self-hosted token
+  sent to api.github.com. It now passes the row's `provider` + `base_url` (null → server
+  default, as `POST /connections` does). The unit fake ignored kind/baseUrl, which hid it; the
+  new route test records `buildProvider(kind, baseUrl)` for a gitea and a GHES row (RED first).
+  Other rebuild sites checked: workers/forge-provider.ts (ingest + all scans) and the
+  connect-forge CLI already pass kind + base URL. **Internal CA:** optional
+  `NODE_EXTRA_CA_CERTS` + `EXTRA_CA_DIR` (deploy/ca, mounted ro at /etc/repopulse/ca on api
+  and worker; up.sh/restore.sh create it) — INSTALL.md "A forge with an internal-CA
+  certificate". **Real Gitea, first time:** throwaway gitea/gitea:1.24-rootless, api+worker
+  on a scratch DB: create connection 201 → available-repos 200 (acme/widget) → select 200 →
+  repo `live`, 3 commits = Gitea's X-Total-Count 3; every forge call in Gitea's router log.
+  Found: the documented read-only Gitea scopes get 403 on webhook registration (repo live,
+  "live updates unavailable") and on issues; write:repository + read:issue register the hook.
+  Webhook delivery Gitea → api not verified (container could not reach host loopback).
+  Gate: lint 0 · typecheck 0 · vitest 2437 passed / 9 skipped (was 2435).
