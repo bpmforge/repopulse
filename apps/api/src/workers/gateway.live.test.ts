@@ -9,15 +9,23 @@ import { hostsFromEnv } from './gateway.js';
 // the crash retry and the token cap were all written and never exercised
 // against a real LM Studio.
 //
-// Skips when no host answers, and says so rather than passing quietly: this is
-// a proof that the path works, and a proof nobody ran is not a proof.
+// OPT-IN (W17-40): runs only with LMSTUDIO_LIVE=1. It used to probe
+// localhost:1234 AT IMPORT on every `pnpm test` and drive whichever model the
+// host listed first, loading it over whatever the developer's other tools had
+// in LM Studio. Without consent it makes no request at all. With it, it skips
+// when no host answers, and says so: a proof nobody ran is not a proof.
 
+const LIVE = process.env.LMSTUDIO_LIVE === '1';
 const HOST = process.env.LMSTUDIO_LIVE_URL ?? 'http://localhost:1234/v1';
 
 /** The first model the host actually has loaded — never a guessed name. */
-const model: string | null = await fetch(`${HOST}/models`, { signal: AbortSignal.timeout(3000) })
-  .then(async (r) => (r.ok ? (((await r.json()) as { data?: { id: string }[] }).data?.[0]?.id ?? null) : null))
-  .catch(() => null);
+const model: string | null = LIVE
+  ? await fetch(`${HOST}/models`, { signal: AbortSignal.timeout(3000) })
+      .then(async (r) =>
+        r.ok ? (((await r.json()) as { data?: { id: string }[] }).data?.[0]?.id ?? null) : null,
+      )
+      .catch(() => null)
+  : null;
 
 const describeIfLmStudio = model ? describe : describe.skip;
 

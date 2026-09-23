@@ -8267,9 +8267,11 @@
         "RED first; full gate green"
       ],
       "points": 3,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals: RELEASE-CHECKLIST residual R-16, disclosed on W17-35."
+        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals: RELEASE-CHECKLIST residual R-16, disclosed on W17-35.",
+        "ROOT CAUSE CANDIDATES, ranked + checked: (1) the forge answers a disabled feature with an HTTP error that W17-35 now records — CONFIRMED live on Gitea 1.24.7: /issues and /pulls 404 with the unit off. (2) the forge answers 200-empty and the entity reads as \"no issues\" — CONFIRMED live on GitHub (torvalds/linux 200 [], git/git 200 PRs-only); not an error, but indistinguishable from an empty tracker. (3) GitHub 410 on the list — RULED OUT live: 410 is the single-issue answer only; the W17-35 residual note guessed it for the list.",
+        "DONE 2026-09-23. getRepo carries ForgeRepo.features (GitHub has_issues; Gitea has_issues/has_pull_requests/has_releases; GitLab *_access_level or *_enabled — GitLab from docs, NOT observed live) and rejects on non-2xx. ingestEntityPages asks the metadata on a permanent refusal, or when the first page of a walk has nothing real in it (0 items, or PRs only); only an explicit false counts, unknown keeps the W17-35 error. Not-enabled = finished, empty, sync_cursors.feature_disabled (migration 0031), no error, earlier error fragment removed; GitHub stops instead of walking PRs through /issues. Sync status entities[x].notEnabled; Admin -> Sync muted Repo settings column: \"issues not enabled on this repo\". GitHub asks only about issues (the one flag it reports) so an empty releases list costs no extra call. RED: forge 4, ingest 7, web 1 failed. Evidence: evidence/v1-residuals-20260923/{red-evidence,disabled-feature-probes}.txt. Gate: lint 0, typecheck 0, vitest 2492 passed / 14 skipped."
       ]
     },
     {
@@ -8293,9 +8295,10 @@
         "With LMSTUDIO_LIVE=1 the tests still run against the configured / local host as before"
       ],
       "points": 1,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals (coordinator request, cause traced by the Dokima agent): t2/live always appended http://localhost:1234 as a candidate so it never skipped, and warmed qwen/qwen3-coder-next with \"ping\" (max_tokens 8, 2 retries => bursts of three); gateway.live.test.ts fetched localhost:1234/v1/models AT IMPORT and drove data[0] — whatever model was listed first. Both evicted other tools' models from LM Studio on every pnpm test."
+        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals (coordinator request, cause traced by the Dokima agent): t2/live always appended http://localhost:1234 as a candidate so it never skipped, and warmed qwen/qwen3-coder-next with \"ping\" (max_tokens 8, 2 retries => bursts of three); gateway.live.test.ts fetched localhost:1234/v1/models AT IMPORT and drove data[0] — whatever model was listed first. Both evicted other tools' models from LM Studio on every pnpm test.",
+        "DONE 2026-09-23. Both live tests gate on LMSTUDIO_LIVE=1 (analysis t2 live: describe.skip and no host list; gateway.live: no import-time fetch). docs/TESTING.md records the opt-in. RED/GREEN by measurement, not assumption: request counter preload on every :1234 fetch/http.request in all vitest processes — before 9 requests (5 models, 4 chat completions) and LM Studio log +9; after 0 and +0; full pnpm test 0 from our processes (the LM Studio log grew +23 in the window, all Jarvis traffic from another session, classified by body: 0 ping, 0 RepoPulse probes). Evidence: evidence/v1-residuals-20260923/lmstudio-requests.txt. Gate: lint 0, typecheck 0, vitest 2492 passed / 14 skipped (the +5 skipped are the two live files)."
       ]
     }
   ]
