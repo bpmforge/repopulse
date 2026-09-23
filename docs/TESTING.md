@@ -189,6 +189,12 @@ e2e run.
   output) asserted on every mocked call.
 - A manual smoke script (`scripts/llm-smoke.mjs`, not in CI) exists for live LM Studio
   verification on LAN; its results go in STATUS.md, never in the gate.
+- **Live model tests are opt-in (W17-40).** `packages/analysis/src/t2/live.integration.test.ts`
+  and `apps/api/src/workers/gateway.live.test.ts` run only with `LMSTUDIO_LIVE=1`
+  (`LMSTUDIO_LIVE=1 pnpm test`). A plain `pnpm test` makes **zero** LM Studio requests —
+  a configured `LMSTUDIO_BASE_URLS` is not consent, because `.env` carries it for the
+  product, and the tests used to warm/load models on the developer's own LM Studio and
+  evict other tools' models.
 
 ## 9. Coverage expectations
 

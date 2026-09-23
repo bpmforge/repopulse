@@ -1,0 +1,42 @@
+# W14-01 (re-scoped) — ingest from a real Gitea. fix/v1-residuals @ a41e124, 2026-09-23.
+# Instance: gitea/gitea:1.24.7 (throwaway, 127.0.0.1:13300, sqlite). Stack: this checkout's worker
+# (apps/api start:worker) on a scratch database repopulse_w14 + redis db 7, LISTEN on 127.0.0.1,
+# FORGE_ALLOW_INSECURE_LOOPBACK=1 (SC-12 hatch: the throwaway instance is plain http on loopback).
+# Token: Gitea PAT with read:repository, read:issue, read:user, read:organization — read from a 0600
+# file into FORGE_TOKEN, never printed; encrypted at rest by the connect path.
+#
+# Repos on the instance: w3admin/widget (4 commits on main, 1 open PR from feature-x, 1 issue,
+# release v0.1.0) and w3admin/noissues (issues, pull requests and releases units switched OFF).
+
+$ FORGE_TOKEN=<file> pnpm connect:forge --provider gitea --base-url http://127.0.0.1:13300 --all
+connected: gitea at http://127.0.0.1:13300
+connection id 2, fingerprint 7753:1baf72c7d972
+the credential can see 2 repositories
+selected 2 repositories; backfill enqueued
+
+First worker start WITHOUT the loopback hatch: every backfill job failed "scheme must be https, got
+http:" and went to retry — the SSRF guard (SC-12) doing its job on an http base URL; a real
+deployment's https Gitea is unaffected. Restarted with the hatch; the retries drained.
+
+## warehouse after the worker drained (both repos reached live)
+       repo       | sync_status | last_error | commits | commit_files | prs | issues | releases | metric_snapshots 
+------------------+-------------+------------+---------+--------------+-----+--------+----------+------------------
+ w3admin/noissues | live        | -          |       1 |            1 |   0 |      0 |        0 |              106
+ w3admin/widget   | live        | -          |       4 |            4 |   1 |      1 |        1 |              106
+(2 rows)
+
+## sync_cursors (W17-39 live: the switched-off units read as feature_disabled, no error)
+   name   | entity_type | backfill_done | feature_disabled | last_error 
+----------+-------------+---------------+------------------+------------
+ noissues | commits     | t             | f                | -
+ noissues | deployments | t             | f                | -
+ noissues | issues      | t             | t                | -
+ noissues | prs         | t             | t                | -
+ noissues | releases    | t             | t                | -
+ widget   | commits     | t             | f                | -
+ widget   | deployments | t             | f                | -
+ widget   | issues      | t             | f                | -
+ widget   | prs         | t             | f                | -
+ widget   | releases    | t             | f                | -
+(10 rows)
+

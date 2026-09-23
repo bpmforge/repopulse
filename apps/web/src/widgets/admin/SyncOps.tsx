@@ -7,7 +7,13 @@ import {
 } from '../../components/index.js';
 import { DlqPanel } from './DlqPanel.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import { formatLag, phaseSeverity, type OrgSyncStatus, type RepoSyncStatus } from './contracts.js';
+import {
+  formatLag,
+  notEnabledText,
+  phaseSeverity,
+  type OrgSyncStatus,
+  type RepoSyncStatus,
+} from './contracts.js';
 
 // Admin → Sync (UX_SPEC §4.i, FR-INGEST-8). The warehouse-backed fallback the
 // SSE stream degrades to: if the stream is down this page still tells the
@@ -71,6 +77,23 @@ export function SyncOps() {
       header: 'Lag',
       align: 'right',
       cell: (row) => <span className="tabular-nums">{formatLag(row.lagSeconds)}</span>,
+    },
+    {
+      // W17-39: a feature the owner switched off (issues disabled on a Gitea
+      // repo answers 404) is information about the repository, not a sync
+      // failure — muted text, its own column, never the red one beside it.
+      id: 'features',
+      header: 'Repo settings',
+      cell: (row) => {
+        const text = notEnabledText(row.entities ?? {});
+        return text ? (
+          <span className="text-xs text-fg-muted" data-testid={`sync-not-enabled-${row.repoId}`}>
+            {text}
+          </span>
+        ) : (
+          ''
+        );
+      },
     },
     {
       id: 'error',

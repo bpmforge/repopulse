@@ -56,7 +56,12 @@ describeIfLiveInfra('webhook delta processor (W2-04, FR-INGEST-6)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w2-04-user', forgeUserId: 'w2-04-user', login: 'w2-04-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w2-04-user',
+        forgeUserId: 'w2-04-user',
+        login: 'w2-04-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w2-04-user' } })
       .returning();
     const [conn] = await db

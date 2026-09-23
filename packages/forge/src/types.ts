@@ -7,6 +7,28 @@ export interface Page<T> {
   nextCursor?: ForgeCursor;
 }
 
+/**
+ * Which features the repository has switched on (W17-39). true = on, false =
+ * switched off by the owner, ABSENT = the forge did not say — never read an
+ * absent flag as "off". A disabled feature answers its list endpoint with a
+ * 404 (Gitea) or a 200 that is empty / pull requests only (GitHub), so this
+ * metadata is the only thing that tells "not enabled" from "refused".
+ */
+export interface ForgeRepoFeatures {
+  issues?: boolean;
+  pullRequests?: boolean;
+  releases?: boolean;
+}
+
+/** Drop the flags a forge did not send; undefined when it sent none. */
+export function repoFeatures(f: ForgeRepoFeatures): ForgeRepoFeatures | undefined {
+  const out: ForgeRepoFeatures = {};
+  if (typeof f.issues === 'boolean') out.issues = f.issues;
+  if (typeof f.pullRequests === 'boolean') out.pullRequests = f.pullRequests;
+  if (typeof f.releases === 'boolean') out.releases = f.releases;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export interface ForgeRepo {
   externalId: string;
   name: string;
@@ -16,6 +38,8 @@ export interface ForgeRepo {
   isArchived: boolean;
   pushedAt: string | null;
   htmlUrl: string;
+  /** W17-39: absent when the forge reported no feature flags (list payloads may omit them). */
+  features?: ForgeRepoFeatures;
 }
 
 export interface ForgeCommit {

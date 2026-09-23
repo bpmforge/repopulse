@@ -1,0 +1,13 @@
+-- Migration 0031 (W17-39, residual R-16): a feature switched off on the repo.
+--
+-- WHY. Issues (or PRs, releases) disabled on a repository answers its list with
+-- 404 on Gitea 1.24.7 and 200-empty / PRs-only on GitHub (both observed live,
+-- 2026-09-23). After W17-35 the Gitea 404 showed as a permanent error. The repo
+-- metadata (has_issues & co.) now decides, and this flag records "not enabled
+-- on this repo" — informational, never an error. Default false = as before.
+--
+-- TENANCY. New column on an existing tenant-scoped table (workspace_id indexed).
+--
+-- ROLLBACK. ALTER TABLE "sync_cursors" DROP COLUMN "feature_disabled"; — such
+-- entities then read as finished-and-empty, the pre-W17-39 display.
+ALTER TABLE "sync_cursors" ADD COLUMN "feature_disabled" boolean DEFAULT false NOT NULL;

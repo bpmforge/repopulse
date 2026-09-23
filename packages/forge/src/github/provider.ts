@@ -125,8 +125,8 @@ export class GitHubProvider implements ForgeProvider {
   private pageOf<Raw, T>(
     res: ForgeResponse,
     map: (r: Raw) => T,
-    // Backfill entity lists pass this: an HTTP error must reject, not read as
-    // an empty page (W17-35). The enrichment lists do not, yet — see W17-35.
+    // Every list passes this: an HTTP error must reject, not read as an empty
+    // page (W17-35 backfill lists, W17-38 enrichment fetches).
     check?: { entity: string; emptyOn?: readonly number[] },
   ): Page<T> {
     if (check && assertListOk(res, check.entity, check.emptyOn) === 'empty') return { items: [] };
@@ -149,6 +149,9 @@ export class GitHubProvider implements ForgeProvider {
 
   async getRepo(ctx: CallCtx, fullName: string): Promise<ForgeRepo> {
     const res = await this.get(ctx, `${this.base}/repos/${fullName}`, 'commits');
+    // An error body normalized into a repo would carry no feature flags and
+    // read as "unknown" at best; say what happened instead (W17-39).
+    assertListOk(res, 'repo');
     return normalizeRepo(res.body as RawRepo);
   }
 
@@ -174,6 +177,7 @@ export class GitHubProvider implements ForgeProvider {
       withPage(`${this.base}/repos/${repo}/commits/${sha}?per_page=100`, cursor),
       'commits',
     );
+    assertListOk(res, 'commit_files');
     const body = res.body as {
       files?: RawDiffFile[];
       stats?: { additions: number; deletions: number };
@@ -225,7 +229,7 @@ export class GitHubProvider implements ForgeProvider {
       withPage(`${this.base}/repos/${repo}/pulls/${n}/files?per_page=100`, cursor),
       'pull_files',
     );
-    return this.pageOf<RawDiffFile, ForgeDiffFile>(res, normalizeDiffFile);
+    return this.pageOf<RawDiffFile, ForgeDiffFile>(res, normalizeDiffFile, { entity: 'pr_files' });
   }
 
   async listReviews(ctx: CallCtx, repo: string, n: number): Promise<ForgeReview[]> {
@@ -234,6 +238,7 @@ export class GitHubProvider implements ForgeProvider {
       `${this.base}/repos/${repo}/pulls/${n}/reviews?per_page=100`,
       'pulls',
     );
+    assertListOk(res, 'reviews');
     const raw = Array.isArray(res.body) ? (res.body as RawReview[]) : [];
     return raw.map((r) => normalizeReview(r, n)).filter((r): r is ForgeReview => r !== null);
   }
@@ -249,6 +254,7 @@ export class GitHubProvider implements ForgeProvider {
       withPage(`${this.base}/repos/${repo}/commits/${ref}/check-runs?per_page=100`, q.cursor),
       'checks',
     );
+    assertListOk(res, 'checks');
     const body = res.body as { check_runs?: RawCheckRun[] };
     const items = (body.check_runs ?? []).map(normalizeCheckRun);
     const next = nextPageCursor(linkHeaderOf(res.headers));

@@ -11,18 +11,28 @@ import type { CompleteOpts } from '../gateway/types.js';
 // themselves — exactly the trap the fake-forge contract suites fell into, where
 // GiteaProvider passed for months without ever touching a Gitea.
 //
-// Skipped when LMSTUDIO_BASE_URLS is unset so a machine without a LAN model
-// still runs the suite. On a machine WITH one, it runs for real.
+// OPT-IN (W17-40): runs only with LMSTUDIO_LIVE=1. It used to run whenever a
+// host could be found — and localhost was always appended, so it never
+// skipped: every `pnpm test` warmed a model with "ping" (bursts of three) on
+// the developer's own LM Studio and evicted whatever other tools had loaded.
+// A configured LMSTUDIO_BASE_URLS is NOT consent: .env carries it for the
+// product. Run it deliberately: `LMSTUDIO_LIVE=1 pnpm test`.
+const LIVE = process.env.LMSTUDIO_LIVE === '1';
 
-// localhost is appended as a candidate: a developer running LM Studio on the
-// same machine is the common case, and the configured LAN host is frequently a
-// closed laptop. The test uses whichever candidate actually answers.
-const hosts = [
-  ...(process.env.LMSTUDIO_BASE_URLS ?? '').split(',').map((h) => h.trim()).filter(Boolean),
-  'http://localhost:1234',
-];
+// With consent, localhost is appended as a candidate: a developer running LM
+// Studio on the same machine is the common case, and the configured LAN host
+// is frequently a closed laptop. The test uses whichever candidate answers.
+const hosts = LIVE
+  ? [
+      ...(process.env.LMSTUDIO_BASE_URLS ?? '')
+        .split(',')
+        .map((h) => h.trim())
+        .filter(Boolean),
+      'http://localhost:1234',
+    ]
+  : [];
 
-const describeIfLmStudio = hosts.length > 0 ? describe : describe.skip;
+const describeIfLmStudio = LIVE ? describe : describe.skip;
 
 describeIfLmStudio('tier-2 against a live LM Studio host', () => {
   /** The first candidate host that actually answers, with its loaded model. */
@@ -78,7 +88,13 @@ describeIfLmStudio('tier-2 against a live LM Studio host', () => {
       tier: 'T2',
       maxTokens: 100,
       expectJson: true,
-      meta: { repoId: '1', prNumber: 1, dimension: 'code_health', checklistVersion: 'v1', initiator: 'w6-01-live' },
+      meta: {
+        repoId: '1',
+        prNumber: 1,
+        dimension: 'code_health',
+        checklistVersion: 'v1',
+        initiator: 'w6-01-live',
+      },
     };
 
     const result = await client.complete(

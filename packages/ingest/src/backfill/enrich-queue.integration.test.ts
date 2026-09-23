@@ -46,7 +46,12 @@ describeIfLiveInfra('enrichment work list (W12-05)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w12-05-user', forgeUserId: 'w12-05-user', login: 'w12-05-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w12-05-user',
+        forgeUserId: 'w12-05-user',
+        login: 'w12-05-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w12-05-user' } })
       .returning();
     const [conn] = await db

@@ -21,7 +21,10 @@ export const syncCursors = pgTable(
     repoId: bigint('repo_id', { mode: 'number' })
       .notNull()
       .references(() => repos.id),
-    // DATABASE.md §5: text + CHECK, not a pg enum (likely to grow).
+    // DATABASE.md §5: text + CHECK, not a pg enum (likely to grow). The
+    // enrichment entities (reviews, checks, commit_files) get a row only to
+    // carry a refusal (W17-38); it is always written backfill_done=true so the
+    // sync-status phase never reads it as unfinished history.
     entityType: text('entity_type').notNull(),
     // updated_at watermark | page cursor | delivery id — null before first sync.
     cursorValue: text('cursor_value'),
@@ -30,6 +33,10 @@ export const syncCursors = pgTable(
     // "HTTP 403 — token lacks read:issue"). Null when the last fetch succeeded.
     // backfill_done alone could not tell "finished" from "never allowed to look".
     lastError: text('last_error'),
+    // W17-39: the repository has this feature switched OFF (issues disabled on
+    // a Gitea repo answers 404; on GitHub, 200 with nothing). Finished, empty,
+    // and informational — never an error. Reset by the next normal page.
+    featureDisabled: boolean('feature_disabled').notNull().default(false),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -37,7 +44,7 @@ export const syncCursors = pgTable(
     index('sync_cursors_workspace_id_idx').on(t.workspaceId),
     check(
       'sync_cursors_entity_type_check',
-      sql`${t.entityType} in ('commits', 'prs', 'reviews', 'pr_files', 'checks', 'issues', 'releases', 'deployments', 'workflow_runs')`,
+      sql`${t.entityType} in ('commits', 'prs', 'reviews', 'pr_files', 'checks', 'issues', 'releases', 'deployments', 'workflow_runs', 'commit_files')`,
     ),
   ],
 );

@@ -1,4 +1,4 @@
-import { and, eq, ne, or, isNull, sql } from 'drizzle-orm';
+import { and, eq, notInArray, or, isNull, sql } from 'drizzle-orm';
 import { facts } from '@repopulse/shared';
 import type { DbOrTx } from './db.js';
 
@@ -20,10 +20,13 @@ import type { DbOrTx } from './db.js';
 // enqueue nothing. Only upsertCommitFiles writes 'detail', and only it writes
 // the per-file commit_files rows that churn/hotspot metrics actually read.
 
+const HANDLED = ['detail', 'unavailable'];
+
 const NEEDS_CHURN = (repoId: number) =>
   and(
     eq(facts.commits.repoId, repoId),
-    or(isNull(facts.commits.statsSource), ne(facts.commits.statsSource, 'detail')),
+    // 'unavailable' (W17-38): the forge refused the detail fetch; recorded, not retried.
+    or(isNull(facts.commits.statsSource), notInArray(facts.commits.statsSource, HANDLED)),
   );
 
 export interface CommitNeedingChurn {

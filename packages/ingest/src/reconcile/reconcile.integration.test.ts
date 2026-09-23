@@ -70,22 +70,25 @@ describeIfLiveInfra('reconciliation sweep (W2-05, FR-INGEST-7)', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w2-05-recon-user', forgeUserId: 'w2-05-recon-user', login: 'w2-05-recon-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w2-05-recon-user',
+        forgeUserId: 'w2-05-recon-user',
+        login: 'w2-05-recon-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w2-05-recon-user' } })
       .returning();
-    await db
-      .insert(core.forgeConnections)
-      .values({
-        workspaceId,
-        provider: 'github',
-        authKind: 'pat',
-        credentialCiphertext: Buffer.from('x'),
-        credentialIv: Buffer.from('iv-1234567890123'),
-        keyVersion: 1,
-        credentialFingerprint: 'fp',
-        status: 'active',
-        createdBy: user!.id,
-      });
+    await db.insert(core.forgeConnections).values({
+      workspaceId,
+      provider: 'github',
+      authKind: 'pat',
+      credentialCiphertext: Buffer.from('x'),
+      credentialIv: Buffer.from('iv-1234567890123'),
+      keyVersion: 1,
+      credentialFingerprint: 'fp',
+      status: 'active',
+      createdBy: user!.id,
+    });
     repoId = await makeRepo('r-recon', 'live');
     errorRepoId = await makeRepo('r-error', 'error');
   });

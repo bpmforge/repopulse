@@ -4830,7 +4830,7 @@
     },
     {
       "id": "W14-01",
-      "title": "First real Gitea ingestion: connect git.bpmforge.com and land a backfill",
+      "title": "First real Gitea ingestion: connect a real self-hosted Gitea and land a backfill (git.bpmforge.com dogfood deferred)",
       "phase": 14,
       "module": "ingest",
       "stories": [],
@@ -4842,13 +4842,14 @@
       ],
       "depends_on": [],
       "acceptance": [
-        "A Gitea connection against git.bpmforge.com discovers repositories and completes a backfill",
-        "repos, commits, pull_requests and metric_snapshots are all non-zero for that connection in the deployed stack",
-        "Whatever the first real instance breaks is fixed or filed — no failure absorbed silently",
-        "STATUS.md records that the GiteaProvider has now run against a real instance, replacing the W4 carried unknown"
+        "A Gitea connection against a REAL self-hosted Gitea instance (not a recorded fixture) discovers repositories and completes a backfill to live through the product path (connect -> select -> backfill worker)",
+        "repos, commits, pull_requests and metric_snapshots are all non-zero for that connection",
+        "Whatever the real instance breaks is fixed or filed — no failure absorbed silently",
+        "STATUS.md records that the GiteaProvider has run against a real instance, replacing the W4 carried unknown",
+        "DEFERRED, not part of v1 (dogfood): the same against git.bpmforge.com on the deployed bpmforge stack — travels with W7-05/W7-06 (bpmforge hosting)"
       ],
       "points": 5,
-      "status": "blocked",
+      "status": "done",
       "notes": [
         "FILED 2026-08-19. THE POINT OF THE PROJECT: deploy/compose.yaml has been up for days and its database holds 0 connections, 0 repos, 0 commits, 0 snapshots. The product is deployed and has never been pointed at anything.",
         "CLOSES A W4 CARRIED UNKNOWN. GiteaProvider (W7-02) passes the shared contract suite against recorded fixtures and has NEVER touched a real Gitea instance. W4 could not gate partly because of this. A contract suite proves the adapter matches our recording; it does not prove the recording matches Gitea 1.26.2.",
@@ -4859,7 +4860,10 @@
         "CORRECTION TO AN EARLIER CLAIM IN THIS SESSION: I said deploy/compose.yaml does not pass FORGE_BASE_URL through. It does — api and worker both declare env_file: [.env], so every variable in that file reaches them. The grep that produced the claim looked for an explicit environment: entry and missed the env_file line. No compose change was needed.",
         "BLOCKED 2026-08-19 (was in_progress). Everything that can be done without a credential is done and verified: FORGE_BASE_URL is set and reaching the containers, the deployed api resolves git.bpmforge.com and reads its version endpoint (1.26.2), and the stack answers /healthz on :8099. The remaining step is a Gitea access token with read scopes, entered through the Connections UI — anonymous API reads return 404 for these repositories, so this genuinely cannot be done credential-free.",
         "MOVED FROM in_progress TO blocked so the board stops showing work in flight that nobody can advance. What is needed from Brad: a Gitea token (Settings -> Applications, read scopes) pasted into Admin -> Connections against https://git.bpmforge.com. CORRECTED 2026-09-23: it was not automatic. Until fix/forge-provider-dispatch, available-repos and select-repos rebuilt every stored connection as a github.com provider, so a Gitea connection 500'd at discovery and its token went to api.github.com. Against a throwaway Gitea 1.24.7 after the fix, discovery -> select -> backfill -> live works with the token alone, but with the read-only scopes INSTALL.md listed (read:repository/organization/user) webhook registration is 403 (repo goes live with 'live updates unavailable') and the issues fetch is 403; write:repository + read:issue are needed for live updates. Webhook DELIVERY from Gitea was not verified. Whatever git.bpmforge.com breaks beyond that is still what this ticket exists to find.",
-        "2026-09-23 (release/v1-selfhost) — evidence, ticket stays BLOCKED. Acceptance 3 ('whatever the first real instance breaks is fixed or filed — no failure absorbed silently') is now met for what the throwaway Gitea 1.24.7 found: the silent 403 on issues is W17-35 (fixed: recorded per entity and in last_error, visible in Admin -> Sync), webhook DELIVERY from Gitea was verified live and is W17-36 (Gitea's hooks send GitHub-compatible headers; captured delivery replayed in a test), and the read-only-scope webhook 403 is documented in INSTALL.md. NOT met: acceptance 1/2/4 name git.bpmforge.com and the deployed stack — this was a throwaway local Gitea, and the dogfood stack is deferred (W7-05). Close only when a real instance has been ingested; the remaining step is still a Gitea token for git.bpmforge.com."
+        "2026-09-23 (release/v1-selfhost) — evidence, ticket stays BLOCKED. Acceptance 3 ('whatever the first real instance breaks is fixed or filed — no failure absorbed silently') is now met for what the throwaway Gitea 1.24.7 found: the silent 403 on issues is W17-35 (fixed: recorded per entity and in last_error, visible in Admin -> Sync), webhook DELIVERY from Gitea was verified live and is W17-36 (Gitea's hooks send GitHub-compatible headers; captured delivery replayed in a test), and the read-only-scope webhook 403 is documented in INSTALL.md. NOT met: acceptance 1/2/4 name git.bpmforge.com and the deployed stack — this was a throwaway local Gitea, and the dogfood stack is deferred (W7-05). Close only when a real instance has been ingested; the remaining step is still a Gitea token for git.bpmforge.com.",
+        "ORIGINAL ACCEPTANCE, preserved verbatim before the v1 self-host re-scope (2026-09-23): (1) \"A Gitea connection against git.bpmforge.com discovers repositories and completes a backfill\"; (2) \"repos, commits, pull_requests and metric_snapshots are all non-zero for that connection in the deployed stack\"; (3) \"Whatever the first real instance breaks is fixed or filed — no failure absorbed silently\"; (4) \"STATUS.md records that the GiteaProvider has now run against a real instance, replacing the W4 carried unknown\". Original title: \"First real Gitea ingestion: connect git.bpmforge.com and land a backfill\".",
+        "RE-SCOPED 2026-09-23 (fix/v1-residuals), on the founder-coordinator instruction relayed for this wave: for the self-hosted product the requirement is \"ingest from a real Gitea\"; git.bpmforge.com + the deployed stack is dogfood and is deferred with W7-05/W7-06. FOUNDER RATIFICATION of the narrowed acceptance is still owed (a human ratifies a narrowed acceptance, not the agent).",
+        "CLOSED 2026-09-23 against the re-scoped acceptance. The board evidence already here (throwaway Gitea 1.24.7, earlier today: connect 201 -> available-repos 200 -> select 200 -> live, 3 commits) met (1) and (3) but did NOT evidence pull_requests or metric_snapshots, so the run was repeated on fix/v1-residuals @ a41e124 against gitea/gitea:1.24.7 with a repo holding a PR, an issue and a release: connect:forge (read-only scopes + read:issue) -> worker -> both repos live; w3admin/widget commits 4, commit_files 4, pull_requests 1, issues 1, releases 1, metric_snapshots 106; the second repo (issues/PRs/releases switched off) read as feature_disabled with no error (W17-39 live). (3): everything the real instances broke is fixed or filed — provider dispatch (fix/forge-provider-dispatch), silent 403 on issues (W17-35), webhook delivery + CSRF path (W17-36), read-only-scope webhook 403 (documented, INSTALL.md), disabled-unit 404 (W17-39), enrichment errors (W17-38); the one new thing this run hit, the SSRF guard refusing an http:// base URL, is correct behaviour (SC-12 loopback hatch used for the throwaway http instance). (4) STATUS.md updated. Evidence: evidence/v1-residuals-20260923/w14-01-real-gitea-ingest.txt. Gate: lint 0, typecheck 0, vitest 2492 passed / 14 skipped."
       ]
     },
     {
@@ -8195,6 +8199,110 @@
         "FILED 2026-09-23 (release/v1-selfhost).",
         "DONE 2026-09-23. RED: apps/api/src/workers/health-bind.test.ts — the worker health server bound '::' (every interface). FIX: HOST env (lib/listen-host.ts, default 127.0.0.1) for the api listen and the worker /healthz+/metrics server; Dockerfile api and worker targets set ENV HOST=0.0.0.0 so the compose network still reaches them — deploy/compose.yaml publishes no port for api/worker, only web on REPOPULSE_BIND (default 127.0.0.1), unchanged. HOST in env-registry + regenerated CONFIG.md; RUNNING.md documents it. demo.ts and e2e/server.ts already bound 127.0.0.1.",
         "RENAMED 2026-09-23 after the independent verifier: the variable is LISTEN_HOST, not HOST. HOST is set to the machine's hostname by zsh and exported by some shells/CI runners; reading it would bind whatever that name resolves to — the LAN. RED: listen-host.test.ts 'ignores a generic HOST' failed (returned 'build-box.lan'). Dockerfile, env-registry, CONFIG.md, RUNNING.md updated."
+      ]
+    },
+    {
+      "id": "W17-38",
+      "title": "Enrichment fetches (reviews, check runs, PR files, commit files) read an HTTP error as empty (R-15)",
+      "phase": 17,
+      "module": "ingest",
+      "stories": [],
+      "write_scope": [
+        "packages/forge/src/**",
+        "packages/forge/test/**",
+        "packages/ingest/src/**",
+        "packages/shared/src/db/schema/core/**",
+        "packages/shared/drizzle/**",
+        "packages/shared/src/testing/**",
+        "apps/api/src/workers/**",
+        "apps/api/src/routes/**",
+        "apps/web/src/widgets/admin/**",
+        "e2e/**",
+        "docs/**",
+        "plan.json",
+        "packages/security/src/scanners/**"
+      ],
+      "depends_on": [
+        "W17-35"
+      ],
+      "acceptance": [
+        "A permanent refusal (400/401/403/404/410/422) on reviews, check runs or commit files is recorded per entity (sync_cursors.last_error for reviews/checks/commit_files) and as a fragment of repos.last_error, the other enrichment fetches still run, and the PR/commit is still marked handled so the repo reaches live (same treatment as W17-35)",
+        "A transient failure (5xx after the client retries, 429, network) fails the enrich job so BullMQ retries it and dead-letters it (enrich queue: attempts 3)",
+        "getPullRequestFiles rejects on an HTTP error; the PR-scoped scanners record a FAILED scan run instead of \"succeeded, 0 findings\" and do not fail the ingestion job they ride on (NFR-15)",
+        "Enrichment cursor rows do not flip the sync-status phase back to history",
+        "RED first: tests fail on main by behaviour (resolved empty / last_error null / scan succeeded on a 403), then pass; full gate green"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals: RELEASE-CHECKLIST residual R-15, the follow-up W17-35 disclosed (its notes: \"the enrichment lists (PR files, check runs, reviews) are still lenient\").",
+        "ROOT CAUSE CANDIDATES, ranked + checked: (1) the adapters read a non-2xx detail body as empty — CONFIRMED: github listReviews/listCheckRuns/getCommitFiles/getPullRequestFiles and the gitea/gitlab equivalents never looked at res.status (BudgetedClient returns 4xx, and 5xx after retries, rather than throwing); RED contract test: 8 of 9 cases resolved [] / {items: []} / zero stats. (2) enrichPullRequest/enrichCommitChurn swallowing a throw — RULED OUT by reading: neither has a catch, the silence was upstream. (3) the scanners masking it — their catch already writes a FAILED scan_run, so once the fetch rejects they record it; the defect was again the adapter (RED: diffOf resolved [] on a 403).",
+        "DONE 2026-09-23 on fix/v1-residuals. FIX: all three adapters assertListOk on reviews, check runs/statuses/pipelines, PR files and commit detail (entities reviews/checks/pr_files/commit_files). Ingest: fetchOrRefusal + recordEnrichmentOutcome (entity-error.ts) — a permanent refusal is recorded on sync_cursors (backfill_done=true so refinePhase never reads it as history) and as a repos.last_error fragment (row-locked, cleared on the next successful fetch of that entity); reviews and checks are guarded separately so one refusal does not cost the other; the PR is still stamped enriched_at; a refused commit is stamped stats_source=unavailable (migration 0030: new CHECK values, rollback note in the file) and leaves the churn work-list without reading as zero churn. Anything retryable (5xx after client retries, 429, network, budget park) throws: enrich queue attempts 3 then DLQ. RESIDUAL (disclosed): a dead-lettered enrich job leaves its PR/commit pending and the repo in backfilling until something re-enqueues it — same shape as W17-35. RED: forge 8 failed, ingest 6 failed, security 2 failed (evidence/v1-residuals-20260923/red-evidence.txt). Gate: lint 0, typecheck 0, vitest 2483 passed / 9 skipped (baseline 2466)."
+      ]
+    },
+    {
+      "id": "W17-39",
+      "title": "A forge feature disabled on the repo (issues/PRs off) must read as \"not enabled\", not as an error (R-16)",
+      "phase": 17,
+      "module": "ingest",
+      "stories": [],
+      "write_scope": [
+        "packages/forge/src/**",
+        "packages/forge/test/**",
+        "packages/ingest/src/**",
+        "packages/shared/src/db/schema/core/**",
+        "packages/shared/drizzle/**",
+        "packages/shared/src/testing/**",
+        "apps/api/src/workers/**",
+        "apps/api/src/routes/**",
+        "apps/web/src/widgets/admin/**",
+        "e2e/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W17-35"
+      ],
+      "acceptance": [
+        "When a backfill entity is refused or comes back empty AND the repo metadata says the feature is off (GitHub has_issues=false; Gitea has_issues / has_pull_requests / has_releases=false; GitLab issues_access_level / merge_requests_access_level / releases_access_level = disabled, or issues_enabled=false), the entity is finished, flagged not-enabled on sync_cursors, carries no error, and removes any error fragment it had put in repos.last_error",
+        "A refusal on a repo whose metadata says the feature is ON (or unknown) is still recorded as the W17-35 error",
+        "Sync status exposes the flag per entity and Admin -> Sync shows \"not enabled on this repo\" as information, not in the error column",
+        "Behaviour pinned to live responses: GitHub list issues on has_issues=false answers 200 (empty or PRs only, single issue 410); Gitea 1.24.7 answers 404 on issues and pulls when disabled, 200 [] on releases",
+        "RED first; full gate green"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals: RELEASE-CHECKLIST residual R-16, disclosed on W17-35.",
+        "ROOT CAUSE CANDIDATES, ranked + checked: (1) the forge answers a disabled feature with an HTTP error that W17-35 now records — CONFIRMED live on Gitea 1.24.7: /issues and /pulls 404 with the unit off. (2) the forge answers 200-empty and the entity reads as \"no issues\" — CONFIRMED live on GitHub (torvalds/linux 200 [], git/git 200 PRs-only); not an error, but indistinguishable from an empty tracker. (3) GitHub 410 on the list — RULED OUT live: 410 is the single-issue answer only; the W17-35 residual note guessed it for the list.",
+        "DONE 2026-09-23. getRepo carries ForgeRepo.features (GitHub has_issues; Gitea has_issues/has_pull_requests/has_releases; GitLab *_access_level or *_enabled — GitLab from docs, NOT observed live) and rejects on non-2xx. ingestEntityPages asks the metadata on a permanent refusal, or when the first page of a walk has nothing real in it (0 items, or PRs only); only an explicit false counts, unknown keeps the W17-35 error. Not-enabled = finished, empty, sync_cursors.feature_disabled (migration 0031), no error, earlier error fragment removed; GitHub stops instead of walking PRs through /issues. Sync status entities[x].notEnabled; Admin -> Sync muted Repo settings column: \"issues not enabled on this repo\". GitHub asks only about issues (the one flag it reports) so an empty releases list costs no extra call. RED: forge 4, ingest 7, web 1 failed. Evidence: evidence/v1-residuals-20260923/{red-evidence,disabled-feature-probes}.txt. Gate: lint 0, typecheck 0, vitest 2492 passed / 14 skipped."
+      ]
+    },
+    {
+      "id": "W17-40",
+      "title": "pnpm test calls the developer's LM Studio by default and evicts other tools' models",
+      "phase": 17,
+      "module": "analysis",
+      "stories": [],
+      "write_scope": [
+        "packages/analysis/src/t2/live.integration.test.ts",
+        "apps/api/src/workers/gateway.live.test.ts",
+        "docs/TESTING.md",
+        "docs/CONFIG.md",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The two live LM Studio tests (packages/analysis t2/live.integration.test.ts, apps/api workers/gateway.live.test.ts) run ONLY when LMSTUDIO_LIVE=1 and skip cleanly otherwise; a configured LMSTUDIO_BASE_URLS alone is not consent, because .env carries it for the product",
+        "pnpm test makes ZERO LM Studio requests by default — verified by a request counter on every :1234 fetch/http.request in the test processes AND by the LM Studio server log, not assumed",
+        "With LMSTUDIO_LIVE=1 the tests still run against the configured / local host as before"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "FILED + CLAIMED 2026-09-23 on fix/v1-residuals (coordinator request, cause traced by the Dokima agent): t2/live always appended http://localhost:1234 as a candidate so it never skipped, and warmed qwen/qwen3-coder-next with \"ping\" (max_tokens 8, 2 retries => bursts of three); gateway.live.test.ts fetched localhost:1234/v1/models AT IMPORT and drove data[0] — whatever model was listed first. Both evicted other tools' models from LM Studio on every pnpm test.",
+        "DONE 2026-09-23. Both live tests gate on LMSTUDIO_LIVE=1 (analysis t2 live: describe.skip and no host list; gateway.live: no import-time fetch). docs/TESTING.md records the opt-in. RED/GREEN by measurement, not assumption: request counter preload on every :1234 fetch/http.request in all vitest processes — before 9 requests (5 models, 4 chat completions) and LM Studio log +9; after 0 and +0; full pnpm test 0 from our processes (the LM Studio log grew +23 in the window, all Jarvis traffic from another session, classified by body: 0 ping, 0 RepoPulse probes). Evidence: evidence/v1-residuals-20260923/lmstudio-requests.txt. Gate: lint 0, typecheck 0, vitest 2492 passed / 14 skipped (the +5 skipped are the two live files)."
       ]
     }
   ]

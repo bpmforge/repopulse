@@ -107,8 +107,8 @@ export class GitLabProvider implements ForgeProvider {
     family: EndpointFamily,
     map: (r: Raw) => T,
     perPage = GITLAB_MAX_PER_PAGE,
-    // Backfill entity lists pass this: an HTTP error must reject, not read as
-    // an empty page (W17-35).
+    // Every list passes this: an HTTP error must reject, not read as an empty
+    // page (W17-35 backfill lists, W17-38 enrichment fetches).
     check?: { entity: string; emptyOn?: readonly number[] },
   ): Promise<Page<T>> {
     const res = await this.get(ctx, withPage(baseUrl, pageOfCursor(cursor), perPage), family);
@@ -134,6 +134,7 @@ export class GitLabProvider implements ForgeProvider {
 
   async getRepo(ctx: CallCtx, fullName: string): Promise<ForgeRepo> {
     const res = await this.get(ctx, `${this.base}/projects/${projectPath(fullName)}`, 'commits');
+    assertListOk(res, 'repo'); // W17-39: never normalize an error body
     return normalizeRepo(res.body as RawGitlabProject);
   }
 
@@ -169,6 +170,7 @@ export class GitLabProvider implements ForgeProvider {
       `${this.base}/projects/${project}/repository/commits/${sha}`,
       'commits',
     );
+    assertListOk(detail, 'commit_files');
     const body = detail.body as RawGitlabCommit;
     const files = await this.paged<RawGitlabDiff, ForgeDiffFile>(
       ctx,
@@ -176,6 +178,8 @@ export class GitLabProvider implements ForgeProvider {
       cursor,
       'commits',
       normalizeDiff,
+      undefined,
+      { entity: 'commit_files' },
     );
     return {
       ...files,
@@ -222,6 +226,8 @@ export class GitLabProvider implements ForgeProvider {
       cursor,
       'pull_files',
       normalizeDiff,
+      undefined,
+      { entity: 'pr_files' },
     );
   }
 
@@ -237,6 +243,7 @@ export class GitLabProvider implements ForgeProvider {
       `${this.base}/projects/${projectPath(repo)}/merge_requests/${n}/approvals`,
       'pulls',
     );
+    assertListOk(res, 'reviews');
     const body = res.body as { approved_by?: RawGitlabApproval[] } | null;
     return (body?.approved_by ?? [])
       .map((a) => normalizeApproval(a, n))
@@ -256,6 +263,8 @@ export class GitLabProvider implements ForgeProvider {
       q.cursor,
       'checks',
       (p) => normalizePipeline(p, sha),
+      undefined,
+      { entity: 'checks' },
     );
   }
 

@@ -9,6 +9,7 @@ import type {
   ForgeRepo,
   ForgeReview,
 } from '../types.js';
+import { repoFeatures } from '../types.js';
 
 // Gitea v1 → domain normalizers (FR-FORGE-7).
 //
@@ -26,9 +27,19 @@ export interface RawGiteaRepo {
   archived: boolean;
   updated_at?: string | null;
   html_url: string;
+  // Unit switches (W17-39). With issues or pulls off, 1.24.7 answers the list
+  // with 404 — the same 404 as "no such repo" — so these decide which it is.
+  has_issues?: boolean;
+  has_pull_requests?: boolean;
+  has_releases?: boolean;
 }
 
 export function normalizeRepo(r: RawGiteaRepo): ForgeRepo {
+  const features = repoFeatures({
+    issues: r.has_issues,
+    pullRequests: r.has_pull_requests,
+    releases: r.has_releases,
+  });
   return {
     externalId: String(r.id),
     name: r.name,
@@ -42,6 +53,7 @@ export function normalizeRepo(r: RawGiteaRepo): ForgeRepo {
     // noisier than GitHub's — ordering only, never correctness.
     pushedAt: r.updated_at ?? null,
     htmlUrl: r.html_url,
+    ...(features ? { features } : {}),
   };
 }
 

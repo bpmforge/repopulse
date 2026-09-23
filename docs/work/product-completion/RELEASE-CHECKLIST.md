@@ -4,7 +4,8 @@
 check that can run on this workstation passed on the candidate commit. What
 is left needs hardware or a person this host does not have: a real amd64
 machine with Docker (W11-01 / W11-05), a clean-VM human run of the docs
-(W11-05), and a real Gitea instance ingested (W14-01). Nothing was merged,
+(W11-05), and a real Gitea instance ingested (W14-01 — since met on a real
+Gitea 1.24.7 and closed under a re-scope, see §4b; ratification owed). Nothing was merged,
 tagged, published or deployed; the branch is pushed to both remotes.
 
 | | |
@@ -75,6 +76,29 @@ It did not run e2e (resource contention); G-4 above did.
 | S-3 | No disabled tests | PASS | No `.only`/`.skip` added; the new tests are live |
 | S-4 | No accidental remote/production changes | PASS | Pushed `release/v1-selfhost` to origin and github only. No merge, tag, publish or deploy. Every throwaway container, network, volume and image created for this run was removed, and base-image tags that emulated builds re-pointed to amd64 were restored to native. The dev data tier stayed up throughout |
 
+## 4b. Addendum 2026-09-23 — `fix/v1-residuals` (not merged)
+
+Pushed to both remotes, on top of `main` `0f76efd`. Nothing merged, tagged or
+published. Gate on `a41e124`: lint 0 · typecheck 0 · vitest **2492 passed / 14
+skipped** (baseline 2466 / 9; the 5 extra skips are the now opt-in live LM
+Studio files). Evidence: `evidence/v1-residuals-20260923/`.
+
+- **W17-38 (R-15) done** — enrichment fetches record a refusal instead of reading it as empty.
+- **W17-39 (R-16) done** — a feature switched off on the repo reads as "not enabled on this
+  repo" (informational), with the forge answers observed live.
+- **W17-40 done** — `pnpm test` makes zero LM Studio requests unless `LMSTUDIO_LIVE=1`
+  (measured: counter 0, LM Studio log checked).
+- **W14-01 re-scoped and closed** — "ingest from a real Gitea" met on a fresh 1.24.7 run
+  (PRs, issues, releases, 106 metric snapshots); git.bpmforge.com dogfood deferred with
+  W7-05/W7-06. Founder ratification of the narrowed acceptance is owed.
+- **Dev DB** — the real-forge smoke's GitHub connection (31661, `bpmforge/quarry`, the
+  `.env.smoke` PAT encrypted) is gone. It was NOT a targeted delete: the first `pnpm test`
+  of this branch removed it, because the seed reset (`packages/shared/src/testing/seed/seed.ts`)
+  wipes every connection and repo in the Default workspace — the demo seed too, which the
+  e2e run re-created. The 16 completed BullMQ job records for its repo were removed by hand.
+  Founder item 4 is reduced to rotating the PAT. **Finding:** `pnpm test` destroys any real
+  forge connection a developer adds to the dev DB's Default workspace.
+
 ## 5. Board changes (plan.json)
 
 - **Filed and closed:** W17-35, W17-36 and W17-37.
@@ -86,7 +110,9 @@ It did not run e2e (resource contention); G-4 above did.
 - **W11-01:** re-scoped to "bundle on amd64 + Docker; registry publish
   deferred". The original acceptance is preserved in a note. It stays blocked
   on a real amd64 Docker host.
-- **W11-05 and W14-01:** updated with today's evidence; both stay blocked.
+- **W11-05 and W14-01:** updated with today's evidence; both stayed blocked on
+  `release/v1-selfhost`. W14-01 was later re-scoped and closed on
+  `fix/v1-residuals` (§4b); W11-05 stays blocked.
 - **VISION.md:** the MVP lines were updated to cover D14 local accounts + PAT
   and the built Gitea adapter.
 - **Setup copy:** no longer says "Register your own GitHub App".
@@ -102,13 +128,13 @@ It did not run e2e (resource contention); G-4 above did.
    a machine with no checkout (can be the same VM as item 1), connects a real
    forge with a PAT, watches the backfill, reads a report, and records every
    doc gap.
-3. **W14-01.** Add a Gitea token for `git.bpmforge.com`, or re-scope the ticket
-   to "a real customer Gitea" if the dogfood deployment stays deferred.
+3. **W14-01.** ~~Add a Gitea token for `git.bpmforge.com`, or re-scope~~ — re-scoped
+   and closed 2026-09-23 (§4b). Owed: **ratify the narrowed acceptance**; the
+   git.bpmforge.com dogfood run travels with W7-05/W7-06.
 4. Rotate or delete the PAT in `.env.smoke`, and decide on the
-   `.gitleaks.toml` allowlist (R-14). The dev database on this workstation
-   now holds the smoke's GitHub connections, with that PAT encrypted, so a
-   `pnpm dev` worker would reconcile `bpmforge/quarry` with it. Rotating the
-   token, or purging those rows, ends that.
+   `.gitleaks.toml` allowlist (R-14). ~~The dev database holds the smoke's
+   GitHub connections~~ — gone 2026-09-23, removed by the test suite's seed
+   reset rather than a targeted delete (§4b); rotating the token is what remains.
 5. Merge `release/v1-selfhost` → `main`, tag, and publish or hand out the bundle.
    Each of these is a separate founder authorisation.
 
@@ -124,8 +150,9 @@ It did not run e2e (resource contention); G-4 above did.
 | R-12 | Packaged scan / restore drill not re-run | unchanged: prior-SHA evidence only (scans not exercised on rc2) |
 | R-14 | gitleaks full-history exits 1; live PAT in `.env.smoke` | unchanged |
 | R-06, R-07, R-08, R-09, R-13 | as in the 09-11 register below | unchanged |
-| R-16 (new) | A forge list for a feature that is DISABLED (issues off, and so on) used to read as empty; if the forge answers it with a 4xx, it now shows as a permanent "issues not ingested — HTTP …". GitHub documents only 200/301/404/422 for listing issues, so the real answer is unverified | disclosed on W17-35; add it to `emptyOn` once observed live |
-| R-15 (new) | The enrichment lists (PR files, check runs, reviews) still read an HTTP error as empty | follow-up on W17-35; making them throw would strand a repo in `backfilling` |
+| R-16 | A forge list for a DISABLED feature (issues off, …) read as an error (Gitea 404) or as "no issues" (GitHub 200) | **resolved — W17-39.** Observed live: Gitea 1.24.7 404 on /issues and /pulls, 200 [] on /releases; GitHub has_issues=false → /issues 200, empty or PRs only (410 only on a single issue). Repo metadata decides; shown as "not enabled on this repo". GitLab flags are from docs, not observed live |
+| R-15 | The enrichment lists (PR files, check runs, reviews) read an HTTP error as empty | **resolved — W17-38** (commit files too). Refusal recorded per entity + repos.last_error; PR/commit still marked handled so the repo reaches live; 5xx retries then DLQ. Remaining: a dead-lettered enrich job leaves its PR/commit pending (repo stays `backfilling`) until re-enqueued — same shape as W17-35 |
+| R-17 (new) | `pnpm test` evicted models from the developer's LM Studio | **resolved — W17-40**: live tests opt-in via `LMSTUDIO_LIVE=1`; 0 requests measured |
 
 ---
 

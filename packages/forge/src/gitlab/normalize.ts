@@ -9,6 +9,7 @@ import type {
   ForgeRepo,
   ForgeReview,
 } from '../types.js';
+import { repoFeatures } from '../types.js';
 
 // GitLab v4 → domain normalizers (W12-01).
 //
@@ -25,9 +26,32 @@ export interface RawGitlabProject {
   archived?: boolean | null;
   last_activity_at?: string | null;
   web_url: string;
+  // Feature switches (W17-39). *_access_level is 'disabled' | 'private' |
+  // 'enabled'; the *_enabled booleans are the older, deprecated form. Taken
+  // from GitLab's Projects API docs — NOT yet observed live (anonymous reads
+  // of gitlab.com omit them).
+  issues_access_level?: string | null;
+  merge_requests_access_level?: string | null;
+  releases_access_level?: string | null;
+  issues_enabled?: boolean | null;
+  merge_requests_enabled?: boolean | null;
+}
+
+/** 'disabled' = off; any other level = on; absent = fall back to the old boolean. */
+function accessLevelOn(
+  level: string | null | undefined,
+  legacy: boolean | null | undefined,
+): boolean | undefined {
+  if (typeof level === 'string') return level !== 'disabled';
+  return typeof legacy === 'boolean' ? legacy : undefined;
 }
 
 export function normalizeRepo(p: RawGitlabProject): ForgeRepo {
+  const features = repoFeatures({
+    issues: accessLevelOn(p.issues_access_level, p.issues_enabled),
+    pullRequests: accessLevelOn(p.merge_requests_access_level, p.merge_requests_enabled),
+    releases: accessLevelOn(p.releases_access_level, undefined),
+  });
   return {
     externalId: String(p.id),
     name: p.name,
@@ -41,6 +65,7 @@ export function normalizeRepo(p: RawGitlabProject): ForgeRepo {
     // No pushed_at; last_activity_at is the equivalent the planner orders by.
     pushedAt: p.last_activity_at ?? null,
     htmlUrl: p.web_url,
+    ...(features ? { features } : {}),
   };
 }
 

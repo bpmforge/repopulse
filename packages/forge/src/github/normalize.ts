@@ -10,6 +10,7 @@ import type {
   ForgeRepo,
   ForgeReview,
 } from '../types.js';
+import { repoFeatures } from '../types.js';
 
 // Pure GitHub-REST-JSON → normalized-domain-type mappers (FR-FORGE-1). Kept
 // separate from the provider so every field mapping is unit-testable without a
@@ -30,9 +31,12 @@ export interface RawRepo {
   archived: boolean;
   pushed_at: string | null;
   html_url: string;
+  /** False when the owner switched Issues off; /issues then still answers 200 (W17-39). */
+  has_issues?: boolean;
 }
 
 export function normalizeRepo(r: RawRepo): ForgeRepo {
+  const features = repoFeatures({ issues: r.has_issues });
   return {
     externalId: String(r.id),
     name: r.name,
@@ -42,6 +46,7 @@ export function normalizeRepo(r: RawRepo): ForgeRepo {
     isArchived: r.archived,
     pushedAt: r.pushed_at,
     htmlUrl: r.html_url,
+    ...(features ? { features } : {}),
   };
 }
 

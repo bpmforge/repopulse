@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { core } from '@repopulse/shared';
-import type { ForgeHttpError } from '@repopulse/forge';
+import { ForgeHttpError } from '@repopulse/forge';
+import { writeCursor } from './cursor.js';
 import type { DbOrTx, Tx } from './db.js';
 
 // Per-entity fetch failures (W17-35, W14-01 "no failure absorbed silently").
@@ -67,4 +68,60 @@ export async function readEntityError(
     .where(and(eq(core.syncCursors.repoId, repoId), eq(core.syncCursors.entityType, entity)))
     .limit(1);
   return row?.lastError ?? null;
+}
+
+// ── Enrichment (W17-38, residual R-15) ──────────────────────────────────────
+//
+// The per-PR and per-commit detail fetches get the same treatment as the
+// backfill lists, with one difference: they are keyed on a parent row, so a
+// refusal cannot "finish the entity" by checkpointing a cursor. The caller
+// marks the parent handled instead (PR enriched_at, commit
+// stats_source='unavailable'), and the refusal is carried on a sync_cursors
+// row for the entity — always backfill_done=true, so the sync-status phase
+// never mistakes it for unfinished history.
+
+export type EnrichmentEntity = 'reviews' | 'checks' | 'commit_files';
+
+export type Fetched<T> = { value: T; refused?: undefined } | { refused: ForgeHttpError };
+
+/**
+ * Run one enrichment fetch. A permanent refusal (401/403/404/410/422) comes
+ * back as `{ refused }` so the job can record it and carry on with the other
+ * fetches; anything else — a 5xx that outlived the client's retries, a 429, a
+ * network error, a budget park — is rethrown so the queue retries the job and
+ * dead-letters it if it persists.
+ */
+export async function fetchOrRefusal<T>(fetch: () => Promise<T>): Promise<Fetched<T>> {
+  try {
+    return { value: await fetch() };
+  } catch (err) {
+    if (err instanceof ForgeHttpError && err.permanent) return { refused: err };
+    throw err;
+  }
+}
+
+/**
+ * Record — or clear — an enrichment entity's refusal inside the caller's
+ * transaction. The common case (fetched fine, nothing recorded) costs one read
+ * and no lock; otherwise the repo row is locked BEFORE the recorded value is
+ * re-read, so concurrent enrich jobs of one repo cannot interleave a
+ * read-modify-write of repos.last_error.
+ */
+export async function recordEnrichmentOutcome(
+  tx: Tx,
+  scope: { workspaceId: number; repoId: number },
+  entity: EnrichmentEntity,
+  refused: ForgeHttpError | null,
+): Promise<void> {
+  const next = refused ? entityErrorText(entity, refused) : null;
+  if (next === null && (await readEntityError(tx, scope.repoId, entity)) === null) return;
+  await tx
+    .select({ id: core.repos.id })
+    .from(core.repos)
+    .where(eq(core.repos.id, scope.repoId))
+    .for('update');
+  const previous = await readEntityError(tx, scope.repoId, entity);
+  if (previous === next) return;
+  await writeCursor(tx, scope, entity, { cursorValue: null, backfillDone: true, lastError: next });
+  await updateRepoEntityError(tx, scope.repoId, previous, next);
 }

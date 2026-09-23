@@ -38,11 +38,36 @@ export interface RepoSyncStatus {
   repoName?: string;
   phase: SyncPhase;
   percentComplete: number;
-  entities: Record<string, { cursorAt: string | null; done: boolean; error: string | null }>;
+  /**
+   * `notEnabled` (W17-39): the repository has this feature switched off — shown
+   * as information, never as an error. Optional so an older API still renders.
+   */
+  entities: Record<
+    string,
+    { cursorAt: string | null; done: boolean; error: string | null; notEnabled?: boolean }
+  >;
   budget: { remaining: number; limit: number; resetAt: string | null; spent24h: number };
   lagSeconds: number | null;
   lastError: { at: string; message: string; jobId: string | null } | null;
   lastSyncedAt: string | null;
+}
+
+const ENTITY_LABEL: Record<string, string> = {
+  prs: 'pull requests',
+  issues: 'issues',
+  releases: 'releases',
+  commits: 'commits',
+  deployments: 'deployments',
+};
+
+/** "issues and releases not enabled on this repo", or null when every feature is on. */
+export function notEnabledText(entities: RepoSyncStatus['entities']): string | null {
+  const off = Object.entries(entities)
+    .filter(([, e]) => e.notEnabled === true)
+    .map(([k]) => ENTITY_LABEL[k] ?? k);
+  if (off.length === 0) return null;
+  const list = off.length === 1 ? off[0] : `${off.slice(0, -1).join(', ')} and ${off.at(-1)}`;
+  return `${list} not enabled on this repo`;
 }
 
 export interface OrgSyncStatus {

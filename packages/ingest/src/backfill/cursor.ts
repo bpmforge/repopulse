@@ -11,6 +11,8 @@ export interface CursorState {
   backfillDone: boolean;
   /** W17-35: why the entity holds no data. Omitted = the fetch succeeded (null). */
   lastError?: string | null;
+  /** W17-39: the feature is switched off on the repo. Omitted = false. */
+  featureDisabled?: boolean;
 }
 
 export async function writeCursor(
@@ -28,6 +30,7 @@ export async function writeCursor(
       cursorValue: state.cursorValue,
       backfillDone: state.backfillDone,
       lastError: state.lastError ?? null,
+      featureDisabled: state.featureDisabled ?? false,
     })
     .onConflictDoUpdate({
       target: [core.syncCursors.repoId, core.syncCursors.entityType],
@@ -35,6 +38,7 @@ export async function writeCursor(
         cursorValue: state.cursorValue,
         backfillDone: state.backfillDone,
         lastError: state.lastError ?? null,
+        featureDisabled: state.featureDisabled ?? false,
         updatedAt: new Date(),
       },
     });

@@ -36,9 +36,9 @@ describe('a link to a file in the forge (W16-41)', () => {
     expect(blobUrl({ ...base, kind: 'gitea', lineStart: 10, lineEnd: 12 })).toBe(
       'https://example.com/acme/payments/src/commit/abc123/src/payments/charge.ts#L10-L12',
     );
-    expect(
-      blobUrl({ ...base, kind: 'gitea', ref: 'main', refKind: 'branch', lineStart: 10 }),
-    ).toBe('https://example.com/acme/payments/src/branch/main/src/payments/charge.ts#L10');
+    expect(blobUrl({ ...base, kind: 'gitea', ref: 'main', refKind: 'branch', lineStart: 10 })).toBe(
+      'https://example.com/acme/payments/src/branch/main/src/payments/charge.ts#L10',
+    );
   });
 
   it('writes a one-line finding as one line', () => {

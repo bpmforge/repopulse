@@ -4025,3 +4025,24 @@ the fix is a one-line UPDATE renaming the key.
   live). Bundles 0.1.0-rc2 from 814fb55: arm64 clean install + restart PASS; amd64 built +
   install + restart smoked under qemu only (native redis substituted — amd64 redis segfaults
   under qemu). No Docker on the host. Verdict HOLD on founder items only — docs/work/product-completion/RELEASE-CHECKLIST.md.
+- 2026-09-23 fix/v1-residuals (from main 0f76efd; pushed, not merged). **W17-38 done (R-15)** —
+  enrichment fetches (reviews, check runs, PR files, commit detail) read an HTTP error as empty on
+  all three adapters; they now reject, a permanent refusal is recorded per entity
+  (sync_cursors reviews/checks/commit_files, migration 0030) and in repos.last_error, the PR is
+  still stamped / the commit marked stats_source=unavailable so the repo reaches live, 5xx
+  retries then DLQ; scanners record a failed run instead of "0 findings". **W17-39 done (R-16)** —
+  a feature switched off on the repo reads as "not enabled on this repo": observed live, Gitea
+  1.24.7 answers 404 on /issues and /pulls (same as a missing repo), GitHub has_issues=false
+  answers 200 empty or PRs only; ForgeRepo.features from getRepo decides (GitLab from docs only),
+  sync_cursors.feature_disabled (migration 0031), muted "Repo settings" column in Admin → Sync.
+  **W17-40 done** — `pnpm test` no longer calls LM Studio: both live files need `LMSTUDIO_LIVE=1`;
+  measured 9 requests → 0 with a request counter and the LM Studio log. **W14-01 re-scoped and
+  closed** — GiteaProvider has now run against a REAL Gitea (1.24.7) through the product path:
+  connect:forge → worker → live, widget repo 4 commits / 1 PR / 1 issue / 1 release / 106 metric
+  snapshots; git.bpmforge.com dogfood deferred with W7-05/06; founder ratification owed. Dev DB:
+  the real-forge smoke's GitHub connection + bpmforge/quarry rows (encrypted .env.smoke PAT) are
+  gone — removed by this branch's first `pnpm test` (the seed reset wipes every connection/repo
+  in the Default workspace; demo seed re-created by the e2e run), not by a targeted delete; its
+  16 completed BullMQ job records were removed by hand. Finding: `pnpm test` destroys any real
+  forge connection a developer adds to the dev DB's Default workspace. Gate: lint 0 · typecheck 0 · vitest 2492 passed /
+  14 skipped.
