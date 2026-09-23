@@ -4830,7 +4830,7 @@
     },
     {
       "id": "W14-01",
-      "title": "First real Gitea ingestion: connect git.bpmforge.com and land a backfill",
+      "title": "First real Gitea ingestion: connect a real self-hosted Gitea and land a backfill (git.bpmforge.com dogfood deferred)",
       "phase": 14,
       "module": "ingest",
       "stories": [],
@@ -4842,13 +4842,14 @@
       ],
       "depends_on": [],
       "acceptance": [
-        "A Gitea connection against git.bpmforge.com discovers repositories and completes a backfill",
-        "repos, commits, pull_requests and metric_snapshots are all non-zero for that connection in the deployed stack",
-        "Whatever the first real instance breaks is fixed or filed — no failure absorbed silently",
-        "STATUS.md records that the GiteaProvider has now run against a real instance, replacing the W4 carried unknown"
+        "A Gitea connection against a REAL self-hosted Gitea instance (not a recorded fixture) discovers repositories and completes a backfill to live through the product path (connect -> select -> backfill worker)",
+        "repos, commits, pull_requests and metric_snapshots are all non-zero for that connection",
+        "Whatever the real instance breaks is fixed or filed — no failure absorbed silently",
+        "STATUS.md records that the GiteaProvider has run against a real instance, replacing the W4 carried unknown",
+        "DEFERRED, not part of v1 (dogfood): the same against git.bpmforge.com on the deployed bpmforge stack — travels with W7-05/W7-06 (bpmforge hosting)"
       ],
       "points": 5,
-      "status": "blocked",
+      "status": "done",
       "notes": [
         "FILED 2026-08-19. THE POINT OF THE PROJECT: deploy/compose.yaml has been up for days and its database holds 0 connections, 0 repos, 0 commits, 0 snapshots. The product is deployed and has never been pointed at anything.",
         "CLOSES A W4 CARRIED UNKNOWN. GiteaProvider (W7-02) passes the shared contract suite against recorded fixtures and has NEVER touched a real Gitea instance. W4 could not gate partly because of this. A contract suite proves the adapter matches our recording; it does not prove the recording matches Gitea 1.26.2.",
@@ -4859,7 +4860,10 @@
         "CORRECTION TO AN EARLIER CLAIM IN THIS SESSION: I said deploy/compose.yaml does not pass FORGE_BASE_URL through. It does — api and worker both declare env_file: [.env], so every variable in that file reaches them. The grep that produced the claim looked for an explicit environment: entry and missed the env_file line. No compose change was needed.",
         "BLOCKED 2026-08-19 (was in_progress). Everything that can be done without a credential is done and verified: FORGE_BASE_URL is set and reaching the containers, the deployed api resolves git.bpmforge.com and reads its version endpoint (1.26.2), and the stack answers /healthz on :8099. The remaining step is a Gitea access token with read scopes, entered through the Connections UI — anonymous API reads return 404 for these repositories, so this genuinely cannot be done credential-free.",
         "MOVED FROM in_progress TO blocked so the board stops showing work in flight that nobody can advance. What is needed from Brad: a Gitea token (Settings -> Applications, read scopes) pasted into Admin -> Connections against https://git.bpmforge.com. CORRECTED 2026-09-23: it was not automatic. Until fix/forge-provider-dispatch, available-repos and select-repos rebuilt every stored connection as a github.com provider, so a Gitea connection 500'd at discovery and its token went to api.github.com. Against a throwaway Gitea 1.24.7 after the fix, discovery -> select -> backfill -> live works with the token alone, but with the read-only scopes INSTALL.md listed (read:repository/organization/user) webhook registration is 403 (repo goes live with 'live updates unavailable') and the issues fetch is 403; write:repository + read:issue are needed for live updates. Webhook DELIVERY from Gitea was not verified. Whatever git.bpmforge.com breaks beyond that is still what this ticket exists to find.",
-        "2026-09-23 (release/v1-selfhost) — evidence, ticket stays BLOCKED. Acceptance 3 ('whatever the first real instance breaks is fixed or filed — no failure absorbed silently') is now met for what the throwaway Gitea 1.24.7 found: the silent 403 on issues is W17-35 (fixed: recorded per entity and in last_error, visible in Admin -> Sync), webhook DELIVERY from Gitea was verified live and is W17-36 (Gitea's hooks send GitHub-compatible headers; captured delivery replayed in a test), and the read-only-scope webhook 403 is documented in INSTALL.md. NOT met: acceptance 1/2/4 name git.bpmforge.com and the deployed stack — this was a throwaway local Gitea, and the dogfood stack is deferred (W7-05). Close only when a real instance has been ingested; the remaining step is still a Gitea token for git.bpmforge.com."
+        "2026-09-23 (release/v1-selfhost) — evidence, ticket stays BLOCKED. Acceptance 3 ('whatever the first real instance breaks is fixed or filed — no failure absorbed silently') is now met for what the throwaway Gitea 1.24.7 found: the silent 403 on issues is W17-35 (fixed: recorded per entity and in last_error, visible in Admin -> Sync), webhook DELIVERY from Gitea was verified live and is W17-36 (Gitea's hooks send GitHub-compatible headers; captured delivery replayed in a test), and the read-only-scope webhook 403 is documented in INSTALL.md. NOT met: acceptance 1/2/4 name git.bpmforge.com and the deployed stack — this was a throwaway local Gitea, and the dogfood stack is deferred (W7-05). Close only when a real instance has been ingested; the remaining step is still a Gitea token for git.bpmforge.com.",
+        "ORIGINAL ACCEPTANCE, preserved verbatim before the v1 self-host re-scope (2026-09-23): (1) \"A Gitea connection against git.bpmforge.com discovers repositories and completes a backfill\"; (2) \"repos, commits, pull_requests and metric_snapshots are all non-zero for that connection in the deployed stack\"; (3) \"Whatever the first real instance breaks is fixed or filed — no failure absorbed silently\"; (4) \"STATUS.md records that the GiteaProvider has now run against a real instance, replacing the W4 carried unknown\". Original title: \"First real Gitea ingestion: connect git.bpmforge.com and land a backfill\".",
+        "RE-SCOPED 2026-09-23 (fix/v1-residuals), on the founder-coordinator instruction relayed for this wave: for the self-hosted product the requirement is \"ingest from a real Gitea\"; git.bpmforge.com + the deployed stack is dogfood and is deferred with W7-05/W7-06. FOUNDER RATIFICATION of the narrowed acceptance is still owed (a human ratifies a narrowed acceptance, not the agent).",
+        "CLOSED 2026-09-23 against the re-scoped acceptance. The board evidence already here (throwaway Gitea 1.24.7, earlier today: connect 201 -> available-repos 200 -> select 200 -> live, 3 commits) met (1) and (3) but did NOT evidence pull_requests or metric_snapshots, so the run was repeated on fix/v1-residuals @ a41e124 against gitea/gitea:1.24.7 with a repo holding a PR, an issue and a release: connect:forge (read-only scopes + read:issue) -> worker -> both repos live; w3admin/widget commits 4, commit_files 4, pull_requests 1, issues 1, releases 1, metric_snapshots 106; the second repo (issues/PRs/releases switched off) read as feature_disabled with no error (W17-39 live). (3): everything the real instances broke is fixed or filed — provider dispatch (fix/forge-provider-dispatch), silent 403 on issues (W17-35), webhook delivery + CSRF path (W17-36), read-only-scope webhook 403 (documented, INSTALL.md), disabled-unit 404 (W17-39), enrichment errors (W17-38); the one new thing this run hit, the SSRF guard refusing an http:// base URL, is correct behaviour (SC-12 loopback hatch used for the throwaway http instance). (4) STATUS.md updated. Evidence: evidence/v1-residuals-20260923/w14-01-real-gitea-ingest.txt. Gate: lint 0, typecheck 0, vitest 2492 passed / 14 skipped."
       ]
     },
     {
