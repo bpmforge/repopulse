@@ -38,7 +38,7 @@ const label = (axis: string) => AXIS_LABEL[axis] ?? axis;
 const isMeasured = (axis: RiskAxis) => typeof axis.letter === 'string' && axis.letter.length > 0;
 
 export function RiskAxesCard({ repoId }: { repoId?: string }) {
-  const { data, isLoading, isError, error } = useApiQuery<RiskAxesResponse>({
+  const { data, isLoading, isError, error, refetch } = useApiQuery<RiskAxesResponse>({
     endpoint: '/risk/axes',
     query: repoId ? { repo_id: repoId } : {},
   });
@@ -52,6 +52,8 @@ export function RiskAxesCard({ repoId }: { repoId?: string }) {
     <WidgetFrame
       title="Risk axes"
       state={state}
+      // W17-31: every failed frame offers Retry, like the rest of the overview.
+      onRetry={() => void refetch()}
       {...(error ? { errorMessage: error.message, error } : {})}
       emptyMessage="No axes could be computed for this scope."
       testId="risk-axes"

@@ -85,6 +85,16 @@ services:
     restart: unless-stopped
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    volumes:
+      # Read-only view of the synced rules, so the Security tab can state
+      # whether the vulnerability database is present and how old it is
+      # BEFORE anyone presses Run (W17-27). The api never starts a scan; it
+      # only reads the one metadata file the sync leaves beside the database.
+      - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
+      # OPTIONAL internal CA trust. EXTRA_CA_DIR (default deploy/ca, created
+      # empty by up.sh) is mounted read-only; nothing reads it unless .env sets
+      # NODE_EXTRA_CA_CERTS=/etc/repopulse/ca/<file>.pem. See docs/INSTALL.md.
+      - ${EXTRA_CA_DIR:-/var/lib/repopulse/ca}:/etc/repopulse/ca:ro
 
   # SC-24 deployment note (W6-08): the LLM VLAN must be reachable from the
   # WORKER network only. The worker is the only service that calls a Tier-2
@@ -108,18 +118,6 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     volumes:
-      # SCAN SCRATCH (W8-12, C1a / NFR-13). A snapshot is extracted here, read
-      # by a scan container, and deleted — so it is a tmpfs: the bytes never
-      # reach a disk that survives a reboot, and a crashed worker cannot leave
-      # a customer's source in a volume backup. Sized for one snapshot at a
-      # time plus headroom; raise SCAN_SCRATCH_SIZE for large monorepos rather
-      # than pointing SCAN_SCRATCH_ROOT at a disk.
-      # SIZE IN BYTES, not "2g": podman-compose passes the string straight to
-      # the runtime, which rejects it — "mount tmpfs to var/tmp/repopulse-scan:
-      # Invalid argument" — and the worker never starts. Docker accepts bytes
-      # too, so bytes is the portable spelling. Found by recreating the worker
-      # during the W11-03 drill; the previously-running container had been
-      # created before this stanza changed, so nothing had re-read it since.
       # The scan tool's rulepacks and vulnerability databases, refreshed
       # HOST-SIDE by deploy/scan-db-sync.sh and mounted read-only. The scan
       # container itself has --network=none and could not fetch them: that is
@@ -131,17 +129,127 @@ services:
       # all, and the worker fails to start with a statfs error naming the
       # CONTAINER path, which sends you looking in the wrong place entirely.
       - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
-    # SHORT-FORM tmpfs, not the long `type: tmpfs` volume entry: podman-compose
-    # renders the long form's options as `mode=448` (the YAML octal, decimalised)
-    # and crun rejects the mount outright — "mount tmpfs to
-    # var/tmp/repopulse-scan: Invalid argument" — so the worker never starts.
-    # The short form is passed through verbatim and both runtimes accept it.
-    tmpfs:
-      - /var/tmp/repopulse-scan:size=${SCAN_SCRATCH_SIZE:-2g},mode=0700
+      # SCAN SCRATCH (W8-12, C1a / NFR-13; shared volume since W17-27). A
+      # snapshot is extracted here, read by a scan container, and deleted. It
+      # is a tmpfs-backed NAMED VOLUME rather than the container's own tmpfs,
+      # because the scan container is a sibling started by scan-runner on the
+      # host's runtime — it cannot see inside the worker's filesystem, but it
+      # can bind one snap-* directory out of a volume the daemon manages. Still
+      # RAM: the bytes never reach a disk that survives a reboot, and a crashed
+      # worker cannot leave a customer's source in a volume backup. The worker
+      # holds this mount for its whole life so the tmpfs stays mounted between
+      # scans. Sized for one snapshot at a time plus headroom; raise
+      # SCAN_SCRATCH_SIZE for large monorepos rather than moving it to a disk.
+      # `:z` — SHARED SELinux label. Without it podman gives the first
+      # container to mount a tmpfs volume a private MCS category, and the
+      # second container (different category) gets EACCES on every file in
+      # it: measured here as the worker unable to stat the runner's socket.
+      # Both volumes are meant to be shared by exactly these two services and
+      # the scan containers; a no-op on hosts without SELinux and under docker.
+      - scan-scratch:/var/tmp/repopulse-scan:z
+      # OPTIONAL internal CA trust. EXTRA_CA_DIR (default deploy/ca, created
+      # empty by up.sh) is mounted read-only; nothing reads it unless .env sets
+      # NODE_EXTRA_CA_CERTS=/etc/repopulse/ca/<file>.pem. See docs/INSTALL.md.
+      - ${EXTRA_CA_DIR:-/var/lib/repopulse/ca}:/etc/repopulse/ca:ro
+    # The scan network is where the runner listens; only the worker joins it
+    # besides the runner. SCAN_RUNNER_TOKEN comes from .env (env_file above).
+    networks: [default, scan]
     environment:
       SNAPSHOT_ROOT: /var/tmp/repopulse-scan
       SCAN_IMAGE: ${SCAN_IMAGE:-repopulse/scan:dev}
       SCAN_RULES_DIR: /var/lib/repopulse/scan-rules
+      # Set, so runInSandbox hands the profile to the runner instead of
+      # spawning a runtime this image does not have (packages/security/sandbox).
+      SCAN_RUNNER_URL: http://scan-runner:3310
+
+  # THE ONE SERVICE WITH THE CONTAINER SOCKET (W17-27).
+  #
+  # The worker cannot start a container, by design: it holds forge credentials
+  # and the database, runs as an unprivileged user with no-new-privileges and
+  # cap_drop ALL, and this file gives it no socket. A scan is a container, so
+  # something has to start one, and this is it. It holds NOTHING ELSE — no
+  # database URL, no Redis, no credential, no source of its own — and it only
+  # ever runs the argv in packages/security/sandbox/profile.ts against the one
+  # image it is configured with, on a snapshot directory it derives from its
+  # own configuration. Requests arrive over the `scan` network, which only the
+  # worker joins, and carry SCAN_RUNNER_TOKEN. See runner-server.ts for exactly
+  # what it refuses.
+  #
+  # WHY TCP AND NOT A UNIX SOCKET IN A SHARED VOLUME. That was the first
+  # design and it cannot work on an SELinux host: the runner must run
+  # label=disable to reach the host's podman socket, and a confined worker may
+  # not connectto an unconfined listener (EACCES, mode and owner correct —
+  # measured on podman machine). TCP between containers is not subject to that
+  # check. The runner still supports a unix socket for hosts without SELinux;
+  # the packaged default is the one that works everywhere.
+  #
+  # WHAT THIS IS NOT. It is not privileged, it disables no isolation on the
+  # scan containers, and it is not the worker with a socket bolted on. What it
+  # IS is a small process holding the host's runtime socket, and a compromise
+  # of THIS container is a compromise of that socket — which is why it is kept
+  # to a ~40 MB client, read-only, with nothing worth stealing in it.
+  scan-runner:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: scan-runner
+    image: ${REPOPULSE_IMAGE_PREFIX:-repopulse}/scan-runner:${REPOPULSE_VERSION:-dev}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      # SELinux hosts (Fedora, RHEL, podman machine): the podman socket file
+      # is labelled container_file_t, but the process LISTENING on it is
+      # unconfined_t and container_t may not connectto it — so connect()
+      # fails EACCES with the mode and ownership both correct (measured here
+      # before this line existed). label=disable is podman's documented answer
+      # for a container that must reach the host's podman socket; it is a
+      # no-op where SELinux is absent, and it applies to THIS container only:
+      # every scan container it starts keeps its own label.
+      - label=disable
+    read_only: true
+    tmpfs: [/tmp]
+    # Who the runner runs as depends on whose socket it holds:
+    #   rootless podman (the default): root IN the container is the unprivileged
+    #     host user who owns the socket — leave SCAN_RUNNER_USER unset.
+    #   docker: the socket is root:docker 0660, so run as the image's `app`
+    #     user and add docker's gid: SCAN_RUNNER_USER=100:101 and
+    #     CONTAINER_SOCKET_GID=$(stat -c %g /var/run/docker.sock).
+    user: "${SCAN_RUNNER_USER:-0:0}"
+    group_add: ["${CONTAINER_SOCKET_GID:-0}"]
+    # No default network: the runner talks to the daemon over its socket and
+    # to nobody else. The worker reaches it on `scan`.
+    networks: [scan]
+    env_file: [.env]
+    environment:
+      # podman | docker — must match the daemon behind CONTAINER_SOCKET. The
+      # two need different argv (docker has no --timeout, podman -v takes
+      # noexec) and the runner builds the right one from this.
+      SCAN_RUNTIME: ${SCAN_RUNTIME:-podman}
+      CONTAINER_SOCKET: /run/container.sock
+      SCAN_IMAGE: ${SCAN_IMAGE:-repopulse/scan:dev}
+      SNAPSHOT_ROOT: /var/tmp/repopulse-scan
+      # The scratch volume BY NAME, so the runner can ask the daemon where it
+      # is mounted and bind one snap-* directory out of it, ro and noexec.
+      SCAN_SCRATCH_VOLUME: repopulse-scan-scratch
+      SCAN_RULES_DIR: /var/lib/repopulse/scan-rules
+      # The same directory as the DAEMON sees it, for the rulepack and
+      # vulnerability-database binds into scan containers.
+      SCAN_RULES_HOST_DIR: ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}
+      # A TCP listener REQUIRES SCAN_RUNNER_TOKEN (from .env) — the runner
+      # refuses to start without one, because a port with no token is a scan
+      # endpoint for every container on the network.
+      SCAN_RUNNER_LISTEN: http://0.0.0.0:3310
+    volumes:
+      # The host's runtime socket. up.sh derives the default from RUNTIME
+      # (rootless podman: $XDG_RUNTIME_DIR/podman/podman.sock, enabled with
+      # `systemctl --user enable --now podman.socket`; docker:
+      # /var/run/docker.sock) and refuses to start if it does not exist.
+      - ${CONTAINER_SOCKET:-/run/user/1000/podman/podman.sock}:/run/container.sock
+      # Mounted here too (read-only) so the tmpfs stays mounted across a
+      # worker restart and the runner's boot sweep can see what is left.
+      - scan-scratch:/var/tmp/repopulse-scan:ro,z
+      - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
 
   web:
     build:
@@ -166,3 +274,21 @@ services:
 volumes:
   pgdata:
   redisdata:
+  # RAM, not disk: a tmpfs volume (W17-27). Fixed `name`s, because the runner
+  # addresses the scratch volume by name and a compose project prefix would
+  # make that name depend on how the stack was started. mode=1777 so the
+  # worker's unprivileged user can create snapshot dirs in it; noexec because
+  # a repository is full of executable files someone else wrote.
+  scan-scratch:
+    name: repopulse-scan-scratch
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=${SCAN_SCRATCH_SIZE:-2g},mode=1777,noexec,nosuid,nodev
+
+networks:
+  default:
+  # Internal: no route out, and only worker and scan-runner are on it.
+  scan:
+    internal: true

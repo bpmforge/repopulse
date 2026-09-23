@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
-import { WidgetFrame } from '../../components/index.js';
+import { PageHeader, WidgetFrame } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { MeContext } from '../../widgets/org/contracts.js';
 
@@ -51,8 +51,23 @@ function AdminLayout() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="admin">
-      <h1 className="text-lg font-semibold">Admin</h1>
-      <nav className="flex gap-1 border-b border-border" aria-label="Admin sections">
+      {/* W17-12: was `text-lg font-semibold`, i.e. the same 18px a SECTION
+          title uses elsewhere — so the page and section levels were
+          indistinguishable and a reader could not tell where they were. */}
+      <PageHeader
+        title="Settings"
+        description="Connections, models, analysis policy, members, and the health of this install."
+        testId="admin-header"
+      />
+      {/* W17-31: the strip scrolls WITHIN ITSELF on narrow screens. Nine tabs
+          that could not wrap or scroll pushed <main> 440px past a 390px
+          viewport, so every Settings screen scrolled sideways — the page-level
+          overflow the ticket forbids. `shrink-0` + nowrap keeps each tab
+          readable; `overflow-x-auto` keeps the overflow inside the strip. */}
+      <nav
+        className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
+        aria-label="Admin sections"
+      >
         {TABS.map((tab) => (
           <Link
             key={tab.label}
@@ -60,7 +75,7 @@ function AdminLayout() {
             search={preserved as never}
             activeOptions={{ exact: tab.exact ?? false }}
             activeProps={{ 'data-active': 'true' }}
-            className="rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid={`admin-tab-${tab.label.toLowerCase()}`}
           >
             {tab.label}

@@ -48,7 +48,7 @@ function ViewDetail() {
         </h1>
         <button
           type="button"
-          className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="toggle-edit"
           onClick={() => setEditing((v) => !v)}
         >
@@ -56,7 +56,7 @@ function ViewDetail() {
         </button>
         <button
           type="button"
-          className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="set-as-home"
           disabled={setHome.isPending || data?.is_default === true}
           onClick={() => data && setHome.mutate({ view_id: data.id })}
@@ -65,7 +65,7 @@ function ViewDetail() {
         </button>
         <button
           type="button"
-          className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="share-view"
           disabled={share.isPending}
           onClick={() => share.mutate({})}

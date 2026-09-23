@@ -244,7 +244,7 @@ export function LlmProviders() {
               type="submit"
               data-testid="provider-save"
               disabled={create.isPending || spec?.supported === false}
-              className="rounded-sm border border-border bg-accent px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
+              className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
             >
               {create.isPending ? 'Saving…' : 'Add provider'}
             </button>

@@ -56,4 +56,4 @@ wait_healthy() {
 wait_healthy repopulse-postgres
 wait_healthy repopulse-redis
 
-echo "Dev data tier is up: postgres on 127.0.0.1:5432, redis on 127.0.0.1:6379"
+echo "Dev data tier is up: postgres on 127.0.0.1:${POSTGRES_PORT:-15432}, redis on 127.0.0.1:${REDIS_PORT:-16379}"

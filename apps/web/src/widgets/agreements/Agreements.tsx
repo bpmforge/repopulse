@@ -58,7 +58,7 @@ export function Agreements() {
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Agreement
             <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="panel px-2 py-1 text-sm"
               data-testid="agreement-kind"
               value={kind}
               onChange={(e) => setKind(e.target.value)}
@@ -75,7 +75,7 @@ export function Agreements() {
             <input
               type="number"
               step="any"
-              className="w-28 rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="w-28 panel px-2 py-1 text-sm"
               data-testid="agreement-threshold"
               placeholder={String(chosen.placeholder)}
               value={value}
@@ -115,7 +115,7 @@ export function Agreements() {
           {items.map((a) => {
             const meta = KINDS.find((k) => k.id === a.kind);
             return (
-              <li key={a.id} className="rounded-md border border-border bg-surface p-3" data-testid={`agreement-${a.id}`}>
+              <li key={a.id} className="panel p-3" data-testid={`agreement-${a.id}`}>
                 <div className="flex flex-wrap items-baseline gap-2">
                   <h3 className="min-w-0 flex-1 text-sm font-medium">
                     {meta?.label ?? a.kind}{' '}
@@ -138,7 +138,7 @@ export function Agreements() {
                         <span className="text-fg-muted">{e.repo}</span>{' '}
                         <a
                           href={`/repos/${e.repo_id}/prs/${e.pr_number}`}
-                          className="text-accent hover:underline"
+                          className="text-accent underline underline-offset-2 hover:text-fg"
                         >
                           #{e.pr_number}
                         </a>{' '}

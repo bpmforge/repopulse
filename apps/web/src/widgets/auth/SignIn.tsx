@@ -8,6 +8,7 @@ import {
   useAuthProviders,
   type LocalLoginResult,
 } from './contracts.js';
+import { RepoPulseMark } from '../../components/brand/RepoPulseMark.js';
 
 // The sign-in screen (W15-04, D14).
 //
@@ -78,9 +79,9 @@ export function SignIn({ expired }: SignInProps) {
   });
 
   return (
-    <div className="flex min-h-screen w-screen items-center justify-center bg-bg p-6 text-fg">
+    <div className="flex min-h-screen w-screen items-center justify-center bg-bg bg-[radial-gradient(70%_45%_at_50%_0%,var(--glow),transparent)] p-6 text-fg">
       <main
-        className="w-full max-w-sm rounded-md border border-border bg-surface p-6"
+        className="panel panel-hero w-full max-w-sm p-7"
         data-testid="signin"
       >
         {/* W16-02 (F2). The demo banner is in the shell, which only mounts
@@ -90,7 +91,7 @@ export function SignIn({ expired }: SignInProps) {
             to promise that any login worked, and it never did for this form. */}
         {providers.demo ? (
           <p
-            className="mb-4 rounded-sm border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
+            className="mb-4 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
             data-testid="signin-demo-banner"
           >
             <span className="font-medium">Demo mode</span> — fake forge, seeded fixture data.
@@ -100,7 +101,12 @@ export function SignIn({ expired }: SignInProps) {
           </p>
         ) : null}
 
-        <h1 className="text-base font-medium">RepoPulse</h1>
+        {/* W17-13: mark + wordmark. The mark is aria-hidden inside the
+            wordmark, so the h1 still announces "RepoPulse" exactly once. */}
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+          <RepoPulseMark size={28} />
+          RepoPulse
+        </h1>
         <p className="mt-2 text-sm text-fg-muted">
           {expired
             ? 'Your session ended. Sign in again to pick up where you left off — nothing was lost.'
@@ -171,7 +177,7 @@ export function SignIn({ expired }: SignInProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     aria-describedby={login.error ? errorId : undefined}
-                    className="rounded-sm border border-border bg-surface-2 px-3 py-2 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    className="h-10 rounded-md border border-border bg-bg px-3 text-sm text-fg hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -188,14 +194,14 @@ export function SignIn({ expired }: SignInProps) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     aria-describedby={login.error ? errorId : undefined}
-                    className="rounded-sm border border-border bg-surface-2 px-3 py-2 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    className="h-10 rounded-md border border-border bg-bg px-3 text-sm text-fg hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   />
                 </div>
                 <button
                   type="submit"
                   data-testid="signin-submit"
                   disabled={login.isPending}
-                  className="inline-flex w-full items-center justify-center rounded-sm border border-border bg-accent px-3 py-2 text-sm text-accent-fg disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-md bg-accent-strong px-3 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   {login.isPending ? 'Signing in…' : 'Sign in'}
                 </button>
@@ -212,7 +218,7 @@ export function SignIn({ expired }: SignInProps) {
               <a
                 href="/auth/oidc/login"
                 data-testid="signin-oidc"
-                className="mt-2 inline-flex w-full items-center justify-center rounded-sm border border-border bg-surface-2 px-3 py-2 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {/* The operator's own name for it. "Sign in with OIDC" means
                     nothing to the person who only knows it as "Okta". */}
@@ -224,7 +230,7 @@ export function SignIn({ expired }: SignInProps) {
               <a
                 href="/auth/login"
                 data-testid="signin-github"
-                className="mt-2 inline-flex w-full items-center justify-center rounded-sm border border-border bg-surface-2 px-3 py-2 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               >
                 Sign in with GitHub
               </a>

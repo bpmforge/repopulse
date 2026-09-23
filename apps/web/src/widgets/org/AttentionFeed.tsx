@@ -60,7 +60,7 @@ export function AttentionFeed({ window, search }: Props) {
               to="/repos/$repoId"
               params={{ repoId: String(item.repo_id) }}
               search={search as never}
-              className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="flex items-center justify-between gap-2 panel px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid={`attention-${item.repo_id}`}
             >
               <span className="truncate">{item.name}</span>

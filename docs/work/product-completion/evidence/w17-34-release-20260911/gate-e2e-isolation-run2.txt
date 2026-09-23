@@ -1,0 +1,9 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T06:21:56Z
+note: gate-e2e-isolation.txt stopped before isolation 2 produced output; this file completes it
+== isolation 2: pnpm e2e e2e/quality.spec.ts --grep 'every listed screen|no horizontal overflow at 390px, 200% zoom'
+3:> playwright test e2e/quality.spec.ts --grep 'every listed screen|no horizontal overflow at 390px, 200% zoom'
+10:  ✓  1 [chromium] › e2e/quality.spec.ts:157:3 › axe: screens the standing a11y spec never reached › every listed screen, dark theme, 1440px (10.5s)
+11:  ✓  2 [chromium] › e2e/quality.spec.ts:166:3 › axe: screens the standing a11y spec never reached › every listed screen, light theme, 1440px (10.0s)
+12:  ✘  3 [chromium] › e2e/quality.spec.ts:538:5 › no horizontal overflow at 390px, 200% zoom (7.9s)
+14:  3 passed (34.3s)
+EXIT=0  end 2026-09-11T06:22:31Z

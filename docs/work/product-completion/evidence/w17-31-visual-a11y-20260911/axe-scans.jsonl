@@ -1,0 +1,78 @@
+{"screen":"overview @1440 dark","violations":0,"passes":30,"incomplete":2}
+{"screen":"repos @1440 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"pull-requests @1440 dark","violations":0,"passes":27,"incomplete":1}
+{"screen":"reviews @1440 dark","violations":0,"passes":27,"incomplete":1}
+{"screen":"plans @1440 dark","violations":0,"passes":24,"incomplete":1}
+{"screen":"reports @1440 dark","violations":0,"passes":25,"incomplete":1}
+{"screen":"views @1440 dark","violations":0,"passes":22,"incomplete":1}
+{"screen":"my-focus @1440 dark","violations":0,"passes":25,"incomplete":2}
+{"screen":"settings @1440 dark","violations":0,"passes":30,"incomplete":1}
+{"screen":"settings-members @1440 dark","violations":0,"passes":24,"incomplete":1}
+{"screen":"settings-sync @1440 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"settings-models @1440 dark","violations":0,"passes":27,"incomplete":1}
+{"screen":"settings-rules @1440 dark","violations":0,"passes":22,"incomplete":1}
+{"screen":"settings-config @1440 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"settings-identities @1440 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"settings-agreements @1440 dark","violations":0,"passes":25,"incomplete":1}
+{"screen":"settings-analysis @1440 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"setup @1440 dark","violations":0,"passes":25,"incomplete":2}
+{"screen":"overview @1440 light","violations":0,"passes":30,"incomplete":2}
+{"screen":"repos @1440 light","violations":0,"passes":26,"incomplete":1}
+{"screen":"pull-requests @1440 light","violations":0,"passes":27,"incomplete":1}
+{"screen":"reviews @1440 light","violations":0,"passes":27,"incomplete":1}
+{"screen":"plans @1440 light","violations":0,"passes":24,"incomplete":1}
+{"screen":"reports @1440 light","violations":0,"passes":25,"incomplete":1}
+{"screen":"views @1440 light","violations":0,"passes":22,"incomplete":1}
+{"screen":"my-focus @1440 light","violations":0,"passes":25,"incomplete":2}
+{"screen":"settings @1440 light","violations":0,"passes":30,"incomplete":1}
+{"screen":"settings-members @1440 light","violations":0,"passes":24,"incomplete":1}
+{"screen":"settings-sync @1440 light","violations":0,"passes":26,"incomplete":1}
+{"screen":"settings-models @1440 light","violations":0,"passes":27,"incomplete":1}
+{"screen":"settings-rules @1440 light","violations":0,"passes":22,"incomplete":1}
+{"screen":"settings-config @1440 light","violations":0,"passes":26,"incomplete":1}
+{"screen":"settings-identities @1440 light","violations":0,"passes":26,"incomplete":1}
+{"screen":"settings-agreements @1440 light","violations":0,"passes":25,"incomplete":1}
+{"screen":"settings-analysis @1440 light","violations":0,"passes":26,"incomplete":1}
+{"screen":"setup @1440 light","violations":0,"passes":25,"incomplete":2}
+{"screen":"repo/pulse @1440 dark","violations":0,"passes":28,"incomplete":2}
+{"screen":"repo/hotspots @1440 dark","violations":0,"passes":29,"incomplete":2}
+{"screen":"repo/pr-flow @1440 dark","violations":0,"passes":29,"incomplete":2}
+{"screen":"repo/ci @1440 dark","violations":0,"passes":32,"incomplete":2}
+{"screen":"repo/security @1440 dark","violations":0,"passes":30,"incomplete":2}
+{"screen":"repo/code-health @1440 dark","violations":0,"passes":27,"incomplete":2}
+{"screen":"repo/performance @1440 dark","violations":0,"passes":25,"incomplete":2}
+{"screen":"repo/activity @1440 dark","violations":0,"passes":30,"incomplete":2}
+{"screen":"repo/prs @1440 dark","violations":0,"passes":28,"incomplete":2}
+{"screen":"repo/findings @1440 dark","violations":0,"passes":25,"incomplete":2}
+{"screen":"repo/pulse @1440 light","violations":0,"passes":28,"incomplete":2}
+{"screen":"repo/hotspots @1440 light","violations":0,"passes":29,"incomplete":2}
+{"screen":"repo/pr-flow @1440 light","violations":0,"passes":29,"incomplete":2}
+{"screen":"repo/ci @1440 light","violations":0,"passes":32,"incomplete":2}
+{"screen":"repo/security @1440 light","violations":0,"passes":30,"incomplete":2}
+{"screen":"repo/code-health @1440 light","violations":0,"passes":27,"incomplete":2}
+{"screen":"repo/performance @1440 light","violations":0,"passes":25,"incomplete":2}
+{"screen":"repo/activity @1440 light","violations":0,"passes":30,"incomplete":2}
+{"screen":"repo/prs @1440 light","violations":0,"passes":28,"incomplete":2}
+{"screen":"repo/findings @1440 light","violations":0,"passes":25,"incomplete":2}
+{"screen":"overview request-failure","violations":0,"passes":26,"incomplete":1}
+{"screen":"repos request-failure","violations":0,"passes":24,"incomplete":1}
+{"screen":"pull-requests request-failure","violations":0,"passes":25,"incomplete":1}
+{"screen":"reviews request-failure","violations":0,"passes":25,"incomplete":1}
+{"screen":"plans request-failure","violations":0,"passes":24,"incomplete":1}
+{"screen":"reports request-failure","violations":0,"passes":25,"incomplete":1}
+{"screen":"overview empty","violations":0,"passes":24,"incomplete":1}
+{"screen":"repos empty","violations":0,"passes":24,"incomplete":1}
+{"screen":"pull-requests empty","violations":0,"passes":25,"incomplete":1}
+{"screen":"reviews empty","violations":0,"passes":25,"incomplete":1}
+{"screen":"plans empty","violations":0,"passes":24,"incomplete":1}
+{"screen":"reports empty","violations":0,"passes":25,"incomplete":1}
+{"screen":"overview @390 dark","violations":0,"passes":30,"incomplete":2}
+{"screen":"repos @390 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"pull-requests @390 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"reviews @390 dark","violations":0,"passes":26,"incomplete":1}
+{"screen":"plans @390 dark","violations":0,"passes":22,"incomplete":1}
+{"screen":"reports @390 dark","violations":0,"passes":23,"incomplete":1}
+{"screen":"views @390 dark","violations":0,"passes":20,"incomplete":1}
+{"screen":"my-focus @390 dark","violations":0,"passes":23,"incomplete":2}
+{"screen":"settings @390 dark","violations":0,"passes":30,"incomplete":1}
+{"screen":"drawer open @390 dark","violations":0,"passes":31,"incomplete":2}

@@ -6,7 +6,8 @@ import { core, facts, type Database } from '@repopulse/shared';
 import { rankHotspots } from '@repopulse/insights';
 import { computeReviewLoad, readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
-import { repoHealth } from '../org/health.js';
+import { repoHealth, repoHealthMany } from '../org/health.js';
+import { repoCapabilities } from '../../lib/capability.js';
 
 // Drill-down levels 1–2 (FR-API-5, API_DESIGN §2 'repos'). Warehouse-only.
 // Every level returns `links` to its children so a client can walk
@@ -89,24 +90,38 @@ export default async function reposRoutes(
       })
       .from(core.repos)
       .where(eq(core.repos.workspaceId, workspaceId));
-    const items = await Promise.all(
-      repos.map(async (r) => {
-        const health = await repoHealth(db, workspaceId, r.id, window, r.pushedAt, nowMs);
-        return {
-          id: r.id,
-          org: r.org,
-          name: r.name,
-          sync: r.syncStatus,
-          health: {
-            score: Math.round(health.score),
-            letter: health.letter,
-            basis: health.tier1Only ? 'Tier-1 only' : 'full',
-            delta: null,
-          },
-          links: repoLinks(r.id),
-        };
-      }),
-    );
+    // One batched read for every repo (W17-32), not one loader call per row.
+    const healths = await repoHealthMany(db, workspaceId, repos, window, nowMs);
+    const items = repos.map((r) => {
+      const health = healths.get(r.id)!;
+      // UNKNOWN is a third state, not a low number (W17-18).
+      //
+      // computeHealthScore sums contributions, so a repo where every
+      // sub-score was dropped for want of inputs sums an EMPTY set to 0 —
+      // and scoreLetter(0) is 'E'. Serialized as `{score: 0, letter: 'E'}`
+      // that is a verdict the warehouse never reached, and it ranks a repo
+      // nobody has ingested below every genuinely unhealthy one. Same
+      // discipline the sub-scores themselves already follow: unmeasured is
+      // excluded, never scored.
+      const measured = health.subScores.length > 0;
+      return {
+        id: r.id,
+        org: r.org,
+        name: r.name,
+        sync: r.syncStatus,
+        health: {
+          score: measured ? Math.round(health.score) : null,
+          // Null together with the score: a letter beside a null score would
+          // be the same claim by another name.
+          letter: measured ? health.letter : null,
+          measured,
+          // Not "Tier-1 only" either — there is no tier of evidence here.
+          basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
+          delta: null,
+        },
+        links: repoLinks(r.id),
+      };
+    });
     return reply.send({ items });
   });
 
@@ -307,7 +322,12 @@ export default async function reposRoutes(
         defaultBranchRuns?: number;
         prRuns?: number;
         duration?: { medianMs: number | null; p90Ms: number | null };
-        flakiness?: { workflowName: string; flakinessRatio: number | null; rerunGroups: number; flippedGroups: number }[];
+        flakiness?: {
+          workflowName: string;
+          flakinessRatio: number | null;
+          rerunGroups: number;
+          flippedGroups: number;
+        }[];
         flakinessWorkflows?: number;
       };
 
@@ -339,4 +359,50 @@ export default async function reposRoutes(
       });
     },
   );
+
+  /**
+   * GET /repos/:id/capabilities — what has actually been measured here (W17-10).
+   *
+   * The one canonical producer. Every screen that wants to say "this is fresh"
+   * or "this has never run" reads this rather than deciding for itself, because
+   * two screens deciding separately is how they end up disagreeing in front of
+   * a user.
+   */
+  app.get<{ Params: { id: string } }>('/repos/:id/capabilities', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) {
+      sendProblem(request, reply, 401, 'No active session');
+      return reply;
+    }
+    const repoId = Number(request.params.id);
+    if (!Number.isInteger(repoId)) {
+      sendProblem(request, reply, 400, 'Invalid repository id');
+      return reply;
+    }
+
+    const result = await repoCapabilities(opts.db, workspaceId, repoId);
+    // Tenancy (Law 5): another workspace's repository is a 404, never a 403 —
+    // a 403 would confirm the id exists.
+    if (!result) {
+      sendProblem(request, reply, 404, 'Not Found');
+      return reply;
+    }
+
+    return reply.send({
+      repo_id: result.repoId,
+      checked_at: result.checkedAt,
+      freshness_hours: result.freshnessHours,
+      capabilities: result.capabilities.map((c) => ({
+        id: c.id,
+        label: c.label,
+        kind: c.kind,
+        state: c.state,
+        last_success_at: c.lastSuccessAt,
+        latest_run_id: c.latestRunId,
+        last_success_ref: c.lastSuccessRef,
+        stale: c.stale,
+        detail: c.detail,
+      })),
+    });
+  });
 }

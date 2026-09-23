@@ -35,8 +35,7 @@ export const DIMENSIONS_AWAITING_PRODUCER: Record<string, string> = {
   // FR-ANALYSIS-4 makes this a v1.x Tier-2 checklist dimension, and FR-REG-6
   // parks coverage ingestion outright. `test_gap` is the register dimension
   // that ships today and is a different question.
-  test_coverage:
-    'Coverage ingestion is parked (FR-REG-6). Test-gap findings file under Test Gap.',
+  test_coverage: 'Coverage ingestion is parked (FR-REG-6). Test-gap findings file under Test Gap.',
 };
 
 /** True when a dimension is selectable but cannot yet return anything. */
@@ -124,6 +123,47 @@ export const SEVERITY_LABEL: Record<number, string> = {
   2: '○ low',
   1: '○ info',
 };
+
+/**
+ * The whole review, as plain text (W17-23).
+ *
+ * For pasting into a PR comment, a ticket, or a message — which is where a
+ * review decision actually gets acted on, and none of those places is this
+ * app. Plain text on purpose: markdown pasted into a plain field is noise, and
+ * plain text pasted into a markdown field is still readable. It is BUILT from
+ * what the panel already holds and never fetched, and it writes nowhere: the
+ * clipboard is the only destination, and no forge is told anything.
+ */
+export function reviewSummary(finding: Finding, history: readonly FindingEvent[] = []): string {
+  const lines = [
+    `Finding #${finding.id}: ${finding.title}`,
+    `Repository: ${finding.repo.org}/${finding.repo.name}`,
+    `Location: ${locationOf(finding)}`,
+    `Severity: ${(SEVERITY_LABEL[finding.severity] ?? String(finding.severity)).replace(/^[●○] /, '')}` +
+      ` · confidence ${finding.confidence}/5 · ${finding.dimension.replace('_', ' ')}`,
+    `Status: ${finding.status.replace('_', ' ')}` +
+      (finding.dismiss_reason ? ` (${finding.dismiss_reason.replace('_', ' ')})` : ''),
+    `Verification: ${(VERIFY_LABEL[finding.verify_status] ?? finding.verify_status).replace(/^[✓✕·]+ /, '')}`,
+    ...(finding.forge ? [`Link: ${finding.forge.url}`] : []),
+    '',
+    'Evidence:',
+    finding.evidence,
+    '',
+    'Recommendation:',
+    finding.recommendation,
+  ];
+  if (history.length > 0) {
+    lines.push('', 'History:');
+    for (const e of history) {
+      const who = e.automatic ? 'automatic' : (e.actor_login ?? 'a person');
+      lines.push(
+        `- ${e.at.slice(0, 10)} ${e.from_status ?? 'new'} → ${e.to_status} (${who}` +
+          `${e.reason ? `: ${e.reason}` : ''})`,
+      );
+    }
+  }
+  return lines.join('\n');
+}
 
 /**
  * Where a finding is, in words a reader can act on (W16-40).

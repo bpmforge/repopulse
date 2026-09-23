@@ -122,19 +122,25 @@ test('the org overview composes through WidgetGrid with 2x2 heroes (W4-21, R-D2)
 
   // Sizing VARIETY is what makes a grid read bento rather than spreadsheet, so
   // the assertion is that the panels do not all span the same width.
+  // Placement moved from inline grid-column/grid-row to CSS custom properties
+  // in W17-15 (so it applies only from md up), which is why reading
+  // `style.gridColumn` here started returning '' for every panel — the same
+  // '' for all, which read as "every panel is the same width". The data-w/
+  // data-h attributes ARE the placement contract now, so they are what the
+  // assertion reads.
   const spans = await grid.locator('> div').evaluateAll((nodes) =>
-    nodes.map((n) => (n as HTMLElement).style.gridColumn),
+    nodes.map((n) => (n as HTMLElement).dataset['w']),
   );
   expect(spans.length).toBeGreaterThan(2);
   expect(new Set(spans).size, 'every panel is the same width — that is a spreadsheet').toBeGreaterThan(1);
   // The two heroes are half-width and two rows tall.
   const heroRows = await grid.locator('> div').evaluateAll((nodes) =>
     nodes
-      .filter((n) => (n as HTMLElement).style.gridColumn === 'span 6')
-      .map((n) => (n as HTMLElement).style.gridRow),
+      .filter((n) => (n as HTMLElement).dataset['w'] === '6')
+      .map((n) => (n as HTMLElement).dataset['h']),
   );
   expect(heroRows.length).toBe(2);
-  for (const row of heroRows) expect(row).toBe('span 2');
+  for (const row of heroRows) expect(row).toBe('2');
 
   // And every panel still renders its real content, not the registry's
   // unknown-type placeholder — an unregistered type degrades silently, which

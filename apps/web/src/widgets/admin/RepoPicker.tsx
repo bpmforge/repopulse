@@ -78,7 +78,7 @@ export function RepoPicker({ connectionId, connectionsKey }: Props) {
             type="button"
             disabled={selected.size === 0 || select.isPending}
             onClick={() => select.mutate({ repo_forge_ids: [...selected] })}
-            className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="panel-inset px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid="repo-select-submit"
           >
             {select.isPending ? 'Starting backfill…' : `Track ${selected.size} repo(s)`}

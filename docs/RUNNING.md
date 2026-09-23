@@ -1,24 +1,30 @@
-# Running RepoPulse
+# Running RepoPulse (developers)
 
-Three ways to run it, in order of how much you need first:
+This is the developer document. If you are installing RepoPulse to use it,
+start with [INSTALL.md](INSTALL.md); this file is about running it from a
+checkout.
+
+Four ways to run it, in order of how much you need first:
 
 | | What you need | What you get |
 |---|---|---|
-| [Demo mode](#demo-mode) | nothing but Docker/Podman | the whole product, fake data, no forge account |
-| [Dev stack](#dev-stack) | a forge token or App, for real data | your own org's real data, hot reload |
-| [Containers](#containers) | nothing but Docker/Podman | the customer-hostable stack |
+| [Demo container](#the-demo-container) | a container runtime | the customer stack, a fixture forge, an empty first run |
+| [Demo mode](#demo-mode-from-a-checkout) | Node 22, pnpm, a container runtime | the whole product with seeded data, hot reload |
+| [Dev stack](#dev-stack) | the above plus a forge token | your own organisation's real data, hot reload |
+| [Container stack](#container-stack) | a container runtime | what a customer installs, built from this checkout |
 
-**None of these needs a GitHub account to start.** Since D14 you sign in with a
-local account, so a forge credential buys you repository *data*, not entry.
+**None of these needs a GitHub account to start.** You sign in with a local
+account, so a forge credential buys you repository *data*, not entry.
 
-Everything runs locally. RepoPulse never clones a repository (CONSTRAINTS.md
-C1) and the web app never calls a forge — it reads only our own Postgres.
+Everything runs locally. RepoPulse never clones a repository and the web app
+never calls a forge — it reads only our own Postgres.
 
 ---
 
-## The demo container (no checkout, no Node, no .env)
+## The demo container
 
-One command, and everything after it is done in the browser:
+No checkout tooling, no Node, no `.env`. One command, and everything after it
+is done in the browser:
 
 ```bash
 ./deploy/demo.sh          # build + start, then print where to go
@@ -39,21 +45,23 @@ live. Models, settings, agreements and scanners are all configured from the UI
 too — nothing in this stack needs a file edited.
 
 **What makes it a demo is only the forge.** `deploy/compose.demo.yaml` builds
-the SAME api, worker, migrate and web images `deploy/compose.yaml` does, and
-changes one thing: `FORGE_BASE_URL` points at a fixture server instead of
-api.github.com. There is no demo mode, no seeded data and no special-cased code
-path — which is what makes it evidence that the product works rather than a
-mock of it.
+the SAME api, worker, migrate, scan-runner and web images `deploy/compose.yaml`
+does, and changes one thing: `FORGE_BASE_URL` points at a fixture server
+instead of api.github.com. There is no demo mode, no seeded data and no
+special-cased code path — which is what makes it evidence that the product
+works rather than a mock of it. The release's recorded customer journey
+(`deploy/journey.sh run`, below) is this stack plus one fixture-model service.
 
 Every secret in that compose file is a fixed published throwaway, which is safe
 for exactly one reason: it binds to loopback only. It is not an install recipe —
 `deploy/compose.yaml` is, and it refuses to start without real ones.
 
-`api` and `worker` share the `forge` container's network namespace. SC-12 allows
-an `http://` forge URL only for an exact loopback host, so reaching the fixture
-as `http://forge:3309` would be refused by the same guard that stops the product
-being pointed at an internal address. Sharing the namespace satisfies that guard
-honestly instead of relaxing it for a fixture's convenience.
+`api` and `worker` share the `forge` container's network namespace. An
+`http://` forge URL is allowed only for an exact loopback host, so reaching
+the fixture as `http://forge:3309` would be refused by the same guard that
+stops the product being pointed at an internal address. Sharing the namespace
+satisfies that guard honestly instead of relaxing it for a fixture's
+convenience.
 
 ## Demo mode (from a checkout)
 
@@ -81,9 +89,6 @@ weaken the login route, so what you sign in through is the same path a real
 install uses. *Sign in with GitHub* also works and needs no GitHub account:
 that is the boundary demo mode mocks.
 
-Both are safe only because demo mode refuses to start under
-`NODE_ENV=production` (below).
-
 Everything you see is fake — a seeded warehouse of three invented repositories,
 served through a local fake forge. The app says so in a banner across the top,
 because the screens are identical to the real thing and a screenshot of demo
@@ -105,8 +110,8 @@ secret you already have.
 
 It does **not** invent `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` —
 those identify an OAuth app only you can register, and a fake value would fail
-at the login screen instead of here. Since D14 their absence is no longer fatal:
-the API starts without them and simply offers no GitHub button.
+at the login screen instead of here. Their absence is not fatal: the API starts
+without them and simply offers no GitHub button.
 
 It also does not invent `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Demo mode does not
 need them (the login boundary is mocked), but a real sign-in does — add them to
@@ -127,7 +132,8 @@ default credential.
 ## Ports
 
 RepoPulse deliberately does not use the framework defaults. `5173` (Vite),
-`3000` and `3001` are what every other project on a machine also picks, and
+`3000` and `3001`, Postgres's `5432` and Redis's `6379` are what every other
+project on a machine also picks, and
 sharing a machine with one of them is enough to lose a test run — Playwright
 found `5173` held by an unrelated app and refused to start.
 
@@ -139,7 +145,10 @@ found `5173` held by an unrelated app and refused to start.
 | e2e API | 3310 | `E2E_API_PORT` |
 | e2e worker healthz | 3311 | `E2E_WORKER_HEALTH_PORT` |
 | e2e fake forge | 9099 | `E2E_FAKE_FORGE_PORT` |
+| Demo container (web) | 8090 | `REPOPULSE_DEMO_PORT` |
 | Container stack (web) | 8099 | `REPOPULSE_PORT` in `deploy/.env` |
+| Postgres (dev data tier, host side) | 15432 | `POSTGRES_PORT` + `DATABASE_URL` |
+| Redis (dev data tier, host side) | 16379 | `REDIS_PORT` + `REDIS_URL` |
 
 The defaults live in **`ports.config.mjs`**, which the dev runner, the Vite
 config and the Playwright config all import — one file, so they cannot drift
@@ -155,10 +164,12 @@ silently sliding to 5274 and making every documented URL wrong.
 Same as above against real data instead of the seeded warehouse.
 
 Sign-in itself needs nothing new: set `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`
-(above), run `pnpm dev`, and log in with them. Register an OAuth app only if you
-want the **GitHub sign-in button** as well — connecting an organisation to pull
-its data is done from Admin → Connections once you are signed in, and on a
-self-hosted forge takes a Gitea token rather than any of this.
+(above), run `pnpm dev`, and log in with them. Connecting an organisation to
+pull its data is done from Admin → Connections once you are signed in, with a
+read-only personal access token for GitHub, GitLab or Gitea (scopes in
+[INSTALL.md](INSTALL.md#connect-your-forge)).
+
+Register an OAuth app only if you want the **GitHub sign-in button** as well:
 
 1. Register an OAuth app at <https://github.com/settings/developers>:
    - **Homepage URL** `http://localhost:5273`
@@ -184,87 +195,61 @@ Ctrl-C stops all three.
 
 ---
 
-## Containers
+## Container stack
 
-The customer-hostable stack — API, worker, web, Postgres, Redis, and a
-migration job — built from this repo. Postgres and Redis are not published to
-the host; the web container is the only externally-listening surface, and you
-put your own TLS terminator in front of it.
+The customer-hostable stack — API, worker, scan-runner, web, Postgres, Redis,
+and a one-shot migration job — built from this checkout. Postgres and Redis
+are not published to the host; the web container is the only
+externally-listening surface, and you put your own TLS terminator in front of
+it.
 
 ```bash
-cp deploy/.env.example deploy/.env
-# fill in POSTGRES_PASSWORD, REDIS_PASSWORD, SESSION_SECRET, TOKEN_ENC_KEY,
-# WEBHOOK_SECRET — none have defaults on purpose — and add ADMIN_EMAIL /
-# ADMIN_PASSWORD, which are how you get in the first time. The GITHUB_APP_*
-# values are optional and can stay blank.
-./deploy/up.sh
+ADMIN_PASSWORD='a long passphrase' deploy/configure.sh --url=http://localhost:8099 --admin-email=you@example.com
+deploy/up.sh --build
+curl -f http://127.0.0.1:8099/healthz && echo OK
 ```
 
-Use `deploy/up.sh`, not `compose up` directly. It does two things the raw
-command does not, both of which cost a real install its ingestion:
+`configure.sh` writes `deploy/.env` with every secret generated and never
+rewrites it; `deploy/.env.example` is the reference for what each line means.
+Use `deploy/up.sh`, not `compose up` directly. It does three things the raw
+command does not, each of which cost a real install its ingestion or its
+schema:
 
-1. **It creates the scan-rules mount source.** `SCAN_RULES_DIR` defaults to an
-   absolute host path that nothing creates, and a bind mount whose source is
-   missing fails at container-creation time — so the worker never starts and
-   cannot report why. `up.sh` defaults it to the shipped `deploy/scan-rules`
-   and creates it.
+1. **It creates the scan-data mount source.** A bind mount whose source is
+   missing fails at container-creation time, so the worker never starts and
+   cannot report why. `up.sh` defaults `SCAN_RULES_DIR` to the shipped
+   `deploy/scan-rules` and creates it.
 2. **It verifies the stack afterwards.** `compose up` returned success while
-   leaving the worker dead, and the web tier answers 200 either way — so a
-   loading page is not proof the stack came up. `up.sh` exits non-zero and
-   names the services that are not running.
+   leaving the worker dead, and the web tier answers 200 either way. `up.sh`
+   exits non-zero and names the services that are not running.
+3. **It stops the application tier on a failed migration.** podman-compose
+   does not honour `service_completed_successfully`, so without this the API
+   and worker would start against an un-migrated schema.
 
-An empty scan-rules directory is fine: dependency scanning reports itself
+An empty scan-data directory is fine: dependency scanning reports itself
 unavailable (which the Security tab says plainly) until you run
-`deploy/scan-db-sync.sh`, which needs about 2 GB for the grype database.
+`deploy/scan-db-sync.sh`, which needs 5 GB under that directory.
 
 Then open `http://localhost:8099` (`REPOPULSE_PORT`) and sign in as
 `ADMIN_EMAIL`. [INSTALL.md](INSTALL.md) is the same path written for someone
-who did not write the code.
+who did not write the code, and covers the bundle a customer receives instead
+of this checkout.
 
-Generate each secret with `openssl rand -hex 32`. `deploy/.env` is gitignored
-and must stay that way: `TOKEN_ENC_KEY` decrypts every stored forge credential,
-so back it up separately and never rotate it casually — losing it means every
-connection must be re-entered.
+`SCAN_RULES_DIR`, if you set it, **must be an absolute path** — podman-compose
+resolves a relative bind source against your working directory, not the
+compose file's.
 
-`SCAN_RULES_DIR` **must be an absolute path** — podman-compose resolves a
-relative bind source against your working directory, not the compose file's.
-It must also exist before `up`, which is why `deploy/scan-rules` ships empty
-and why `up.sh` creates whatever you point it at. It is filled by
-`deploy/scan-db-sync.sh`, host-side, because the scan container has no network.
-
-### Verified clean run (W13-06, 2026-08-19)
-
-This exact path was run from a **fresh `.env` and empty volumes** on macOS 15 /
-Podman 5 (arm64), under its own compose project so it touched no existing
-install:
+### Building a bundle
 
 ```bash
-cp deploy/.env.example deploy/.env      # fill every blank; none has a default
-podman compose -p repopulse-clean -f deploy/compose.yaml up -d --build
-curl -f http://127.0.0.1:${REPOPULSE_PORT}/healthz
+deploy/bundle.sh --version=0.1.0-rc1 --out=$HOME/tmp/rp-bundle-out
 ```
 
-**Result: 37 seconds** from `up` to `/healthz` answering 200, with a warm image
-cache. All six containers healthy, 22 migrations applied to the empty database,
-`/` served the SPA, a pasted deep link (`/repos/1/ci`) returned 200 through the
-history fallback, and `/api/v1/me/context` correctly returned 401 unauthenticated.
-
-Two things this run found and fixed, both of which a customer would have hit:
-
-- **The migrate job could not tell you whether it had done anything.** It
-  printed `[migrate] up to date` identically whether it had just built the
-  entire schema from nothing or done nothing at all. It now prints
-  `[migrate] applied 22 migration(s); 22 total` on a first run and
-  `up to date (22 migration(s) already applied)` afterwards.
-- **The migration output looked like a crash.** Postgres NOTICEs were printed
-  as multi-line objects — `severity: 'NOTICE', message: 'relation
-  "__drizzle_migrations" already exists, skipping'` — in a shape
-  indistinguishable from an error, in the output the install guide tells you to
-  read. Notices are now suppressed by default.
-
-`scripts/validate-compose.sh` now also asserts that every variable the compose
-file reads appears in `.env.example`, and that no secret ships with a value.
-Both rules were checked by breaking them deliberately.
+Builds the images as `localhost/repopulse/<name>:<version>`, saves them to one
+archive, stages `deploy/` with the `build:` stanzas stripped, and packs a
+`.tar.gz` with a `.sha256` beside it. `dev` and `latest` are refused as
+versions. Nothing is pushed anywhere; there is no registry. The bundle's own
+`README.md` and `ARCHITECTURES.md` (under `deploy/bundle/`) travel with it.
 
 ---
 
@@ -275,52 +260,40 @@ project has ever passed was run locally. GitHub Actions is configured
 (`.github/workflows/ci.yml`) but has never executed — the account has no
 Actions billing — so no green check in this repository has ever meant anything.
 
-`.gitea/workflows/gate.yaml` is the replacement, aimed at the self-hosted Gitea
-at `git.bpmforge.com`. It mirrors the GitHub gate step for step: lint,
-typecheck, `pnpm test` with `REQUIRE_LIVE_INFRA=1` against Postgres + Redis
-services, the bundle budget, and the four validators.
+`.gitea/workflows/gate.yaml` is the replacement, aimed at the maintainers'
+self-hosted Gitea (an internal host, not reachable from outside). It mirrors
+the GitHub gate step for step: lint, typecheck, `pnpm test` with
+`REQUIRE_LIVE_INFRA=1` against Postgres + Redis services, the bundle budget,
+and the four validators.
 
 **It has never run either.** It needs a registered runner, which needs two
-things I cannot produce:
-
-1. **A runner registration token**, minted by a Gitea admin at
-   *Site Administration → Actions → Runners → Create new Runner*, or per-repo
-   at *Settings → Actions → Runners*.
-2. **A decision to install a persistent daemon** on whichever machine hosts the
-   runner, since acceptance requires it to survive a reboot.
-
-Once both exist:
+things only a Gitea admin can produce: a runner registration token (*Site
+Administration → Actions → Runners*), and a decision to install a persistent
+daemon on whichever machine hosts the runner. Once both exist:
 
 ```bash
 # On the runner host (macOS example; Linux is the same binary plus a systemd unit)
 brew install act_runner        # or download from gitea.com/gitea/act_runner/releases
 
 act_runner register --no-interactive \
-  --instance https://git.bpmforge.com \
+  --instance https://git.example.com \
   --token <REGISTRATION_TOKEN> \
   --name repopulse-local \
   --labels ubuntu-latest:docker://catthehacker/ubuntu:act-22.04,host:host
-
-# Survive a reboot (macOS): a launchd agent running `act_runner daemon`
-# in the directory holding .runner. On Linux, the packaged systemd unit.
 ```
 
 Then prove it goes **red** before trusting it green — push a commit with a
 deliberate type error and confirm the gate fails. A CI system nobody has seen
 fail is a CI system nobody has tested.
 
-Until that is done the GitHub workflow stays in place. Deleting it would leave
-the repository with no CI definition at all, which is worse than having one
-that has never been billed.
-
 ---
 
 ## Scan tools
 
 The security and code-health scanners do not run on the host. They run inside
-one sandboxed image (C1a, `Containerfile.scan`) that carries every tool they
-need — opengrep, lizard, jscpd, dependency-cruiser, syft and grype — pinned by
-version and checksum. One command builds it:
+one sandboxed image (`Containerfile.scan`) that carries every tool they need —
+opengrep, lizard, jscpd, dependency-cruiser, syft and grype — pinned by version
+and checksum. One command builds it:
 
 ```bash
 podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
@@ -329,30 +302,28 @@ podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
 Until it exists, every scanner that needs a tool fails with whatever podman
 says, and the repository's Security tab shows that failure verbatim with this
 command underneath it. `SCAN_IMAGE` overrides the tag if you build it
-elsewhere.
+elsewhere. In the container stack the worker never touches the runtime
+itself: the `scan-runner` sidecar holds the socket and launches the
+`--network=none` scan containers on its behalf.
 
 Two things this image deliberately does NOT contain:
 
 - **grype's vulnerability database.** It is refreshed daily and baking a copy
   in would ship a stale one that looks current. `deploy/scan-db-sync.sh` pulls
-  it. The scanner looks in `$SCAN_RULES_DIR/vuln-db`, defaulting to
-  `/var/lib/repopulse/scan-rules` — a deployment path, so on a dev machine
-  point it at the checkout:
-
-  ```bash
-  SCAN_RULES_DIR=$PWD/deploy/scan-rules DEMO_MODE=1 pnpm dev
-  ```
-
-  A database grype will refuse — it rejects anything over five days old — is
-  reported as a failed scan naming its age and the sync command, not as a
-  clean bill of health.
+  it into `$SCAN_RULES_DIR/vuln-db` (default `deploy/scan-rules`). A database
+  grype will refuse — it rejects anything over five days old — is reported as
+  a failed scan naming its age and the sync command, not as a clean bill of
+  health.
 - **Semgrep registry rules.** They are licence-barred for service use, so the
   semgrep scanner refuses a `p/…`, `r/…` or `auto` config outright rather than
   quietly ignoring it. The rules it runs are in-house and live in the repo.
 
 A scanner that reads **"(not in this build)"** on the Security tab is a
 different problem: there is no code for it here, and no tool you can install
-will change that. Today that is `owasp_web` and `owasp_llm`.
+will change that. Today that is `iac`. The `owasp_web` and `owasp_llm`
+checklists are shipped but off by default and manual; the release journey
+enabled one per repository through `PUT /scanners/:key`, because no screen
+does yet.
 
 ---
 
@@ -360,16 +331,31 @@ will change that. Today that is `owasp_web` and `owasp_llm`.
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test
-pnpm e2e                      # Playwright, against the seeded stack
+pnpm e2e                      # Playwright, against the seeded e2e stack
+pnpm e2e:demo                 # Playwright, against the demo container
+pnpm check:bundle             # production web build against its size budget
 ```
 
-**`pnpm test` warns and skips when Postgres/Redis are absent.** 37 test files
-need live infrastructure; without it they skip and the suite still passes, over
-a subset. Set `REQUIRE_LIVE_INFRA=1` to make a missing data tier a failure
-instead — that is what a real gate run looks like:
+**`pnpm test` warns and skips when Postgres/Redis are absent.** Dozens of test
+files need live infrastructure; without it they skip and the suite still
+passes, over a subset. Set `REQUIRE_LIVE_INFRA=1` to make a missing data tier
+a failure instead — that is what a real gate run looks like:
 
 ```bash
 REQUIRE_LIVE_INFRA=1 pnpm test
+```
+
+`scripts/dev-up.sh` starts the Podman VM and both data-tier containers; run it
+first on a machine that has been asleep, or the live-infra guard will report an
+environment outage as a code regression.
+
+The release evidence under `docs/work/product-completion/evidence/` was
+produced by three longer runs, each writing its own record:
+
+```bash
+./deploy/journey.sh run                       # the complete customer journey in a browser, ~10 min
+pnpm e2e e2e/quality.spec.ts                  # axe scans, keyboard flows, overflow, at three widths
+scripts/drill-backup-restore.sh --source=rp-drill-a --target=rp-drill-b --version=<tag>
 ```
 
 ---
@@ -382,11 +368,8 @@ the `deploy/compose.yaml` stack. `podman ps` to see, then either stop it or
 choose.
 
 **The login screen shows no GitHub button** — you have no OAuth app configured,
-which since D14 is a supported state rather than an error. Sign in with
-`ADMIN_EMAIL` / `ADMIN_PASSWORD`, or register an app (above) if you want the
-button back. It is no longer a startup failure: the API used to refuse to boot
-without `GITHUB_APP_CLIENT_ID`, and that is exactly what made the product
-un-installable for anyone who did not already have one.
+which is a supported state rather than an error. Sign in with `ADMIN_EMAIL` /
+`ADMIN_PASSWORD`, or register an app (above) if you want the button back.
 
 **`Invalid email or password` with the credentials you just set** — the account
 is created on the API's *first* boot after the variables appear, and only when
@@ -406,4 +389,6 @@ key.
 `pnpm seed`, or connect an organisation and wait for the first backfill.
 
 **Nothing ingests** — check the worker is running. `pnpm dev` starts it;
-running the API alone does not.
+running the API alone does not. In the container stack, Admin shows
+"Background worker — Not working" when no heartbeat has arrived in the last
+minute, and a scan start that no worker picks up says so after five minutes.

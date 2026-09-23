@@ -1,0 +1,28 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44
+date 2026-09-11T05:51:11Z
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+node v22.23.2 pnpm 9.15.9
+== pnpm lint
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+
+> repopulse@0.1.0 lint /Users/bmatthews/Code/repopulse
+> eslint .
+
+EXIT lint=0
+== pnpm typecheck
+apps/web typecheck$ tsc --noEmit -p tsconfig.json
+packages/metrics typecheck: Done
+packages/forge typecheck: Done
+packages/auth typecheck: Done
+apps/web typecheck: Done
+packages/insights typecheck$ tsc --noEmit -p tsconfig.json
+packages/ingest typecheck$ tsc --noEmit -p tsconfig.json
+packages/insights typecheck: Done
+packages/ingest typecheck: Done
+packages/reports typecheck$ tsc --noEmit -p tsconfig.json
+packages/security typecheck$ tsc --noEmit -p tsconfig.json
+packages/reports typecheck: Done
+packages/security typecheck: Done
+apps/api typecheck$ tsc --noEmit -p tsconfig.json
+apps/api typecheck: Done
+EXIT typecheck=

@@ -75,7 +75,7 @@ export function HealthWhy({ health }: Props) {
         // width, so a viewport narrower than 18rem shrinks the panel instead of
         // pushing it off-screen again.
         <div
-          className="absolute right-0 top-full z-10 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-surface p-3 shadow-sm"
+          className="absolute right-0 top-full z-10 mt-2 w-72 max-w-[calc(100vw-2rem)] panel p-3 shadow-sm"
           data-testid="health-why-popover"
         >
           <p className="mb-2 text-xs text-fg-muted">

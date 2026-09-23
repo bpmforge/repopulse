@@ -71,11 +71,14 @@ describe('deploy/up.sh health check (W16-04)', () => {
     const mkdirAt = script.indexOf('mkdir -p "$SCAN_RULES_DIR"');
     // The real invocation, not the `up -d` inside this script's own header
     // comment — which is earlier in the file and would make the assertion pass
-    // or fail for the wrong reason.
-    const composeAt = script.indexOf('"${COMPOSE[@]}" -f compose.yaml up -d');
+    // or fail for the wrong reason. Matched by shape rather than by an exact
+    // string: W17-04 inserted `-p "$REPOPULSE_PROJECT"` so a test stack cannot
+    // collide with the operator's, and pinning the literal made this assertion
+    // fail for a reason it does not care about.
+    const composeAt = script.search(/\$\{COMPOSE\[@\]\}"[^\n]*-f compose\.yaml up -d/);
 
     expect(mkdirAt, 'up.sh must create SCAN_RULES_DIR').toBeGreaterThan(-1);
-    expect(composeAt).toBeGreaterThan(-1);
+    expect(composeAt, 'up.sh must invoke compose up on compose.yaml').toBeGreaterThan(-1);
     expect(mkdirAt, 'the directory must be created BEFORE compose up').toBeLessThan(composeAt);
   });
 
@@ -87,5 +90,48 @@ describe('deploy/up.sh health check (W16-04)', () => {
     expect(read('deploy/compose.yaml')).toContain(
       '${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}',
     );
+  });
+});
+
+describe('container healthchecks use binaries the image HAS (W17-06)', () => {
+  // Verified in-image on 2026-09-08:
+  //   worker (node:22-alpine)  node yes, wget yes, curl NO
+  //   web    (nginx:1.27-alpine) wget yes, curl yes, nc yes, node NO
+  // Copying the api probe into the web stage would mark every web container
+  // unhealthy forever, and the failure would look like a broken web tier.
+  const dockerfile = read('Dockerfile');
+
+  /** The body of a stage, from `FROM ... AS <name>` to the next FROM. */
+  function stage(name: string): string {
+    const start = dockerfile.search(new RegExp(`^FROM .* AS ${name}$`, 'm'));
+    expect(start, `stage ${name} not found`).toBeGreaterThan(-1);
+    const after = dockerfile.slice(start + 1);
+    const end = after.search(/^FROM /m);
+    return end === -1 ? after : after.slice(0, end);
+  }
+
+  it('every long-running stage declares a healthcheck', () => {
+    for (const name of ['api', 'worker', 'web']) {
+      expect(stage(name), `${name} has no HEALTHCHECK`).toContain('HEALTHCHECK');
+    }
+  });
+
+  it('the web stage does NOT use node — nginx:alpine has none', () => {
+    const web = stage('web');
+    const healthLine = web.slice(web.indexOf('HEALTHCHECK'));
+    expect(healthLine).not.toMatch(/\bnode\b/);
+    expect(healthLine).toMatch(/wget|curl/);
+  });
+
+  it('the worker stage does NOT use curl — it is not installed there', () => {
+    const worker = stage('worker');
+    const healthLine = worker.slice(worker.indexOf('HEALTHCHECK'));
+    expect(healthLine).not.toMatch(/\bcurl\b/);
+    expect(healthLine).toMatch(/\bnode\b/);
+  });
+
+  it('the worker probe targets the worker health port, not the API port', () => {
+    const worker = stage('worker');
+    expect(worker.slice(worker.indexOf('HEALTHCHECK'))).toContain('WORKER_HEALTH_PORT');
   });
 });

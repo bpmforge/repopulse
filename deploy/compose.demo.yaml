@@ -65,6 +65,10 @@ services:
     image: repopulse/api:demo
     command: ['tsx', 'apps/api/src/demo-forge.ts']
     restart: unless-stopped
+    # Owns the namespace api and worker share, so it is the one that joins the
+    # scan network for the worker's sake. In the customer stack (compose.yaml)
+    # the worker has its own namespace and joins it alone.
+    networks: [default, scan]
     environment:
       DEMO_FORGE_PORT: '3309'
 
@@ -89,6 +93,10 @@ services:
     restart: unless-stopped
     # Shares the fixture's namespace, so 127.0.0.1:3309 IS the forge.
     network_mode: 'service:forge'
+    volumes:
+      # Read-only, so the Security tab can say whether a vulnerability
+      # database is present and how old it is (W17-27).
+      - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
     environment: &app_env
       DATABASE_URL: postgres://repopulse:demo-only-not-a-secret@postgres:5432/repopulse
       REDIS_URL: redis://:demo-only-not-a-secret@redis:6379
@@ -109,6 +117,7 @@ services:
       ADMIN_EMAIL: demo@repopulse.local
       ADMIN_PASSWORD: demo-password-change-me
       PORT: '3000'
+      SCAN_RULES_DIR: /var/lib/repopulse/scan-rules
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -124,16 +133,61 @@ services:
     restart: unless-stopped
     # Same namespace, same reason: the backfill it runs is what calls the forge.
     network_mode: 'service:forge'
-    environment: *app_env
-    # Scans need a writable scratch dir; the demo has no scan image, so the
-    # scanners report that honestly rather than being hidden.
-    tmpfs:
-      - /var/tmp/repopulse-scan:size=1g,mode=0700
+    environment:
+      <<: *app_env
+      # THE SAME SCAN PATH A CUSTOMER RUNS (W17-27). The worker has no
+      # container runtime; it hands each scan to scan-runner over the socket
+      # below, and the runner starts the scan container on the host's podman
+      # or docker. Build the scan image first (docs/RUNNING.md):
+      #   podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
+      SNAPSHOT_ROOT: /var/tmp/repopulse-scan
+      SCAN_IMAGE: ${SCAN_IMAGE:-localhost/repopulse/scan:dev}
+      # The worker shares the forge's network namespace, so the forge service
+      # is what joins the scan network (below); the runner is reached by name.
+      SCAN_RUNNER_URL: http://scan-runner:3310
+      SCAN_RUNNER_TOKEN: demo-only-not-a-secret
+    volumes:
+      - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
+      - scan-scratch:/var/tmp/repopulse-scan:z
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
       forge: { condition: service_started }
+      scan-runner: { condition: service_started }
+
+  # The one service with the container socket — identical in shape to the
+  # customer stack's (deploy/compose.yaml), where the reasoning is written out.
+  scan-runner:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: scan-runner
+    image: repopulse/scan-runner:demo
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    tmpfs: [/tmp]
+    user: "${SCAN_RUNNER_USER:-0:0}"
+    group_add: ["${CONTAINER_SOCKET_GID:-0}"]
+    environment:
+      SCAN_RUNTIME: ${SCAN_RUNTIME:-podman}
+      CONTAINER_SOCKET: /run/container.sock
+      SCAN_IMAGE: ${SCAN_IMAGE:-localhost/repopulse/scan:dev}
+      SNAPSHOT_ROOT: /var/tmp/repopulse-scan
+      SCAN_SCRATCH_VOLUME: repopulse-demo-scan-scratch
+      SCAN_RULES_DIR: /var/lib/repopulse/scan-rules
+      SCAN_RULES_HOST_DIR: ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}
+      SCAN_RUNNER_LISTEN: http://0.0.0.0:3310
+      SCAN_RUNNER_TOKEN: demo-only-not-a-secret
+    networks: [scan]
+    volumes:
+      - ${CONTAINER_SOCKET:-/run/user/1000/podman/podman.sock}:/run/container.sock
+      - scan-scratch:/var/tmp/repopulse-scan:ro,z
+      - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
 
   web:
     build:
@@ -156,3 +210,16 @@ services:
 
 volumes:
   demo-pgdata:
+  # RAM-backed, named, noexec — see deploy/compose.yaml for why (W17-27).
+  scan-scratch:
+    name: repopulse-demo-scan-scratch
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1g,mode=1777,noexec,nosuid,nodev
+
+networks:
+  default:
+  scan:
+    internal: true

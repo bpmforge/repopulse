@@ -1,0 +1,324 @@
+{
+  "label": "after-3repos",
+  "at": "2026-09-11T04:50:25.917Z",
+  "host": "darwin arm64 node v22.23.2",
+  "dataset": {
+    "repos": "4",
+    "findings": "3",
+    "snapshots": "1536"
+  },
+  "api": [
+    {
+      "path": "/api/v1/repos?window=30d",
+      "status": 200,
+      "bytes": 928,
+      "items": 3,
+      "p50_ms": 7.3,
+      "p95_ms": 9.9,
+      "max_ms": 9.9,
+      "samples_ms": [
+        8.4,
+        7,
+        6.9,
+        7.9,
+        9.9,
+        8.5,
+        6.5,
+        7.3,
+        8,
+        6.5
+      ],
+      "sql_queries_one_request": 8
+    },
+    {
+      "path": "/api/v1/org/health-tiles?window=30d",
+      "status": 200,
+      "bytes": 310,
+      "items": 3,
+      "p50_ms": 6.4,
+      "p95_ms": 11.2,
+      "max_ms": 11.2,
+      "samples_ms": [
+        11.2,
+        6.6,
+        6.8,
+        6.6,
+        6.4,
+        6.2,
+        6.6,
+        6.4,
+        6.3,
+        5.8
+      ],
+      "sql_queries_one_request": 8
+    },
+    {
+      "path": "/api/v1/org/attention?window=30d",
+      "status": 200,
+      "bytes": 290,
+      "items": 3,
+      "p50_ms": 9.3,
+      "p95_ms": 11.2,
+      "max_ms": 11.2,
+      "samples_ms": [
+        10.5,
+        9.2,
+        9.3,
+        11.2,
+        9.5,
+        8.9,
+        9.4,
+        8.9,
+        9.6,
+        8.7
+      ],
+      "sql_queries_one_request": 8
+    },
+    {
+      "path": "/api/v1/org/summary?window=30d",
+      "status": 200,
+      "bytes": 358,
+      "items": -1,
+      "p50_ms": 7.2,
+      "p95_ms": 8.8,
+      "max_ms": 8.8,
+      "samples_ms": [
+        8.8,
+        7.7,
+        7.2,
+        7.3,
+        7.8,
+        6.6,
+        5.5,
+        6.1,
+        6.9,
+        7.4
+      ],
+      "sql_queries_one_request": 10
+    },
+    {
+      "path": "/api/v1/findings",
+      "status": 200,
+      "bytes": 2428,
+      "items": 3,
+      "p50_ms": 6.7,
+      "p95_ms": 8.6,
+      "max_ms": 8.6,
+      "samples_ms": [
+        8.6,
+        7.8,
+        7.9,
+        7.8,
+        5.9,
+        5.8,
+        6.7,
+        6.8,
+        6.3,
+        6.1
+      ],
+      "sql_queries_one_request": 6
+    },
+    {
+      "path": "/api/v1/findings?sort=severity",
+      "status": 200,
+      "bytes": 2428,
+      "items": 3,
+      "p50_ms": 5.8,
+      "p95_ms": 9.7,
+      "max_ms": 9.7,
+      "samples_ms": [
+        9.7,
+        6.4,
+        6.2,
+        5.5,
+        6.5,
+        6.6,
+        5.8,
+        5.4,
+        5.3,
+        5.3
+      ],
+      "sql_queries_one_request": 6
+    },
+    {
+      "path": "/api/v1/findings?status=open&dimension=security",
+      "status": 200,
+      "bytes": 838,
+      "items": 1,
+      "p50_ms": 7.8,
+      "p95_ms": 9.9,
+      "max_ms": 9.9,
+      "samples_ms": [
+        8.3,
+        7.1,
+        7.8,
+        8.2,
+        9.5,
+        9.9,
+        9.1,
+        7,
+        5.8,
+        5.6
+      ],
+      "sql_queries_one_request": 6
+    },
+    {
+      "path": "/api/v1/findings/stats",
+      "status": 200,
+      "bytes": 224,
+      "items": -1,
+      "p50_ms": 7.3,
+      "p95_ms": 8.2,
+      "max_ms": 8.2,
+      "samples_ms": [
+        8.2,
+        7.3,
+        7.8,
+        7.6,
+        7.4,
+        7.4,
+        7.2,
+        6.9,
+        7.1,
+        7.1
+      ],
+      "sql_queries_one_request": 7
+    }
+  ],
+  "paging": [
+    {
+      "sort": "risk",
+      "pages": 1,
+      "max_page_items": 3,
+      "distinct_ids": 3,
+      "duplicate_ids": 0,
+      "table_rows": 3,
+      "missing": 0,
+      "walk_ms": 8
+    },
+    {
+      "sort": "severity",
+      "pages": 1,
+      "max_page_items": 3,
+      "distinct_ids": 3,
+      "duplicate_ids": 0,
+      "table_rows": 3,
+      "missing": 0,
+      "walk_ms": 7
+    }
+  ],
+  "pages": [
+    {
+      "path": "/",
+      "runs": 5,
+      "to_last_api_response_p50_ms": 126,
+      "to_last_api_response_max_ms": 127,
+      "samples_ms": [
+        127,
+        126,
+        125,
+        127,
+        124
+      ],
+      "dom_content_loaded_p50_ms": 48,
+      "api_requests": [
+        18,
+        18,
+        18,
+        18,
+        18
+      ],
+      "api_bytes": [
+        10965,
+        10972,
+        10976,
+        10974,
+        10977
+      ]
+    },
+    {
+      "path": "/repos",
+      "runs": 5,
+      "to_last_api_response_p50_ms": 91,
+      "to_last_api_response_max_ms": 93,
+      "samples_ms": [
+        89,
+        91,
+        92,
+        93,
+        90
+      ],
+      "dom_content_loaded_p50_ms": 47,
+      "api_requests": [
+        3,
+        3,
+        3,
+        3,
+        3
+      ],
+      "api_bytes": [
+        2296,
+        2296,
+        2296,
+        2296,
+        2296
+      ]
+    },
+    {
+      "path": "/findings",
+      "runs": 5,
+      "to_last_api_response_p50_ms": 98,
+      "to_last_api_response_max_ms": 100,
+      "samples_ms": [
+        99,
+        98,
+        96,
+        100,
+        97
+      ],
+      "dom_content_loaded_p50_ms": 47,
+      "api_requests": [
+        6,
+        6,
+        6,
+        6,
+        6
+      ],
+      "api_bytes": [
+        9353,
+        9353,
+        9353,
+        9353,
+        9353
+      ]
+    },
+    {
+      "path": "/repos/49497?window=30d",
+      "runs": 5,
+      "to_last_api_response_p50_ms": 104,
+      "to_last_api_response_max_ms": 107,
+      "samples_ms": [
+        107,
+        105,
+        104,
+        102,
+        104
+      ],
+      "dom_content_loaded_p50_ms": 48,
+      "api_requests": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "api_bytes": [
+        6432,
+        6433,
+        6433,
+        6433,
+        6433
+      ]
+    }
+  ]
+}

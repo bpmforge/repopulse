@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, read, security, type Database } from '@repopulse/shared';
 import { sendProblem } from '../../lib/problem.js';
+import { stateOf } from '../security/index.js';
 
 // Code Health API (W9-06, CODE_HEALTH_SUITE.md §6, FR-CH-6).
 //
@@ -132,13 +133,23 @@ export default async function codeHealthRoutes(
         const run = latest.get(key);
         return {
           key,
-          state: !run
-            ? ('never_run' as const)
-            : run.status === 'failed'
-              ? ('error' as const)
-              : run.partial
-                ? ('partial' as const)
-                : ('ok' as const),
+          // THE SECURITY TAB'S STATE FUNCTION, not a second one (W17-20). This
+          // used to fold everything that was not failed or partial into 'ok',
+          // so a scan_run inserted as 'running' read "✓ ran clean" here for
+          // the whole of every scan, and a run that scanned nothing or had
+          // every finding rejected earned a tick. One vocabulary, one writer.
+          state: stateOf(
+            true,
+            run
+              ? {
+                  status: run.status,
+                  partial: run.partial,
+                  error: run.error,
+                  validationFunnel: run.validationFunnel,
+                  startedAt: run.startedAt,
+                }
+              : undefined,
+          ),
           last_run_at: run?.finishedAt?.toISOString() ?? run?.startedAt.toISOString() ?? null,
           error: run?.error ?? null,
           tool_versions: run?.toolVersions ?? null,

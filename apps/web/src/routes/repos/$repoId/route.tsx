@@ -24,6 +24,13 @@ export const Route = createFileRoute('/repos/$repoId')({
 // click-through walk would have kept passing.
 const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/repos/$repoId/', label: 'Pulse', exact: true },
+  // Activity and Performance sit next to Pulse because they are the two
+  // questions asked before any drill-down: "what has been happening here" and
+  // "how fast does work get out". Neither owns an endpoint of its own —
+  // Activity links the analyses that already exist, Performance reads the
+  // delivery metrics nothing else on this screen shows.
+  { to: '/repos/$repoId/activity', label: 'Activity' },
+  { to: '/repos/$repoId/performance', label: 'Performance' },
   { to: '/repos/$repoId/hotspots', label: 'Hotspots' },
   { to: '/repos/$repoId/pr-flow', label: 'PR Flow' },
   { to: '/repos/$repoId/ci', label: 'CI' },
@@ -63,13 +70,27 @@ function RepoLayout() {
   // one.
   const setEntityCrumb = useUiStore((s) => s.setEntityCrumb);
 
-  const { data, isLoading, isError, error, refetch } = useApiQuery<RepoDetail>({
+  const { data, isError, error, refetch } = useApiQuery<RepoDetail>({
     endpoint: '/repos/{id}',
     path: { id: repoId },
     query: { window: search.window },
   });
 
-  const repoName = data?.name;
+  // THE ANSWER TO *THIS* REPOSITORY, NOT THE LAST ONE (W17-19).
+  //
+  // useApiQuery keeps the previous data while the new key loads
+  // (`placeholderData: keepPreviousData`) — deliberate for a window change, where
+  // a chart dimming to 50% beats a skeleton flash (UX §8), and wrong the moment
+  // the REPOSITORY changes: /repos/8 rendered "acme/web" in the heading, in the
+  // breadcrumb and in the health grade until the new fetch landed, which is a
+  // confident lie about whose repository you are looking at.
+  //
+  // Gated on the id in the payload rather than on `isPlaceholderData`, which
+  // would also fire on a window change and take the deliberate stale-render
+  // down with it.
+  const fresh = data !== undefined && String(data.id) === repoId ? data : undefined;
+
+  const repoName = fresh?.name;
   useEffect(() => {
     if (repoName === undefined) return;
     setEntityCrumb({ pathPrefix: `/repos/${repoId}`, label: repoName, to: `/repos/${repoId}` });
@@ -77,8 +98,11 @@ function RepoLayout() {
   }, [repoId, repoName, setEntityCrumb]);
 
   const tabs = (
+    // W17-31: ten tabs in a row scroll within the strip, not the page. Measured
+    // at 390px the unscrollable strip pushed <main> 292px wide of the viewport
+    // on every repository tab. Same fix as the Settings strip.
     <nav
-      className="flex gap-1 border-b border-border"
+      className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
       data-testid="repo-tabs"
       aria-label="Repository sections"
     >
@@ -90,7 +114,7 @@ function RepoLayout() {
           search={preserved as never}
           activeOptions={{ exact: tab.exact ?? false }}
           activeProps={{ 'data-active': 'true' }}
-          className="rounded-t-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:border-b-2 data-[active=true]:border-accent data-[active=true]:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid={`repo-tab-${tab.label.toLowerCase().replace(/\s/g, '-')}`}
         >
           {tab.label}
@@ -110,22 +134,39 @@ function RepoLayout() {
     // is not the workspace that owns it" arrive as the same 404. The copy has
     // to cover both without asserting either.
     const unseeable = status === 404;
+    // FORBIDDEN IS ITS OWN ANSWER (W17-19). Law 5 makes another workspace's
+    // repository a 404, so a 403 that reaches here is this session being
+    // refused — role gating (apiV1's admin routes) or a rejected CSRF header —
+    // and says nothing at all about whether the repository exists. Borrowing
+    // the 404's "may belong to another workspace" line would invent a reason.
+    // 401 is deliberately NOT handled here: the shell owns the signed-out state
+    // centrally (useSession), and a second treatment would double-render it.
+    const forbidden = status === 403;
+    // Neither answer changes on a second ask, so neither offers a retry.
+    const final = unseeable || forbidden;
     const requestId = requestIdOf(error);
     return (
       <div className="flex flex-col gap-4" data-testid="repo-detail">
         <header className="flex flex-wrap items-center gap-3">
-          <h1 className="text-lg font-semibold" data-testid="repo-name">
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="repo-name">
             {repoId}
           </h1>
         </header>
 
         {/* The tabs stay for a transport failure — the repository is presumably
-            still there and a sibling tab may well load — but not for a 404: a
-            row of links that are all guaranteed to fail is worse than none. */}
-        {!unseeable && tabs}
+            still there and a sibling tab may well load — but not for a 404 or a
+            403: a row of links that are all guaranteed to fail the same way is
+            worse than none. */}
+        {!final && tabs}
 
         <WidgetFrame
-          title={unseeable ? 'Repository not visible here' : 'Repository failed to load'}
+          title={
+            unseeable
+              ? 'Repository not visible here'
+              : forbidden
+                ? 'You are not allowed to view this repository'
+                : 'Repository failed to load'
+          }
           state="error"
           testId="repo-error"
           errorMessage={
@@ -135,12 +176,16 @@ function RepoLayout() {
                 // have been ingested, and we do not have its name to quote back
                 // — the id from the URL is the only identifier we hold.
                 `This workspace cannot see a repository with id ${repoId}. It may belong to another workspace, or it may never have been ingested here.`
-              : // The reason phrase alone ("Not Found", "Bad Gateway") explains
-                // nothing, so say what we were doing when it failed.
-                `We could not load repository ${repoId}. ${error?.message ?? 'The request failed.'}`
+              : forbidden
+                ? // Says what to do — ask for access — because unlike the 404
+                  // there IS someone who can change the answer.
+                  `Your account is signed in but not permitted to open repository ${repoId}. Ask a workspace admin for access.`
+                : // The reason phrase alone ("Not Found", "Bad Gateway") explains
+                  // nothing, so say what we were doing when it failed.
+                  `We could not load repository ${repoId}. ${error?.message ?? 'The request failed.'}`
           }
           {...(requestId ? { requestId } : {})}
-          {...(unseeable ? {} : { onRetry: () => void refetch() })}
+          {...(final ? {} : { onRetry: () => void refetch() })}
         />
 
         <p className="text-sm text-fg-muted">
@@ -160,18 +205,26 @@ function RepoLayout() {
   return (
     <div className="flex flex-col gap-4" data-testid="repo-detail">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold" data-testid="repo-name">
-          {data ? `${data.org}/${data.name}` : isLoading ? 'Loading…' : repoId}
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="repo-name">
+          {fresh ? `${fresh.org}/${fresh.name}` : 'Loading…'}
         </h1>
         <div className="flex flex-wrap items-center gap-4">
           <RiskAxisStrip repoId={repoId} />
-          {data && <HealthWhy health={data.health} />}
+          {fresh && <HealthWhy health={fresh.health} />}
         </div>
       </header>
 
       {tabs}
 
-      <Outlet />
+      {/* Keyed on the repository so the tab below REMOUNTS when you switch
+          repositories: every child widget keys its query on repo_id and would
+          otherwise hold the previous repository's rows on screen for as long as
+          the new fetch takes, for the same keepPreviousData reason as the
+          heading above. One key covers every tab, including the ones this
+          ticket does not touch. */}
+      <div key={repoId}>
+        <Outlet />
+      </div>
     </div>
   );
 }

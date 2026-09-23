@@ -118,7 +118,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
                 return (
                   <th
                     key={header.id}
-                    className={`sticky top-0 z-10 border-b border-border bg-surface px-3 py-2 font-medium text-fg-muted ${
+                    className={`sticky top-0 z-10 border-b border-border bg-surface px-3 py-2 text-[13px] font-medium text-fg-muted ${
                       col.align === 'right' ? 'text-right' : 'text-left'
                     }`}
                     aria-sort={isSorted ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -161,7 +161,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
                 return (
                   <tr
                     key={id}
-                    className={`${rowHeight} cursor-pointer border-b border-border ${
+                    className={`${rowHeight} cursor-pointer border-b border-border/60 ${
                       index === activeIndex ? 'bg-surface-2' : 'hover:bg-surface-2/50'
                     }`}
                     data-testid={`row-${id}`}
@@ -190,7 +190,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
           <button
             type="button"
             onClick={() => onLoadMore?.()}
-            className="rounded-sm border border-border px-3 py-1 text-sm text-fg-muted hover:text-fg"
+            className="rounded-md border border-border px-3 py-1.5 text-sm text-fg-muted hover:border-border-strong hover:text-fg"
             data-testid="table-load-more"
           >
             Load more

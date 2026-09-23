@@ -95,11 +95,49 @@ export const VEX_JUSTIFICATION_LABEL: Record<VexJustification, string> = {
   inline_mitigations_already_exist: 'a mitigation already ships',
 };
 
+/** An open finding the Security tab can link straight to (W17-20). */
+export interface SecurityFinding {
+  id: number;
+  title: string;
+  severity: number;
+  dimension: string;
+  scanner_key: string | null;
+  file: string | null;
+  line: number | null;
+}
+
+/**
+ * What the scan sandbox can run right now (W17-27). Mirrors
+ * packages/security/sandbox/tooling.ts — vuln_db is a fact about a file's age
+ * on the host, and the unsupported list is deliberate absences with reasons.
+ */
+export interface SecurityTooling {
+  vuln_db: {
+    present: boolean;
+    schema: string | null;
+    builtAt: string | null;
+    ageDays: number | null;
+    maxAgeDays: number;
+    stale: boolean | null;
+    source: string | null;
+    reason: string | null;
+  };
+  scan_tools: string[];
+  unsupported_tools: { tool: string; reason: string }[];
+}
+
 export interface RepoSecurity {
   repo: { id: number; org: string; name: string };
   open_by_severity: Record<string, number>;
   open_total: number;
   scanners: ScannerStatus[];
+  /**
+   * The worst open security findings, newest API only (W17-20). Optional so a
+   * payload from an older API renders the rest of the tab rather than nothing.
+   */
+  top_findings?: SecurityFinding[];
+  /** Optional for the same reason as top_findings. */
+  tooling?: SecurityTooling;
   secrets: {
     open: number;
     /** Two clocks: watching new commits vs having looked back. */
@@ -150,6 +188,64 @@ export interface OrgSecurity {
 export function scannerStateLabel(state: ScannerState, openFindings: number | null): string {
   if (state === 'ok' && (openFindings ?? 0) > 0) return '✓ ran — findings still open';
   return SCANNER_STATE_LABEL[state];
+}
+
+/**
+ * States in which a scanner has a RESULT — a count shown beside them is a
+ * measurement. Every other state gets a dash (W17-20; the rule the coverage
+ * table has followed since W8-10, named once so three screens cannot drift).
+ */
+export function hasMeasuredCount(state: ScannerState): boolean {
+  return state === 'ok' || state === 'error' || state === 'partial';
+}
+
+/**
+ * Did this scanner complete an applicable run — the precondition for "no
+ * findings" meaning anything (W17-20)? A failed, interrupted, rejected or
+ * empty run has not measured the repository, whatever its count says.
+ */
+export function ranSuccessfully(scanner: Pick<ScannerStatus, 'state'>): boolean {
+  return scanner.state === 'ok' || scanner.state === 'partial';
+}
+
+/**
+ * Why the vulnerable-dependencies panel is empty, in the words of the
+ * dependency scanner's own state (W17-20).
+ *
+ * The first version said "the CVE scanner is not available yet" whatever had
+ * happened — the same sentence over a scanner that had never run, one that
+ * had failed, and one that had run and found nothing. Only the last is a
+ * clean bill of health, and the panel said the opposite for it.
+ */
+export function dependencyEmptyCopy(scanner: ScannerStatus | undefined): string {
+  const NOT_CLEAN = 'so this is not a clean bill of health.';
+  if (!scanner || !scanner.registered) {
+    return `No dependency scan can run here — the CVE scanner is not in this build, ${NOT_CLEAN}`;
+  }
+  switch (scanner.state) {
+    case 'not_enabled':
+      return `The dependency scanner is not enabled for this repository — nothing has looked, ${NOT_CLEAN}`;
+    case 'never_run':
+      return `No dependency scan has run for this repository — the CVE scanner has never run here, ${NOT_CLEAN}`;
+    case 'running':
+      return 'A dependency scan is running now. There is no result to show yet — this is not a clean bill of health, and not a dirty one either.';
+    case 'stale':
+      return `The last dependency scan was interrupted and never finished, ${NOT_CLEAN}`;
+    case 'error':
+      return `The last dependency scan failed — its error is in the coverage table above — ${NOT_CLEAN}`;
+    case 'nothing_scanned':
+      return `The last dependency scan covered nothing, ${NOT_CLEAN}`;
+    case 'all_rejected':
+      return `The last dependency scan proposed findings and every one was rejected, ${NOT_CLEAN}`;
+    case 'partial':
+      return scanner.open_findings > 0
+        ? `The last dependency scan was cut short and still left ${scanner.open_findings} open — see Open findings below. The set is incomplete.`
+        : 'The last dependency scan was cut short. An empty list from an incomplete scan is not a clean bill of health.';
+    case 'ok':
+      return scanner.open_findings > 0
+        ? `The dependency scan ran and left ${scanner.open_findings} open finding${scanner.open_findings === 1 ? '' : 's'} — see Open findings below.`
+        : 'The dependency scan ran and found no known vulnerabilities in the resolved dependency set. This one IS a measurement.';
+  }
 }
 
 export const SCANNER_STATE_LABEL: Record<ScannerState, string> = {

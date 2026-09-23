@@ -1,0 +1,22 @@
+RepoPulse cold demo smoke — PASS
+Date: 2026-09-10 (America/New_York)
+Host: Bradfords-MacBook-Pro-m2-max (machineId 28934fcf-…)
+Checkout: codex/repopulse-product-completion @ ac87c6b + local Dockerfile workspace node_modules fix (uncommitted)
+
+Command: ./deploy/demo.sh up
+Result:
+  migrate: Exited (0) — applied 29 migration(s)
+  api: listening :3000; bootstrap local admin created
+  worker: Up
+  web: 127.0.0.1:8090->8080
+  GET http://localhost:8090/healthz -> 200
+  GET http://localhost:8090/ -> 200
+  GET http://localhost:8090/readyz -> 200
+
+Prior failures (same day):
+  FAIL1: migrate ERR_MODULE_NOT_FOUND 'postgres' from packages/shared
+  FAIL2: api/worker ERR_MODULE_NOT_FOUND 'drizzle-orm' from packages/auth
+Fix: Dockerfile prod-deps includes packages/security/package.json; api/worker/migrate COPY all packages/*/node_modules from prod-deps (pnpm isolated layout).
+
+Credentials (from product docs / DEMO_MODE): check DEMO_RUNBOOK.md
+Stop: ./deploy/demo.sh down

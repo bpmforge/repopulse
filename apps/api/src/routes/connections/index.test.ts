@@ -48,7 +48,16 @@ const registerWebhook = vi.fn(
   (_ctx: unknown, _repo: string, _url: string, _secret: string, _events: string[]) =>
     Promise.resolve('hook-1'),
 );
-function fakeProvider(_auth: GitHubAuth): ForgeProvider {
+// Records every construction so tests can assert WHICH forge a stored
+// connection was rebuilt against — a fake that ignores kind/baseUrl would hide
+// a GitHub provider being built for a Gitea row (and its token sent to GitHub).
+const providerBuilds: { kind: string | undefined; baseUrl: string | undefined }[] = [];
+function fakeProvider(
+  _auth: GitHubAuth,
+  kind?: 'github' | 'gitea' | 'gitlab',
+  baseUrl?: string,
+): ForgeProvider {
+  providerBuilds.push({ kind, baseUrl });
   return {
     listRepos: () => smokeBehavior().then((items) => ({ items })),
     registerWebhook,
@@ -255,4 +264,45 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     expect(items[0]?.last4).toBe(TOKEN.slice(-4));
     expect(JSON.stringify(items)).not.toContain(TOKEN);
   });
+
+  // The stored-connection routes must rebuild the provider from the ROW's forge
+  // kind + base URL. Before this fix they passed neither, so a Gitea (or GHES)
+  // connection was rebuilt as a github.com provider: a 500, and the self-hosted
+  // token sent to api.github.com.
+  for (const [provider, baseUrl] of [
+    ['gitea', 'https://gitea.internal.example'],
+    ['github', 'https://ghe.acme.example/api/v3'],
+  ] as const) {
+    it(`rebuilds a stored ${provider} connection against its own kind + base URL (${baseUrl})`, async () => {
+      smokeBehavior = () => Promise.resolve(REPOS);
+      const cookie = await loginAs(app, ADMIN);
+      const created = await app.inject({
+        method: 'POST',
+        url: '/api/v1/connections',
+        cookies: { repopulse_sid: cookie },
+        payload: { provider, auth_kind: 'pat', credential: TOKEN, base_url: baseUrl },
+      });
+      expect(created.statusCode).toBe(201);
+      const connId = created.json().id as number;
+
+      providerBuilds.length = 0;
+      const listed = await app.inject({
+        method: 'GET',
+        url: `/api/v1/connections/${connId}/available-repos`,
+        cookies: { repopulse_sid: cookie },
+      });
+      expect(listed.statusCode).toBe(200);
+      expect(providerBuilds).toEqual([{ kind: provider, baseUrl }]);
+
+      providerBuilds.length = 0;
+      const selected = await app.inject({
+        method: 'POST',
+        url: `/api/v1/connections/${connId}/repos`,
+        cookies: { repopulse_sid: cookie },
+        payload: { repo_forge_ids: ['201'] },
+      });
+      expect(selected.statusCode).toBe(200);
+      expect(providerBuilds).toEqual([{ kind: provider, baseUrl }]);
+    });
+  }
 });

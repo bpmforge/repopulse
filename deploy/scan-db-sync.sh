@@ -26,8 +26,24 @@
 # filling the filesystem the rest of the install is sitting on.
 set -euo pipefail
 
-DEST="${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# The SAME defaults up.sh uses (W17-28), so the directory this fills is the
+# directory the worker mounted. Shell first; then deploy/.env, which is where a
+# bundle's install.sh pins SCAN_IMAGE; then the shipped deploy/scan-rules,
+# which is what up.sh mounts when the operator has not chosen a directory.
+# Previously this defaulted to /var/lib/repopulse/scan-rules while up.sh
+# mounted deploy/scan-rules — a sync that succeeded into a directory nothing
+# read.
+env_value() { # $1 name -> shell value, else the deploy/.env line, else empty
+  if [ -n "${!1:-}" ]; then printf '%s' "${!1}"
+  elif [ -f "$SCRIPT_DIR/.env" ]; then sed -n "s/^$1=//p" "$SCRIPT_DIR/.env" | tail -n1; fi
+}
+DEST="$(env_value SCAN_RULES_DIR)"
+: "${DEST:=$SCRIPT_DIR/scan-rules}"
+SCAN_IMAGE="$(env_value SCAN_IMAGE)"
+: "${SCAN_IMAGE:=localhost/repopulse/scan:dev}"
 FAILED=0
 
 log() { printf '[scan-db-sync] %s\n' "$*"; }
@@ -38,8 +54,20 @@ mkdir -p "$DEST"
 # Shipped in the repository rather than fetched from a registry: SECURITY_SUITE
 # §3.3 bars Semgrep's registry packs (p/*, --config auto) for service use on
 # licence grounds, so the packs we run are ours and travel with the code.
-if [ -d "$REPO_ROOT/packages/security/rulepacks" ]; then
-  log "syncing in-house rulepacks"
+#
+# Where they come from depends on how this was installed (W17-28): a checkout
+# has them under packages/security; a bundle has no checkout and ships them
+# beside this script as deploy/rulepacks. Explicit RULEPACKS_SRC wins.
+RULEPACKS_SRC="${RULEPACKS_SRC:-}"
+if [ -z "$RULEPACKS_SRC" ]; then
+  if [ -d "$REPO_ROOT/packages/security/rulepacks" ]; then
+    RULEPACKS_SRC="$REPO_ROOT/packages/security/rulepacks"
+  elif [ -d "$SCRIPT_DIR/rulepacks" ]; then
+    RULEPACKS_SRC="$SCRIPT_DIR/rulepacks"
+  fi
+fi
+if [ -n "$RULEPACKS_SRC" ] && [ -d "$RULEPACKS_SRC" ]; then
+  log "syncing in-house rulepacks from $RULEPACKS_SRC"
   # REPLACED, not merged. Two reasons, both found by running this twice:
   # the files are chmod 0444 below, so a second copy over them fails with
   # "Permission denied"; and a rule DELETED upstream would otherwise live on
@@ -47,13 +75,13 @@ if [ -d "$REPO_ROOT/packages/security/rulepacks" ]; then
   # firing a rule that was withdrawn.
   rm -rf "$DEST/rulepacks"
   install -d "$DEST/rulepacks"
-  cp -R "$REPO_ROOT/packages/security/rulepacks/." "$DEST/rulepacks/"
+  cp -R "$RULEPACKS_SRC/." "$DEST/rulepacks/"
   find "$DEST/rulepacks" -type f -exec chmod 0444 {} +
   ( cd "$DEST/rulepacks" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256 ) \
     > "$DEST/rulepacks.sha256"
   log "rulepacks synced: $(wc -l < "$DEST/rulepacks.sha256" | tr -d ' ') files"
 else
-  log "ERROR: no rulepack directory at $REPO_ROOT/packages/security/rulepacks"
+  log "ERROR: no rulepack directory at $REPO_ROOT/packages/security/rulepacks or $SCRIPT_DIR/rulepacks (set RULEPACKS_SRC)"
   FAILED=1
 fi
 
@@ -79,7 +107,6 @@ fi
 # network access lives in this short-lived sync container, which never sees
 # customer source, rather than anywhere near the scan container.
 VULN_DB_DIR="$DEST/vuln-db"
-SCAN_IMAGE="${SCAN_IMAGE:-localhost/repopulse/scan:dev}"
 # Free space needed to RUN a sync, in the KiB blocks POSIX df -P reports. This
 # is 2.2 GiB, not the 5 GB the volume should be provisioned at, and the two
 # numbers are different on purpose: the swap below is a rename within $DEST,

@@ -9,6 +9,32 @@ export interface HealthRoutesOptions {
   redisUrl: string;
 }
 
+/**
+ * Deadline for each dependency probe (W17-06), matching the worker's.
+ *
+ * A REFUSED connection rejects at once. A HUNG one — dropped NAT entry, paused
+ * VM, a server that accepted the socket and stopped reading — never settles, so
+ * without a deadline /healthz simply never responds and the container
+ * healthcheck reports a timeout while this process holds the socket open.
+ */
+export const HEALTH_PROBE_TIMEOUT_MS = 2_000;
+
+function withDeadline(probe: Promise<unknown>, ms: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    probe.then(
+      () => {
+        clearTimeout(timer);
+        resolve(true);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(false);
+      },
+    );
+  });
+}
+
 // DEPLOYMENT.md §7 / API_DESIGN.md §5: unauthenticated liveness with
 // Postgres + Redis dependency checks. FR-API-4's route-walker exempts
 // /healthz the same way it exempts /auth/* and /webhooks/* (W1-07,
@@ -26,14 +52,8 @@ async function healthRoutes(app: FastifyInstance, opts: HealthRoutesOptions): Pr
 
   app.get('/healthz', async (request, reply) => {
     const [dbOk, redisOk] = await Promise.all([
-      opts.db
-        .execute(sql`select 1`)
-        .then(() => true)
-        .catch(() => false),
-      healthzRedis
-        .ping()
-        .then(() => true)
-        .catch(() => false),
+      withDeadline(opts.db.execute(sql`select 1`), HEALTH_PROBE_TIMEOUT_MS),
+      withDeadline(healthzRedis.ping(), HEALTH_PROBE_TIMEOUT_MS),
     ]);
     if (!dbOk || !redisOk) {
       return sendProblem(request, reply, 503, 'Service Unavailable', {

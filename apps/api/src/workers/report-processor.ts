@@ -1,6 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import { core, read, type Database } from '@repopulse/shared';
-import { createReportAssembler, renderReport, type ReportParams } from '@repopulse/reports';
+import {
+  artifactPresent,
+  createReportAssembler,
+  renderReport,
+  type ReportData,
+  type ReportParams,
+} from '@repopulse/reports';
 import type { Job } from 'bullmq';
 
 // reports.generate processor (W5-04, REPORTS.md §3).
@@ -35,6 +41,8 @@ export interface ReportProcessorDeps {
   printBaseUrl: string;
   /** Injectable so tests exercise the whole path without a browser. */
   printToPdf?: (url: string) => Promise<Buffer>;
+  /** Injectable so tests exercise the lifecycle without a seeded warehouse. */
+  assemble?: (params: ReportParams) => Promise<ReportData>;
 }
 
 async function createScheduledReport(
@@ -74,11 +82,40 @@ async function firstAdminId(deps: ReportProcessorDeps, workspaceId: number): Pro
     .select({ userId: core.workspaceMembers.userId })
     .from(core.workspaceMembers)
     .where(
-      and(eq(core.workspaceMembers.workspaceId, workspaceId), eq(core.workspaceMembers.role, 'admin')),
+      and(
+        eq(core.workspaceMembers.workspaceId, workspaceId),
+        eq(core.workspaceMembers.role, 'admin'),
+      ),
     )
     .limit(1);
-  if (!member) throw new Error(`scheduled report: workspace ${workspaceId} has no admin to attribute it to`);
+  if (!member)
+    throw new Error(`scheduled report: workspace ${workspaceId} has no admin to attribute it to`);
   return member.userId;
+}
+
+/**
+ * True when this job is a REPLAY of work that already finished (W17-26).
+ *
+ * BullMQ re-delivers a job whose worker went away mid-run: recreate the worker
+ * container while a print is in flight and the same job arrives again. If the
+ * first run had already reached `ready`, the second run used to set the row
+ * back to `running`, re-render over the artifacts, and — when the re-render
+ * failed, as a fresh worker without a browser will — mark a report that was
+ * downloadable a minute ago `failed`. The row and the files on disk are the
+ * evidence of completion, so a replay of a complete report is a no-op.
+ */
+async function alreadyComplete(deps: ReportProcessorDeps, reportId: number): Promise<boolean> {
+  const [row] = await deps.db
+    .select({
+      status: read.reports.status,
+      pdfUri: read.reports.pdfUri,
+      jsonUri: read.reports.jsonUri,
+    })
+    .from(read.reports)
+    .where(eq(read.reports.id, reportId))
+    .limit(1);
+  if (!row || row.status !== 'ready') return false;
+  return (await artifactPresent(row.pdfUri)) && (await artifactPresent(row.jsonUri));
 }
 
 export function reportProcessor(deps: ReportProcessorDeps) {
@@ -90,13 +127,17 @@ export function reportProcessor(deps: ReportProcessorDeps) {
     const { reportId, params } =
       'scheduled' in data ? await createScheduledReport(deps, data) : data;
 
+    if (await alreadyComplete(deps, reportId)) return;
+
     await deps.db
       .update(read.reports)
       .set({ status: 'running', error: null })
       .where(eq(read.reports.id, reportId));
 
     try {
-      const data = await createReportAssembler(deps.db).assemble(params);
+      const assemble =
+        deps.assemble ?? ((p: ReportParams) => createReportAssembler(deps.db).assemble(p));
+      const data = await assemble(params);
       const result = await renderReport(data, reportId, {
         dataDir: deps.dataDir,
         printBaseUrl: deps.printBaseUrl,

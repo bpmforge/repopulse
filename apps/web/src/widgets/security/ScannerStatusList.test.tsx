@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { ScannerStatusList } from './ScannerStatusList.js';
+import { ScannerStatusList, ScanToolingNote } from './ScannerStatusList.js';
 import { SCANNER_STATE_LABEL, type ScannerStatus } from './contracts.js';
 
 // The Security tab's honest half (W8-10, NFR-15).
@@ -216,5 +216,53 @@ describe('scanner coverage table', () => {
     for (const label of Object.values(SCANNER_STATE_LABEL)) {
       expect(label.replace(/[○·✓✕!]/g, '').trim().length).toBeGreaterThan(3);
     }
+  });
+});
+
+// What the sandbox can run, stated (W17-27, acceptance 3).
+describe('scan tooling note', () => {
+  const tooling = {
+    vuln_db: {
+      present: true,
+      schema: '6',
+      builtAt: '2026-08-20T00:15:42Z',
+      ageDays: 21,
+      maxAgeDays: 5,
+      stale: true,
+      source: null,
+      reason: null,
+    },
+    scan_tools: ['opengrep', 'grype'],
+    unsupported_tools: [{ tool: 'govulncheck', reason: 'Not in the scan image.' }],
+  };
+
+  it('says a stale database WILL fail the CVE scan, with the age and the fix', () => {
+    render(<ScanToolingNote tooling={tooling} />);
+    const db = screen.getByTestId('vuln-db-status');
+    expect(db.textContent).toContain('21 days old');
+    expect(db.textContent).toContain('stale');
+    expect(db.textContent).toContain('scan-db-sync');
+    expect(db.getAttribute('data-stale')).toBe('true');
+  });
+
+  it('says a missing database is not a clean bill of health', () => {
+    render(
+      <ScanToolingNote
+        tooling={{
+          ...tooling,
+          vuln_db: { ...tooling.vuln_db, present: false, stale: null, ageDays: null, builtAt: null, reason: 'no vulnerability database at /x — run deploy/scan-db-sync.sh' },
+        }}
+      />,
+    );
+    const db = screen.getByTestId('vuln-db-status');
+    expect(db.textContent).toContain('not synced');
+    expect(db.textContent).toContain('not a clean bill of health');
+  });
+
+  it('lists the unsupported tools by name, each carrying its reason', () => {
+    render(<ScanToolingNote tooling={tooling} />);
+    const list = screen.getByTestId('unsupported-tools');
+    expect(list.textContent).toContain('govulncheck');
+    expect(screen.getByTitle('Not in the scan image.').textContent).toBe('govulncheck');
   });
 });

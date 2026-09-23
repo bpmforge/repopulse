@@ -8,7 +8,7 @@ import { activateRepos, createConnection, ConnectValidationError } from '@repopu
 import type { CallCtx, ForgeProvider, GitHubAuth } from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
 import { requireAdmin } from '../../lib/rbac.js';
-import { buildDiscoveryProvider } from './provider-factory.js';
+import { buildDiscoveryProvider, type ForgeKind } from './provider-factory.js';
 import {
   availableReposResponseSchema,
   connectionIdParamsSchema,
@@ -86,7 +86,14 @@ export default async function connectionsRoutes(
     return { kind: 'app', appId: opts.appId, privateKey: credential, installationId };
   }
 
+  // Rebuilds a STORED connection's provider from the row's own forge kind and
+  // base URL. Omitting them built a github.com provider for every connection:
+  // a Gitea/GitLab/GHES row then 500'd on discovery and its self-hosted token
+  // was sent to api.github.com. A null base_url (pre-W14-02 row) falls back to
+  // the server default, same as POST /connections.
   async function providerForConnection(row: {
+    provider: string;
+    baseUrl: string | null;
     authKind: string;
     credentialCiphertext: Buffer;
     credentialIv: Buffer;
@@ -99,6 +106,8 @@ export default async function connectionsRoutes(
     );
     return buildProvider(
       authFor(row.authKind as 'pat' | 'app', credential, row.appInstallationId ?? undefined),
+      row.provider as ForgeKind,
+      row.baseUrl ?? undefined,
     );
   }
 

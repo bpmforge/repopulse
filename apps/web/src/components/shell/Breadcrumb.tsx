@@ -20,7 +20,7 @@ export interface BreadcrumbProps {
 export function Breadcrumb({ crumbs, search }: BreadcrumbProps) {
   return (
     <nav
-      className="sticky top-0 z-20 flex items-center gap-1.5 border-b border-border bg-bg/80 px-4 py-2 text-sm backdrop-blur"
+      className="sticky top-0 z-20 flex items-center gap-1.5 border-b border-border bg-bg/85 px-4 pt-1.5 pb-2.5 text-[13px] backdrop-blur"
       aria-label="Breadcrumb"
       data-testid="breadcrumb"
     >

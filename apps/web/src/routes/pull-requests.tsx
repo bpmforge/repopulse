@@ -88,7 +88,7 @@ function PullRequestsIndex() {
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           State
           <select
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="pr-filter-state"
             value={state}
             onChange={(e) => applied(setState)(e.target.value)}
@@ -102,7 +102,7 @@ function PullRequestsIndex() {
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Size
           <select
-            className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+            className="panel px-2 py-1 text-sm"
             data-testid="pr-filter-size"
             value={size}
             onChange={(e) => applied(setSize)(e.target.value)}
@@ -195,7 +195,7 @@ function PullRequestsIndex() {
         <div>
           <button
             type="button"
-            className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid="pr-next-page"
             onClick={() => setCursor(data.next_cursor)}
           >

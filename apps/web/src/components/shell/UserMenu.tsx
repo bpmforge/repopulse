@@ -42,7 +42,7 @@ export function UserMenu() {
         <div
           role="menu"
           aria-label="User menu"
-          className="absolute bottom-full right-0 z-40 mb-1 w-52 rounded-md border border-border bg-surface p-2 shadow-lg"
+          className="absolute bottom-full right-0 z-40 mb-1 w-52 panel p-2 shadow-lg"
           data-testid="user-menu-panel"
         >
           <p className="px-1 pb-1 text-[11px] uppercase tracking-wide text-fg-faint">Home screen</p>

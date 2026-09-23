@@ -19,29 +19,64 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 COMPOSE_FILE=deploy/compose.demo.yaml
+# An OVERLAY, layered on top of the demo file (W17-30). The customer-journey
+# run adds one fixture service this way (deploy/compose.journey.yaml) rather
+# than by editing the demo stack: what the journey proves has to be the stack a
+# newcomer gets, plus a model, not a third stack. Any service the overlay adds
+# that must be running is named in DEMO_EXTRA_SERVICES so the check below
+# covers it too — an overlay whose service died would otherwise pass.
+COMPOSE_FILES=(-f "$COMPOSE_FILE")
+if [ -n "${DEMO_COMPOSE_OVERLAY:-}" ]; then
+  if [ ! -f "$DEMO_COMPOSE_OVERLAY" ]; then
+    echo "DEMO_COMPOSE_OVERLAY=$DEMO_COMPOSE_OVERLAY does not exist." >&2
+    exit 2
+  fi
+  COMPOSE_FILES+=(-f "$DEMO_COMPOSE_OVERLAY")
+fi
 PORT="${REPOPULSE_DEMO_PORT:-8090}"
 URL="http://localhost:${PORT}"
 
 # podman on this machine, docker elsewhere — whichever is present.
 if command -v docker >/dev/null 2>&1; then
   COMPOSE=(docker compose)
+  RT=docker
 elif command -v podman >/dev/null 2>&1; then
   COMPOSE=(podman compose)
+  RT=podman
 else
   echo "Neither docker nor podman is installed." >&2
   exit 1
 fi
 
+# The scan path (W17-27). scan-runner holds the runtime's socket and starts
+# each scan container as a sibling; the compose file needs to know where that
+# socket is and where the synced rules live. Both derived here, both
+# overridable. Under podman machine (macOS) the socket path is the VM's, which
+# `podman info` reports and which the VM can bind — the macOS-side path cannot
+# be mounted into a container.
+: "${SCAN_RUNTIME:=$RT}"
+if [ -z "${CONTAINER_SOCKET:-}" ]; then
+  if [ "$RT" = docker ]; then
+    CONTAINER_SOCKET=/var/run/docker.sock
+  else
+    # podman info answers with a unix:// scheme; compose wants the bare path.
+    CONTAINER_SOCKET="$(podman info --format '{{.Host.RemoteSocket.Path}}' 2>/dev/null | sed 's#^unix://##' || true)"
+    : "${CONTAINER_SOCKET:=/run/user/$(id -u)/podman/podman.sock}"
+  fi
+fi
+: "${SCAN_RULES_DIR:=$(pwd)/deploy/scan-rules}"
+export SCAN_RUNTIME CONTAINER_SOCKET SCAN_RULES_DIR
+
 case "${1:-up}" in
   down)
-    "${COMPOSE[@]}" -f "$COMPOSE_FILE" down
+    "${COMPOSE[@]}" "${COMPOSE_FILES[@]}" down
     exit 0
     ;;
   reset)
     # -v takes the volume with it, so the next start is a genuinely first boot:
     # empty warehouse, no connection, the bootstrap admin created again. That is
     # the state the demo is FOR, and the only way to get back to it.
-    "${COMPOSE[@]}" -f "$COMPOSE_FILE" down -v
+    "${COMPOSE[@]}" "${COMPOSE_FILES[@]}" down -v
     echo "Reset. The next start will be a first boot again."
     exit 0
     ;;
@@ -53,7 +88,10 @@ case "${1:-up}" in
 esac
 
 echo "Building and starting the demo stack (the first build takes a few minutes)…"
-"${COMPOSE[@]}" -f "$COMPOSE_FILE" up -d --build
+if [ -n "${DEMO_COMPOSE_OVERLAY:-}" ]; then
+  echo "With overlay ${DEMO_COMPOSE_OVERLAY}${DEMO_EXTRA_SERVICES:+ (extra services:${DEMO_EXTRA_SERVICES})}"
+fi
+"${COMPOSE[@]}" "${COMPOSE_FILES[@]}" up -d --build
 
 # WAIT FOR THE ENTRANCE, not for compose to return. compose returning means the
 # containers were created, which is a different fact from the product answering.
@@ -70,7 +108,7 @@ echo
 
 if [ "${ready:-0}" != "1" ]; then
   echo "The demo did not answer on ${URL} within 3 minutes." >&2
-  echo "Logs:  ${COMPOSE[*]} -f ${COMPOSE_FILE} logs" >&2
+  echo "Logs:  ${COMPOSE[*]} ${COMPOSE_FILES[*]} logs" >&2
   exit 1
 fi
 
@@ -85,9 +123,10 @@ fi
 # The container NAME is what identifies the service in both runtimes
 # (<project>_<service>_1 under podman-compose, <project>-<service>-1 under
 # docker compose), and "Up" is what both print for a running one.
-ps_out="$("${COMPOSE[@]}" -f "$COMPOSE_FILE" ps 2>/dev/null || true)"
+ps_out="$("${COMPOSE[@]}" "${COMPOSE_FILES[@]}" ps 2>/dev/null || true)"
 missing=""
-for svc in postgres redis forge api worker web; do
+# shellcheck disable=SC2086  # DEMO_EXTRA_SERVICES is a space-separated list on purpose
+for svc in postgres redis forge api worker scan-runner web ${DEMO_EXTRA_SERVICES:-}; do
   if ! printf '%s\n' "$ps_out" | grep -E "[_-]${svc}[_-]1" | grep -q "Up"; then
     missing="${missing} ${svc}"
   fi
@@ -96,7 +135,7 @@ done
 if [ -n "$missing" ]; then
   echo "These services are NOT running:${missing}" >&2
   echo "The product will look like it works and will not ingest anything." >&2
-  echo "Logs:  ${COMPOSE[*]} -f ${COMPOSE_FILE} logs${missing}" >&2
+  echo "Logs:  ${COMPOSE[*]} ${COMPOSE_FILES[*]} logs${missing}" >&2
   exit 1
 fi
 
@@ -128,7 +167,11 @@ cat <<EOF
   Optional, also in the UI:
     Admin → Models     point Tier-2 at a local LLM (nothing else needs it)
     Admin → Settings   bot list, stale-PR window, health weights
-    Repo → Security    run the scanners
+    Repo → Security    run the scanners — through the real scan-runner, on
+                       ${CONTAINER_SOCKET}. Needs the scan image:
+                         podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
+                       and, for CVEs, a synced database:
+                         SCAN_RULES_DIR=${SCAN_RULES_DIR} ./deploy/scan-db-sync.sh
 
   Stop it:   ./deploy/demo.sh down
   Start over: ./deploy/demo.sh reset

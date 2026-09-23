@@ -196,7 +196,7 @@ export function MyFocus({ search }: Props) {
           since.data.prs_advanced > 0 ||
           since.data.findings_on_my_prs > 0) && (
           <div
-            className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs"
+            className="panel-inset px-3 py-2 text-xs"
             data-testid="since-strip"
           >
             Since your last visit: {since.data.review_requests} review

@@ -1,0 +1,20 @@
+# Build-context exclusions for Dockerfile and Containerfile.scan (W17-27).
+#
+# The Dockerfile's `source` stage copies the whole checkout. Without this
+# file that copy included deploy/scan-rules/vuln-db — the 1.9 GB grype
+# database the sync script leaves in the checkout on a dev machine — and the
+# build died with "no space left on device" in the podman machine, on a layer
+# no image needs. The database is mounted at run time, never built in.
+.git
+node_modules
+**/node_modules
+**/dist
+**/coverage
+**/playwright-report
+**/test-results
+.data
+deploy/scan-rules/vuln-db
+deploy/scan-rules/vuln-db.stage
+deploy/scan-rules/vuln-db.old
+docs/work/product-completion/baseline
+docs/work/product-completion/evidence

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, read, security, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
@@ -39,22 +39,60 @@ function fail(
   return reply;
 }
 
-/** Keyset cursor `${severity}:${id}` — findings sort by severity then id. */
-export function encodeCursor(severity: number, id: number): string {
-  return Buffer.from(`${severity}:${id}`).toString('base64url');
+// KEYSET CURSOR — one shape per sort (W17-32).
+//
+// A keyset cursor has to carry every column the ORDER BY uses, or the "after
+// this row" predicate and the ordering disagree and pages skip and repeat rows.
+// The cursor used to be `${severity}:${id}` for BOTH sorts while the default
+// sort ordered by effective_risk first: walking 10,000 findings under
+// sort=risk returned 610 distinct rows, 270 of them twice, and 9,390 never.
+//
+//   severity: `${severity}:${id}`
+//   risk:     `r:${effective_risk | '-'}:${severity}:${id}`   ('-' = unpriced)
+//
+// effective_risk travels as the numeric's own text (never through a float), so
+// the predicate compares exactly what Postgres ordered by.
+export type FindingSort = 'risk' | 'severity';
+export type FindingCursor =
+  | { sort: 'severity'; severity: number; id: number }
+  | { sort: 'risk'; risk: string | null; severity: number; id: number };
+
+const RISK_TEXT = /^-?\d+(\.\d+)?$/;
+
+export function encodeCursor(
+  sort: FindingSort,
+  row: { severity: number; id: number; effectiveRisk: string | null },
+): string {
+  const text =
+    sort === 'risk'
+      ? `r:${row.effectiveRisk ?? '-'}:${row.severity}:${row.id}`
+      : `${row.severity}:${row.id}`;
+  return Buffer.from(text).toString('base64url');
 }
-export function decodeCursor(cursor: string): { severity: number; id: number } | null {
+export function decodeCursor(cursor: string): FindingCursor | null {
   try {
-    const [sev, id] = Buffer.from(cursor, 'base64url').toString('utf8').split(':');
-    const severity = Number(sev);
-    const parsed = Number(id);
-    if (!Number.isInteger(severity) || !Number.isInteger(parsed)) return null;
-    return { severity, id: parsed };
+    const parts = Buffer.from(cursor, 'base64url').toString('utf8').split(':');
+    const tail = (sev: string | undefined, id: string | undefined) => {
+      const severity = Number(sev);
+      const parsed = Number(id);
+      if (!Number.isInteger(severity) || !Number.isInteger(parsed)) return null;
+      return { severity, id: parsed };
+    };
+    if (parts[0] === 'r' && parts.length === 4) {
+      const [, risk, sev, id] = parts;
+      if (risk !== '-' && !RISK_TEXT.test(risk ?? '')) return null;
+      const t = tail(sev, id);
+      return t ? { sort: 'risk', risk: risk === '-' ? null : (risk ?? null), ...t } : null;
+    }
+    if (parts.length === 2) {
+      const t = tail(parts[0], parts[1]);
+      return t ? { sort: 'severity', ...t } : null;
+    }
+    return null;
   } catch {
     return null;
   }
 }
-
 
 // ONE PROJECTION FOR EVERY WAY OF ASKING (W16-32).
 //
@@ -64,54 +102,56 @@ export function decodeCursor(cursor: string): { severity: number; id: number } |
 // copies of thirty columns is exactly the kind of duplication that drifts by
 // one field and is noticed by a user rather than a test.
 function findingsQuery(db: Database) {
-  return db
-    .select({
-      id: read.findings.id,
-      repoId: read.findings.repoId,
-      org: core.repos.org,
-      repoName: core.repos.name,
-      dimension: read.findings.dimension,
-      severity: read.findings.severity,
-      confidence: read.findings.confidence,
-      title: read.findings.title,
-      file: read.findings.file,
-      lineStart: read.findings.lineStart,
-      lineEnd: read.findings.lineEnd,
-      evidence: read.findings.evidence,
-      recommendation: read.findings.recommendation,
-      status: read.findings.status,
-      dismissReason: read.findings.dismissReason,
-      occurrenceCount: read.findings.occurrenceCount,
-      verifyStatus: read.findings.verifyStatus,
-      firstSeenAt: read.findings.firstSeenAt,
-      lastSeenAt: read.findings.lastSeenAt,
-      tier: read.findings.tier,
-      effectiveRisk: read.findings.effectiveRisk,
-      riskBand: read.findings.riskBand,
-      riskFactors: read.findings.riskFactors,
-      experimental: read.findings.experimental,
-      scannerKey: read.findings.scannerKey,
-      ruleId: read.findings.ruleId,
-      cveId: read.findings.cveId,
-      chainId: read.findings.chainId,
-      scanRunId: read.findings.scanRunId,
-      yields: read.findings.yields,
-      // Everything the forge link needs (W16-41). The connection carries the
-      // instance and its kind; the SCAN RUN carries the commit the finding was
-      // raised on, which is what makes the link point at the code as it was
-      // rather than at whatever is on the branch today.
-      defaultBranch: core.repos.defaultBranch,
-      forgeKind: core.forgeConnections.provider,
-      forgeBaseUrl: core.forgeConnections.baseUrl,
-      scanCommitSha: security.scanRuns.commitSha,
-    })
-    .from(read.findings)
-    .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
-    .innerJoin(core.forgeConnections, eq(core.forgeConnections.id, core.repos.connectionId))
-    // LEFT: an analysis-run finding has no scan run, and must still be listed.
-    // An inner join here would have silently dropped every Tier-2 finding from
-    // the explorer — the failure mode this codebase keeps producing.
-    .leftJoin(security.scanRuns, eq(security.scanRuns.id, read.findings.scanRunId));
+  return (
+    db
+      .select({
+        id: read.findings.id,
+        repoId: read.findings.repoId,
+        org: core.repos.org,
+        repoName: core.repos.name,
+        dimension: read.findings.dimension,
+        severity: read.findings.severity,
+        confidence: read.findings.confidence,
+        title: read.findings.title,
+        file: read.findings.file,
+        lineStart: read.findings.lineStart,
+        lineEnd: read.findings.lineEnd,
+        evidence: read.findings.evidence,
+        recommendation: read.findings.recommendation,
+        status: read.findings.status,
+        dismissReason: read.findings.dismissReason,
+        occurrenceCount: read.findings.occurrenceCount,
+        verifyStatus: read.findings.verifyStatus,
+        firstSeenAt: read.findings.firstSeenAt,
+        lastSeenAt: read.findings.lastSeenAt,
+        tier: read.findings.tier,
+        effectiveRisk: read.findings.effectiveRisk,
+        riskBand: read.findings.riskBand,
+        riskFactors: read.findings.riskFactors,
+        experimental: read.findings.experimental,
+        scannerKey: read.findings.scannerKey,
+        ruleId: read.findings.ruleId,
+        cveId: read.findings.cveId,
+        chainId: read.findings.chainId,
+        scanRunId: read.findings.scanRunId,
+        yields: read.findings.yields,
+        // Everything the forge link needs (W16-41). The connection carries the
+        // instance and its kind; the SCAN RUN carries the commit the finding was
+        // raised on, which is what makes the link point at the code as it was
+        // rather than at whatever is on the branch today.
+        defaultBranch: core.repos.defaultBranch,
+        forgeKind: core.forgeConnections.provider,
+        forgeBaseUrl: core.forgeConnections.baseUrl,
+        scanCommitSha: security.scanRuns.commitSha,
+      })
+      .from(read.findings)
+      .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
+      .innerJoin(core.forgeConnections, eq(core.forgeConnections.id, core.repos.connectionId))
+      // LEFT: an analysis-run finding has no scan run, and must still be listed.
+      // An inner join here would have silently dropped every Tier-2 finding from
+      // the explorer — the failure mode this codebase keeps producing.
+      .leftJoin(security.scanRuns, eq(security.scanRuns.id, read.findings.scanRunId))
+  );
 }
 
 type FindingRow = Awaited<ReturnType<ReturnType<typeof findingsQuery>['execute']>>[number];
@@ -119,43 +159,43 @@ type FindingRow = Awaited<ReturnType<ReturnType<typeof findingsQuery>['execute']
 /** The wire shape of one finding (FR-API-3). */
 function toFinding(r: FindingRow) {
   return {
-  id: r.id,
-  repo: { id: r.repoId, org: r.org, name: r.repoName },
-  dimension: r.dimension,
-  severity: r.severity,
-  confidence: r.confidence,
-  title: r.title,
-  file: r.file,
-  line_range: [r.lineStart, r.lineEnd],
-  evidence: r.evidence,
-  recommendation: r.recommendation,
-  status: r.status,
-  dismiss_reason: r.dismissReason,
-  occurrence_count: r.occurrenceCount,
-  verify_status: r.verifyStatus,
-  first_seen_at: r.firstSeenAt.toISOString(),
-  last_seen_at: r.lastSeenAt.toISOString(),
-  tier: r.tier,
-  // null, not '', for every one of these: a finding with no rule id has
-  // no rule id, and an empty string would render as a blank chip that
-  // looks like a rendering bug.
-  scanner_key: r.scannerKey,
-  rule_id: r.ruleId,
-  cve_id: r.cveId,
-  chain_id: r.chainId,
-  scan_run_id: r.scanRunId,
-  kev: r.yields?.['kev'] === true,
-  // null, not 0: the nightly reprice may not have reached it, and a 0
-  // would read as "judged, and judged harmless".
-  effective_risk: r.effectiveRisk === null ? null : Number(r.effectiveRisk),
-  risk_band: r.riskBand,
-  risk_factors: r.riskFactors,
-  experimental: r.experimental,
-  // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
-  // to — a finding about the whole repository has no file, and a connection
-  // with no recorded base URL has no instance to point at.
-  forge: forgeLinkFor(r),
-};
+    id: r.id,
+    repo: { id: r.repoId, org: r.org, name: r.repoName },
+    dimension: r.dimension,
+    severity: r.severity,
+    confidence: r.confidence,
+    title: r.title,
+    file: r.file,
+    line_range: [r.lineStart, r.lineEnd],
+    evidence: r.evidence,
+    recommendation: r.recommendation,
+    status: r.status,
+    dismiss_reason: r.dismissReason,
+    occurrence_count: r.occurrenceCount,
+    verify_status: r.verifyStatus,
+    first_seen_at: r.firstSeenAt.toISOString(),
+    last_seen_at: r.lastSeenAt.toISOString(),
+    tier: r.tier,
+    // null, not '', for every one of these: a finding with no rule id has
+    // no rule id, and an empty string would render as a blank chip that
+    // looks like a rendering bug.
+    scanner_key: r.scannerKey,
+    rule_id: r.ruleId,
+    cve_id: r.cveId,
+    chain_id: r.chainId,
+    scan_run_id: r.scanRunId,
+    kev: r.yields?.['kev'] === true,
+    // null, not 0: the nightly reprice may not have reached it, and a 0
+    // would read as "judged, and judged harmless".
+    effective_risk: r.effectiveRisk === null ? null : Number(r.effectiveRisk),
+    risk_band: r.riskBand,
+    risk_factors: r.riskFactors,
+    experimental: r.experimental,
+    // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
+    // to — a finding about the whole repository has no file, and a connection
+    // with no recorded base URL has no instance to point at.
+    forge: forgeLinkFor(r),
+  };
 }
 
 /**
@@ -188,6 +228,62 @@ function forgeLinkFor(r: FindingRow): { url: string; ref_kind: 'commit' | 'branc
     lineEnd: r.lineEnd,
   });
   return url === null ? null : { url, ref_kind: refKind };
+}
+
+/**
+ * One transition, atomically: the status write and the history row that
+ * explains it succeed or fail together (W17-23).
+ *
+ * Two things were possible before. The row could change status with no event
+ * behind it (the insert failed after the update committed), which is a
+ * decision nobody can later account for. And two people acting on the same
+ * finding both read `open`, both passed the lifecycle check, and the second
+ * write silently replaced the first — the WHERE now names the status that was
+ * read, so a row that has moved is left alone and reported. Returns false in
+ * that case and writes nothing.
+ */
+async function applyTransition(
+  db: Database,
+  t: {
+    workspaceId: number;
+    findingId: number;
+    fromStatus: string;
+    toStatus: string;
+    userId: number;
+    actorLogin: string | null;
+    reason: string;
+    dismissReason?: string | null;
+  },
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const moved = await tx
+      .update(read.findings)
+      .set({
+        status: t.toStatus,
+        statusChangedBy: t.userId,
+        statusChangedAt: new Date(),
+        ...(t.dismissReason !== undefined ? { dismissReason: t.dismissReason } : {}),
+      })
+      .where(
+        and(
+          eq(read.findings.id, t.findingId),
+          eq(read.findings.workspaceId, t.workspaceId),
+          eq(read.findings.status, t.fromStatus),
+        ),
+      )
+      .returning({ id: read.findings.id });
+    if (moved.length === 0) return false;
+    await tx.insert(read.findingEvents).values({
+      workspaceId: t.workspaceId,
+      findingId: t.findingId,
+      fromStatus: t.fromStatus,
+      toStatus: t.toStatus,
+      actor: t.userId,
+      actorLogin: t.actorLogin,
+      reason: t.reason,
+    });
+    return true;
+  });
 }
 
 export default async function findingsRoutes(
@@ -296,15 +392,30 @@ export default async function findingsRoutes(
     // Keyset, not offset: the list is ordered by severity and new findings
     // arrive at the top, so an offset page would skip or repeat rows while
     // someone is reading — which presents as "findings are missing".
+    const sort: FindingSort = q.sort === 'severity' ? 'severity' : 'risk';
     if (q.cursor) {
       const decoded = decodeCursor(q.cursor);
-      if (!decoded) return fail(request, reply, 400, 'Invalid cursor');
-      filters.push(
-        or(
-          lt(read.findings.severity, decoded.severity),
-          and(eq(read.findings.severity, decoded.severity), lt(read.findings.id, decoded.id)),
-        )!,
-      );
+      // A cursor minted under the other sort orders by different columns; it
+      // is not "after" anything in this list.
+      if (!decoded || decoded.sort !== sort) return fail(request, reply, 400, 'Invalid cursor');
+      const afterSeverityId = or(
+        lt(read.findings.severity, decoded.severity),
+        and(eq(read.findings.severity, decoded.severity), lt(read.findings.id, decoded.id)),
+      )!;
+      if (decoded.sort === 'severity') {
+        filters.push(afterSeverityId);
+      } else if (decoded.risk === null) {
+        // Inside the trailing NULLS LAST block: only unpriced rows remain.
+        filters.push(and(isNull(read.findings.effectiveRisk), afterSeverityId)!);
+      } else {
+        filters.push(
+          or(
+            lt(read.findings.effectiveRisk, decoded.risk),
+            and(eq(read.findings.effectiveRisk, decoded.risk), afterSeverityId),
+            isNull(read.findings.effectiveRisk),
+          )!,
+        );
+      }
     }
 
     const rows = await findingsQuery(db)
@@ -315,7 +426,7 @@ export default async function findingsRoutes(
       // sort is retained because "show me everything critical" is a real
       // question, just not the default one.
       .orderBy(
-        ...(q.sort === 'severity'
+        ...(sort === 'severity'
           ? [desc(read.findings.severity), desc(read.findings.id)]
           : [
               // NULLS LAST: an unpriced finding has not been judged low-risk,
@@ -332,7 +443,7 @@ export default async function findingsRoutes(
     const last = page[page.length - 1];
     return reply.send({
       items: page.map(toFinding),
-      next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(last.severity, last.id) : null,
+      next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(sort, last) : null,
     });
   });
 
@@ -496,29 +607,31 @@ export default async function findingsRoutes(
         ? request.body.dismiss_reason
         : null;
 
-    const now = new Date();
-    await db
-      .update(read.findings)
-      .set({
-        status: next,
-        statusChangedBy: userId,
-        statusChangedAt: now,
-        ...(next === 'dismissed' ? { dismissReason } : {}),
-      })
-      .where(eq(read.findings.id, id));
-
     // The login travels WITH the id (W16-59), so removing the account leaves
     // "a person whose account is gone" rather than "the analysis pass did it".
     const actorLogin = await actorLoginFor(db, userId);
-    await db.insert(read.findingEvents).values({
+    const applied = await applyTransition(db, {
       workspaceId,
       findingId: id,
       fromStatus: finding.status,
       toStatus: next,
-      actor: userId,
+      userId,
       actorLogin,
       reason: dismissReason ? `${dismissReason}: ${note}` : note,
+      ...(next === 'dismissed' ? { dismissReason } : {}),
     });
+    if (!applied) {
+      // The row moved between the read above and the write: someone else's
+      // decision landed first. Reported as the same conflict an invalid
+      // transition is, rather than overwriting their judgement (W17-23).
+      return fail(
+        request,
+        reply,
+        409,
+        'Transition not allowed',
+        'The finding changed status while this request was in flight. Reload and try again.',
+      );
+    }
 
     auditLog(request.log, {
       event: 'finding.status_changed',
@@ -547,9 +660,6 @@ export default async function findingsRoutes(
       const ids = Array.isArray(request.body?.ids)
         ? (request.body.ids as unknown[]).map(Number).filter(Number.isInteger)
         : [];
-      // Resolved ONCE for the whole batch — it is the same person for every row
-      // and a lookup per finding would be a query per finding.
-      const bulkActorLogin = await actorLoginFor(db, userId);
       const next = request.body?.status;
       const note = typeof request.body?.note === 'string' ? request.body.note.trim() : '';
       if (ids.length === 0) return fail(request, reply, 400, 'No findings selected');
@@ -557,13 +667,16 @@ export default async function findingsRoutes(
         return fail(request, reply, 400, 'Invalid status');
       }
       if (note === '') return fail(request, reply, 400, 'A note is required');
+      // Resolved ONCE for the whole batch — it is the same person for every row
+      // and a lookup per finding would be a query per finding. After the
+      // guards, so a malformed request costs no query at all.
+      const bulkActorLogin = await actorLoginFor(db, userId);
 
       const rows = await db
         .select()
         .from(read.findings)
         .where(and(eq(read.findings.workspaceId, workspaceId), inArray(read.findings.id, ids)));
 
-      const now = new Date();
       const applied: number[] = [];
       const skipped: { id: number; reason: string }[] = [];
 
@@ -575,20 +688,18 @@ export default async function findingsRoutes(
           skipped.push({ id: row.id, reason: `${row.status} → ${next} not permitted` });
           continue;
         }
-        await db
-          .update(read.findings)
-          .set({ status: next, statusChangedBy: userId, statusChangedAt: now })
-          .where(eq(read.findings.id, row.id));
-        await db.insert(read.findingEvents).values({
+        const ok = await applyTransition(db, {
           workspaceId,
           findingId: row.id,
           fromStatus: row.status,
           toStatus: next,
-          actor: userId,
+          userId,
           actorLogin: bulkActorLogin,
           reason: note,
         });
-        applied.push(row.id);
+        if (ok) applied.push(row.id);
+        else
+          skipped.push({ id: row.id, reason: 'changed status while this request was in flight' });
       }
 
       auditLog(request.log, {

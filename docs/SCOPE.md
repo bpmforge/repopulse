@@ -17,7 +17,7 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-8 | Dashboard web app with drill-down: org rollup → repo → PR/file → detail. ECharts visualizations, trend windows (e.g. 30/90/365d). | D5 |
 | S-9 | Custom saved views (filter + layout persistence per user) including the personalized P2 views. | D6, brief product line |
 | S-10 | Postgres 16 + Drizzle schema for all of the above; Redis + BullMQ job infrastructure (backfill, webhook processing, metric computation, reconciliation). | brief tech stack |
-| S-11 | Podman deployment to bpmforge infra at `repopulse.bpmforge.com`. | D1 |
+| S-11 | **Customer-hosted container deployment**: an install bundle (compose + configure/start/backup/restore scripts + versioned images) a customer runs in their own environment on Docker or Podman. bpmforge's `repopulse.bpmforge.com` deployment is the dogfood install, not the product. | D1a, D15 |
 | S-12 | `analysis` module boundary stubbed (LLM gateway interface + dimension checklists defined, not executed) so Tier 2/3 lands without rearchitecture. | D2, brief modules |
 
 ## In scope — v1.x (roadmap, designed-for now, built later)

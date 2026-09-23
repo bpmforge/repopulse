@@ -1,12 +1,14 @@
 import {
   createAnalysisGateway,
+  createEgressAuditor,
   resolveProvider,
   type AnalysisGateway,
+  type EgressAuditRow,
   type LlmProviderKind,
   type T2Host,
 } from '@repopulse/analysis';
 import { credentials } from '@repopulse/auth';
-import { core, type Database } from '@repopulse/shared';
+import { core, read, type Database } from '@repopulse/shared';
 import { and, eq } from 'drizzle-orm';
 
 // The analysis gateway, built once for the worker (carry-forward from W9-03,
@@ -189,8 +191,59 @@ export async function buildWorkerGateway(
 
   if (hosts.length === 0) return null;
 
+  // THE PRODUCTION EGRESS WRITER (W17-11).
+  //
+  // egress_audit had a reader and no writer: the only thing that ever wrote one
+  // was createT3Client, whose only caller was its own test. So Admin → Analysis
+  // reported an empty table on an install that had been sending diffs to a
+  // configured PUBLIC provider all along.
+  //
+  // INSERT only. SC-15 grants the app role INSERT and SELECT, so an outcome is
+  // an appended row sharing the attempt id, never an update.
+  const egressAuditor = createEgressAuditor({
+    write: async (row: EgressAuditRow) => {
+      await db.insert(read.egressAudit).values({
+        workspaceId: row.workspaceId,
+        repoId: row.repoId,
+        analysisRunId: row.analysisRunId ?? null,
+        pullRequestId: row.pullRequestId ?? null,
+        initiatorUserId: row.initiatorUserId ?? null,
+        initiatorLogin: row.initiatorLogin ?? null,
+        modelId: row.modelId,
+        bytesSent: row.bytesSent,
+        // Unknown stays NULL. Recording 0 would assert a measurement nobody
+        // made, which is the thing an audit may never do.
+        tokensSent: row.tokensSent,
+        tokensReceived: row.tokensReceived,
+        contentSha256: row.contentSha256,
+        attemptId: row.attemptId,
+        outcome: row.outcome,
+        destinationHost: row.destinationHost,
+        tier: row.tier,
+        error: row.error,
+      });
+    },
+  });
+
   const gateway = createAnalysisGateway({
     hosts,
+    egressAuditor,
+    /**
+     * The gateway speaks in the string repoId its callers use; the audit table
+     * is relational. Resolving here — not in the gateway — keeps the analysis
+     * package free of a database dependency (ARCHITECTURE §3).
+     */
+    resolveAuditIds: async (meta) => {
+      const numericRepoId = Number(meta.repoId);
+      if (!Number.isInteger(numericRepoId)) return null;
+      const [repo] = await db
+        .select({ id: core.repos.id, workspaceId: core.repos.workspaceId })
+        .from(core.repos)
+        .where(eq(core.repos.id, numericRepoId))
+        .limit(1);
+      if (!repo) return null;
+      return { workspaceId: repo.workspaceId, repoId: repo.id };
+    },
     ...(env.LMSTUDIO_CONCURRENCY ? { concurrencyCap: Number(env.LMSTUDIO_CONCURRENCY) } : {}),
     // Read per repo, from the admin flag — never assumed, and never true for a
     // scheduled pass because no T3 transport is supplied above.
@@ -241,6 +294,19 @@ export interface GatewayResolverOptions {
    * file-editing-and-restarting the whole feature exists to remove.
    */
   ttlMs?: number;
+  /**
+   * How long an ABSENT gateway (null) is reused, in ms. Shorter than ttlMs on
+   * purpose.
+   *
+   * The W17-30 journey found the case: the worker boots, caches "no provider"
+   * for the default workspace, the operator adds a model in Admin → Models
+   * and runs a scan — and for the rest of the minute the row reads "No model
+   * is configured … add one in Admin → Models", which they just did. A built
+   * gateway is expensive to rebuild (a decrypt, every row resolved); a null is
+   * one SELECT, so it can be re-asked within seconds while a sweep over forty
+   * repos still shares the answer.
+   */
+  absentTtlMs?: number;
   now?: () => number;
 }
 
@@ -251,16 +317,17 @@ export function createGatewayResolver(
   options: GatewayResolverOptions = {},
 ): GatewayResolver {
   const ttlMs = options.ttlMs ?? 60_000;
+  const absentTtlMs = options.absentTtlMs ?? Math.min(ttlMs, 5_000);
   const now = options.now ?? (() => Date.now());
   const cache = new Map<number, { at: number; built: WorkerGateway | null }>();
 
   return {
     async for(workspaceId: number): Promise<WorkerGateway | null> {
       const hit = cache.get(workspaceId);
-      // A cached NULL counts. A workspace with no provider is a settled answer,
-      // not a miss — re-deriving it on every scan would query the table for
-      // every repo in the sweep to reach the same nothing.
-      if (hit && now() - hit.at < ttlMs) return hit.built;
+      // A cached NULL counts, but for less long. A workspace with no provider
+      // is a settled answer inside one sweep; across a minute it is the answer
+      // an admin is in the middle of changing.
+      if (hit && now() - hit.at < (hit.built ? ttlMs : absentTtlMs)) return hit.built;
 
       const built = await buildWorkerGateway(db, env, tokenKey, workspaceId);
       cache.set(workspaceId, { at: now(), built });

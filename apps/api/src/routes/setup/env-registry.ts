@@ -64,7 +64,8 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'shared',
     required: true,
     purpose: 'Postgres 16 connection string. Every read and write goes here.',
-    ifWrong: 'The API and worker refuse to start. A wrong database means an empty product, not an error page.',
+    ifWrong:
+      'The API and worker refuse to start. A wrong database means an empty product, not an error page.',
     validate: isPostgresUrl,
     secret: true,
   },
@@ -119,13 +120,15 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     required: false,
     purpose:
       'OAuth client id of YOUR GitHub App. OPTIONAL since D14 — set it only if you want "Sign in with GitHub" offered alongside local accounts and OIDC.',
-    ifWrong: 'Forge sign-in is not offered at all when it is absent, which is a supported deployment. Set but wrong, login fails at GitHub with an unhelpful "application not found".',
+    ifWrong:
+      'Forge sign-in is not offered at all when it is absent, which is a supported deployment. Set but wrong, login fails at GitHub with an unhelpful "application not found".',
   },
   {
     name: 'GITHUB_APP_CLIENT_SECRET',
     scope: 'api',
     required: false,
-    purpose: 'OAuth client secret of your GitHub App. Required only alongside GITHUB_APP_CLIENT_ID.',
+    purpose:
+      'OAuth client secret of your GitHub App. Required only alongside GITHUB_APP_CLIENT_ID.',
     ifWrong: 'Login fails at the token exchange, after the user has already approved.',
     secret: true,
   },
@@ -261,11 +264,24 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: './data',
   },
   {
+    // Read by Node itself at process start, not by our code. Registered so the
+    // setup screen and CONFIG.md name the supported way to trust an internal CA.
+    name: 'NODE_EXTRA_CA_CERTS',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Path INSIDE the container to a PEM file of extra CA certificates, added to Node's built-in roots. Set it when a self-hosted Gitea, GitLab or GitHub Enterprise (or your OIDC issuer) uses a certificate from an internal CA. In the deploy stack, put the PEM in EXTRA_CA_DIR (default deploy/ca) and set this to /etc/repopulse/ca/<file>.pem.",
+    ifWrong:
+      'Unset with an internal-CA forge: connecting fails with a TLS error (unable to verify the first certificate / unable to get local issuer certificate). A path that does not exist or is unreadable is only a warning from Node at startup, and the extra CA is silently not trusted.',
+    default: 'unset',
+  },
+  {
     name: 'SNAPSHOT_ROOT',
     scope: 'worker',
     required: false,
     purpose: 'Scratch directory for C1a scan snapshots. Cleared by the sweeper.',
-    ifWrong: 'Scans fail to extract; a non-ephemeral path retains customer source longer than intended.',
+    ifWrong:
+      'Scans fail to extract; a non-ephemeral path retains customer source longer than intended.',
     default: 'the system temp directory',
   },
   {
@@ -285,6 +301,26 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     purpose: 'Container image the sandboxed scanners run in.',
     ifWrong: 'Every tool-based scan fails to start; findings silently stop appearing.',
     default: 'localhost/repopulse/scan:dev',
+  },
+  {
+    name: 'SCAN_RUNNER_URL',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'Where the worker reaches the scan-runner sidecar (W17-27), the one container that holds the runtime socket and launches the --network=none scan containers on its behalf. http://host:port; SCAN_RUNNER_SOCKET is the unix-socket alternative. The packaged stack sets it to the scan-runner service on the internal scan network.',
+    ifWrong:
+      'Every tool-based scan reports the sandbox as unavailable and no findings are persisted; the worker itself never touches the container runtime.',
+    default: 'http://scan-runner:3310 in deploy/compose.yaml; unset means no runner',
+  },
+  {
+    name: 'SCAN_RUNNER_TOKEN',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'Shared secret between the worker and the scan-runner sidecar. Mandatory whenever the runner listens on TCP (the packaged stack); deploy/configure.mjs generates it and deploy/up.sh refuses to start without it.',
+    ifWrong:
+      'The runner refuses to start (TCP listener with no token) or answers 401 to every scan request, so scans fail as sandbox-unavailable with no findings.',
+    secret: true,
   },
   {
     name: 'RECONCILE_CRON',
@@ -326,7 +362,8 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     name: 'REGISTERS_NIGHTLY_CRON',
     scope: 'worker',
     required: false,
-    purpose: "Nightly W10 register pass (knowledge, supply chain, architecture, test gap). 'off' disables it.",
+    purpose:
+      "Nightly W10 register pass (knowledge, supply chain, architecture, test gap). 'off' disables it.",
     ifWrong: 'Register findings never refresh; EOL dates in particular go stale silently.',
     default: '17 3 * * *',
     validate: isCron,
@@ -362,7 +399,8 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'worker',
     required: false,
     purpose: 'Per-host concurrent Tier-2 request cap (FR-ANALYSIS-8).',
-    ifWrong: 'Set too high, a local model thrashes and calls time out; the scheduler parks instead of queueing invisibly.',
+    ifWrong:
+      'Set too high, a local model thrashes and calls time out; the scheduler parks instead of queueing invisibly.',
     default: '1',
   },
   {

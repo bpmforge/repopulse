@@ -104,8 +104,8 @@ describe('app shell (__root) — W4-02', () => {
     expect(screen.getByTestId('filter-window')).toBeInTheDocument();
     expect(screen.getByTestId('breadcrumb')).toBeInTheDocument();
     expect(screen.getByTestId('home')).toBeInTheDocument();
-    // Org Overview rail item is active on '/'.
-    expect(screen.getByTestId('rail-org-overview')).toHaveAttribute('aria-current', 'page');
+    // Overview rail item is active on '/'.
+    expect(screen.getByTestId('rail-home')).toHaveAttribute('aria-current', 'page');
   });
 
   it('restores filter state from the URL (FR-WEB-2): ?window=90d', async () => {

@@ -1,0 +1,15 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  start 2026-09-11T06:23:06Z
+== isolation 3 (raw, unfiltered): pnpm e2e e2e/quality.spec.ts --grep 'no horizontal overflow at 390px, 200% zoom'
+
+> repopulse@0.1.0 e2e /Users/bmatthews/Code/repopulse
+> playwright test e2e/quality.spec.ts --grep 'no horizontal overflow at 390px, 200% zoom'
+
+
+Running 1 test using 1 worker
+
+(node:63485) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/quality.spec.ts:538:5 › no horizontal overflow at 390px, 200% zoom (8.2s)
+
+  1 passed (14.2s)
+EXIT=0  end 2026-09-11T06:23:21Z

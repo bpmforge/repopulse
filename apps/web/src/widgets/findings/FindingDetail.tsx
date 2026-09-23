@@ -1,11 +1,21 @@
 import { useState } from 'react';
-import { WidgetFrame } from '../../components/index.js';
+import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
-import { locationOf, SEVERITY_LABEL, type Finding, type FindingEvent } from './contracts.js';
+import {
+  locationOf,
+  reviewSummary,
+  SEVERITY_LABEL,
+  type Finding,
+  type FindingEvent,
+} from './contracts.js';
+import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
 const DISMISS_REASONS = ['false_positive', 'accepted_risk', 'not_applicable', 'duplicate'] as const;
+
+const ACTION_BUTTON =
+  'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
 
 export function FindingDetail({
   finding,
@@ -18,6 +28,7 @@ export function FindingDetail({
 }) {
   const [note, setNote] = useState('');
   const [reason, setReason] = useState<string>('false_positive');
+  const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const historyDescriptor = {
     endpoint: '/findings/{id}/history',
@@ -25,7 +36,10 @@ export function FindingDetail({
   } as const;
   const { data: history } = useApiQuery<{ items: FindingEvent[] }>(historyDescriptor);
 
-  const transition = useApiMutation<{ status: string; note: string; dismiss_reason?: string }, unknown>(
+  const transition = useApiMutation<
+    { status: string; note: string; dismiss_reason?: string },
+    unknown
+  >(
     { endpoint: '/findings/{id}', path: { id: finding.id }, method: 'PATCH' },
     // The panel's OWN history query is invalidated too. Without it the audit
     // trail the user just added to keeps showing the previous state — the
@@ -33,15 +47,56 @@ export function FindingDetail({
     { invalidate: [...invalidate, queryKeyFor(historyDescriptor)] },
   );
 
+  /**
+   * Which action is in flight, if any (W17-23). Only THAT control is disabled:
+   * `isPending` alone greyed out both Confirm and Dismiss, so a slow confirm
+   * read as "the panel is broken" rather than "one request is running". The
+   * status shown is never taken from the request — it is `finding.status`,
+   * re-read from the API once the mutation invalidates the list, so a failed
+   * write leaves the chip exactly where the database has it.
+   */
+  const pending = transition.isPending ? transition.variables?.status : undefined;
+
+  const copySummary = () => {
+    const text = reviewSummary(finding, history?.items ?? []);
+    // Clipboard access can be refused (insecure origin, denied permission).
+    // The button then says so rather than claiming success — and nothing
+    // else happens either way: no request leaves the browser for this.
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      setCopied('failed');
+      return;
+    }
+    void clipboard
+      .writeText(text)
+      .then(() => setCopied('copied'))
+      .catch(() => setCopied('failed'));
+  };
+
   return (
     <WidgetFrame title={finding.title} state="ready">
-      <div className="flex flex-col gap-3" data-testid="finding-detail">
+      {/* Escape closes, from anywhere inside the panel (W17-22). On the element
+          rather than window so it cannot collide with the triage queue's own
+          Escape, and the note field is not exempt: Escape is not a keystroke a
+          note needs. */}
+      <div
+        className="flex flex-col gap-3"
+        data-testid="finding-detail"
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape') return;
+          e.stopPropagation();
+          onClose();
+        }}
+      >
         <div className="flex flex-wrap gap-3 text-xs text-fg-muted">
           <span>{SEVERITY_LABEL[finding.severity]}</span>
           <span>confidence {finding.confidence}/5</span>
           <span>{finding.dimension.replace('_', ' ')}</span>
           <span>seen {finding.occurrence_count}×</span>
           <span>Tier {finding.tier}</span>
+          {/* The status, from the server's copy of the finding — never from
+              the button that was just pressed (W17-23). */}
+          <span data-testid="finding-status">status {finding.status.replace('_', ' ')}</span>
         </div>
 
         {/* The quote is why anyone should believe the finding — it is validated
@@ -49,7 +104,7 @@ export function FindingDetail({
             evidence rather than as the model's paraphrase. */}
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Evidence</h3>
-          <pre className="mt-1 overflow-x-auto rounded-md border border-border bg-surface-2 p-2 font-mono text-xs whitespace-pre-wrap">
+          <pre className="mt-1 overflow-x-auto panel-inset p-2 font-mono text-xs whitespace-pre-wrap">
             {finding.evidence}
           </pre>
           <p className="mt-1 font-mono text-xs text-fg-faint">
@@ -77,8 +132,8 @@ export function FindingDetail({
             // longer be the line this finding is about — worth one sentence
             // rather than a link that silently means something else.
             <p className="mt-1 text-xs text-fg-faint" data-testid="finding-forge-ref-note">
-              Opens the default branch — this finding records no commit, so the
-              lines may have moved since it was raised.
+              Opens the default branch — this finding records no commit, so the lines may have moved
+              since it was raised.
             </p>
           )}
         </div>
@@ -93,8 +148,8 @@ export function FindingDetail({
           <ul className="mt-1 flex flex-col gap-0.5 text-xs" data-testid="finding-history">
             {(history?.items ?? []).map((e, i) => (
               <li key={i}>
-                <span className="text-fg-muted">{e.at.slice(0, 10)}</span> {e.from_status ?? 'new'} →{' '}
-                {e.to_status}{' '}
+                <span className="text-fg-muted">{e.at.slice(0, 10)}</span> {e.from_status ?? 'new'}{' '}
+                → {e.to_status}{' '}
                 {/* THREE STATES (W16-59). An analysis pass reopening a finding
                     must not look like a colleague doing it — and now that a
                     removed account nulls the actor id, a departed colleague
@@ -116,7 +171,7 @@ export function FindingDetail({
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Note (required)
             <input
-              className="w-72 rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="w-72 panel px-2 py-1 text-sm"
               data-testid="finding-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -125,7 +180,7 @@ export function FindingDetail({
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
             Dismiss reason
             <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="panel px-2 py-1 text-sm"
               data-testid="finding-dismiss-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -139,26 +194,54 @@ export function FindingDetail({
           </label>
           <button
             type="button"
-            className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className={ACTION_BUTTON}
             data-testid="finding-confirm"
-            disabled={transition.isPending || note.trim() === ''}
+            disabled={pending === 'confirmed' || note.trim() === ''}
+            aria-busy={pending === 'confirmed' || undefined}
             onClick={() => transition.mutate({ status: 'confirmed', note })}
           >
-            Confirm
+            {pending === 'confirmed' ? 'Confirming…' : 'Confirm'}
           </button>
           <button
             type="button"
-            className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className={ACTION_BUTTON}
             data-testid="finding-dismiss"
-            disabled={transition.isPending || note.trim() === ''}
+            disabled={pending === 'dismissed' || note.trim() === ''}
+            aria-busy={pending === 'dismissed' || undefined}
             onClick={() => transition.mutate({ status: 'dismissed', note, dismiss_reason: reason })}
           >
-            Dismiss
+            {pending === 'dismissed' ? 'Dismissing…' : 'Dismiss'}
           </button>
-          <button type="button" className="text-xs text-fg-muted underline underline-offset-2" onClick={onClose}>
+          {/* Plain text to the clipboard, nothing to the forge (W17-23). A
+              review is acted on in a PR thread or a ticket, and this is the
+              way there that does not require RepoPulse to write to either. */}
+          <button
+            type="button"
+            className={ACTION_BUTTON}
+            data-testid="finding-copy-summary"
+            onClick={copySummary}
+          >
+            {copied === 'copied'
+              ? 'Copied'
+              : copied === 'failed'
+                ? 'Copy failed — select the text instead'
+                : 'Copy review summary'}
+          </button>
+          {/* To the plan for this finding's repository (W17-24): a link that
+              carries the id, and only navigates. */}
+          <PlanForRepoLink repoId={finding.repo.id} />
+          <button
+            type="button"
+            className="text-xs text-fg-muted underline underline-offset-2"
+            onClick={onClose}
+          >
             Close
           </button>
         </div>
+        {/* A refused write says so where the button is (W17-23). Before this a
+            409 — someone else triaged it first, or the row is in a state this
+            action cannot leave — vanished, and the panel simply did nothing. */}
+        <ErrorNote error={transition.error} testId="finding-action-error" />
         {/* The note is required by the API too — a dismissal with no reason is
             unreviewable six months later, which is exactly when it matters. */}
         {note.trim() === '' && (

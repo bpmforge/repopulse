@@ -40,7 +40,7 @@ export function FilterBar({
       <label className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="sr-only">Time window</span>
         <select
-          className="rounded-sm border border-border bg-surface px-2 py-1 text-sm text-fg"
+          className="h-8 rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong"
           data-testid="filter-window"
           aria-label="Time window"
           value={
@@ -64,7 +64,7 @@ export function FilterBar({
       <label className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="sr-only">Repositories</span>
         <select
-          className="rounded-sm border border-border bg-surface px-2 py-1 text-sm text-fg"
+          className="h-8 rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong"
           data-testid="filter-repos"
           aria-label="Repositories"
           value={value.repos ?? 'all'}

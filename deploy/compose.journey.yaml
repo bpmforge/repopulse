@@ -1,0 +1,42 @@
+# The customer-journey OVERLAY (W17-30). Never used alone.
+#
+#   DEMO_COMPOSE_OVERLAY=deploy/compose.journey.yaml ./deploy/demo.sh up
+#   — or, what deploy/journey.sh does for you.
+#
+# Layered over deploy/compose.demo.yaml it adds exactly one thing the journey
+# needs that the demo does not ship: a FIXTURE MODEL SERVICE, so the Tier-2
+# path (Admin → Models, the checklist scanners, the egress audit) runs through
+# the real client against an endpoint that answers, and can be made to hang.
+# Everything else — the images, the fixture forge, the bootstrap admin, the
+# scan-runner — is the demo stack unchanged, which is the point: the journey
+# proves the product, not a special build of it.
+#
+# The model joins the forge's network namespace for the same reason api and
+# worker do (see compose.demo.yaml): SC-24 admits an http:// model host only on
+# loopback or a private range, and the fixture binds 127.0.0.1. Sharing the
+# namespace satisfies the policy honestly; nothing is relaxed.
+
+services:
+  model:
+    # The api image already exists in the demo build; this reuses it for its
+    # `node` and nothing else — the fixture is a dependency-free script mounted
+    # in, not part of the product.
+    image: repopulse/api:demo
+    entrypoint: ['node', '/journey/fixture-model.mjs']
+    restart: unless-stopped
+    network_mode: 'service:forge'
+    environment:
+      FIXTURE_MODEL_PORT: '3399'
+    volumes:
+      - ./journey/fixture-model.mjs:/journey/fixture-model.mjs:ro
+    depends_on:
+      forge: { condition: service_started }
+
+  worker:
+    environment:
+      # The model-timeout DRILL. The shipping default is 20 minutes, chosen for
+      # a large reasoning model on a contended host (t2/client.ts), and a drill
+      # cannot wait that long. This is the documented operator knob
+      # (docs/CONFIG.md), set short so the fixture-hang model is reported as a
+      # timeout within the run — the same code path, a shorter number.
+      LMSTUDIO_REQUEST_TIMEOUT_MS: '30000'

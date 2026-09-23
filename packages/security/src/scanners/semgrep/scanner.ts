@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { IncomingFinding } from '@repopulse/insights';
 import { SCAN_MOUNT_PATH } from '../../../sandbox/profile.js';
 import { runInSandbox, stderrTail } from '../../../sandbox/run.js';
+import { rulepackMountDir } from '../../../sandbox/tooling.js';
 import type { ScanBudget } from '../../framework/types.js';
 import { parseOpengrepOutput, type SemgrepFinding } from './output.js';
 
@@ -134,7 +135,11 @@ export function imageToolVersion(image: string, runtime = 'podman'): string {
 export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunResult> {
   if (args.configRef) assertNotRegistryConfig(args.configRef);
 
-  const rulepack = readRulepack(args.rulepackDir ?? SEMGREP_RULEPACK_DIR);
+  // Read from and mounted from the directory the RUNTIME can reach: the
+  // checkout on a dev machine, the synced copy under SCAN_RULES_DIR behind a
+  // scan-runner (W17-27, sandbox/tooling.ts). The code-health packs come
+  // through here too (logging, perf), so one resolution covers all three.
+  const rulepack = readRulepack(rulepackMountDir(args.rulepackDir ?? SEMGREP_RULEPACK_DIR));
   const image = args.image ?? DEFAULT_SCAN_IMAGE;
   const started = Date.now();
 

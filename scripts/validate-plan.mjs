@@ -13,7 +13,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PLAN_PATH = path.join(ROOT, 'plan.json');
 
-const MODULES = ['infra', 'forge', 'ingest', 'metrics', 'analysis', 'insights', 'reports', 'auth', 'api', 'web', 'deploy', 'security'];
+// One entry per real workspace package plus the three non-package buckets
+// (infra, api, web, deploy). 'shared' was missing while six W16 tickets already
+// declared it and packages/shared shipped as @repopulse/shared — the same lag as
+// the wave regex below, and masked by it, because the id check `continue`s.
+const MODULES = ['infra', 'forge', 'ingest', 'metrics', 'analysis', 'insights', 'reports', 'auth', 'api', 'web', 'deploy', 'security', 'shared'];
 const STATUSES = ['todo', 'in_progress', 'blocked', 'done'];
 const POINTS = [1, 2, 3, 5, 8];
 const TICKET_KEYS = ['id', 'title', 'phase', 'module', 'stories', 'write_scope', 'depends_on', 'acceptance', 'points', 'status', 'notes'];
@@ -64,10 +68,19 @@ for (const t of plan.tickets) {
   // W15 is the standalone-auth wave (D14): the forge stops being the identity
   // provider, so a customer can deploy this without registering an App with a
   // vendor they may not use.
-  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-5])-(\d{2})$/);
+  // W16 is the make-it-real wave: demo mode, provider UI, dead ends, polish.
+  // W17 is the product-completion wave (RP-01..RP-34 of the standalone-product
+  // handoff, DECISIONS.md D15) — shipping this as an installable product.
+  //
+  // This range LAGGED the board once already: the pattern stopped at 15 while a
+  // complete 59-ticket W16 was on the board, so every W16 ticket failed here and
+  // `continue` skipped its remaining checks. The validator reported 59 identical
+  // id errors and could not print a claimable set at all. Widen this WITH the
+  // wave, in the same commit that opens it.
+  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-7])-(\d{2})$/);
   // The message names the CURRENT range rather than a range that was true two
   // waves ago — a stale error message sends the next person to the wrong fix.
-  if (!m) { err(`${label}: id must match W<0-15>-<nn>`); continue; }
+  if (!m) { err(`${label}: id must match W<0-17>-<nn>`); continue; }
   if (byId.has(t.id)) err(`${t.id}: duplicate id`);
   byId.set(t.id, t);
 

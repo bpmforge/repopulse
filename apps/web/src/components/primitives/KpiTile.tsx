@@ -49,15 +49,15 @@ export function KpiTile({
 }: KpiTileProps) {
   return (
     <div
-      className={`flex flex-col gap-1 rounded-md border border-border bg-surface p-4 ${className}`}
+      className={`panel-inset flex flex-col gap-1.5 p-4 ${className}`}
       data-testid="kpi-tile"
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</span>
+        <span className="text-[13px] font-medium text-fg-muted">{label}</span>
         {aside}
       </div>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-[28px] font-semibold leading-none tabular-nums text-fg">
+        <span className="text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-fg">
           {value ?? '—'}
         </span>
         {unit && value !== null && <span className="text-sm text-fg-muted">{unit}</span>}

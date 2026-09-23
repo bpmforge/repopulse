@@ -1,10 +1,18 @@
+import { useRef } from 'react';
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
+import { ScannerErrorDetail } from '../../../widgets/security/ScannerStatusList.js';
+import { useScanRun, type ScanRun } from '../../../widgets/security/useScanRun.js';
 import {
-  chScannerStateLabel,
+  hasMeasuredCount,
+  scannerStateLabel,
+  type ScannerState,
+} from '../../../widgets/security/contracts.js';
+import {
   CH_SERIES_LABEL,
+  type ChScannerStatus,
   type RepoCodeHealth,
 } from '../../../widgets/code-health/contracts.js';
 
@@ -14,13 +22,62 @@ import {
 // that ran clean are different sentences, and every number on this page is
 // either measured or explicitly absent. Nothing here shows a zero it has not
 // earned.
+//
+// W17-20: the API now reports the SAME state vocabulary as the security tab
+// (running, stale, nothing_scanned, all_rejected included) — a scan in flight
+// used to fall through to "✓ ran clean" here, with the count column showing
+// the previous run's number as if it were this one's. The tab also follows a
+// manual scan to its end instead of refetching once, and the complexity panel
+// takes its empty sentence from the scanner's actual state.
 
 export const Route = createFileRoute('/repos/$repoId/code-health')({ component: CodeHealthTab });
+
+/**
+ * The payload as the API now sends it (W17-20): the scanner state is the full
+ * security vocabulary, of which the code-health contract's four states are a
+ * subset. Widened here rather than in widgets/code-health, which is outside
+ * this ticket's write scope.
+ */
+type CodeHealthScanner = Omit<ChScannerStatus, 'state'> & { state: ScannerState };
+type CodeHealthPayload = Omit<RepoCodeHealth, 'scanners'> & { scanners: CodeHealthScanner[] };
 
 /** Latest value of a series, or null when the series has no points. */
 function latest(points: { value: number }[] | undefined): number | null {
   if (!points || points.length === 0) return null;
   return points[points.length - 1]?.value ?? null;
+}
+
+/**
+ * Why the complexity panel is empty, in the complexity scanner's own words.
+ *
+ * ANSWER THE QUESTION THE TABLE ABOVE HAS ALREADY SETTLED (W16-49): the
+ * screen knows which case it is in, so it says which. W17-20 finished the
+ * job — "ran and found nothing" was printed for every state except
+ * never_run, including a run that failed and one still in flight.
+ */
+export function complexityEmptyCopy(scanner: Pick<CodeHealthScanner, 'state'> | undefined): string {
+  const NOT_MEASURED = 'This is not a measurement of a tidy codebase.';
+  switch (scanner?.state) {
+    case 'ok':
+      return 'The complexity scanner ran and found no function over the threshold. This one IS a measurement of a tidy codebase.';
+    case 'partial':
+      return `The complexity scanner was cut short and found no function over the threshold in what it covered — an incomplete scan. ${NOT_MEASURED}`;
+    case 'running':
+      return `No complexity findings yet — the complexity scanner is running now. ${NOT_MEASURED}`;
+    case 'stale':
+      return `No complexity findings — the last complexity scan was interrupted and never finished. ${NOT_MEASURED}`;
+    case 'error':
+      return `No complexity findings — the last complexity scan failed, which is why; the coverage table above has the error. ${NOT_MEASURED}`;
+    case 'nothing_scanned':
+      return `No complexity findings — the last complexity scan covered nothing. ${NOT_MEASURED}`;
+    case 'all_rejected':
+      return `No complexity findings — the last scan proposed findings and every one was rejected. ${NOT_MEASURED}`;
+    case 'not_enabled':
+      return `No complexity findings — the complexity scanner is not enabled for this repository. ${NOT_MEASURED}`;
+    case 'never_run':
+    case undefined:
+      return `No complexity findings — the complexity scanner has never run for this repository, which is why. ${NOT_MEASURED}`;
+  }
 }
 
 function Headline({
@@ -50,10 +107,15 @@ function Headline({
 
 function CodeHealthTab() {
   const { repoId } = useParams({ from: '/repos/$repoId/code-health' });
-  const { data, isLoading, isError, error } = useApiQuery<RepoCodeHealth>({
-    endpoint: '/repos/{id}/code-health',
-    path: { id: repoId },
+  const descriptor = { endpoint: '/repos/{id}/code-health', path: { id: repoId } } as const;
+  // Same ref dance as the Security tab: the poll interval is decided from the
+  // payload the query is fetching.
+  const intervalRef = useRef<ScanRun['refetchInterval']>(() => false);
+  const { data, isLoading, isError, error } = useApiQuery<CodeHealthPayload>(descriptor, {
+    refetchInterval: (latest) => intervalRef.current(latest),
   });
+  const scan = useScanRun(data);
+  intervalRef.current = scan.refetchInterval;
 
   const state = frameState({ isLoading, isError, isEmpty: false });
 
@@ -62,7 +124,7 @@ function CodeHealthTab() {
       <WidgetFrame
         title="Debt signals"
         state={state}
-        {...(error ? { errorMessage: error.message, error } : {})}
+        {...(error ? { error } : {})}
         testId="ch-signals"
       >
         {data && (
@@ -86,7 +148,11 @@ function CodeHealthTab() {
         <div className="mb-3">
           <RunScanButton
             repoId={repoId}
-            invalidate={[queryKeyFor({ endpoint: '/repos/{id}/code-health', path: { id: repoId } })]}
+            invalidate={[queryKeyFor(descriptor)]}
+            running={scan.running}
+            awaiting={scan.awaiting}
+            stalled={scan.stalled}
+            onStarted={scan.onStarted}
           />
         </div>
         {data && (
@@ -120,14 +186,31 @@ function CodeHealthTab() {
                       </span>
                     )}
                   </th>
-                  <td className="py-1.5">{chScannerStateLabel(scanner.state, scanner.open_findings)}</td>
+                  <td className="py-1.5">
+                    {/* The security tab's labels, so the two screens cannot
+                        describe the same scan_run row in different words. */}
+                    <span data-testid={`ch-scanner-state-${scanner.key}`}>
+                      {scannerStateLabel(scanner.state, scanner.open_findings)}
+                    </span>
+                    {scanner.error && (
+                      // Verbatim, plus the build/db command when the shape is
+                      // recognised — the code-health tools run in the same
+                      // image as the security ones and fail the same way.
+                      <ScannerErrorDetail scannerKey={scanner.key} error={scanner.error} />
+                    )}
+                  </td>
                   <td className="py-1.5">
                     {scanner.last_run_at
                       ? new Date(scanner.last_run_at).toLocaleDateString()
                       : 'never'}
                   </td>
                   <td className="py-1.5 text-right tabular-nums">
-                    {scanner.open_findings === null ? '—' : scanner.open_findings}
+                    {/* A dash unless the run produced a count: null from the
+                        API, and any state where the number would be a claim
+                        about a scan that is not finished or measured nothing. */}
+                    {scanner.open_findings === null || !hasMeasuredCount(scanner.state)
+                      ? '—'
+                      : scanner.open_findings}
                   </td>
                 </tr>
               ))}
@@ -140,15 +223,8 @@ function CodeHealthTab() {
         <WidgetFrame title="Most complex functions" state={state} testId="ch-complexity">
           {data &&
             (data.worst_complexity.length === 0 ? (
-              // ANSWER THE QUESTION THE TABLE ABOVE HAS ALREADY SETTLED
-              // (W16-49). This said "if the coverage table above says the
-              // scanner has never run, that is why", which sent a reader to a
-              // table that said it HAD run and then left them there. The screen
-              // knows which case it is in, so it says which.
               <p className="text-sm text-fg-muted" data-testid="ch-complexity-empty">
-                {data.scanners.some((s) => s.key === 'code_health_tools' && s.state !== 'never_run')
-                  ? 'The complexity scanner ran and found no function over the threshold. This one IS a measurement of a tidy codebase.'
-                  : 'No complexity findings — the complexity scanner has never run for this repository, which is why. This is not a measurement of a tidy codebase.'}
+                {complexityEmptyCopy(data.scanners.find((s) => s.key === 'code_health_tools'))}
               </p>
             ) : (
               <ol className="flex flex-col gap-1 text-sm" data-testid="ch-complexity-list">

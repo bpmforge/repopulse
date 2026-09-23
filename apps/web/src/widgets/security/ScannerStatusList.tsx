@@ -1,4 +1,9 @@
-import { scannerStateLabel, type ScannerStatus } from './contracts.js';
+import {
+  hasMeasuredCount,
+  scannerStateLabel,
+  type ScannerStatus,
+  type SecurityTooling,
+} from './contracts.js';
 
 // Per-scanner coverage (W8-10, NFR-15).
 //
@@ -102,7 +107,10 @@ export function ScannerStatusList({ scanners }: Props) {
                 //
                 // Since W16-28 registered the catalogue, the only rows that
                 // reach here are scanners genuinely absent from the build.
-                <span className="ml-2 text-xs text-fg-muted" title="No code for this scanner ships in this build. It is documented so its absence is visible rather than looking deliberate.">
+                <span
+                  className="ml-2 text-xs text-fg-muted"
+                  title="No code for this scanner ships in this build. It is documented so its absence is visible rather than looking deliberate."
+                >
                   (not in this build)
                 </span>
               )}
@@ -115,64 +123,128 @@ export function ScannerStatusList({ scanners }: Props) {
               {scanner.state === 'all_rejected' && (
                 // HOW MANY, not just that it happened (W16-38). A reader
                 // deciding whether the prompt is wrong needs the number.
-                <div className="text-xs text-fg-muted" data-testid={`scanner-rejected-${scanner.key}`}>
+                <div
+                  className="text-xs text-fg-muted"
+                  data-testid={`scanner-rejected-${scanner.key}`}
+                >
                   The model proposed {scanner.validation_funnel?.proposed ?? 0} finding
                   {(scanner.validation_funnel?.proposed ?? 0) === 1 ? '' : 's'} and the evidence
-                  check rejected every one — their quotes were not verbatim from the diff. That is
-                  a problem with the prompt or the check, not a clean repository.
+                  check rejected every one — their quotes were not verbatim from the diff. That is a
+                  problem with the prompt or the check, not a clean repository.
                 </div>
               )}
               {scanner.error && (
-                <div className="text-xs text-fg-muted" data-testid={`scanner-error-${scanner.key}`}>
-                  {scanner.error}
-                  {looksLikeStaleVulnDb(scanner.error) && (
-                    // A DIFFERENT command from the image one. grype refuses a
-                    // database older than five days, and the image cannot
-                    // carry one — a baked-in copy would ship stale and look
-                    // current.
-                    <div className="mt-0.5" data-testid={`scanner-db-${scanner.key}`}>
-                      The vulnerability database is refreshed daily and is not part of the image.
-                      Run{' '}
-                      <code className="rounded bg-surface-2 px-1 font-mono">
-                        deploy/scan-db-sync.sh
-                      </code>{' '}
-                      — see docs/RUNNING.md → Scan tools.
-                    </div>
-                  )}
-                  {!looksLikeStaleVulnDb(scanner.error) && looksLikeMissingScanTools(scanner.error) && (
-                    // WHAT TO DO ABOUT IT (W16-11, F16). A screen that says a
-                    // tool is missing and stops there has told someone their
-                    // scan failed and left them to guess.
-                    <div className="mt-0.5" data-testid={`scanner-fix-${scanner.key}`}>
-                      The scan tools run in a container image. Build it with{' '}
-                      <code className="rounded bg-surface-2 px-1 font-mono">
-                        podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
-                      </code>{' '}
-                      — see docs/RUNNING.md → Scan tools.
-                    </div>
-                  )}
-                </div>
+                <ScannerErrorDetail scannerKey={scanner.key} error={scanner.error} />
               )}
             </td>
             <td className="py-1.5">{when(scanner.last_run_at)}</td>
             <td className="py-1.5 text-right tabular-nums">
               {/* A dash, not 0, when nothing has looked: a zero here is a
-                  claim, and an unrun scanner has not earned it. */}
-              {scanner.state === 'not_enabled' ||
-              scanner.state === 'never_run' ||
-              scanner.state === 'nothing_scanned' ||
-              // A zero here would be the same claim the label just refused.
-              scanner.state === 'all_rejected' ||
-              // A count from a scan still in flight is not its count, and one
-              // from a scan that never finished is not a count at all.
-              scanner.state === 'running' ||
-              scanner.state === 'stale'
-                ? '—'
-                : scanner.open_findings}
+                  claim, and an unrun scanner has not earned it. Nor from a
+                  scan still in flight, one that never finished, one that
+                  scanned nothing, or one whose every finding was rejected —
+                  the count column must not make the claim the label refused. */}
+              {hasMeasuredCount(scanner.state) ? scanner.open_findings : '—'}
             </td>
           </tr>
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * A scanner's own failure, verbatim, plus what to do about it when the shape
+ * is recognised (W16-11, W16-36). Shared with the Code Health coverage table
+ * (W17-20): the code-health tools run in the same image, so a missing image
+ * fails them the same way and deserves the same sentence.
+ */
+export function ScannerErrorDetail({ scannerKey, error }: { scannerKey: string; error: string }) {
+  return (
+    <div className="text-xs text-fg-muted" data-testid={`scanner-error-${scannerKey}`}>
+      {error}
+      {looksLikeStaleVulnDb(error) && (
+        // A DIFFERENT command from the image one. grype refuses a database
+        // older than five days, and the image cannot carry one — a baked-in
+        // copy would ship stale and look current.
+        <div className="mt-0.5" data-testid={`scanner-db-${scannerKey}`}>
+          The vulnerability database is refreshed daily and is not part of the image. Run{' '}
+          <code className="rounded bg-surface-2 px-1 font-mono">deploy/scan-db-sync.sh</code> — see
+          docs/RUNNING.md → Scan tools.
+        </div>
+      )}
+      {!looksLikeStaleVulnDb(error) && looksLikeMissingScanTools(error) && (
+        // WHAT TO DO ABOUT IT (W16-11, F16). A screen that says a tool is
+        // missing and stops there has told someone their scan failed and left
+        // them to guess.
+        <div className="mt-0.5" data-testid={`scanner-fix-${scannerKey}`}>
+          The scan tools run in a container image. Build it with{' '}
+          <code className="rounded bg-surface-2 px-1 font-mono">
+            podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
+          </code>{' '}
+          — see docs/RUNNING.md → Scan tools.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What the sandbox can run, stated under the coverage table (W17-27).
+ *
+ * Two lines a reader can act on before pressing Run: whether the CVE database
+ * is there and how old it is (grype refuses one older than maxAgeDays, so a
+ * stale database is a scan that WILL fail, not one that might), and which
+ * tools this build deliberately does not run. Each unsupported tool carries
+ * its reason in a title, so "why no govulncheck" is answered on the spot.
+ */
+export function ScanToolingNote({ tooling }: { tooling: SecurityTooling }) {
+  const db = tooling.vuln_db;
+  const built = db.builtAt
+    ? new Date(db.builtAt).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    : null;
+  return (
+    <div className="mt-2 flex flex-col gap-1 text-xs text-fg-muted" data-testid="scan-tooling">
+      <div data-testid="vuln-db-status" data-present={db.present} data-stale={db.stale ?? 'unknown'}>
+        {db.present ? (
+          <>
+            Vulnerability database: built {built ?? 'on an unknown date'}
+            {db.ageDays !== null && <> ({db.ageDays} day{db.ageDays === 1 ? '' : 's'} old)</>}
+            {db.stale === true && (
+              <>
+                {' '}
+                — <strong>stale</strong>: grype refuses a database older than {db.maxAgeDays} days,
+                so the CVE scan will fail until deploy/scan-db-sync.sh runs again.
+              </>
+            )}
+            {db.stale === false && <> — current.</>}
+          </>
+        ) : (
+          <>
+            Vulnerability database: <strong>not synced</strong>
+            {db.reason ? <> — {db.reason}</> : null}. CVE scanning cannot run without it, and that
+            is not a clean bill of health.
+          </>
+        )}
+      </div>
+      {tooling.unsupported_tools.length > 0 && (
+        <div data-testid="unsupported-tools">
+          Not in this build:{' '}
+          {tooling.unsupported_tools.map((t, i) => (
+            <span key={t.tool}>
+              {i > 0 ? ', ' : ''}
+              <span className="underline decoration-dotted" title={t.reason}>
+                {t.tool}
+              </span>
+            </span>
+          ))}
+          .
+        </div>
+      )}
+    </div>
   );
 }

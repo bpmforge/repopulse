@@ -6,6 +6,7 @@ import { KpiRow } from './KpiRow.js';
 import { HealthTileGrid } from './HealthTileGrid.js';
 import { AttentionFeed } from './AttentionFeed.js';
 import { HotspotLeaderboard } from './HotspotLeaderboard.js';
+import { TopActionsCard } from './TopActionsCard.js';
 
 // Registry entries for the Org Overview widgets (W4-21, R-D2).
 //
@@ -28,6 +29,20 @@ function optionsOf(widget: WidgetComponentProps['widget']): {
     search: (options.search as Record<string, string> | undefined) ?? {},
   };
 }
+
+registerWidget({
+  type: 'top-actions',
+  title: 'Next actions',
+  category: 'lists',
+  // Full width, two rows — three rows of action fit, and the card stays short
+  // enough that its CONTENTS clear the fold at 1440x900 rather than just its
+  // heading, which was the W17-17 defect. Registered here (not self-registered
+  // at the bottom of its own module like PulseCard) so registerAll.ts, which
+  // already imports this file, needs no edit: a saved view containing this type
+  // resolves whether or not the org overview rendered first (W16-55).
+  defaultSize: { w: 12, h: 2 },
+  component: ({ widget }) => <TopActionsCard search={optionsOf(widget).search} />,
+});
 
 registerWidget({
   type: 'kpi',

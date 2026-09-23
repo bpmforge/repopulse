@@ -1,0 +1,21 @@
+[0m[0m[model] |[0m [fixture-model] 2026-09-11T03:11:16.408Z listening on http://127.0.0.1:3399 — models: fixture-model, fixture-hang
+[0m[model] |[0m [fixture-model] 2026-09-11T03:11:26.624Z POST /v1/chat/completions model=fixture-model prompt=30 chars stream=false no credential -> 200 (0 findings)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:11:26.795Z POST /v1/chat/completions model=fixture-model prompt=4 chars stream=true no credential -> 200 (0 findings)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:11:26.797Z POST /v1/chat/completions model=fixture-model prompt=4638 chars stream=true no credential -> 200 (1 finding)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:11:30.057Z POST /v1/chat/completions model=fixture-model prompt=4638 chars stream=true no credential -> 200 (1 finding)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:11:36.841Z POST /v1/chat/completions model=fixture-hang prompt=30 chars no credential -> HANGING (waiting for the client to give up)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:11:36.842Z fixture-hang: client gave up and closed the connection
+[0m[model] |[0m [fixture-model] 2026-09-11T03:12:58.247Z POST /v1/chat/completions model=fixture-hang prompt=4 chars no credential -> HANGING (waiting for the client to give up)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:12:58.247Z fixture-hang: client gave up and closed the connection
+[0m[model] |[0m [fixture-model] 2026-09-11T03:13:13.252Z POST /v1/chat/completions model=fixture-hang prompt=4 chars no credential -> HANGING (waiting for the client to give up)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:13:13.252Z fixture-hang: client gave up and closed the connection
+[0m[model] |[0m [fixture-model] 2026-09-11T03:13:28.258Z POST /v1/chat/completions model=fixture-hang prompt=4 chars no credential -> HANGING (waiting for the client to give up)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:13:28.258Z fixture-hang: client gave up and closed the connection
+[0m[model] |[0m [fixture-model] 2026-09-11T03:13:43.267Z POST /v1/chat/completions model=fixture-hang prompt=4638 chars no credential -> HANGING (waiting for the client to give up)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:13:43.267Z fixture-hang: client gave up and closed the connection
+[0m[model] |[0m [fixture-model] 2026-09-11T03:14:14.015Z POST /v1/chat/completions model=fixture-model prompt=30 chars stream=false no credential -> 200 (0 findings)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:15:15.133Z POST /v1/chat/completions model=fixture-model prompt=4 chars stream=true no credential -> 200 (0 findings)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:15:15.135Z POST /v1/chat/completions model=fixture-model prompt=4638 chars stream=true no credential -> 200 (1 finding)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:20:30.314Z GET /v1/models
+[0m[model] |[0m [fixture-model] 2026-09-11T03:20:30.429Z POST /v1/chat/completions model=fixture-model prompt=4 chars stream=true no credential -> 200 (0 findings)
+[0m[model] |[0m [fixture-model] 2026-09-11T03:20:30.432Z POST /v1/chat/completions model=fixture-model prompt=4638 chars stream=true no credential -> 200 (1 finding)

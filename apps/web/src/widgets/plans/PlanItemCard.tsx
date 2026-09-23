@@ -1,10 +1,13 @@
 import { useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
   criterionInWords,
+  findingIdsOf,
   metricInWords,
+  progressInWords,
   type MetricNames,
   type PlanItem,
 } from './contracts.js';
+import { InternalLink } from './InternalLink.js';
 
 // One ranked plan item (W5-07, UX_SPEC §4.h2).
 
@@ -23,12 +26,16 @@ const STATUS_LABEL: Record<PlanItem['status'], string> = {
 };
 
 export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricNames?: MetricNames }) {
+  const findingIds = findingIdsOf(item);
   const transition = useApiMutation<{ status: string }, unknown>(
     { endpoint: '/plans/items/{id}', path: { id: item.id }, method: 'PATCH' },
     { invalidate: [queryKeyFor(LIST)] },
   );
 
   const regressed = item.status === 'regressed';
+  // WHY it is where it is (W17-25): the verifier's last check, in words that
+  // cite the number and the criterion. A human state gets no sentence.
+  const progress = progressInWords(item, metricNames);
 
   return (
     <li
@@ -49,6 +56,15 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
         {criterionInWords(item.verify_criterion, metricNames)}
       </p>
 
+      {progress && (
+        <p
+          className={`mt-1 text-xs ${regressed ? 'text-warn' : 'text-fg-muted'}`}
+          data-testid={`plan-item-progress-${item.id}`}
+        >
+          {progress}
+        </p>
+      )}
+
       {/* Evidence keys, not a copy of the data — the item points at the
           numbers that raised it so a reader can go and check. */}
       {Array.isArray(item.evidence.metricKeys) && (
@@ -57,6 +73,28 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
           {(item.evidence.metricKeys as string[])
             .map((k) => metricInWords(k, metricNames))
             .join(', ')}
+        </p>
+      )}
+
+      {/* The findings the generator clustered into this item (W17-24) — the
+          ids the row carries, linked back to the review they came from. A
+          metric item has none, and shows none. */}
+      {findingIds.length > 0 && (
+        <p className="mt-1 text-xs text-fg-faint" data-testid={`plan-item-findings-${item.id}`}>
+          Findings:{' '}
+          {findingIds.map((id, i) => (
+            <span key={id}>
+              {i > 0 && ', '}
+              <InternalLink
+                to="/findings"
+                search={{ finding: String(id) }}
+                className="text-accent underline-offset-2 hover:underline"
+                testId={`plan-item-finding-${item.id}-${id}`}
+              >
+                #{id}
+              </InternalLink>
+            </span>
+          ))}
         </p>
       )}
 
@@ -96,13 +134,10 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
         )}
         {/* No "mark done" button anywhere, deliberately: an item closes when
             its metric actually moves (W5-06 nightly verify). A manual close
-            would make the whole verification story decorative. */}
-        {(item.status === 'in_progress' || item.status === 'done') && (
-          <span className="text-xs text-fg-faint">
-            {item.status === 'done'
-              ? `Verified ${item.verified_at?.slice(0, 10) ?? ''}`
-              : 'Closes automatically once the metric holds.'}
-          </span>
+            would make the whole verification story decorative. The progress
+            line above says what the last check saw. */}
+        {item.status === 'in_progress' && (
+          <span className="text-xs text-fg-faint">Closes automatically once the metric holds.</span>
         )}
       </div>
     </li>

@@ -1,6 +1,15 @@
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
-import { buildSandboxArgs, runtimeEnv, type SandboxProfileArgs } from './profile.js';
+import {
+  buildSandboxArgs,
+  runtimeEnv,
+  runtimeFlavour,
+  scanContainerName,
+  type SandboxProfileArgs,
+} from './profile.js';
+import { configuredRunnerAddress, runViaRunner, RunnerUnavailableError } from './runner-client.js';
+import type { RunnerResponse } from './runner-protocol.js';
+import { spawnSandbox } from './spawn.js';
 
 // The sandbox runner (W8-03, SECURITY_SUITE.md 2.2, NFR-14).
 //
@@ -12,6 +21,14 @@ import { buildSandboxArgs, runtimeEnv, type SandboxProfileArgs } from './profile
 // before anything downstream sees them. Not because the tool is expected to
 // lie, but because the tool is parsing attacker-influenced source: its output
 // is downstream of the same input the sandbox exists to contain.
+//
+// TWO WAYS TO REACH A RUNTIME (W17-27). On a dev checkout the runtime is on
+// this machine's PATH and is spawned here. In the packaged stack the worker
+// has no runtime and no socket — on purpose — and hands the same profile to
+// the scan-runner sidecar over a unix socket (runner-client.ts). Which one is
+// decided by SCAN_RUNNER_URL / SCAN_RUNNER_SOCKET alone; the scanners above
+// this line do not know the difference, and the profile they get is
+// byte-identical either way.
 
 export const sandboxOutputSchema = z.object({
   findings: z
@@ -53,8 +70,18 @@ export interface SandboxRunResult {
 }
 
 export interface RunInSandboxOptions extends SandboxProfileArgs {
-  /** Container runtime binary. Podman by default; docker works with the same argv. */
+  /**
+   * Container runtime binary for the LOCAL path: podman (default) or docker.
+   * The argv is built for whichever it is (profile.ts). Ignored when a runner
+   * socket is in use — the runner has its own runtime.
+   */
   runtime?: string;
+  /**
+   * The scan-runner's address — a unix socket path or http://host:port.
+   * Defaults to $SCAN_RUNNER_URL / $SCAN_RUNNER_SOCKET; when none is set the
+   * runtime is spawned locally.
+   */
+  runner?: string;
   /** Test seam. Prod always spawns. */
   spawnFn?: typeof spawn;
   /** Stdout cap - a tool that emits gigabytes is a tool that gets cut off. */
@@ -67,97 +94,83 @@ export interface RunInSandboxOptions extends SandboxProfileArgs {
   parseOutput?: boolean;
 }
 
-const STDERR_KEEP = 4000;
-
 export async function runInSandbox(opts: RunInSandboxOptions): Promise<SandboxRunResult> {
-  const runtime = opts.runtime ?? 'podman';
-  const spawnImpl = opts.spawnFn ?? spawn;
-  const maxStdout = opts.maxStdoutBytes ?? 32 * 1024 * 1024;
-  const argv = buildSandboxArgs(opts);
-  const startedAt = Date.now();
+  const runner = opts.runner ?? configuredRunnerAddress();
+  const containerName = opts.containerName ?? scanContainerName();
 
-  return await new Promise<SandboxRunResult>((resolve) => {
-    // PATH only, and only so the RUNTIME binary can be found — the container
-    // itself inherits nothing from this process (see runtimeEnv).
-    const child = spawnImpl(runtime, argv, {
-      env: runtimeEnv(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-    let stderr = '';
-    let overflowed = false;
-    let settled = false;
-
-    const finish = (result: Omit<SandboxRunResult, 'durationMs'>): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ ...result, durationMs: Date.now() - startedAt });
-    };
-
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      finish({
-        status: 'timed_out',
-        exitCode: null,
-        stderr: stderr.slice(-STDERR_KEEP),
-        error: `scan exceeded ${opts.budget.wallClockMs}ms`,
+  let raw: RunnerResponse;
+  if (runner !== undefined && opts.spawnFn === undefined) {
+    try {
+      raw = await runViaRunner(runner, {
+        image: opts.image,
+        snapshotDir: opts.snapshotDir,
+        command: [...opts.command],
+        budget: {
+          wallClockMs: opts.budget.wallClockMs,
+          ...(opts.budget.memoryMb !== undefined ? { memoryMb: opts.budget.memoryMb } : {}),
+          ...(opts.budget.cpuMillis !== undefined ? { cpuMillis: opts.budget.cpuMillis } : {}),
+        },
+        ...(opts.user !== undefined ? { user: opts.user } : {}),
+        ...(opts.pidsLimit !== undefined ? { pidsLimit: opts.pidsLimit } : {}),
+        ...(opts.extraMounts ? { extraMounts: [...opts.extraMounts] } : {}),
+        ...(opts.writablePaths ? { writablePaths: [...opts.writablePaths] } : {}),
+        ...(opts.maxStdoutBytes !== undefined ? { maxStdoutBytes: opts.maxStdoutBytes } : {}),
       });
-    }, opts.budget.wallClockMs);
-    timer.unref?.();
+    } catch (err) {
+      // An unreachable runner is a deployment fact, recorded on the run the
+      // way a missing image is — never a clean result and never a crash.
+      const message = err instanceof RunnerUnavailableError ? err.message : (err as Error).message;
+      return { status: 'failed', exitCode: null, stderr: '', durationMs: 0, error: message };
+    }
+  } else {
+    const runtime = opts.runtime ?? 'podman';
+    raw = await spawnSandbox({
+      runtimeBinary: runtime,
+      argv: buildSandboxArgs({ ...opts, containerName }, runtimeFlavour(runtime)),
+      containerName,
+      wallClockMs: opts.budget.wallClockMs,
+      ...(opts.maxStdoutBytes !== undefined ? { maxStdoutBytes: opts.maxStdoutBytes } : {}),
+      // PATH only, and only so the RUNTIME binary can be found — the container
+      // itself inherits nothing from this process (see runtimeEnv).
+      env: runtimeEnv(),
+      ...(opts.spawnFn ? { spawnFn: opts.spawnFn } : {}),
+    });
+  }
 
-    child.stdout?.on('data', (chunk: Buffer) => {
-      if (stdout.length > maxStdout) {
-        overflowed = true;
-        return;
-      }
-      stdout += chunk.toString('utf8');
-    });
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString('utf8')).slice(-STDERR_KEEP);
-    });
+  return finalize(raw, opts.parseOutput);
+}
 
-    child.on('error', (err: Error) => {
-      finish({ status: 'failed', exitCode: null, stderr, error: err.message });
-    });
-
-    child.on('close', (code: number | null) => {
-      if (overflowed) {
-        finish({ status: 'invalid_output', exitCode: code, stderr, error: 'stdout cap exceeded' });
-        return;
-      }
-      if (code !== 0) {
-        finish({
-          status: 'failed',
-          exitCode: code,
-          stderr,
-          rawStdout: stdout,
-          error: `exit ${String(code)}`,
-        });
-        return;
-      }
-      if (opts.parseOutput === false) {
-        finish({ status: 'succeeded', exitCode: code, stderr, rawStdout: stdout });
-        return;
-      }
-      const parsed = parseSandboxOutput(stdout);
-      if (!parsed.ok) {
-        // A tool that emitted something we cannot validate has produced no
-        // findings, not zero findings. Reporting the latter would let a broken
-        // scanner render a repo clean.
-        finish({
-          status: 'invalid_output',
-          exitCode: code,
-          stderr,
-          rawStdout: stdout,
-          error: parsed.error,
-        });
-        return;
-      }
-      finish({ status: 'succeeded', exitCode: code, output: parsed.value, stderr, rawStdout: stdout });
-    });
-  });
+/** Turns what the container did into what a scanner reads. */
+export function finalize(raw: RunnerResponse, parseOutput: boolean | undefined): SandboxRunResult {
+  const base = { exitCode: raw.exitCode, stderr: raw.stderr, durationMs: raw.durationMs };
+  if (raw.status === 'timed_out') {
+    return { ...base, status: 'timed_out', ...(raw.error ? { error: raw.error } : {}) };
+  }
+  if (raw.status === 'invalid_output') {
+    return { ...base, status: 'invalid_output', ...(raw.error ? { error: raw.error } : {}) };
+  }
+  if (raw.status === 'failed') {
+    return {
+      ...base,
+      status: 'failed',
+      // Only a process that actually ran has stdout worth handing back; a
+      // spawn error or a runner refusal has none, and an empty string here
+      // would read to a scanner as "the tool ran and printed nothing".
+      ...(raw.exitCode !== null ? { rawStdout: raw.stdout } : {}),
+      ...(raw.error ? { error: raw.error } : {}),
+    };
+  }
+  if (parseOutput === false) {
+    return { ...base, status: 'succeeded', rawStdout: raw.stdout };
+  }
+  const parsed = parseSandboxOutput(raw.stdout);
+  if (!parsed.ok) {
+    // A tool that emitted something we cannot validate has produced no
+    // findings, not zero findings. Reporting the latter would let a broken
+    // scanner render a repo clean.
+    return { ...base, status: 'invalid_output', rawStdout: raw.stdout, error: parsed.error };
+  }
+  return { ...base, status: 'succeeded', output: parsed.value, rawStdout: raw.stdout };
 }
 
 /**

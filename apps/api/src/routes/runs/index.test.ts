@@ -3,7 +3,12 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { core, createDb, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
-import { SCANNER_DEFAULTS, isEnabled, listScanners, registerBuiltinScanners } from '@repopulse/security';
+import {
+  SCANNER_DEFAULTS,
+  isEnabled,
+  listScanners,
+  registerBuiltinScanners,
+} from '@repopulse/security';
 import type { Queue } from 'bullmq';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import runRoutes, { runWindowKey } from './index.js';
@@ -44,7 +49,19 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     // answers for an id already taken, and `add` with a taken id is a no-op
     // returning something indistinguishable from a fresh job. A stub whose
     // `add` reported which happened would let a route pass that cannot work.
-    getJob: vi.fn(async (jobId: string) => existing.get(jobId)),
+    getJob: vi.fn(async (jobId: string) => {
+      const job = existing.get(jobId);
+      if (!job) return undefined;
+      // The two Job methods the route reads: BullMQ keeps a finished job under
+      // its id, so `getState` is how the route tells over from in flight.
+      return {
+        ...job,
+        getState: async () => job.state,
+        remove: async () => {
+          existing.delete(jobId);
+        },
+      };
+    }),
     add: vi.fn(async (name: string, data: unknown, opts: { jobId: string }) => {
       if (existing.has(opts.jobId)) return { id: opts.jobId };
       existing.set(opts.jobId, { id: opts.jobId, state: 'waiting' });
@@ -241,6 +258,44 @@ describeIfLiveInfra('run it now (W16-10)', () => {
     // are different news.
     expect(second.json().started).toEqual([]);
     expect([...second.json().already_running].sort()).toEqual([...first.json().started].sort());
+  });
+
+  it('a job that FINISHED inside the window is started again, not reported running (W17-30)', async () => {
+    // The journey's missing-database drill: dependency_cve fails in 30 ms,
+    // the operator attaches the database and presses again within five
+    // minutes. BullMQ still holds the failed job under the window's id, and
+    // the route used to read "id taken" as "still running".
+    const first = await app.inject({
+      method: 'POST',
+      url: `/repos/${repoId}/scan`,
+      headers: CSRF,
+      payload: { scanner_key: 'dependency_cve' },
+    });
+    expect(first.json().started).toEqual(['dependency_cve']);
+    const jobId = added.at(-1)!.jobId;
+    existing.get(jobId)!.state = 'failed';
+    const enqueuedAfterFirst = added.length;
+
+    const again = await app.inject({
+      method: 'POST',
+      url: `/repos/${repoId}/scan`,
+      headers: CSRF,
+      payload: { scanner_key: 'dependency_cve' },
+    });
+    expect(again.json().started).toEqual(['dependency_cve']);
+    expect(again.json().already_running).toEqual([]);
+    expect(added).toHaveLength(enqueuedAfterFirst + 1);
+
+    // Still in flight stays "already running".
+    existing.get(jobId)!.state = 'active';
+    const third = await app.inject({
+      method: 'POST',
+      url: `/repos/${repoId}/scan`,
+      headers: CSRF,
+      payload: { scanner_key: 'dependency_cve' },
+    });
+    expect(third.json().started).toEqual([]);
+    expect(third.json().already_running).toEqual(['dependency_cve']);
   });
 
   it('records the request id and the actor on the job, so a failure traces back to the click', async () => {

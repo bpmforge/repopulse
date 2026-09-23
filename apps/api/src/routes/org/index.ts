@@ -6,7 +6,8 @@ import { core, plans, read, type Database } from '@repopulse/shared';
 import { buildPulse, computeMetricTrend } from '@repopulse/insights';
 import { readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
-import { repoHealth } from './health.js';
+import { repoHealthMany } from './health.js';
+import { collectTopActions, serializeTopActions } from './top-actions.js';
 
 // Org composites (UX §4.a, FR-INSIGHTS-2/3/4, FR-API-2). Warehouse-only —
 // snapshots + the W3-11 score/trend, never a forge call. Session-authed.
@@ -79,22 +80,22 @@ export default async function orgRoutes(
         .from(core.repos)
         .where(eq(core.repos.workspaceId, workspaceId));
 
-      const tiles = await Promise.all(
-        repos.map(async (r) => {
-          const health = await repoHealth(opts.db, workspaceId, r.id, window, r.pushedAt, nowMs);
-          return {
-            id: r.id,
-            name: r.name,
-            health: {
-              score: Math.round(health.score),
-              letter: health.letter,
-              basis: health.tier1Only ? 'Tier-1 only' : 'full',
-              // delta needs a prior health snapshot series — a later enrichment.
-              delta: null,
-            },
-          };
-        }),
-      );
+      // One batched read for every repo (W17-32), not one loader call per row.
+      const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
+      const tiles = repos.map((r) => {
+        const health = healths.get(r.id)!;
+        return {
+          id: r.id,
+          name: r.name,
+          health: {
+            score: Math.round(health.score),
+            letter: health.letter,
+            basis: health.tier1Only ? 'Tier-1 only' : 'full',
+            // delta needs a prior health snapshot series — a later enrichment.
+            delta: null,
+          },
+        };
+      });
       return reply.send({ items: tiles });
     },
   );
@@ -117,8 +118,9 @@ export default async function orgRoutes(
         .where(eq(core.repos.workspaceId, workspaceId));
 
       const items = [];
+      const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
       for (const r of repos) {
-        const health = await repoHealth(opts.db, workspaceId, r.id, window, r.pushedAt, nowMs);
+        const health = healths.get(r.id)!;
         if (['C', 'D', 'E'].includes(health.letter)) {
           items.push({
             repo_id: r.id,
@@ -148,6 +150,19 @@ export default async function orgRoutes(
     },
   );
 
+  // GET /org/top-actions — at most three things worth doing next (W17-16).
+  //
+  // Deterministic and warehouse-only: findings keep the risk the engine priced
+  // them at, plan items keep the rank generatePlanItems() gave them, and no
+  // model is asked. An empty list carries coverage state instead of an implied
+  // clean bill of health.
+  app.get('/org/top-actions', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const result = await collectTopActions(opts.db, workspaceId);
+    return reply.send(serializeTopActions(result));
+  });
+
   // GET /org/pulse — the deterministic weekly narrative (W6-06, R-A7).
   //
   // Computed from snapshots here, not by a model. A Tier-2 pass may reword it
@@ -159,7 +174,12 @@ export default async function orgRoutes(
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
     const window = request.query.window ?? '30d';
 
-    const PULSE_METRICS: { key: string; label: string; higherBetter: boolean; unit: 'ratio' | 'count' | 'hours' }[] = [
+    const PULSE_METRICS: {
+      key: string;
+      label: string;
+      higherBetter: boolean;
+      unit: 'ratio' | 'count' | 'hours';
+    }[] = [
       { key: 'M5', label: 'Review coverage', higherBetter: true, unit: 'ratio' },
       { key: 'M8', label: 'Stale pull requests', higherBetter: false, unit: 'count' },
       { key: 'M9', label: 'CI pass rate', higherBetter: true, unit: 'ratio' },

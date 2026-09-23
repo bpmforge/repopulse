@@ -45,6 +45,10 @@ describe('which global filters a screen applies (W16-50)', () => {
     expect(filterScopeFor('/admin/sync').window).toBe(false);
   });
 
+  it('offers the Plans page the window AND the repository set it generates over (W17-24)', () => {
+    expect(filterScopeFor('/plans')).toEqual({ window: true, repos: true, person: false });
+  });
+
   it('gives an unrecognised path nothing at all', () => {
     // A screen nobody has checked has not earned a filter. Defaulting the other
     // way is how all three came to be offered everywhere in the first place.

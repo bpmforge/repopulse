@@ -71,12 +71,12 @@ function ViewsIndex() {
       <WidgetFrame title="Start from a template" state="ready">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="template-gallery">
           {templates.map((template) => (
-            <div key={template.id} className="rounded-md border border-border bg-surface p-3">
+            <div key={template.id} className="panel p-3">
               <h3 className="text-sm font-medium">{template.name}</h3>
               <p className="mt-1 text-xs text-fg-muted">{template.description}</p>
               <button
                 type="button"
-                className="mt-2 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="mt-2 panel-inset px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid={`use-template-${template.id}`}
                 disabled={createView.isPending}
                 onClick={() =>

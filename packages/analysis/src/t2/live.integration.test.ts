@@ -34,7 +34,16 @@ describeIfLmStudio('tier-2 against a live LM Studio host', () => {
         });
         if (!res.ok) continue;
         const body = (await res.json()) as { data?: { id?: string }[] };
-        const model = body.data?.[0]?.id;
+        const ids = (body.data ?? []).map((m) => m.id).filter((id): id is string => Boolean(id));
+        // Prefer the model production is configured to use. `/v1/models` lists
+        // EVERY downloaded model, first-listed being whichever LM Studio happens
+        // to have loaded — on 2026-09-14 that was an experimental ablated 9B
+        // that answered with reasoning_content and an empty content, and this
+        // test failed on a model the product would never have been pointed at.
+        // The fallback to the first id keeps the test running on a machine
+        // with no LMSTUDIO_MODEL set.
+        const preferred = process.env.LMSTUDIO_MODEL?.trim();
+        const model = preferred && ids.includes(preferred) ? preferred : ids[0];
         if (model) return { baseUrl: candidate, model };
       } catch {
         /* candidate is down — try the next */

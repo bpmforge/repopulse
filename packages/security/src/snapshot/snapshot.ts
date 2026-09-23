@@ -25,12 +25,26 @@ export interface Snapshot {
 }
 
 export interface SnapshotRootOptions {
-  /** Scratch root; defaults to the OS temp dir. Never a repo or data volume. */
+  /** Scratch root; defaults to $SNAPSHOT_ROOT, then the OS temp dir. Never a repo or data volume. */
   root?: string;
 }
 
+/**
+ * Where snapshots are extracted.
+ *
+ * SNAPSHOT_ROOT is honoured HERE, not at each of the six call sites, because
+ * the first packaged scan (W17-27) proved what happens otherwise: the compose
+ * file set it, the env registry documented it, the boot sweeper read it — and
+ * every scan still extracted into the OS temp dir, so the scan-runner refused
+ * each request for naming a directory outside the shared scratch volume.
+ * In the packaged stack the root is the one tmpfs volume the runner can bind
+ * out of; nowhere else can a scan container reach.
+ */
 export function snapshotRoot(opts: SnapshotRootOptions = {}): string {
-  return opts.root ?? path.join(tmpdir(), 'repopulse-snapshots');
+  const fromEnv = process.env.SNAPSHOT_ROOT;
+  return (
+    opts.root ?? (fromEnv && fromEnv !== '' ? fromEnv : path.join(tmpdir(), 'repopulse-snapshots'))
+  );
 }
 
 /**

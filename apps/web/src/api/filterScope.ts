@@ -50,9 +50,10 @@ export function filterScopeFor(pathname: string): FilterScope {
   // it, and a window would quietly hide the oldest ones, which are the ones
   // that matter most.
   if (pathname.startsWith('/findings')) return { window: false, repos: true, person: false };
-  // Plans are generated FOR a window and then keep it; the control picks the
-  // window the next one is generated over.
-  if (pathname.startsWith('/plans')) return { window: true, repos: false, person: false };
+  // Plans are generated FOR a window and a repository set and then keep them;
+  // the controls pick the scope the next one is generated over, and the list
+  // narrows to plans with exactly that scope (W17-24).
+  if (pathname.startsWith('/plans')) return { window: true, repos: true, person: false };
   // My Focus is already scoped to one person: you.
   if (pathname.startsWith('/me')) return NONE;
   // Reports and Views each carry their own scope — a report pins its window at

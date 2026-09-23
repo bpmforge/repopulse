@@ -71,3 +71,50 @@ describe('WidgetRegistry + WidgetGrid', () => {
     expect(screen.getByTestId('widget-treemap-w2')).toHaveTextContent(/not available yet/i);
   });
 });
+
+// W17-15. The grid places widgets with CSS only and treats the saved layout as
+// read-only input: a value the clamp has to change for DISPLAY must still be
+// reported verbatim on the data attributes, and the Widget[] handed in must
+// come back out untouched. jsdom loads no stylesheet, so these assert the
+// class/attribute contract; that the classes emit real CSS is a build concern.
+describe('WidgetGrid placement (W17-15)', () => {
+  // x + w overflows 12 and h exceeds the clamp ceiling, so every stored number
+  // here differs from what placement uses — the only shape in which "raw values
+  // preserved" is a real assertion rather than a tautology.
+  const OUT_OF_RANGE: Widget[] = [
+    { id: 'w1', type: 'text', layout: { x: 8, y: 7, w: 8, h: 20 }, options: { text: 'hi' } },
+  ];
+
+  it('echoes the stored x/y/w/h verbatim even when placement clamps them', () => {
+    render(<WidgetGrid widgets={OUT_OF_RANGE} />);
+    const item = screen.getByTestId('widget-text-w1');
+    expect(item).toHaveAttribute('data-x', '8');
+    expect(item).toHaveAttribute('data-y', '7');
+    expect(item).toHaveAttribute('data-w', '8');
+    expect(item).toHaveAttribute('data-h', '20');
+    // Display-side: column 9 with only 4 columns left, height capped at 12.
+    const style = item?.getAttribute('style') ?? '';
+    expect(style).toContain('--wg-x: 9');
+    expect(style).toContain('--wg-w: 4');
+    expect(style).toContain('--wg-h: 12');
+  });
+
+  it('does not mutate the widgets it was given', () => {
+    const widgets: Widget[] = structuredClone(OUT_OF_RANGE);
+    const before = structuredClone(widgets);
+    render(<WidgetGrid widgets={widgets} />);
+    expect(widgets).toEqual(before);
+  });
+
+  it('stacks below md and uses the 12-col grid from md up', () => {
+    render(<WidgetGrid widgets={OUT_OF_RANGE} />);
+    const grid = screen.getByTestId('widget-grid');
+    expect(grid.className).toContain('grid-cols-1');
+    expect(grid.className).toContain('md:grid-cols-12');
+    const item = screen.getByTestId('widget-text-w1');
+    // Placement is md-and-up only; at 390px the item is a plain full-width row.
+    expect(item?.className).toContain('md:[grid-column-start:var(--wg-x)]');
+    expect(item?.className).toContain('md:[grid-column-end:span_var(--wg-w)]');
+    expect(item?.className).toContain('md:[grid-row-end:span_var(--wg-h)]');
+  });
+});

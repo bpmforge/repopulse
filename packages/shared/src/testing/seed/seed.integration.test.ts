@@ -31,6 +31,14 @@ describeIfLiveInfra('deterministic warehouse seeder (W4-00)', () => {
       .limit(1);
     expect(conn, 'seeder should create a connection to hang an etag off').toBeTruthy();
 
+    // Delete-then-insert, because this row is this test's own fixture and its
+    // primary key is (connection_id, endpoint_key). A run that was interrupted
+    // before afterAll — a killed suite, a crashed VM — leaves the row behind,
+    // and the next run then died on a duplicate key that had nothing to do with
+    // what the test is about. Observed 2026-09-08 (W17-11).
+    await db
+      .delete(core.forgeEtag)
+      .where(eq(core.forgeEtag.endpointKey, 'GET /repos/acme/etag-fixture/commits'));
     await db.insert(core.forgeEtag).values({
       workspaceId: conn!.workspaceId,
       connectionId: conn!.id,

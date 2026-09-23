@@ -1,0 +1,76 @@
+SHA 53374d685f193a9f9e66cdd7e32908746d3fdc44  2026-09-11T05:52:10Z
+
+== bash scripts/validate-arch.sh
+PASS  rule 1 — no workspace package depends on apps/*
+PASS  rule 2 — metrics/analysis/insights/reports do not depend on forge (they read the DB)
+PASS  rule 3 — octokit imported only inside packages/forge
+PASS  rule 4 — no api.github.com reference outside packages/forge (packages/auth/src/oauth/** exempted, SC-12/AC-4)
+PASS  rule 5 — every pgTable schema file carries workspace_id (or is marked tenancy-exempt)
+PASS  rule 6 — no git clone anywhere; getTarball called only from the snapshot service (C1a)
+PASS  rule 7 — scan tools spawn only inside packages/security/sandbox (NFR-14)
+
+validate-arch: all rules PASS
+EXIT=0
+
+== node scripts/validate-traceability.mjs
+Inventory: 138 FR/NFR defined · 138 cited by tickets · 48 S-items · 14 D-decisions · 33 doc refs · 73 stories (73 ticket-covered)
+
+Coverage gaps (2) — GAP-step input, not failures:
+  - W2 design doc never referenced by a ticket: docs/design/CANVAS.md
+  - W2 design doc never referenced by a ticket: docs/design/canvas
+
+OK: traceability chain has no dangling references.
+EXIT=0
+
+== node scripts/validate-plan.mjs
+  W17: 34 tickets, 154 pts  (todo:0 in_progress:1 blocked:0 done:33)
+  total: 242 tickets, 989 pts
+Claimable now (0): (none)
+
+WARN: 18 sizing guardrail(s) exceeded by already-done tickets:
+  - W12-03: points 13 not in {1,2,3,5,8}
+  - W12-05: acceptance has 7 criteria, expected 2-5
+  - W16-01: acceptance has 1 criteria, expected 2-5
+  - W16-05: acceptance has 7 criteria, expected 2-5
+  - W16-06: acceptance has 6 criteria, expected 2-5
+  - W16-13: acceptance has 1 criteria, expected 2-5
+  - W16-25: acceptance has 1 criteria, expected 2-5
+  - W16-27: acceptance has 1 criteria, expected 2-5
+  - W16-31: acceptance has 1 criteria, expected 2-5
+  - W16-32: acceptance has 1 criteria, expected 2-5
+  - W16-35: acceptance has 1 criteria, expected 2-5
+  - W16-36: acceptance has 1 criteria, expected 2-5
+  - W16-37: acceptance has 1 criteria, expected 2-5
+  - W16-38: acceptance has 1 criteria, expected 2-5
+  - W16-39: acceptance has 1 criteria, expected 2-5
+  - W16-41: acceptance has 1 criteria, expected 2-5
+  - W16-48: acceptance has 1 criteria, expected 2-5
+  - W16-59: points 13 not in {1,2,3,5,8}
+
+OK: plan.json is valid.
+EXIT=0
+
+== bash scripts/validate-compose.sh
+PASS  rule cap_drop:postgres — cap_drop includes ALL
+PASS  rule nnp:postgres — no-new-privileges:true present
+PASS  rule nonroot:postgres — explicit non-root user (    user: postgres)
+PASS  rule port:postgres — port bound to 127.0.0.1 only
+PASS  rule cap_drop:redis — cap_drop includes ALL
+PASS  rule nnp:redis — no-new-privileges:true present
+PASS  rule nonroot:redis — explicit non-root user (    user: redis)
+PASS  rule port:redis — port bound to 127.0.0.1 only
+PASS  rule scram — POSTGRES_HOST_AUTH_METHOD explicitly set to scram-sha-256
+PASS  rule requirepass — redis command sets --requirepass
+PASS  rule env-documented — every deploy/compose.yaml variable appears in .env.example
+PASS  rule no-default-secrets — every secret in deploy/.env.example is blank
+
+validate-compose: all rules PASS
+EXIT=0
+
+== bash scripts/validate-egress-audit.sh
+PASS  repopulse_app can INSERT into egress_audit
+PASS  repopulse_app UPDATE on egress_audit denied
+PASS  repopulse_app DELETE on egress_audit denied
+
+validate-egress-audit: all checks PASS
+EXIT=0

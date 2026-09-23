@@ -1,0 +1,9 @@
+DATE=2026-09-10T15:28:21Z
+HOST=M2 (Bradfords-MacBook-Pro-m2-max)
+COMMIT=ac87c6b
+BRANCH=codex/repopulse-product-completion
+COMMAND=./deploy/demo.sh up
+RESULT=FAIL
+SYMPTOM=service migrate exit 1; stack never reaches :8090/healthz
+MIGRATE_ERROR=Cannot find package 'postgres' imported from /app/packages/shared/src/db/index.ts
+NOTES=podman+docker-compose provider; images built; postgres/redis/forge started; migrate image missing runtime dep 'postgres'

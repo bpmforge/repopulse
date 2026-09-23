@@ -67,7 +67,7 @@ export function PrListScreen({ repoId, window, search, state, onStateChange }: P
         </label>
         <select
           id="pr-state-filter"
-          className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+          className="panel px-2 py-1 text-sm"
           value={state ?? ''}
           onChange={(e) => onStateChange(e.target.value === '' ? undefined : e.target.value)}
           data-testid="pr-state-filter"

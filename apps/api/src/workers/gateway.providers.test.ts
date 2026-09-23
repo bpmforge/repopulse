@@ -148,4 +148,38 @@ describeIfLiveInfra('each workspace analyses on its own providers (W16-19)', () 
     gateways.invalidate(withoutProvider);
     expect(await gateways.for(withoutProvider)).toBeNull();
   });
+
+  it('forgets the NULL within seconds, so a model added in Admin → Models counts (W17-30)', async () => {
+    // The journey hit this: worker boots → caches "no provider" for the
+    // workspace → operator adds a model and presses Run scan inside the same
+    // minute → "No model is configured … add one in Admin → Models". The null
+    // must expire well before a built gateway does; a null is one SELECT.
+    let clock = 1_000;
+    const gateways = createGatewayResolver(db, NO_ENV, KEY, {
+      ttlMs: 60_000,
+      now: () => clock,
+    });
+    expect(await gateways.for(withoutProvider)).toBeNull();
+
+    const [row] = await db
+      .insert(core.llmProviders)
+      .values({
+        workspaceId: withoutProvider,
+        name: 'W17-30 added later',
+        kind: 'openai_compatible',
+        baseUrl: 'http://10.0.0.8:1234/v1',
+        model: 'w17-30-model',
+        enabled: true,
+        createdBy: userId,
+      })
+      .returning({ id: core.llmProviders.id });
+    try {
+      clock += 6_000;
+      const built = await gateways.for(withoutProvider);
+      expect(built, 'six seconds later the new provider is used').not.toBeNull();
+      expect(built!.hosts.map((h) => h.modelSlot)).toContain('w17-30-model');
+    } finally {
+      await db.delete(core.llmProviders).where(eq(core.llmProviders.id, row!.id));
+    }
+  });
 });

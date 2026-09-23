@@ -13,6 +13,7 @@ import { execFileSync, execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { PORTS } from '../ports.config.mjs';
 
 const ok = (m) => console.log(`  \x1b[32m✓\x1b[0m ${m}`);
 const info = (m) => console.log(`  \x1b[2m·\x1b[0m ${m}`);
@@ -109,7 +110,7 @@ const portFree = (port) =>
   });
 
 const busy = [];
-for (const [port, what] of [[5432, 'postgres'], [6379, 'redis']]) {
+for (const [port, what] of [[PORTS.postgres, 'postgres'], [PORTS.redis, 'redis']]) {
   if (!(await portFree(port))) busy.push(`${what} (:${port})`);
 }
 if (busy.length > 0) {

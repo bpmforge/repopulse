@@ -80,7 +80,7 @@ export function PasswordChange() {
   return (
     <div className="flex min-h-screen w-screen items-center justify-center bg-bg p-6 text-fg">
       <main
-        className="w-full max-w-sm rounded-md border border-border bg-surface p-6"
+        className="w-full max-w-sm panel p-6"
         data-testid="password-change"
       >
         <h1 className="text-base font-medium">Choose a new password</h1>
@@ -166,7 +166,7 @@ export function PasswordChange() {
             type="submit"
             data-testid="password-submit"
             disabled={change.isPending}
-            className="inline-flex w-full items-center justify-center rounded-sm border border-border bg-accent px-3 py-2 text-sm text-accent-fg disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="inline-flex w-full items-center justify-center rounded-sm border border-border bg-accent-strong px-3 py-2 text-sm text-accent-fg disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             {change.isPending ? 'Saving…' : 'Set new password'}
           </button>

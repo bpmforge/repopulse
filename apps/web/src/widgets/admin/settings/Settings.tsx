@@ -103,7 +103,7 @@ export function Settings() {
                     step="0.05"
                     min="0"
                     max="1"
-                    className="rounded-md border border-border bg-surface px-2 py-1 text-sm tabular-nums"
+                    className="panel px-2 py-1 text-sm tabular-nums"
                     data-testid={`weight-${key}`}
                     value={weights[key]}
                     onChange={(e) => setWeights({ ...weights, [key]: Number(e.target.value) })}
@@ -128,7 +128,7 @@ export function Settings() {
               <button
                 type="submit"
                 disabled={save.isPending || !sumOk}
-                className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="panel-inset px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid="save-weights"
               >
                 Save weights
@@ -164,7 +164,7 @@ export function Settings() {
             <textarea
               id="bot-globs"
               rows={4}
-              className="rounded-md border border-border bg-surface px-2 py-1 font-mono text-sm"
+              className="panel px-2 py-1 font-mono text-sm"
               data-testid="bot-globs"
               value={bots ?? ''}
               onChange={(e) => setBots(e.target.value)}
@@ -183,7 +183,7 @@ export function Settings() {
               type="number"
               min="1"
               max="365"
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm tabular-nums"
+              className="panel px-2 py-1 text-sm tabular-nums"
               data-testid="stale-days"
               value={staleDays ?? ''}
               onChange={(e) => setStaleDays(e.target.value)}
@@ -193,7 +193,7 @@ export function Settings() {
             <button
               type="submit"
               disabled={save.isPending}
-              className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              className="panel-inset px-3 py-1.5 text-sm hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="save-activity"
             >
               Save

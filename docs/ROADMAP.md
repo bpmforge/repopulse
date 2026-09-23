@@ -309,3 +309,45 @@ flake (W12-07).
 - [x] Ingestion is proven end to end in CI: the worker runs from the shipping entrypoint as a Playwright webServer, and the assertion fails when a processor is unregistered (negative control performed).
 - [ ] **Unverified, carried:** no real Gitea or GitLab instance has been ingested — both adapters pass recorded-fixture contract tests only.
 - [ ] **Carried defect:** a 404 from the forge still produces a COMPLETED backfill job with no error and no cursor on the REST paths, indistinguishable from a genuinely empty repo. Only the GraphQL path was hardened.
+
+---
+
+## W17 — Product completion (standalone release)
+
+Added 2026-09-08. Executes the handoff in `IMPLEMENTATION-PLAN.md` (RP-01–RP-34
+→ W17-01–W17-34) under D15; see `docs/work/product-completion/DECISIONS.md`.
+This wave exists because D1a made self-hosting the MVP and the gate is that a
+**customer** can stand the product up.
+
+**This wave's gate is not the historical wave-exit pattern.** Earlier waves
+close against criteria written for that wave. W17 closes against the handoff's
+§6 acceptance matrix, evidenced at a **single final commit** by W17-34. That is
+a documented difference, not an undocumented process exception: waves W7 and
+W14 carry blocked internal-infrastructure tickets which D1a already ruled out
+as launch gates, so a criterion-per-wave rollup would either stall on the
+dogfood deployment or quietly waive it.
+
+**Ticket themes.** Baseline and board reconciliation (01–02); test reliability
+(03); container start, install configuration, health and heartbeat, status API
+and Settings surface, real first-run (04–09); analysis capability/freshness and
+gateway auditing (10–11); visual primitives, brand, navigation, responsive grid
+(12–15); top actions and the overview redesign (16–17); repository list, detail,
+code-health/security, performance review (18–21); reviews, actions, plans,
+verification, reports (22–26); packaged scanner execution, install bundle,
+backup/restore/upgrade (27–29); full journey, accessibility, product
+performance, documentation, final acceptance (30–34).
+
+**Exit criteria**
+- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm e2e`, `pnpm check:bundle`, and all three validators pass against the SAME final commit (W17-34).
+- [ ] A customer install is proven from an extracted bundle with locally loaded versioned images, no source checkout and no host Node/pnpm (W17-28), and the README walked literally reproduces it (W17-33).
+- [ ] Supported scanners actually execute in the packaged worker and persist findings (W17-27). **Release gate** — unavailable execution is not waived by hiding a button.
+- [ ] The full customer journey runs from an empty disposable installation against fixture forge and model services using production auth and ingestion paths (W17-30).
+- [ ] Backup, restore and upgrade are demonstrated with data checks before and after (W17-29).
+- [ ] No unsupported capability is presented as working; coverage ingestion, IaC scanning and runtime APM read as explicitly unavailable (W17-33).
+- [ ] `RELEASE-CHECKLIST.md` records every §6 acceptance item PASS/FAIL/BLOCKED with evidence (W17-34).
+
+**Carried in, not resolved by this wave**
+- `W11-01` and `W11-05` stay blocked until W17-28 and W17-30 produce their evidence.
+- `W16-34` (intermittent full-suite failure) is superseded by W17-03 and stays blocked, not done — it was never diagnosed.
+- `W16-09` (model auth beyond API keys) is parked: out of release scope.
+- `W7-05/06/07`, `W14-01`, `W14-03`, `W12-10` remain internal-infrastructure work and are **not** release gates (D1a).

@@ -1,4 +1,4 @@
-import { readMetricTrend } from '@repopulse/metrics';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
   buildHealthSubScores,
   computeHealthScore,
@@ -7,7 +7,7 @@ import {
   FINDINGS_METRIC_KEY,
   type HealthScore,
 } from '@repopulse/insights';
-import type { Database } from '@repopulse/shared';
+import { read, type Database } from '@repopulse/shared';
 import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // Repo health from the warehouse (FR-INSIGHTS-2/3): read each health-input
@@ -15,15 +15,112 @@ import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 // snapshot set doesn't carry (commit-count-vs-median, flakiness, CFR) are null →
 // excluded from their sub-score's mean (never scored 0).
 
-async function latest(
+const HEALTH_METRIC_KEYS = ['M4', 'M5', 'M8', 'M9', 'M11', FINDINGS_METRIC_KEY] as const;
+
+type Latest = { value: number | null; dims: Record<string, unknown> };
+const ABSENT: Latest = { value: null, dims: {} };
+
+export type RepoHealth = HealthScore & { letter: string };
+
+/**
+ * Health for MANY repos in a bounded number of statements (W17-32).
+ *
+ * The per-repo version below used to issue six `readMetricTrend` reads plus a
+ * settings read for every repository, and the three list routes called it in
+ * a loop: 26 statements for the seeded 3 repos, 706 for 100. This reads every
+ * (repo, metric) latest snapshot in ONE `DISTINCT ON` query and the workspace
+ * settings once, so the count no longer grows with the repository list. The
+ * scoring is unchanged — the single-repo function is this one with a list of
+ * one, so the two cannot drift.
+ */
+export async function repoHealthMany(
   db: Database,
   workspaceId: number,
-  repoId: number,
-  metricKey: string,
+  repos: readonly { id: number; pushedAt: Date | null }[],
   window: string,
-): Promise<{ value: number | null; dims: Record<string, unknown> }> {
-  const [row] = await readMetricTrend(db, { workspaceId, repoId, metricKey, window, limit: 1 });
-  return row ? { value: Number(row.value), dims: row.dims } : { value: null, dims: {} };
+  nowMs: number,
+): Promise<Map<number, RepoHealth>> {
+  const out = new Map<number, RepoHealth>();
+  if (repos.length === 0) return out;
+
+  const rows = await db
+    .selectDistinctOn([read.metricSnapshots.repoId, read.metricSnapshots.metricKey], {
+      repoId: read.metricSnapshots.repoId,
+      metricKey: read.metricSnapshots.metricKey,
+      value: read.metricSnapshots.value,
+      dims: read.metricSnapshots.dims,
+    })
+    .from(read.metricSnapshots)
+    .where(
+      and(
+        eq(read.metricSnapshots.workspaceId, workspaceId),
+        inArray(
+          read.metricSnapshots.repoId,
+          repos.map((r) => r.id),
+        ),
+        inArray(read.metricSnapshots.metricKey, [...HEALTH_METRIC_KEYS]),
+        eq(read.metricSnapshots.window, window),
+      ),
+    )
+    // DISTINCT ON keeps the first row per (repo, metric) in this order — the
+    // latest computed_at, exactly what readMetricTrend(limit: 1) returned.
+    .orderBy(
+      read.metricSnapshots.repoId,
+      read.metricSnapshots.metricKey,
+      desc(read.metricSnapshots.computedAt),
+    );
+
+  const latest = new Map<number, Map<string, Latest>>();
+  for (const row of rows) {
+    if (row.repoId === null) continue;
+    let perRepo = latest.get(row.repoId);
+    if (!perRepo) {
+      perRepo = new Map();
+      latest.set(row.repoId, perRepo);
+    }
+    perRepo.set(row.metricKey, { value: Number(row.value), dims: row.dims });
+  }
+
+  // W4-09: weights come from workspace config, not code (METRICS.md §3).
+  // buildHealthSubScores falls back to DEFAULT_WEIGHTS per key, so an unset
+  // workspace scores exactly as before.
+  const { effective } = await readWorkspaceSettings(db, workspaceId);
+
+  for (const repo of repos) {
+    const m = latest.get(repo.id) ?? new Map<string, Latest>();
+    const get = (key: string): Latest => m.get(key) ?? ABSENT;
+    // W10-05: the FINDINGS row the snapshot job now writes. Before it existed
+    // this route passed NO findings inputs at all, so the security and
+    // code-health sub-scores were absent for every repo in the product while
+    // their unit tests passed against hand-built metric sets.
+    const findings = get(FINDINGS_METRIC_KEY);
+
+    // The mapping lives in @repopulse/insights (W5-03) so the report assembler
+    // and this screen decompose a repo's score identically. Two copies would
+    // drift silently, each self-consistent.
+    const num = (key: string): number | null => {
+      const value = findings.dims[key];
+      // Absent stays NULL: an unwritten FINDINGS row must drop its sub-scores,
+      // not score them as zero-risk.
+      return typeof value === 'number' ? value : null;
+    };
+
+    const inputs = healthInputsFromSnapshots(
+      { M4: get('M4'), M5: get('M5'), M8: get('M8'), M9: get('M9'), M11: get('M11') },
+      { pushedAt: repo.pushedAt, nowMs },
+      {
+        openFindingDensity: null,
+        worstOpenSeverity: null,
+        slopDensity: num('slopDensity'),
+        supplyChainRisk: num('dependencyHealthRiskSum'),
+        eolRuntimeCount: num('eolRuntimeCount'),
+      },
+    );
+
+    const score = computeHealthScore(buildHealthSubScores(inputs, effective.healthWeights));
+    out.set(repo.id, { ...score, letter: scoreLetter(score.score) });
+  }
+  return out;
 }
 
 export async function repoHealth(
@@ -33,46 +130,8 @@ export async function repoHealth(
   window: string,
   pushedAt: Date | null,
   nowMs: number,
-): Promise<HealthScore & { letter: string }> {
-  const [m4, m5, m8, m9, m11, findings] = await Promise.all([
-    latest(db, workspaceId, repoId, 'M4', window),
-    latest(db, workspaceId, repoId, 'M5', window),
-    latest(db, workspaceId, repoId, 'M8', window),
-    latest(db, workspaceId, repoId, 'M9', window),
-    latest(db, workspaceId, repoId, 'M11', window),
-    // W10-05: the FINDINGS row the snapshot job now writes. Before it existed
-    // this route passed NO findings inputs at all, so the security and
-    // code-health sub-scores were absent for every repo in the product while
-    // their unit tests passed against hand-built metric sets.
-    latest(db, workspaceId, repoId, FINDINGS_METRIC_KEY, window),
-  ]);
-
-  // The mapping lives in @repopulse/insights (W5-03) so the report assembler
-  // and this screen decompose a repo's score identically. Two copies would
-  // drift silently, each self-consistent.
-  const num = (key: string): number | null => {
-    const value = findings.dims[key];
-    // Absent stays NULL: an unwritten FINDINGS row must drop its sub-scores,
-    // not score them as zero-risk.
-    return typeof value === 'number' ? value : null;
-  };
-
-  const inputs = healthInputsFromSnapshots(
-    { M4: m4, M5: m5, M8: m8, M9: m9, M11: m11 },
-    { pushedAt, nowMs },
-    {
-      openFindingDensity: null,
-      worstOpenSeverity: null,
-      slopDensity: num('slopDensity'),
-      supplyChainRisk: num('dependencyHealthRiskSum'),
-      eolRuntimeCount: num('eolRuntimeCount'),
-    },
-  );
-
-  // W4-09: weights come from workspace config, not code (METRICS.md §3).
-  // buildHealthSubScores falls back to DEFAULT_WEIGHTS per key, so an unset
-  // workspace scores exactly as before.
-  const { effective } = await readWorkspaceSettings(db, workspaceId);
-  const score = computeHealthScore(buildHealthSubScores(inputs, effective.healthWeights));
-  return { ...score, letter: scoreLetter(score.score) };
+): Promise<RepoHealth> {
+  const many = await repoHealthMany(db, workspaceId, [{ id: repoId, pushedAt }], window, nowMs);
+  // Every requested repo gets an entry (unmeasured ones score from empty inputs).
+  return many.get(repoId)!;
 }
