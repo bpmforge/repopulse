@@ -20,8 +20,14 @@ export interface ForgeRepoFeatures {
   releases?: boolean;
 }
 
-/** Drop the flags a forge did not send; undefined when it sent none. */
-export function repoFeatures(f: ForgeRepoFeatures): ForgeRepoFeatures | undefined {
+/**
+ * Drop the flags a forge did not send; undefined when it sent none. The input
+ * admits `undefined` values because that is exactly what an absent JSON field
+ * reads as (exactOptionalPropertyTypes).
+ */
+export function repoFeatures(
+  f: Partial<Record<keyof ForgeRepoFeatures, boolean | undefined>>,
+): ForgeRepoFeatures | undefined {
   const out: ForgeRepoFeatures = {};
   if (typeof f.issues === 'boolean') out.issues = f.issues;
   if (typeof f.pullRequests === 'boolean') out.pullRequests = f.pullRequests;
