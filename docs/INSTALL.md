@@ -223,6 +223,27 @@ A self-hosted forge over plain `http://` is rejected unless it is a loopback
 address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape
 hatch, not a deployment option.
 
+### A forge with an internal-CA certificate
+
+If your Gitea, GitLab or GitHub Enterprise serves a certificate signed by your
+own CA, the connection fails with a TLS error such as `unable to verify the first
+certificate` or `unable to get local issuer certificate`. Do not turn verification off; add your CA instead. The
+`api` and `worker` containers mount `deploy/ca` (or `EXTRA_CA_DIR`, which must
+be absolute) read-only at `/etc/repopulse/ca`, and Node adds any PEM named by
+`NODE_EXTRA_CA_CERTS` to its built-in roots:
+
+```sh
+cp internal-ca.pem deploy/ca/ && chmod 644 deploy/ca/internal-ca.pem
+echo 'NODE_EXTRA_CA_CERTS=/etc/repopulse/ca/internal-ca.pem' >> deploy/.env
+./deploy/up.sh    # api and worker read the file only at startup
+```
+
+A bundle with several CAs is fine — concatenate them into one PEM. Left unset,
+nothing changes. A path that does not exist inside the container is only a
+startup warning from Node, so if the TLS error persists, check the api log for
+`Warning: Ignoring extra certs`. Outside containers (the dev harness), set
+`NODE_EXTRA_CA_CERTS` to the host path.
+
 ### The GitHub App variables are for sign-in, not for data
 
 `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` in `deploy/.env` add a

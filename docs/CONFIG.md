@@ -24,6 +24,7 @@ every variable at fault. The API will not half-boot.
 | `REDIS_URL` 🔒 | yes | — | Redis connection for sessions and the BullMQ queues. | The API refuses to start; without it nothing is ingested and nobody can log in. |
 | `NODE_ENV` | no | `development` | Set to 'production' in a real install: it turns on secure cookies. | Left unset behind TLS, session cookies are sent without the Secure flag. |
 | `DATA_DIR` | no | `./data` | Writable directory for generated reports. | Report generation fails at write time, after doing all the work. |
+| `NODE_EXTRA_CA_CERTS` | no | `unset` | Path INSIDE the container to a PEM file of extra CA certificates, added to Node's built-in roots. Set it when a self-hosted Gitea, GitLab or GitHub Enterprise (or your OIDC issuer) uses a certificate from an internal CA. In the deploy stack, put the PEM in EXTRA_CA_DIR (default deploy/ca) and set this to /etc/repopulse/ca/<file>.pem. | Unset with an internal-CA forge: connecting fails with a TLS error (unable to verify the first certificate / unable to get local issuer certificate). A path that does not exist or is unreadable is only a warning from Node at startup, and the extra CA is silently not trusted. |
 
 ## API
 

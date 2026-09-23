@@ -264,6 +264,18 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: './data',
   },
   {
+    // Read by Node itself at process start, not by our code. Registered so the
+    // setup screen and CONFIG.md name the supported way to trust an internal CA.
+    name: 'NODE_EXTRA_CA_CERTS',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Path INSIDE the container to a PEM file of extra CA certificates, added to Node's built-in roots. Set it when a self-hosted Gitea, GitLab or GitHub Enterprise (or your OIDC issuer) uses a certificate from an internal CA. In the deploy stack, put the PEM in EXTRA_CA_DIR (default deploy/ca) and set this to /etc/repopulse/ca/<file>.pem.",
+    ifWrong:
+      'Unset with an internal-CA forge: connecting fails with a TLS error (unable to verify the first certificate / unable to get local issuer certificate). A path that does not exist or is unreadable is only a warning from Node at startup, and the extra CA is silently not trusted.',
+    default: 'unset',
+  },
+  {
     name: 'SNAPSHOT_ROOT',
     scope: 'worker',
     required: false,

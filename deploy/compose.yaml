@@ -91,6 +91,10 @@ services:
       # BEFORE anyone presses Run (W17-27). The api never starts a scan; it
       # only reads the one metadata file the sync leaves beside the database.
       - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
+      # OPTIONAL internal CA trust. EXTRA_CA_DIR (default deploy/ca, created
+      # empty by up.sh) is mounted read-only; nothing reads it unless .env sets
+      # NODE_EXTRA_CA_CERTS=/etc/repopulse/ca/<file>.pem. See docs/INSTALL.md.
+      - ${EXTRA_CA_DIR:-/var/lib/repopulse/ca}:/etc/repopulse/ca:ro
 
   # SC-24 deployment note (W6-08): the LLM VLAN must be reachable from the
   # WORKER network only. The worker is the only service that calls a Tier-2
@@ -143,6 +147,10 @@ services:
       # Both volumes are meant to be shared by exactly these two services and
       # the scan containers; a no-op on hosts without SELinux and under docker.
       - scan-scratch:/var/tmp/repopulse-scan:z
+      # OPTIONAL internal CA trust. EXTRA_CA_DIR (default deploy/ca, created
+      # empty by up.sh) is mounted read-only; nothing reads it unless .env sets
+      # NODE_EXTRA_CA_CERTS=/etc/repopulse/ca/<file>.pem. See docs/INSTALL.md.
+      - ${EXTRA_CA_DIR:-/var/lib/repopulse/ca}:/etc/repopulse/ca:ro
     # The scan network is where the runner listens; only the worker joins it
     # besides the runner. SCAN_RUNNER_TOKEN comes from .env (env_file above).
     networks: [default, scan]

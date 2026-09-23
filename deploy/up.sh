@@ -128,6 +128,15 @@ export SCAN_RULES_DIR
 # person can understand and fix; the second is not.
 mkdir -p "$SCAN_RULES_DIR"
 
+# Internal CA trust (optional). api and worker mount this directory read-only
+# at /etc/repopulse/ca; it does nothing until .env sets NODE_EXTRA_CA_CERTS to
+# a PEM inside it. Created empty for the same reason as the scan-rules
+# directory: a missing bind source stops the containers from being created.
+EXTRA_CA_DIR="$(env_value EXTRA_CA_DIR)"
+: "${EXTRA_CA_DIR:=$(pwd)/ca}"
+export EXTRA_CA_DIR
+mkdir -p "$EXTRA_CA_DIR"
+
 # ------------------------------------------------------- scan-runner (W17-27)
 # The scan-runner service is the one container holding the runtime's socket,
 # so the socket path has to be known here, on the host, and it differs by

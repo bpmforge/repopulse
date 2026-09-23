@@ -26,3 +26,6 @@ deploy/.env
 
 # The journey run stages its own scan-rules directory here (deploy/journey.sh).
 deploy/journey/.rules/
+
+# Operator-supplied internal CA certificates (deploy/up.sh creates the dir).
+deploy/ca/
