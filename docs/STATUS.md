@@ -4039,7 +4039,7 @@ the fix is a one-line UPDATE renaming the key.
   measured 9 requests → 0 with a request counter and the LM Studio log. **W14-01 re-scoped and
   closed** — GiteaProvider has now run against a REAL Gitea (1.24.7) through the product path:
   connect:forge → worker → live, widget repo 4 commits / 1 PR / 1 issue / 1 release / 106 metric
-  snapshots; git.bpmforge.com dogfood deferred with W7-05/06; founder ratification owed. Dev DB:
+  snapshots; git.bpmforge.com dogfood deferred with W7-05/06; founder ratified 2026-09-24. Dev DB:
   the real-forge smoke's GitHub connection + bpmforge/quarry rows (encrypted .env.smoke PAT) are
   gone — removed by this branch's first `pnpm test` (the seed reset wipes every connection/repo
   in the Default workspace; demo seed re-created by the e2e run), not by a targeted delete; its
