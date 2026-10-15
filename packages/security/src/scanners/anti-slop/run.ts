@@ -16,6 +16,7 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { pythonPhantomRefs } from './python-graph.js';
 import { rustPhantomRefs, rustUnusedItems } from './rust-graph.js';
 import {
   prSuppressionFinding,
@@ -260,9 +261,13 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           PHANTOM_MODULE_RULE_ID,
         ),
       };
+      // Python (W18-11) and Rust (W18-14) under the SAME rule ids: a phantom import
+      // is one defect whatever language it is written in, and one lifecycle row
+      // promotes or retires them all.
       const complete = { complete: deps.sourcesComplete === true };
       for (const ref of [
         ...phantomRefs(sources, complete),
+        ...pythonPhantomRefs(sources, complete),
         ...rustPhantomRefs(sources, complete),
       ]) {
         const status = statuses[ref.ruleId];

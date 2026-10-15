@@ -191,7 +191,7 @@ export async function runSemgrepFull(
 // Every language the shipped packs have rules for. Semgrep itself routes rules
 // by extension, so a file here with no rules costs a parse and nothing more —
 // but a language missing here means its rules never run on a PR at all.
-const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs|java|kt|kts|rs)$/;
+const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs|py|rs|java|kt|kts)$/;
 
 /**
  * INCREMENTAL mode: the files a PR touched, fetched one by one.

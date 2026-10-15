@@ -501,6 +501,51 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
     expect((await rows()).map((r) => [r.id, r.occurrenceCount])).toEqual(before);
   });
+
+  it('W18-11: Python phantom imports land under the same rule ids, in shadow', async () => {
+    const sources = [
+      { path: 'shop/__init__.py', source: '' },
+      { path: 'shop/money.py', source: 'def fmt(x):\n    return x\n' },
+      {
+        path: 'shop/pay.py',
+        source: 'from .money import fmt, to_cents\nfrom .audit import record\n',
+      },
+    ];
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.repoId, repoId),
+            eq(read.findings.ruleId, ruleId),
+            eq(read.findings.file, 'shop/pay.py'),
+          ),
+        );
+
+    await runAntiSlopScan({
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-11-python',
+      files: [],
+      sources,
+      sourcesComplete: true,
+      trigger: 'schedule',
+    });
+    expect(await rows('slop.phantom_symbol')).toMatchObject([
+      {
+        severity: 3,
+        experimental: true,
+        lineStart: 1,
+        title: 'Import of a name that does not exist: to_cents from .money',
+        evidence: 'from .money import fmt, to_cents',
+      },
+    ]);
+    expect(await rows('slop.phantom_module')).toMatchObject([
+      { lineStart: 2, experimental: true, title: 'Import of a missing module: .audit' },
+    ]);
+  });
 });
 
 describe('layer separation and sampling', () => {
