@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { DEFAULT_BUDGET, getScanner, runScanner, type ScanTrigger, type ScannerContext } from '@repopulse/security';
 import type { Job } from 'bullmq';
 
@@ -175,7 +175,7 @@ async function runSweep(
       status: 'failed',
       startedAt: new Date(),
       finishedAt: new Date(),
-      error: err instanceof Error ? err.message : String(err),
+      error: safeErrorText(err),
     });
     throw err;
   }

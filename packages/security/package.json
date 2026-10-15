@@ -14,7 +14,7 @@
   "dependencies": {
     "@repopulse/analysis": "workspace:*",
     "@repopulse/shared": "workspace:*",
-    "drizzle-orm": "^0.39.3",
+    "drizzle-orm": "^0.45.2",
     "@repopulse/forge": "workspace:*",
     "zod": "^3.25.76",
     "@repopulse/insights": "workspace:*"
