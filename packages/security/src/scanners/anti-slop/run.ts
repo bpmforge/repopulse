@@ -15,6 +15,7 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { pythonPhantomRefs } from './python-graph.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -233,7 +234,14 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           PHANTOM_MODULE_RULE_ID,
         ),
       };
-      for (const ref of phantomRefs(sources, { complete: deps.sourcesComplete === true })) {
+      // Python (W18-11) under the SAME rule ids: a phantom import is one defect
+      // whatever language it is written in, and one lifecycle row promotes or
+      // retires both.
+      const complete = { complete: deps.sourcesComplete === true };
+      for (const ref of [
+        ...phantomRefs(sources, complete),
+        ...pythonPhantomRefs(sources, complete),
+      ]) {
         const status = statuses[ref.ruleId];
         if (status === 'deprecated') continue;
         findings.push({

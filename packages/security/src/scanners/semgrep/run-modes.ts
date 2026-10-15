@@ -182,7 +182,7 @@ export async function runSemgrepFull(
   }
 }
 
-const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs)$/;
+const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs|py)$/;
 
 /**
  * INCREMENTAL mode: the files a PR touched, fetched one by one.

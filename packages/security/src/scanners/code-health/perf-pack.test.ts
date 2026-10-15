@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -12,7 +12,12 @@ const PACK_DIR = path.resolve(HERE, '../../../rulepacks/code-health/perf');
 const FIXTURES = path.resolve(HERE, '../../../fixtures/perf');
 
 describe('the perf pack', () => {
-  const text = readFileSync(path.join(PACK_DIR, 'perf.v1.yaml'), 'utf8');
+  // Every pack file in the directory, not just v1: language packs (W18-11)
+  // live beside it and are held to the same rules.
+  const text = readdirSync(PACK_DIR)
+    .filter((f) => f.endsWith('.yaml'))
+    .map((f) => readFileSync(path.join(PACK_DIR, f), 'utf8'))
+    .join('\n');
 
   it('is ours, with a provenance line per rule', () => {
     const ids = readRulepack(PACK_DIR).ruleIds;
@@ -87,12 +92,18 @@ describeIfScanImage('perf pack golden set', () => {
     const ids = [...new Set(result.findings.map((f) => f.ruleId))].sort();
     expect(ids).toEqual([
       'bpm-perf-await-in-loop',
+      'bpm-perf-await-in-loop-py',
+      'bpm-perf-blocking-call-in-async-py',
       'bpm-perf-json-deep-clone',
+      'bpm-perf-json-deep-clone-py',
       'bpm-perf-orm-call-in-loop',
       'bpm-perf-orm-call-in-loop-py',
       'bpm-perf-regex-compile-in-loop',
+      'bpm-perf-regex-compile-in-loop-py',
       'bpm-perf-string-concat-in-loop',
+      'bpm-perf-string-concat-in-loop-py',
       'bpm-perf-sync-io-in-async',
+      'bpm-perf-unbounded-gather-py',
       'bpm-perf-unbounded-promise-all',
     ]);
   }, 300_000);

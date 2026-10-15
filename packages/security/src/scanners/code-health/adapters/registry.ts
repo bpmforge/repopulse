@@ -55,6 +55,28 @@ export const DEDUP_MAP: { native: string; packRule: string; keep: 'pack' | 'tool
   // Both flag console usage; ours knows about the production-path exclusions.
   { native: 'lint/suspicious/noConsoleLog', packRule: 'bpm-log-console-in-prod', keep: 'pack' },
   { native: 'lint/suspicious/noConsole', packRule: 'bpm-log-console-in-prod', keep: 'pack' },
+
+  // Python (W18-11). ruff runs with E7, F, B, S and C90 selected (ruff.ts), so
+  // the flake8-bandit S rules overlap the Python baseline and anti-slop packs.
+  // `pack` only where ruff's rule and ours describe the SAME defect: matching
+  // is by rule identity across the whole repository, so a broader ruff rule
+  // mapped to a narrower pack rule would lose every finding outside the
+  // narrow one's reach the moment the narrow one fired once.
+  { native: 'E722', packRule: 'bpm-ch-bare-except-py', keep: 'pack' },
+  // try/except/pass.
+  { native: 'S110', packRule: 'bpm-ch-empty-except-py', keep: 'pack' },
+  { native: 'S307', packRule: 'bpm-py-eval-dynamic', keep: 'pack' },
+  { native: 'S102', packRule: 'bpm-py-eval-dynamic', keep: 'pack' },
+  // Both honour usedforsecurity=False; same defect, ours says what to do.
+  { native: 'S324', packRule: 'bpm-py-weak-hash', keep: 'pack' },
+  // SQL-looking string built by formatting — the same question ours asks.
+  { native: 'S608', packRule: 'bpm-py-sql-string-build', keep: 'pack' },
+  // Broader than ours: S602 is any shell=True, S605 any os.system, S311 any
+  // use of `random`. Ours fire only on a spliced command or a secret-named
+  // target, so ruff's are kept — listed so the overlap is explicit.
+  { native: 'S602', packRule: 'bpm-py-subprocess-shell-concat', keep: 'tool' },
+  { native: 'S605', packRule: 'bpm-py-subprocess-shell-concat', keep: 'tool' },
+  { native: 'S311', packRule: 'bpm-py-random-token', keep: 'tool' },
 ];
 
 /**
@@ -73,8 +95,13 @@ export function dedupeAgainstPack(
   const dropped: { ruleId: string; because: string }[] = [];
 
   for (const finding of adapterFindings) {
-    const mapping = DEDUP_MAP.find((m) => m.native === finding.nativeRule);
-    if (mapping && mapping.keep === 'pack' && packSeen.has(mapping.packRule)) {
+    // Every mapping for the native rule, not the first: E722 is a bare except
+    // in both the JavaScript-era entry and the Python pack's, and whichever
+    // of them fired in this repository is the one that covers it.
+    const mapping = DEDUP_MAP.find(
+      (m) => m.native === finding.nativeRule && m.keep === 'pack' && packSeen.has(m.packRule),
+    );
+    if (mapping) {
       dropped.push({
         ruleId: finding.ruleId,
         because: `${mapping.packRule} already reports this defect, and it explains why it matters`,

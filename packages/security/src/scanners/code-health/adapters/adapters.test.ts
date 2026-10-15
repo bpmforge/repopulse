@@ -161,6 +161,32 @@ describe('dedupe against the pack', () => {
     ]);
     expect(kept).toHaveLength(1);
   });
+
+  it('maps ruff overlaps onto the Python packs, by whichever mapping fired', () => {
+    // E722 has two mappings; the Python one alone must be enough to drop it.
+    const python = dedupeAgainstPack(
+      [finding('E722'), finding('S110'), finding('S307'), finding('S324'), finding('S608')],
+      [
+        'bpm-ch-bare-except-py',
+        'bpm-ch-empty-except-py',
+        'bpm-py-eval-dynamic',
+        'bpm-py-weak-hash',
+        'bpm-py-sql-string-build',
+      ],
+    );
+    expect(python.kept).toEqual([]);
+    expect(python.dropped).toHaveLength(5);
+  });
+
+  it('keeps a BROADER ruff rule even when the narrower pack rule fired', () => {
+    // S311 is every use of `random`; ours is only a secret-named target.
+    // Dropping S311 repo-wide because ours fired once would lose the rest.
+    const { kept } = dedupeAgainstPack(
+      [finding('S311'), finding('S602'), finding('S605')],
+      ['bpm-py-random-token', 'bpm-py-subprocess-shell-concat'],
+    );
+    expect(kept).toHaveLength(3);
+  });
 });
 
 // The live half.

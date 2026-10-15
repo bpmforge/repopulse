@@ -1,0 +1,190 @@
+# bpm-rulepacks — logging antipatterns, Python (W18-11, CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for this repository. Nothing here is copied or adapted
+# from the Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# The same two failures as logging.v1.yaml — noise and disclosure — in the
+# shapes Python code takes. The secret-field denylist is the same list as the
+# JavaScript rule's, which mirrors SC-2's redaction fields: two lists of "what
+# counts as a secret" drift, and the one in the logger is the one enforced.
+#
+# WHICH RECEIVERS ARE LOGGERS. `$X.error(...)` in Python is as often an argparse
+# parser or a form as a logger, so every rule here pins the receiver to
+# logger-shaped names (`log`, `logger`, `logging`, `self.logger`, `LOG`) rather
+# than firing on any `.info()`. That costs the logger someone named `audit`; a
+# rule that fires on `parser.error("token missing")` costs more.
+rules:
+  - id: bpm-log-print-in-prod-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      print() in a production path. It bypasses the logger's redaction, its
+      levels and its destination — a line here is unstructured, unfiltered and
+      un-turn-off-able.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # Tests, scripts, tooling and command-line entry points legitimately
+        # print. A rule that fires there is a rule people disable everywhere.
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - 'setup.py'
+        - 'noxfile.py'
+        - '__main__.py'
+        - 'manage.py'
+        - 'cli.py'
+        - 'scripts/**'
+        - 'test/**'
+        - 'tests/**'
+        - 'docs/**'
+        - 'docs_src/**'
+        - 'examples/**'
+        - 'tools/**'
+    patterns:
+      - pattern: print(...)
+      - pattern-not-inside: |
+          if __name__ == "__main__":
+              ...
+      - pattern-not-inside: |
+          def main(...):
+              ...
+
+  - id: bpm-log-injection-py
+    mode: taint
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Request data reaches a log call unencoded (CWE-117). A newline in that
+      value forges a log line, which is how an attacker writes "authentication
+      succeeded" into the file an incident is later reconstructed from.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      cwe: 'CWE-117: Improper Output Neutralization for Logs'
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - pattern-either:
+          # Flask / Werkzeug.
+          - pattern: request.args
+          - pattern: request.form
+          - pattern: request.values
+          - pattern: request.headers
+          - pattern: request.cookies
+          - pattern: request.get_json(...)
+          - pattern: request.json
+          # Django.
+          - pattern: $REQ.GET
+          - pattern: $REQ.POST
+          - pattern: $REQ.META
+          - pattern: $REQ.COOKIES
+          # Starlette / FastAPI.
+          - pattern: $REQ.query_params
+          - pattern: $REQ.path_params
+    pattern-sanitizers:
+      # Anything that removes or escapes newlines makes the value one log line.
+      - pattern-either:
+          - pattern: json.dumps(...)
+          - pattern: repr(...)
+          - pattern: $X.replace("\n", ...)
+          - pattern: $X.replace("\r\n", ...)
+          - pattern: $X.splitlines(...)
+          - pattern: int(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $LOG.debug(...)
+              - pattern: $LOG.info(...)
+              - pattern: $LOG.warning(...)
+              - pattern: $LOG.warn(...)
+              - pattern: $LOG.error(...)
+              - pattern: $LOG.exception(...)
+              - pattern: $LOG.critical(...)
+          - metavariable-regex:
+              metavariable: $LOG
+              regex: (?i)^(.*\.)?_*(log|logger|logging)$
+
+  - id: bpm-log-secret-field-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log call. Logs outlive the request, sit
+      outside the product's access control, and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        Matches the VALUE's expression (a name, attribute or subscript), never
+        a string literal: `log.info("token refreshed")` names a secret without
+        containing one. The field list mirrors SC-2's redaction denylist.
+    patterns:
+      - pattern-either:
+          - pattern: $LOG.$LEVEL(..., $OBJ, ...)
+          - pattern: $LOG.$LEVEL(..., f"...{$OBJ}...", ...)
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warning|warn|error|exception|critical)$
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(.*\.)?_*(log|logger|logging)$
+      - metavariable-pattern:
+          metavariable: $OBJ
+          patterns:
+            - pattern-either:
+                - pattern: $NAME
+                - pattern: $BASE.$ATTR
+                - pattern: $BASE[$KEY]
+            - pattern-not: '"..."'
+      - metavariable-regex:
+          metavariable: $OBJ
+          # The secret word must END the expression (`user.password`,
+          # `auth_token`, `headers["Authorization"]`): `token_count` and
+          # `max_tokens` are numbers, and an LLM codebase logs them constantly.
+          regex: (?i)^(.*[^a-z0-9])?(password|passwd|secret|secret[_-]?key|token|api[_-]?key|private[_-]?key|credentials?|authorization|session[_-]?id|cookie|ssn|credit[_-]?card)(['"]\])?$
+
+  - id: bpm-log-and-reraise-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      Logged and re-raised. The caller will log it again, and the incident
+      timeline gets the same failure three times at three levels of the stack —
+      log it where it is handled, or re-raise it where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try:
+                  ...
+              except $EXC as $ERR:
+                  $LOG.$LEVEL(...)
+                  raise
+          - pattern: |
+              try:
+                  ...
+              except $EXC as $ERR:
+                  $LOG.$LEVEL(...)
+                  raise $ERR
+          - pattern: |
+              try:
+                  ...
+              except $EXC:
+                  $LOG.$LEVEL(...)
+                  raise
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(error|exception|critical|warning)$
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(.*\.)?_*(log|logger|logging)$
