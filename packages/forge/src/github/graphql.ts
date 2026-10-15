@@ -16,7 +16,7 @@ export const LIST_PULL_REQUESTS_QUERY = `query($owner:String!,$name:String!,$cur
         createdAt updatedAt mergedAt closedAt
         author{login __typename}
         mergedBy{login}
-        baseRefName headRefOid
+        baseRefName headRefOid headRefName
         additions deletions changedFiles
       }
     }
@@ -38,6 +38,7 @@ interface GqlPrNode {
   mergedBy: { login: string } | null;
   baseRefName: string;
   headRefOid: string;
+  headRefName?: string | null;
   additions: number;
   deletions: number;
   changedFiles: number;
@@ -71,6 +72,7 @@ function normalizeGqlPr(n: GqlPrNode): ForgePR {
     mergedByLogin: n.mergedBy?.login ?? null,
     baseRef: n.baseRefName,
     headSha: n.headRefOid,
+    ...(n.headRefName ? { headRef: n.headRefName } : {}),
     additions: n.additions,
     deletions: n.deletions,
     changedFiles: n.changedFiles,

@@ -11,6 +11,7 @@ import {
   type StoredSettings,
   type WorkspaceSettingsResponse,
 } from './contracts.js';
+import { AiAuthorshipPatternsPanel } from './AiAuthorshipPatterns.js';
 
 // Admin → Settings (W4-09, UX_SPEC §4.i). The knobs that decide what every
 // other number on every other screen means: health-score weights, which logins
@@ -205,6 +206,21 @@ export function Settings() {
           </p>
         </form>
       </WidgetFrame>
+
+      {data?.effective.aiAuthorshipPatterns && data.defaults.aiAuthorshipPatterns && (
+        <AiAuthorshipPatternsPanel
+          effective={data.effective.aiAuthorshipPatterns}
+          defaults={data.defaults.aiAuthorshipPatterns}
+          isDefaulted={isDefaulted(stored, 'ai_authorship_patterns')}
+          saving={save.isPending}
+          onSave={(patch) =>
+            save.mutate(patch, {
+              onSuccess: () => onSaved('AI authorship patterns saved'),
+              onError: onFailed,
+            })
+          }
+        />
+      )}
 
       {/* WHERE EACH OF THESE ACTUALLY LIVES (W16-57).
           This was three disabled inputs under the heading "Analysis (lands

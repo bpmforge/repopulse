@@ -1,7 +1,14 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { core, type Database } from '@repopulse/shared';
-import { DEFAULT_BOT_LOGIN_GLOBS, DEFAULT_STALE_THRESHOLD_DAYS } from '@repopulse/metrics';
+import {
+  AI_PATTERN_LIMITS,
+  DEFAULT_AI_AUTHORSHIP_PATTERNS,
+  DEFAULT_BOT_LOGIN_GLOBS,
+  DEFAULT_STALE_THRESHOLD_DAYS,
+  resolveAiAuthorshipPatterns,
+  type AiAuthorshipPatterns,
+} from '@repopulse/metrics';
 import { DEFAULT_WEIGHTS } from '@repopulse/insights';
 
 // Workspace settings (W4-09, DATABASE.md workspaces.settings, API_DESIGN.md §2
@@ -41,6 +48,25 @@ export const healthWeightsSchema = z
     message: 'health weights must sum to 1.00 (METRICS.md §3)',
   });
 
+const patternList = z
+  .array(z.string().trim().min(1).max(AI_PATTERN_LIMITS.maxLength))
+  .max(AI_PATTERN_LIMITS.maxPerList);
+
+/**
+ * W18-20: the AI-authorship pattern list. Each list is optional on its own and
+ * `[]` is honoured, the same unset-vs-empty rule as bot_login_globs: emptying
+ * the branch list means "branch names say nothing here", not "use defaults".
+ * Plain substrings, prefixes and single-`*` globs — never regexes, which an
+ * admin could write to backtrack over every commit in a window.
+ */
+export const aiAuthorshipPatternsSchema = z
+  .object({
+    trailer_patterns: patternList.optional(),
+    bot_logins: patternList.optional(),
+    branch_prefixes: patternList.optional(),
+  })
+  .strict();
+
 export const workspaceSettingsSchema = z.object({
   health_weights: healthWeightsSchema.optional(),
   /** Absent = METRICS.md §0 defaults. `[]` = bot exclusion deliberately off. */
@@ -57,6 +83,7 @@ export const workspaceSettingsSchema = z.object({
       floor: z.number().int().min(0),
     })
     .optional(),
+  ai_authorship_patterns: aiAuthorshipPatternsSchema.optional(),
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
@@ -67,6 +94,7 @@ export interface EffectiveWorkspaceSettings {
   botLoginGlobs: readonly string[];
   stalePrDays: number;
   forgeBudget: { share: number; floor: number };
+  aiAuthorshipPatterns: AiAuthorshipPatterns;
 }
 
 export const SETTINGS_DEFAULTS: EffectiveWorkspaceSettings = {
@@ -76,6 +104,7 @@ export const SETTINGS_DEFAULTS: EffectiveWorkspaceSettings = {
   // FORGE_PROVIDER §3: one workspace in v1, so it may spend the whole budget;
   // the floor mirrors the budgeted client's own reserve.
   forgeBudget: { share: 1, floor: 100 },
+  aiAuthorshipPatterns: DEFAULT_AI_AUTHORSHIP_PATTERNS,
 };
 
 export function applyDefaults(stored: WorkspaceSettings): EffectiveWorkspaceSettings {
@@ -86,6 +115,11 @@ export function applyDefaults(stored: WorkspaceSettings): EffectiveWorkspaceSett
     botLoginGlobs: stored.bot_login_globs ?? SETTINGS_DEFAULTS.botLoginGlobs,
     stalePrDays: stored.stale_pr_days ?? SETTINGS_DEFAULTS.stalePrDays,
     forgeBudget: stored.forge_budget ?? SETTINGS_DEFAULTS.forgeBudget,
+    // The same resolver the report and the org tile use, so the screen can
+    // never show a list the classifier is not actually applying.
+    aiAuthorshipPatterns: resolveAiAuthorshipPatterns({
+      ai_authorship_patterns: stored.ai_authorship_patterns,
+    }),
   };
 }
 

@@ -166,6 +166,7 @@ export interface RawGitlabMr {
   merged_at?: string | null;
   closed_at?: string | null;
   target_branch?: string | null;
+  source_branch?: string | null;
   sha?: string | null;
   changes_count?: string | number | null;
 }
@@ -193,6 +194,7 @@ export function normalizePR(m: RawGitlabMr): ForgePR {
     mergedByLogin: m.merged_by?.username ?? null,
     baseRef: m.target_branch ?? '',
     headSha: m.sha ?? '',
+    ...(m.source_branch ? { headRef: m.source_branch } : {}),
     // GitLab reports `changes_count` as a STRING, and as "32+" once it exceeds
     // its display cap — parseInt keeps the number and drops the marker rather
     // than letting NaN reach the warehouse.

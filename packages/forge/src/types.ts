@@ -85,6 +85,12 @@ export interface ForgePR {
   mergedByLogin: string | null;
   baseRef: string;
   headSha: string;
+  /**
+   * The source branch name (W18-20). Optional: a fork PR's branch can be gone,
+   * and an absent ref must stay "unknown", never an empty string that a
+   * branch-prefix rule could match against.
+   */
+  headRef?: string;
   additions?: number;
   deletions?: number;
   changedFiles?: number; // absent on GitHub REST list items (research §3)

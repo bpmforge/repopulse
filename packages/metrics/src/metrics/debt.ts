@@ -35,6 +35,67 @@ function daysBetween(a: Date, b: Date): number {
   return Math.abs(b.getTime() - a.getTime()) / 86_400_000;
 }
 
+/** One touch's share of M13: the lines it changed, and how many of them were rework. */
+export interface Rework14dAttribution {
+  touch: ChurnFileTouch;
+  /** 0 when the previous touch of the same path is ≥ lookbackDays earlier (or absent). */
+  reworkLines: number;
+}
+
+/**
+ * Per-touch M13 attribution, the basis computeRework14d sums.
+ *
+ * Exported for the same reason churn.ts exports attributeRework: a SLICE of
+ * M13 (W18-20 slices it by authorship) must be computed over the full touch
+ * history and then grouped, never by filtering touches first. Filtering first
+ * would make "the previous touch" the previous touch BY THE SAME COHORT, and
+ * an AI change that rewrites a human change from last week would stop counting
+ * as rework at all.
+ */
+export function attributeRework14d(
+  touches: readonly ChurnFileTouch[],
+  lookbackDays = M13_LOOKBACK_DAYS,
+): Rework14dAttribution[] {
+  const byPath = new Map<string, ChurnFileTouch[]>();
+  for (const touch of touches) {
+    const bucket = byPath.get(touch.path);
+    if (bucket) bucket.push(touch);
+    else byPath.set(touch.path, [touch]);
+  }
+
+  const rework = new Map<ChurnFileTouch, number>();
+  for (const bucket of byPath.values()) {
+    const byTime = [...bucket].sort(
+      (a, b) => new Date(a.touchedAt).getTime() - new Date(b.touchedAt).getTime(),
+    );
+    for (let i = 1; i < byTime.length; i++) {
+      const prev = byTime[i - 1] as ChurnFileTouch;
+      const curr = byTime[i] as ChurnFileTouch;
+      if (daysBetween(new Date(prev.touchedAt), new Date(curr.touchedAt)) < lookbackDays) {
+        rework.set(curr, curr.additions + curr.deletions);
+      }
+    }
+  }
+  return touches.map((touch) => ({ touch, reworkLines: rework.get(touch) ?? 0 }));
+}
+
+/** M13 from attributed touches — null over an empty set, never 0. */
+export function sumRework14d(attributed: readonly Rework14dAttribution[]): DebtWindowResult {
+  let reworkLines = 0;
+  let totalLines = 0;
+  for (const a of attributed) {
+    reworkLines += a.reworkLines;
+    totalLines += a.touch.additions + a.touch.deletions;
+  }
+  return {
+    reworkLines,
+    totalLines,
+    // null over an empty window: a 0% rework rate for a week with no commits
+    // reads as a perfect week, which is the opposite of "nothing happened".
+    rate: totalLines === 0 ? null : reworkLines / totalLines,
+  };
+}
+
 /**
  * M13 over a set of file touches.
  *
@@ -47,37 +108,7 @@ export function computeRework14d(
   touches: readonly ChurnFileTouch[],
   lookbackDays = M13_LOOKBACK_DAYS,
 ): DebtWindowResult {
-  const byPath = new Map<string, ChurnFileTouch[]>();
-  for (const touch of touches) {
-    const bucket = byPath.get(touch.path);
-    if (bucket) bucket.push(touch);
-    else byPath.set(touch.path, [touch]);
-  }
-
-  let reworkLines = 0;
-  let totalLines = 0;
-  for (const touch of touches) totalLines += touch.additions + touch.deletions;
-
-  for (const bucket of byPath.values()) {
-    const byTime = [...bucket].sort(
-      (a, b) => new Date(a.touchedAt).getTime() - new Date(b.touchedAt).getTime(),
-    );
-    for (let i = 1; i < byTime.length; i++) {
-      const prev = byTime[i - 1] as ChurnFileTouch;
-      const curr = byTime[i] as ChurnFileTouch;
-      if (daysBetween(new Date(prev.touchedAt), new Date(curr.touchedAt)) < lookbackDays) {
-        reworkLines += curr.additions + curr.deletions;
-      }
-    }
-  }
-
-  return {
-    reworkLines,
-    totalLines,
-    // null over an empty window: a 0% rework rate for a week with no commits
-    // reads as a perfect week, which is the opposite of "nothing happened".
-    rate: totalLines === 0 ? null : reworkLines / totalLines,
-  };
+  return sumRework14d(attributeRework14d(touches, lookbackDays));
 }
 
 export interface RevertCommit {

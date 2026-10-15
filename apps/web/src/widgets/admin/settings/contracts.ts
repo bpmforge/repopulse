@@ -13,6 +13,15 @@ export interface EffectiveSettings {
   botLoginGlobs: string[];
   stalePrDays: number;
   forgeBudget: { share: number; floor: number };
+  /** W18-20. Absent on an API older than this screen — the panel then hides. */
+  aiAuthorshipPatterns?: AiAuthorshipPatterns;
+}
+
+/** W18-20: what marks a change as AI-authored. Camel-case as the API's `effective` returns it. */
+export interface AiAuthorshipPatterns {
+  trailerPatterns: string[];
+  botLogins: string[];
+  branchPrefixes: string[];
 }
 
 /** What an admin actually chose. An absent key means "never set" — see below. */
@@ -21,6 +30,19 @@ export interface StoredSettings {
   bot_login_globs?: string[];
   stale_pr_days?: number;
   forge_budget?: { share: number; floor: number };
+  ai_authorship_patterns?: {
+    trailer_patterns?: string[];
+    bot_logins?: string[];
+    branch_prefixes?: string[];
+  };
+}
+
+/** One entry per non-blank line, trimmed — the textarea format for every pattern list. */
+export function linesOf(text: string): string[] {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 }
 
 export interface WorkspaceSettingsResponse {

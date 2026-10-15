@@ -20,6 +20,12 @@ Traces: FR-REPORTS-1..7, FR-METRICS-12/13/15, FR-INSIGHTS-2, NFR-9, P3/P4. Repor
 4. Top risks (single-owner hotspot files M3, review-bypass repos M6, flaky workflows M9)
 5. Team throughput (merged PRs, issue throughput M10, pooled percentiles per FR-METRICS-14 — org-level only, no person leaderboards; "signals not grades", METRICS.md §3)
 
+**AI-authored vs human changes (W18-20)** — a section of Repo Health and Org Executive Summary, placed after the type's own sections and before the plan; the same numbers drive the Org Overview tile (`GET /org/ai-governance`).
+- Authorship classifier (`packages/metrics/src/authorship/`): agent bot author → AI; a `Co-authored-by` / `Assisted-by` / `Generated-by` trailer whose value matches a trailer pattern → AI; the PR it landed through (head SHA or a `(#N)` squash subject) is AI → AI; a PR is AI from its author, an agent branch prefix (`claude/`, `copilot/`, …) or a linked AI-trailered commit. Non-agent bots (the workspace bot list) are `automation`; rows ingested before migration 0035 with no positive signal are `unknown`. Both are counted and excluded from the comparison.
+- Patterns live in `workspaces.settings.ai_authorship_patterns` (`trailer_patterns`, `bot_logins`, `branch_prefixes`), edited at Admin → Settings. Substrings, prefixes and single-`*` globs only — no regexes. Classification happens on read, so an edit re-classifies history; the report prints the pattern set's fingerprint.
+- Measures are EXISTING metrics sliced, never redefined: findings per 1,000 lines changed (findings first seen in the window, attributed to their PR or else the last change to their file — an approximation, said so), M13 rework (attributed per change over the full history, then grouped), M14 revert rate (the reverting commit's cohort), M5 review coverage and non-author reviews per merged PR.
+- Signals, not grades (N-9): two numbers and a direction word (`higher` / `lower` / `similar`) per measure; no score, letter or person. Below 20 commits / 10 merged PRs / 1,000 lines changed per cohort a measure prints "too small to compare" instead of a direction, and when nothing clears its minimum the section says so first.
+
 **Security Posture (FR-REPORTS-4, v1.x, P3)** — audit-pack framing mandatory.
 1. Open security-dimension findings by severity × repo × age
 2. Review-bypass exposure (M6 rate + unreviewed-merge list) — renders Tier-1-only

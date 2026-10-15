@@ -71,6 +71,10 @@ export function orgWidgets(window: string, search: Record<string, string>): Widg
     // W10-05. Beside Top Risks: one says what to fix first, the other says
     // which axis it belongs to and how that axis is doing.
     { id: 'org-risk-axes', type: 'risk-axes', layout: { x: 9, y: 5, w: 3, h: 2 }, options },
+    // W18-20. Below the risk row: it answers a slower question ("what is AI
+    // doing to our code over this window") than anything above it, and at
+    // half width its two columns of numbers stay next to their labels.
+    { id: 'org-ai-governance', type: 'ai-governance', layout: { x: 0, y: 7, w: 6, h: 2 }, options },
   ];
 }
 
