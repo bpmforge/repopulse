@@ -53,7 +53,7 @@ entrypoint. Dependency rules in ARCHITECTURE.md §3.
 |---|---|---|
 | Fastify | **5.x** | Brief-fixed; schema-first routes → OpenAPI generation (FR-API-1), encapsulated plugins map 1:1 to route groups. |
 | PostgreSQL | **16** | Brief-fixed; single source of truth for UI reads (FR-API-2); RLS available for SaaS flip (D1). |
-| Drizzle ORM | **0.3x (latest 0.3x minor)** | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
+| Drizzle ORM | **0.45.x** (was 0.39.x until the 2026-10-15 SC-19 refresh, below) | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
 | postgres (postgres.js) | **3.x** | Not brief-fixed; added W1-01 as the Postgres driver paired with `drizzle-orm/postgres-js` — no driver was pinned in this doc previously. Standard/recommended Drizzle pairing for plain Postgres (vs. Neon/other serverless-specific adapters); reversible, additive choice. |
 | Redis | **7.2 (pinned image)** | Brief-fixed; BullMQ backing store + server-side session store (FR-AUTH-2). **License pin**: 7.2 is the last BSD-3 release — 7.4+/8 are RSALv2/SSPLv1/AGPL (DESIGN_REVIEW.md G-18); Valkey 8 (BSD-3) is the sanctioned swap after a BullMQ-compat check. |
 | ioredis | **5.11.1** | Not brief-fixed; added W1-03 as the Redis client for packages/auth's session store. Chosen over `redis`/`node-redis` because BullMQ (W2) mandates ioredis — one client library, not two. |
@@ -137,7 +137,7 @@ Tier-2 wrapper hard-codes C2 discipline: `max_tokens: 45000`, retry + warm-up on
 | TanStack Query | **5.x** | Brief-fixed; cache/invalidations keyed per endpoint; pairs with SSE cache-bust for NFR-10 freshness. |
 | Tailwind CSS | **4.x** | Brief-fixed; CSS-first config (see traps), dark-first theme via CSS variables (FR-WEB-1). |
 | shadcn/ui | **latest (vendored)** | Brief-fixed; components are copied into `apps/web/src/components/ui` — no runtime dep to version-drift. |
-| ECharts | **5.x** | Brief-fixed; sparklines, treemap heatmap, histograms (FR-WEB-3) in one lib; canvas renderer handles 50-repo org rollups. |
+| ECharts | **6.x** (was 5.x until the 2026-10-15 SC-19 refresh, below) | Brief-fixed; sparklines, treemap heatmap, histograms (FR-WEB-3) in one lib; canvas renderer handles 50-repo org rollups. |
 
 ## PDF generation — decision
 
@@ -158,7 +158,7 @@ to cheap agents (C3).
 
 | Piece | Pin | Why |
 |---|---|---|
-| vitest | **3.x** | Brief-fixed; one runner for all packages, workspace projects config. |
+| vitest | **4.x** (was 3.x until the 2026-10-15 SC-19 refresh, below) | Brief-fixed; one runner for all packages, workspace projects config. |
 | Playwright | **1.x (latest)** | Brief-fixed; E2E vs seeded stack + doubles as the PDF engine. |
 | nock / msw | latest | Forge-call guard in api tests (FR-API-2 runtime check) + recorded GitHub fixtures (FR-FORGE-2). |
 | ESLint | **9.x flat config** | Carries the law-enforcing rules: no `packages/forge` import outside ingest/api-webhook wiring, no raw fetch to forge/LM hosts (FR-FORGE-6, NFR-8). |
@@ -199,11 +199,101 @@ to cheap agents (C3).
   ~10k tokens on qwen3.6-class models. Never size a chunk assuming 45k output.
 - **GitHub stats endpoints return 202 first** and degrade ≥10k commits (research §3) —
   always code the retry-after-202 loop AND the REST per-commit fallback path.
-- **vitest 3.x `defineWorkspace`/`vitest.workspace.ts` is deprecated** (removal flagged for the
-  next major, printed at every `vitest run` as of 3.2.7) in favor of a `test.projects` array in
-  the root vitest config. W0-01 keeps `vitest.workspace.ts` because it's the pin named in
-  plan.json's write_scope and still fully functional on vitest 3.x; migrate to `test.projects`
-  in the same ticket that bumps vitest to a 4.x major (Version upgrade policy below).
+- **vitest 4.x has no `vitest.workspace.ts`**: projects are the `test.projects` array in the root
+  `vitest.config.ts` (moved there in W16-17). Pool options are top-level (`poolOptions`,
+  `singleFork`, `maxThreads` are gone); the root `fileParallelism: false` still serialises files
+  across every project (checked on 4.1.11 with timestamp probes in two packages). A `vi.fn`
+  called with `new` needs a `function`/`class` implementation, not an arrow.
+
+## SC-19 dependency-audit refresh (2026-10-15)
+
+osv-scanner 2.4.0 reported 59 advisories across 21 packages against the lockfile. Fixed under
+upgrade-policy rule 4 (security advisories override). Every version below was checked against
+registry.npmjs.org and installed; the Law-3 gate was run after each step.
+
+**Step 1: patch/minor, no overrides.** Direct ranges raised: `fastify` ^5.10.0 → ^5.12.7
+(apps/api dep; packages/auth and packages/shared dev + peer, in lockstep), `@fastify/swagger`
+^9.8.1 → ^9.9.2. Transitive versions refreshed in the lockfile within their parents' existing
+ranges (no `pnpm.overrides` entry is left behind): find-my-way 9.6.0 → 9.10.0, fast-uri
+3.1.3 → 3.1.8 and 4.1.0 → 4.2.2, js-yaml 4.2.0/4.3.0 → 4.3.2 (4.2.0 came from
+`@redocly/openapi-core` 1.34.17's exact pin; openapi-typescript's `^1.34.6` range now resolves
+1.34.21), nanoid 3.3.16 → 3.3.20, postcss 8.5.19 → 8.5.30, seroval/seroval-plugins
+1.5.5 → 1.6.9, source-map-js 1.2.1 → 1.2.2, brace-expansion 1.1.16/2.1.2/5.0.7 →
+1.1.21/2.1.7/5.0.12, browserslist 4.28.6 → 4.29.3, baseline-browser-mapping
+2.10.43 → 2.11.28. TanStack Router stays at 1.170.18: seroval is fixed inside router-core's
+own `^1.5.4` range, and moving the router to 1.170.44 in the same step broke three
+repo-layout navigation tests (apps/web `routes/repos/$repoId/route.test.tsx`), which is a
+router upgrade of its own, not an audit fix.
+
+**Step 2: drizzle-orm ^0.39.3 → ^0.45.2** (resolved 0.45.4) in every workspace that declares it
+(root, apps/api, auth, forge, ingest, insights, metrics, reports, security, shared), with
+drizzle-kit ^0.31.10 → ^0.31.11 alongside it. Fixes GHSA-gpj5-g38j-94v9 (`sql.identifier()` /
+`sql.as()` escaping, fixed in 0.45.2). Changelogs 0.40.0–0.45.4 read
+(github.com/drizzle-team/drizzle-orm/tree/main/changelogs/drizzle-orm). What mattered here:
+- **0.44.0 wraps every driver error in `DrizzleQueryError`**: the message becomes
+  `Failed query: <sql>\nparams: <values>` and the postgres.js `PostgresError` (SQLSTATE `code`,
+  `constraint_name`) moves to `.cause`. Matching a constraint name in the message no longer
+  works: the admin LLM-provider route returned 500 instead of 409 for a duplicate name. Fixed by
+  `pgErrorOf` / `isConstraintViolation` in `packages/shared/src/db/pg-error.ts`, which walk the
+  `cause` chain. The same wrapper's message, stack and enumerable `query`/`params` carry every
+  bound value, so it must not reach a log, a stored error column or a response. Handled in
+  `pg-error.ts` and at three choke points:
+  - `safeErrorText(err)` gives the Postgres reason + SQLSTATE + constraint, never the statement.
+    Class-22 messages (which quote the bad value) get every quoted string replaced, and other
+    classes get any quoted bound value replaced. Every catch that stores or returns an error's
+    text uses it: scan/report processors, job_failure + DLQ, repos.last_error stall fragments,
+    webhook-registration last_error, every scanner/register/validation run's `scan_runs.error`.
+  - `createWorker` wraps each BullMQ processor so a thrown query failure is replaced by a
+    `DatabaseQueryError` (`redactQueryError`) before BullMQ stores `failedReason`/`stacktrace`
+    in Redis. Other errors are rethrown as the same object.
+  - `createLogger` swaps any Error value in a log object through `redactQueryError`
+    (`formatters.log`), because pino's `err` serializer prints message, stack and every own
+    enumerable field (`query`, `params`). `redactLine` also scrubs `Failed query: … params: …`
+    text as a backstop for interpolated strings and a bare `log.error(err)`'s `msg`.
+- 0.41.0 dropped drizzle's own postgres-js parsers for `numeric[]`, `timestamp[]`,
+  `timestamptz[]`, `interval[]`, `date[]`. The schema has no such array columns (only
+  `bigint[]`), so nothing changes here.
+- `drizzle-kit check` passes and `drizzle-kit generate` reports "No schema changes" against
+  the existing migrations, so no migrations were regenerated.
+
+**Step 3: echarts ^5 → ^6.1.0** (apps/web; resolved 6.1.0). Fixes GHSA-fgmj-fm8m-jvvx (fixed
+in 6.1.0, no 5.x fix). Read the v6 upgrade guide
+(echarts.apache.org/handbook/en/basics/release-note/v6-upgrade-guide). Our tree-shaken imports
+(`echarts/core`, `/charts`, `/components`, `/renderers`) and `init`/`setOption` are unchanged.
+What changed for us:
+- **The default legend moved from the top edge to the bottom.** Our theme
+  (`apps/web/src/components/chart/chartTheme.ts`) now sets `legend.top: 0`. Without it the
+  file-churn legend rendered at y=186 of a 220px chart, on the x-axis labels (measured with
+  ECharts' SSR SVG renderer and pinned by `chartTheme.test.ts`).
+- The new default palette does not apply: the theme sets `color` from our tokens.
+- Axis-label overflow/overlap prevention is on by default, so axes can move a few pixels.
+  `grid.containLabel` is still honoured. Rich text labels are not used.
+- Initial JS stays at 140.8 KB gz (budget 200 KB); ECharts is in a lazy chunk.
+
+**Step 4: vitest ^3.2.7 → ^4.1.11** (root + apps/web; resolved 4.1.11; vite stays 6.4.3, inside
+vitest 4's `^6 || ^7 || ^8` peer range). Fixes GHSA-82fw-gwwq-j7x9 (vitest, @vitest/mocker) and
+GHSA-5gmw-xhrv-c9v3 / GHSA-85c8-ppgw-ccpr (tinypool, which vitest 4 no longer depends on). Read
+the v4 migration guide (vitest.dev/guide/migration#vitest-4). The repo already used
+`test.projects`, so the config is unchanged. The run collects the same 332 files as before
+(the narrower default `exclude` did not pick up anything new). What broke:
+- vitest 4's typings stopped pulling in `@types/node` by accident. Five apps/web test files use
+  `node:fs`/`process`, so apps/web now declares `@types/node` (^22.20.1, same as every other
+  workspace) and names `"node"` in its tsconfig `types`.
+- `ReturnType<typeof vi.spyOn>` is now too loose to type `mock.calls`. packages/auth
+  `session/plugin.test.ts` uses `MockInstance<typeof console.error>`.
+- A teardown race the new module runner exposed: `Chart.test.tsx` unstubbed `ResizeObserver`
+  before the setup file's `cleanup()` unmounted a chart whose lazily imported echarts instance
+  arrived after the test body. That file now unmounts first, then unstubs.
+
+**Step 5: esbuild 0.18.20 → 0.25.12 by `pnpm.overrides`** (the only override in the repo).
+`"@esbuild-kit/core-utils>esbuild": "^0.25.12"`. Reason: drizzle-kit (latest stable 0.31.11)
+still declares the deprecated `@esbuild-kit/esm-loader` → `@esbuild-kit/core-utils`, which pins
+`esbuild ~0.18.20` (GHSA-67mh-4wv8-2f99), and no drizzle-kit release fixes it. drizzle-kit's
+own code never loads `@esbuild-kit` (it uses tsx and esbuild ^0.25), and core-utils'
+`transformSync` was checked to work on 0.25.12 anyway. Remove the override when drizzle-kit
+drops the dependency. `drizzle-kit check`/`generate`/`migrate` were re-run clean with it.
+
+Result: `osv-scanner scan source --lockfile=pnpm-lock.yaml` reports no issues.
 
 ## Version upgrade policy
 

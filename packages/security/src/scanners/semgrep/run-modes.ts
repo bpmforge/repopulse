@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeProvider } from '@repopulse/forge';
 import { shred, snapshotForScan } from '../../snapshot/index.js';
@@ -169,14 +169,14 @@ export async function runSemgrepFull(
       },
     );
   } catch (err) {
-    await closeRun(deps, runId, { status: 'failed', error: (err as Error).message.slice(0, 500) });
+    await closeRun(deps, runId, { status: 'failed', error: safeErrorText(err).slice(0, 500) });
     return {
       status: 'failed',
       findingsCreated: 0,
       findingsTotal: 0,
       scanRunId: runId,
       toolErrors: [],
-      error: (err as Error).message,
+      error: safeErrorText(err),
       filesScanned: null,
     };
   }
@@ -293,14 +293,14 @@ export async function runSemgrepIncremental(
       filesScanned: written,
     };
   } catch (err) {
-    await closeRun(deps, runId, { status: 'failed', error: (err as Error).message.slice(0, 500) });
+    await closeRun(deps, runId, { status: 'failed', error: safeErrorText(err).slice(0, 500) });
     return {
       status: 'failed',
       findingsCreated: 0,
       findingsTotal: 0,
       scanRunId: runId,
       toolErrors: [],
-      error: (err as Error).message,
+      error: safeErrorText(err),
       filesScanned: null,
     };
   } finally {
