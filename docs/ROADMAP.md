@@ -3,6 +3,8 @@
 > **MVP = W0–W4** (decision D5). The MVP gate is the W4 exit demo. W5–W10 are v1.x.
 > W11 (self-hosting) and W12 (multi-forge + production wiring) were filed after this
 > roadmap was written; W12 was executed out of order and its section says why.
+> **Current wave: W18** (D16, 2026-10-15) — Repo Pulse restated as a self-hosted code
+> security and quality platform; see the W18 section at the end.
 > Gate rule (PLAYBOOK.md): no wave-N+1 ticket starts until wave-N exit criteria pass
 > and are recorded in `docs/STATUS.md` (W0-* tickets always claimable).
 > Points are rough, apportioned from USER_STORIES.md epic totals (213 total / 117 MVP).
@@ -351,3 +353,44 @@ performance, documentation, final acceptance (30–34).
 - `W16-34` (intermittent full-suite failure) is superseded by W17-03 and stays blocked, not done — it was never diagnosed.
 - `W16-09` (model auth beyond API keys) is parked: out of release scope.
 - `W7-05/06/07`, `W14-01`, `W14-03`, `W12-10` remain internal-infrastructure work and are **not** release gates (D1a).
+
+---
+
+## W18 — Code security and quality platform (D16)
+
+Added 2026-10-15. Tickets W18-01–W18-30 in `plan.json`. Executes **D16**: Repo Pulse
+is a self-hosted code security and quality platform for teams shipping AI-written
+code, with delivery metrics as context. The wave closes the gaps a SAST buyer
+checks first (language coverage, PR-time results, fix suggestions, IaC, proof of
+accuracy, ingesting other tools) and builds what the market lacks.
+
+**Constraints carried into every ticket.** D9a stands: Repo Pulse never writes to a
+customer repo, so PR-time results are pulled by the customer's CI (W18-18) and fixes
+are verified patches the developer copies (W18-19). N-3 and N-9 stand. Every new
+rule ships in shadow mode with triggering and clean fixtures; precision over recall.
+
+**Phases**
+- **Phase 1, fast lane (W18-01–W18-10, W18-30):** mechanical, no-LLM checks over a
+  shared import/export index — unused exports, phantom names and modules, test
+  integrity, suppression density and disabled safety, structural slop, dependency
+  hygiene, leftover content, speculative generality and async smells, pattern-lane
+  taint — then anti-slop.v2, where the LLM judges only fast-lane candidates. W18-30
+  makes the bpm-ch-* anti-slop pack surface findings at all.
+- **Phase 2, languages (W18-11–W18-16):** Python, Go, Java/Kotlin, Rust, C/C++ (with
+  cppcheck), C#, PHP and Ruby packs and import graphs.
+- **Phase 3, differentiators (W18-17–W18-26):** benchmark harness and published
+  accuracy; customer-CI pull API and `repopulse check` CLI; verified patches; AI-code
+  governance report; sensitive-change radar; per-rule precision and coverage map;
+  AI-reviewer measurement; SARIF and code-scanning ingest; import-graph exposure and
+  Tier-2 context; IaC, Dockerfile, Actions and shell adapters.
+- **Phase 4, product and story (W18-27–W18-29):** D16 recorded in the brief and the
+  vision documents; UI/UX review with screenshots, then UI for the new capabilities.
+
+**Exit criteria** (from the tickets' acceptance; each ticket closes on its own full gate)
+- [ ] Every W18 rule has triggering and clean fixtures and landed in shadow; the licence-gate tests stay green.
+- [ ] Precision and recall per rule and dimension are published per release with method and corpus versions (W18-17).
+- [ ] A customer's CI gets new PR findings through a scoped read-only token, and a test asserts no forge write scope was added (W18-18).
+- [ ] A verified patch is shown only when the target finding clears and no new finding appears on re-scan; nothing is written to the forge (W18-19).
+- [ ] The AI-code governance report compares AI-authored and human changes with no per-developer ranking (W18-20).
+- [ ] The coverage map says what a scan did not check; IaC moves from unavailable to supported only when W18-26 ships.
+

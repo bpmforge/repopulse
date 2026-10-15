@@ -41,7 +41,7 @@ export function IntentControl({ repoId, path }: { repoId: number; path: string }
             <button
               key={option.id}
               type="button"
-              className={`rounded-md border px-2 py-0.5 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+              className={`min-h-6 rounded-md border px-2 py-0.5 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
                 active ? 'border-accent bg-accent/10' : 'border-border hover:border-accent'
               }`}
               data-testid={`intent-${option.id}`}
@@ -68,6 +68,9 @@ export function IntentControl({ repoId, path }: { repoId: number; path: string }
       <input
         className="w-full max-w-md panel px-2 py-1 text-xs"
         data-testid="intent-note"
+        // A placeholder is not a label (W18-28): it disappears on the first
+        // keystroke and is not reliably announced.
+        aria-label="Why this intent (optional)"
         placeholder="Why (optional)"
         value={note}
         onChange={(e) => setNote(e.target.value)}

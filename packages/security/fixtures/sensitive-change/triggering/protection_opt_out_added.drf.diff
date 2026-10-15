@@ -1,0 +1,11 @@
+diff --git a/accounts/views.py b/accounts/views.py
+--- a/accounts/views.py
++++ b/accounts/views.py
+@@ -40,7 +40,7 @@ class AccountViewSet(viewsets.ModelViewSet):
+     queryset = Account.objects.all()
+     serializer_class = AccountSerializer
+-    permission_classes = [IsAuthenticated]
++    permission_classes = [AllowAny]
+ 
+     def get_queryset(self):
+         return super().get_queryset()

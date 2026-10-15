@@ -84,6 +84,36 @@
   --color-health-attend: #ff7b72;
 }
 
+/* W18-30: code and diff presentation. Plain custom properties (not @theme
+   utilities): they are consumed by components/code/code.css only. The values
+   come from the 2026-10-15 UI review (ux-review-2026-10-15/ui.md); the --tok-*
+   and tint pairs are measured by contrast.test.ts. Syntax hues avoid the
+   reserved ok/crit/warn hues so a +/- row and a severity stay unambiguous. */
+:root {
+  --code-bg: #0c1018;
+  --code-head-bg: #10141c;
+  --code-border: #222a36;
+  --code-fg: #e6edf3;
+  --code-gutter: #8a93a0;
+  --code-gutter-bg: #0a0e15;
+  --code-range-bg: rgb(47 214 197 / 0.12);
+  --code-add-bg: rgb(63 185 80 / 0.16);
+  --code-add-gutter: rgb(63 185 80 / 0.24);
+  --code-add-mark: #56d364;
+  --code-del-bg: rgb(255 100 90 / 0.16);
+  --code-del-gutter: rgb(255 100 90 / 0.24);
+  --code-del-mark: #ff8b82;
+  --code-hunk-bg: rgb(88 166 255 / 0.1);
+  --code-hunk-fg: #9ecbff;
+  --tok-keyword: #d2a8ff;
+  --tok-string: #9ecbff;
+  --tok-number: #79dbe8;
+  --tok-func: #7ee0b5;
+  --tok-type: #ffd28a;
+  --tok-comment: #8b96a5;
+  --tok-punct: #a6b0bd;
+}
+
 /* Light theme: override the same custom properties. */
 :root[data-theme='light'] {
   --color-bg: #f4f6f9;
@@ -132,6 +162,31 @@
   --color-health-good: #116329;
   --color-health-watch: #7d4e00;
   --color-health-attend: #a40e26;
+}
+
+:root[data-theme='light'] {
+  --code-bg: #f6f8fa;
+  --code-head-bg: #ffffff;
+  --code-border: #d0d7de;
+  --code-fg: #1f2328;
+  --code-gutter: #5f6772;
+  --code-gutter-bg: #eef1f5;
+  --code-range-bg: rgb(12 118 108 / 0.1);
+  --code-add-bg: rgb(22 110 48 / 0.14);
+  --code-add-gutter: rgb(22 110 48 / 0.22);
+  --code-add-mark: #166e30;
+  --code-del-bg: rgb(182 30 40 / 0.12);
+  --code-del-gutter: rgb(182 30 40 / 0.2);
+  --code-del-mark: #b61e28;
+  --code-hunk-bg: rgb(8 92 191 / 0.08);
+  --code-hunk-fg: #0550ae;
+  --tok-keyword: #6639ba;
+  --tok-string: #0a3069;
+  --tok-number: #0b6a7a;
+  --tok-func: #0b6b47;
+  --tok-type: #7a4a00;
+  --tok-comment: #565f6b;
+  --tok-punct: #4a535d;
 }
 
 /* Non-colour tokens (visual refresh). Outside @theme on purpose: the contrast
@@ -185,6 +240,23 @@
    the question a screen exists for, never on the supporting ones. */
 @utility panel-hero {
   background-image: radial-gradient(120% 80% at 0% 0%, var(--glow), transparent 60%);
+}
+
+/* Hand-built tables (W18-28). DataTable pads its own cells; the eighteen
+   tables written inline did not, so adjacent columns touched whenever the
+   width ran short — at 390px the headers read "RepositoryPR" and "SizeState",
+   and on /setup "FORGE_ALLOW_INSECURE_LOOPBACKno". A gutter on the trailing
+   edge of every cell but the last keeps them apart at any width. */
+@utility table-plain {
+  & :is(th, td) {
+    padding-inline-end: 0.75rem;
+  }
+  & :is(th, td):last-child {
+    padding-inline-end: 0;
+  }
+  & thead th {
+    white-space: nowrap;
+  }
 }
 
 html,

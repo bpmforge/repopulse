@@ -4,6 +4,11 @@ Product: clone-free GitHub repository health, code-quality and delivery-performa
 monitoring web service with drill-down dashboard, custom views, and a report center.
 bpmforge family (ThreatForge sibling). All downstream docs trace to this brief.
 
+> **Restated by D16 (2026-10-15):** the product line above is the 2026-07-07
+> framing. Repo Pulse is now described as *a self-hosted code security and
+> quality platform for teams shipping AI-written code, with delivery metrics as
+> context*. C1/C1a and every other locked decision stand; see D16 below.
+
 ## Locked decisions (from discovery interview with Brad)
 
 | # | Decision | Choice |
@@ -22,6 +27,7 @@ bpmforge family (ThreatForge sibling). All downstream docs trace to this brief.
 | D12 | Unified Risk Model (added 2026-07-15) | Wave W9: one deterministic answer to "what do I fix first?" across ALL finding dimensions — `effective_risk = 100·H·L·X` (hazard = canonical severity; likelihood = EPSS/KEV for dependencies, confidence × verify-status × D11 rule-precision prior elsewhere, overrides for KEV/secret/chain/compound; exposure = M2 hotspot percentile for file-bound findings, dep_scope × reachability for dependencies). Refactors D10's dependency-only formula into factored form — same column, same inputs, now priced for every open finding with the decomposition persisted (`risk_factors`) and always served. **SSVC-style action bands** act/schedule/track (accepted = human triage state, never computed) drive plan-generation ranking (KEV/chain pins unchanged), Top Risks cards (repo + org), default sorts, and a "top risks + movement" opener in reports. **Risk axes**: existing health sub-scores rendered as A–E letters per risk type (Security / Code Health / Delivery / Review / Activity; Performance v-next) with per-axis top contributors — no new arithmetic. Nightly `risk.reprice` job audits band transitions (EPSS/hotspot/precision drift). Industry anchors: CVSS bands, EPSS/KEV, SSVC verbs, OWASP likelihood×impact, SonarQube A–E, Snyk Risk Score. Raw severity + raw counts never hidden; "signals, not grades" carries over. Design: docs/design/RISK_MODEL.md. |
 | D13 | Engineering Risk Registers (added 2026-07-15) | Wave W10: non-security risk *sources* through the existing findings contract, priced/banded/planned by D12 with zero new surface work. Four registers, all deterministic (no LLM): **knowledge concentration** (bus factor — active-maintainer count + top-contributor share per module weighted by hotspot; warehouse SQL; counts only, never names — N-9); **dependency health** (libyear staleness, abandonment, deprecated/yanked, major-version lag from SBOM + nightly release_meta db-sync; anchors: libyear, OpenSSF Scorecard) + **runtime/toolchain EOL** (endoflife.date db-sync vs manifests/Dockerfiles) + **license posture** (SPDX from SBOM, workspace policy list defaults AGPL/SSPL/unknown-in-prod — findings only, RepoPulse never gates); **architecture drift phase A** (config-free: cycles, god modules, orphan clusters via standalone import-graph adapters through the D11 admission filter — dependency-cruiser/import-linter/go list; declared-boundary phase B deferred to its own design pass); **test-gap** (warehouse test co-change ratio on hot files; coverage×churn full form PARKED pending a forge-budget review of CI-artifact ingestion). New dimensions `knowledge`/`dependency_health`/`architecture`/`test_gap`; **Supply Chain risk axis** (supply_chain sub-score mirroring the security-sub-score pattern); knowledge/architecture/test_gap roll into the Code Health axis. Proposal + adoption decisions: docs/work/D13_ENGINEERING_RISK_REGISTERS_PROPOSAL.md. |
 | D15 | Product completion / standalone release (added 2026-09-08) | **The product-completion handoff (`IMPLEMENTATION-PLAN.md`, RP-01–RP-34 → board wave W17) is the execution plan for D1a, not a new direction.** D1a already made the delivery model customer-hosted and self-hosting the MVP; what changed on 2026-09-08 is that VISION/SCOPE/DEPLOYMENT still said "internal-only in v1" on `repopulse.bpmforge.com`, contradicting it. That phrasing is superseded — bpmforge's deployment is the **dogfood install, not the product**. Retained unchanged and still binding: the tenancy invariant (`workspace_id`), C1/C1a no-cloning, module boundaries, the budgeted forge client, the analysis-gateway rule, **D9a** (recommend and verify, never write), **D10 licensing** (proprietary; nothing public until a clean self-hosted install is proven end to end — which is why the release stops at a local image archive), and **D14** standalone auth. Out of scope for this release, carrying no N-id: Kubernetes/Helm, public SaaS signup, billing, new identity providers, model auth beyond API keys (`W16-09`, parked), production APM, coverage ingestion, IaC scanning, repository benchmarks. A reserved schema value is not a shipped capability: unsupported dimensions must read as explicitly unavailable, never as empty green panels. Full record incl. the RP↔W17 mapping, validator repairs and reconciled tickets: `docs/work/product-completion/DECISIONS.md`. |
+| D16 | Product restatement: code security and quality platform (added 2026-10-15) | **Repo Pulse is a self-hosted code security and quality platform for teams shipping AI-written code, with delivery metrics as context.** A restatement of what D8, D10, D11, D12 and D13 already built, not a new direction: VISION, SCOPE and COMPETITIVE_ANALYSIS still described a health and delivery dashboard that "does not replicate rule-based SAST", so every new scanner ticket fought the documents. That framing is superseded. **Fix delivery is "Verified + CI pull"**: the model drafts a patch, Repo Pulse applies it to the scan snapshot inside the sandbox and re-runs the rules to prove the finding clears and nothing new appears, and the developer copies it (W18-19); PR-time results reach developers because the customer's OWN CI pulls them from the Repo Pulse API with the customer's OWN token (W18-18). **D9a stands unchanged**: Repo Pulse never opens a branch, never writes to a repo, never posts a PR comment and adds no forge write scope. N-3 and N-9 stand. Executed as wave W18. Full record: the D16 section below. |
 
 ## Hard constraints
 
@@ -134,3 +140,79 @@ plain HTTPS. Hand-rolling JWKS handling and signature verification was
 considered and REJECTED — `alg` confusion and key-rotation bugs are a known
 source of critical auth vulnerabilities, and a licence inconvenience would
 never justify writing that ourselves.
+
+## D16 — Repo Pulse is a self-hosted code security and quality platform (founder, 2026-10-15, restates the product line; supersedes the "we do not replicate SAST" positioning)
+
+**Decision.** Repo Pulse is *a self-hosted code security and quality platform
+for teams shipping AI-written code, with delivery metrics as context*. The
+health and delivery dashboard stays; it is the context a finding is ranked in,
+not the headline.
+
+**Why this had to be written down.** The product moved and the documents did
+not. D8 added secrets, SBOM/CVE and Semgrep/Opengrep SAST; D10 cut dependency
+false positives with reachability and VEX; D11 added the anti-slop, logging and
+perf rule packs plus complexity and duplication; D12 put every finding on one
+"fix this first" ranking; D13 added the risk registers. Together those make
+Repo Pulse a SAST and code-health scanner. Yet VISION.md still described a
+health dashboard, positioned against SonarQube with "they clone and scan;
+RepoPulse reads the API", and COMPETITIVE_ANALYSIS.md said "we do not replicate
+rule-based SAST". With those documents in place, every scanner ticket argued
+against the vision it was meant to serve.
+
+**What sets it apart.** Not self-hosting with a local model on its own: Kodus
+(open source, AGPL) already does that, so Repo Pulse has to win on what comes
+after "runs on your network":
+- rules first on CPU, the model second, and a second model on another host
+  must agree before an LLM finding shows (maker ≠ verifier, D9);
+- rules aimed at what AI-written code gets wrong (hallucinated packages and
+  names, duplication, swallowed errors, tests that test nothing; D11, W18);
+- every rule runs in shadow until it earns promotion on measured precision,
+  and the customer can see that precision (W9-07, W18-22);
+- risk ranked by how often the code changes, not severity alone (D12);
+- fixes tracked until a nightly job marks them done or regressed (D9);
+- audit-ready output (D7, D10) on GitHub, GitLab and Gitea (C1, D3a).
+
+**Fix delivery: "Verified + CI pull" (founder's choice).**
+- *Verified patches (W18-19).* For a finding, the model drafts a patch. Repo
+  Pulse applies it to the scan snapshot inside the sandbox and re-runs that
+  file's rules. The patch is shown only if the target finding clears and no new
+  finding appears; otherwise it is stored as rejected with the reason. The
+  developer copies or downloads it. Nothing is written to the forge.
+- *Customer-CI pull (W18-18).* A CLI or CI step in the customer's own pipeline
+  asks the Repo Pulse API for the new findings on a PR, using a scoped
+  read-only token. It fails their build on their thresholds, or posts the
+  results itself with the customer's own forge token. Repo Pulse stays
+  read-only.
+- *Rejected: advisory PR comments from Repo Pulse itself.* That is the usual
+  market approach, but it needs forge write scopes and a D9a amendment, and the
+  two options above cover the need without either.
+
+**What follows.**
+- **D9a stands unchanged and is reaffirmed.** Repo Pulse recommends and
+  verifies; it never opens a branch, never writes a patch to a repo, never
+  posts a PR comment. No forge write scope is added; W18-18 carries a test that
+  asserts the App and token scopes. C5/SC-25 read-only scopes stand. A ticket
+  that writes to a customer repo is still invalid; reject at review.
+- **N-3 stands.** The customer's CI failing its own build with Repo Pulse's
+  results is the customer's gate, run with the customer's credentials; Repo
+  Pulse ships no gate bot and sets no required status check. **N-9 stands**:
+  the AI-code governance report (W18-20) compares AI-authored and human changes
+  as groups, with no per-developer ranking.
+- **S-25 (advisory PR comment write-back) is withdrawn**, as D9a already
+  required; the customer-CI pull replaces it.
+- **Superseded:** the product line at the top of this brief, VISION.md's
+  "repo health, quality, and delivery monitoring" framing and its
+  SonarQube/CodeScene positioning line, and COMPETITIVE_ANALYSIS.md's "we do
+  not replicate rule-based SAST / quality gates". Those documents are updated
+  with this decision.
+- **Unchanged and still binding:** C1/C1a (no `git clone`; tarball snapshots in
+  the sandbox only), D1a (customer-hosted), D2 (tiered analysis; Tier 3 opt-in
+  with an egress audit row), D10 licensing (nothing public until a clean
+  self-hosted install is proven), D14, N-1, N-2, N-4 to N-8.
+- **Executed as wave W18** (`plan.json` W18-01 to W18-30; ROADMAP.md): the
+  mechanical fast lane, language packs beyond JS/TS, published accuracy,
+  customer-CI pull, verified patches, AI-code governance, the sensitive-change
+  radar, trust surfaces, SARIF ingest and IaC adapters. The gaps a SAST buyer
+  checks first (language coverage, PR-time results, fix suggestions, IaC,
+  proof of accuracy, ingesting other tools) each have a W18 ticket.
+

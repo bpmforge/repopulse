@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
-import { HealthBadge, WidgetFrame, frameState } from '../../components/index.js';
+import { HealthBadge, PageHeader, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 
 // Repo list — the breadcrumb's middle rung. Org Overview links straight to a
@@ -157,116 +157,122 @@ function RepoList() {
   };
 
   return (
-    <WidgetFrame
-      title="Repositories"
-      state={frameState({ isLoading, isError, isEmpty })}
-      // The error object rather than `error.message`: it derives BOTH the
-      // sentence and the request id, and the explicit prop suppressed the id
-      // (W16-18).
-      {...(error ? { error } : {})}
-      onRetry={() => void refetch()}
-      emptyMessage={
-        filteredToNothing
-          ? `No repositories match ${needle === '' ? 'the current filter' : `“${q}”`}.`
-          : 'No repositories connected yet.'
-      }
-      emptyAction={
-        filteredToNothing ? (
-          <button
-            type="button"
-            data-testid="repo-list-clear-filter"
-            onClick={() => void navigate({ to: '/repos', search: {} as never })}
-            className="rounded-sm border border-border px-2 py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            Clear filters
-          </button>
-        ) : (
-          <Link
-            to="/setup"
-            data-testid="repo-list-connect"
-            className="rounded-sm border border-border px-2 py-1 text-xs text-fg hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            Connect a forge
-          </Link>
-        )
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <label htmlFor="repo-list-filter" className="text-xs text-fg-muted">
-              Filter by name or org
-            </label>
-            <input
-              id="repo-list-filter"
-              data-testid="repo-list-filter"
-              type="search"
-              value={q}
-              onChange={(e) => patchSearch({ q: e.target.value })}
-              placeholder="acme/api"
-              className="w-full panel-inset px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="repo-list-sort" className="text-xs text-fg-muted">
-              Sort
-            </label>
-            <select
-              id="repo-list-sort"
-              data-testid="repo-list-sort"
-              value={sort}
-              onChange={(e) => patchSearch({ sort: e.target.value as RepoSort })}
-              className="panel-inset px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Repositories"
+        description="Every tracked repository and its health signal, worst first when sorted by score."
+      />
+      <WidgetFrame
+        title="Tracked repositories"
+        state={frameState({ isLoading, isError, isEmpty })}
+        // The error object rather than `error.message`: it derives BOTH the
+        // sentence and the request id, and the explicit prop suppressed the id
+        // (W16-18).
+        {...(error ? { error } : {})}
+        onRetry={() => void refetch()}
+        emptyMessage={
+          filteredToNothing
+            ? `No repositories match ${needle === '' ? 'the current filter' : `“${q}”`}.`
+            : 'No repositories connected yet.'
+        }
+        emptyAction={
+          filteredToNothing ? (
+            <button
+              type="button"
+              data-testid="repo-list-clear-filter"
+              onClick={() => void navigate({ to: '/repos', search: {} as never })}
+              className="rounded-sm border border-border px-2 py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
-              {SORTS.map((s) => (
-                <option key={s} value={s}>
-                  {SORT_LABEL[s]}
-                </option>
-              ))}
-            </select>
+              Clear filters
+            </button>
+          ) : (
+            <Link
+              to="/setup"
+              data-testid="repo-list-connect"
+              className="rounded-sm border border-border px-2 py-1 text-xs text-fg hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Connect a forge
+            </Link>
+          )
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <label htmlFor="repo-list-filter" className="text-xs text-fg-muted">
+                Filter by name or org
+              </label>
+              <input
+                id="repo-list-filter"
+                data-testid="repo-list-filter"
+                type="search"
+                value={q}
+                onChange={(e) => patchSearch({ q: e.target.value })}
+                placeholder="acme/api"
+                className="w-full panel-inset px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="repo-list-sort" className="text-xs text-fg-muted">
+                Sort
+              </label>
+              <select
+                id="repo-list-sort"
+                data-testid="repo-list-sort"
+                value={sort}
+                onChange={(e) => patchSearch({ sort: e.target.value as RepoSort })}
+                className="panel-inset px-2 py-1 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                {SORTS.map((s) => (
+                  <option key={s} value={s}>
+                    {SORT_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
 
-        {/* W16-05 (F20). The badge carried a good aria-label all along, so a
+          {/* W16-05 (F20). The badge carried a good aria-label all along, so a
             screen reader always heard "health score 39 of 100, needs attention" —
             but a sighted reader got a bare coloured number with no header and no
             legend anywhere on the screen. The repo page pairs the same number with
             a "why?" link and a "4 not measured" caveat; the list dropped both. */}
-        <div className="flex items-center justify-between px-3 text-xs text-fg-muted">
-          <span>Repository</span>
-          <span>Health score (0–100)</span>
-        </div>
+          <div className="flex items-center justify-between px-3 text-xs text-fg-muted">
+            <span>Repository</span>
+            <span>Health score (0–100)</span>
+          </div>
 
-        <ul className="flex flex-col gap-2" data-testid="repo-list">
-          {items.map((repo) => (
-            <li key={repo.id}>
-              <Link
-                to="/repos/$repoId"
-                params={{ repoId: String(repo.id) }}
-                search={preserved as never}
-                data-testid={`repo-row-${repo.id}`}
-                // The full path, for the case truncation eats one end of it.
-                title={`${repo.org}/${repo.name}`}
-                className="flex items-center justify-between gap-2 panel px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                <span className="flex min-w-0 flex-col">
-                  {/* Org FIRST and quiet, name second and prominent: the org
+          <ul className="flex flex-col gap-2" data-testid="repo-list">
+            {items.map((repo) => (
+              <li key={repo.id}>
+                <Link
+                  to="/repos/$repoId"
+                  params={{ repoId: String(repo.id) }}
+                  search={preserved as never}
+                  data-testid={`repo-row-${repo.id}`}
+                  // The full path, for the case truncation eats one end of it.
+                  title={`${repo.org}/${repo.name}`}
+                  className="flex items-center justify-between gap-2 panel px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span className="flex min-w-0 flex-col">
+                    {/* Org FIRST and quiet, name second and prominent: the org
                       is what disambiguates, the name is what is being looked
                       for, and `truncate` clips the right-hand end — so the
                       name must not share a line with anything. */}
-                  <span className="truncate text-xs text-fg-muted" data-testid="repo-row-org">
-                    {repo.org}
+                    <span className="truncate text-xs text-fg-muted" data-testid="repo-row-org">
+                      {repo.org}
+                    </span>
+                    <span className="truncate" data-testid="repo-row-name">
+                      {repo.name}
+                    </span>
                   </span>
-                  <span className="truncate" data-testid="repo-row-name">
-                    {repo.name}
-                  </span>
-                </span>
-                <HealthBadge score={repo.health.measured ? repo.health.score : null} />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </WidgetFrame>
+                  <HealthBadge score={repo.health.measured ? repo.health.score : null} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </WidgetFrame>
+    </div>
   );
 }

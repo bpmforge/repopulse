@@ -13,6 +13,7 @@ export * from './intents/index.js';
 export * from './risk/model.js';
 export * from './risk/price.js';
 export * from './risk/reprice.js';
+export * from './risk/import-graph.js';
 export * from './registers/knowledge/register.js';
 export * from './registers/knowledge/run.js';
 export * from './registers/test-gap/register.js';

@@ -176,10 +176,17 @@ describeIfLiveInfra('secrets stream mode (W8-04)', () => {
     expect(row?.analysisRunId).toBeNull();
     expect(row?.yields).toEqual({ 'credential:aws': true });
 
+    // Scoped to the secrets scanner since W18-21: the sensitive-change radar
+    // rides the same diff and records a run of its own beside this one.
     const [run] = await db
       .select()
       .from(security.scanRuns)
-      .where(eq(security.scanRuns.repoId, repoId));
+      .where(
+        and(
+          eq(security.scanRuns.repoId, repoId),
+          eq(security.scanRuns.scannerKey, SECRETS_SCANNER_KEY),
+        ),
+      );
     expect(run?.status).toBe('succeeded');
     expect(run?.trigger).toBe('pr_synced');
     // The RULEPACK version, because the pack is what decided this was a secret.

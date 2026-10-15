@@ -63,7 +63,7 @@ export function RiskAxisStrip({ repoId }: { repoId: string }) {
         <li data-testid="axis-strip-unmeasured">
           <details className="relative">
             <summary
-              className="cursor-pointer text-fg-muted marker:text-fg-faint"
+              className="min-h-6 cursor-pointer py-1 text-fg-muted marker:text-fg-faint"
               data-testid="axis-strip-unmeasured-summary"
             >
               {unmeasured.length} not measured

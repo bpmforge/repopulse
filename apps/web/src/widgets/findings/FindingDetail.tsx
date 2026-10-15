@@ -8,7 +8,11 @@ import {
   type Finding,
   type FindingEvent,
 } from './contracts.js';
+import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
+import { VerifiedFix } from './VerifiedFix.js';
+import { RulePrecisionSummary } from '../trust/RulePrecision.js';
+import { SHADOW_EXPLAINER, ShadowBadge } from './ShadowBadge.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -97,16 +101,34 @@ export function FindingDetail({
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}
           <span data-testid="finding-status">status {finding.status.replace('_', ' ')}</span>
+          {finding.rule_id ? (
+            <span className="font-mono" data-testid="finding-rule">
+              rule {finding.rule_id}
+            </span>
+          ) : null}
         </div>
+
+        {/* W18-29: said in the panel, not only as a chip in the list — the
+            panel is what a shared link opens, with no list around it. */}
+        {finding.experimental ? (
+          <p
+            className="flex flex-wrap items-center gap-2 rounded-sm border border-dashed border-fg-faint px-3 py-2 text-xs text-fg-muted"
+            data-testid="finding-shadow-note"
+            role="note"
+          >
+            <ShadowBadge />
+            <span>{SHADOW_EXPLAINER}</span>
+          </p>
+        ) : null}
 
         {/* The quote is why anyone should believe the finding — it is validated
             to be verbatim from the reviewed diff (W6-02), so it can be read as
             evidence rather than as the model's paraphrase. */}
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Evidence</h3>
-          <pre className="mt-1 overflow-x-auto panel-inset p-2 font-mono text-xs whitespace-pre-wrap">
-            {finding.evidence}
-          </pre>
+          <div className="mt-1">
+            <EvidenceCode finding={finding} />
+          </div>
           <p className="mt-1 font-mono text-xs text-fg-faint">
             {/* THE LOCATION IS NOW A LINK (W16-41). It was plain text, so on a
                 triage tool whose whole workflow is "look at this one", the step
@@ -142,6 +164,15 @@ export function FindingDetail({
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Recommendation</h3>
           <p className="mt-1 text-sm">{finding.recommendation}</p>
         </div>
+
+        {/* W18-19: a model-drafted patch, shown only once the re-scan proved it
+            clears this finding without raising another (D16). Copy and
+            download; never a write to the forge (D9a). */}
+        <VerifiedFix findingId={finding.id} />
+
+        {/* W18-22: how far this rule has been shown to be right, before
+            anyone acts on what it says. */}
+        {finding.rule_id && <RulePrecisionSummary ruleId={finding.rule_id} />}
 
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">History</h3>

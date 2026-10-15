@@ -166,7 +166,7 @@ export interface RawGiteaPR {
   merged_at?: string | null;
   closed_at?: string | null;
   base?: { ref?: string } | null;
-  head?: { sha?: string } | null;
+  head?: { sha?: string; ref?: string } | null;
   additions?: number | null;
   deletions?: number | null;
   changed_files?: number | null;
@@ -194,6 +194,7 @@ export function normalizePR(p: RawGiteaPR): ForgePR {
     mergedByLogin: p.merged_by?.login ?? null,
     baseRef: p.base?.ref ?? '',
     headSha: p.head?.sha ?? '',
+    ...(p.head?.ref ? { headRef: p.head.ref } : {}),
     // DIFFERENCE 3: like GitHub, the LIST omits these and the single-PR
     // endpoint fills them — verified live (list: null, detail: 233/6/4).
     ...(p.additions !== null && p.additions !== undefined ? { additions: p.additions } : {}),

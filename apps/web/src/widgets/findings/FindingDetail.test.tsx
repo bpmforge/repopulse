@@ -95,3 +95,26 @@ describe('the detail panel closes on Escape (W17-22)', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+// W18-29. A link opens the panel with no list around it, so the panel itself
+// must say the finding comes from a rule still in shadow.
+describe('a shadow finding is labelled in the panel (W18-29)', () => {
+  it('shows the shadow note and the rule id', () => {
+    const f = {
+      ...hostile(),
+      title: 'Phantom reference',
+      evidence: 'e',
+      recommendation: 'r',
+      rule_id: 'slop.phantom_ref',
+      experimental: true,
+    } as Finding;
+    render(<FindingDetail finding={f} onClose={vi.fn()} invalidate={[]} />);
+    expect(screen.getByTestId('finding-shadow-note')).toHaveTextContent('rule still in shadow');
+    expect(screen.getByTestId('finding-rule')).toHaveTextContent('rule slop.phantom_ref');
+  });
+
+  it('an active finding carries no shadow note', () => {
+    render(<FindingDetail finding={hostile()} onClose={vi.fn()} invalidate={[]} />);
+    expect(screen.queryByTestId('finding-shadow-note')).toBeNull();
+  });
+});

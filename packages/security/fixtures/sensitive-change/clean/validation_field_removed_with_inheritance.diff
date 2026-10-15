@@ -1,0 +1,7 @@
+diff --git a/app/models.py b/app/models.py
+--- a/app/models.py
++++ b/app/models.py
+@@ -75,7 +75,6 @@ class ItemBase(SQLModel):
+ class ItemUpdate(ItemBase):
+-    title: str = Field(max_length=255)
+     description: str | None = None

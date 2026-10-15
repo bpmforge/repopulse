@@ -34,8 +34,10 @@ T2 confirms, **LLM** = T2 checklist judgment (runs through the gateway with veri
 | R-19 duplicated blocks | **PACK** (jscpd) | code_health_tools |
 | R-21 hallucinated packages · R-23 credential literals | **PACK** | already shipped: FR-SEC-5 slopsquat · secrets scanner (W8) — anti_slop cross-links, never duplicates |
 | R-25 phantom/unused imports · unused exports | **PACK** (pack rule for imports; `slop.unused_export` for exports of imported JS/TS modules, from the repo's own import graph — W18-01, ships in shadow; cross-package/installed-deps analysis stays backlog `dead_code`) | FR-CH-1 (partial) |
+| R-04 serial awaits · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization (deterministic candidates) | **PACK** (in-process fast lane, W18-08, ships in shadow): `perf.serial_independent_awaits` (≥2 adjacent `const x = await read()` with no data dependency; reads only, never on one connection or one stream; dimension `performance`), `slop.unbounded_retry` (`while(true)`/`for(;;)`/flag/do-while retry, or self-recursion from a catch with the same arguments, with no counter-vs-limit, deadline/abort, or sleep/backoff — the same "bounded" the await-in-loop/try-catch-in-loop retry carve-out uses; severity 2), `slop.speculative_param` (literal default of a module-private function that no counted call passes), `slop.orphan_flag` (`const ENABLE_X = true/false` read exactly once in the snapshot). JS/TS only; skips tests, fixtures, `.d.ts` and bundles. The T2 rows below still cover what these cannot see (exported APIs, options fields, retry libraries) | anti_slop deterministic layer |
+| R-20 pattern inconsistency, dependency half · R-30 library reimplementation, named-API half | **PACK** (in-process, W18-06, ships in shadow). `slop.duplicate_purpose_deps`: two libraries from one row of the versioned category table (`dep-categories.v1`: dates, HTTP clients, loggers, test runners, validation, ORMs for npm/PyPI/Go/Maven/Cargo, each row citing why its members overlap, with deliberate exclusions listed) that are BOTH direct runtime declarations of the same manifest directory. `slop.library_reimplementation`: a module-level function named like a dependency's API (`debounce`, `deepClone`, `uuid`, `slugify`, `retry`…) whose library is a direct runtime dependency of an enclosing project, whose body holds the API's mechanism, and which neither imports nor calls the library (JS/TS, Python, Go, Java). Input is the declared-dependency list (`validation/declared.ts`, which reuses the D10 V1 lockfile readers), not the stored SBOM, which cannot tell direct from transitive. The rest of R-20/R-30 stays with T2 | FR-CH-3 |
 | R-03 exception control flow · R-04 serial awaits · R-15 stale JSDoc params · R-24 docstring inflation (doc/impl >3×, LDR) · R-26 unwired scaffolding · R-28 LLM output w/o validation · R-30 library-shaped reimplementation (silent vendor fork) | **HYB** | pack/AST locates candidates → T2 confirms with evidence quote |
-| R-05 single-impl interfaces · R-06 delegation-only wrappers · R-07 single-use helpers · R-08 repository-on-CRUD · R-09 null checks on owned types · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization · R-18 cargo-cult patterns · R-20 pattern inconsistency · R-22 architectural privilege escalation | **LLM** | `anti_slop.v1` T2 checklist (diff-scoped; snapshot mode samples worst files) |
+| R-05 single-impl interfaces · R-06 delegation-only wrappers · R-07 single-use helpers · R-08 repository-on-CRUD · R-09 null checks on owned types · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization · R-18 cargo-cult patterns · R-20 pattern inconsistency · R-22 architectural privilege escalation | **LLM** | `anti_slop.v1` T2 checklist (diff-scoped; snapshot mode samples worst files). **Since anti-slop.v2 (W18-10) the model no longer reviews a diff**: it judges the fast lane's shadow candidates for R-04/R-05/R-06/R-11/R-12/R-15/R-17 and unused exports, each as (file, line, rule, evidence) plus a ≤24-line excerpt, and confirms or stays silent (`scanners/anti-slop/candidates.ts`). R-07/R-08/R-09/R-18/R-20/R-22 and R-28 have no candidate rule yet and are not asked about until one exists |
 
 **LDR (logic density ratio)** — reconciling the two source definitions: file-level
 `LDR = logic_lines / (logic_lines + overhead_lines)` (overhead = imports, type-only
@@ -43,12 +45,25 @@ decls, docstrings/comments, blanks); **file LDR < 0.3 ⇒ structural-slop findin
 per-exported-symbol **doc/impl > 3× ⇒ docstring-inflation finding** (R-24). Both
 computed deterministically in the anti_slop scanner; thresholds workspace-tunable.
 
+**Mechanical candidates for three HYB/LLM rows (W18-09, all shipped in shadow):**
+R-28 is an Opengrep **taint** pack, `rulepacks/semgrep/bpm-baseline.llm-output.v1.yaml`
+(JS/TS + Python): model-SDK response fields → code execution, SQL, markup or a path,
+and model JSON parsed with no schema check; schema validation and structured-output
+fields are the sanitizers (tool-call arguments, generated against a declared
+parameter schema, are not counted by the JSON check but stay tainted for the others). R-03 (`slop.exception_control_flow`: a throw/raise whose
+only catcher is a swallowing handler in the same function) and R-08
+(`slop.repository_over_crud`: a `*Repository` class whose every method forwards its
+own parameters to one ORM call) run in-process in the anti_slop deterministic layer.
+The checklist items stay: these settle the shapes a pattern can see, and leave the
+judgement cases (a repository that is a deliberate port, a throw that should be a
+result type) to T2.
+
 ## 2. Scanner roster (registry entries — zero framework changes, FR-SEC-1 acceptance)
 
 | key | inputs | triggers | requiredTools | dimension |
 |---|---|---|---|---|
 | `code_health_tools` | snapshot | weekly schedule, manual | lizard@1 (MIT), jscpd@4 (MIT) — standalone source parsers, run with no dependency install (sandbox stays `--network=none`) | `code_health` |
-| `anti_slop` | diff + snapshot | pr_synced (diff), weekly (snapshot), manual | semgrep + rulepack `code-health.v{N}` | `slop` |
+| `anti_slop` | diff + snapshot | pr_synced (diff), weekly (snapshot), manual | semgrep + rulepack `code-health.v{N}` | `slop`; the in-process test-integrity rules (`test.no_assertion`, `test.tautology`, `test.mocks_subject`, `test.swallowed_failure` — W18-03, JS/TS + Python, shadow, severity ≤ 2) store under `test_coverage` |
 | `logging_hygiene` | diff + snapshot | pr_synced, weekly, manual | semgrep + same pack (logging rules) | `logging` |
 
 Backlog delta (SECURITY_SUITE.md §7): `anti_slop` **promoted** to W9; new backlog row
@@ -97,6 +112,17 @@ why-comments only; no defensive null checks on owned types; YAGNI on retries/fla
 config not traceable to a requirement. Verdicts require verbatim evidence quotes
 (SC-13 substring rule) and ride the FR-ANALYSIS-9 verify pass — a judgment finding that
 the second host refutes never surfaces.
+
+**anti-slop.v2 (W18-10): candidates, not diffs.** The fast lane finds; the model only
+judges what it found. Each call carries the checklist and up to 25 candidates — rule id,
+file, line, the rule's quote and claim, and the lines around it — and the model returns a
+finding only for a candidate it confirms (silence rejects). A finding outside every
+candidate's excerpt, or a second one for the same candidate, is rejected and counted: the
+model is not allowed to go back to searching. Only SHADOW candidates are sent (an `active`
+rule's finding is already visible on its own evidence); a pull-request run scopes them to
+the files its diff touched; a run sends at most 200 and reports the rest as
+`candidatesCapped`. The verify pass is unchanged (maker ≠ verifier, severity ≥ 3). Measured
+before/after: `docs/work/product-completion/evidence/w18-10-anti-slop-v2-handoff.md`.
 
 ## 5. Tier-1 debt signals (FR-CH-7 — packages/metrics, no scanner)
 
@@ -238,6 +264,31 @@ written around: no preprocessor (macros are opaque calls; partial-parse errors o
 macro-heavy files are normal and do not fail the run), no types (pointer-ness is read from a
 declaration in the same function), nothing interprocedural, and in a pattern `catch (...)`
 is an ellipsis that also matches typed catches. cppcheck (§10) covers the dataflow half.
+**C#, PHP and Ruby (W18-16)** — three files per language, every rule a shadow-mode
+candidate (`metadata.lifecycle: candidate`):
+
+| Language | Extensions routed | Security (`rulepacks/semgrep/`) | Code health (`rulepacks/code-health/`) | Adapter |
+|---|---|---|---|---|
+| C# | `.cs` | `bpm-baseline.csharp.v1.yaml` — 9 rules (`bpm-cs-*`) | `anti-slop.csharp.v1.yaml` (7), `logging.csharp.v1.yaml` (3) | none (see §10) |
+| PHP | `.php` | `bpm-baseline.php.v1.yaml` — 10 rules (`bpm-php-*`) | `anti-slop.php.v1.yaml` (6), `logging.php.v1.yaml` (3) | none (see §10) |
+| Ruby | `.rb` | `bpm-baseline.ruby.v1.yaml` — 11 rules (`bpm-rb-*`) | `anti-slop.ruby.v1.yaml` (7), `logging.ruby.v1.yaml` (3) | none — brakeman excluded (§10) |
+
+Routing is by each rule's `languages`, so none of these parse anything in a tree without
+the extension; PR mode (`run-modes.ts` SCANNABLE) fetches `.cs`/`.php`/`.rb` files too.
+Measured on real code (KeePass, SharpDevelop, pythonnet; Dolibarr, MantisBT; Rails 7.2
+components, Spree, Solidus, Devise, Sidekiq, Jekyll and others — the W18-16 ticket note
+has the numbers). PHP and Ruby injection, code-evaluation and deserialization rules are
+**taint** rules from the request (superglobals; `params`/`cookies`/`request.*`), because
+mature code in both builds SQL and calls `send`/`class_eval` from its own values
+everywhere; C# has no reliable request source at pattern level, so its rules are shape
+rules with a "spliced-in non-constant" condition. Limits the rules are written around:
+in Ruby an interpolated string is not matched by a `"..."` pattern (semgrep 1.181), so
+interpolation is read from the argument's text; comments are invisible to patterns, so
+"empty catch/rescue" is decided on the text and a comment in the body (or after the
+brace) opts out; `raise NotImplementedError` is Ruby's abstract method and a bare
+`throw new NotImplementedException()` is overwhelmingly a deliberately partial interface
+implementation in C#, so neither is a stub finding (the C# one is, inside a web
+controller).
 **As shipped (W9-01 … W18-30):** the layout is flat — `rulepacks/code-health/` holds
 `anti-slop*.yaml` and `logging*.yaml` side by side, `perf/` is its own directory, and
 `readRulepack` does not recurse. Ownership is by **file-name prefix**: the `anti_slop`
@@ -295,10 +346,17 @@ install`. Tools must parse raw source standalone.
 | semgrep/opengrep + our packs | 30+ languages | slop/logging/perf/correctness | LGPL-2.1 (subprocess) | **W8/W9** |
 | ruff | Python (800+ rules, standalone binary) | code_health/correctness | MIT | **W9 adapter** |
 | Biome | JS/TS lint (standalone, no node_modules) | code_health/correctness | MIT/Apache-2.0 | **W9 adapter** |
+| actionlint | GitHub Actions workflows | correctness/ci (script injection, hard-coded credentials → `iac`) | MIT | **W18-26 adapter — shadow candidate²** |
+| hadolint | Dockerfiles / Containerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | **W18-26 adapter — shadow candidate²** |
+| shellcheck | shell scripts (`*.sh`, `*.bash`, `*.ksh`) | correctness | GPL-3.0 (subprocess-only¹) | **W18-26 adapter — shadow candidate²** |
+| checkov | IaC: Terraform, CloudFormation, Kubernetes manifests, Dockerfiles (allowlisted checks only) | `iac` | Apache-2.0 (Python; 96-package closure hash-pinned) | **W18-26 adapter — shadow candidate²** |
 | actionlint | GitHub Actions workflows | correctness/ci | MIT | backlog |
 | hadolint | Dockerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | backlog |
 | shellcheck | shell scripts | correctness | GPL-3.0 (subprocess-only¹) | backlog |
 | cppcheck | C/C++ defects (no build needed: bundled std.cfg) | correctness/code_health | GPL-3.0-or-later (subprocess-only¹) | **W18-15 adapter** — 2.22.0 built from the SourceForge source tarball in the scan image (no Linux binary is published); SHA-256 computed by us, cross-checked against the publisher's MD5 |
+| brakeman | Rails security | sast | Brakeman Public Use License | **excluded (W18-16)** — free for non-commercial use only; the licence names "commercial managed/Software-as-a-Service services" and "a component of a value-added service" as Commercial Uses that need a paid licence. It would also need a Ruby runtime in the scan image. The `bpm-rb-*` pack covers its highest-yield checks (SQL/command interpolation, unsafe reflection, deserialization, `permit!`, open redirect, `html_safe`) |
+| Roslyn analyzers / SecurityCodeScan | C# | sast/code_health | MIT | backlog — need `dotnet restore` and a build to resolve types: fails the no-network admission filter |
+| PHPStan / Psalm | PHP | correctness | MIT | backlog — need a PHP runtime in the image and `vendor/` (composer install) for useful results; without the autoloader most findings are "unknown class" noise |
 | sqlfluff | SQL | code_health | MIT | backlog |
 | vale | prose/docs (R-29 companion) | slop (docs) | MIT | backlog |
 | gocyclo | Go complexity | code_health | BSD-3 | backlog |
@@ -314,6 +372,60 @@ to someone else (e.g. a published image for self-hosted installs), that is distr
 of the cppcheck binary, and the GPL's corresponding-source obligation applies to it — the
 pinned, checksummed upstream tarball in Containerfile.scan is that source, unmodified.
 The same holds for hadolint/shellcheck if they ship.
+hadolint/shellcheck in our sandbox is fine for internal AND SaaS use, and they are never
+linked or modified. **Correction (W18-26):** "never ship modified binaries" is not the
+whole obligation. A customer-hosted bundle that includes the scan image distributes the
+*unmodified* binaries, and GPL-3.0 §6 still requires the corresponding source (or a
+written offer) and the licence text to travel with them. Recorded as an open action in
+the G-18 ledger (docs/work/DESIGN_REVIEW.md §4) — due before any bundle that carries
+these two tools leaves the building.
+
+² **Shadow candidate, not yet surfaced.** Adapters added from W18 set `shadow: true`:
+every finding is stored with `experimental: true` (excluded from scores, banners, plans
+and reports, §8.2) unless the workspace's `rule_registry` row says `active` — looked up
+per rule (`tool.checkov.CKV_AWS_24`) and then per tool (`tool.checkov`, so a tool can be
+promoted with one decision); `deprecated` drops the finding. ruff and Biome predate the
+lifecycle and are unchanged. Follow-up: when the YAML `lifecycle` field lands
+(`rules/shadow.ts`, java-pack branch), adapter rules should read their shipped default
+from there instead of assuming `candidate`.
+
+**How each W18-26 tool is held to the admission filter** (all verified by running the
+tool, output recorded under `fixtures/adapters/recorded/`):
+
+- *Our config, never the repository's.* hadolint gets `--config /opt/hadolint/hadolint.yaml`
+  (without it a committed `.hadolint.yaml` silenced DL3007 — measured); shellcheck
+  `--norc`; actionlint `-config-file /opt/actionlint/actionlint.yaml`; checkov runs from
+  `/` with `--directory=/scan` (checkov finds a `-d` directory's `.checkov.yaml` by
+  looking for a bare `-d` token, and the cwd's by cwd — a fixture repo's `skip-check:`
+  was honoured before, ignored after).
+- *No network.* checkov with `--skip-download` and no API key ran under `unshare -n`
+  with a read-only HOME and produced the same findings; the three binaries are static.
+- *Files found in the container.* shellcheck and hadolint take files, not directories,
+  and listing them in the argv could overflow the 128 KiB `sh -c` limit on a large repo
+  and fail the whole code-health run, so they run as `find … -prune -o … -exec tool {} +`
+  (busybox find on alpine 3.20 verified), and the parsers read a stream of JSON documents.
+- *Precision.* shellcheck and hadolint keep error/warning only (info/style dropped;
+  shellcheck SC2154 dropped — caller-environment variables are its classic false
+  positive). actionlint drops `runner-label` (self-hosted labels are org settings we
+  cannot see) and shellcheck info/style inside `run:` blocks; script injection gets its
+  own rule id at severity 4. checkov runs `--check` with an allowlist of ~60 checks —
+  exposure, privilege, credentials, encryption — enforced again in `parse()`; unfiltered
+  it reported 20 findings on a ten-line Deployment (probes, CPU limits, digest pinning).
+  Severities are ours: with `--skip-download` checkov reports none.
+- *Frameworks.* checkov's `secrets` (owned by the secrets scanner), `github_actions`
+  (owned by actionlint), `helm`/`kustomize` (need binaries the image does not carry —
+  **Helm charts are not scanned**) and `sca_*` (need the Prisma API) are not enabled.
+- *Dedup.* `TOOL_DEDUP_MAP` collapses checkov's and hadolint's Dockerfile overlap on
+  rule AND file (hadolint keeps `latest`/WORKDIR/alias, checkov keeps root-user as a
+  privilege finding); `DEDUP_MAP` gives hard-coded credentials to the secrets scanner.
+  CKV_DOCKER_4 (ADD vs COPY) is not on the allowlist: it fired on `ADD app.tar.gz`,
+  which is what ADD is for; hadolint's DL3020 correctly did not.
+- *Pinning.* The three binaries come from their publishers' images pinned by multi-arch
+  index digest (GitHub release checksum files were unreachable when this landed — a
+  TODO in Containerfile.scan records the cross-check still owed); checkov from
+  `packages/security/sandbox/checkov-requirements.txt`, every hash checked against
+  PyPI's JSON API, installed `--require-hashes --only-binary=:all: --no-deps` into its
+  own venv.
 
 Adapter findings dedupe against pack rules covering the same defect (ruff/Biome overlap
 with our slop pack is expected — the dedup key wins, lowest-noise source is kept per

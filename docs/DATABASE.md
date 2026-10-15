@@ -20,6 +20,7 @@ erDiagram
     commits ||--o{ commit_files : changes
     repos ||--o{ pull_requests : contains
     pull_requests ||--o{ pr_reviews : receives
+    pull_requests ||--o{ pr_review_comments : receives
     pull_requests ||--o{ pr_files : touches
     pull_requests ||--o{ check_runs : gates
     commits ||--o{ check_runs : reports
@@ -69,6 +70,12 @@ enum('pat','app'), credential_ciphertext bytea, credential_iv bytea, key_version
 credential_fingerprint text (last-4/hash for UI), app_installation_id text null, webhook_secret_ciphertext bytea,
 status, created_by, created_at`. AES-256-GCM, key from env — plaintext never in DB/logs
 (FR-AUTH-5, NFR-6). Decryption only inside packages/forge memory.
+
+**ci_tokens** (W18-18, SC-31) — `id, workspace_id, name, token_hash text unique
+(sha256 hex), token_prefix text, scope text CHECK in ('pr_findings:read'), repo_ids
+bigint[] CHECK cardinality > 0, created_by null FK users, created_by_login, created_at,
+expires_at, last_used_at, revoked_at, revoked_by null FK users`. The customer-CI read
+token (D16 CI pull). Only the hash is stored; revoked rows are kept as the record.
 
 **identities** — the forge-login→human map (FR-AUTH-6, FR-METRICS-3 ownership).
 `id, workspace_id, provider, forge_login, forge_user_id text null, display_name,
@@ -142,6 +149,17 @@ review-table aggregation.
 **pr_reviews** — `id, workspace_id, repo_id, pull_request_id, forge_review_id text,
 reviewer_identity_id, state enum('APPROVED','CHANGES_REQUESTED','COMMENTED','DISMISSED'),
 submitted_at`. Unique `(pull_request_id, forge_review_id)` (FR-METRICS-4/5/6).
+
+**pr_review_comments** (W18-23, migration 0037) — `id, workspace_id, repo_id,
+pull_request_id, forge_comment_id text, forge_review_id text NULL, author_identity_id,
+created_at, path, subject_type ('line'|'file'), is_reply, original_start_line,
+original_line, current_line NULL, original_commit_sha, commit_sha`. Unique
+`(pull_request_id, forge_comment_id)`; index `(workspace_id, repo_id, created_at)`. Diff
+anchors only — **no comment body**. `current_line` null = the forge no longer anchors the
+comment on the head diff (a later push rewrote those lines). Filled by per-PR enrichment on
+forges whose adapter implements `listReviewComments` (GitHub today), which also stamps
+`pull_requests.review_comments_observed_at` (null = never fetched, so "no line data" is
+never confused with "zero comments"). Feeds the AI-reviewer metrics (METRICS.md §5) only.
 
 **pr_files** — `workspace_id, repo_id, pull_request_id, path, additions, deletions,
 change_type text`; PK `(pull_request_id, path)`. From GraphQL backfill (research §6);
@@ -247,6 +265,25 @@ updated_by, updated_at`; PK `(workspace_id, repo_id, scanner_key)`. Admin-only m
 
 Findings facet index gains scanner columns: `findings(workspace_id, repo_id, scanner_key,
 dimension, severity, status)` (W8 migration; supersedes nothing — additive).
+
+### Verified patches — **W18-19** (D16 "Verified + CI pull"; migration 0033; design: ANALYSIS_TIERS.md §7)
+
+**verified_patches** — one model-drafted fix per finding per scanned commit. `id,
+workspace_id, repo_id, finding_id FK findings ON DELETE CASCADE, commit_sha (the snapshot
+the patch was applied to and re-scanned at), target_dedup_key (what the verifier looks
+for), status enum('pending','verified','rejected','failed') default 'pending',
+reason_code text, reason text (admin-only), diff text (the canonical applied diff; for a
+shape-gate rejection the model's text, capped at 16 KB — never served to a non-admin),
+tier smallint ∈ {2,3} default 2, model_id, prompt_version, tokens_in, tokens_out,
+verification_runs jsonb (one entry per rule-set execution: id, runner, before|after,
+status, hits, duration, tool versions), requested_by FK users ON DELETE SET NULL,
+created_at, finished_at`. Unique `(workspace_id, finding_id, commit_sha)` — the
+idempotency key; index `(workspace_id, created_at)` for the daily drafting cap.
+`rejected` = a patch was drafted and the rules said no; `failed` = no attempt could be
+made (no model, sandbox down) and is the only state a retry overwrites. Verification
+runs are NOT `scan_runs` rows on purpose: those answer "when did this scanner last scan
+this repo", and a one-file re-check must not read as one. The stored diff is a fragment
+of customer source, like a finding's evidence quote; nothing is written to the forge.
 
 ### D9/D10 additions (2026-07-14; design: docs/design/IMPROVEMENT_PLANS.md, SECURITY_SUITE.md §3.6)
 

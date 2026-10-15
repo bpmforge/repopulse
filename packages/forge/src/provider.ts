@@ -6,6 +6,7 @@ import type {
   CallCtx,
   ForgeCapabilities,
   ForgeCheckRun,
+  ForgeCodeScanningAlert,
   ForgeCommit,
   ForgeDiffFile,
   ForgeFileContent,
@@ -16,6 +17,7 @@ import type {
   ForgeDeployment,
   ForgeRepo,
   ForgeReview,
+  ForgeReviewComment,
   ForgeCursor,
   Page,
   SinceQuery,
@@ -43,6 +45,18 @@ export interface ForgeProvider {
     cursor?: ForgeCursor,
   ): Promise<Page<ForgeDiffFile>>; // NEVER raw diff (406 risk)
   listReviews(ctx: CallCtx, repo: string, n: number): Promise<ForgeReview[]>;
+  /**
+   * Inline review comments with their diff anchors (W18-23). OPTIONAL because
+   * only GitHub reports whether a comment is still anchored on the head diff;
+   * an adapter without that signal leaves this out, and the AI-reviewer screen
+   * says "line-level data not available for this forge" instead of guessing.
+   */
+  listReviewComments?(
+    ctx: CallCtx,
+    repo: string,
+    n: number,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeReviewComment>>;
   listCheckRuns(
     ctx: CallCtx,
     repo: string,
@@ -63,6 +77,19 @@ export interface ForgeProvider {
    * build if anything else calls it or if `git clone` appears anywhere.
    */
   getTarball(ctx: CallCtx, repo: string, sha: string): Promise<ForgeTarball>;
+
+  /**
+   * OPEN code-scanning alerts (W18-24) — guarded by
+   * `capabilities.supportsCodeScanningAlerts`, and optional so an adapter for
+   * a forge without the feature does not have to carry a stub that throws.
+   * A missing permission surfaces as ForgeHttpError 403 (the caller says so);
+   * a repository with code scanning off answers 404.
+   */
+  listCodeScanningAlerts?(
+    ctx: CallCtx,
+    repo: string,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeCodeScanningAlert>>;
   registerWebhook(
     ctx: CallCtx,
     repo: string,

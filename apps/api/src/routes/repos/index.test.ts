@@ -226,6 +226,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     if (ws) {
       await db.delete(facts.commitFiles).where(eq(facts.commitFiles.workspaceId, ws.id));
       await db.delete(facts.commits).where(eq(facts.commits.workspaceId, ws.id));
+      await db.delete(facts.prReviews).where(eq(facts.prReviews.workspaceId, ws.id));
       await db.delete(facts.pullRequests).where(eq(facts.pullRequests.workspaceId, ws.id));
       await db.delete(core.identities).where(eq(core.identities.workspaceId, ws.id));
       await db.delete(core.repos).where(eq(core.repos.workspaceId, ws.id));
@@ -334,6 +335,86 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     // Acceptance 1: the two rows share a name and are told apart by org.
     expect(measured!.name).toBe(unmeasured!.name);
     expect(measured!.org).not.toBe(unmeasured!.org);
+  });
+
+  it('/review-bots reports the AI reviewers per tool and keeps them out of review load (W18-23)', async () => {
+    const [pr] = await db
+      .select({ id: facts.pullRequests.id, workspaceId: facts.pullRequests.workspaceId })
+      .from(facts.pullRequests)
+      .where(eq(facts.pullRequests.repoId, repoId));
+    const bot = async (login: string) => {
+      const [row] = await db
+        .insert(core.identities)
+        // is_bot false on purpose: the registry, not the flag, must catch these.
+        .values({
+          workspaceId: pr!.workspaceId,
+          provider: 'github',
+          forgeLogin: login,
+          displayName: login,
+        })
+        .returning();
+      return row!.id;
+    };
+    const reviewAt = new Date(RECENT.getTime() + 60 * 60 * 1000);
+    await db.insert(facts.prReviews).values([
+      {
+        workspaceId: pr!.workspaceId,
+        repoId,
+        pullRequestId: pr!.id,
+        forgeReviewId: 'w18-23-a',
+        reviewerIdentityId: await bot('Copilot'),
+        state: 'COMMENTED',
+        submittedAt: reviewAt,
+      },
+      {
+        workspaceId: pr!.workspaceId,
+        repoId,
+        pullRequestId: pr!.id,
+        forgeReviewId: 'w18-23-b',
+        reviewerIdentityId: await bot('greptile-apps[bot]'),
+        state: 'COMMENTED',
+        submittedAt: reviewAt,
+      },
+    ]);
+
+    const cookie = await loginAs(app, FIXTURE);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/repos/${repoId}/review-bots?window=30d`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      forge: string;
+      line_data: string;
+      prs_in_window: number;
+      bots: { key: string; prs_reviewed: number; time_to_first: { median_hours: number } }[];
+    };
+    expect(body.forge).toBe('github');
+    // PR 1 was enriched before W18-23 in this fixture: no stamp, so no line data.
+    expect(body.line_data).toBe('not_collected');
+    expect(body.prs_in_window).toBe(1);
+    expect(body.bots.map((b) => b.key)).toEqual(['copilot', 'greptile']);
+    expect(body.bots[0]!.prs_reviewed).toBe(1);
+    expect(body.bots[0]!.time_to_first.median_hours).toBe(1);
+    // Tools, not people (N-9): the PR author's login appears nowhere.
+    expect(res.body).not.toContain(FIXTURE);
+
+    const load = await app.inject({
+      method: 'GET',
+      url: `/api/v1/repos/${repoId}/review-load?window=30d`,
+      cookies: { repopulse_sid: cookie },
+    });
+    const loadBody = load.json() as { items: unknown[]; excluded: { bot_reviews: number } };
+    expect(loadBody.items).toEqual([]);
+    expect(loadBody.excluded.bot_reviews).toBe(2);
+
+    const foreign = await app.inject({
+      method: 'GET',
+      url: '/api/v1/repos/999999999/review-bots',
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(foreign.statusCode).toBe(404);
   });
 
   it('a foreign repo id → 404 (tenancy, Law 5)', async () => {

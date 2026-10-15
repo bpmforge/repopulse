@@ -1,0 +1,608 @@
+[
+  {
+    "label": "demo-snapshot",
+    "scope": "snapshot",
+    "files": 6,
+    "diffFiles": 6,
+    "deterministic": 1,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 2133,
+      "projectedOutputTokens": 1099
+    },
+    "v2": {
+      "candidates": 1,
+      "candidatesCapped": 0,
+      "byRule": {
+        "slop.unused_export": 1
+      },
+      "calls": 1,
+      "inputTokens": 1836,
+      "stubOutputTokens": 111,
+      "judgmentConfirmAll": 1,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "demo-commit-0",
+    "scope": "diff",
+    "files": 6,
+    "diffFiles": 1,
+    "deterministic": 1,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1345,
+      "projectedOutputTokens": 823
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "demo-commit-1",
+    "scope": "diff",
+    "files": 6,
+    "diffFiles": 2,
+    "deterministic": 1,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1395,
+      "projectedOutputTokens": 840
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "demo-commit-2",
+    "scope": "diff",
+    "files": 6,
+    "diffFiles": 1,
+    "deterministic": 1,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1333,
+      "projectedOutputTokens": 819
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-snapshot",
+    "scope": "snapshot",
+    "files": 1029,
+    "diffFiles": 1029,
+    "deterministic": 130,
+    "v1": {
+      "calls": 75,
+      "inputTokens": 1759000,
+      "projectedOutputTokens": 642077
+    },
+    "v2": {
+      "candidates": 25,
+      "candidatesCapped": 0,
+      "byRule": {
+        "perf.serial_independent_awaits": 16,
+        "slop.unused_export": 8,
+        "slop.speculative_param": 1
+      },
+      "calls": 1,
+      "inputTokens": 10098,
+      "stubOutputTokens": 2710,
+      "judgmentConfirmAll": 25,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-33376997",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 1,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1494,
+      "projectedOutputTokens": 875
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-741c17b4",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 2,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1957,
+      "projectedOutputTokens": 1037
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-a89fcb38",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 8,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 22313,
+      "projectedOutputTokens": 8162
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-c283254c",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 9,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 14254,
+      "projectedOutputTokens": 5341
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-d07d1f86",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 2,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 2934,
+      "projectedOutputTokens": 1379
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-3ea58c1d",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 5,
+    "deterministic": 130,
+    "v1": {
+      "calls": 18,
+      "inputTokens": 420643,
+      "projectedOutputTokens": 153568
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-d9b5d46b",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 2,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 3102,
+      "projectedOutputTokens": 1438
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-a04a91b5",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 5,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 3702,
+      "projectedOutputTokens": 1648
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-50e8b72b",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 1,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1469,
+      "projectedOutputTokens": 867
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-abd74536",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 2,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 3000,
+      "projectedOutputTokens": 1402
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-e5f009d4",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 3,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 9481,
+      "projectedOutputTokens": 3671
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-8a947578",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 9,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 12086,
+      "projectedOutputTokens": 4582
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-033cd17a",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 4,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 4011,
+      "projectedOutputTokens": 1756
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-4c0a49ca",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 1,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1515,
+      "projectedOutputTokens": 883
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-01ad089a",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 1,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 2488,
+      "projectedOutputTokens": 1223
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-78941ff8",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 2,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 2446,
+      "projectedOutputTokens": 1208
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-57c4cc02",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 5,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 8562,
+      "projectedOutputTokens": 3349
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-a41e1247",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 5,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 4373,
+      "projectedOutputTokens": 1883
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-106261c9",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 1,
+    "deterministic": 130,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 1821,
+      "projectedOutputTokens": 990
+    },
+    "v2": {
+      "candidates": 0,
+      "candidatesCapped": 0,
+      "byRule": {},
+      "calls": 0,
+      "inputTokens": 0,
+      "stubOutputTokens": 0,
+      "judgmentConfirmAll": 0,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "repopulse-cbe8272a",
+    "scope": "diff",
+    "files": 1029,
+    "diffFiles": 32,
+    "deterministic": 130,
+    "v1": {
+      "calls": 2,
+      "inputTokens": 72078,
+      "projectedOutputTokens": 16925
+    },
+    "v2": {
+      "candidates": 1,
+      "candidatesCapped": 0,
+      "byRule": {
+        "slop.unused_export": 1
+      },
+      "calls": 1,
+      "inputTokens": 1868,
+      "stubOutputTokens": 122,
+      "judgmentConfirmAll": 1,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "slop-scorecard-snapshot",
+    "scope": "snapshot",
+    "files": 29,
+    "diffFiles": 29,
+    "deterministic": 1,
+    "v1": {
+      "calls": 1,
+      "inputTokens": 18633,
+      "projectedOutputTokens": 6874
+    },
+    "v2": {
+      "candidates": 1,
+      "candidatesCapped": 0,
+      "byRule": {
+        "slop.delegation_wrapper": 1
+      },
+      "calls": 1,
+      "inputTokens": 1790,
+      "stubOutputTokens": 103,
+      "judgmentConfirmAll": 1,
+      "rejected": 0
+    }
+  },
+  {
+    "label": "slop-scorecard-f3ed5257",
+    "scope": "diff",
+    "files": 29,
+    "diffFiles": 62,
+    "deterministic": 1,
+    "v1": {
+      "calls": 2,
+      "inputTokens": 38621,
+      "projectedOutputTokens": 14222
+    },
+    "v2": {
+      "candidates": 1,
+      "candidatesCapped": 0,
+      "byRule": {
+        "slop.delegation_wrapper": 1
+      },
+      "calls": 1,
+      "inputTokens": 1790,
+      "stubOutputTokens": 103,
+      "judgmentConfirmAll": 1,
+      "rejected": 0
+    }
+  }
+]

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { ErrorNote, WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
@@ -13,8 +13,14 @@ import {
   locationOf,
   VERIFY_LABEL,
   type Finding,
+  type FindingFacets,
+  type FindingPage,
   type FindingStats,
+  type RuleFacet,
+  type ShadowMode,
 } from '../../widgets/findings/contracts.js';
+import { FindingSeverityBadge } from '../../widgets/findings/FindingSeverity.js';
+import { ShadowBadge } from '../../widgets/findings/ShadowBadge.js';
 
 // Findings Explorer (W6-04, UX_SPEC §4.e, FR-WEB-9).
 //
@@ -46,6 +52,39 @@ const LIST = { endpoint: '/findings' } as const;
 
 const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as const;
 
+/**
+ * The shadow facet's choices (W18-29). Active-only is the default and the API's
+ * own default: a rule in shadow is still being measured, and its guesses must
+ * not sit in the triage list looking like the proven rules' findings.
+ */
+const SHADOW_OPTIONS: { value: ShadowMode; label: string }[] = [
+  { value: 'exclude', label: 'Active rules only' },
+  { value: 'only', label: 'Shadow rules only' },
+  { value: 'include', label: 'Active and shadow' },
+];
+
+/**
+ * The rule facet, grouped by the scanner that raised it, in the order the
+ * facet endpoint returned (rule id). A rule with no scanner key came from the
+ * model review and is grouped under its own heading rather than dropped.
+ */
+function groupRules(rules: readonly RuleFacet[]): [string, RuleFacet[]][] {
+  const groups = new Map<string, RuleFacet[]>();
+  for (const r of rules) {
+    const key = r.scanner_key ?? 'other';
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  return [...groups.entries()];
+}
+
+/** "3 active · 2 shadow" — the counts that decide whether a choice is worth making. */
+function ruleCounts(r: RuleFacet): string {
+  const parts = [];
+  if (r.active > 0) parts.push(`${r.active} active`);
+  if (r.shadow > 0) parts.push(`${r.shadow} shadow`);
+  return parts.join(' · ');
+}
+
 /** POST /findings/bulk — applied ids and the ones the lifecycle refused. */
 interface BulkResult {
   applied: number[];
@@ -67,6 +106,9 @@ function FindingsExplorer() {
   // so asking for the thing you wanted showed you everything instead.
   const [scannerKey, setScannerKey] = useState('');
   const [inChain, setInChain] = useState(false);
+  // W18-29: the shadow facet and the rule facet.
+  const [shadowMode, setShadowMode] = useState<ShadowMode>('exclude');
+  const [ruleId, setRuleId] = useState('');
   const [selected, setSelected] = useState<number[]>([]);
   // THE URL IS THE STATE, not a mirror of it (W16-16). Reading it back rather
   // than keeping a copy in useState is what makes the back button and a pasted
@@ -164,6 +206,10 @@ function FindingsExplorer() {
     ...(verifyStatus ? { verify_status: verifyStatus } : {}),
     ...(scannerKey ? { scanner_key: scannerKey } : {}),
     ...(inChain ? { in_chain: 'true' } : {}),
+    ...(ruleId ? { rule_id: ruleId } : {}),
+    // Sent only off the default, so the default list keeps the query key (and
+    // the cache entry) every other screen of this list already shares.
+    ...(shadowMode !== 'exclude' ? { experimental: shadowMode } : {}),
   } as const;
 
   /**
@@ -190,10 +236,7 @@ function FindingsExplorer() {
     query: { ...filterQuery, ...(cursor ? { cursor } : {}) },
   } as const;
 
-  const { data, isLoading, isError, error, refetch } = useApiQuery<{
-    items: Finding[];
-    next_cursor: string | null;
-  }>(listDescriptor);
+  const { data, isLoading, isError, error, refetch } = useApiQuery<FindingPage>(listDescriptor);
   const { data: stats } = useApiQuery<FindingStats>({ endpoint: '/findings/stats' });
   // The scanner facet is driven by the REGISTRY, not a hard-coded list: a
   // scanner added in a later wave becomes filterable without touching this
@@ -201,6 +244,13 @@ function FindingsExplorer() {
   const { data: scanners } = useApiQuery<{ items: { key: string; display_name: string }[] }>({
     endpoint: '/scanners',
   });
+  // W18-29: rules come from what findings carry, so a fast-lane rule with no
+  // registry row is filterable the day it raises its first finding.
+  const { data: facets } = useApiQuery<FindingFacets>({ endpoint: '/findings/facets' });
+  const scannerName = (key: string) =>
+    scanners?.items.find((s) => s.key === key)?.display_name ??
+    (key === 'other' ? 'Model review' : key);
+  const shadowHidden = data?.shadow_hidden ?? 0;
 
   /**
    * What the last bulk action did, kept after the selection clears (W17-23).
@@ -276,18 +326,12 @@ function FindingsExplorer() {
     ) : fetchStatus === 403 ? (
       // Distinct from not-found: the finding exists and this account may not
       // read it. Nothing of it is shown, and retrying will not change that.
-      <div
-        className="panel p-3 text-sm text-fg-muted"
-        data-testid="finding-forbidden"
-      >
+      <div className="panel p-3 text-sm text-fg-muted" data-testid="finding-forbidden">
         You are not permitted to view finding #{openId}. Ask a workspace admin if you think you
         should be.
       </div>
     ) : fetched.isError && fetchStatus !== 404 ? (
-      <div
-        className="panel p-3 text-sm text-fg-muted"
-        data-testid="finding-load-failed"
-      >
+      <div className="panel p-3 text-sm text-fg-muted" data-testid="finding-load-failed">
         Finding #{openId} could not be loaded ({fetched.error.message}).{' '}
         <button
           type="button"
@@ -303,10 +347,7 @@ function FindingsExplorer() {
       // reaching here means the id does not exist in this workspace —
       // deleted, mistyped, or somebody else's (which the API answers with the
       // same 404, so a link cannot probe for ids).
-      <div
-        className="panel p-3 text-sm text-fg-muted"
-        data-testid="finding-not-in-view"
-      >
+      <div className="panel p-3 text-sm text-fg-muted" data-testid="finding-not-in-view">
         Finding #{openId} is not in this workspace. It may have been deleted, or the link may be for
         a different RepoPulse install.
       </div>
@@ -314,17 +355,33 @@ function FindingsExplorer() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="findings">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          data-testid="start-triage"
-          disabled={items.length === 0}
-          onClick={() => setTriage(true)}
-        >
-          Triage queue ({items.length})
-        </button>
-      </div>
+      {/* W18-28: titled after the rail entry ("Reviews") that leads here, with
+          the triage action beside the title instead of floating alone. */}
+      <PageHeader
+        title="Reviews"
+        description="Findings from every scanner and model review, across repositories."
+        actions={
+          <>
+            <Link
+              to="/sensitive-changes"
+              search={(prev: Record<string, unknown>) => ({ repos: prev.repos }) as never}
+              className="rounded-md border border-border px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="link-sensitive-changes"
+            >
+              Sensitive changes
+            </Link>
+            <button
+              type="button"
+              className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="start-triage"
+              disabled={items.length === 0}
+              onClick={() => setTriage(true)}
+            >
+              Triage queue ({items.length})
+            </button>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-end gap-3" data-testid="finding-filters">
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
@@ -403,6 +460,42 @@ function FindingsExplorer() {
             onChange={(e) => setInChain(e.target.checked)}
           />
           In an attack chain
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Rule
+          <select
+            className="panel max-w-[18rem] px-2 py-1 text-sm"
+            data-testid="filter-rule"
+            value={ruleId}
+            onChange={(e) => setRuleId(e.target.value)}
+          >
+            <option value="">Any rule</option>
+            {groupRules(facets?.rules ?? []).map(([scanner, rules]) => (
+              <optgroup key={scanner} label={scannerName(scanner)}>
+                {rules.map((r) => (
+                  <option key={r.rule_id} value={r.rule_id}>
+                    {r.rule_id} ({ruleCounts(r)})
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Rule stage
+          <select
+            className="panel px-2 py-1 text-sm"
+            data-testid="filter-shadow"
+            value={shadowMode}
+            onChange={(e) => setShadowMode(e.target.value as ShadowMode)}
+          >
+            {SHADOW_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+                {o.value === 'only' && facets ? ` (${facets.shadow_total})` : ''}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Verification
@@ -508,8 +601,33 @@ function FindingsExplorer() {
         </p>
       )}
 
+      {/* NEVER HIDDEN SILENTLY (W18-29). The default leaves shadow findings out,
+          and says so whenever that changed what the list shows. */}
+      {shadowMode === 'exclude' && shadowHidden > 0 && (
+        <p
+          className="flex flex-wrap items-center gap-2 text-xs text-fg-muted"
+          data-testid="shadow-hidden-note"
+          role="status"
+        >
+          <ShadowBadge />
+          <span>
+            {shadowHidden} {shadowHidden === 1 ? 'finding' : 'findings'} from rules still in shadow{' '}
+            {shadowHidden === 1 ? 'matches' : 'match'} these filters and{' '}
+            {shadowHidden === 1 ? 'is' : 'are'} not listed.
+          </span>
+          <button
+            type="button"
+            className="min-h-6 text-fg underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="shadow-show"
+            onClick={() => setShadowMode('include')}
+          >
+            Show them, marked
+          </button>
+        </p>
+      )}
+
       <WidgetFrame
-        title="Findings"
+        title={shadowMode === 'only' ? 'Shadow findings' : 'Findings'}
         state={frameState({
           isLoading,
           isError,
@@ -523,7 +641,11 @@ function FindingsExplorer() {
         emptyMessage={
           awaitingProducer(dimension)
             ? `Nothing writes ${dimension.replace('_', ' ')} findings yet, so this filter cannot return anything. ${DIMENSIONS_AWAITING_PRODUCER[dimension]}`
-            : 'No findings match these filters. Findings appear once an analysis run completes for a repository.'
+            : shadowMode === 'only'
+              ? 'No shadow findings match these filters. Shadow findings come from rules still being measured; an admin promotes or retires them under Settings → Rules.'
+              : shadowHidden > 0
+                ? 'No findings from active rules match these filters. The ones that do match come from rules still in shadow (see above).'
+                : 'No findings match these filters. Findings appear once an analysis run completes for a repository.'
         }
       >
         {/* W17-31: the table scrolls inside its own wrapper. Six columns of
@@ -531,7 +653,7 @@ function FindingsExplorer() {
             past 768), so the whole Reviews screen scrolled sideways — visible
             in the RP-01 baseline shot as a file column cut off mid-word. */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="table-plain w-full min-w-[48rem] text-sm">
             <caption className="sr-only">Findings across every analysed repository</caption>
             <thead>
               <tr className="text-left text-xs text-fg-muted">
@@ -577,7 +699,7 @@ function FindingsExplorer() {
                   </td>
                   {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
                   <td className="py-1 whitespace-nowrap">
-                    {SEVERITY_LABEL[f.severity] ?? f.severity}
+                    <FindingSeverityBadge severity={f.severity} />
                   </td>
                   <th scope="row" className="py-1 text-left font-normal">
                     <button
@@ -593,6 +715,9 @@ function FindingsExplorer() {
                     >
                       {f.title}
                     </button>
+                    {/* Marked in the row, whatever the facet: a mixed list must
+                        never leave the reader to guess which rows are proven. */}
+                    {f.experimental ? <ShadowBadge className="ml-2" /> : null}
                   </th>
                   <td className="py-1 text-xs">{f.repo.name}</td>
                   <td className="py-1 font-mono text-xs" data-testid={`finding-file-${f.id}`}>

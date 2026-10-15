@@ -1,0 +1,7 @@
+diff --git a/frontend/src/main.tsx b/frontend/src/main.tsx
+--- a/frontend/src/main.tsx
++++ b/frontend/src/main.tsx
+@@ -14,7 +14,7 @@ const router = createRouter({
+-  routes: isLoggedIn() ? privateRoutes() : publicRoutes(),
++  routes: routeTree,
+ });

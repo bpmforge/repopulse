@@ -36,12 +36,23 @@ the formula version is stamped into `risk_factors`.
 |---|---|---|
 | **H** hazard | how bad if it bites | `severity/5` (canonical 1–5, ANALYSIS_TIERS §4) |
 | **L** likelihood | will it bite | **dependency dim**: `max(EPSS, kev?1.0)`, floor 0.05 (D10 V4 inputs unchanged). **All other dims**: `confidence/5` × verify multiplier (`confirmed` 1.0 / `unverified` 0.7 / `contradicted` 0.15, FR-ANALYSIS-9) × rule precision prior `1 − fp_rate` from D11 lifecycle stats (floor 0.3; rules without stats → 0.7). **Overrides → 1.0**: KEV, verified secret, chain, compound. |
-| **X** exposure | does it sit where the code lives | **file-bound**: repo-relative hotspot percentile of the file (M2 decay score, latest snapshot), mapped to [0.25, 1.0] — floor 0.25 so cold-file criticals never disappear. **dependency**: dep_scope (prod-direct 1.0 / prod-transitive `0.8 − 0.05·(depth−1)`, floor 0.5 / dev 0.35) × reachability (`symbol_reachable` 1.0 / `imported` 0.85 / `manifest_only` 0.6 / `proven_unreachable` 0.2). **repo-scoped** (no file — e.g. missing-policy findings): 1.0. D13 registers declare their factors here: deterministic registers use L = 1.0 × rule-precision prior; `knowledge`/`architecture`/`test_gap` use the file/module hotspot mapping; `dependency_health` reuses the dep_scope factors. |
+| **X** exposure | does it sit where the code lives | **file-bound**: repo-relative hotspot percentile of the file (M2 decay score, latest snapshot), mapped to [0.25, 1.0] — floor 0.25 so cold-file criticals never disappear. **v2 (W18-25) import-graph multiplier**: × 0.6 when nothing imports the file, × `1 + 0.3·log(fanIn/2)/log(16)` (1.0 at ≤ 2 importers, capped 1.3 at 32+) for high fan-in, re-floored at 0.25 and capped at 1.0; exactly 1.0 (neutral) when the graph cannot say — capped snapshot, unindexed language (JS/TS only today), entry-point path, possible path alias, file not in the graph, or no graph yet. **dependency**: dep_scope (prod-direct 1.0 / prod-transitive `0.8 − 0.05·(depth−1)`, floor 0.5 / dev 0.35) × reachability (`symbol_reachable` 1.0 / `imported` 0.85 / `manifest_only` 0.6 / `proven_unreachable` 0.2). **repo-scoped** (no file — e.g. missing-policy findings): 1.0. D13 registers declare their factors here: deterministic registers use L = 1.0 × rule-precision prior; `knowledge`/`architecture`/`test_gap` use the file/module hotspot mapping; `dependency_health` reuses the dep_scope factors. |
 
 D10 relationship: V4's `f(CVSS, KEV, EPSS, reachability, dep_scope)` is
 refactored, not replaced — CVSS→H (via the §3.1 severity mapping), EPSS/KEV→L,
 reachability/dep_scope→X. Same `findings.effective_risk` column, now non-null
 for every open finding.
+
+**Import-graph exposure (v2, W18-25).** The fast lane's import graph is persisted by the
+weekly `anti_slop` snapshot pass (`metric_snapshots` key `import_graph`, latest row only;
+`complete` false when the source read was capped) and read per repo by `risk.reprice`.
+`risk_factors.inputs` carries `import_graph` (state), `import_fan_in`, `import_multiplier`
+and `exposure_why` — the sentence the popover shows ("imported by 14 modules", "nothing
+imports this file", "import graph incomplete (snapshot capped); exposure not adjusted").
+Files nothing imports but whose path marks an entry point (index/main/server, routes, bin,
+cli, scripts, config, setup) are not discounted. On Repo Pulse's own tree (1,016 indexed
+files): 601 imported (242 boosted), 316 orphans (313 of them tests), 98 entry points.
+`model_version` is `risk_model.v2`; `RISK_MODEL_V1` remains and ignores the graph.
 
 **Honesty rules (carried from D10/metrics):** decomposition
 `{H, L, X, inputs, model_version}` persisted per finding (`risk_factors`) and

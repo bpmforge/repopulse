@@ -16,5 +16,6 @@ import './security/SecurityRollupTile.js';
 import './risk/TopRisksCard.js';
 import './risk/RiskAxesCard.js';
 import './pulse/PulseCard.js';
+import './org/AiGovernanceCard.js';
 // W16-55: the four types the view TEMPLATES ask for, which nothing registered.
 import './views/register.js';

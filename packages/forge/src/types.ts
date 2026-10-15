@@ -85,6 +85,12 @@ export interface ForgePR {
   mergedByLogin: string | null;
   baseRef: string;
   headSha: string;
+  /**
+   * The source branch name (W18-20). Optional: a fork PR's branch can be gone,
+   * and an absent ref must stay "unknown", never an empty string that a
+   * branch-prefix rule could match against.
+   */
+  headRef?: string;
   additions?: number;
   deletions?: number;
   changedFiles?: number; // absent on GitHub REST list items (research §3)
@@ -96,6 +102,38 @@ export interface ForgeReview {
   reviewerLogin: string;
   state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED';
   submittedAt: string;
+}
+
+/**
+ * One inline review comment (W18-23), as the forge anchors it to the diff.
+ *
+ * The body is deliberately absent: the AI-reviewer metrics count and locate
+ * comments, they never read them, and a warehoused copy of review prose is
+ * data nobody asked us to keep.
+ *
+ * `line` vs `originalLine` is the whole point of this shape. `originalLine` is
+ * where the comment was written (on `originalCommitSha`); `line` is where it
+ * sits on the PR's CURRENT head diff, and the forge sets it to null once a
+ * later push changed the lines it was anchored to (GitHub's "Outdated").
+ */
+export interface ForgeReviewComment {
+  externalId: string;
+  prNumber: number;
+  /** The review this comment was submitted with; null for a stand-alone comment. */
+  reviewExternalId: string | null;
+  authorLogin: string;
+  createdAt: string;
+  path: string;
+  /** 'file' comments attach to a whole file and carry no line. */
+  subjectType: 'line' | 'file';
+  /** A reply inside an existing thread, not a new piece of feedback. */
+  isReply: boolean;
+  originalStartLine: number | null;
+  originalLine: number | null;
+  /** null = no longer anchored on the current head diff (outdated). */
+  line: number | null;
+  originalCommitSha: string;
+  commitSha: string;
 }
 
 export interface ForgeCheckRun {
@@ -164,6 +202,43 @@ export interface ForgeCapabilities {
    * shared secret itself in X-Gitlab-Token.
    */
   webhookScheme: 'hub-signature' | 'gitlab-token';
+  /**
+   * W18-24: the forge serves another scanner's alerts (GitHub code scanning).
+   * Every real adapter declares it (the capability gate requires every key);
+   * OPTIONAL in the type so test fakes written before it existed still read
+   * as false instead of claiming a capability they never had.
+   */
+  supportsCodeScanningAlerts?: boolean;
+}
+
+/**
+ * One open alert from a forge-hosted code scanner (W18-24, GitHub code
+ * scanning). Read-only: RepoPulse never dismisses, reopens or uploads here.
+ *
+ * Every field the alert API may omit is nullable rather than defaulted — an
+ * alert with no location is a repository-level alert, and inventing line 1
+ * would send a reader to the wrong place with confidence.
+ */
+export interface ForgeCodeScanningAlert {
+  /** Per-repository alert number — stable across analyses, so it is the dedup handle. */
+  number: number;
+  state: string;
+  ruleId: string;
+  ruleName: string | null;
+  ruleDescription: string | null;
+  /** The rule's SARIF-style level: 'none' | 'note' | 'warning' | 'error'. */
+  ruleSeverity: string | null;
+  /** 'low' | 'medium' | 'high' | 'critical' for security queries, else null. */
+  securitySeverityLevel: string | null;
+  ruleTags: string[];
+  toolName: string;
+  toolVersion: string | null;
+  path: string | null;
+  startLine: number | null;
+  endLine: number | null;
+  message: string | null;
+  commitSha: string | null;
+  htmlUrl: string | null;
 }
 
 export interface SinceQuery {

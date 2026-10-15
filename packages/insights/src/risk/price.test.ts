@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { RISK_MODEL_V1, RISK_MODEL_VERSION, bandFor } from './model.js';
+import { RISK_MODEL_V1, RISK_MODEL_V2, RISK_MODEL_VERSION, bandFor } from './model.js';
 import {
   exposureFor,
   hazardFor,
+  importGraphMultiplier,
   likelihoodFor,
   priceFinding,
   recomputeFromFactors,
@@ -174,5 +175,92 @@ describe('the decomposition is the honesty rule', () => {
 
   it('is a pure function: the same finding prices the same way twice', () => {
     expect(JSON.stringify(priceFinding(base))).toBe(JSON.stringify(priceFinding(base)));
+  });
+});
+
+describe('import-graph exposure (W18-25)', () => {
+  // Mid-range hotspot, so both a discount and a raise have room to show.
+  const mid: PricingInput = { ...base, hotspotPercentile: 0.5 };
+  const xMid = exposureFor(mid);
+
+  it('discounts a file nothing imports', () => {
+    const x = exposureFor({ ...mid, importGraph: { state: 'orphan', fanIn: 0 } });
+    expect(x).toBeCloseTo(xMid * 0.6, 10);
+  });
+
+  it('raises a high fan-in file, log-scaled and capped', () => {
+    const at = (fanIn: number) =>
+      exposureFor({ ...mid, importGraph: { state: 'imported', fanIn } });
+    expect(at(2)).toBe(xMid);
+    expect(at(8)).toBeGreaterThan(xMid);
+    expect(at(32)).toBeCloseTo(xMid * 1.3, 10);
+    expect(at(500)).toBe(at(32));
+    expect(at(8)).toBeLessThan(at(32));
+  });
+
+  it('never pushes a finding below the cold-file floor, nor X above 1', () => {
+    const cold = { ...base, hotspotPercentile: 0 };
+    expect(exposureFor({ ...cold, importGraph: { state: 'orphan', fanIn: 0 } })).toBe(
+      RISK_MODEL_V2.exposureFileRange.min,
+    );
+    const hot = { ...base, hotspotPercentile: 1 };
+    expect(exposureFor({ ...hot, importGraph: { state: 'imported', fanIn: 40 } })).toBe(1);
+  });
+
+  it('applies when the hotspot is unknown, too', () => {
+    const unknown = { ...base, hotspotPercentile: null };
+    expect(exposureFor({ ...unknown, importGraph: { state: 'orphan', fanIn: 0 } })).toBeCloseTo(
+      0.6,
+      10,
+    );
+  });
+
+  it('is NEUTRAL whenever the graph cannot say', () => {
+    // A capped snapshot, an unindexed language, an entry point, a possible
+    // alias, a file the graph never saw, no graph at all: none is evidence of
+    // low exposure, so none may discount.
+    for (const state of ['incomplete', 'unindexed', 'entry', 'aliased', 'missing', 'absent'] as const) {
+      expect(exposureFor({ ...mid, importGraph: { state, fanIn: null } })).toBe(xMid);
+      expect(importGraphMultiplier({ state, fanIn: 0 })).toBe(1);
+    }
+  });
+
+  it('leaves dependency and repo-scoped findings alone', () => {
+    const dep: PricingInput = { ...base, dimension: 'dependency', depScope: { kind: 'dev' } };
+    expect(exposureFor({ ...dep, importGraph: { state: 'orphan', fanIn: 0 } })).toBe(exposureFor(dep));
+    expect(
+      exposureFor({ ...base, repoScoped: true, importGraph: { state: 'orphan', fanIn: 0 } }),
+    ).toBe(1);
+  });
+
+  it('is ignored by the v1 constants, which had no graph factor', () => {
+    const orphan = { ...mid, importGraph: { state: 'orphan' as const, fanIn: 0 } };
+    expect(exposureFor(orphan, RISK_MODEL_V1)).toBe(exposureFor(mid, RISK_MODEL_V1));
+    expect(priceFinding(orphan, RISK_MODEL_V1).riskFactors.model_version).toBe('risk_model.v1');
+  });
+
+  it('explains itself in risk_factors, and the score still reproduces', () => {
+    const many = priceFinding({ ...mid, importGraph: { state: 'imported', fanIn: 14 } });
+    expect(many.riskFactors.inputs).toMatchObject({
+      import_graph: 'imported',
+      import_fan_in: 14,
+      exposure_why: 'imported by 14 modules',
+    });
+    expect(recomputeFromFactors(many.riskFactors)).toBe(many.effectiveRisk);
+
+    const none = priceFinding({ ...mid, importGraph: { state: 'orphan', fanIn: 0 } });
+    expect(none.riskFactors.inputs['exposure_why']).toBe('nothing imports this file');
+    expect(none.riskFactors.inputs['import_multiplier']).toBe(0.6);
+    expect(none.effectiveRisk).toBeLessThan(many.effectiveRisk);
+
+    const capped = priceFinding({ ...mid, importGraph: { state: 'incomplete', fanIn: null } });
+    expect(capped.riskFactors.inputs['exposure_why']).toMatch(/incomplete.*not adjusted/);
+    expect(capped.riskFactors.inputs['import_multiplier']).toBe(1);
+
+    // Not looked up at all: the rows are present and null, never omitted.
+    expect(priceFinding(mid).riskFactors.inputs).toMatchObject({
+      import_graph: null,
+      exposure_why: null,
+    });
   });
 });

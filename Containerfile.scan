@@ -25,6 +25,37 @@
 #   sigstore signature needs cosign, which is not installed here (recorded in
 #   docs/STATUS.md).
 
+# W18-26: actionlint, shellcheck and hadolint are copied out of their
+# publishers' own images, pinned by MULTI-ARCH INDEX DIGEST.
+#
+# WHY NOT the release-asset + sha256sum pattern ruff and syft use: the GitHub
+# release pages (and their checksum files) were unreachable from the machine
+# this was written on, and a checksum we cannot fetch from its publisher is
+# one we would be inventing. A registry digest is the stronger pin anyway: it
+# is the sha256 of the manifest, which names the sha256 of every layer, so the
+# runtime refuses any byte that differs — content addressing, verified on
+# every pull, no separate checksum step to forget. Each digest below was
+# fetched from registry-1.docker.io over HTTPS on 2026-10-15 and re-derived
+# locally (sha256 of the manifest body == Docker-Content-Digest; every layer
+# blob re-hashed against the manifest) before the binaries were run.
+#   koalaman/shellcheck  — published by ShellCheck's author (scratch image, static binary)
+#   hadolint/hadolint    — published by the hadolint project (scratch image, static binary)
+#   rhysd/actionlint     — published by actionlint's author (static Go binary)
+# All three binaries are statically linked, which is why they run on alpine.
+# TODO(W18-26 follow-up): when a host with github.com access is available,
+# cross-check each binary against the vendor checksum file on its release page
+# (actionlint_<v>_checksums.txt; shellcheck/hadolint publish per-asset
+# .sha256) and record the result here. Not done: the release pages could not
+# be fetched, so no such checksum appears in this file.
+#
+# shellcheck and hadolint are GPL-3.0. They are run as subprocesses and never
+# linked or modified; shipping this image to a customer is DISTRIBUTION of the
+# unmodified binaries, which carries the GPL's source-offer obligation — see
+# docs/work/DESIGN_REVIEW.md §4.
+FROM docker.io/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d AS shellcheck-src
+FROM docker.io/hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d AS hadolint-src
+FROM docker.io/rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 AS actionlint-src
+
 FROM docker.io/library/alpine:3.20
 
 ARG OPENGREP_VERSION=1.27.1
@@ -255,6 +286,52 @@ RUN set -eux; \
     rm "$whl"; \
     apk del .fetch-grimp; \
     python3 -c 'import grimp; print(grimp.__name__)'
+
+# W18-26 IaC / CI / shell adapters.
+#
+# The three static binaries from the digest-pinned stages above, and OUR
+# configs for the two tools that would otherwise read the snapshot's own
+# (hadolint reads .hadolint.yaml from the working directory, which is the
+# snapshot; actionlint reads .github/actionlint.yaml when it finds a .git).
+# Baked in read-only for the same reason the Biome config is: a repository
+# must not decide what our scanner reports. hadolint needs a real file — it
+# rejects /dev/null and prints the complaint on stdout ahead of its JSON.
+# actionlint's empty runner-label list is deliberate: self-hosted labels are
+# org settings we cannot see, so the adapter drops that kind instead.
+COPY --from=shellcheck-src /bin/shellcheck /usr/local/bin/shellcheck
+COPY --from=hadolint-src /bin/hadolint /usr/local/bin/hadolint
+COPY --from=actionlint-src /usr/local/bin/actionlint /usr/local/bin/actionlint
+RUN set -eux; \
+    chmod 0755 /usr/local/bin/shellcheck /usr/local/bin/hadolint /usr/local/bin/actionlint; \
+    mkdir -p /opt/hadolint /opt/actionlint; \
+    printf 'ignored: []\n' > /opt/hadolint/hadolint.yaml; \
+    printf 'self-hosted-runner:\n  labels: []\n' > /opt/actionlint/actionlint.yaml; \
+    chmod 0444 /opt/hadolint/hadolint.yaml /opt/actionlint/actionlint.yaml; \
+    shellcheck --version; \
+    hadolint --version; \
+    actionlint --version
+
+# checkov (IaC, Apache-2.0), in its OWN venv from a hash-pinned closure of all
+# 96 packages (packages/security/sandbox/checkov-requirements.txt, every hash
+# checked against PyPI's JSON API). Its own venv because its dependency tree
+# is large and would otherwise share site-packages with lizard and grimp,
+# where one tool's upgrade could change another's behaviour. --only-binary
+# because building an sdist here would need a compiler and would run the
+# package's own setup code at build time; --no-deps because the file already
+# names everything, so pip resolving anything extra would be a bug. The venv
+# is made --without-pip and filled by the system pip (py3-pip, from the lizard
+# stanza) via --python, so it does not depend on alpine shipping ensurepip.
+# Verified 2026-10-15: this exact install into python:3.12-alpine3.20 (the
+# same python minor as this base) and the adapter's command over the fixtures
+# under `unshare -n` reported exactly the recorded findings.
+COPY packages/security/sandbox/checkov-requirements.txt /opt/scan-tools/checkov-requirements.txt
+RUN set -eux; \
+    python3 -m venv --without-pip /opt/checkov; \
+    pip --python /opt/checkov/bin/python install --no-cache-dir \
+      --require-hashes --only-binary=:all: --no-deps \
+      -r /opt/scan-tools/checkov-requirements.txt; \
+    ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov; \
+    checkov --version
 
 # The driver lives in the IMAGE, read-only, for the same reason the Biome
 # config does: a script read out of the snapshot would let a repository decide

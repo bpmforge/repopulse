@@ -11,6 +11,7 @@ import type {
   EndpointFamily,
   ForgeCapabilities,
   ForgeCheckRun,
+  ForgeCodeScanningAlert,
   ForgeCommit,
   ForgeCursor,
   ForgeDeployment,
@@ -21,6 +22,7 @@ import type {
   ForgeRelease,
   ForgeRepo,
   ForgeReview,
+  ForgeReviewComment,
   ForgeTarball,
   Page,
   SinceQuery,
@@ -31,6 +33,7 @@ import { linkHeaderOf, nextPageCursor } from './pagination.js';
 import { verifyWebhookSignature } from './webhook.js';
 import {
   normalizeCheckRun,
+  normalizeCodeScanningAlert,
   normalizeCommit,
   normalizeDeployment,
   normalizeDiffFile,
@@ -38,9 +41,11 @@ import {
   normalizeIssue,
   normalizePR,
   normalizeRelease,
+  normalizeReviewComment,
   normalizeRepo,
   normalizeReview,
   type RawCheckRun,
+  type RawCodeScanningAlert,
   type RawCommit,
   type RawDeployment,
   type RawDiffFile,
@@ -50,6 +55,7 @@ import {
   type RawRelease,
   type RawRepo,
   type RawReview,
+  type RawReviewComment,
 } from './normalize.js';
 
 // GitHub's documented capability set (FORGE_PROVIDER §1). supportsRawDiff is
@@ -65,6 +71,12 @@ export const GITHUB_CAPABILITIES: ForgeCapabilities = {
   supportsTarball: true, // /tarball/{sha} → 302 codeload (W8-03)
   maxPerPage: 100,
   webhookScheme: 'hub-signature',
+  // W18-24. The ENDPOINT exists on every GitHub repository; whether this
+  // installation may read it is a permission ("Code scanning alerts: Read",
+  // security_events). The App requests it, but an installation that has not
+  // re-approved the new permission answers 403. That is how the pull learns
+  // it, and it reports it rather than reading it as zero alerts.
+  supportsCodeScanningAlerts: true,
 };
 
 // The provider depends only on "something that runs a budgeted forge request"
@@ -243,6 +255,27 @@ export class GitHubProvider implements ForgeProvider {
     return raw.map((r) => normalizeReview(r, n)).filter((r): r is ForgeReview => r !== null);
   }
 
+  // W18-23. Same 'pulls' budget family as listReviews: GitHub meters both
+  // under the pulls resource, and a separate family would let the AI-reviewer
+  // fetch starve nothing while silently doubling what the bucket allows.
+  async listReviewComments(
+    ctx: CallCtx,
+    repo: string,
+    n: number,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeReviewComment>> {
+    const res = await this.get(
+      ctx,
+      withPage(`${this.base}/repos/${repo}/pulls/${n}/comments?per_page=100`, cursor),
+      'pulls',
+    );
+    return this.pageOf<RawReviewComment, ForgeReviewComment>(
+      res,
+      (c) => normalizeReviewComment(c, n),
+      { entity: 'review_comments' },
+    );
+  }
+
   async listCheckRuns(
     ctx: CallCtx,
     repo: string,
@@ -331,6 +364,31 @@ export class GitHubProvider implements ForgeProvider {
       body: res.body,
       download: this.download,
     });
+  }
+
+  /**
+   * Open code-scanning alerts (W18-24). READ-ONLY: GET only, state=open, and
+   * nothing here can dismiss, reopen or upload. Drawn from the `checks`
+   * secondary bucket — it is CI output read about a repository, the same
+   * family of cost — and every page is one budgeted core point.
+   */
+  async listCodeScanningAlerts(
+    ctx: CallCtx,
+    repo: string,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeCodeScanningAlert>> {
+    const res = await this.get(
+      ctx,
+      withPage(`${this.base}/repos/${repo}/code-scanning/alerts?state=open&per_page=100`, cursor),
+      'checks',
+    );
+    // No emptyOn: a 404 ("no analysis found") and a 403 (permission missing)
+    // are both answers the caller must SAY, not zero alerts.
+    return this.pageOf<RawCodeScanningAlert, ForgeCodeScanningAlert>(
+      res,
+      normalizeCodeScanningAlert,
+      { entity: 'code_scanning_alerts' },
+    );
   }
 
   async registerWebhook(

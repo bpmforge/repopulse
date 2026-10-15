@@ -98,7 +98,7 @@ describe('tool lists stay true to Containerfile.scan', () => {
     const invoked = new Set(
       [
         ...containerfile.matchAll(
-          /(?:^|\s)(opengrep|lizard|jscpd|depcruise|ruff|biome|syft|grype) (?:--version|version)\b/gm,
+          /(?:^|\s)(opengrep|lizard|jscpd|depcruise|ruff|biome|actionlint|shellcheck|hadolint|checkov|syft|grype) (?:--version|version)\b/gm,
         ),
       ].map((m) => m[1]),
     );

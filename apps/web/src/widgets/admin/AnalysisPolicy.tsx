@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 
@@ -103,7 +104,13 @@ export function AnalysisPolicy() {
           data-testid="gateway-unconfigured"
           role="status"
         >
-          <strong>Tier 2 cannot run.</strong> {gateway.reason}
+          <strong>Tier 2 cannot run.</strong> {gateway.reason}{' '}
+          {/* The fix is one tab over; link it rather than describe the path.
+              Body colour, not the accent: teal on the amber tint is 4.4:1 in
+              the light theme, under AA. The underline carries the affordance. */}
+          <Link to="/admin/models" className="font-medium text-fg underline underline-offset-2">
+            Configure a model →
+          </Link>
         </p>
       ) : null}
       {gateway?.configured ? (
@@ -128,22 +135,26 @@ export function AnalysisPolicy() {
         onRetry={() => void refetch()}
         emptyMessage="No repositories connected yet."
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Tier-2 and Tier-3 analysis policy per repository</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Repository</th>
-              <th scope="col">Tier 2 (local)</th>
-              <th scope="col">Tier 3 (Claude API)</th>
-              <th scope="col">Sent off-network</th>
-            </tr>
-          </thead>
-          <tbody data-testid="analysis-repo-rows">
-            {repos.map((repo) => (
-              <RepoRow key={repo.id} repo={repo} />
-            ))}
-          </tbody>
-        </table>
+        {/* W18-28: scrolls in its own region at phone width; padded cells
+            no longer fit 390px, and the page must not scroll sideways. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Per-repository analysis policy">
+          <table className="table-plain w-full text-sm">
+            <caption className="sr-only">Tier-2 and Tier-3 analysis policy per repository</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Repository</th>
+                <th scope="col">Tier 2 (local)</th>
+                <th scope="col">Tier 3 (Claude API)</th>
+                <th scope="col">Sent off-network</th>
+              </tr>
+            </thead>
+            <tbody data-testid="analysis-repo-rows">
+              {repos.map((repo) => (
+                <RepoRow key={repo.id} repo={repo} />
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p className="mt-2 text-xs text-fg-muted">
           Tier 2 runs on your own LAN and nothing leaves your network. Tier 3 sends the diff, the
           pull-request description and the checklist to Anthropic — only for repositories opted in
@@ -156,31 +167,35 @@ export function AnalysisPolicy() {
         state={frameState({ isLoading, isError, isEmpty: data !== undefined && log.length === 0 })}
         emptyMessage="No code has left this network. The log is written before each call, so an empty log means no call was made — not that one went unrecorded."
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Every Tier-3 call, newest first</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">When</th>
-              <th scope="col">Model</th>
-              <th scope="col">Bytes</th>
-              <th scope="col">Tokens in/out</th>
-              <th scope="col">Content digest</th>
-            </tr>
-          </thead>
-          <tbody data-testid="egress-rows">
-            {log.map((row) => (
-              <tr key={row.id} className="border-t border-border">
-                <td className="py-1 text-xs">{row.sent_at.slice(0, 16).replace('T', ' ')}</td>
-                <td className="py-1 text-xs">{row.model}</td>
-                <td className="py-1 tabular-nums text-xs">{row.bytes_sent}</td>
-                <td className="py-1 tabular-nums text-xs">
-                  {row.tokens_sent}/{row.tokens_received}
-                </td>
-                <td className="py-1 font-mono text-xs">{row.content_sha256.slice(0, 12)}…</td>
+        {/* W18-28: scrolls in its own region at phone width; padded cells
+            no longer fit 390px, and the page must not scroll sideways. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Egress audit log">
+          <table className="table-plain w-full text-sm">
+            <caption className="sr-only">Every Tier-3 call, newest first</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">When</th>
+                <th scope="col">Model</th>
+                <th scope="col">Bytes</th>
+                <th scope="col">Tokens in/out</th>
+                <th scope="col">Content digest</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody data-testid="egress-rows">
+              {log.map((row) => (
+                <tr key={row.id} className="border-t border-border">
+                  <td className="py-1 text-xs">{row.sent_at.slice(0, 16).replace('T', ' ')}</td>
+                  <td className="py-1 text-xs">{row.model}</td>
+                  <td className="py-1 tabular-nums text-xs">{row.bytes_sent}</td>
+                  <td className="py-1 tabular-nums text-xs">
+                    {row.tokens_sent}/{row.tokens_received}
+                  </td>
+                  <td className="py-1 font-mono text-xs">{row.content_sha256.slice(0, 12)}…</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
     </div>
   );

@@ -11,14 +11,17 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
+import { Route as GovernanceRouteImport } from './routes/governance'
 import { Route as MeRouteImport } from './routes/me'
 import { Route as PullRequestsRouteImport } from './routes/pull-requests'
+import { Route as SensitiveChangesRouteImport } from './routes/sensitive-changes'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAgreementsRouteImport } from './routes/admin/agreements'
 import { Route as AdminAnalysisRouteImport } from './routes/admin/analysis'
 import { Route as AdminIdentitiesRouteImport } from './routes/admin/identities'
 import { Route as AdminMembersRouteImport } from './routes/admin/members'
 import { Route as AdminModelsRouteImport } from './routes/admin/models'
+import { Route as AdminPatchesRouteImport } from './routes/admin/patches'
 import { Route as AdminRulesRouteImport } from './routes/admin/rules'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSyncRouteImport } from './routes/admin/sync'
@@ -33,6 +36,7 @@ import { Route as ViewsViewIdRouteImport } from './routes/views/$viewId'
 import { Route as PrintReportsReportIdRouteImport } from './routes/print/reports/$reportId'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
 import { Route as ReposRepoIdActivityRouteImport } from './routes/repos/$repoId/activity'
+import { Route as ReposRepoIdAiReviewersRouteImport } from './routes/repos/$repoId/ai-reviewers'
 import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
 import { Route as ReposRepoIdCodeHealthRouteImport } from './routes/repos/$repoId/code-health'
 import { Route as ReposRepoIdFindingsRouteImport } from './routes/repos/$repoId/findings'
@@ -54,6 +58,11 @@ const AdminRouteRoute = AdminRouteRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GovernanceRoute = GovernanceRouteImport.update({
+  id: '/governance',
+  path: '/governance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MeRoute = MeRouteImport.update({
   id: '/me',
   path: '/me',
@@ -62,6 +71,11 @@ const MeRoute = MeRouteImport.update({
 const PullRequestsRoute = PullRequestsRouteImport.update({
   id: '/pull-requests',
   path: '/pull-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SensitiveChangesRoute = SensitiveChangesRouteImport.update({
+  id: '/sensitive-changes',
+  path: '/sensitive-changes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -92,6 +106,11 @@ const AdminMembersRoute = AdminMembersRouteImport.update({
 const AdminModelsRoute = AdminModelsRouteImport.update({
   id: '/models',
   path: '/models',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminPatchesRoute = AdminPatchesRouteImport.update({
+  id: '/patches',
+  path: '/patches',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminRulesRoute = AdminRulesRouteImport.update({
@@ -164,6 +183,11 @@ const ReposRepoIdActivityRoute = ReposRepoIdActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
+const ReposRepoIdAiReviewersRoute = ReposRepoIdAiReviewersRouteImport.update({
+  id: '/ai-reviewers',
+  path: '/ai-reviewers',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
 const ReposRepoIdCiRoute = ReposRepoIdCiRouteImport.update({
   id: '/ci',
   path: '/ci',
@@ -218,14 +242,17 @@ const ReposRepoIdPrsNumberRoute = ReposRepoIdPrsNumberRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/governance': typeof GovernanceRoute
   '/me': typeof MeRoute
   '/pull-requests': typeof PullRequestsRoute
+  '/sensitive-changes': typeof SensitiveChangesRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/models': typeof AdminModelsRoute
+  '/admin/patches': typeof AdminPatchesRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
@@ -239,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
+  '/repos/$repoId/ai-reviewers': typeof ReposRepoIdAiReviewersRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
@@ -253,13 +281,16 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/governance': typeof GovernanceRoute
   '/me': typeof MeRoute
   '/pull-requests': typeof PullRequestsRoute
+  '/sensitive-changes': typeof SensitiveChangesRoute
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/models': typeof AdminModelsRoute
+  '/admin/patches': typeof AdminPatchesRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
@@ -273,6 +304,7 @@ export interface FileRoutesByTo {
   '/views': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
+  '/repos/$repoId/ai-reviewers': typeof ReposRepoIdAiReviewersRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
@@ -289,14 +321,17 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/governance': typeof GovernanceRoute
   '/me': typeof MeRoute
   '/pull-requests': typeof PullRequestsRoute
+  '/sensitive-changes': typeof SensitiveChangesRoute
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/models': typeof AdminModelsRoute
+  '/admin/patches': typeof AdminPatchesRoute
   '/admin/rules': typeof AdminRulesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sync': typeof AdminSyncRoute
@@ -310,6 +345,7 @@ export interface FileRoutesById {
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
+  '/repos/$repoId/ai-reviewers': typeof ReposRepoIdAiReviewersRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
   '/repos/$repoId/findings': typeof ReposRepoIdFindingsRoute
@@ -327,14 +363,17 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/governance'
     | '/me'
     | '/pull-requests'
+    | '/sensitive-changes'
     | '/repos/$repoId'
     | '/admin/agreements'
     | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/models'
+    | '/admin/patches'
     | '/admin/rules'
     | '/admin/settings'
     | '/admin/sync'
@@ -348,6 +387,7 @@ export interface FileRouteTypes {
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/activity'
+    | '/repos/$repoId/ai-reviewers'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
@@ -362,13 +402,16 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/governance'
     | '/me'
     | '/pull-requests'
+    | '/sensitive-changes'
     | '/admin/agreements'
     | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/models'
+    | '/admin/patches'
     | '/admin/rules'
     | '/admin/settings'
     | '/admin/sync'
@@ -382,6 +425,7 @@ export interface FileRouteTypes {
     | '/views'
     | '/print/reports/$reportId'
     | '/repos/$repoId/activity'
+    | '/repos/$repoId/ai-reviewers'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
@@ -397,14 +441,17 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/governance'
     | '/me'
     | '/pull-requests'
+    | '/sensitive-changes'
     | '/repos/$repoId'
     | '/admin/agreements'
     | '/admin/analysis'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/models'
+    | '/admin/patches'
     | '/admin/rules'
     | '/admin/settings'
     | '/admin/sync'
@@ -418,6 +465,7 @@ export interface FileRouteTypes {
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/activity'
+    | '/repos/$repoId/ai-reviewers'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
     | '/repos/$repoId/findings'
@@ -434,8 +482,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  GovernanceRoute: typeof GovernanceRoute
   MeRoute: typeof MeRoute
   PullRequestsRoute: typeof PullRequestsRoute
+  SensitiveChangesRoute: typeof SensitiveChangesRoute
   ReposRepoIdRouteRoute: typeof ReposRepoIdRouteRouteWithChildren
   ViewsViewIdRoute: typeof ViewsViewIdRoute
   FindingsIndexRoute: typeof FindingsIndexRoute
@@ -463,6 +513,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/governance': {
+      id: '/governance'
+      path: '/governance'
+      fullPath: '/governance'
+      preLoaderRoute: typeof GovernanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/me': {
       id: '/me'
       path: '/me'
@@ -475,6 +532,13 @@ declare module '@tanstack/react-router' {
       path: '/pull-requests'
       fullPath: '/pull-requests'
       preLoaderRoute: typeof PullRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sensitive-changes': {
+      id: '/sensitive-changes'
+      path: '/sensitive-changes'
+      fullPath: '/sensitive-changes'
+      preLoaderRoute: typeof SensitiveChangesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -517,6 +581,13 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/admin/models'
       preLoaderRoute: typeof AdminModelsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/patches': {
+      id: '/admin/patches'
+      path: '/patches'
+      fullPath: '/admin/patches'
+      preLoaderRoute: typeof AdminPatchesRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/rules': {
@@ -617,6 +688,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReposRepoIdActivityRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
+    '/repos/$repoId/ai-reviewers': {
+      id: '/repos/$repoId/ai-reviewers'
+      path: '/ai-reviewers'
+      fullPath: '/repos/$repoId/ai-reviewers'
+      preLoaderRoute: typeof ReposRepoIdAiReviewersRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
     '/repos/$repoId/ci': {
       id: '/repos/$repoId/ci'
       path: '/ci'
@@ -696,6 +774,7 @@ interface AdminRouteRouteChildren {
   AdminIdentitiesRoute: typeof AdminIdentitiesRoute
   AdminMembersRoute: typeof AdminMembersRoute
   AdminModelsRoute: typeof AdminModelsRoute
+  AdminPatchesRoute: typeof AdminPatchesRoute
   AdminRulesRoute: typeof AdminRulesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSyncRoute: typeof AdminSyncRoute
@@ -708,6 +787,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminIdentitiesRoute: AdminIdentitiesRoute,
   AdminMembersRoute: AdminMembersRoute,
   AdminModelsRoute: AdminModelsRoute,
+  AdminPatchesRoute: AdminPatchesRoute,
   AdminRulesRoute: AdminRulesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSyncRoute: AdminSyncRoute,
@@ -720,6 +800,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 
 interface ReposRepoIdRouteRouteChildren {
   ReposRepoIdActivityRoute: typeof ReposRepoIdActivityRoute
+  ReposRepoIdAiReviewersRoute: typeof ReposRepoIdAiReviewersRoute
   ReposRepoIdCiRoute: typeof ReposRepoIdCiRoute
   ReposRepoIdCodeHealthRoute: typeof ReposRepoIdCodeHealthRoute
   ReposRepoIdFindingsRoute: typeof ReposRepoIdFindingsRoute
@@ -735,6 +816,7 @@ interface ReposRepoIdRouteRouteChildren {
 
 const ReposRepoIdRouteRouteChildren: ReposRepoIdRouteRouteChildren = {
   ReposRepoIdActivityRoute: ReposRepoIdActivityRoute,
+  ReposRepoIdAiReviewersRoute: ReposRepoIdAiReviewersRoute,
   ReposRepoIdCiRoute: ReposRepoIdCiRoute,
   ReposRepoIdCodeHealthRoute: ReposRepoIdCodeHealthRoute,
   ReposRepoIdFindingsRoute: ReposRepoIdFindingsRoute,
@@ -754,8 +836,10 @@ const ReposRepoIdRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
+  GovernanceRoute: GovernanceRoute,
   MeRoute: MeRoute,
   PullRequestsRoute: PullRequestsRoute,
+  SensitiveChangesRoute: SensitiveChangesRoute,
   ReposRepoIdRouteRoute: ReposRepoIdRouteRouteWithChildren,
   ViewsViewIdRoute: ViewsViewIdRoute,
   FindingsIndexRoute: FindingsIndexRoute,

@@ -80,7 +80,7 @@ export async function readEntityError(
 // row for the entity — always backfill_done=true, so the sync-status phase
 // never mistakes it for unfinished history.
 
-export type EnrichmentEntity = 'reviews' | 'checks' | 'commit_files';
+export type EnrichmentEntity = 'reviews' | 'checks' | 'commit_files' | 'review_comments';
 
 export type Fetched<T> = { value: T; refused?: undefined } | { refused: ForgeHttpError };
 

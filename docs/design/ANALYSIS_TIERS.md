@@ -61,6 +61,15 @@ projected output ≈ `min(10k, 0.35 × patchTokens + 800)` per chunk.
    ≤ budget. Property: **every hunk in exactly one chunk** (FR-ANALYSIS-3 acceptance).
 4. Every chunk prompt carries: PR title + description (truncated 1k tok), file path(s),
    language hint, dimension checklist.
+   **Repo-wide context (W18-25):** checklist prompts also carry the callers and callees of
+   the chunk's changed functions, read from the fast-lane import graph the weekly
+   `anti_slop` pass persists (`metric_snapshots`, key `import_graph`, latest row only). The
+   context is fenced as DATA beside the diff, never inside `chunk.text`, so it can never pass
+   evidence validation; its budget is `min(1.2k, 24k − chunk promptTokens)`, cut at whole
+   lines (`[context truncated]`), shipped files and callers before tests. An incomplete
+   (capped) graph is labelled as such. Measured on 15 Repo Pulse branch diffs (24 chunks):
+   prompts +1.9% (435,007 → 443,407 est. tokens), no chunk over budget; diffs of only new
+   files get none (they are not in the base graph).
 5. **Map-reduce**: chunk calls emit findings (map); a final small call gets the deduped
    finding list + PR metadata and emits a PR-level verdict/summary (reduce). Reduce input is
    findings JSON, never re-pasted diff — bounded regardless of PR size.
@@ -140,3 +149,57 @@ flowchart TD
 T3 spend guarded by workspace monthly budget (config, USD); exceeding ⇒ escalations queue as
 `needs-T3` instead of calling. Every T3 result stores `cost_usd`; per-repo cost rollup exposed
 on the admin ops page (NFR-12).
+
+## 7. Verified patches (W18-19, D16 "Verified + CI pull")
+
+A model drafts a fix for ONE finding; Repo Pulse proves it before anyone sees it.
+Code: `packages/security/src/patches/` (diff gate, prompt, verifier, runners, job),
+`apps/api/src/routes/patches/` (API), `apps/api/src/workers/patch-processor.ts`
+(`patches.draft` queue), `apps/web/src/widgets/findings/VerifiedFix.tsx` (drawer).
+
+1. **Eligibility.** Only findings a deterministic rule produced: the shipped semgrep
+   pack (`semgrep`), the `bpm-log-*` and `bpm-perf-*` packs, and the anti_slop fast
+   lane (LDR, docstring inflation, unused exports, phantom imports). Model findings
+   (`slop.judgment`, `logging.judgment`, OWASP checklists) have no rule to re-run;
+   secrets are fixed by rotation, not a diff; `code_health_tools` (lizard/jscpd) is
+   whole-tree and not re-runnable per file yet. The snapshot is the commit of the most
+   recent successful run of the finding's scanner that could have sighted it.
+2. **Draft.** Through the analysis gateway like every LLM call (Law 8): Tier-2 — the
+   workspace's own model — by default, 45000 maxTokens, temperature 0. Tier-3 only when an
+   admin asks AND the repo is opted in; the gateway re-checks the opt-in and writes the
+   egress-audit row. The prompt carries the finding, its evidence and the file (whole up to
+   600 lines, else ±150 lines around the finding, capped at 48 KB) — never the repo.
+3. **Shape gate** (`diff.ts`). The reply must be a unified diff that modifies only the
+   finding's file — no create/delete/rename/mode change, no second file, ≤ 16 KB and ≤ 200
+   changed lines, and it must apply with EXACT content match at the scanned commit
+   (hunks may sit at a different line than their header says; an ambiguous match is
+   refused). The diff stored and shown is re-rendered from what was applied, so
+   `git apply` takes it as-is.
+4. **Verify** (`verify.ts`). The original and patched file are written to a `snap-*`
+   scratch dir under the snapshot root (the sandbox's mountable volume; shredded in a
+   `finally`, swept if killed) and every rule set is run on both: the YAML packs through
+   the existing sandboxed runner (architecture rule 7 — no scan tool outside the
+   sandbox), the fast lane in process, with the whole-tree rules fed the snapshot tree
+   with the patched file substituted (when the forge supplies an archive). **Verified iff**
+   the target's dedup key is present before and gone after, its rule fires fewer times
+   (a patch that only pushes the finding into another 10-line bucket is caught), no rule
+   fires more times than before (counted per rule so shifted lines are not "new"), and
+   every rule set ran. A target the before-scan cannot reproduce is rejected, never
+   verified; a rule set that fails makes the attempt `failed`.
+5. **The verifier is not a model.** maker≠verifier (§5/FR-ANALYSIS-9) taken to its end:
+   the judge is the same deterministic rules that raised the finding.
+6. **Budget.** One model call per finding × commit (idempotent row), 50 requests per
+   workspace per rolling day, 10/min per caller, one queue attempt (no auto-retry of a
+   model call).
+7. **Who sees what.** Verified: the diff, Copy, Download `.patch`, and a note that it
+   was re-scanned. Rejected: nothing to a developer — the API does not send the diff or
+   reason; an admin sees the reason (drawer note and `GET /admin/patches`).
+8. **D9a.** Nothing is written to the forge — no branch, commit, PR or comment. The only
+   forge calls are reads on the budgeted `scan` lane (the archive at the commit, or the
+   one file). Pinned by `apps/api/test/security/verified-patch-no-forge-write.test.ts`
+   and the forge proxy in `patches/run.integration.test.ts`.
+
+Known limits: a verified patch is "clears this rule set and adds no finding to it", not
+"correct" — the note tells the developer to review it like any change, and a prompt
+injection in the scanned file can at most produce a patch the rules do not object to.
+Rule sets are run twice per attempt (before and after) as separate sandbox runs.

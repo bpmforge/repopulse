@@ -31,6 +31,14 @@ describe('redactLine (SC-2 no-log rule)', () => {
     expect(redacted).toContain('[REDACTED-TOKEN]');
   });
 
+  it('scrubs a bare RepoPulse CI token (W18-18) wherever it appears', () => {
+    const token = 'rpci_' + 'Ab9-_'.repeat(9);
+    const line = JSON.stringify({ msg: `curl -H "Bearer ${token}" failed` });
+    const redacted = redactLine(line);
+    expect(redacted).not.toContain(token);
+    expect(redacted).toContain('[REDACTED-TOKEN]');
+  });
+
   it('scrubs a PEM block (GitHub App private key)', () => {
     const pem = '-----BEGIN RSA PRIVATE KEY-----\\nMIIEow==\\n-----END RSA PRIVATE KEY-----';
     const line = `{"msg":"loaded key","key":"${pem}"}`;

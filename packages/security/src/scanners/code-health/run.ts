@@ -1,10 +1,11 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
+import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
 import { runCodeHealthTools, CODE_HEALTH_SCANNER_KEY, type CodeHealthFinding } from './tools.js';
-import { dedupeAgainstPack } from './adapters/registry.js';
+import { dedupeAcrossTools, dedupeAgainstPack, listAdapters } from './adapters/registry.js';
 import type { AdapterFinding } from './adapters/types.js';
 import type { CodeHealthThresholds } from './thresholds.js';
 
@@ -78,7 +79,10 @@ function toIncoming(findings: readonly CodeHealthFinding[]): IncomingFinding[] {
  * tell whose opinion they are reading, and so the FP rate accumulates against
  * the tool rather than against us.
  */
-export function adapterToIncoming(findings: readonly AdapterFinding[]): IncomingFinding[] {
+export function adapterToIncoming(
+  findings: readonly AdapterFinding[],
+  shadow: ReadonlyMap<AdapterFinding, boolean> = new Map(),
+): IncomingFinding[] {
   return findings.map((f) => ({
     dimension: f.dimension === 'correctness' ? 'code_health' : f.dimension,
     severity: f.severity,
@@ -93,7 +97,72 @@ export function adapterToIncoming(findings: readonly AdapterFinding[]): Incoming
     scannerKey: CODE_HEALTH_SCANNER_KEY,
     ruleId: f.ruleId,
     yields: null,
+    // Only stated for shadow adapters: ruff and Biome have no lifecycle
+    // opinion, and stating `false` for them would un-shadow nothing while
+    // implying a decision nobody made.
+    ...(shadow.has(f) ? { experimental: shadow.get(f) === true } : {}),
   }));
+}
+
+/**
+ * Shadow mode for tool adapters that opt in (W18-26, §8.2).
+ *
+ * The same lookup anti-slop's in-process rules use (shippedRuleStatus), at two
+ * granularities: a rule_registry row for the exact rule (`tool.checkov.CKV_AWS_24`)
+ * wins; failing that, a row for the whole tool (`tool.checkov`) applies, so an
+ * admin can promote sixty checkov checks with one decision; failing both, the
+ * shipped default is `candidate`. `active` → live finding, `deprecated` →
+ * dropped, anything else → stored with experimental: true.
+ *
+ * Follow-up, deliberately not done here: the YAML `lifecycle` field
+ * (rules/shadow.ts on the java-pack branch) is the long-term home for a
+ * per-rule shipped default; when it lands, adapter rules should read their
+ * default from the same place instead of assuming `candidate`.
+ */
+export async function adapterShadowState(
+  db: Database,
+  workspaceId: number,
+  findings: readonly AdapterFinding[],
+): Promise<{ kept: AdapterFinding[]; experimental: Map<AdapterFinding, boolean> }> {
+  const shadowKeys = new Set(
+    listAdapters()
+      .filter((a) => a.shadow)
+      .map((a) => a.key),
+  );
+  const toolOf = (ruleId: string): string => ruleId.split('.')[1] ?? '';
+  const shadowed = findings.filter((f) => shadowKeys.has(toolOf(f.ruleId)));
+  const experimental = new Map<AdapterFinding, boolean>();
+  if (shadowed.length === 0) return { kept: [...findings], experimental };
+
+  const ids = new Set<string>();
+  for (const f of shadowed) {
+    ids.add(f.ruleId);
+    ids.add(`tool.${toolOf(f.ruleId)}`);
+  }
+  const rows = await db
+    .select({ ruleId: security.ruleRegistry.ruleId, status: security.ruleRegistry.status })
+    .from(security.ruleRegistry)
+    .where(
+      and(
+        eq(security.ruleRegistry.workspaceId, workspaceId),
+        inArray(security.ruleRegistry.ruleId, [...ids]),
+      ),
+    );
+  const statusOf = new Map(rows.map((r) => [r.ruleId, r.status]));
+
+  const kept: AdapterFinding[] = [];
+  for (const f of findings) {
+    if (!shadowKeys.has(toolOf(f.ruleId))) {
+      kept.push(f);
+      continue;
+    }
+    const status =
+      statusOf.get(f.ruleId) ?? statusOf.get(`tool.${toolOf(f.ruleId)}`) ?? 'candidate';
+    if (status === 'deprecated') continue;
+    experimental.set(f, status !== 'active');
+    kept.push(f);
+  }
+  return { kept, experimental };
 }
 
 /** Weekly/manual pass over a snapshot. */
@@ -149,15 +218,25 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           .map((row) => row.ruleId)
           .filter((id): id is string => id !== null);
 
-        const { kept, dropped } = dedupeAgainstPack(tools.adapterFindings, openRuleIds);
-        const findings = [...toIncoming(tools.findings), ...adapterToIncoming(kept)];
+        // Tool-vs-tool first (checkov and hadolint on one Dockerfile), then
+        // tool-vs-pack. Both before the lifecycle lookup, so a duplicate is
+        // never stored just because its rule happens to be in shadow.
+        const acrossTools = dedupeAcrossTools(tools.adapterFindings);
+        const againstPack = dedupeAgainstPack(acrossTools.kept, openRuleIds);
+        const dropped = [...acrossTools.dropped, ...againstPack.dropped];
+        const { kept, experimental } = await adapterShadowState(
+          deps.db,
+          deps.workspaceId,
+          againstPack.kept,
+        );
+        const findings = [...toIncoming(tools.findings), ...adapterToIncoming(kept, experimental)];
         const persisted = await persistFindings(deps.db, {
           workspaceId: deps.workspaceId,
           repoId: deps.repoId,
           scanRunId: runId,
           pullRequestId: null,
           tier: 1,
-          findings,
+          findings: await attachExcerpts(snapshot.dir, findings),
           // A snapshot run has seen the whole tree, so it may close what it no
           // longer reports — its own findings only.
           reviewedFiles: [...new Set(findings.map((f) => f.file).filter((f): f is string => !!f))],

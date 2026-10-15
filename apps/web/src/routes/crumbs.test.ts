@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveCrumbs } from './__root.js';
+import { deriveCrumbs, documentTitle } from './__root.js';
 
 // The trail that never named the repository (W16-42).
 //
@@ -16,7 +16,7 @@ describe('deriveCrumbs', () => {
   it('names the repository between the section and the tab', () => {
     expect(deriveCrumbs('/repos/34083/security', payments).map((c) => c.label)).toEqual([
       'Org',
-      'Repos',
+      'Repositories',
       'payments',
       'Security',
     ]);
@@ -25,7 +25,7 @@ describe('deriveCrumbs', () => {
   it('is unchanged when no screen has published one', () => {
     expect(deriveCrumbs('/repos/34083/security', null).map((c) => c.label)).toEqual([
       'Org',
-      'Repos',
+      'Repositories',
       'Security',
     ]);
   });
@@ -37,10 +37,10 @@ describe('deriveCrumbs', () => {
     // tells you that you are looking at something you are not.
     expect(deriveCrumbs('/repos/99999/security', payments).map((c) => c.label)).toEqual([
       'Org',
-      'Repos',
+      'Repositories',
       'Security',
     ]);
-    expect(deriveCrumbs('/findings', payments).map((c) => c.label)).toEqual(['Org', 'Findings']);
+    expect(deriveCrumbs('/findings', payments).map((c) => c.label)).toEqual(['Org', 'Reviews']);
   });
 
   it('links the repository crumb back to the repo, so the trail is navigable', () => {
@@ -53,6 +53,45 @@ describe('deriveCrumbs', () => {
   it('still skips a numeric id when nothing named it', () => {
     // "Org › Repos › 34083" would be worse than saying nothing — the same
     // mistake F11 was about, and the reason this was left unfinished.
-    expect(deriveCrumbs('/repos/34083').map((c) => c.label)).toEqual(['Org', 'Repos']);
+    expect(deriveCrumbs('/repos/34083').map((c) => c.label)).toEqual(['Org', 'Repositories']);
+  });
+});
+
+// W18-28: the trail and the rail named the same screens differently, and every
+// tab was titled "RepoPulse".
+describe('trail wording and the document title', () => {
+  it('uses the rail labels for top-level sections', () => {
+    const top = (path: string) => deriveCrumbs(path).map((c) => c.label)[1];
+    expect(top('/findings')).toBe('Reviews');
+    expect(top('/plans')).toBe('Improvement plans');
+    expect(top('/views')).toBe('Saved Views');
+    expect(top('/admin/sync')).toBe('Settings');
+    expect(top('/setup')).toBe('Setup');
+  });
+
+  it('names the Activity and Performance tabs like every other tab', () => {
+    expect(deriveCrumbs('/repos/34083/activity', payments).at(-1)?.label).toBe('Activity');
+    expect(deriveCrumbs('/repos/34083/performance', payments).at(-1)?.label).toBe('Performance');
+  });
+
+  it('names the W18-29 screens (governance, sensitive changes, verified fixes)', () => {
+    expect(deriveCrumbs('/governance').map((c) => c.label)).toEqual(['Org', 'AI-code governance']);
+    expect(deriveCrumbs('/sensitive-changes').map((c) => c.label)).toEqual([
+      'Org',
+      'Sensitive changes',
+    ]);
+    expect(deriveCrumbs('/admin/patches').map((c) => c.label)).toEqual([
+      'Org',
+      'Settings',
+      'Verified fixes',
+    ]);
+  });
+
+  it('titles the tab most-specific first', () => {
+    expect(documentTitle(deriveCrumbs('/repos/34083/security', payments))).toBe(
+      'Security · payments · RepoPulse',
+    );
+    expect(documentTitle(deriveCrumbs('/'))).toBe('Overview · RepoPulse');
+    expect(documentTitle(deriveCrumbs('/findings'))).toBe('Reviews · RepoPulse');
   });
 });

@@ -167,11 +167,15 @@ describe('enablement defaults (FR-SEC-11)', () => {
       'anti_slop',
       'logging_hygiene',
       'performance',
+      // W18-21: rides the secrets stream's diff, so it costs one regex pass.
+      'sensitive_change',
       'supply_chain_register',
       'architecture_register',
       'test_gap_register',
       'knowledge_register',
       'rule_draft_pass',
+      // W18-24: one read per repo a night; skips with a reason without the permission.
+      'code_scanning_pull',
     ]);
     expect(on).not.toContain('dependency');
   });

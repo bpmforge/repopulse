@@ -54,6 +54,8 @@ export interface Finding {
   file: string | null;
   line_range: [number | null, number | null];
   evidence: string;
+  /** Lines of the scanned file around the finding (W18-32), or null. */
+  context?: { start_line: number; lines: string } | null;
   recommendation: string;
   status: string;
   dismiss_reason: string | null;
@@ -83,6 +85,39 @@ export interface Finding {
    * number is a different claim.
    */
   forge?: { url: string; ref_kind: 'commit' | 'branch' } | null;
+  /**
+   * W18-29. Raised by a rule still in SHADOW (CODE_HEALTH_SUITE §8.2): its
+   * precision is being measured, so it is listed only when someone asks for
+   * shadow findings, and always marked when it is.
+   */
+  experimental?: boolean;
+}
+
+/** The explorer's shadow facet — the API's `experimental` query value. */
+export type ShadowMode = 'exclude' | 'only' | 'include';
+
+/** GET /findings — one page, plus what the shadow default held back. */
+export interface FindingPage {
+  items: Finding[];
+  next_cursor: string | null;
+  experimental?: ShadowMode;
+  /** Shadow findings matching the other filters that the default left out; null when none were held back by construction. */
+  shadow_hidden?: number | null;
+}
+
+/** GET /findings/facets (W18-29). */
+export interface RuleFacet {
+  rule_id: string;
+  scanner_key: string | null;
+  active: number;
+  shadow: number;
+  /** rule_registry status, or null when the rule runs as shipped. */
+  lifecycle: string | null;
+}
+
+export interface FindingFacets {
+  rules: RuleFacet[];
+  shadow_total: number;
 }
 
 /** Paired glyph + word — a badge that relies on colour says nothing in print. */

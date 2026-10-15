@@ -37,7 +37,9 @@ const PRESENTATION: Record<ComponentState, { dot: string; text: string; label: s
   degraded: { dot: 'bg-warn', text: 'text-warn', label: 'Degraded' },
   unavailable: { dot: 'bg-crit', text: 'text-crit', label: 'Not working' },
   unknown: { dot: 'bg-fg-muted', text: 'text-fg-muted', label: 'Unknown' },
-  setup_needed: { dot: 'bg-accent', text: 'text-fg-muted', label: 'Setup needed' },
+  // Info blue, not the accent (W18-28): the teal accent sits next to the
+  // green `ok` dot and the two read as the same state in the dark theme.
+  setup_needed: { dot: 'bg-info', text: 'text-fg-muted', label: 'Setup needed' },
 };
 
 /** Modest interval: this is a status panel, not a live console. */

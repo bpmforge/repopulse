@@ -1,0 +1,136 @@
+# bpm-rulepacks — anti-slop, PHP variant v1 (W18-16, CODE_HEALTH_SUITE.md §1/§9).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied, adapted or derived
+# from the Semgrep registry (DESIGN_REVIEW.md G-18). `metadata.source` names the
+# bpm-opencode-experts rule each check implements, as in anti-slop.v1.yaml.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): its findings are stamped experimental and
+# kept out of scores until an admin promotes it on evidence (§8.2).
+#
+# As in the C# and Java variants, only CATCH-ALL handlers (Exception,
+# Throwable, and their namespaced spellings) are the slop shape: an empty
+# `catch (JsonException $e) {}` names the one outcome its author expected.
+# Comments are invisible to patterns, so "truly empty" is decided on the text,
+# and a catch whose body or trailing comment explains itself is left alone.
+rules:
+  - id: bpm-ch-php-empty-catch
+    languages: [php]
+    severity: WARNING
+    message: >-
+      An empty catch-everything block. The failure still happened; the only
+      thing removed was anyone's chance of knowing. Catch the exception you
+      expect, log it, or say in a comment why dropping it is safe.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-inside: |
+          try { ... } catch ($T $E) { }
+      # A variable named `$ignored`/`$expected`/`$unused` is the same statement
+      # as a comment (sabre/dav writes `catch (\Exception $ignore) {}`).
+      - pattern-regex: catch\s*\(\s*\\?(Exception|Throwable)(\s*\|\s*\\?[\w\\]+)*(\s+\$(?!ignored?\b|expected\b|unused\b|_\b)\w+)?\s*\)\s*\{\s*\}(?![ \t]*(//|#|/\*))
+
+  - id: bpm-ch-php-silent-fallback
+    languages: [php]
+    severity: WARNING
+    message: >-
+      Catches everything and returns an empty value. The caller cannot tell
+      "there is nothing" from "we failed to find out" — catch the specific
+      exception you expect, or let the failure reach someone who can act on it.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-inside: |
+          try { ... } catch ($T $E) { return $DEFAULT; }
+      - pattern-regex: catch\s*\(\s*\\?(Exception|Throwable)(\s+\$\w+)?\s*\)\s*\{\s*return\b[^;{}/#]*;\s*\}
+      - metavariable-regex:
+          metavariable: $DEFAULT
+          regex: (?i)^(null|false|0|-1|''|""|\[\]|array\(\))$
+
+  - id: bpm-ch-php-stub-as-feature
+    languages: [php]
+    severity: WARNING
+    message: >-
+      A function that exists and does nothing but refuse. A caller sees the
+      name, not the throw — which is how "we support that" survives into a
+      demo. If the operation is refused by design, say what is unsupported; a
+      "not implemented" says the work was never finished.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '**/tests/**'
+        - '**/test/**'
+        - '**/Tests/**'
+        - '*Test.php'
+    # The WHOLE message is the stub marker: "Not implemented for SQLite" is a
+    # driver refusing an operation by design.
+    pattern-regex: throw\s+new\s+\\?[\w\\]*(Exception|Error)\s*\(\s*(['"])(?i)\s*(not (yet )?implemented|unimplemented|implement me|tbd|todo\b[^'"]*|[^'"]*\bcoming soon\b[^'"]*)\s*[.!]*\s*\2\s*\)
+
+  - id: bpm-ch-php-what-comment
+    languages: [php]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        The comment's object must also appear on the next line ("// call
+        trigger" over `call_trigger(...)`): on the real-code sample, the
+        same phrasings over a block that does something else ("// Get
+        parameters" over six GETPOST lines) were section headers. Matches the
+        mechanical phrasings only ("// increment the counter",
+        "# loop through the rows"), and only when CODE follows on the next
+        line: the same words over a blank line are a section header. A
+        redundant comment in natural prose belongs to the LLM layer.
+    pattern-regex: >-
+      (?im)^[ \t]*(//|#(?!\[))[ \t]*(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new)[ \t]+(the[ \t]+)?\$?(\w{3,})[ \t]*\.?[ \t]*\n[ \t]*(?=[^\s/*#])[^\n]*?\4
+
+  - id: bpm-ch-php-step-narration
+    languages: [php]
+    severity: INFO
+    message: >-
+      Step-numbered narration. Three of these in a row usually means the code
+      was written to a plan and the plan was left behind as comments; the
+      structure they describe should be functions with names.
+    metadata:
+      source: R-14
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '(?m)^[ \t]*(//|#)[ \t]*(Step|STEP)[ \t]*\d+[ \t]*[:.\-]'
+
+  - id: bpm-ch-php-prose-padding
+    languages: [php]
+    severity: INFO
+    message: >-
+      Filler phrasing in a comment. "It is important to note that" and its
+      relatives carry no information — they are what a model produces when it
+      has nothing specific to say.
+    metadata:
+      source: R-29
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A phrase list, not a measure of density. "This class is responsible
+        for", in the JS/JVM lists, is left out: in docblocks it was ordinary
+        human documentation on every real-code hit (sabre/dav, pythonnet,
+        AvalonEdit). The LDR calculation is the
+        real answer and is computed in the anti_slop scanner, not here.
+    pattern-regex: >-
+      (?i)(//|#|^[ \t]*\*).*\b(it is important to note|it should be noted|as we can see|in order to be able to|needless to say|at the end of the day)\b

@@ -63,6 +63,7 @@ describe('GiteaProvider contract (W7-02, zero network)', () => {
       hasRateLimits: false,
       maxPerPage: 50,
       webhookScheme: 'hub-signature',
+      supportsCodeScanningAlerts: false,
     });
   });
 

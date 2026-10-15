@@ -1,5 +1,6 @@
 import type {
   ForgeCheckRun,
+  ForgeCodeScanningAlert,
   ForgeCommit,
   ForgeDeployment,
   ForgeDiffFile,
@@ -9,6 +10,7 @@ import type {
   ForgeRelease,
   ForgeRepo,
   ForgeReview,
+  ForgeReviewComment,
 } from '../types.js';
 import { repoFeatures } from '../types.js';
 
@@ -122,7 +124,7 @@ export interface RawPR {
   closed_at: string | null;
   merged_by?: RawUser | null;
   base: { ref: string };
-  head: { sha: string };
+  head: { sha: string; ref?: string };
   additions?: number;
   deletions?: number;
   changed_files?: number;
@@ -146,6 +148,7 @@ export function normalizePR(p: RawPR): ForgePR {
     mergedByLogin: p.merged_by?.login ?? null,
     baseRef: p.base.ref,
     headSha: p.head.sha,
+    ...(p.head.ref ? { headRef: p.head.ref } : {}),
     ...(p.additions !== undefined ? { additions: p.additions } : {}),
     ...(p.deletions !== undefined ? { deletions: p.deletions } : {}),
     ...(p.changed_files !== undefined ? { changedFiles: p.changed_files } : {}),
@@ -169,6 +172,54 @@ export function normalizeReview(r: RawReview, prNumber: number): ForgeReview | n
     reviewerLogin: r.user?.login ?? '',
     state,
     submittedAt: r.submitted_at ?? '',
+  };
+}
+
+export interface RawReviewComment {
+  id: number;
+  pull_request_review_id?: number | null;
+  user: RawUser | null;
+  created_at: string;
+  path: string;
+  subject_type?: string | null;
+  in_reply_to_id?: number | null;
+  start_line?: number | null;
+  original_start_line?: number | null;
+  line?: number | null;
+  original_line?: number | null;
+  commit_id: string;
+  original_commit_id: string;
+}
+
+/**
+ * GET /pulls/{n}/comments item → ForgeReviewComment (W18-23).
+ *
+ * `line` is the anchor on the current head diff and GitHub nulls it once a
+ * later push rewrote the commented lines; `original_line` keeps where it was
+ * written. Older payloads lack `subject_type`; a comment with no original line
+ * at all can only be file-level, so that is what it is read as.
+ */
+export function normalizeReviewComment(c: RawReviewComment, prNumber: number): ForgeReviewComment {
+  const originalLine = c.original_line ?? null;
+  const subjectType: ForgeReviewComment['subjectType'] =
+    c.subject_type === 'file' || originalLine === null ? 'file' : 'line';
+  return {
+    externalId: String(c.id),
+    prNumber,
+    reviewExternalId:
+      c.pull_request_review_id === null || c.pull_request_review_id === undefined
+        ? null
+        : String(c.pull_request_review_id),
+    authorLogin: c.user?.login ?? '',
+    createdAt: c.created_at,
+    path: c.path,
+    subjectType,
+    isReply: c.in_reply_to_id !== null && c.in_reply_to_id !== undefined,
+    originalStartLine: c.original_start_line ?? null,
+    originalLine,
+    line: c.line ?? null,
+    originalCommitSha: c.original_commit_id,
+    commitSha: c.commit_id,
   };
 }
 
@@ -275,5 +326,60 @@ export function normalizeFileContent(f: RawFileContent, ref: string): ForgeFileC
     sizeBytes: f.size,
     content: truncated ? null : (f.content ?? null),
     truncated,
+  };
+}
+
+// GET /repos/{owner}/{repo}/code-scanning/alerts (W18-24). Only the fields we
+// map; everything is optional because the alert API omits what a tool did not
+// report (no security_severity_level on a non-security query, no location on a
+// repository-level alert), and a missing field must read as null, not crash.
+export interface RawCodeScanningAlert {
+  number: number;
+  state?: string | null;
+  html_url?: string | null;
+  rule?: {
+    id?: string | null;
+    name?: string | null;
+    description?: string | null;
+    severity?: string | null;
+    security_severity_level?: string | null;
+    tags?: string[] | null;
+  } | null;
+  tool?: { name?: string | null; version?: string | null } | null;
+  most_recent_instance?: {
+    commit_sha?: string | null;
+    location?: {
+      path?: string | null;
+      start_line?: number | null;
+      end_line?: number | null;
+    } | null;
+    message?: { text?: string | null } | null;
+  } | null;
+}
+
+const positiveInt = (n: number | null | undefined): number | null =>
+  typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : null;
+
+export function normalizeCodeScanningAlert(a: RawCodeScanningAlert): ForgeCodeScanningAlert {
+  const instance = a.most_recent_instance ?? null;
+  const location = instance?.location ?? null;
+  const startLine = positiveInt(location?.start_line);
+  return {
+    number: a.number,
+    state: a.state ?? 'open',
+    ruleId: a.rule?.id ?? 'unknown-rule',
+    ruleName: a.rule?.name ?? null,
+    ruleDescription: a.rule?.description ?? null,
+    ruleSeverity: a.rule?.severity ?? null,
+    securitySeverityLevel: a.rule?.security_severity_level ?? null,
+    ruleTags: Array.isArray(a.rule?.tags) ? a.rule.tags.filter((t) => typeof t === 'string') : [],
+    toolName: a.tool?.name ?? 'unknown-tool',
+    toolVersion: a.tool?.version ?? null,
+    path: location?.path ? location.path : null,
+    startLine,
+    endLine: positiveInt(location?.end_line) ?? startLine,
+    message: instance?.message?.text ?? null,
+    commitSha: instance?.commit_sha ?? null,
+    htmlUrl: a.html_url ?? null,
   };
 }

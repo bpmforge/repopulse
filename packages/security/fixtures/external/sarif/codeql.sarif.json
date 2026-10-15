@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "CodeQL",
+          "organization": "GitHub",
+          "semanticVersion": "2.19.0",
+          "notifications": [],
+          "rules": []
+        },
+        "extensions": [
+          {
+            "name": "codeql/javascript-queries",
+            "semanticVersion": "1.1.0",
+            "rules": [
+              {
+                "id": "js/sql-injection",
+                "name": "js/sql-injection",
+                "shortDescription": { "text": "Database query built from user-controlled sources" },
+                "fullDescription": {
+                  "text": "Building a database query from user-controlled sources is vulnerable to insertion of malicious code by the user."
+                },
+                "defaultConfiguration": { "enabled": true, "level": "error" },
+                "properties": {
+                  "tags": ["security", "external/cwe/cwe-089", "external/cwe/cwe-090"],
+                  "description": "Building a database query from user-controlled sources is vulnerable to insertion of malicious code by the user.",
+                  "id": "js/sql-injection",
+                  "kind": "path-problem",
+                  "name": "Database query built from user-controlled sources",
+                  "precision": "high",
+                  "problem.severity": "error",
+                  "security-severity": "8.8"
+                }
+              },
+              {
+                "id": "js/unused-local-variable",
+                "name": "js/unused-local-variable",
+                "shortDescription": { "text": "Unused variable, import, function or class" },
+                "defaultConfiguration": { "enabled": true, "level": "note" },
+                "properties": {
+                  "tags": ["maintainability"],
+                  "kind": "problem",
+                  "precision": "very-high",
+                  "problem.severity": "recommendation"
+                }
+              },
+              {
+                "id": "js/weak-cryptographic-algorithm",
+                "name": "js/weak-cryptographic-algorithm",
+                "shortDescription": { "text": "Use of a broken or weak cryptographic algorithm" },
+                "defaultConfiguration": { "enabled": true, "level": "warning" },
+                "properties": {
+                  "tags": ["security", "external/cwe/cwe-327"],
+                  "precision": "high",
+                  "security-severity": "7.5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        { "location": { "uri": "src/db.js", "uriBaseId": "%SRCROOT%", "index": 0 } },
+        { "location": { "uri": "src/util.js", "uriBaseId": "%SRCROOT%", "index": 1 } },
+        { "location": { "uri": "src/crypto.js", "uriBaseId": "%SRCROOT%", "index": 2 } }
+      ],
+      "results": [
+        {
+          "ruleId": "js/sql-injection",
+          "rule": { "id": "js/sql-injection", "index": 0, "toolComponent": { "index": 0 } },
+          "message": { "text": "This query string depends on a [user-provided value](1)." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/db.js", "uriBaseId": "%SRCROOT%", "index": 0 },
+                "region": { "startLine": 17, "startColumn": 22, "endColumn": 61 }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "primaryLocationLineHash": "c6a3b9e2f1d40a77:1",
+            "primaryLocationStartColumnFingerprint": "17"
+          },
+          "codeFlows": [{ "threadFlows": [{ "locations": [] }] }],
+          "relatedLocations": [
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/db.js", "uriBaseId": "%SRCROOT%", "index": 0 },
+                "region": { "startLine": 9, "startColumn": 15, "endColumn": 24 }
+              },
+              "message": { "text": "user-provided value" }
+            }
+          ]
+        },
+        {
+          "ruleId": "js/unused-local-variable",
+          "rule": { "id": "js/unused-local-variable", "index": 1, "toolComponent": { "index": 0 } },
+          "message": { "text": "Unused variable retries." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/util.js", "uriBaseId": "%SRCROOT%", "index": 1 },
+                "region": { "startLine": 3, "startColumn": 7, "endColumn": 14 }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "primaryLocationLineHash": "1e0b7d55a9c2f8e3:1",
+            "primaryLocationStartColumnFingerprint": "2"
+          }
+        },
+        {
+          "ruleId": "js/weak-cryptographic-algorithm",
+          "rule": {
+            "id": "js/weak-cryptographic-algorithm",
+            "index": 2,
+            "toolComponent": { "index": 0 }
+          },
+          "message": {
+            "text": "A broken or weak cryptographic algorithm (MD5) depends on sensitive data."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/crypto.js",
+                  "uriBaseId": "%SRCROOT%",
+                  "index": 2
+                },
+                "region": { "startLine": 8, "startColumn": 10, "endColumn": 40 }
+              }
+            }
+          ],
+          "partialFingerprints": { "primaryLocationLineHash": "77aa01c3e5f9b2d4:1" }
+        },
+        {
+          "ruleId": "js/unused-local-variable",
+          "rule": { "id": "js/unused-local-variable", "index": 1, "toolComponent": { "index": 0 } },
+          "message": { "text": "Unused variable legacy." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/util.js", "uriBaseId": "%SRCROOT%", "index": 1 },
+                "region": { "startLine": 30, "startColumn": 7, "endColumn": 13 }
+              }
+            }
+          ],
+          "partialFingerprints": { "primaryLocationLineHash": "5b5b5b5b5b5b5b5b:1" },
+          "suppressions": [{ "kind": "inSource" }]
+        }
+      ],
+      "columnKind": "utf16CodeUnits",
+      "properties": { "semmle.formatSpecifier": "sarif-latest" },
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "https://github.com/acme/widgets",
+          "revisionId": "3f786850e387550fdab836ed7e6dc881de23001b",
+          "branch": "refs/heads/main"
+        }
+      ],
+      "automationDetails": { "id": "/language:javascript/" }
+    }
+  ]
+}

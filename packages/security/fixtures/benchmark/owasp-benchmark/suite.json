@@ -1,0 +1,274 @@
+{
+  "id": "owasp-benchmark",
+  "title": "OWASP Benchmark (Java) subset",
+  "description": "Test cases from OWASP Benchmark v1.2 with their published verdicts (expectedresults-1.2.csv). The first five real and five false-positive cases of six categories, in answer-key order. Scored per OWASP's own unit: a case is a file and a CWE, so only findings carrying the case's CWE count, and findings for other CWEs are ignored rather than counted against us. GPL-2.0, so NOT vendored: run the prepare script to fetch the pinned bytes into the gitignored .cache.",
+  "source": {
+    "kind": "fetched",
+    "repository": "https://github.com/OWASP-Benchmark/BenchmarkJava",
+    "licence": "GPL-2.0 (not vendored; fetched at prep time into a gitignored cache)",
+    "notes": "Committed here: commit, test ids and SHA-256 digests only. No GPL source or derived text."
+  },
+  "unlabelled": "ignore",
+  "trees": [
+    {
+      "id": "testcode",
+      "path": ".cache/testcode"
+    }
+  ],
+  "labels": [],
+  "fetch": {
+    "rawUrl": "https://raw.githubusercontent.com/OWASP-Benchmark/BenchmarkJava/{commit}/{path}",
+    "commit": "0a3113b7054a56a072e694ab65a2f8cd7405aeb7",
+    "answerKey": {
+      "path": "expectedresults-1.2.csv",
+      "sha256": "1809f6a690c6cf7dd6685df6ebe2eef8fe3ca93d19a7ca0ce45987ca4f5d78e1"
+    },
+    "sourceDir": "src/main/java/org/owasp/benchmark/testcode",
+    "selection": {
+      "categories": ["sqli", "cmdi", "pathtraver", "hash", "crypto", "weakrand"],
+      "perVerdict": 5
+    },
+    "files": [
+      {
+        "test": "BenchmarkTest00008",
+        "sha256": "9bc49dbe491a39162c97b0c43b8ce5e42a4de5c0552c52117b1a51b0a541dfbe"
+      },
+      {
+        "test": "BenchmarkTest00018",
+        "sha256": "f050b4ae7057c0e3a8271eae86cdb92a0337fe7b61f05f4b9d8015ca9d707da7"
+      },
+      {
+        "test": "BenchmarkTest00024",
+        "sha256": "6886ac19a08825f801e4222341f2ba26685abf710203ac2ee85f7e2b46216fd4"
+      },
+      {
+        "test": "BenchmarkTest00025",
+        "sha256": "c136d4ea5dc4f7f5f210968d90c0803c575b7faeb5ab5e00511467ee6197812a"
+      },
+      {
+        "test": "BenchmarkTest00026",
+        "sha256": "a89db0c923b404cb60c2716f5fd5c947e4455d27d015cbfc54b9aedd85b9986d"
+      },
+      {
+        "test": "BenchmarkTest00052",
+        "sha256": "eaebe123b57b506dc834783c2567bc85f069d4e767b1ce5a003c16675da866ed"
+      },
+      {
+        "test": "BenchmarkTest00104",
+        "sha256": "4b0677a26e4db2d942f78317bf72e8fe8f12162434c1b24a2eeeb97c3ce9d6e7"
+      },
+      {
+        "test": "BenchmarkTest00105",
+        "sha256": "beb988583d806821aa74f4a3c7676d3c25d39cd0638c3ea3e505dcbdba2758ba"
+      },
+      {
+        "test": "BenchmarkTest00107",
+        "sha256": "bbc65175b65683af4801fc29fac1d1022007212120a167ff9569ab5cbd7a1580"
+      },
+      {
+        "test": "BenchmarkTest00110",
+        "sha256": "935fff05d123be4e86888efafdfe2d31b619e807788c8755547bf4afd77808a6"
+      },
+      {
+        "test": "BenchmarkTest00006",
+        "sha256": "8671e8cd2686594b31abba5a17021472e25c5e3d074362a164dae2a5a4e8deda"
+      },
+      {
+        "test": "BenchmarkTest00007",
+        "sha256": "2fa47beaa6be3b3e9fa64841a0e80a0f7965517fd79b3f30eb1f10a20a3ed721"
+      },
+      {
+        "test": "BenchmarkTest00015",
+        "sha256": "24286877c4ae1934baef0f29b092d49f79d2e111b9447373d52bf48a0ec504b6"
+      },
+      {
+        "test": "BenchmarkTest00017",
+        "sha256": "dba3b5aa942ad54c973a2905d8abe8d6961a79917bb71b81aa7f0ba2dc692f3a"
+      },
+      {
+        "test": "BenchmarkTest00077",
+        "sha256": "0f668996d07db069f0a0c1ad0dbfe7ea09e5042a32502d52651bf4d955200d25"
+      },
+      {
+        "test": "BenchmarkTest00051",
+        "sha256": "edc6c2af0c174db15d58c95113dddd0080c80ea00dde63efa4fa700da0915b52"
+      },
+      {
+        "test": "BenchmarkTest00090",
+        "sha256": "da3320616948fc747c08a266c94d0bfef4258bea912162fd09c5442ee476299d"
+      },
+      {
+        "test": "BenchmarkTest00093",
+        "sha256": "0e8d1caa5d3f5aec6a84911ad7f06753df71277d05e576a82a6aa86bf0ec9c92"
+      },
+      {
+        "test": "BenchmarkTest00158",
+        "sha256": "0f8814857166c2731619ffc015eb10f57b82c65164799f16b0c6551ec8a82aa2"
+      },
+      {
+        "test": "BenchmarkTest00171",
+        "sha256": "d9a57ece3f1a52fe61a047d03447dca76086ec8173429970a91ffddcbf21b888"
+      },
+      {
+        "test": "BenchmarkTest00001",
+        "sha256": "a83e78f8e9dd7b941c19eb2709429a2b7bec32b8921c193f3d02c4a04097a4b7"
+      },
+      {
+        "test": "BenchmarkTest00002",
+        "sha256": "34ffca044de7a7c3d47e5b1a48d5b35c42fff120e82df6969c5719e25259f2ac"
+      },
+      {
+        "test": "BenchmarkTest00011",
+        "sha256": "2f7d82f88b6c0d4f2220c1b4b3ae4108cb8d9d8c766393e2473ec7f78db9c116"
+      },
+      {
+        "test": "BenchmarkTest00028",
+        "sha256": "7836abb28902a9676f62550d407eb652ed7128772e67a1f2093c2b42b85fbc71"
+      },
+      {
+        "test": "BenchmarkTest00040",
+        "sha256": "d0c0a5ae358ae44c612d959104e0ffe3440db7ef1c6da8cb1a59c855d18bfffe"
+      },
+      {
+        "test": "BenchmarkTest00063",
+        "sha256": "36cf79aee6a1c62ab8d832a3f32c08d4812d549c2417b6a5aac450794b37f1b2"
+      },
+      {
+        "test": "BenchmarkTest00064",
+        "sha256": "9fb11d0a89e1cea81382dc9150e8d938cc201b4c780e9dfc98433eb04f0196ac"
+      },
+      {
+        "test": "BenchmarkTest00131",
+        "sha256": "7091b80b2b9f186efb922d80fea3c20042f2af29affb157b154e67789c0c889a"
+      },
+      {
+        "test": "BenchmarkTest00132",
+        "sha256": "0b7b0d2ccc2cfd09114c7eb2048d9a2d3cbac6b3aa54ae23643dfc495fff2a6d"
+      },
+      {
+        "test": "BenchmarkTest00134",
+        "sha256": "b740e58e539ebe493d573572c1ea20a6daae4fa81b4cd4590e8ed176bcc7df56"
+      },
+      {
+        "test": "BenchmarkTest00003",
+        "sha256": "13134297b4aa87c09b5ae6bb1e92eb0dafbfe25525d57fa1511896ec0f46b247"
+      },
+      {
+        "test": "BenchmarkTest00029",
+        "sha256": "244162e74f999b0b201d83363ce45a302e40070376fb6152e0f4dedabda67f13"
+      },
+      {
+        "test": "BenchmarkTest00046",
+        "sha256": "60b8d98911614f63a5ff61ac0f4ee0bcca4b69b879b23a297fba355c13043f48"
+      },
+      {
+        "test": "BenchmarkTest00070",
+        "sha256": "188a38c3a5ef58d6d9f8cb9030a2a46877f5f8a9d141eb7b9ae62e6edd23976b"
+      },
+      {
+        "test": "BenchmarkTest00071",
+        "sha256": "34ae17cd19822182072364ec8d8a9d04b2f84c23a6634b98fdc31c7178425167"
+      },
+      {
+        "test": "BenchmarkTest00009",
+        "sha256": "4b821de37870d10de8c5ac4a3005267f46e533ac695b8af6a7f2785f6d682500"
+      },
+      {
+        "test": "BenchmarkTest00022",
+        "sha256": "60961110dced11495d2a33bcc5f6f8c78342ccbeebf7432f875ae1f9b8988278"
+      },
+      {
+        "test": "BenchmarkTest00069",
+        "sha256": "1f1042f9efbe988d76f57fbeee20454551bbee1241ecb46d27f9a0cfefef32db"
+      },
+      {
+        "test": "BenchmarkTest00072",
+        "sha256": "7b4583f65aab0e79c6cea22985add670959fa18919e3cf8e5b9c77c60bf2f2a9"
+      },
+      {
+        "test": "BenchmarkTest00075",
+        "sha256": "40b2c9a52a21ca03b82f3b493c7407b20a5eb76b6bdefc4283ab5e2a49ee32cb"
+      },
+      {
+        "test": "BenchmarkTest00005",
+        "sha256": "d0c8ba1cf523346cce805fdc434a8100db734b729fc8d5a50a20ad3b2a1da2a1"
+      },
+      {
+        "test": "BenchmarkTest00019",
+        "sha256": "39ef449167a10c54914c3675b696975b3e8c41db3ecb9e5531568a831da4cffe"
+      },
+      {
+        "test": "BenchmarkTest00020",
+        "sha256": "d14c898500e39bf03a7f209b9619e2565efc4bc450c32b212e06767fad8e9e11"
+      },
+      {
+        "test": "BenchmarkTest00035",
+        "sha256": "66b7205688c29cf897ab0d0629a70f85226dca15206d6aa4b7ea6cd50b88566c"
+      },
+      {
+        "test": "BenchmarkTest00050",
+        "sha256": "7a7dbfd9859b8072170c0a864e5d66477b613f313aa468ce868d160f8aa551d1"
+      },
+      {
+        "test": "BenchmarkTest00054",
+        "sha256": "8f4170ba1a8c2e4683ae731e3acaa594f8bcd9392c7ca58a91af33f5d5035571"
+      },
+      {
+        "test": "BenchmarkTest00058",
+        "sha256": "1ed81151c2572f25e062ddf11f644dc261dc6fe6fb57e71316ee7e536a167da9"
+      },
+      {
+        "test": "BenchmarkTest00059",
+        "sha256": "7d2dbe848e4fa9a017beed4e42ddf4e617876534f7a185af57cd966df3836e49"
+      },
+      {
+        "test": "BenchmarkTest00121",
+        "sha256": "7cbd4a5129b11cadeaaea1ab2658e84c1f6174bbb447e44dae2748be5e81382f"
+      },
+      {
+        "test": "BenchmarkTest00122",
+        "sha256": "cd771069702bc9ababe131a036034cc92617256496966cc1cc8f1a67578b7a13"
+      },
+      {
+        "test": "BenchmarkTest00023",
+        "sha256": "4a1e99b60cfc26ba6fc2ee11d6e3aec95cbfb936800e7555fd9db065c673a595"
+      },
+      {
+        "test": "BenchmarkTest00066",
+        "sha256": "da70f4c1b30833364eff51066b48735ea7a9437dc7caf582f2cc7f50f8bcb8a5"
+      },
+      {
+        "test": "BenchmarkTest00067",
+        "sha256": "e8fdf5df00803a9ed4b6b52bf865d64bc074ac1493ae45b6dde266afc1f1e00e"
+      },
+      {
+        "test": "BenchmarkTest00068",
+        "sha256": "bac051874d6dfee3503b499165b2e205b350bc793c8594b8606f580be4a39f98"
+      },
+      {
+        "test": "BenchmarkTest00078",
+        "sha256": "818ef08fe6260ca55f3f772ffac35bf43ba470b44e2d2cdcc7444c437e22f25c"
+      },
+      {
+        "test": "BenchmarkTest00010",
+        "sha256": "3546ba4ceb6d8bb45e2c305e863c7335fd909eec5083f557b10b00088b6a55fe"
+      },
+      {
+        "test": "BenchmarkTest00042",
+        "sha256": "38dad0f0ebbd699e65c9cb23bfb2bbe37149000d1b5b978bc4d8ad5f00de08d0"
+      },
+      {
+        "test": "BenchmarkTest00094",
+        "sha256": "a85a77fd45d123d395b7803111c89a2fa60de85ffc48378df2209500f2735508"
+      },
+      {
+        "test": "BenchmarkTest00095",
+        "sha256": "a4bb18a6da589748121c25f008938864b42edd0bb6b90d5b9d889d6a12b35989"
+      },
+      {
+        "test": "BenchmarkTest00096",
+        "sha256": "ea29b61690df55d2baa8978a4bb92d4ea135911e0769447093aed951e9f21ca5"
+      }
+    ]
+  }
+}

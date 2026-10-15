@@ -8,7 +8,8 @@ import {
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { formatAge, type MyPrs, type ReviewQueue } from '../me/contracts.js';
-import { SEVERITY_LABEL, locationOf, type Finding } from '../findings/contracts.js';
+import { locationOf, type Finding } from '../findings/contracts.js';
+import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 
 // The widget types the VIEW TEMPLATES ask for (W16-55).
 //
@@ -167,38 +168,45 @@ registerWidget({
         onRetry={() => void refetch()}
         emptyMessage="No open findings. Findings appear once an analysis or scanner run completes."
       >
-        <table className="w-full text-sm" data-testid="widget-finding-table">
-          <caption className="sr-only">Open findings across every analysed repository</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Severity</th>
-              <th scope="col">Finding</th>
-              <th scope="col">Repository</th>
-              <th scope="col">Where</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.slice(0, 10).map((f) => (
-              <tr key={f.id} className="border-t border-border">
-                {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
-                <td className="py-1 whitespace-nowrap">
-                  {SEVERITY_LABEL[f.severity] ?? f.severity}
-                </td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  <Link
-                    to="/findings"
-                    search={{ finding: f.id } as never}
-                    className="text-accent hover:underline"
-                  >
-                    {f.title}
-                  </Link>
-                </th>
-                <td className="py-1 text-xs">{f.repo.name}</td>
-                <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
+        {/* W18-28: scrolls inside its own region at phone width instead of
+            squeezing every column until the headers run together. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Open findings">
+          <table
+            className="table-plain w-full min-w-[40rem] text-sm"
+            data-testid="widget-finding-table"
+          >
+            <caption className="sr-only">Open findings across every analysed repository</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Severity</th>
+                <th scope="col">Finding</th>
+                <th scope="col">Repository</th>
+                <th scope="col">Where</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.slice(0, 10).map((f) => (
+                <tr key={f.id} className="border-t border-border">
+                  {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
+                  <td className="py-1 whitespace-nowrap">
+                    <FindingSeverityBadge severity={f.severity} />
+                  </td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    <Link
+                      to="/findings"
+                      search={{ finding: f.id } as never}
+                      className="text-accent hover:underline"
+                    >
+                      {f.title}
+                    </Link>
+                  </th>
+                  <td className="py-1 text-xs">{f.repo.name}</td>
+                  <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
     );
   },

@@ -45,15 +45,23 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootShell,
 });
 
+// The rail's own words (W18-28). The trail used to say "Findings", "Plans",
+// "Views" and "Admin" under a rail that says "Reviews", "Improvement plans",
+// "Saved Views" and "Settings", so the two halves of the wayfinding named the
+// same screen differently and neither matched the page heading.
 const SEGMENT_LABELS: Record<string, string> = {
-  repos: 'Repos',
+  repos: 'Repositories',
   'pull-requests': 'Pull Requests',
-  findings: 'Findings',
-  plans: 'Plans',
+  findings: 'Reviews',
+  plans: 'Improvement plans',
   reports: 'Reports',
-  views: 'Views',
-  admin: 'Admin',
+  views: 'Saved Views',
+  admin: 'Settings',
   me: 'My Focus',
+  setup: 'Setup',
+  // W18-29. Not rail entries: reached from the Overview tile and from Reviews.
+  governance: 'AI-code governance',
+  'sensitive-changes': 'Sensitive changes',
 };
 
 /**
@@ -64,8 +72,11 @@ const SEGMENT_LABELS: Record<string, string> = {
  * repository nor the tab, so the trail described a screen nobody was on.
  */
 const SUBPAGE_LABELS: Record<string, string> = {
+  activity: 'Activity',
+  performance: 'Performance',
   hotspots: 'Hotspots',
   'pr-flow': 'PR Flow',
+  'ai-reviewers': 'AI Reviewers',
   ci: 'CI',
   findings: 'Findings',
   security: 'Security',
@@ -80,6 +91,7 @@ const SUBPAGE_LABELS: Record<string, string> = {
   rules: 'Rules',
   analysis: 'Analysis',
   models: 'Models',
+  patches: 'Verified fixes',
   settings: 'Settings',
   setup: 'Setup',
 };
@@ -104,6 +116,17 @@ export function deriveCrumbs(pathname: string, entity?: EntityCrumb | null): Cru
   const sub = segments.slice(1).find((seg) => SUBPAGE_LABELS[seg] !== undefined);
   if (sub) crumbs.push({ label: SUBPAGE_LABELS[sub]! });
   return crumbs;
+}
+
+/**
+ * The browser-tab title for a trail (W18-28): most specific first, so the part
+ * that differs between tabs is the part a narrow tab still shows.
+ * "Security · payments · RepoPulse"; the bare root is "Overview · RepoPulse".
+ */
+export function documentTitle(crumbs: Crumb[]): string {
+  const named = crumbs.slice(1).map((c) => c.label);
+  const parts = named.length === 0 ? ['Overview'] : named.slice(-2).reverse();
+  return [...parts, 'RepoPulse'].join(' · ');
 }
 
 // The shell is for people who are signed in. RootShell decides which of the
@@ -282,6 +305,15 @@ function AppShell() {
   // Published by the screen that loaded the entity — the repo layout sets its
   // name here, because the URL only carries an id (W16-42).
   const entityCrumb = useUiStore((s) => s.entityCrumb);
+  const crumbs = deriveCrumbs(pathname, entityCrumb);
+  const title = documentTitle(crumbs);
+
+  // Every screen was titled "RepoPulse" (W18-28), so browser tabs, history and
+  // a screen reader's page announcement could not tell Overview from a
+  // repository's Security tab (WCAG 2.4.2). The trail already names the screen.
+  useEffect(() => {
+    document.title = title;
+  }, [title]);
 
   // W17-14 drawer state. Lives in the shell rather than the drawer so the
   // trigger and the panel share it, and so focus can return to the trigger.
@@ -330,7 +362,7 @@ function AppShell() {
         {/* Global: ⌘K works from every screen (UX_SPEC §3.3). */}
         <CommandPalette />
         <Topbar value={search} onChange={onFilterChange} scope={scope} repoOptions={repoOptions} />
-        <Breadcrumb crumbs={deriveCrumbs(pathname, entityCrumb)} search={preservedSearch} />
+        <Breadcrumb crumbs={crumbs} search={preservedSearch} />
         <main className="min-h-0 flex-1 overflow-auto p-5" data-testid="main">
           <Outlet />
         </main>

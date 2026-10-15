@@ -31,6 +31,8 @@ export type WidgetType =
   | 'risk-axes'
   // W17-17. Its own type, same reason as the ones above.
   | 'top-actions'
+  // W18-20. Its own type, same reason as the ones above.
+  | 'ai-governance'
   | 'my-prs'
   | 'my-queue'
   | 'text';

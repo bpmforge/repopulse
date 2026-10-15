@@ -57,7 +57,7 @@ rule7_scan_tool_spawn() { # $1 = root -> prints violations, exits nonzero if any
   # outside the profile: with the host network, the host filesystem and this
   # process's environment. The profile is the whole trust boundary (NFR-14).
   # shellcheck disable=SC2086
-  hits="$(grep -RInE "(spawn|exec|execFile|execSync|spawnSync)[A-Za-z]*\(\s*['\"](semgrep|gitleaks|trivy|syft|grype|osv-scanner|trufflehog|checkov)" $scan_dirs 2>/dev/null \
+  hits="$(grep -RInE "(spawn|exec|execFile|execSync|spawnSync)[A-Za-z]*\(\s*['\"](semgrep|gitleaks|trivy|syft|grype|osv-scanner|trufflehog|checkov|shellcheck|hadolint|actionlint|cppcheck|ruff|biome)" $scan_dirs 2>/dev/null \
     | grep -v 'snapshot/arch-rules.test.ts' || true)"
 
   if [ -n "$hits" ]; then

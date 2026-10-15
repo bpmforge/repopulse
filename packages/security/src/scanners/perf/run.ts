@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { security, type Database, safeErrorText } from '@repopulse/shared';
+import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { shadowFindings } from '../../rules/shadow.js';
 import { runSemgrepScan, SEMGREP_RULEPACK_DIR } from '../semgrep/scanner.js';
@@ -170,7 +171,7 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
       scanRunId: runId,
       pullRequestId: deps.pullRequestId ?? null,
       tier: 1,
-      findings,
+      findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: PERF_SCANNER_KEY,
     });
 

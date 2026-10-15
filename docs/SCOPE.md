@@ -3,6 +3,11 @@
 Traces to: `docs/work/FOUNDING_BRIEF.md`. Scope items are numbered **S-x** for
 traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 
+Product line (D16, 2026-10-15): Repo Pulse is a self-hosted code security and
+quality platform for teams shipping AI-written code, with delivery metrics as
+context. The v1 health-dashboard slice below is where it started (D5); the
+security, code-health and risk waves (W8–W10) and W18 are the product's core.
+
 ## In scope — v1 (MVP: health dashboard slice, per D5)
 
 | ID | Item | Brief trace |
@@ -29,7 +34,7 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-22 | Gitea adapter implementing `ForgeProvider`. | D3 |
 | S-23 | Tier-3 deep review: Claude API, opt-in per repo/PR, minimized payload (see CONSTRAINTS.md). | D2 |
 | S-24 | Findings scoring/trends in `insights` (confidence scores, verify tier, trend lines over findings). | D2 |
-| S-25 | PR comment write-back of review findings (advisory only, never blocking). | NON_GOALS N-3 boundary |
+| S-25 | ~~PR comment write-back of review findings (advisory only, never blocking).~~ **WITHDRAWN** — D9a (2026-08-12) forbids Repo Pulse posting PR comments, and D16 (2026-10-15) reaffirms it. PR-time results reach developers through the customer's own CI instead (S-73). | D9a, D16 |
 
 ## In scope — wave W8: Security Suite (post-v1, per D8/C1a; design: docs/design/SECURITY_SUITE.md)
 
@@ -86,16 +91,37 @@ traceability; downstream FR-x/NFR-x requirements (per C3) must cite an S-x.
 | S-65 | Architecture-drift register phase A (config-free): dependency cycles, god modules, orphan clusters via standalone import-graph adapters (dependency-cruiser, import-linter, go list) through the D11 ToolAdapter admission filter; declared-boundary phase B deferred. | D13 (FR-REG-5) |
 | S-66 | Test-gap register (warehouse-only): hot files whose changes never co-change with tests; coverage ingestion parked (separate decision, forge-budget review). Supply-chain sub-score + axis, D12 factor declarations, plan-catalog entries for all four registers. | D13 (FR-REG-6/7) |
 
+## In scope — wave W18: code security and quality platform (D16; tickets W18-01..W18-30 in `plan.json`)
+
+Every item keeps D9a: Repo Pulse reads, recommends and verifies, and never writes to a
+customer repo. Every new rule ships in shadow mode with triggering and clean fixtures.
+
+| ID | Item | Brief trace |
+|----|------|-------------|
+| S-70 | Mechanical fast lane: in-process checks over a shared import/export index (unused exports, phantom names and modules, test integrity, suppression density and disabled safety, structural slop, dependency hygiene, leftover content, speculative generality and async smells, pattern-lane taint rules); anti-slop.v2 sends the LLM only the fast-lane candidates, with evidence (W18-01..W18-10, W18-30). | D11, D16 |
+| S-71 | Language packs beyond JS/TS: anti-slop, logging, security-baseline and perf rules plus import graphs for Python, Go, Java/Kotlin, Rust, C/C++ (with cppcheck), C#, PHP and Ruby (W18-11..W18-16). | D11, D16 |
+| S-72 | Published accuracy: a benchmark harness over a pinned, graded corpus (bug-introducing PRs, OWASP Benchmark subset, AI-slop corpus) reporting precision and recall per rule and dimension per release (W18-17). | D16 |
+| S-73 | Customer-CI pull: a PR findings API behind a scoped read-only token and a `repopulse check` CLI that exits non-zero on configurable thresholds and emits SARIF and markdown, so the customer's CI fails its own build or posts with its own token. No forge write scope is added (W18-18). | D9a, D16 |
+| S-74 | Verified patches: the model drafts a patch for a finding; the sandbox applies it to the scan snapshot and re-runs that file's rules; it is shown (copy/download) only if the finding clears and nothing new appears, otherwise stored as rejected with the reason. Nothing is written to the forge (W18-19). | D9a, D16 |
+| S-75 | AI-code governance report: AI-authored vs human changes compared on findings per change, rework, revert rate and review depth; groups, never a per-developer ranking (W18-20). | D11, D16, N-9 |
+| S-76 | Sensitive-change radar: diff-mode rules flag removed or weakened auth/permission checks, validation schemas, crypto parameters, CORS/TLS settings and rate limits as "needs human review", never auto-dismissed (W18-21). | D8, D16 |
+| S-77 | Trust surfaces: each rule's measured precision and lifecycle state in the product, and a repo coverage map of what was not checked (W18-22). | D11, D15, D16 |
+| S-78 | Measuring the AI review bots a team already runs, kept out of human-flow metrics (W18-23). | D16 |
+| S-79 | External results ingest: forge code-scanning alerts (read-only, budgeted client) and SARIF uploads as findings with tool provenance, deduped and priced by the risk model (W18-24). | D8, D12, D16 |
+| S-80 | Import-graph exposure in the risk model and repo-wide context for Tier-2 review (W18-25). | D12, D16 |
+| S-81 | More standalone tool adapters through the no-network sandbox: actionlint, shellcheck, hadolint and IaC (checkov) (W18-26). | D11, D16 |
+
 ## Out of scope
 
 Enumerated with rationale in `NON_GOALS.md` (N-1 … N-9). Binding summary: no `git clone`
-ever — full-repo SAST deferred to W8 over ephemeral C1a tarball snapshots (N-1 as amended),
-no CI runner, no PR-blocking gate bot in v1, no email/Slack delivery in v1, no
-billing/multi-org onboarding in v1, no GitLab/Bitbucket, no IDE plugin, no replacement
-for deep security audits.
+ever — full-repo SAST runs over ephemeral C1a tarball snapshots (N-1 as amended),
+no CI runner, no PR-blocking gate bot (the customer's own CI may gate on pulled results,
+S-73), no writes to customer repos (D9a), no email/Slack delivery in v1, no
+billing/multi-org onboarding in v1, no Bitbucket (GitLab graduated, D3a), no IDE plugin,
+no quality grades or developer leaderboards, no replacement for deep security audits.
 
 ## Change control
 
 Adding an S-x requires updating this file and NON_GOALS.md if it graduates a non-goal
 (S-30..S-35 graduated the SAST half of N-1 via the D8/C1a brief amendment, 2026-07-07);
-it must not contradict D1–D8 / C1–C3 without a brief amendment.
+it must not contradict D1–D16 / C1–C3 without a brief amendment.

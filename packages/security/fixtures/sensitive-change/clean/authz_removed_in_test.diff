@@ -1,0 +1,6 @@
+diff --git a/src/routes/__tests__/users.test.ts b/src/routes/__tests__/users.test.ts
+--- a/src/routes/__tests__/users.test.ts
++++ b/src/routes/__tests__/users.test.ts
+@@ -10,7 +10,7 @@ describe('users', () => {
+-  app.delete('/users/:id', requireAdmin, deleteUser);
++  app.delete('/users/:id', deleteUser);

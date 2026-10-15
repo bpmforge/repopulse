@@ -108,7 +108,22 @@ export type AuditEvent =
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.
   | 'scan.manual_run'
-  | 'sync.manual_run';
+  | 'sync.manual_run'
+  // W18-18. A CI token is a credential that reads findings from outside the
+  // product, unattended, for as long as it lives — the same class of record as
+  // a forge connection being created or deleted. Who minted it, for which
+  // repositories, and who revoked it is the whole of its paper trail.
+  | 'ci_token.created'
+  | 'ci_token.revoked'
+  // W18-19. Drafting a verified patch sends a file of the customer's source to
+  // a model — the workspace's own by default, a third party's at Tier-3 — and
+  // spends model time. Who asked, for which finding, at which tier.
+  | 'patch.draft_requested'
+  // W18-24. An uploaded SARIF file writes findings — and can CLOSE findings
+  // its tool no longer reports — on someone's say-so rather than a scan we ran.
+  // Who uploaded what, for which repository, is the provenance a reader of
+  // those findings needs. (Outside W18-24's write scope; the union is closed.)
+  | 'external_findings.sarif_uploaded';
 
 export interface AuditEntry {
   event: AuditEvent;

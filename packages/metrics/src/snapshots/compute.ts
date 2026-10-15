@@ -115,8 +115,8 @@ export async function computeRepoSnapshots(
     const ownership = computeOwnership(touches, asOf, botGlobs);
 
     // --- PR family (shared read → M4/M5/M6/M7/M8) ---
-    const reviewPrs = await readReviewCoveragePrs(db, params.repoId, windowStart);
-    const cyclePrs = await readCyclePrs(db, params.repoId, windowStart);
+    const reviewPrs = await readReviewCoveragePrs(db, params.repoId, windowStart, botGlobs);
+    const cyclePrs = await readCyclePrs(db, params.repoId, windowStart, botGlobs);
     const sizeInputs = await readPrSizeInputs(db, params.repoId, windowStart);
     const stalePrs = await readStalePrs(db, params.repoId);
     const coverage = computeReviewCoverage(reviewPrs);

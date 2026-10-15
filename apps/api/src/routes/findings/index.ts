@@ -6,6 +6,7 @@ import { blobUrl, webBaseUrl, type ForgeKind } from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
 import { actorLoginFor } from '../../lib/actor.js';
 import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
+import { parseExternalScannerKey } from '@repopulse/security';
 
 // Findings API (W6-04, API_DESIGN.md §2, FR-API-3 / FR-INSIGHTS-1).
 
@@ -117,6 +118,8 @@ function findingsQuery(db: Database) {
         lineStart: read.findings.lineStart,
         lineEnd: read.findings.lineEnd,
         evidence: read.findings.evidence,
+        contextLines: read.findings.contextLines,
+        contextStartLine: read.findings.contextStartLine,
         recommendation: read.findings.recommendation,
         status: read.findings.status,
         dismissReason: read.findings.dismissReason,
@@ -143,6 +146,7 @@ function findingsQuery(db: Database) {
         forgeKind: core.forgeConnections.provider,
         forgeBaseUrl: core.forgeConnections.baseUrl,
         scanCommitSha: security.scanRuns.commitSha,
+        scanToolVersions: security.scanRuns.toolVersions,
       })
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
@@ -168,6 +172,13 @@ function toFinding(r: FindingRow) {
     file: r.file,
     line_range: [r.lineStart, r.lineEnd],
     evidence: r.evidence,
+    // W18-32: lines of the scanned file around the finding, copied at scan
+    // time. null when there are none to show (secrets, repo-level findings,
+    // old rows, closed past retention); the web app then shows the evidence.
+    context:
+      r.contextLines === null || r.contextStartLine === null
+        ? null
+        : { start_line: r.contextStartLine, lines: r.contextLines },
     recommendation: r.recommendation,
     status: r.status,
     dismiss_reason: r.dismissReason,
@@ -191,6 +202,10 @@ function toFinding(r: FindingRow) {
     risk_band: r.riskBand,
     risk_factors: r.riskFactors,
     experimental: r.experimental,
+    // W18-24. Set when ANOTHER tool raised this finding (a SARIF upload or a
+    // GitHub code-scanning alert), so the UI can say whose opinion it is.
+    // Null for every finding RepoPulse produced itself.
+    external: externalOf(r),
     // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
     // to — a finding about the whole repository has no file, and a connection
     // with no recorded base URL has no instance to point at.
@@ -207,6 +222,20 @@ function toFinding(r: FindingRow) {
  * (a Tier-2 analysis run records none) it falls back to the default branch and
  * SAYS so, rather than implying a precision it does not have.
  */
+/** `{tool, source, tool_version}` for an external finding, else null (W18-24). */
+function externalOf(
+  r: FindingRow,
+): { tool: string; source: 'sarif' | 'code_scanning'; tool_version: string | null } | null {
+  const parsed = parseExternalScannerKey(r.scannerKey);
+  if (!parsed) return null;
+  const version = r.scanToolVersions?.[parsed.tool];
+  return {
+    tool: parsed.tool,
+    source: parsed.source,
+    tool_version: version && version !== 'unknown' ? version : null,
+  };
+}
+
 function forgeLinkFor(r: FindingRow): { url: string; ref_kind: 'commit' | 'branch' } | null {
   if (r.file === null) return null;
   // The stored base is the API host, not the site — api.github.com serves the
@@ -316,6 +345,10 @@ export default async function findingsRoutes(
       /** W9-11: 'risk' (default) or 'severity'. */
       sort?: string;
       cursor?: string;
+      /** W18-29: one rule, across the scanners that carry rule ids. */
+      rule_id?: string;
+      /** W18-29: 'exclude' (default) | 'include' | 'only' — shadow-mode findings. */
+      experimental?: string;
     };
   }>('/findings', async (request, reply) => {
     const workspaceId = request.workspace?.id;
@@ -380,6 +413,7 @@ export default async function findingsRoutes(
     if (q.risk_band && ['act', 'schedule', 'track'].includes(q.risk_band)) {
       filters.push(eq(read.findings.riskBand, q.risk_band));
     }
+    if (q.rule_id) filters.push(eq(read.findings.ruleId, q.rule_id));
     if (q.kev === 'true') {
       // KEV lives in the finding's payload rather than a column: it is a fact
       // about the CVE, set by the dependency scanner (W8-06, parked), and a
@@ -388,6 +422,20 @@ export default async function findingsRoutes(
       // lands and returns nothing — correctly — until then.
       filters.push(sql`${read.findings.yields} ->> 'kev' = 'true'`);
     }
+
+    // SHADOW FINDINGS ARE NEVER MIXED IN SILENTLY (W18-29). A candidate rule's
+    // finding is stamped experimental so its precision can be measured before
+    // anyone is asked to act on it (CODE_HEALTH_SUITE §8.2). Listing them
+    // beside active findings by default — which this route did until now,
+    // while the risk view and top actions already left them out — presented an
+    // unproven rule's guess with the same weight as a proven one. Excluded by
+    // default; the explorer's facet asks for them by name, and the response
+    // counts what was held back so the screen can say so instead of hiding it.
+    const experimentalMode =
+      q.experimental === 'include' || q.experimental === 'only' ? q.experimental : 'exclude';
+    const withoutShadowFacet = [...filters];
+    if (experimentalMode === 'exclude') filters.push(eq(read.findings.experimental, false));
+    if (experimentalMode === 'only') filters.push(eq(read.findings.experimental, true));
 
     // Keyset, not offset: the list is ordered by severity and new findings
     // arrive at the top, so an offset page would skip or repeat rows while
@@ -441,9 +489,25 @@ export default async function findingsRoutes(
 
     const page = rows.slice(0, PAGE_SIZE);
     const last = page[page.length - 1];
+
+    // What the default held back, under the same filters (cursor excluded: the
+    // count is about the list, not the page). Null when nothing was held back
+    // by construction, so the UI never has to tell "zero hidden" from "not
+    // asked".
+    let shadowHidden: number | null = null;
+    if (experimentalMode === 'exclude') {
+      const [hidden] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(read.findings)
+        .where(and(...withoutShadowFacet, eq(read.findings.experimental, true)));
+      shadowHidden = hidden?.n ?? 0;
+    }
+
     return reply.send({
       items: page.map(toFinding),
       next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(sort, last) : null,
+      experimental: experimentalMode,
+      shadow_hidden: shadowHidden,
     });
   });
 
@@ -502,6 +566,58 @@ export default async function findingsRoutes(
       // rate === null means nothing has been reviewed yet. Sent through as null
       // rather than 0 so the UI can say "no data" instead of implying a
       // flawless model (FR-INSIGHTS-1).
+    });
+  });
+
+  /**
+   * GET /findings/facets — the rule facet, from what findings actually carry
+   * (W18-29).
+   *
+   * Built from the rows, not from a catalogue: the in-process fast lane and the
+   * YAML packs ship rules with no registry row until an admin acts on one, so a
+   * facet fed by rule_registry would offer nothing for exactly the rules people
+   * most need to look at. Active and shadow counts travel separately because
+   * one rule can have both — findings raised before and after a promotion — and
+   * the facet must not blur them into one number.
+   */
+  app.get('/findings/facets', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+
+    const rows = await db
+      .select({
+        scannerKey: read.findings.scannerKey,
+        ruleId: read.findings.ruleId,
+        active: sql<number>`count(*) filter (where not ${read.findings.experimental})::int`,
+        shadow: sql<number>`count(*) filter (where ${read.findings.experimental})::int`,
+      })
+      .from(read.findings)
+      .where(and(eq(read.findings.workspaceId, workspaceId), isNotNull(read.findings.ruleId)))
+      .groupBy(read.findings.scannerKey, read.findings.ruleId)
+      .orderBy(read.findings.ruleId);
+
+    const registry = await db
+      .select({ ruleId: security.ruleRegistry.ruleId, status: security.ruleRegistry.status })
+      .from(security.ruleRegistry)
+      .where(eq(security.ruleRegistry.workspaceId, workspaceId));
+    const lifecycle = new Map(registry.map((r) => [r.ruleId, r.status]));
+
+    const [shadowTotal] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(read.findings)
+      .where(and(eq(read.findings.workspaceId, workspaceId), eq(read.findings.experimental, true)));
+
+    return reply.send({
+      rules: rows.map((r) => ({
+        rule_id: r.ruleId,
+        scanner_key: r.scannerKey,
+        active: r.active,
+        shadow: r.shadow,
+        // null = no registry row: the rule runs as shipped (in shadow, for the
+        // fast lane), and nobody has promoted or retired it here.
+        lifecycle: lifecycle.get(r.ruleId ?? '') ?? null,
+      })),
+      shadow_total: shadowTotal?.n ?? 0,
     });
   });
 

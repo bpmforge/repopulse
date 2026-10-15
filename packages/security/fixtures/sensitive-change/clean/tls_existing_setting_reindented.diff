@@ -1,0 +1,8 @@
+diff --git a/src/clients/dev.ts b/src/clients/dev.ts
+--- a/src/clients/dev.ts
++++ b/src/clients/dev.ts
+@@ -3,6 +3,6 @@ import https from 'node:https';
+ export const devAgent = new https.Agent({
+-    rejectUnauthorized: false,
++  rejectUnauthorized: false,
+ });

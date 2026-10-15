@@ -174,3 +174,40 @@ export interface RepoReviewLoad {
   prs_with_review: number;
   excluded: { self_reviews: number; bot_reviews: number };
 }
+
+/** A ratio with its parts (METRICS.md §0): value null = empty denominator, "no data". */
+export interface RatioParts {
+  value: number | null;
+  numerator: number;
+  denominator: number;
+}
+
+/**
+ * GET /repos/{id}/review-bots — the AI reviewers a team runs (W18-23,
+ * METRICS.md §5). Per TOOL, never per person; bots arrive in a fixed registry
+ * order and the screen keeps it (no ranking, N-9).
+ */
+export interface RepoReviewBots {
+  window: string;
+  forge: 'github' | 'gitea' | 'gitlab' | null;
+  /** Why comment-based columns may be blank — each case is a different fact. */
+  line_data: 'available' | 'refused' | 'not_collected';
+  prs_in_window: number;
+  prs_with_line_data: number;
+  other_bot_reviews: number;
+  bots: {
+    key: string;
+    name: string;
+    logins_seen: string[];
+    prs_reviewed: number;
+    reach: RatioParts;
+    reviews: number;
+    reviews_per_pr: RatioParts;
+    prs_with_line_data: number;
+    inline_comments: number | null;
+    comments_per_pr: RatioParts | null;
+    time_to_first: { median_hours: number | null; p90_hours: number | null; n: number };
+    followed_by_change: (RatioParts & { pending: number }) | null;
+    repeat_after_dismiss: (RatioParts & { dismissed_without_inline: number }) | null;
+  }[];
+}

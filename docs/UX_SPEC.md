@@ -173,6 +173,15 @@ id + retry button. Listed states below only note screen-specific copy.
   debt-signal header (rework/revert sparklines), complexity worst-10 table,
   duplication trend, slop density by rule, logging posture — per-scanner
   status chips, "not enabled" never blank.
+  W18-23 adds an **AI Reviewers tab** (`/repos/:repo/ai-reviewers`, beside PR
+  Flow): one row per known AI review tool, in fixed registry order (never
+  ranked), with reach, reviews and comments per PR, time to first comment, the
+  share followed by a code change and repeat-after-dismiss (METRICS.md §5) —
+  every share as "n of d (p%)". Copy says "compares tools, not people" and
+  "signals, not grades"; no good/bad colouring. A comment-based cell with no
+  line-level data is a dash with a reason (forge does not provide anchors /
+  fetch refused / not collected yet), never 0. A definitions panel states each
+  rule and its caveats.
 - **Data:** `/api/v1/repos/:id` (+ `/metrics`, `/hotspots`, `/pr-flow`,
   `/ci`, `/findings`), snapshot series via `/api/v1/repos/:id/trends`.
 - **States:** paused repo → banner "monitoring paused"; backfilling → per-tab

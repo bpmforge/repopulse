@@ -91,6 +91,14 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     rationale: 'Eight structural rules on the same snapshot — no judgement half, no model cost.',
   },
   {
+    // W18-21. Rides the secrets stream's diff fetch, so it has no schedule and
+    // no cost of its own beyond a regex pass over patches already in memory.
+    key: 'sensitive_change',
+    enabled: true,
+    rationale:
+      'Flags changes that loosen auth, validation, crypto, CORS/TLS or rate limits for a human to look at — reuses the diff secrets already fetched.',
+  },
+  {
     key: 'supply_chain_register',
     enabled: true,
     rationale: 'Deprecations and EOL dates happen on a date rather than on a commit, so nightly.',
@@ -115,6 +123,15 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     enabled: true,
     schedule: 'weekly',
     rationale: 'Drafts from a 30-day dismissal window; nightly would re-draft the same clusters.',
+  },
+  {
+    // W18-24. On by default because it costs one read per repository a night
+    // and does nothing without the permission — the run row then says which
+    // permission to grant rather than the pull pretending there were no alerts.
+    key: 'code_scanning_pull',
+    enabled: true,
+    rationale:
+      'One read per repo a night; imports GitHub code-scanning alerts when the App may read them.',
   },
 ];
 

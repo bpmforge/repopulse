@@ -102,6 +102,15 @@ describe('production wiring (regression gate)', () => {
     expect(worker).toContain('REGISTERS_NIGHTLY_CRON');
   });
 
+  it('the weekly anti_slop pass hands the snapshot to the dependency-hygiene rules', () => {
+    // W18-06: the two rules read the project's manifests and stay silent when
+    // no snapshotDir arrives, which is indistinguishable from a clean project.
+    const worker = readIfPresent(join(API_SRC, 'workers/index.ts'));
+    const call = /runAntiSlopScan\(\{[\s\S]*?\}\)/.exec(worker)?.[0] ?? '';
+    expect(call, 'runAntiSlopScan is never called from the worker').not.toBe('');
+    expect(call).toContain('snapshotDir: snapshot.dir');
+  });
+
   it('the e2e harness disables the nightly reconcile sweep', () => {
     // The sweep is the one thing this worker does on a WALL CLOCK rather than
     // on demand: it re-lists five entities for every `live` repo. The seeder
