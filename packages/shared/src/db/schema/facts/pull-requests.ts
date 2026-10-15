@@ -42,6 +42,10 @@ export const pullRequests = pgTable(
     ),
     baseRef: text('base_ref').notNull(),
     headSha: text('head_sha').notNull(),
+    // W18-20 (migration 0035): the source branch, for agent branch prefixes
+    // (claude/, copilot/, devin/...). NULL = unknown (ingested before 0035, or
+    // the forge did not say) — never matched by a prefix rule.
+    headRef: text('head_ref'),
     // Set once the enrichment lane has fetched this PR's reviews and check
     // runs. A per-PR marker rather than a repo-level high-watermark: enrich
     // jobs run concurrently and complete out of order, so a watermark could

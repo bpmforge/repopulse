@@ -21,6 +21,7 @@ import { securityPostureSections } from './security-posture.js';
 import { codeHealthSections } from './code-health.js';
 import { axisSection, riskSections } from './risk.js';
 import { readPreviousSnapshotAt } from './previous.js';
+import { aiGovernanceSections } from './ai-governance.js';
 
 // Report assembler (W5-03, REPORTS.md §1/§2/§5/§6).
 //
@@ -521,6 +522,20 @@ export function createReportAssembler(db: Database): ReportAssembler {
           ? await riskSections(db, { workspaceId, repoIds, snapshotAt, previousSnapshotAt })
           : [];
 
+      // W18-20: AI-authored vs human changes, after the type's own sections and
+      // before the plan. repo_health and org_exec only — the two reports a
+      // leader reads to answer "what is happening to our code", which is the
+      // question this section exists for.
+      const governance =
+        params.type === 'repo_health' || params.type === 'org_exec'
+          ? await aiGovernanceSections(db, {
+              workspaceId,
+              repoIds,
+              windowEnd,
+              windowDays: params.windowDays,
+            })
+          : [];
+
       const qualitySnapshots = await readSnapshotsAsOf(db, {
         workspaceId,
         repoIds,
@@ -531,7 +546,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
 
       return {
         params,
-        sections: [...risk, ...sections, ...planned],
+        sections: [...risk, ...sections, ...governance, ...planned],
         appendix: {
           // Appendix A comes from the catalog (FR-METRICS-15), never from
           // prose in this file: a definition that disagrees with the tooltip

@@ -8902,8 +8902,10 @@
         "Report section + org tile; signals not grades (N-9), no per-developer ranking"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-ai-governance. Classifier packages/metrics/src/authorship/: agent bot author, Co-authored-by/Assisted-by/Generated-by trailer patterns, agent branch prefixes, plus PR<->commit linking (head SHA or '(#N)' squash subject); automation and pre-0035 'unknown' rows are counted and excluded. Patterns editable at Admin > Settings (workspaces.settings.ai_authorship_patterns; substrings/prefixes/single-* globs, no regex), applied on read so edits re-classify history. Metrics reuse existing code sliced by cohort: M13 via new attributeRework14d (computeRework14d now sums it, unchanged results), M14 computeRevertRate, M5 computeReviewCoverage + reviews per merged PR, findings per KLOC (PR-linked, else last change to the file before first seen). Signals not grades: direction words only, min sample 20 commits / 10 merged PRs / 1,000 lines per cohort else 'too small to compare'. Surfaces: GET /org/ai-governance (aggregate only, ignores person filter), org tile 'ai-governance', report section ai_governance + ai_governance_measures in repo_health and org_exec. SCOPE EXPANSION (needed for the trailer and branch signals, which ingest dropped): migration 0035_ai_authorship (commits.trailers text[], pull_requests.head_ref text; NULL = not captured) in packages/shared, headRef in packages/forge normalizers (GitHub GraphQL/REST, Gitea, GitLab), packages/ingest writers, seed + fake forge. Screenshots: /mnt/project-files/repopulse/ux-review/w18-20/. Gate: lint 0, typecheck 0, vitest 2525 passed / 58 skipped / 5 failed (environmental: docker on PATH, test/ops/deploy-*)."
+      ]
     },
     {
       "id": "W18-21",

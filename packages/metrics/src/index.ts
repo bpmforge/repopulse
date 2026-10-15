@@ -18,3 +18,4 @@ export * from './metrics/dora.js';
 export * from './rollups/index.js';
 export * from './snapshots/index.js';
 export * from './retention/index.js';
+export * from './authorship/index.js';

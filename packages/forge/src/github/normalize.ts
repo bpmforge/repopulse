@@ -122,7 +122,7 @@ export interface RawPR {
   closed_at: string | null;
   merged_by?: RawUser | null;
   base: { ref: string };
-  head: { sha: string };
+  head: { sha: string; ref?: string };
   additions?: number;
   deletions?: number;
   changed_files?: number;
@@ -146,6 +146,7 @@ export function normalizePR(p: RawPR): ForgePR {
     mergedByLogin: p.merged_by?.login ?? null,
     baseRef: p.base.ref,
     headSha: p.head.sha,
+    ...(p.head.ref ? { headRef: p.head.ref } : {}),
     ...(p.additions !== undefined ? { additions: p.additions } : {}),
     ...(p.deletions !== undefined ? { deletions: p.deletions } : {}),
     ...(p.changed_files !== undefined ? { changedFiles: p.changed_files } : {}),

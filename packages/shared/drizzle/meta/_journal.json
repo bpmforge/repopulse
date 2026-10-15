@@ -225,6 +225,13 @@
       "when": 1790194174437,
       "tag": "0031_feature_disabled",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792039443748,
+      "tag": "0035_ai_authorship",
+      "breakpoints": true
     }
   ]
 }
