@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import type { AnalysisGateway, CompleteOpts } from '@repopulse/analysis';
@@ -124,7 +124,11 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       .where(
         and(
           eq(security.ruleRegistry.workspaceId, workspaceId),
-          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+          inArray(security.ruleRegistry.ruleId, [
+            'slop.unused_export',
+            'slop.exception_control_flow',
+            'slop.repository_over_crud',
+          ]),
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
@@ -390,6 +394,78 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
+  });
+
+  it('W18-09: exception control flow and repository-over-CRUD run in shadow, and stop when deprecated', async () => {
+    const sources = [
+      {
+        path: 'src/orders.py',
+        source: [
+          'def charge(order):',
+          '    try:',
+          '        if order.total <= 0:',
+          '            raise ValueError("nothing to charge")',
+          '        return pay(order)',
+          '    except ValueError as exc:',
+          '        return str(exc)',
+        ].join('\n'),
+      },
+      {
+        path: 'src/user.repository.ts',
+        source: [
+          'export class UserRepository {',
+          '  constructor(private readonly prisma: Db) {}',
+          '  findById(id: string) {',
+          '    return this.prisma.user.findUnique({ where: { id } });',
+          '  }',
+          '  findAll() {',
+          '    return this.prisma.user.findMany();',
+          '  }',
+          '  remove(id: string) {',
+          '    return this.prisma.user.delete({ where: { id } });',
+          '  }',
+          '}',
+        ].join('\n'),
+      },
+    ];
+    const scan = (commitSha: string) =>
+      runAntiSlopScan({
+        db, workspaceId, repoId, commitSha, files: [], sources, trigger: 'schedule',
+      });
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
+
+    expect((await scan('w18-09-shadow')).status).toBe('succeeded');
+    const [flow] = await rows('slop.exception_control_flow');
+    expect(flow).toMatchObject({
+      file: 'src/orders.py',
+      lineStart: 4,
+      severity: 1,
+      experimental: true,
+      title: 'Exception used as control flow (caught on line 6)',
+      evidence: 'raise ValueError("nothing to charge")',
+    });
+    const [crud] = await rows('slop.repository_over_crud');
+    expect(crud).toMatchObject({
+      file: 'src/user.repository.ts',
+      lineStart: 1,
+      severity: 1,
+      experimental: true,
+      title: 'Repository over CRUD: UserRepository',
+    });
+
+    // Deprecating one rule stops it without touching the other.
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.exception_control_flow',
+      status: 'deprecated',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    const after = await scan('w18-09-deprecated');
+    expect(after.deterministic).toBe(1);
   });
 });
 
