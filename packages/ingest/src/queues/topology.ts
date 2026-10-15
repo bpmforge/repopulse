@@ -23,6 +23,10 @@ export const QUEUE = {
   // third-party code, and a poison scan must not be able to stall ingestion or
   // the metrics that Tier-1 dashboards read.
   securityScan: 'security.scan',
+  // W18-19. Drafting a verified patch: one model call plus a before/after
+  // re-scan of one file. Its own lane because a person is waiting on it, and a
+  // weekly full scan on security.scan must not sit in front of them.
+  patchDraft: 'patches.draft',
   // NOTE (W6-01): 'analysis.review' is NOT declared here yet, deliberately.
   // The wiring gate requires every declared queue to have a processor, and its
   // KNOWN_INERT list "may only ever shrink" — so declaring the queue a wave
@@ -49,6 +53,7 @@ export const QUEUE_PRIORITY: Record<string, number> = {
   // Below analysis.review (4): a scan is background work, a PR review is
   // someone waiting.
   [QUEUE.securityScan]: 5,
+  [QUEUE.patchDraft]: 2,
 };
 
 const MIN = 60_000;
@@ -69,6 +74,10 @@ export const RETRY: Record<string, JobsOptions> = {
   // Two attempts: a scanner that fails twice is broken or over budget, and
   // retrying a five-minute scan five times wastes an hour to learn that.
   [QUEUE.securityScan]: { attempts: 2, backoff: { type: 'exponential', delay: MIN } },
+  // ONE attempt. The job records its own failure on the patch row, and a
+  // person asks again; an automatic retry would spend a second model call on
+  // the same answer.
+  [QUEUE.patchDraft]: { attempts: 1 },
 };
 
 /** Full default job options for a queue: retry + priority + keep-failed. */

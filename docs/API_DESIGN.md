@@ -88,6 +88,8 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `POST /findings/{id}/status` | `{to: acknowledged\|resolved\|wont_fix, reason}` → 200 + event row | FR-INSIGHTS-1 |
 | `POST /analyses` | `{repo_id, pr_number, tier:2\|3}` → 202 `{run_id}`; tier 3 without repo opt-in → 403 | FR-ANALYSIS-1/7 |
 | `GET /analyses/{run_id}` | → `{status, chunk_count, findings_count, cost_usd?, error?}` | FR-ANALYSIS-8 |
+| `GET /findings/{id}/patch` | → `{eligible, reason?, commit_sha?, patch: null \| {id, status: pending\|verified\|rejected\|failed, commit_sha, tier, created_at, finished_at, diff?, filename?, model_id?, verification?: {rule_sets[], runs}, reason?, reason_code?}}`. `diff` only when `verified` (any role); a `rejected` patch is `{id, status, …timestamps}` to a member — no diff, no reason; `reason`/`reason_code` (and a rejected diff) only to an admin. Ineligible finding (model finding, repo-level, no scanned commit) → `eligible:false` + why. Other workspace's finding → 404 | W18-19, D16 |
+| `POST /findings/{id}/patch` | `{tier?: "t2"\|"t3"}` (default `t2`, the workspace's own model) → 202 `{patch}` (pending, enqueued on `patches.draft`). Idempotent per finding × scanned commit: pending → 202 same row, verified/rejected → 200 the decided row (no new model call), failed → reset and re-enqueued. `t3` needs admin (403) **and** the repo's Tier-3 opt-in (409). Ineligible → 409; > 50 requests per workspace per rolling 24 h → 429; 10/min per caller (rate limit); no Redis → 503. **Writes nothing to the forge (D9a)** — no branch, commit, PR or comment; the developer copies/downloads the diff | W18-19, D16 |
 
 ### reports (FR-REPORTS-*)
 | Method+Path | Req → Res | FR |
@@ -114,6 +116,7 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `GET /admin/egress-audit` | filterable T3 audit rows | NFR-9 |
 | `GET /admin/dlq` · `POST /admin/dlq/{jobId}/retry` | dead-letter queue ops page | NFR-11 |
 | `GET /admin/budget` | forge budget gauges (REST + GraphQL buckets), sync lag | NFR-12 |
+| `GET /admin/patches` | → `{items:[{id, finding_id, status, reason_code, reason, model_id, tier, created_at}]}` — the last 100 verified-patch attempts with reasons, so an admin can see why fixes are rejected (W18-19) | W18-19 |
 
 ### webhooks (machine-facing, no session)
 | Method+Path | Behavior | FR |

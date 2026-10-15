@@ -248,6 +248,25 @@ updated_by, updated_at`; PK `(workspace_id, repo_id, scanner_key)`. Admin-only m
 Findings facet index gains scanner columns: `findings(workspace_id, repo_id, scanner_key,
 dimension, severity, status)` (W8 migration; supersedes nothing — additive).
 
+### Verified patches — **W18-19** (D16 "Verified + CI pull"; migration 0033; design: ANALYSIS_TIERS.md §7)
+
+**verified_patches** — one model-drafted fix per finding per scanned commit. `id,
+workspace_id, repo_id, finding_id FK findings ON DELETE CASCADE, commit_sha (the snapshot
+the patch was applied to and re-scanned at), target_dedup_key (what the verifier looks
+for), status enum('pending','verified','rejected','failed') default 'pending',
+reason_code text, reason text (admin-only), diff text (the canonical applied diff; for a
+shape-gate rejection the model's text, capped at 16 KB — never served to a non-admin),
+tier smallint ∈ {2,3} default 2, model_id, prompt_version, tokens_in, tokens_out,
+verification_runs jsonb (one entry per rule-set execution: id, runner, before|after,
+status, hits, duration, tool versions), requested_by FK users ON DELETE SET NULL,
+created_at, finished_at`. Unique `(workspace_id, finding_id, commit_sha)` — the
+idempotency key; index `(workspace_id, created_at)` for the daily drafting cap.
+`rejected` = a patch was drafted and the rules said no; `failed` = no attempt could be
+made (no model, sandbox down) and is the only state a retry overwrites. Verification
+runs are NOT `scan_runs` rows on purpose: those answer "when did this scanner last scan
+this repo", and a one-file re-check must not read as one. The stored diff is a fragment
+of customer source, like a finding's evidence quote; nothing is written to the forge.
+
 ### D9/D10 additions (2026-07-14; design: docs/design/IMPROVEMENT_PLANS.md, SECURITY_SUITE.md §3.6)
 
 **analysis_runs delta (D9)** — `pass_kind enum('find','verify','challenge','synthesize',

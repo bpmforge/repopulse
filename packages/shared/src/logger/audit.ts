@@ -108,7 +108,11 @@ export type AuditEvent =
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.
   | 'scan.manual_run'
-  | 'sync.manual_run';
+  | 'sync.manual_run'
+  // W18-19. Drafting a verified patch sends a file of the customer's source to
+  // a model — the workspace's own by default, a third party's at Tier-3 — and
+  // spends model time. Who asked, for which finding, at which tier.
+  | 'patch.draft_requested';
 
 export interface AuditEntry {
   event: AuditEvent;
