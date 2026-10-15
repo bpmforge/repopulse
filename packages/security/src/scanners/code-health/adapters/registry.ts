@@ -55,6 +55,17 @@ export const DEDUP_MAP: { native: string; packRule: string; keep: 'pack' | 'tool
   // Both flag console usage; ours knows about the production-path exclusions.
   { native: 'lint/suspicious/noConsoleLog', packRule: 'bpm-log-console-in-prod', keep: 'pack' },
   { native: 'lint/suspicious/noConsole', packRule: 'bpm-log-console-in-prod', keep: 'pack' },
+  // Same family, different claims (W18-04): Biome reports EACH explicit any at
+  // its line; slop.suppression_density reports a RATE, for the repository or
+  // an outlier file, and never points at a single any. 'pack' would drop every
+  // per-line hit the moment the rate finding exists anywhere in the repository
+  // — the actionable rows lost to the summary of them. So the tool keeps its
+  // findings, and the rate rule deliberately emits none per hit.
+  {
+    native: 'lint/suspicious/noExplicitAny',
+    packRule: 'slop.suppression_density',
+    keep: 'tool',
+  },
 ];
 
 /**
