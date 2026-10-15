@@ -199,7 +199,7 @@ function SecurityTab() {
                 {dependencyEmptyCopy(dependencyScanner)}
               </p>
             ) : (
-              <table className="w-full text-sm" data-testid="cve-table">
+              <table className="table-plain w-full text-sm" data-testid="cve-table">
                 <thead>
                   <tr className="text-left text-xs text-fg-muted">
                     <th scope="col">CVE</th>

@@ -47,7 +47,7 @@ function RuleWorkbench() {
         emptyMessage="No candidate rules yet. This registry holds rules DRAFTED from your own findings, which run in shadow before they are allowed to raise anything — the rules that ship in the scanners' packs are always on and are not listed here."
         testId="rules-frame"
       >
-        <table className="w-full text-sm" data-testid="rules-table">
+        <table className="table-plain w-full text-sm" data-testid="rules-table">
           <caption className="sr-only">Rule lifecycle and promotion evidence</caption>
           <thead>
             <tr className="text-left text-xs text-fg-muted">

@@ -1,4 +1,4 @@
-import { WidgetFrame } from '../widget/WidgetFrame.js';
+import { PageHeader } from '../primitives/PageHeader.js';
 
 /**
  * The application's 404 (W16-24).
@@ -14,20 +14,24 @@ import { WidgetFrame } from '../widget/WidgetFrame.js';
  * moment a new admin needs help.
  */
 export function NotFound() {
+  // W18-28: a page heading and a compact body. This used to be an empty-state
+  // WidgetFrame stretched to the full viewport, which centred one sentence in
+  // 700px of blank card and gave the page no h1.
   return (
-    <WidgetFrame
-      title="Not found"
-      state="empty"
-      emptyMessage="There is nothing at this address. The link may be out of date, or the repository it pointed to may no longer be tracked."
-      emptyAction={
+    <div className="flex flex-col gap-4" data-testid="not-found">
+      <PageHeader
+        title="Page not found"
+        description="There is nothing at this address. The link may be out of date, or the repository it pointed to may no longer be tracked."
+      />
+      <div>
         <a
           href="/"
           data-testid="not-found-home"
-          className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="inline-block rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
-          Go to Org Overview
+          Go to Overview
         </a>
-      }
-    />
+      </div>
+    </div>
   );
 }

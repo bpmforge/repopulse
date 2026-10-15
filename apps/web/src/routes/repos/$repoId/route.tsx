@@ -115,7 +115,11 @@ function RepoLayout() {
           to={tab.to as never}
           params={{ repoId } as never}
           search={preserved as never}
-          activeOptions={{ exact: tab.exact ?? false }}
+          // includeSearch off (W18-28): an EXACT match also compares the search
+          // params in full, and the filters in the URL never equal the preserved
+          // subset this link carries — so the default tab (Pulse, Connections) was
+          // never marked active on the screen it was showing.
+          activeOptions={{ exact: tab.exact ?? false, includeSearch: false }}
           activeProps={{ 'data-active': 'true' }}
           className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid={`repo-tab-${tab.label.toLowerCase().replace(/\s/g, '-')}`}

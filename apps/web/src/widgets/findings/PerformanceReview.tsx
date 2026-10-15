@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from './FindingDetail.js';
-import { SEVERITY_LABEL, VERIFY_LABEL, locationOf, type Finding } from './contracts.js';
+import { VERIFY_LABEL, locationOf, type Finding } from './contracts.js';
 import {
   PERFORMANCE_DIMENSION,
   PERFORMANCE_REVIEW_DISCLAIMER,
@@ -11,6 +11,7 @@ import {
   performanceReviewState,
   type RepoCapabilities,
 } from './performance.js';
+import { FindingSeverityBadge } from './FindingSeverity.js';
 
 // Performance review (W17-21).
 //
@@ -129,47 +130,58 @@ export function PerformanceReview({ repoId, openId, onOpen, search }: Props) {
         emptyMessage={performanceEmptyCopy(review)}
         testId="performance-findings"
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Performance findings in this repository</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Severity</th>
-              <th scope="col">Finding</th>
-              <th scope="col">Source</th>
-              <th scope="col">File</th>
-              <th scope="col">Status</th>
-              <th scope="col">Verification</th>
-            </tr>
-          </thead>
-          <tbody data-testid="performance-finding-rows">
-            {items.map((f) => (
-              <tr key={f.id} className="border-t border-border" data-testid={`finding-${f.id}`}>
-                <td className="py-1 whitespace-nowrap">
-                  {SEVERITY_LABEL[f.severity] ?? f.severity}
-                </td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  <button
-                    type="button"
-                    className="text-accent hover:underline"
-                    data-testid={`finding-open-${f.id}`}
-                    aria-expanded={f.id === openId}
-                    onClick={() => onOpen(f.id === openId ? null : f.id)}
-                  >
-                    {f.title}
-                  </button>
-                </th>
-                {/* Which producer said so: a pattern rule and a model's
-                    judgement are different kinds of claim. */}
-                <td className="py-1 text-xs">
-                  {f.rule_id ?? (f.scanner_key ? f.scanner_key : `Tier ${f.tier} review`)}
-                </td>
-                <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
-                <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
-                <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+        {/* W18-28: scrolls inside its own region at phone width instead of
+            squeezing every column until the headers run together. */}
+        <div
+          className="overflow-x-auto"
+          tabIndex={0}
+          role="region"
+          aria-label="Performance findings"
+        >
+          <table className="table-plain w-full min-w-[44rem] text-sm">
+            <caption className="sr-only">Performance findings in this repository</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Severity</th>
+                <th scope="col">Finding</th>
+                <th scope="col">Source</th>
+                <th scope="col">File</th>
+                <th scope="col">Status</th>
+                <th scope="col">Verification</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody data-testid="performance-finding-rows">
+              {items.map((f) => (
+                <tr key={f.id} className="border-t border-border" data-testid={`finding-${f.id}`}>
+                  <td className="py-1 whitespace-nowrap">
+                    <FindingSeverityBadge severity={f.severity} />
+                  </td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    <button
+                      type="button"
+                      className="text-accent hover:underline"
+                      data-testid={`finding-open-${f.id}`}
+                      aria-expanded={f.id === openId}
+                      onClick={() => onOpen(f.id === openId ? null : f.id)}
+                    >
+                      {f.title}
+                    </button>
+                  </th>
+                  {/* Which producer said so: a pattern rule and a model's
+                      judgement are different kinds of claim. */}
+                  <td className="py-1 text-xs">
+                    {f.rule_id ?? (f.scanner_key ? f.scanner_key : `Tier ${f.tier} review`)}
+                  </td>
+                  <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
+                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs whitespace-nowrap">
+                    {VERIFY_LABEL[f.verify_status]}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
 
       {openId !== null && openFinding && (

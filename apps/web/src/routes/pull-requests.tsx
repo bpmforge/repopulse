@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
-import { WidgetFrame, frameState } from '../components/index.js';
+import { WidgetFrame, frameState, PageHeader } from '../components/index.js';
 import { useApiQuery } from '../api/useApiQuery.js';
 
 // The rail's "Pull Requests" destination — the ORG-WIDE list (UX_SPEC §4.c).
@@ -84,6 +84,10 @@ function PullRequestsIndex() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="org-pr-list">
+      <PageHeader
+        title="Pull Requests"
+        description="Every pull request across the connected repositories."
+      />
       <div className="flex flex-wrap items-end gap-3" data-testid="pr-filters">
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           State
@@ -152,41 +156,45 @@ function PullRequestsIndex() {
         onRetry={() => void refetch()}
         emptyMessage="No pull requests match these filters."
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Pull requests across every connected repository</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Repository</th>
-              <th scope="col">PR</th>
-              <th scope="col">Author</th>
-              <th scope="col">Size</th>
-              <th scope="col">State</th>
-              <th scope="col">Reviewed</th>
-            </tr>
-          </thead>
-          <tbody data-testid="org-pr-rows">
-            {items.map((pr) => (
-              <tr key={`${pr.repo.id}-${pr.number}`} className="border-t border-border">
-                <td className="py-1">{pr.repo.name}</td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  <Link
-                    to="/repos/$repoId/prs/$number"
-                    params={{ repoId: String(pr.repo.id), number: String(pr.number) }}
-                    search={preserved as never}
-                    className="text-accent hover:underline"
-                  >
-                    #{pr.number} {pr.title}
-                  </Link>
-                </th>
-                <td className="py-1">{pr.author}</td>
-                <td className="py-1 tabular-nums">{pr.size_bucket}</td>
-                <td className="py-1">{pr.state}</td>
-                {/* Paired mark + text: never colour alone (WCAG, UX_SPEC §7). */}
-                <td className="py-1">{pr.review_covered ? '✓ yes' : '— no'}</td>
+        {/* W18-28: scrolls inside its own region at phone width instead of
+            squeezing every column until the headers run together. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Pull requests">
+          <table className="table-plain w-full min-w-[36rem] text-sm">
+            <caption className="sr-only">Pull requests across every connected repository</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Repository</th>
+                <th scope="col">PR</th>
+                <th scope="col">Author</th>
+                <th scope="col">Size</th>
+                <th scope="col">State</th>
+                <th scope="col">Reviewed</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody data-testid="org-pr-rows">
+              {items.map((pr) => (
+                <tr key={`${pr.repo.id}-${pr.number}`} className="border-t border-border">
+                  <td className="py-1">{pr.repo.name}</td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    <Link
+                      to="/repos/$repoId/prs/$number"
+                      params={{ repoId: String(pr.repo.id), number: String(pr.number) }}
+                      search={preserved as never}
+                      className="text-accent hover:underline"
+                    >
+                      #{pr.number} {pr.title}
+                    </Link>
+                  </th>
+                  <td className="py-1">{pr.author}</td>
+                  <td className="py-1 tabular-nums">{pr.size_bucket}</td>
+                  <td className="py-1">{pr.state}</td>
+                  {/* Paired mark + text: never colour alone (WCAG, UX_SPEC §7). */}
+                  <td className="py-1">{pr.review_covered ? '✓ yes' : '— no'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
 
       {/* Only rendered when the server says there IS another page. A "next"
