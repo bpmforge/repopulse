@@ -34,6 +34,19 @@ describe('reading a snapshot tree', () => {
     expect(readSnapshotSources(root).files.map((f) => f.path)).toEqual(['src/a.ts']);
   });
 
+  it('reads go.mod, the only map from a Go import path to a directory (W18-12)', () => {
+    const root = tree({
+      'go.mod': 'module example.com/app\n',
+      'svc/go.mod': 'module x\n',
+      'a.go': 'package a',
+    });
+    expect(readSnapshotSources(root).files.map((f) => f.path)).toEqual([
+      'a.go',
+      'go.mod',
+      'svc/go.mod',
+    ]);
+  });
+
   it('skips files the scanners cannot read', () => {
     const root = tree({ 'src/a.ts': 'const a = 1;', 'README.md': '# hi', 'logo.png': 'binary' });
     expect(readSnapshotSources(root).files.map((f) => f.path)).toEqual(['src/a.ts']);

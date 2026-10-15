@@ -43,6 +43,19 @@ decls, docstrings/comments, blanks); **file LDR < 0.3 ⇒ structural-slop findin
 per-exported-symbol **doc/impl > 3× ⇒ docstring-inflation finding** (R-24). Both
 computed deterministically in the anti_slop scanner; thresholds workspace-tunable.
 
+**Mechanical candidates for three HYB/LLM rows (W18-09, all shipped in shadow):**
+R-28 is an Opengrep **taint** pack, `rulepacks/semgrep/bpm-baseline.llm-output.v1.yaml`
+(JS/TS + Python): model-SDK response fields → code execution, SQL, markup or a path,
+and model JSON parsed with no schema check; schema validation and structured-output
+fields are the sanitizers (tool-call arguments, generated against a declared
+parameter schema, are not counted by the JSON check but stay tainted for the others). R-03 (`slop.exception_control_flow`: a throw/raise whose
+only catcher is a swallowing handler in the same function) and R-08
+(`slop.repository_over_crud`: a `*Repository` class whose every method forwards its
+own parameters to one ORM call) run in-process in the anti_slop deterministic layer.
+The checklist items stay: these settle the shapes a pattern can see, and leave the
+judgement cases (a repository that is a deliberate port, a throw that should be a
+result type) to T2.
+
 ## 2. Scanner roster (registry entries — zero framework changes, FR-SEC-1 acceptance)
 
 | key | inputs | triggers | requiredTools | dimension |

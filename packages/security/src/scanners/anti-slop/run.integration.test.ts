@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import type { AnalysisGateway, CompleteOpts } from '@repopulse/analysis';
@@ -124,7 +124,12 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       .where(
         and(
           eq(security.ruleRegistry.workspaceId, workspaceId),
-          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+          inArray(security.ruleRegistry.ruleId, [
+            'slop.unused_export',
+            'slop.suppression_density',
+            'slop.exception_control_flow',
+            'slop.repository_over_crud',
+          ]),
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
@@ -390,6 +395,297 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
+  });
+
+  it('W18-14: the Rust module graph feeds the same shadow rules', async () => {
+    // The W18-01 case above leaves slop.unused_export deprecated; back to the
+    // shipped default (no row = candidate) so the Rust half is observable.
+    await db
+      .delete(security.ruleRegistry)
+      .where(
+        and(
+          eq(security.ruleRegistry.workspaceId, workspaceId),
+          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+        ),
+      );
+    const sources = [
+      {
+        path: 'pay/src/lib.rs',
+        source: 'pub mod money;\nmod audit;\nuse crate::money::{Cents, ToDollars};\n',
+      },
+      {
+        path: 'pay/src/money.rs',
+        source: 'pub struct Cents(pub u64);\npub(crate) fn never_called() {}\n',
+      },
+    ];
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-14-rust', files: [], sources,
+      sourcesComplete: true, trigger: 'schedule',
+    });
+    const rows = async (ruleId: string) =>
+      (
+        await db
+          .select()
+          .from(read.findings)
+          .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)))
+      ).filter((r) => r.file?.startsWith('pay/'));
+    expect(await rows('slop.phantom_module')).toMatchObject([
+      { file: 'pay/src/lib.rs', lineStart: 2, severity: 3, experimental: true },
+    ]);
+    expect(await rows('slop.phantom_symbol')).toMatchObject([
+      {
+        file: 'pay/src/lib.rs',
+        lineStart: 3,
+        title: 'Import of a name that does not exist: ToDollars from pay/src/money.rs',
+        experimental: true,
+      },
+    ]);
+    expect(await rows('slop.unused_export')).toMatchObject([
+      { file: 'pay/src/money.rs', lineStart: 2, title: 'Unused export: never_called', experimental: true },
+    ]);
+  });
+  it('W18-04: suppression density is stored in shadow, per repository and per pull request', async () => {
+    // 20 `as any` in 200 lines: 100/KLOC, over the ceiling with room to spare.
+    const dense = Array.from({ length: 200 }, (_, i) =>
+      i < 20 ? `export const v${i} = load(${i}) as any;` : `export const v${i} = load(${i});`,
+    ).join('\n');
+    const rows = () =>
+      db
+        .select()
+        .from(read.findings)
+        .where(
+          and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.suppression_density')),
+        );
+
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-snapshot', files: [],
+      sources: [{ path: 'src/dense.ts', source: dense }], trigger: 'schedule',
+    });
+    const [repoRow] = await rows();
+    expect(repoRow).toMatchObject({
+      file: null,
+      lineStart: null,
+      severity: 1,
+      experimental: true,
+      title: 'Checker suppressions at 100 per KLOC across the repository',
+    });
+    expect(repoRow?.recommendation).toContain('as-any 20');
+
+    // The density moving is the same finding, not a new one.
+    const lighter = dense.replace('load(0) as any', 'load(0)');
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-again', files: [],
+      sources: [{ path: 'src/dense.ts', source: lighter }], trigger: 'schedule',
+    });
+    expect((await rows()).length).toBe(1);
+
+    // Pull-request mode counts what the diff adds.
+    const patch = [
+      '@@ -1,1 +1,7 @@',
+      ' const keep = 1;',
+      ...Array.from({ length: 6 }, (_, i) => `+const a${i} = x as any;`),
+    ].join('\n');
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-pr', trigger: 'pr_synced',
+      files: [{ path: 'src/pr.ts', patch }],
+    });
+    const pr = (await rows()).find((r) => r.title.startsWith('This change adds'));
+    expect(pr).toMatchObject({ title: 'This change adds 6 checker suppressions', experimental: true });
+
+    // Deprecated: the rule stops — no row is sighted again.
+    const before = (await rows()).map((r) => [r.id, r.occurrenceCount]);
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.suppression_density',
+      status: 'deprecated',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-deprecated', files: [],
+      sources: [{ path: 'src/dense.ts', source: dense }], trigger: 'schedule',
+    });
+    expect((await rows()).map((r) => [r.id, r.occurrenceCount])).toEqual(before);
+  });
+
+  it('W18-11: Python phantom imports land under the same rule ids, in shadow', async () => {
+    const sources = [
+      { path: 'shop/__init__.py', source: '' },
+      { path: 'shop/money.py', source: 'def fmt(x):\n    return x\n' },
+      {
+        path: 'shop/pay.py',
+        source: 'from .money import fmt, to_cents\nfrom .audit import record\n',
+      },
+    ];
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.repoId, repoId),
+            eq(read.findings.ruleId, ruleId),
+            eq(read.findings.file, 'shop/pay.py'),
+          ),
+        );
+
+    await runAntiSlopScan({
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-11-python',
+      files: [],
+      sources,
+      sourcesComplete: true,
+      trigger: 'schedule',
+    });
+    expect(await rows('slop.phantom_symbol')).toMatchObject([
+      {
+        severity: 3,
+        experimental: true,
+        lineStart: 1,
+        title: 'Import of a name that does not exist: to_cents from .money',
+        evidence: 'from .money import fmt, to_cents',
+      },
+    ]);
+    expect(await rows('slop.phantom_module')).toMatchObject([
+      { lineStart: 2, experimental: true, title: 'Import of a missing module: .audit' },
+    ]);
+  });
+
+  it('W18-12: Go phantom packages and identifiers share the rule ids, in shadow; go.mod is not code', async () => {
+    const sources = [
+      { path: 'go.mod', source: 'module example.com/app\n\ngo 1.22\n' },
+      {
+        path: 'internal/money/money.go',
+        source: 'package money\n\nfunc Format(c int) string { return "" }\n',
+      },
+      {
+        path: 'pay/pay.go',
+        source: [
+          'package pay',
+          '',
+          'import (',
+          '\t"example.com/app/internal/audit"',
+          '\t"example.com/app/internal/money"',
+          ')',
+          '',
+          'func Pay(c int) string {',
+          '\taudit.Log(c)',
+          '\treturn money.Format(money.ToCents(c))',
+          '}',
+        ].join('\n'),
+      },
+    ];
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.repoId, repoId),
+            eq(read.findings.ruleId, ruleId),
+            eq(read.findings.file, 'pay/pay.go'),
+          ),
+        );
+
+    const result = await runAntiSlopScan({
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-12-go',
+      files: [],
+      sources,
+      sourcesComplete: true,
+      trigger: 'schedule',
+    });
+    expect(result.status).toBe('succeeded');
+    const [symbol] = await rows('slop.phantom_symbol');
+    expect(symbol).toMatchObject({
+      severity: 3,
+      experimental: true,
+      lineStart: 10,
+      title: 'Reference to a name that does not exist: ToCents in example.com/app/internal/money',
+    });
+    const [pkg] = await rows('slop.phantom_module');
+    expect(pkg).toMatchObject({ lineStart: 4, experimental: true });
+    // go.mod rides along for the graph only: no per-file layer reports on it.
+    const onGoMod = await db
+      .select()
+      .from(read.findings)
+      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.file, 'go.mod')));
+    expect(onGoMod).toEqual([]);
+  });
+
+  it('W18-09: exception control flow and repository-over-CRUD run in shadow, and stop when deprecated', async () => {
+    const sources = [
+      {
+        path: 'src/orders.py',
+        source: [
+          'def charge(order):',
+          '    try:',
+          '        if order.total <= 0:',
+          '            raise ValueError("nothing to charge")',
+          '        return pay(order)',
+          '    except ValueError as exc:',
+          '        return str(exc)',
+        ].join('\n'),
+      },
+      {
+        path: 'src/user.repository.ts',
+        source: [
+          'export class UserRepository {',
+          '  constructor(private readonly prisma: Db) {}',
+          '  findById(id: string) {',
+          '    return this.prisma.user.findUnique({ where: { id } });',
+          '  }',
+          '  findAll() {',
+          '    return this.prisma.user.findMany();',
+          '  }',
+          '  remove(id: string) {',
+          '    return this.prisma.user.delete({ where: { id } });',
+          '  }',
+          '}',
+        ].join('\n'),
+      },
+    ];
+    const scan = (commitSha: string) =>
+      runAntiSlopScan({
+        db, workspaceId, repoId, commitSha, files: [], sources, trigger: 'schedule',
+      });
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
+
+    expect((await scan('w18-09-shadow')).status).toBe('succeeded');
+    const [flow] = await rows('slop.exception_control_flow');
+    expect(flow).toMatchObject({
+      file: 'src/orders.py',
+      lineStart: 4,
+      severity: 1,
+      experimental: true,
+      title: 'Exception used as control flow (caught on line 6)',
+      evidence: 'raise ValueError("nothing to charge")',
+    });
+    const [crud] = await rows('slop.repository_over_crud');
+    expect(crud).toMatchObject({
+      file: 'src/user.repository.ts',
+      lineStart: 1,
+      severity: 1,
+      experimental: true,
+      title: 'Repository over CRUD: UserRepository',
+    });
+
+    // Deprecating one rule stops it without touching the other.
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.exception_control_flow',
+      status: 'deprecated',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    const after = await scan('w18-09-deprecated');
+    expect(after.deterministic).toBe(1);
   });
 });
 
