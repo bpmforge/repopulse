@@ -98,6 +98,38 @@ export interface ForgeReview {
   submittedAt: string;
 }
 
+/**
+ * One inline review comment (W18-23), as the forge anchors it to the diff.
+ *
+ * The body is deliberately absent: the AI-reviewer metrics count and locate
+ * comments, they never read them, and a warehoused copy of review prose is
+ * data nobody asked us to keep.
+ *
+ * `line` vs `originalLine` is the whole point of this shape. `originalLine` is
+ * where the comment was written (on `originalCommitSha`); `line` is where it
+ * sits on the PR's CURRENT head diff, and the forge sets it to null once a
+ * later push changed the lines it was anchored to (GitHub's "Outdated").
+ */
+export interface ForgeReviewComment {
+  externalId: string;
+  prNumber: number;
+  /** The review this comment was submitted with; null for a stand-alone comment. */
+  reviewExternalId: string | null;
+  authorLogin: string;
+  createdAt: string;
+  path: string;
+  /** 'file' comments attach to a whole file and carry no line. */
+  subjectType: 'line' | 'file';
+  /** A reply inside an existing thread, not a new piece of feedback. */
+  isReply: boolean;
+  originalStartLine: number | null;
+  originalLine: number | null;
+  /** null = no longer anchored on the current head diff (outdated). */
+  line: number | null;
+  originalCommitSha: string;
+  commitSha: string;
+}
+
 export interface ForgeCheckRun {
   externalId: string;
   headSha: string;

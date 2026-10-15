@@ -230,6 +230,7 @@ describe('repo detail layout — the workspace tabs (W17-19)', () => {
       'repo-tab-performance',
       'repo-tab-hotspots',
       'repo-tab-pr-flow',
+      'repo-tab-ai-reviewers',
       'repo-tab-ci',
       'repo-tab-findings',
       'repo-tab-security',

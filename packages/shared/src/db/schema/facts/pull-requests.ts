@@ -51,6 +51,13 @@ export const pullRequests = pgTable(
     // zero reviews and zero checks (counting child rows cannot tell those
     // apart, and would leave such a repo backfilling forever).
     enrichedAt: timestamp('enriched_at', { withTimezone: true }),
+    // W18-23: when this PR's inline review comments were last fetched, null
+    // when never (a forge without comment anchors, a refused fetch, or a PR
+    // enriched before W18-23). METRICS.md §5 reads comment metrics only over
+    // PRs where this is set, and treats a comment's anchor as FINAL only when
+    // this is at or after the PR closed — before that a later push can still
+    // move it.
+    reviewCommentsObservedAt: timestamp('review_comments_observed_at', { withTimezone: true }),
     additions: integer('additions').notNull(),
     deletions: integer('deletions').notNull(),
     changedFiles: integer('changed_files').notNull(),

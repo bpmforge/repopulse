@@ -1,11 +1,11 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { facts } from '@repopulse/shared';
-import type { CallCtx, ForgeCheckRun, ForgeProvider } from '@repopulse/forge';
+import type { CallCtx, ForgeCheckRun, ForgeProvider, ForgeReviewComment } from '@repopulse/forge';
 import type { Database } from '@repopulse/shared';
 import type { DbOrTx } from './db.js';
 import { fetchOrRefusal, recordEnrichmentOutcome } from './entity-error.js';
 import { IdentityResolver } from './identity.js';
-import { upsertCheckRuns, upsertReviews, type RepoScope } from './writers.js';
+import { upsertCheckRuns, upsertReviewComments, upsertReviews, type RepoScope } from './writers.js';
 
 // Per-PR enrichment: reviews and check runs (W12-05 follow-up, founder decision
 // 2026-08-13 to broaden enrichment from "commit file churn" to "per-parent
@@ -45,7 +45,7 @@ export interface EnrichPrParams {
 export async function enrichPullRequest(
   deps: EnrichPrDeps,
   params: EnrichPrParams,
-): Promise<{ reviews: number; checks: number }> {
+): Promise<{ reviews: number; checks: number; reviewComments: number }> {
   // Lowest-priority lane, matching enrich.ts: §2 says enrichment is drained by
   // leftover budget, and `Lane` has no 'enrich' member — 'reconcile' IS the
   // bottom lane.
@@ -75,6 +75,25 @@ export async function enrichPullRequest(
     return all;
   });
 
+  // W18-23: inline comment anchors, for the AI-reviewer metrics. Only where the
+  // adapter has the fetch at all — Gitea and GitLab do not, and for them the
+  // PR simply never gets review_comments_observed_at, which the metrics read
+  // as "no line-level data", not as "no comments".
+  const listComments = deps.provider.listReviewComments?.bind(deps.provider);
+  const comments = listComments
+    ? await fetchOrRefusal(async () => {
+        const all: ForgeReviewComment[] = [];
+        let cursor: string | undefined;
+        do {
+          const page = await listComments(ctx, params.repo, params.prNumber, cursor);
+          all.push(...page.items);
+          cursor = page.nextCursor;
+        } while (cursor !== undefined);
+        return all;
+      })
+    : null;
+  const observedAt = new Date();
+
   return deps.db.transaction(async (tx) => {
     const resolver = new IdentityResolver(tx, params.workspaceId, deps.provider_kind ?? 'github');
     const r = reviews.refused
@@ -83,6 +102,20 @@ export async function enrichPullRequest(
     const c = checks.refused ? 0 : await upsertCheckRuns(tx, scope, checks.value);
     await recordEnrichmentOutcome(tx, scope, 'reviews', reviews.refused ?? null);
     await recordEnrichmentOutcome(tx, scope, 'checks', checks.refused ?? null);
+    let rc = 0;
+    if (comments) {
+      if (!comments.refused) {
+        rc = await upsertReviewComments(
+          tx,
+          scope,
+          resolver,
+          params.prNumber,
+          comments.value,
+          observedAt,
+        );
+      }
+      await recordEnrichmentOutcome(tx, scope, 'review_comments', comments.refused ?? null);
+    }
     // Stamp the PR as enriched so the work-list below stops returning it. This
     // is the reviews/checks analogue of commits.stats_source='detail'; without
     // a marker the predicate would have to count child rows, and a PR with
@@ -98,7 +131,7 @@ export async function enrichPullRequest(
           eq(facts.pullRequests.number, params.prNumber),
         ),
       );
-    return { reviews: r, checks: c };
+    return { reviews: r, checks: c, reviewComments: rc };
   });
 }
 
