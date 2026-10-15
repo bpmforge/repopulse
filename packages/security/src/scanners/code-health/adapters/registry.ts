@@ -283,10 +283,10 @@ export function dedupeAgainstPack(
   return { kept, dropped };
 }
 
-export { ruffAdapter, biomeAdapter, cppcheckAdapter };
 export {
   ruffAdapter,
   biomeAdapter,
+  cppcheckAdapter,
   actionlintAdapter,
   shellcheckAdapter,
   hadolintAdapter,
