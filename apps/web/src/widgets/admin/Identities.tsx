@@ -175,29 +175,33 @@ export function Identities() {
         onRetry={() => void refetch()}
         emptyMessage="No identities yet — they appear as commits and pull requests are ingested."
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Workspace identities, their weight, and merge state</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Identity</th>
-              <th scope="col">Commits</th>
-              <th scope="col">PRs</th>
-              <th scope="col">Bot</th>
-              <th scope="col">Merged into</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-          <tbody data-testid="identity-rows">
-            {items.map((i) => (
-              <IdentityRow
-                key={i.id}
-                identity={i}
-                targetLogin={i.merged_into_id === null ? null : (byId.get(i.merged_into_id)?.login ?? null)}
-                onMergeClick={() => setMergeSource(i.id)}
-              />
-            ))}
-          </tbody>
-        </table>
+        {/* W18-28: scrolls in its own region at phone width; padded cells
+            no longer fit 390px, and the page must not scroll sideways. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Workspace identities">
+          <table className="table-plain w-full text-sm">
+            <caption className="sr-only">Workspace identities, their weight, and merge state</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Identity</th>
+                <th scope="col">Commits</th>
+                <th scope="col">PRs</th>
+                <th scope="col">Bot</th>
+                <th scope="col">Merged into</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody data-testid="identity-rows">
+              {items.map((i) => (
+                <IdentityRow
+                  key={i.id}
+                  identity={i}
+                  targetLogin={i.merged_into_id === null ? null : (byId.get(i.merged_into_id)?.login ?? null)}
+                  onMergeClick={() => setMergeSource(i.id)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
 
       {mergeSource !== null && byId.get(mergeSource) && (

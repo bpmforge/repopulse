@@ -124,6 +124,15 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     schedule: 'weekly',
     rationale: 'Drafts from a 30-day dismissal window; nightly would re-draft the same clusters.',
   },
+  {
+    // W18-24. On by default because it costs one read per repository a night
+    // and does nothing without the permission — the run row then says which
+    // permission to grant rather than the pull pretending there were no alerts.
+    key: 'code_scanning_pull',
+    enabled: true,
+    rationale:
+      'One read per repo a night; imports GitHub code-scanning alerts when the App may read them.',
+  },
 ];
 
 export function defaultFor(key: string): ScannerDefault | undefined {

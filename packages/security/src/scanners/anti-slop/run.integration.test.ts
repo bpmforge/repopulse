@@ -11,7 +11,7 @@ import {
   type CompleteOpts,
   type T2Host,
 } from '@repopulse/analysis';
-import { dedupKey } from '@repopulse/insights';
+import { dedupKey, readImportGraph } from '@repopulse/insights';
 import { runAntiSlopScan, worstByLdr } from './run.js';
 import { readSnapshotSources } from '../../snapshot/sources.js';
 
@@ -191,6 +191,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
+    await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.repoId, repoId));
     await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
     await db
@@ -1322,6 +1323,49 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       snapshotDir: triggering, trigger: 'schedule',
     });
     expect(stopped.deterministic).toBe(0);
+  });
+
+
+  it('writes the import graph for the exposure reprice (W18-25)', async () => {
+    const sources = [
+      { path: 'src/user.js', source: 'export function fetchUser(id) { return id; }\n' },
+      { path: 'src/routes/profile.js', source: "import { fetchUser } from '../user.js';\n" },
+      { path: 'src/admin.js', source: "import { fetchUser } from './user.js';\n" },
+    ];
+    const gateway: AnalysisGateway = {
+      async complete() {
+        return {
+          text: '{"findings":[]}',
+          model: 'fake-finder',
+          tokensIn: 1,
+          tokensOut: 1,
+          costUsd: null,
+          durationMs: 1,
+        };
+      },
+      async health() {
+        return { ok: true };
+      },
+    };
+
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-25-sha', files, sources,
+      sourcesComplete: true, trigger: 'manual', gateway,
+    });
+
+    const graph = await readImportGraph(db, workspaceId, repoId);
+    expect(graph).toMatchObject({ commitSha: 'w18-25-sha', complete: true });
+    expect(graph?.files).toEqual(['src/admin.js', 'src/routes/profile.js', 'src/user.js']);
+    expect(graph?.edges).toHaveLength(2);
+
+    // A capped snapshot is recorded as such, for the pricer to go neutral on.
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-25-capped', files: [], sources, trigger: 'schedule',
+    });
+    expect(await readImportGraph(db, workspaceId, repoId)).toMatchObject({
+      commitSha: 'w18-25-capped',
+      complete: false,
+    });
   });
 });
 

@@ -182,7 +182,7 @@ export function PrFlow({ repoId, window }: Props) {
         emptyMessage="No reviews by another person in this window."
       >
         <div className="flex flex-col gap-2" data-testid="review-load">
-          <table className="w-full text-sm">
+          <table className="table-plain w-full text-sm">
             <caption className="sr-only">
               Reviews per reviewer in the last {window}, excluding self-reviews and bots
             </caption>

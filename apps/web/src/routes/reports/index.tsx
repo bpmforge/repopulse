@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 
 // Report Center (W5-04, UX_SPEC §4.h). The rail has linked to /reports since
@@ -115,6 +115,10 @@ function ReportCenter() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="report-center">
+      <PageHeader
+        title="Reports"
+        description="Point-in-time reports, pinned to their window so a regenerated copy shows the same numbers."
+      />
       <WidgetFrame title="Generate a report" state="ready">
         <div className="flex flex-wrap items-end gap-3" data-testid="generate-form">
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
@@ -189,7 +193,7 @@ function ReportCenter() {
         onRetry={() => void refetch()}
         emptyMessage="No reports yet — generate one above."
       >
-        <table className="w-full text-sm">
+        <table className="table-plain w-full text-sm">
           <caption className="sr-only">Generated reports, newest first</caption>
           <thead>
             <tr className="text-left text-xs text-fg-muted">
@@ -373,7 +377,7 @@ function ReportDiff({ before, after }: { before: number; after: number }) {
           {data.reason}
         </p>
       ) : (
-        <table className="w-full text-sm" data-testid="diff-table">
+        <table className="table-plain w-full text-sm" data-testid="diff-table">
           <caption className="sr-only">Per-row deltas between two reports</caption>
           <thead>
             <tr className="text-left text-xs text-fg-muted">

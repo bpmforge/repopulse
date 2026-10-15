@@ -1,5 +1,6 @@
 import type {
   ForgeCheckRun,
+  ForgeCodeScanningAlert,
   ForgeCommit,
   ForgeDeployment,
   ForgeDiffFile,
@@ -325,5 +326,60 @@ export function normalizeFileContent(f: RawFileContent, ref: string): ForgeFileC
     sizeBytes: f.size,
     content: truncated ? null : (f.content ?? null),
     truncated,
+  };
+}
+
+// GET /repos/{owner}/{repo}/code-scanning/alerts (W18-24). Only the fields we
+// map; everything is optional because the alert API omits what a tool did not
+// report (no security_severity_level on a non-security query, no location on a
+// repository-level alert), and a missing field must read as null, not crash.
+export interface RawCodeScanningAlert {
+  number: number;
+  state?: string | null;
+  html_url?: string | null;
+  rule?: {
+    id?: string | null;
+    name?: string | null;
+    description?: string | null;
+    severity?: string | null;
+    security_severity_level?: string | null;
+    tags?: string[] | null;
+  } | null;
+  tool?: { name?: string | null; version?: string | null } | null;
+  most_recent_instance?: {
+    commit_sha?: string | null;
+    location?: {
+      path?: string | null;
+      start_line?: number | null;
+      end_line?: number | null;
+    } | null;
+    message?: { text?: string | null } | null;
+  } | null;
+}
+
+const positiveInt = (n: number | null | undefined): number | null =>
+  typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : null;
+
+export function normalizeCodeScanningAlert(a: RawCodeScanningAlert): ForgeCodeScanningAlert {
+  const instance = a.most_recent_instance ?? null;
+  const location = instance?.location ?? null;
+  const startLine = positiveInt(location?.start_line);
+  return {
+    number: a.number,
+    state: a.state ?? 'open',
+    ruleId: a.rule?.id ?? 'unknown-rule',
+    ruleName: a.rule?.name ?? null,
+    ruleDescription: a.rule?.description ?? null,
+    ruleSeverity: a.rule?.severity ?? null,
+    securitySeverityLevel: a.rule?.security_severity_level ?? null,
+    ruleTags: Array.isArray(a.rule?.tags) ? a.rule.tags.filter((t) => typeof t === 'string') : [],
+    toolName: a.tool?.name ?? 'unknown-tool',
+    toolVersion: a.tool?.version ?? null,
+    path: location?.path ? location.path : null,
+    startLine,
+    endLine: positiveInt(location?.end_line) ?? startLine,
+    message: instance?.message?.text ?? null,
+    commitSha: instance?.commit_sha ?? null,
+    htmlUrl: a.html_url ?? null,
   };
 }

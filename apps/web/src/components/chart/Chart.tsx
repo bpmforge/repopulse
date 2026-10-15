@@ -160,7 +160,8 @@ export function Chart({
           <button
             type="button"
             onClick={() => setAsTable((v) => !v)}
-            className="rounded-sm px-1.5 py-0.5 text-xs text-fg-muted hover:text-fg"
+            // min-h-6: WCAG 2.2 target size (UX_SPEC §7), W18-28.
+            className="inline-flex min-h-6 items-center rounded-sm px-1.5 py-0.5 text-xs text-fg-muted hover:text-fg"
             data-testid="chart-table-toggle"
             aria-pressed={asTable}
           >

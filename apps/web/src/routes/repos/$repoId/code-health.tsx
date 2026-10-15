@@ -30,6 +30,17 @@ import {
 // manual scan to its end instead of refetching once, and the complexity panel
 // takes its empty sentence from the scanner's actual state.
 
+// The Security tab's names for the same three scanners (W18-28). This table
+// printed the registry keys — "code_health_tools", "anti_slop" — while the
+// Security tab, one click away, listed the same rows as "Code health
+// (complexity, duplication)" and "Anti-slop". An unknown key still shows as
+// itself rather than disappearing.
+const CH_SCANNER_NAME: Record<string, string> = {
+  code_health_tools: 'Code health (complexity, duplication)',
+  anti_slop: 'Anti-slop',
+  logging_hygiene: 'Logging hygiene',
+};
+
 export const Route = createFileRoute('/repos/$repoId/code-health')({ component: CodeHealthTab });
 
 /**
@@ -156,7 +167,7 @@ function CodeHealthTab() {
           />
         </div>
         {data && (
-          <table className="w-full text-sm" data-testid="ch-scanners">
+          <table className="table-plain w-full text-sm" data-testid="ch-scanners">
             <caption className="sr-only">Code health scanner coverage</caption>
             <thead>
               <tr className="text-left text-xs text-fg-muted">
@@ -177,7 +188,7 @@ function CodeHealthTab() {
                   data-state={scanner.state}
                 >
                   <th scope="row" className="py-1.5 text-left font-normal">
-                    {scanner.key}
+                    {CH_SCANNER_NAME[scanner.key] ?? scanner.key}
                     {scanner.tool_versions && (
                       <span className="ml-2 text-xs text-fg-muted">
                         {Object.entries(scanner.tool_versions)

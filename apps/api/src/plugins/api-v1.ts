@@ -34,6 +34,8 @@ import securityRoutes from '../routes/security/index.js';
 import setupRoutes from '../routes/setup/index.js';
 import codeHealthRoutes from '../routes/code-health/index.js';
 import rulesRoutes from '../routes/rules/index.js';
+// W18-22: per-rule precision and the repository coverage map.
+import trustRoutes from '../routes/trust/index.js';
 import riskRoutes from '../routes/risk/index.js';
 import agreementsRoutes from '../routes/agreements/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
@@ -236,6 +238,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   await app.register(setupRoutes, { db: opts.db });
   await app.register(codeHealthRoutes, { db: opts.db });
   await app.register(rulesRoutes, { db: opts.db });
+  await app.register(trustRoutes, { db: opts.db });
   await app.register(riskRoutes, { db: opts.db });
   // Admin Analysis (W7-08).
   await app.register(analysisAdminRoutes, { db: opts.db });

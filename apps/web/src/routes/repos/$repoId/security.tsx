@@ -4,6 +4,7 @@ import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { ScannerStatusList, ScanToolingNote } from '../../../widgets/security/ScannerStatusList.js';
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
+import { CoverageMap } from '../../../widgets/trust/CoverageMap.js';
 // W8-14. OUT OF THAT TICKET'S DECLARED WRITE SCOPE and mounted anyway: a
 // funnel widget nobody renders is a widget that does not exist, and FR-SEC-15
 // is about what the Security tab SHOWS. Declared in the handoff.
@@ -77,6 +78,10 @@ function SecurityTab() {
           />
         </div>
       </WidgetFrame>
+
+      {/* W18-22: the holes beside the scanner table — languages, skipped
+          files, absent scanners, shadow rules. */}
+      <CoverageMap repoId={repoId} />
 
       <WidgetFrame title="Open findings" state={state} testId="security-findings">
         {data &&
@@ -199,7 +204,7 @@ function SecurityTab() {
                 {dependencyEmptyCopy(dependencyScanner)}
               </p>
             ) : (
-              <table className="w-full text-sm" data-testid="cve-table">
+              <table className="table-plain w-full text-sm" data-testid="cve-table">
                 <thead>
                   <tr className="text-left text-xs text-fg-muted">
                     <th scope="col">CVE</th>

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
-import { persistFindings, type IncomingFinding } from '@repopulse/insights';
+import { persistFindings, writeImportGraph, type IncomingFinding } from '@repopulse/insights';
 import {
   validateFindings,
   FindingParseError,
@@ -27,6 +27,7 @@ import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { EXCEPTION_FLOW_RULE_ID, exceptionFlows } from './exception-flow.js';
 import { REPOSITORY_CRUD_RULE_ID, repositoriesOverCrud } from './repository-crud.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { buildImportGraph, RESOLVE_EXTENSIONS } from './source-graph.js';
 import { DELEGATION_WRAPPER_RULE_ID, delegationWrappers } from './delegation-wrappers.js';
 import { SINGLE_IMPL_RULE_ID, singleImplInterfaces } from './single-impl.js';
 import { STALE_JSDOC_RULE_ID, staleJsdocParams } from './stale-jsdoc.js';
@@ -247,6 +248,24 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     const all = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
     const isGoMod = (p: string): boolean => p === 'go.mod' || p.endsWith('/go.mod');
     const sources = all.filter((s) => !isGoMod(s.path));
+
+    // The import graph (W18-25), written down for the consumer that runs after
+    // this snapshot is gone: the exposure reprice. Built from ALL sources, not
+    // the slopsquat-filtered set: a file being flagged does not stop other
+    // files importing it.
+    if (deps.sources?.length) {
+      await writeImportGraph(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        snapshot: {
+          version: 1,
+          commitSha: deps.commitSha,
+          complete: deps.sourcesComplete === true,
+          extensions: RESOLVE_EXTENSIONS,
+          ...buildImportGraph(deps.sources),
+        },
+      });
+    }
     for (const ldr of ldrFindings(sources)) {
       findings.push({
         dimension: 'slop',

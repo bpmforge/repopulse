@@ -107,7 +107,7 @@ amd64 are untested, not unsupported.
 | Accessibility (WCAG 2.2 AA via axe) | none | 78 automated scans, 9 keyboard flows (W17-31) | **Tested** | at 390 px width and 200 % zoom some paths scroll sideways inside the main area |
 | Runtime APM, measured latency, CPU or memory | — | — | **Absent** | "Performance" is a review of code findings; nothing is timed |
 | Test-coverage ingestion | — | — | **Absent** | the test-gap register uses commit co-change only; the screen says not supported |
-| Infrastructure-as-code scanning | — | — | **Absent** | the row reads "not in this build" |
+| Infrastructure-as-code scanning | none (runs inside the code-health tools scan) | adapter tests over recorded real tool output (W18-26) | **Shadow candidate, not yet surfaced** | checkov (Terraform, CloudFormation, Kubernetes manifests, Dockerfiles; an allowlist of exposure, privilege, credential and encryption checks), hadolint, actionlint and shellcheck run and store findings as experimental — excluded from scores, banners, plans and reports until an admin promotes them. Helm charts are not scanned. The Security tab's `iac` scanner row still reads "not in this build"; that flips when the checks are promoted |
 | Bitbucket; Kubernetes/Helm packaging; email or chat digests; PR comments or any write to your repositories | — | — | **Absent** | by decision; RepoPulse never writes to a repository |
 
 ## Documentation

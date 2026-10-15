@@ -11,7 +11,6 @@ import { docsUrl } from '../../lib/docs.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { IntentControl } from './IntentControl.js';
 import {
-  SEVERITY_LABEL,
   VERIFY_LABEL,
   locationOf,
   type Finding,
@@ -21,6 +20,7 @@ import {
   STALE_FILE_DAYS,
   type FileDetail as FileDetailResponse,
 } from './contracts.js';
+import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 
 // File drill-down (UX_SPEC §4.d): 52-week churn bars and the owners list with
 // the M3 single-owner flag.
@@ -84,9 +84,6 @@ export function FileDetailScreen({ repoId, path }: Props) {
 
   return (
     <div className="flex flex-col gap-4" data-testid="file-detail">
-      {/* W6-09: the intent control sits at the top, because deciding what a
-          team means to do about a file is context for every number below it. */}
-      <IntentControl repoId={Number(repoId)} path={path} />
       {/* UX_SPEC §4.d's deleted/renamed banner. It reports what the warehouse
           knows — the last date we saw a touch, and the paths this file was
           known by — and does NOT claim the file was deleted, because ingestion
@@ -123,13 +120,19 @@ export function FileDetailScreen({ repoId, path }: Props) {
         </h1>
         {singleOwner && (
           <span className="flex items-center gap-1.5" data-testid="single-owner-flag">
-            <SeverityBadge severity="medium" />
+            <SeverityBadge severity="medium" label="bus factor 1" />
             <span className="text-xs text-fg-muted">
               single owner — {Math.round(topShare * 100)}% of changed lines
             </span>
           </span>
         )}
       </header>
+
+      {/* W6-09: the intent control sits at the top, because deciding what a
+          team means to do about a file is context for every number below it.
+          Under the file's name, not above it (W18-28): above, it was the first
+          thing on the page and read as belonging to the repository header. */}
+      <IntentControl repoId={Number(repoId)} path={path} />
 
       <WidgetFrame
         title="Churn, last 52 weeks"
@@ -200,46 +203,50 @@ export function FileDetailScreen({ repoId, path }: Props) {
         onRetry={() => void refetchFindings()}
         emptyMessage="No findings recorded against this file."
       >
-        <table className="w-full text-sm" data-testid="file-findings">
-          <caption className="sr-only">Findings recorded against this file</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Severity</th>
-              <th scope="col">Finding</th>
-              <th scope="col">Lines</th>
-              <th scope="col">Status</th>
-              <th scope="col">Verification</th>
-            </tr>
-          </thead>
-          <tbody>
-            {findingItems.map((f) => (
-              <tr key={f.id} className="border-t border-border">
-                {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
-                <td className="py-1 whitespace-nowrap">
-                  {SEVERITY_LABEL[f.severity] ?? f.severity}
-                </td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  {/* Links into the repo's Findings tab, which owns triage —
-                      this panel reports, it does not duplicate the actions. */}
-                  <Link
-                    to="/repos/$repoId/findings"
-                    params={{ repoId }}
-                    search={(prev: Record<string, unknown>) => ({ ...prev, finding: f.id })}
-                    className="text-accent hover:underline"
-                  >
-                    {f.title}
-                  </Link>
-                </th>
-                {/* The file is the page, so only the lines are news here. */}
-                <td className="py-1 font-mono text-xs">
-                  {locationOf(f).replace(`${f.file}:`, '')}
-                </td>
-                <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
-                <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+        {/* W18-28: scrolls inside its own region at phone width instead of
+            squeezing every column until the headers run together. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="File findings">
+          <table className="table-plain w-full min-w-[36rem] text-sm" data-testid="file-findings">
+            <caption className="sr-only">Findings recorded against this file</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Severity</th>
+                <th scope="col">Finding</th>
+                <th scope="col">Lines</th>
+                <th scope="col">Status</th>
+                <th scope="col">Verification</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {findingItems.map((f) => (
+                <tr key={f.id} className="border-t border-border">
+                  {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
+                  <td className="py-1 whitespace-nowrap">
+                    <FindingSeverityBadge severity={f.severity} />
+                  </td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    {/* Links into the repo's Findings tab, which owns triage —
+                        this panel reports, it does not duplicate the actions. */}
+                    <Link
+                      to="/repos/$repoId/findings"
+                      params={{ repoId }}
+                      search={(prev: Record<string, unknown>) => ({ ...prev, finding: f.id })}
+                      className="text-accent hover:underline"
+                    >
+                      {f.title}
+                    </Link>
+                  </th>
+                  {/* The file is the page, so only the lines are news here. */}
+                  <td className="py-1 font-mono text-xs">
+                    {locationOf(f).replace(`${f.file}:`, '')}
+                  </td>
+                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
 
       <WidgetFrame
@@ -259,7 +266,7 @@ export function FileDetailScreen({ repoId, path }: Props) {
         <Chart
           testId="file-hotspot-history"
           ariaLabel={`Hotspot score history for ${path}`}
-          height={120}
+          height={160}
           tableData={{
             columns: ['Date', 'Hotspot score'],
             rows: (data?.hotspot_history ?? []).map((h) => [h.computed_at.slice(0, 10), h.score]),
@@ -270,7 +277,11 @@ export function FileDetailScreen({ repoId, path }: Props) {
               type: 'category',
               data: (data?.hotspot_history ?? []).map((h) => h.computed_at.slice(0, 10)),
             },
-            yAxis: { type: 'value' },
+            // W18-28: at 120px with ECharts' default ticks the six labels
+            // (0.1 … 0.6) overprinted each other. The score is a 0–1 fraction,
+            // so a fixed 0 / 0.5 / 1 scale is both legible and comparable
+            // between files, which an auto-fitted axis was not.
+            yAxis: { type: 'value', min: 0, max: 1, splitNumber: 2 },
             tooltip: { trigger: 'axis' },
             series: [
               {

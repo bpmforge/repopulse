@@ -310,7 +310,7 @@ export function LlmProviders() {
         onRetry={() => void list.refetch()}
         emptyMessage="No model configured yet — analysis will skip and say so."
       >
-        <table className="w-full text-sm" data-testid="provider-table">
+        <table className="table-plain w-full text-sm" data-testid="provider-table">
           <caption className="sr-only">Configured LLM providers</caption>
           <thead>
             <tr className="text-left text-xs text-fg-muted">

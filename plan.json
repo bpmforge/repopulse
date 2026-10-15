@@ -8985,8 +8985,13 @@
         "Repo coverage map: languages without packs, files skipped for size, scanners not enabled, rules in shadow \u2014 never an empty green panel"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Done 2026-10-15. PER-RULE PRECISION: GET /api/v1/rules/precision[?rule_id=] (member-readable, apps/api/src/routes/trust + lib/rule-precision.ts). It shows triage precision (1 - FP rate, from findings dispositions via the W9-07 fpRate helper) BESIDE benchmark precision, each with its sample size and source, never blended. The benchmark numbers come from a build-time copy (lib/benchmark-precision.data.ts) derived from docs/benchmarks/report.json, with a drift test, and are never run at request time. The rule-fixtures suite is EXCLUDED from per-rule numbers, because every rule is 100% on its own fixtures by construction. Lifecycle comes from the rule_registry row, then the shipped shadow default (slop.unused_export / phantom_symbol / phantom_module), then any rule seen with experimental findings, else 'pack' (always on). Untriaged or unbenchmarked rules read 'not measured yet', never 0% or 100%. Samples under 10 are flagged as small. UI: a RulePrecisionTable added below the registry on /admin/rules, and a RulePrecisionSummary in the finding drawer (FindingDetail).",
+        "COVERAGE MAP: GET /api/v1/repos/:repoId/coverage-map (lib/coverage-map.ts), mounted on the repo Security tab as a CoverageMap panel. It has four sections, each with a 'checked' sentence and an evidence flag of known or unknown, so no section is ever an empty green panel (D15). It gives no verdict, score or grade (N-9). (1) Languages: commit_files path extensions against the `languages:` fields read live from the shipped YAML packs, so new language packs count automatically, plus the in-process JS/TS fast lane. (2) Skipped files: the snapshot reader counts skips, but nothing stored them. The worker (workers/index.ts) now marks the anti_slop scan_run partial when the read skipped or truncated, and the map reports that flag. The COUNT is shown as 'not recorded'. (3) Scanners: not in the build (unregistered defaults plus UNSUPPORTED_TOOLS), not supported (capability.ts UNSUPPORTED_CAPABILITIES), disabled, never run, or last run failed, grouped with the actionable ones first. (4) Rules in shadow: registry candidates, the shipped shadow defaults, and rules seen with experimental findings, with open shadow findings per repo.",
+        "SCHEMA CHANGE NEEDED (not made, outside write_scope): a scan_runs.read_stats jsonb column (files_read, skipped_size, skipped_cap, truncated) so the coverage map can show HOW MANY files were skipped instead of only that the read was partial. SHIPPED_SHADOW_RULES duplicates anti-slop rule-id constants that @repopulse/security does not export. Exporting them would remove the duplication, and the experimental-findings fallback covers lag in the meantime. Screenshots are in /mnt/project-files/repopulse/ux-review/w18-22/: demo stack plus illustrative local-only rows (findings, triage, a partial run, a Go/Java/Python file list).",
+        "GATE: lint OK, typecheck OK, tests 2546 passed / 58 skipped / 5 failed (only the 5 known docker-on-PATH env failures in test/ops/deploy-bundle.test.ts and deploy-up-behaviour.test.ts). There are 27 new tests: 5 in benchmark-precision.test.ts (drift test plus summariser), 13 in trust-surfaces.test.ts (precision, lifecycle, coverage-map evidence states, tenancy), and 9 in widgets/trust/trust.test.tsx. PerformanceReview.test's own-API allowlist was extended with rules/precision, because the drawer now reads it. validate-plan PASS."
+      ]
     },
     {
       "id": "W18-23",
@@ -9036,8 +9041,10 @@
         "Deduped against Repo Pulse's own rules via the dedup map; priced by the risk model"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "2026-10-15 done (branch claude/repopulse-sarif-ingest). Built packages/security/src/external/: SARIF 2.1.0 upload (POST /api/v1/repos/{id}/external-findings/sarif, admin-only — RBAC has no maintainer role; 10 MiB cap -> 413; zod subset of the OASIS schema, unknown keys stripped so snippets/codeFlows/invocations are never read; nothing executed or fetched; '..' and unknown absolute roots dropped and counted) and a read-only GitHub code-scanning pull (ForgeProvider.listCodeScanningAlerts, optional, capability supportsCodeScanningAlerts: GitHub true, GitLab/Gitea false = not supported yet; scan lane, checks bucket; nightly on REGISTERS_NIGHTLY_CRON + manual, catalogue key code_scanning_pull). One mapper for both: tool.driver.name/version, rule id, security-severity bands then level -> severity, CodeQL precision -> confidence, dimension from existing FINDING_DIMENSIONS only (dependency/secrets/iac/sast/performance/code_health). Stored under external:<tool> (upload) or external:<tool>:code-scanning (pull), rule_id external.<tool>.<rule>; one scan_run per tool with tool_versions. partialFingerprints / alert number replace evidence+line-bucket in dedupKey (new optional fingerprint field, our scanners' keys unchanged). DEDUP_MAP gained an optional tool scope + eslint/CodeQL entries; an external result is dropped (reported superseded_by_pack) when it maps keep:'pack' to our rule (or IS a bpm-* id) and our open finding sits in the same file within 3 lines. Sweeps scoped to the tool's own key; sweep=false and page-capped pulls close nothing. Priced by the existing nightly reprice (no separate path); findings API adds external:{tool,source,tool_version}. PERMISSION: the GitHub App does not request 'Code scanning alerts: Read' (security_events) — not added (product decision); the pull records no_code_scanning_permission on 403. No migration. Outside declared write scope (needed): apps/api route + worker wiring + findings field, packages/insights dedup/store fingerprint, packages/shared audit event. Tests: sarif.test.ts 32 (semgrep/CodeQL/ESLint fixtures), ingest.integration 15 (dedup, sweep isolation both ways, pricing, mocked-forge pull), external route 9 (auth, 413, 400, 404, 415, provenance), forge contract 6. Gate: lint 0, typecheck 0, tests 2547 passed / 58 skipped / 5 failed (the known docker-on-PATH deploy-* tests)."
+      ]
     },
     {
       "id": "W18-25",
@@ -9062,8 +9069,10 @@
         "Tier-2 prompts include callers/callees of changed functions from the fast-lane index within the chunk budget"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15: risk model v2 (risk_model.v2; RISK_MODEL_V1 kept and ignores the graph). The weekly anti_slop snapshot pass persists the fast-lane import graph (source-graph.ts buildImportGraph: relative imports + re-exports + require/import() + side-effect imports, names taken per edge, 'aliased' marks for files an unresolved specifier may reach) to metric_snapshots key import_graph (latest row only, complete=false on a capped read). No migration (0036 unused). risk.reprice reads it per repo; X = hotspot X x import multiplier (orphan 0.6; fan-in log-scaled 1.0 at <=2 to 1.3 at 32+), re-floored at 0.25, capped 1.0; neutral (1.0) for capped snapshot / unindexed language / entry-point path / possible alias / file not in graph / no graph. risk_factors.inputs gains import_graph, import_fan_in, import_multiplier, exposure_why ('imported by 14 modules', 'nothing imports this file', '... exposure not adjusted') which the existing why? popover prints. Tier-2: owasp/logging/anti_slop checklist prompts carry callers/callees of the chunk's changed functions (scanners/context/repo-context.ts), fenced as DATA beside the diff and never in chunk.text (evidence validation unchanged), budget min(1.2k, 24k - chunk promptTokens), whole lines, shipped files/callers before tests. Measured on 15 Repo Pulse branch diffs vs fast-checks-1 (24 chunks, anti-slop checklist): prompts 435,007 -> 443,407 est. tokens (+1.9%, max +6.5% per diff), 0 chunks over budget, 16/24 chunks got context (diffs of only new files get none). Repo Pulse tree: 1,016 indexed files, 2,027 edges, 120 KB stored, built in ~0.5 s; 601 imported (242 boosted), 316 orphans (313 tests/fixtures; the other 3: one unimported types file, two package.json-only demo scripts), 98 entry points. Gate: lint 0, typecheck 0, vitest 2523 passed / 58 skipped / 5 failed (environmental: docker on PATH for deploy-bundle/deploy-up-behaviour)."
+      ]
     },
     {
       "id": "W18-26",
@@ -9086,8 +9095,10 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-iac-adapters: four ToolAdapters in packages/security/src/scanners/code-health/adapters — actionlint 1.7.12 (MIT; workflows in .github/workflows top level; runner-label + shellcheck info/style dropped; script injection = tool.actionlint.untrusted-input sev 4, iac dim), shellcheck 0.11.0 (GPL-3.0 subprocess-only; *.sh/*.bash/*.ksh; --norc --severity=warning; SC2154/1071/1090/1091 dropped), hadolint 2.15.1 (GPL-3.0 subprocess-only; Dockerfile/Containerfile variants; our --config, info/style dropped), checkov 3.3.29 (Apache-2.0; frameworks terraform/cloudformation/kubernetes/dockerfile only — secrets, github_actions, helm/kustomize, sca excluded; --check allowlist of 60 exposure/privilege/credential/encryption checks, re-enforced in parse; our severities; run from / with --directory= so no repo .checkov.yaml is read — measured). shellcheck/hadolint run via in-container find -exec {} + (sh -c 128KiB limit), parsers read JSON streams and never throw (hostile-input tests). Dedup: TOOL_DEDUP_MAP (checkov vs hadolint per rule AND file: DL3007/DL3000/DL3024 win, CKV_DOCKER_8 wins over DL3002; CKV_DOCKER_4 left off the allowlist — it fired on ADD of an archive), DEDUP_MAP gives CKV_AWS_41/actionlint credentials to the secrets scanner. Shadow: ToolAdapter.shadow=true for all four; run.ts adapterShadowState does the shippedRuleStatus-style rule_registry lookup (rule row, then tool row tool.<key>, default candidate → experimental:true; active → live; deprecated → dropped); ruff/Biome unchanged. Follow-up: read shipped default from YAML lifecycle (rules/shadow.ts) once it lands. Fixtures: trigger + clean trees per tool; parse tests use REAL output recorded by running each adapter's argv (binaries from digest-verified publisher images, inside an alpine 3.20 chroot; checkov under unshare -n, read-only HOME, and again from the hashed requirements in a python:3.12-alpine3.20 chroot — same findings). Clean trees produce zero findings. Containerfile.scan: shellcheck/hadolint/actionlint COPY --from publisher images pinned by multi-arch index digest (GitHub release checksum files unreachable from this host — TODO in the file to cross-check; no checksum invented); checkov in its own venv from packages/security/sandbox/checkov-requirements.txt (96 pkgs, every sha256 checked against PyPI JSON, both arches, --require-hashes --only-binary --no-deps). Image NOT built (no container daemon here). Docs: CODE_HEALTH_SUITE §10 rows + footnotes (GPL distribution correction), DESIGN_REVIEW §4 ledger (OPEN: GPL source offer before a bundle carrying shellcheck/hadolint ships), README IaC row → 'Shadow candidate, not yet surfaced' per lead (capability.ts + Security-tab iac row untouched; flip when checks are promoted; W18-29 owns the tab row), SECURITY_SUITE iac row, RUNNING.md. Gate: lint 0, typecheck 0, vitest 2532 passed / 58 skipped / 5 failed (the known environmental apps/api/test/ops/deploy-* docker-on-PATH tests)."
+      ]
     },
     {
       "id": "W18-27",
@@ -9105,8 +9116,10 @@
         "D9a reaffirmed: verified patches + customer-CI pull, no repo writes"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "2026-10-15 done (branch claude/repopulse-d16-docs): D16 recorded in docs/work/FOUNDING_BRIEF.md as a table row plus a full section (decision, why, what sets it apart incl. the Kodus caveat, fix delivery \"Verified + CI pull\" = W18-19 verified patches + W18-18 customer-CI pull, what follows). D9a reaffirmed unchanged: no repo writes, no PR comments, no forge write scope; N-3 and N-9 stand; S-25 (advisory PR comment write-back) withdrawn. VISION.md rewritten to the positioning (problem, answer, five pillars, per-competitor lines). SCOPE.md: product-line note, S-25 withdrawn, new W18 section S-70..S-81 mapped to W18 tickets, out-of-scope summary corrected (Bitbucket only, no repo writes, no grades). COMPETITIVE_ANALYSIS.md: new 2026-10-15 code-review/SAST pass with the approved source facts and links (Signal65, Mend, Ghost Security, OX, Black Duck, CodeRabbit marked vendor-funded, Kodus caveat); the 2026-07-07 metrics pass kept, its \"we do not replicate rule-based SAST\" lines struck as superseded. NON_GOALS.md: N-2/N-3/N-9 clarified for W18-18/19/20/22/23 without weakening; D15 release list notes IaC now planned in W18-26. ROADMAP.md: current-wave banner + W18 section (phases, constraints, exit criteria from ticket acceptance). Docs-only: validate-plan + validate-traceability + pnpm lint."
+      ]
     },
     {
       "id": "W18-28",
@@ -9130,8 +9143,8 @@
         "Accessibility scans stay green"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": ["W18-28 done. Seeded demo stack (DEMO_MODE=1 scripts/dev.mjs) captured at 1440x900 and 390x844, dark and light: 33 screens, 132 PNGs before + 132 after. Review with ranked table and before/after pairs: /mnt/project-files/repopulse/ux-review/review.md (3 P1, 12 P2, 13 P3; fixed all P1, 9 P2, 4 P3). Fixes: SeverityBadge `label` so status chips stop printing severity words (CI checks, sync phase, connections, overdue reviews, attention feed, single-owner flag); PageHeader h1 on Overview, Repositories, Reviews, Pull Requests, My Focus, Reports, Saved Views, 404 (Plans/Setup moved onto it); table-plain utility on all 18 inline tables + scroll regions with min width for wide finding/PR tables (headers collided at 390px); default repo/settings tab marked active (includeSearch:false); document.title from the trail; breadcrumb labels match the rail (+Activity/Performance/Setup); finding severity rendered on the severity ramp (FindingSeverityBadge); Code Health scanner display names; setup-needed status dot blue not teal; file drill-down intent control under the file h1 with aria-label; hotspot history axis 0/0.5/1; plan tile empty-state link; named severities on the Security tile; Tier-2 banner links to Models; 24px targets for why?/not-measured/View as table/intent buttons. Open (logged in review.md): top-bar layout, PR/file entity crumbs, health-tile trend (API delta null), enum copy from the API, tab overflow affordance, status-chip ok tone. Gates: e2e/a11y.spec.ts 18/18; web unit 535/535; lint + typecheck clean."]
     },
     {
       "id": "W18-29",

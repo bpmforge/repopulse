@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import type { MeContext } from '../../widgets/org/contracts.js';
 import type { ViewListResponse, ViewResponse } from '../../views/contracts.js';
@@ -33,6 +33,10 @@ function ViewsIndex() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="views">
+      <PageHeader
+        title="Saved Views"
+        description="Named dashboards — a filter scope and a layout you can share by URL."
+      />
       <WidgetFrame
         title="Saved views"
         state={frameState({ isLoading, isError, isEmpty: false })}

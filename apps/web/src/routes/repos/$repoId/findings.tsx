@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { WidgetFrame, frameState } from '../../../components/index.js';
-import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
-import { FindingDetail } from '../../../widgets/findings/FindingDetail.js';
+import { useEffect, useRef } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { WidgetFrame, frameState } from "../../../components/index.js";
+import { useApiQuery, queryKeyFor } from "../../../api/useApiQuery.js";
+import { FindingDetail } from "../../../widgets/findings/FindingDetail.js";
+import { FindingSeverityBadge } from "../../../widgets/findings/FindingSeverity.js";
 import {
-  SEVERITY_LABEL,
   VERIFY_LABEL,
   locationOf,
   type Finding,
-} from '../../../widgets/findings/contracts.js';
+} from "../../../widgets/findings/contracts.js";
 
 // The repo's own findings (W16-46).
 //
@@ -25,13 +25,20 @@ import {
 // than linked to, so following a finding does not throw away the repository the
 // reader navigated into.
 
-function validateFindingsSearch(search: Record<string, unknown>): { finding?: number } {
+function validateFindingsSearch(search: Record<string, unknown>): {
+  finding?: number;
+} {
   const raw = search.finding;
-  const id = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
+  const id =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string"
+        ? Number(raw)
+        : Number.NaN;
   return Number.isInteger(id) && id > 0 ? { finding: id } : {};
 }
 
-export const Route = createFileRoute('/repos/$repoId/findings')({
+export const Route = createFileRoute("/repos/$repoId/findings")({
   validateSearch: validateFindingsSearch,
   component: RepoFindings,
 });
@@ -53,7 +60,7 @@ function RepoFindings() {
   };
 
   const listDescriptor = {
-    endpoint: '/findings',
+    endpoint: "/findings",
     query: { repo_id: repoId },
   } as const;
 
@@ -74,7 +81,7 @@ function RepoFindings() {
   const detailRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (openId === null) return;
-    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [openId]);
 
   const openFinding = items.find((f) => f.id === openId);
@@ -92,44 +99,61 @@ function RepoFindings() {
         // history, which is where that question belongs.
         emptyMessage="No findings recorded for this repository. Findings appear once an analysis run completes — the Security tab shows when each scanner last ran."
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Findings in this repository</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Severity</th>
-              <th scope="col">Finding</th>
-              <th scope="col">Dimension</th>
-              <th scope="col">File</th>
-              <th scope="col">Status</th>
-              <th scope="col">Verification</th>
-            </tr>
-          </thead>
-          <tbody data-testid="repo-finding-rows">
-            {items.map((f) => (
-              <tr key={f.id} className="border-t border-border" data-testid={`finding-${f.id}`}>
-                {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
-                <td className="py-1 whitespace-nowrap">
-                  {SEVERITY_LABEL[f.severity] ?? f.severity}
-                </td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  <button
-                    type="button"
-                    className="text-accent hover:underline"
-                    data-testid={`finding-open-${f.id}`}
-                    onClick={() => setOpenId(f.id === openId ? null : f.id)}
-                  >
-                    {f.title}
-                  </button>
-                </th>
-                <td className="py-1 text-xs">{f.dimension.replace('_', ' ')}</td>
-                {/* locationOf, not a bare `file:line` — W16-40. */}
-                <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
-                <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
-                <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+        {/* W18-28: scrolls inside its own region at phone width instead of
+            squeezing every column until the headers run together. */}
+        <div
+          className="overflow-x-auto"
+          tabIndex={0}
+          role="region"
+          aria-label="Repository findings"
+        >
+          <table className="table-plain w-full min-w-[44rem] text-sm">
+            <caption className="sr-only">Findings in this repository</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Severity</th>
+                <th scope="col">Finding</th>
+                <th scope="col">Dimension</th>
+                <th scope="col">File</th>
+                <th scope="col">Status</th>
+                <th scope="col">Verification</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody data-testid="repo-finding-rows">
+              {items.map((f) => (
+                <tr
+                  key={f.id}
+                  className="border-t border-border"
+                  data-testid={`finding-${f.id}`}
+                >
+                  {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
+                  <td className="py-1 whitespace-nowrap">
+                    <FindingSeverityBadge severity={f.severity} />
+                  </td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    <button
+                      type="button"
+                      className="text-accent hover:underline"
+                      data-testid={`finding-open-${f.id}`}
+                      onClick={() => setOpenId(f.id === openId ? null : f.id)}
+                    >
+                      {f.title}
+                    </button>
+                  </th>
+                  <td className="py-1 text-xs">
+                    {f.dimension.replace("_", " ")}
+                  </td>
+                  {/* locationOf, not a bare `file:line` — W16-40. */}
+                  <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
+                  <td className="py-1 text-xs">{f.status.replace("_", " ")}</td>
+                  <td className="py-1 text-xs whitespace-nowrap">
+                    {VERIFY_LABEL[f.verify_status]}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
 
       {openId !== null && openFinding && (

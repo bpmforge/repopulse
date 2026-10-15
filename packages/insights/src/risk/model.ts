@@ -12,9 +12,11 @@
 // stamped into each finding's risk_factors, so a score can always be explained
 // by the model that produced it rather than by the model running today.
 
-export const RISK_MODEL_VERSION = 'risk_model.v1';
+export const RISK_MODEL_VERSION = 'risk_model.v2';
 
 export interface RiskModelConstants {
+  /** Stamped into risk_factors; absent = RISK_MODEL_VERSION. */
+  version?: string;
   /** Likelihood floor for a dependency finding with no exploit signal. */
   dependencyLikelihoodFloor: number;
   /** Verify-status multipliers (FR-ANALYSIS-9). */
@@ -41,9 +43,23 @@ export interface RiskModelConstants {
   };
   /** Band thresholds. */
   bands: { act: number; schedule: number };
+  /**
+   * Import-graph exposure (W18-25). Absent = the model has no graph factor,
+   * which is what v1 priced with.
+   */
+  importGraph?: {
+    /** X multiplier for a file nothing imports (and that is not an entry point). */
+    orphanMultiplier: number;
+    /** Fan-in at or below this is neutral (1.0). */
+    neutralFanIn: number;
+    /** Fan-in at which the boost reaches maxMultiplier; log-scaled between. */
+    saturateFanIn: number;
+    maxMultiplier: number;
+  };
 }
 
 export const RISK_MODEL_V1: RiskModelConstants = {
+  version: 'risk_model.v1',
   dependencyLikelihoodFloor: 0.05,
   verifyMultiplier: { confirmed: 1.0, unverified: 0.7, contradicted: 0.15 },
   precisionFloor: 0.3,
@@ -71,6 +87,30 @@ export const RISK_MODEL_V1: RiskModelConstants = {
   bands: { act: 55, schedule: 25 },
 };
 
+/**
+ * v2 = v1 + import-graph exposure (W18-25).
+ *
+ * The graph adjusts X; it never replaces the hotspot mapping. Churn says where
+ * the code is CHANGING, fan-in says how much of the rest of the code RUNS
+ * THROUGH it, and a cold utility imported by forty modules is exactly the file
+ * the hotspot percentile alone under-prices. The result stays floored at
+ * exposureFileRange.min, so "nothing imports this" can push a finding down to
+ * where a cold file already sits and never below it.
+ */
+export const RISK_MODEL_V2: RiskModelConstants = {
+  ...RISK_MODEL_V1,
+  version: RISK_MODEL_VERSION,
+  importGraph: {
+    // 0.6, not lower: a file with no importer is as likely a CLI, a worker or
+    // something loaded by a framework convention the path heuristics missed
+    // as it is dead code.
+    orphanMultiplier: 0.6,
+    neutralFanIn: 2,
+    saturateFanIn: 32,
+    maxMultiplier: 1.3,
+  },
+};
+
 export type RiskBand = 'act' | 'schedule' | 'track';
 
 /**
@@ -84,7 +124,7 @@ export type RiskBand = 'act' | 'schedule' | 'track';
 export function bandFor(
   effectiveRisk: number,
   overrides: { kev?: boolean; verifiedSecret?: boolean; chain?: boolean; compound?: boolean } = {},
-  constants: RiskModelConstants = RISK_MODEL_V1,
+  constants: RiskModelConstants = RISK_MODEL_V2,
 ): RiskBand {
   if (overrides.kev || overrides.verifiedSecret || overrides.chain || overrides.compound) {
     return 'act';

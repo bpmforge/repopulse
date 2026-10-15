@@ -18,7 +18,14 @@ export function PlanTile(_props: WidgetComponentProps) {
       // W17-31: every failed frame offers Retry, like the rest of the overview.
       onRetry={() => void refetch()}
       {...(error ? { errorMessage: error.message, error } : {})}
-      emptyMessage="No plan yet — generate one from the Plans page."
+      emptyMessage="No plan yet."
+      // A way there, not directions to it (W18-28; UX_SPEC §4: "empty = one
+      // line + next action"). The copy used to name the Plans page and stop.
+      emptyAction={
+        <Link to="/plans" className="text-sm text-accent hover:underline" data-testid="plan-tile-empty-link">
+          Generate a plan →
+        </Link>
+      }
     >
       {plan && progress && (
         <div className="flex flex-col gap-1" data-testid="plan-tile">

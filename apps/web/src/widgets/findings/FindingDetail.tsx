@@ -11,6 +11,7 @@ import {
 import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
 import { VerifiedFix } from './VerifiedFix.js';
+import { RulePrecisionSummary } from '../trust/RulePrecision.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -149,6 +150,10 @@ export function FindingDetail({
             clears this finding without raising another (D16). Copy and
             download; never a write to the forge (D9a). */}
         <VerifiedFix findingId={finding.id} />
+
+        {/* W18-22: how far this rule has been shown to be right, before
+            anyone acts on what it says. */}
+        {finding.rule_id && <RulePrecisionSummary ruleId={finding.rule_id} />}
 
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">History</h3>

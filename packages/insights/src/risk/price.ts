@@ -1,10 +1,11 @@
 import {
-  RISK_MODEL_V1,
+  RISK_MODEL_V2,
   RISK_MODEL_VERSION,
   bandFor,
   type RiskBand,
   type RiskModelConstants,
 } from './model.js';
+import { exposureWhy, type ImportExposure } from './import-graph.js';
 
 // The pricing function (W9-09, RISK_MODEL.md §2, FR-RISK-1/2/3).
 //
@@ -64,6 +65,11 @@ export interface PricingInput {
   hotspotPercentile?: number | null;
   /** True for findings with no file at all (policy, repo-level). */
   repoScoped?: boolean;
+  /**
+   * Where the file sits in the repo's import graph (W18-25). Absent = not
+   * looked up, which prices exactly as v1 did.
+   */
+  importGraph?: ImportExposure | null;
 
   // --- overrides ---
   verifiedSecret?: boolean;
@@ -100,7 +106,7 @@ export function hazardFor(severity: number): number {
  */
 export function likelihoodFor(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V1,
+  constants: RiskModelConstants = RISK_MODEL_V2,
 ): number {
   // Overrides. Each is a case where the argument is already settled: a CVE on
   // the known-exploited list IS being exploited, a verified credential IS live,
@@ -131,7 +137,7 @@ export function likelihoodFor(
 /** X — does it sit where the code actually lives. */
 export function exposureFor(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V1,
+  constants: RiskModelConstants = RISK_MODEL_V2,
 ): number {
   if (input.dimension === 'dependency' || input.dimension === 'dependency_health') {
     const scope = input.depScope;
@@ -160,20 +166,55 @@ export function exposureFor(
     input.hotspotPercentile === null ||
     input.hotspotPercentile === undefined
   ) {
-    return input.repoScoped ? 1 : constants.exposureFileRange.max;
+    return input.repoScoped
+      ? 1
+      : withImportGraph(constants.exposureFileRange.max, input, constants);
   }
 
   const { min, max } = constants.exposureFileRange;
   // Floor at 0.25 so a critical finding in a cold file never disappears — it
   // ranks below the same finding in a hot one, which is the intent, and it
   // stays on the list, which is the honesty rule.
-  return clamp01(min + (max - min) * clamp01(input.hotspotPercentile));
+  return withImportGraph(
+    clamp01(min + (max - min) * clamp01(input.hotspotPercentile)),
+    input,
+    constants,
+  );
+}
+
+/**
+ * The import-graph multiplier on X (W18-25): below 1 for a file nothing
+ * imports, above 1 for one many modules import, exactly 1 whenever the graph
+ * cannot say — a capped snapshot, a language without an index, a file the
+ * graph has not seen. Unknown is neutral, never a discount.
+ */
+export function importGraphMultiplier(
+  exposure: ImportExposure | null | undefined,
+  constants: RiskModelConstants = RISK_MODEL_V2,
+): number {
+  const g = constants.importGraph;
+  if (!g || !exposure) return 1;
+  if (exposure.state === 'orphan') return g.orphanMultiplier;
+  if (exposure.state !== 'imported' || exposure.fanIn === null) return 1;
+  if (exposure.fanIn <= g.neutralFanIn) return 1;
+  // Log-scaled: the step from 2 importers to 8 says more about how much code
+  // runs through a file than the step from 40 to 46.
+  const t = Math.log(exposure.fanIn / g.neutralFanIn) / Math.log(g.saturateFanIn / g.neutralFanIn);
+  return 1 + (g.maxMultiplier - 1) * clamp01(t);
+}
+
+function withImportGraph(base: number, input: PricingInput, constants: RiskModelConstants): number {
+  const multiplier = importGraphMultiplier(input.importGraph, constants);
+  if (multiplier === 1) return base;
+  // Floored at the cold-file minimum: an orphan can sit where a cold file
+  // already sits, and no lower.
+  return Math.min(1, Math.max(constants.exposureFileRange.min, base * multiplier));
 }
 
 /** Price one finding. Deterministic, and reproducible from its own factors. */
 export function priceFinding(
   input: PricingInput,
-  constants: RiskModelConstants = RISK_MODEL_V1,
+  constants: RiskModelConstants = RISK_MODEL_V2,
 ): PricedFinding {
   const H = hazardFor(input.severity);
   const L = likelihoodFor(input, constants);
@@ -211,9 +252,35 @@ export function priceFinding(
         hotspot_percentile: input.hotspotPercentile ?? null,
         repo_scoped: input.repoScoped ?? false,
         verified_secret: input.verifiedSecret ?? false,
+        // Flat scalars on purpose: the popover prints each input as one row,
+        // and exposure_why is the sentence a reader argues with.
+        ...importGraphInputs(input, constants),
       },
-      model_version: RISK_MODEL_VERSION,
+      model_version: constants.version ?? RISK_MODEL_VERSION,
     },
+  };
+}
+
+/** The import-graph rows of risk_factors.inputs, null where they do not apply. */
+function importGraphInputs(
+  input: PricingInput,
+  constants: RiskModelConstants,
+): Record<string, string | number | null> {
+  const applies =
+    !!constants.importGraph &&
+    !!input.importGraph &&
+    !input.repoScoped &&
+    input.dimension !== 'dependency' &&
+    input.dimension !== 'dependency_health';
+  if (!applies || !input.importGraph) {
+    return { import_graph: null, import_fan_in: null, import_multiplier: null, exposure_why: null };
+  }
+  return {
+    import_graph: input.importGraph.state,
+    import_fan_in: input.importGraph.fanIn,
+    import_multiplier:
+      Math.round(importGraphMultiplier(input.importGraph, constants) * 1000) / 1000,
+    exposure_why: exposureWhy(input.importGraph),
   };
 }
 

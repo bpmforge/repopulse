@@ -36,6 +36,13 @@ describe('SeverityBadge', () => {
     expect(el).toHaveAttribute('data-severity', 'critical');
     expect(el).toHaveTextContent(/critical/i);
   });
+  it('shows a state word instead of the severity word when given one', () => {
+    render(<SeverityBadge severity="low" label="passed" />);
+    const el = screen.getByTestId('severity-badge');
+    expect(el).toHaveAttribute('data-severity', 'low');
+    expect(el).toHaveTextContent('passed');
+    expect(el).not.toHaveTextContent(/low/i);
+  });
 });
 
 describe('SyncStatusChip', () => {

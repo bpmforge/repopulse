@@ -347,7 +347,9 @@ Two things this image deliberately does NOT contain:
 
 A scanner that reads **"(not in this build)"** on the Security tab is a
 different problem: there is no code for it here, and no tool you can install
-will change that. Today that is `iac`. The `owasp_web` and `owasp_llm`
+will change that. Today that is `iac` — IaC misconfigurations are checked by
+checkov inside the code-health tools scan (W18-26), but only as shadow
+candidates, so no dedicated scanner is listed until they are promoted. The `owasp_web` and `owasp_llm`
 checklists are shipped but off by default and manual; the release journey
 enabled one per repository through `PUT /scanners/:key`, because no screen
 does yet.

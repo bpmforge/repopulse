@@ -69,6 +69,8 @@ export const GITLAB_CAPABILITIES: ForgeCapabilities = {
   supportsTarball: false,
   maxPerPage: GITLAB_MAX_PER_PAGE,
   webhookScheme: 'gitlab-token',
+  // W18-24: not supported yet — GitLab's vulnerability report is a different API, not read yet. Teams here upload SARIF instead.
+  supportsCodeScanningAlerts: false,
 };
 
 export interface GitLabProviderOptions {

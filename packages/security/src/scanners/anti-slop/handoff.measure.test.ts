@@ -202,6 +202,7 @@ describeIfLiveInfra('anti-slop.v2 handoff: before/after (W18-10)', () => {
 
   afterAll(async () => {
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
+    await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.repoId, repoId));
     await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
     await db

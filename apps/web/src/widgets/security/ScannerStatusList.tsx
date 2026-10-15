@@ -65,7 +65,7 @@ export function looksLikeStaleVulnDb(error: string): boolean {
 
 export function ScannerStatusList({ scanners }: Props) {
   return (
-    <table className="w-full text-sm" data-testid="scanner-status">
+    <table className="table-plain w-full text-sm" data-testid="scanner-status">
       <caption className="sr-only">Scanner coverage for this repository</caption>
       <thead>
         <tr className="text-left text-xs text-fg-muted">

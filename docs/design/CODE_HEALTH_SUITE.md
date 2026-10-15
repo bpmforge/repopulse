@@ -337,6 +337,10 @@ install`. Tools must parse raw source standalone.
 | semgrep/opengrep + our packs | 30+ languages | slop/logging/perf/correctness | LGPL-2.1 (subprocess) | **W8/W9** |
 | ruff | Python (800+ rules, standalone binary) | code_health/correctness | MIT | **W9 adapter** |
 | Biome | JS/TS lint (standalone, no node_modules) | code_health/correctness | MIT/Apache-2.0 | **W9 adapter** |
+| actionlint | GitHub Actions workflows | correctness/ci (script injection, hard-coded credentials → `iac`) | MIT | **W18-26 adapter — shadow candidate²** |
+| hadolint | Dockerfiles / Containerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | **W18-26 adapter — shadow candidate²** |
+| shellcheck | shell scripts (`*.sh`, `*.bash`, `*.ksh`) | correctness | GPL-3.0 (subprocess-only¹) | **W18-26 adapter — shadow candidate²** |
+| checkov | IaC: Terraform, CloudFormation, Kubernetes manifests, Dockerfiles (allowlisted checks only) | `iac` | Apache-2.0 (Python; 96-package closure hash-pinned) | **W18-26 adapter — shadow candidate²** |
 | actionlint | GitHub Actions workflows | correctness/ci | MIT | backlog |
 | hadolint | Dockerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | backlog |
 | shellcheck | shell scripts | correctness | GPL-3.0 (subprocess-only¹) | backlog |
@@ -350,8 +354,60 @@ install`. Tools must parse raw source standalone.
 | Joern | interprocedural/deep taint (selective, high-value targets) | dead_code (deep tier) | Apache-2.0 | backlog — per-engagement not per-run (RAM-hungry); CodeQL excluded (non-OSS commercial-use license bar) |
 
 ¹ GPL is triggered by *distribution*, not server-side subprocess execution — running
-hadolint/shellcheck in our sandbox is fine for internal AND SaaS as long as we never
-ship modified binaries; noted for the G-18 ledger.
+hadolint/shellcheck in our sandbox is fine for internal AND SaaS use, and they are never
+linked or modified. **Correction (W18-26):** "never ship modified binaries" is not the
+whole obligation. A customer-hosted bundle that includes the scan image distributes the
+*unmodified* binaries, and GPL-3.0 §6 still requires the corresponding source (or a
+written offer) and the licence text to travel with them. Recorded as an open action in
+the G-18 ledger (docs/work/DESIGN_REVIEW.md §4) — due before any bundle that carries
+these two tools leaves the building.
+
+² **Shadow candidate, not yet surfaced.** Adapters added from W18 set `shadow: true`:
+every finding is stored with `experimental: true` (excluded from scores, banners, plans
+and reports, §8.2) unless the workspace's `rule_registry` row says `active` — looked up
+per rule (`tool.checkov.CKV_AWS_24`) and then per tool (`tool.checkov`, so a tool can be
+promoted with one decision); `deprecated` drops the finding. ruff and Biome predate the
+lifecycle and are unchanged. Follow-up: when the YAML `lifecycle` field lands
+(`rules/shadow.ts`, java-pack branch), adapter rules should read their shipped default
+from there instead of assuming `candidate`.
+
+**How each W18-26 tool is held to the admission filter** (all verified by running the
+tool, output recorded under `fixtures/adapters/recorded/`):
+
+- *Our config, never the repository's.* hadolint gets `--config /opt/hadolint/hadolint.yaml`
+  (without it a committed `.hadolint.yaml` silenced DL3007 — measured); shellcheck
+  `--norc`; actionlint `-config-file /opt/actionlint/actionlint.yaml`; checkov runs from
+  `/` with `--directory=/scan` (checkov finds a `-d` directory's `.checkov.yaml` by
+  looking for a bare `-d` token, and the cwd's by cwd — a fixture repo's `skip-check:`
+  was honoured before, ignored after).
+- *No network.* checkov with `--skip-download` and no API key ran under `unshare -n`
+  with a read-only HOME and produced the same findings; the three binaries are static.
+- *Files found in the container.* shellcheck and hadolint take files, not directories,
+  and listing them in the argv could overflow the 128 KiB `sh -c` limit on a large repo
+  and fail the whole code-health run, so they run as `find … -prune -o … -exec tool {} +`
+  (busybox find on alpine 3.20 verified), and the parsers read a stream of JSON documents.
+- *Precision.* shellcheck and hadolint keep error/warning only (info/style dropped;
+  shellcheck SC2154 dropped — caller-environment variables are its classic false
+  positive). actionlint drops `runner-label` (self-hosted labels are org settings we
+  cannot see) and shellcheck info/style inside `run:` blocks; script injection gets its
+  own rule id at severity 4. checkov runs `--check` with an allowlist of ~60 checks —
+  exposure, privilege, credentials, encryption — enforced again in `parse()`; unfiltered
+  it reported 20 findings on a ten-line Deployment (probes, CPU limits, digest pinning).
+  Severities are ours: with `--skip-download` checkov reports none.
+- *Frameworks.* checkov's `secrets` (owned by the secrets scanner), `github_actions`
+  (owned by actionlint), `helm`/`kustomize` (need binaries the image does not carry —
+  **Helm charts are not scanned**) and `sca_*` (need the Prisma API) are not enabled.
+- *Dedup.* `TOOL_DEDUP_MAP` collapses checkov's and hadolint's Dockerfile overlap on
+  rule AND file (hadolint keeps `latest`/WORKDIR/alias, checkov keeps root-user as a
+  privilege finding); `DEDUP_MAP` gives hard-coded credentials to the secrets scanner.
+  CKV_DOCKER_4 (ADD vs COPY) is not on the allowlist: it fired on `ADD app.tar.gz`,
+  which is what ADD is for; hadolint's DL3020 correctly did not.
+- *Pinning.* The three binaries come from their publishers' images pinned by multi-arch
+  index digest (GitHub release checksum files were unreachable when this landed — a
+  TODO in Containerfile.scan records the cross-check still owed); checkov from
+  `packages/security/sandbox/checkov-requirements.txt`, every hash checked against
+  PyPI's JSON API, installed `--require-hashes --only-binary=:all: --no-deps` into its
+  own venv.
 
 Adapter findings dedupe against pack rules covering the same defect (ruff/Biome overlap
 with our slop pack is expected — the dedup key wins, lowest-noise source is kept per

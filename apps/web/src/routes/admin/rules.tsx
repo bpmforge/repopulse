@@ -7,6 +7,7 @@ import {
   RULE_STATUS_LABEL,
   type RuleRow,
 } from '../../widgets/rules/contracts.js';
+import { RulePrecisionTable } from '../../widgets/trust/RulePrecision.js';
 
 // Rule workbench (W9-07, CODE_HEALTH_SUITE.md §8, FR-CH-8, FR-AUTH-4).
 //
@@ -47,7 +48,7 @@ function RuleWorkbench() {
         emptyMessage="No candidate rules yet. This registry holds rules DRAFTED from your own findings, which run in shadow before they are allowed to raise anything — the rules that ship in the scanners' packs are always on and are not listed here."
         testId="rules-frame"
       >
-        <table className="w-full text-sm" data-testid="rules-table">
+        <table className="table-plain w-full text-sm" data-testid="rules-table">
           <caption className="sr-only">Rule lifecycle and promotion evidence</caption>
           <thead>
             <tr className="text-left text-xs text-fg-muted">
@@ -122,6 +123,9 @@ function RuleWorkbench() {
           </tbody>
         </table>
       </WidgetFrame>
+      {/* W18-22: every rule's measured precision and lifecycle, including the
+          pack rules this registry does not hold. */}
+      <RulePrecisionTable />
     </div>
   );
 }

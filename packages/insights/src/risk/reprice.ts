@@ -1,7 +1,13 @@
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
 import { priceFinding, type PricingInput, type FindingDimension } from './price.js';
-import { RISK_MODEL_V1, type RiskModelConstants } from './model.js';
+import { RISK_MODEL_V2, type RiskModelConstants } from './model.js';
+import {
+  importExposureFor,
+  indexImportGraph,
+  readImportGraph,
+  type ImportGraphIndex,
+} from './import-graph.js';
 
 // Nightly reprice (W9-09, RISK_MODEL.md §3, FR-RISK-4).
 //
@@ -22,6 +28,13 @@ export interface RepriceDeps {
   ruleFpRates?: Map<string, number | null>;
   /** Hotspot percentile by file path, from the latest M2 snapshot. */
   hotspots?: Map<string, number>;
+  /**
+   * The import graph to price exposure with (W18-25). Absent = read each
+   * repo's latest from the store, which is what the nightly job wants: the
+   * graph comes from the weekly snapshot pass, not from anything the caller
+   * holds. null = price without a graph (neutral).
+   */
+  importGraph?: ImportGraphIndex | null;
 }
 
 export interface RepriceResult {
@@ -32,7 +45,7 @@ export interface RepriceResult {
 
 /** Prices every open finding in scope, and audits band crossings only. */
 export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult> {
-  const constants = deps.constants ?? RISK_MODEL_V1;
+  const constants = deps.constants ?? RISK_MODEL_V2;
   const scope = [
     eq(read.findings.workspaceId, deps.workspaceId),
     inArray(read.findings.status, ['open', 'confirmed']),
@@ -42,6 +55,17 @@ export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult>
   const rows = await db_select(deps.db, scope);
   const bandChanges: RepriceResult['bandChanges'] = [];
   let priced = 0;
+  // One read per repo, not per finding: a workspace-wide reprice walks every
+  // repo's findings, and each repo has its own graph.
+  const graphs = new Map<number, ImportGraphIndex | null>();
+  const graphFor = async (repoId: number): Promise<ImportGraphIndex | null> => {
+    if (deps.importGraph !== undefined) return deps.importGraph;
+    if (!graphs.has(repoId)) {
+      const snapshot = await readImportGraph(deps.db, deps.workspaceId, repoId);
+      graphs.set(repoId, snapshot ? indexImportGraph(snapshot) : null);
+    }
+    return graphs.get(repoId) ?? null;
+  };
 
   for (const row of rows) {
     const yields = (row.yields ?? {}) as Record<string, unknown>;
@@ -63,6 +87,7 @@ export async function repriceFindings(deps: RepriceDeps): Promise<RepriceResult>
       // discount a real finding.
       repoScoped: row.file === null,
       hotspotPercentile: row.file ? (deps.hotspots?.get(row.file) ?? null) : null,
+      importGraph: row.file ? importExposureFor(await graphFor(row.repoId), row.file) : null,
     };
 
     const { effectiveRisk, band, riskFactors } = priceFinding(input, constants);
@@ -106,11 +131,7 @@ function readDepScope(
   const raw = yields['dep_scope'];
   if (raw === null || typeof raw !== 'object') return null;
   const record = raw as { kind?: unknown; depth?: unknown };
-  if (
-    record.kind !== 'prod-direct' &&
-    record.kind !== 'prod-transitive' &&
-    record.kind !== 'dev'
-  ) {
+  if (record.kind !== 'prod-direct' && record.kind !== 'prod-transitive' && record.kind !== 'dev') {
     return null;
   }
   return {
@@ -123,6 +144,7 @@ async function db_select(db: Database, scope: ReturnType<typeof eq>[]) {
   return db
     .select({
       id: read.findings.id,
+      repoId: read.findings.repoId,
       dimension: read.findings.dimension,
       severity: read.findings.severity,
       confidence: read.findings.confidence,
@@ -162,7 +184,10 @@ export async function hotspotPercentiles(
   // Percentile WITHIN the repo, which is what §2 asks for: a file's hotspot
   // score means nothing across repositories of different sizes.
   const scored = files
-    .filter((f): f is { path: string; score: number } => typeof f.path === 'string' && typeof f.score === 'number')
+    .filter(
+      (f): f is { path: string; score: number } =>
+        typeof f.path === 'string' && typeof f.score === 'number',
+    )
     .sort((a, b) => a.score - b.score);
   const out = new Map<string, number>();
   scored.forEach((file, index) => {
