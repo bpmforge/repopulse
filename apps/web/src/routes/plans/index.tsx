@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { PlanItemCard } from '../../widgets/plans/PlanItemCard.js';
 import { GeneratePlanButton } from '../../widgets/plans/GeneratePlanButton.js';
@@ -64,10 +64,11 @@ function PlansPage() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="plans">
-      <div className="flex items-start gap-2">
-        <h1 className="flex-1 text-lg font-semibold">Improvement plans</h1>
-        <GeneratePlanButton window={search.window} repoIds={scopeIds} repoNames={repoNames} />
-      </div>
+      <PageHeader
+        title="Improvement plans"
+        description="Ranked fixes for the thresholds this workspace is breaching, each with how it will be verified."
+        actions={<GeneratePlanButton window={search.window} repoIds={scopeIds} repoNames={repoNames} />}
+      />
       {scopeIds.length > 0 && (
         <p className="text-xs text-fg-muted" data-testid="plans-scope-note">
           Showing plans generated for exactly {planScopeLabel(scopeIds, repoNames)}

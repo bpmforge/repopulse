@@ -132,7 +132,7 @@ export function CiTrends({ repoId, window }: Props) {
             : 'No workflow was rerun on the same commit in this window — flakiness needs a rerun to measure.'
         }
       >
-        <table className="w-full text-sm" data-testid="ci-flakiest">
+        <table className="table-plain w-full text-sm" data-testid="ci-flakiest">
           <caption className="sr-only">
             Workflows ranked by fail-to-pass reruns on the same commit
           </caption>

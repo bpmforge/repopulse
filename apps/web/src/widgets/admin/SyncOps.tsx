@@ -34,10 +34,7 @@ export function SyncOps() {
       id: 'phase',
       header: 'Phase',
       cell: (row) => (
-        <span className="flex items-center gap-1.5">
-          <SeverityBadge severity={phaseSeverity(row.phase)} />
-          <span>{row.phase.replace(/_/g, ' ')}</span>
-        </span>
+        <SeverityBadge severity={phaseSeverity(row.phase)} label={row.phase.replace(/_/g, ' ')} />
       ),
     },
     {

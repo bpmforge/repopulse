@@ -152,7 +152,7 @@ export function MyFocus({ search }: Props) {
             className={`flex items-center justify-end gap-1.5 tabular-nums ${over ? 'text-warn' : ''}`}
             {...(over ? { 'data-testid': 'over-sla' } : {})}
           >
-            {over && <SeverityBadge severity="medium" />}
+            {over && <SeverityBadge severity="medium" label="overdue" />}
             {formatAge(row.opened_at, now)}
           </span>
         );

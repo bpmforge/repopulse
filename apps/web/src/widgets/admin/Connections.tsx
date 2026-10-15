@@ -66,10 +66,7 @@ export function Connections() {
       id: 'status',
       header: 'Status',
       cell: (row) => (
-        <span className="flex items-center gap-1.5">
-          <SeverityBadge severity={row.status === 'active' ? 'low' : 'medium'} />
-          <span>{row.status}</span>
-        </span>
+        <SeverityBadge severity={row.status === 'active' ? 'low' : 'medium'} label={row.status} />
       ),
     },
     {
