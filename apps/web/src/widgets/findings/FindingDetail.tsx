@@ -8,6 +8,7 @@ import {
   type Finding,
   type FindingEvent,
 } from './contracts.js';
+import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
 import { VerifiedFix } from './VerifiedFix.js';
 
@@ -105,9 +106,9 @@ export function FindingDetail({
             evidence rather than as the model's paraphrase. */}
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Evidence</h3>
-          <pre className="mt-1 overflow-x-auto panel-inset p-2 font-mono text-xs whitespace-pre-wrap">
-            {finding.evidence}
-          </pre>
+          <div className="mt-1">
+            <EvidenceCode finding={finding} />
+          </div>
           <p className="mt-1 font-mono text-xs text-fg-faint">
             {/* THE LOCATION IS NOW A LINK (W16-41). It was plain text, so on a
                 triage tool whose whole workflow is "look at this one", the step

@@ -73,3 +73,4 @@ export * from './vex/index.js';
 export * from './catalogue.js';
 // W18-19. Verified patches: model-drafted fixes proven by re-scanning.
 export * from './patches/index.js';
+export * from './excerpt.js';
