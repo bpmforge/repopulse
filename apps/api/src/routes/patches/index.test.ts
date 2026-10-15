@@ -410,4 +410,17 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
       reason_code: 'target_moved',
     });
   });
+
+  it('names what each attempt was for and splits every attempt by outcome (W18-29)', async () => {
+    await setRow({ status: 'rejected', reasonCode: 'target_moved', reason: 'moved' });
+    const res = await app.inject({ method: 'GET', url: '/admin/patches', headers: as('admin') });
+    const body = res.json() as {
+      counts: Record<string, number>;
+      items: { finding: { title: string | null; file: string | null }; repo: { id: number } }[];
+    };
+    expect(body.counts.rejected).toBeGreaterThanOrEqual(1);
+    expect(body.items[0]!.finding.title).toEqual(expect.any(String));
+    expect(body.items[0]!.finding.file).toEqual(expect.any(String));
+    expect(body.items[0]!.repo.id).toEqual(expect.any(Number));
+  });
 });

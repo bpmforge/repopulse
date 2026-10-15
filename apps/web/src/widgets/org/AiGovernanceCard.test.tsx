@@ -133,6 +133,11 @@ describe('AiGovernanceCard (W18-20)', () => {
     expect(screen.getByTestId('ai-governance-patterns')).toBeInTheDocument();
   });
 
+  it('links to the full governance screen (W18-29)', () => {
+    renderWith(response());
+    expect(screen.getByTestId('ai-governance-details')).toHaveAttribute('href', '/governance');
+  });
+
   it('is registered and placed on the org overview', () => {
     expect(getWidget('ai-governance')).toBeDefined();
     expect(orgWidgets('30d', {}).map((w) => w.type)).toContain('ai-governance');

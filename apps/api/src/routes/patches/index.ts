@@ -348,12 +348,41 @@ export default async function patchRoutes(
         modelId: read.verifiedPatches.modelId,
         tier: read.verifiedPatches.tier,
         createdAt: read.verifiedPatches.createdAt,
+        finishedAt: read.verifiedPatches.finishedAt,
+        // W18-29: what the attempt was FOR, so the list reads as fixes to
+        // findings rather than a column of ids. LEFT joins: a finding or repo
+        // removed since must not take its attempt's history with it.
+        findingTitle: read.findings.title,
+        file: read.findings.file,
+        repoId: read.verifiedPatches.repoId,
+        repoName: core.repos.name,
       })
       .from(read.verifiedPatches)
+      .leftJoin(
+        read.findings,
+        and(
+          eq(read.findings.id, read.verifiedPatches.findingId),
+          eq(read.findings.workspaceId, workspaceId),
+        ),
+      )
+      .leftJoin(
+        core.repos,
+        and(
+          eq(core.repos.id, read.verifiedPatches.repoId),
+          eq(core.repos.workspaceId, workspaceId),
+        ),
+      )
       .where(eq(read.verifiedPatches.workspaceId, workspaceId))
       .orderBy(desc(read.verifiedPatches.createdAt))
       .limit(100);
+    // Over every attempt, not the hundred listed: the split is the point.
+    const counts = await db
+      .select({ status: read.verifiedPatches.status, n: sql<number>`count(*)::int` })
+      .from(read.verifiedPatches)
+      .where(eq(read.verifiedPatches.workspaceId, workspaceId))
+      .groupBy(read.verifiedPatches.status);
     return reply.send({
+      counts: Object.fromEntries(counts.map((c) => [c.status, c.n])),
       items: rows.map((r) => ({
         id: r.id,
         finding_id: r.findingId,
@@ -363,6 +392,9 @@ export default async function patchRoutes(
         model_id: r.modelId,
         tier: r.tier,
         created_at: r.createdAt.toISOString(),
+        finished_at: r.finishedAt?.toISOString() ?? null,
+        finding: { title: r.findingTitle, file: r.file },
+        repo: { id: r.repoId, name: r.repoName },
       })),
     });
   });
