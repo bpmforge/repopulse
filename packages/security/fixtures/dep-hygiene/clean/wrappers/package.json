@@ -1,0 +1,9 @@
+{
+  "name": "wrappers",
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "uuid": "^10.0.0",
+    "slugify": "^1.6.6",
+    "p-retry": "^6.2.0"
+  }
+}

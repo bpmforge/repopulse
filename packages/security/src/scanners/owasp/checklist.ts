@@ -51,11 +51,21 @@ export class ChecklistMissingError extends Error {
  * version is a feature nobody has asked for and a way to run last year's
  * questions forever. When pinning is wanted it belongs in
  * repo_scanner_config.config, next to the rest of the per-repo settings.
+ *
+ * `upTo` is a STAGED ROLLOUT, not an operator pin: a scanner may ship the next
+ * version's file before it is allowed to read it, because the version that
+ * replaces it depends on work that has not landed (anti-slop.v2, W18-05 →
+ * W18-10). It is set in code, by the ticket that switches, and removed there.
  */
-export function loadChecklist(key: ChecklistKey, dir: string = CHECKLIST_DIR): Checklist {
+export function loadChecklist(
+  key: ChecklistKey,
+  dir: string = CHECKLIST_DIR,
+  opts: { upTo?: number } = {},
+): Checklist {
   const prefix = FILE_PREFIX[key];
   const candidates = readdirSync(dir)
     .filter((f) => f.startsWith(prefix) && f.endsWith('.md'))
+    .filter((f) => opts.upTo === undefined || versionOf(f, prefix) <= opts.upTo)
     .sort((a, b) => versionOf(a, prefix) - versionOf(b, prefix));
   const file = candidates[candidates.length - 1];
   if (!file) throw new ChecklistMissingError(key);

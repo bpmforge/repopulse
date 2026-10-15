@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
@@ -18,6 +20,13 @@ import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { EXCEPTION_FLOW_RULE_ID, exceptionFlows } from './exception-flow.js';
 import { REPOSITORY_CRUD_RULE_ID, repositoriesOverCrud } from './repository-crud.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import {
+  NO_ASSERTION_RULE_ID,
+  TEST_INTEGRITY_RULE_IDS,
+  TAUTOLOGY_RULE_ID,
+  testIntegrity,
+  type TestIntegrityRuleId,
+} from './test-integrity.js';
 import { goPhantomRefs, goUnusedExports } from './go-graph.js';
 import { pythonPhantomRefs } from './python-graph.js';
 import { rustPhantomRefs, rustUnusedItems } from './rust-graph.js';
@@ -27,6 +36,29 @@ import {
   SUPPRESSION_DENSITY_RULE_ID,
   suppressionDensity,
 } from './suppressions.js';
+import { DELEGATION_WRAPPER_RULE_ID, delegationWrappers } from './delegation-wrappers.js';
+import { SINGLE_IMPL_RULE_ID, singleImplInterfaces } from './single-impl.js';
+import { STALE_JSDOC_RULE_ID, staleJsdocParams } from './stale-jsdoc.js';
+import { PLACEHOLDER_RULE_ID, placeholderValues } from './placeholder-values.js';
+import { COMMENTED_CODE_RULE_ID, commentedOutCode } from './commented-out-code.js';
+import {
+  DEPRECATED_API_RULE_ID,
+  DEPRECATED_API_TABLE_VERSION,
+  deprecatedApis,
+} from './deprecated-apis.js';
+import { asyncSmells, SERIAL_AWAITS_RULE_ID, UNBOUNDED_RETRY_RULE_ID } from './async-smells.js';
+import {
+  ORPHAN_FLAG_RULE_ID,
+  SPECULATIVE_PARAM_RULE_ID,
+  speculativeGenerality,
+} from './speculative.js';
+import { DUPLICATE_PURPOSE_RULE_ID, duplicatePurposeDeps } from './duplicate-deps.js';
+import { LIBRARY_REIMPLEMENTATION_RULE_ID, libraryReimplementations } from './library-reimpl.js';
+import {
+  editableManifest,
+  readDeclaredDependencies,
+  type DeclaredSet,
+} from '../../validation/declared.js';
 import { runSemgrepScan } from '../semgrep/scanner.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
@@ -46,6 +78,16 @@ import {
 // and make the model the authority on the half it is worst at.
 
 export const ANTI_SLOP_SCANNER_KEY = 'anti_slop';
+
+/**
+ * The checklist version this scanner reads, held at v1 on purpose (W18-05).
+ *
+ * anti-slop.v2 drops the single-implementation and delegation-only categories
+ * because the W18-05 rules settle them — but those rules ship in SHADOW, so
+ * switching now would take the categories away from the model before anything
+ * visible replaces them. W18-10 switches, and deletes this pin.
+ */
+export const ANTI_SLOP_CHECKLIST_UP_TO = 1;
 
 export interface AntiSlopDeps {
   db: Database;
@@ -71,6 +113,13 @@ export interface AntiSlopDeps {
    * missing module be called missing; absent = assume it was not complete.
    */
   sourcesComplete?: boolean;
+  /**
+   * The extracted snapshot, for the dependency-hygiene rules (W18-06), which
+   * read the project's manifests. Absent = those rules stay silent: the stored
+   * SBOM cannot tell a direct dependency from a transitive one, and guessing
+   * from it would flag packages nobody in the project chose.
+   */
+  snapshotDir?: string;
   /**
    * The snapshot directory, for the W9-01 pack's anti-slop rules (W18-30).
    * Absent = no pack layer: a diff is not a tree, and the PR path has no
@@ -150,7 +199,9 @@ async function shippedRuleStatus(
 }
 
 export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResult> {
-  const checklist = loadChecklist('anti_slop', deps.checklistDir);
+  const checklist = loadChecklist('anti_slop', deps.checklistDir, {
+    upTo: ANTI_SLOP_CHECKLIST_UP_TO,
+  });
   const [run] = await deps.db
     .insert(security.scanRuns)
     .values({
@@ -307,6 +358,115 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         });
       }
     }
+    // Tests that test nothing (W18-03). Stored under test_coverage, not slop:
+    // what they cost is coverage that is not there, and that is the facet a
+    // reader looks under. Severity stays at or below 2 — a hollow test hides
+    // a bug, it is not one.
+    if (sources.length) {
+      const statuses = new Map<TestIntegrityRuleId, 'candidate' | 'active' | 'deprecated'>();
+      for (const ruleId of TEST_INTEGRITY_RULE_IDS) {
+        statuses.set(ruleId, await shippedRuleStatus(deps.db, deps.workspaceId, ruleId));
+      }
+      const live = TEST_INTEGRITY_RULE_IDS.filter((r) => statuses.get(r) !== 'deprecated');
+      for (const t of live.length ? testIntegrity(sources) : []) {
+        const status = statuses.get(t.ruleId);
+        if (status === 'deprecated') continue;
+        findings.push({
+          dimension: 'test_coverage',
+          // A test with no assertion may be a deliberate smoke test the title
+          // does not admit to; the other three are wrong whatever was meant.
+          severity: t.ruleId === NO_ASSERTION_RULE_ID ? 1 : 2,
+          // A literal compared with itself is arithmetic; the rest read intent
+          // off a file and can miss a helper the snapshot did not contain.
+          confidence: t.ruleId === TAUTOLOGY_RULE_ID ? 5 : 4,
+          file: t.file,
+          lineStart: t.line,
+          lineEnd: t.line,
+          title: t.title,
+          evidenceQuote: t.evidence,
+          rationale: t.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: t.ruleId,
+          yields: null,
+          experimental: status !== 'active',
+        });
+      }
+    }
+    // Async smells and speculative generality (W18-08). Whole files, so the
+    // snapshot pass only; the speculative pair also needs every caller and
+    // every read, which only the whole tree has. All four are medium-noise
+    // shapes (mechanical-checks plan, batch 2): candidates until promoted.
+    if (sources.length) {
+      const ids = [
+        SERIAL_AWAITS_RULE_ID,
+        UNBOUNDED_RETRY_RULE_ID,
+        SPECULATIVE_PARAM_RULE_ID,
+        ORPHAN_FLAG_RULE_ID,
+      ] as const;
+      const statuses = new Map(
+        await Promise.all(
+          ids.map(
+            async (id) => [id, await shippedRuleStatus(deps.db, deps.workspaceId, id)] as const,
+          ),
+        ),
+      );
+      for (const smell of asyncSmells(sources)) {
+        const status = statuses.get(smell.ruleId);
+        if (status === 'deprecated') continue;
+        const serial = smell.ruleId === SERIAL_AWAITS_RULE_ID;
+        findings.push({
+          // Serial awaits cost latency, not readability: they belong in the
+          // performance facet beside the await-in-loop rule.
+          dimension: serial ? 'performance' : 'slop',
+          // A retry with no bound turns an outage into a tight loop against
+          // the thing that is down — worse than taste, so one step up.
+          severity: serial ? 1 : 2,
+          // 3: the shape is matched exactly, but whether the reads may run
+          // together, or the loop can really spin, depends on code the rule
+          // did not read.
+          confidence: 3,
+          file: smell.file,
+          lineStart: smell.line,
+          lineEnd: smell.lineEnd,
+          title: serial
+            ? `Independent awaits run one after another (${smell.evidence.split('\n').length})`
+            : 'Retry with no attempt limit or backoff',
+          evidenceQuote: smell.evidence,
+          rationale: smell.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: smell.ruleId,
+          yields: null,
+          experimental: status !== 'active',
+        });
+      }
+      for (const knob of speculativeGenerality(sources)) {
+        const status = statuses.get(knob.ruleId);
+        if (status === 'deprecated') continue;
+        findings.push({
+          dimension: 'slop',
+          severity: 1,
+          confidence: 3,
+          file: knob.file,
+          lineStart: knob.line,
+          lineEnd: knob.line,
+          title:
+            knob.ruleId === ORPHAN_FLAG_RULE_ID
+              ? `Hard-coded flag read once: ${knob.name}`
+              : `Default no caller overrides: ${knob.name}`,
+          // Named, because two parameters of one signature share its line and
+          // would otherwise collapse into one finding under the dedup key.
+          evidenceQuote: `${knob.name}: ${knob.evidence}`,
+          rationale: knob.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: knob.ruleId,
+          yields: null,
+          experimental: status !== 'active',
+        });
+      }
+    }
     // Suppression density (W18-04): a RATE, so one finding for the tree, one
     // per outlier file, and on a pull request one for what the diff adds.
     // Severity 1: silencing a checker hides defects without being one.
@@ -426,6 +586,161 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           });
         }
       }
+    }
+    // Leftover content (W18-07): placeholder values, commented-out code and
+    // deprecated APIs. Per-file reads, so they need no complete snapshot, but
+    // they read whole files, so the snapshot pass only. All three land as
+    // candidates — the measured precision is in the W18-07 plan note.
+    if (sources.length) {
+      const leftoverStatus = async (ruleId: string) =>
+        shippedRuleStatus(deps.db, deps.workspaceId, ruleId);
+      const placeholderStatus = await leftoverStatus(PLACEHOLDER_RULE_ID);
+      if (placeholderStatus !== 'deprecated') {
+        for (const p of placeholderValues(sources)) {
+          findings.push({
+            dimension: 'slop',
+            // 2: a value nobody replaced fails at the first real request, or —
+            // a guessable password — works when it should not.
+            severity: 2,
+            confidence: 4,
+            file: p.file,
+            lineStart: p.line,
+            lineEnd: p.line,
+            title: `Placeholder value in shipped code: ${p.literal.slice(0, 80)}`,
+            evidenceQuote: p.literal,
+            rationale: p.message,
+            suggestedFix: null,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: p.ruleId,
+            yields: null,
+            experimental: placeholderStatus !== 'active',
+          });
+        }
+      }
+      const commentedStatus = await leftoverStatus(COMMENTED_CODE_RULE_ID);
+      if (commentedStatus !== 'deprecated') {
+        for (const c of commentedOutCode(sources)) {
+          findings.push({
+            dimension: 'slop',
+            severity: 1,
+            confidence: 4,
+            file: c.file,
+            lineStart: c.line,
+            lineEnd: c.lineEnd,
+            title: `Commented-out code: ${c.codeLines} lines`,
+            evidenceQuote: c.firstLine,
+            rationale: c.message,
+            suggestedFix: null,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: c.ruleId,
+            yields: null,
+            experimental: commentedStatus !== 'active',
+          });
+        }
+      }
+      const deprecatedStatus = await leftoverStatus(DEPRECATED_API_RULE_ID);
+      if (deprecatedStatus !== 'deprecated') {
+        for (const d of deprecatedApis(sources)) {
+          findings.push({
+            dimension: 'slop',
+            severity: 2,
+            // 5 from the table; 4 where the deprecation depends on runtime
+            // state the text only approximates (a running event loop).
+            confidence: d.entry.judge ? 4 : 5,
+            file: d.file,
+            lineStart: d.line,
+            lineEnd: d.line,
+            title: `Deprecated API: ${d.entry.id}`,
+            evidenceQuote: d.statement,
+            rationale: `${d.message} (${DEPRECATED_API_TABLE_VERSION})`,
+            suggestedFix: `Use ${d.entry.replacement}.`,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: d.ruleId,
+            yields: null,
+            experimental: deprecatedStatus !== 'active',
+          });
+        }
+      }
+    }
+    // Structural slop (W18-05): delegation-only wrappers, single-implementation
+    // interfaces, stale JSDoc parameters — shapes the T2 checklist used to be
+    // asked about. Whole-file and, for the interface count, whole-tree, so the
+    // snapshot pass only; the interface rule also needs a complete read, since
+    // the second implementation could be in a file the reader skipped.
+    if (sources.length) {
+      const structural: (Omit<IncomingFinding, 'experimental'> & { ruleId: string })[] = [];
+      for (const w of delegationWrappers(sources)) {
+        structural.push({
+          dimension: 'slop',
+          severity: 1,
+          confidence: 5,
+          file: w.file,
+          lineStart: w.line,
+          lineEnd: w.line,
+          title: `Delegation-only wrapper: ${w.name}`,
+          evidenceQuote: w.declaration,
+          rationale: w.message,
+          suggestedFix: `Call ${w.callee} directly.`,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: w.ruleId,
+          yields: null,
+        });
+      }
+      for (const single of singleImplInterfaces(sources, {
+        complete: deps.sourcesComplete === true,
+      })) {
+        structural.push({
+          dimension: 'slop',
+          severity: 1,
+          // 4: the count is exact over this repository; an implementation in
+          // a consumer's repository is the one thing it cannot see.
+          confidence: 4,
+          file: single.file,
+          lineStart: single.line,
+          lineEnd: single.line,
+          title: `Single-implementation ${single.kind}: ${single.name}`,
+          evidenceQuote: single.declaration,
+          rationale: single.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: single.ruleId,
+          yields: null,
+        });
+      }
+      for (const d of staleJsdocParams(sources)) {
+        structural.push({
+          dimension: 'slop',
+          // 2, not 1: a wrong doc is believed, which makes it worse than a
+          // missing one — but it is still documentation, not behaviour.
+          severity: 2,
+          confidence: 5,
+          file: d.file,
+          lineStart: d.line,
+          lineEnd: d.line,
+          title: `Stale JSDoc @param: ${d.stale.join(', ')}${d.name ? ` on ${d.name}` : ''}`,
+          evidenceQuote: d.tag,
+          rationale: d.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: d.ruleId,
+          yields: null,
+        });
+      }
+      const statuses = new Map<string, Awaited<ReturnType<typeof shippedRuleStatus>>>();
+      for (const ruleId of [DELEGATION_WRAPPER_RULE_ID, SINGLE_IMPL_RULE_ID, STALE_JSDOC_RULE_ID]) {
+        statuses.set(ruleId, await shippedRuleStatus(deps.db, deps.workspaceId, ruleId));
+      }
+      for (const finding of structural) {
+        const status = statuses.get(finding.ruleId);
+        if (status === 'deprecated') continue;
+        findings.push({ ...finding, experimental: status !== 'active' });
+      }
+    }
+    // Dependency hygiene (W18-06): the project's declared dependencies,
+    // read once for both rules.
+    if (deps.snapshotDir) {
+      const declared = readDeclaredDependencies(deps.snapshotDir);
+      findings.push(...(await dependencyHygieneFindings(deps, declared, sources)));
     }
     // ---- The W9-01 pack, anti-slop rules only (W18-30) -------------------
     // Eight rules that were loaded on every weekly run — by the LOGGING
@@ -620,6 +935,87 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       error: safeErrorText(err),
     };
   }
+}
+
+async function dependencyHygieneFindings(
+  deps: AntiSlopDeps,
+  declared: DeclaredSet,
+  sources: readonly { path: string; source: string }[],
+): Promise<IncomingFinding[]> {
+  const out: IncomingFinding[] = [];
+  const duplicateStatus = await shippedRuleStatus(
+    deps.db,
+    deps.workspaceId,
+    DUPLICATE_PURPOSE_RULE_ID,
+  );
+  if (duplicateStatus !== 'deprecated') {
+    for (const dup of duplicatePurposeDeps(declared.dependencies)) {
+      const file = editableManifest(deps.snapshotDir!, dup.manifest);
+      const line = declarationLine(deps.snapshotDir!, file, dup.packages[dup.packages.length - 1]!);
+      out.push({
+        dimension: 'slop',
+        severity: 1,
+        // 4: the manifest facts are certain; that two members of a row
+        // overlap is the table's claim, and the finding cites the table.
+        confidence: 4,
+        file,
+        lineStart: line,
+        lineEnd: line,
+        title: `Two libraries for one job (${dup.purpose}): ${dup.packages.join(', ')}`,
+        evidenceQuote: `${dup.packages.join(', ')} — direct runtime dependencies in ${file}`,
+        rationale: dup.message,
+        suggestedFix: null,
+        scannerKey: ANTI_SLOP_SCANNER_KEY,
+        ruleId: dup.ruleId,
+        yields: null,
+        experimental: duplicateStatus !== 'active',
+      });
+    }
+  }
+
+  const reimplStatus = sources.length
+    ? await shippedRuleStatus(deps.db, deps.workspaceId, LIBRARY_REIMPLEMENTATION_RULE_ID)
+    : 'deprecated';
+  if (reimplStatus !== 'deprecated') {
+    for (const hit of libraryReimplementations(sources, declared.dependencies)) {
+      out.push({
+        dimension: 'slop',
+        severity: 1,
+        // 3: the name, the dependency and the mechanism agree, but whether the
+        // library's version would do here is a judgement about the call site.
+        confidence: 3,
+        file: hit.file,
+        lineStart: hit.line,
+        lineEnd: hit.line,
+        title: `Re-implements ${hit.api} from ${hit.dependency}: ${hit.name}`,
+        evidenceQuote: hit.declaration,
+        rationale: hit.message,
+        suggestedFix: null,
+        scannerKey: ANTI_SLOP_SCANNER_KEY,
+        ruleId: hit.ruleId,
+        yields: null,
+        experimental: reimplStatus !== 'active',
+      });
+    }
+  }
+  return out;
+}
+
+/** First manifest line naming the package, for the finding's anchor; 1 if none. */
+function declarationLine(snapshotDir: string, manifest: string, name: string): number {
+  let text: string;
+  try {
+    text = readFileSync(path.join(snapshotDir, manifest), 'utf8');
+  } catch {
+    return 1;
+  }
+  // Maven's `group:artifact` is written as two tags; the artifact is the
+  // distinctive half.
+  const needle = name.includes(':') ? name.split(':').pop()! : name;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  const pattern = new RegExp(`(^|[^\\w@/.-])${escaped}([^\\w/.-]|$)`);
+  const index = text.split('\n').findIndex((line) => pattern.test(line));
+  return index === -1 ? 1 : index + 1;
 }
 
 /** Worst-LDR files first — what the weekly snapshot pass samples. */

@@ -36,8 +36,14 @@ export interface SnapshotFile {
   absolutePath: string;
 }
 
-/** Every lockfile/manifest V1 can read, snapshot-relative, sorted. */
-export function walkSnapshot(root: string): SnapshotFile[] {
+/**
+ * Every lockfile/manifest V1 can read, snapshot-relative, sorted.
+ *
+ * `names` widens the set for a caller that reads more manifest kinds than V1
+ * does (the declared-dependency reader, W18-06) — the same walk and the same
+ * skips, so the two never disagree about which directories are the repo's.
+ */
+export function walkSnapshot(root: string, names: RegExp = LOCKFILES): SnapshotFile[] {
   const found: SnapshotFile[] = [];
 
   const walk = (dir: string, depth: number): void => {
@@ -64,7 +70,7 @@ export function walkSnapshot(root: string): SnapshotFile[] {
         walk(full, depth + 1);
         continue;
       }
-      if (!LOCKFILES.test(entry) || stats.size > MAX_BYTES) continue;
+      if (!names.test(entry) || stats.size > MAX_BYTES) continue;
       found.push({ relativePath: path.relative(root, full), absolutePath: full });
     }
   };
