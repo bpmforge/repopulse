@@ -1,0 +1,6 @@
+{
+  "name": "frontend",
+  "dependencies": {
+    "axios": "^1.7.0"
+  }
+}

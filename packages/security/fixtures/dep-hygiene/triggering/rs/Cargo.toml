@@ -1,0 +1,13 @@
+[package]
+name = "rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+ureq = "2"
+diesel = { version = "2", features = ["postgres"] }
+
+[dependencies.sea-orm]
+version = "1"
+features = ["runtime-tokio-rustls"]

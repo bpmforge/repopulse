@@ -461,6 +461,7 @@ async function main(): Promise<void> {
                     files: [],
                     sources: sources.files,
                     sourcesComplete: !sources.truncated && sources.skipped === 0,
+                    snapshotDir: snapshot.dir,
                     trigger: 'schedule',
                     // THE JUDGEMENT HALF, finally reachable. It was written,
                     // tested against a stub and shipped with no gateway to

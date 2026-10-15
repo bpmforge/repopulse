@@ -1,10 +1,18 @@
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import type { AnalysisGateway, CompleteOpts } from '@repopulse/analysis';
 import { dedupKey } from '@repopulse/insights';
 import { runAntiSlopScan, worstByLdr } from './run.js';
+import { readSnapshotSources } from '../../snapshot/sources.js';
+
+const DEP_FIXTURES = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../fixtures/dep-hygiene',
+);
 
 // anti_slop (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -124,7 +132,11 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       .where(
         and(
           eq(security.ruleRegistry.workspaceId, workspaceId),
-          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+          inArray(security.ruleRegistry.ruleId, [
+            'slop.unused_export',
+            'slop.duplicate_purpose_deps',
+            'slop.library_reimplementation',
+          ]),
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
@@ -390,6 +402,60 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
+  });
+
+  it('W18-06: dependency hygiene runs in shadow from the snapshot, stays silent without one, and stops when deprecated', async () => {
+    const triggering = path.join(DEP_FIXTURES, 'triggering');
+    const sources = readSnapshotSources(triggering).files;
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
+
+    // No snapshotDir: the stored SBOM is not consulted, nothing is guessed.
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-06-none', files: [], sources, trigger: 'schedule',
+    });
+    expect(await rows('slop.duplicate_purpose_deps')).toEqual([]);
+    expect(await rows('slop.library_reimplementation')).toEqual([]);
+
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-06-shadow', files: [], sources,
+      snapshotDir: triggering, trigger: 'schedule',
+    });
+    const duplicates = await rows('slop.duplicate_purpose_deps');
+    expect(duplicates.length).toBe(12);
+    expect(duplicates.every((r) => r.experimental && r.severity === 1)).toBe(true);
+    // Anchored on the manifest a person edits, at the later library's line.
+    const dates = duplicates.find((r) => r.title.includes('(dates): moment, dayjs'));
+    expect(dates).toMatchObject({ file: 'web/package.json', lineStart: 6 });
+    const reimpl = await rows('slop.library_reimplementation');
+    expect(reimpl.map((r) => `${r.file}:${r.lineStart}`).sort()).toEqual([
+      'api/app/text.py:6',
+      'api/app/text.py:13',
+      'jvm/src/main/java/com/acme/Text.java:6',
+      'svc/text.go:12',
+      'svc/text.go:16',
+      'web/src/util.ts:11',
+      'web/src/util.ts:20',
+      'web/src/util.ts:3',
+    ].sort());
+    expect(reimpl.every((r) => r.experimental)).toBe(true);
+
+    for (const ruleId of ['slop.duplicate_purpose_deps', 'slop.library_reimplementation']) {
+      await db.insert(security.ruleRegistry).values({
+        workspaceId,
+        ruleId,
+        status: 'deprecated',
+        provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+      });
+    }
+    const stopped = await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-06-deprecated', files: [], sources: [],
+      snapshotDir: triggering, trigger: 'schedule',
+    });
+    expect(stopped.deterministic).toBe(0);
   });
 });
 

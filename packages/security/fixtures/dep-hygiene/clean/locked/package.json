@@ -1,0 +1,7 @@
+{
+  "name": "locked",
+  "dependencies": {
+    "dayjs": "^1.11.0",
+    "chart-lib": "^1.0.0"
+  }
+}
