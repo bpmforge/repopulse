@@ -15,6 +15,8 @@ import { effectiveStatus, registryStatuses } from '../../rules/shadow.js';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
+import { EXCEPTION_FLOW_RULE_ID, exceptionFlows } from './exception-flow.js';
+import { REPOSITORY_CRUD_RULE_ID, repositoriesOverCrud } from './repository-crud.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
 import { goPhantomRefs, goUnusedExports } from './go-graph.js';
 import { pythonPhantomRefs } from './python-graph.js';
@@ -368,6 +370,61 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           yields: null,
           experimental: suppressionStatus !== 'active',
         });
+      }
+    }
+    // Exception control flow and repository-over-CRUD (W18-09): structural
+    // smells, not bugs — severity 1, and in shadow until promoted on evidence.
+    // Both are per-file shapes, so they need sources but not a complete read.
+    if (sources.length) {
+      const flowStatus = await shippedRuleStatus(deps.db, deps.workspaceId, EXCEPTION_FLOW_RULE_ID);
+      if (flowStatus !== 'deprecated') {
+        for (const flow of exceptionFlows(sources)) {
+          findings.push({
+            dimension: 'slop',
+            severity: 1,
+            // 4: that the throw is caught locally is read from the structure;
+            // whether the branch should be an if is the arguable half.
+            confidence: 4,
+            file: flow.file,
+            lineStart: flow.line,
+            lineEnd: flow.line,
+            title: `Exception used as control flow (caught on line ${flow.handlerLine})`,
+            evidenceQuote: flow.statement,
+            rationale: flow.message,
+            suggestedFix: null,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: flow.ruleId,
+            yields: null,
+            experimental: flowStatus !== 'active',
+          });
+        }
+      }
+      const crudStatus = await shippedRuleStatus(
+        deps.db,
+        deps.workspaceId,
+        REPOSITORY_CRUD_RULE_ID,
+      );
+      if (crudStatus !== 'deprecated') {
+        for (const repo of repositoriesOverCrud(sources)) {
+          findings.push({
+            dimension: 'slop',
+            severity: 1,
+            // 3: every method forwarding is a fact; whether the layer is
+            // pulling its weight elsewhere (a test seam, a port) is not.
+            confidence: 3,
+            file: repo.file,
+            lineStart: repo.line,
+            lineEnd: repo.line,
+            title: `Repository over CRUD: ${repo.className}`,
+            evidenceQuote: repo.declaration,
+            rationale: repo.message,
+            suggestedFix: null,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: repo.ruleId,
+            yields: null,
+            experimental: crudStatus !== 'active',
+          });
+        }
       }
     }
     // ---- The W9-01 pack, anti-slop rules only (W18-30) -------------------
