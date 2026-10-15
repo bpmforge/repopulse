@@ -1,0 +1,22 @@
+-- Migration 0035 (W18-20): raw authorship signals for the AI-code governance
+-- report. Numbered 0035, not 0032: 0032-0034 are claimed by parallel W18
+-- branches, and the journal entry carries this tag so the merge order does not
+-- matter to the migrator.
+--
+-- WHY. Two of the three AI-authorship signals were dropped at ingest: the
+-- commit body (where Co-authored-by trailers live) was cut to its first line,
+-- and the PR source branch (claude/..., copilot/...) was never stored. The
+-- RAW values are stored, not a classification, so an admin's edit to the
+-- pattern list re-classifies history on the next read.
+--
+-- NULL MEANS UNKNOWN on both columns: rows ingested before this migration were
+-- never asked, and the report counts them as "not captured" rather than as
+-- human-authored. A backfill re-run fills them (the upserts set both).
+--
+-- TENANCY. New columns on existing tenant-scoped tables (workspace_id indexed).
+--
+-- ROLLBACK. ALTER TABLE "commits" DROP COLUMN "trailers"; ALTER TABLE
+-- "pull_requests" DROP COLUMN "head_ref"; — classification then falls back to
+-- bot authors only.
+ALTER TABLE "commits" ADD COLUMN "trailers" text[];--> statement-breakpoint
+ALTER TABLE "pull_requests" ADD COLUMN "head_ref" text;

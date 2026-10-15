@@ -10,6 +10,7 @@ import type {
   ForgeRelease,
   ForgeReview,
 } from '@repopulse/forge';
+import { parseCommitTrailers } from '@repopulse/metrics';
 import type { DbOrTx } from './db.js';
 import { IdentityResolver } from './identity.js';
 
@@ -51,6 +52,10 @@ export async function upsertCommits(
         authoredAt: new Date(c.authoredAt),
         committedAt: new Date(c.committedAt),
         messageHead: messageHead(c.message),
+        // W18-20: kept for the AI-authorship classifier (Co-authored-by and
+        // friends). [] = parsed and none found; NULL is reserved for rows
+        // written before this column existed.
+        trailers: parseCommitTrailers(c.message),
         isRevertHeuristic: REVERT_RE.test(c.message),
         // >1 parent ⇒ merge commit (METRICS.md §0 excludes them, M1/M2/M3).
         isMerge: c.parentShas.length > 1,
@@ -63,6 +68,8 @@ export async function upsertCommits(
         target: [facts.commits.repoId, facts.commits.sha],
         set: {
           messageHead: messageHead(c.message),
+          // A re-run backfill fills trailers on rows ingested before 0035.
+          trailers: parseCommitTrailers(c.message),
           authoredAt: new Date(c.authoredAt),
           isMerge: c.parentShas.length > 1,
         },
@@ -99,6 +106,7 @@ export async function upsertPullRequests(
         mergedByIdentityId: mergedById,
         baseRef: p.baseRef,
         headSha: p.headSha,
+        headRef: p.headRef ?? null,
         additions: p.additions ?? 0,
         deletions: p.deletions ?? 0,
         changedFiles: p.changedFiles ?? 0,
@@ -111,6 +119,9 @@ export async function upsertPullRequests(
           closedAt: p.closedAt ? new Date(p.closedAt) : null,
           mergedAt: p.mergedAt ? new Date(p.mergedAt) : null,
           mergedByIdentityId: mergedById,
+          // W18-20. Only overwritten with a value: a later listing that omits
+          // the ref (a deleted fork branch) must not erase what was known.
+          ...(p.headRef ? { headRef: p.headRef } : {}),
         },
       });
   }

@@ -239,6 +239,13 @@
       "when": 1792035636540,
       "tag": "0033_verified_patches",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792039443748,
+      "tag": "0035_ai_authorship",
+      "breakpoints": true
     }
   ]
 }

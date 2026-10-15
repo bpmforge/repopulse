@@ -420,6 +420,13 @@ export async function seedWarehouse(
           authoredAt: at,
           committedAt: at,
           messageHead: isMerge ? 'Merge branch' : `change ${c}`,
+          // W18-20: two agent-co-authored commits per repo, so the AI-code
+          // governance tile has both cohorts to show. Fixed by index, NOT drawn
+          // from rng: an extra draw would shift every value seeded after it.
+          trailers:
+            c === 1 || c === 4
+              ? ['Co-authored-by: Claude <noreply@anthropic.com>']
+              : [],
           isRevertHeuristic: false,
           isMerge,
         })
@@ -478,6 +485,8 @@ export async function seedWarehouse(
           mergedAt,
           baseRef: 'main',
           headSha,
+          // W18-20: agent branch prefixes on two of the five (fixed, not rng).
+          headRef: p === 2 ? `claude/feature-${p}` : p === 4 ? `copilot/feature-${p}` : `feature/${p}`,
           additions: rng.int(5, 300),
           deletions: rng.int(0, 100),
           changedFiles: rng.int(1, 8),
