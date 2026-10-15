@@ -14,6 +14,7 @@ import {
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
+import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -45,6 +46,11 @@ export interface AntiSlopDeps {
   files: readonly DiffFile[];
   /** Whole-file sources, for the LDR layer. Diff mode passes none. */
   sources?: readonly { path: string; source: string }[];
+  /**
+   * The snapshot read hit no cap and skipped no file (W18-02). Only then can a
+   * missing module be called missing; absent = assume it was not complete.
+   */
+  sourcesComplete?: boolean;
   trigger?: 'pr_synced' | 'schedule' | 'manual';
   pullRequestId?: number | null;
   /** Runs a second, independent judgement. Absent = nothing is surfaced. */
@@ -209,6 +215,45 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           ruleId: unused.ruleId,
           yields: null,
           experimental: unusedStatus !== 'active',
+        });
+      }
+    }
+    // Phantom references (W18-02): imports of names or modules the
+    // repository does not have. Bugs, not taste — severity 3.
+    if (sources.length) {
+      const statuses = {
+        [PHANTOM_SYMBOL_RULE_ID]: await shippedRuleStatus(
+          deps.db,
+          deps.workspaceId,
+          PHANTOM_SYMBOL_RULE_ID,
+        ),
+        [PHANTOM_MODULE_RULE_ID]: await shippedRuleStatus(
+          deps.db,
+          deps.workspaceId,
+          PHANTOM_MODULE_RULE_ID,
+        ),
+      };
+      for (const ref of phantomRefs(sources, { complete: deps.sourcesComplete === true })) {
+        const status = statuses[ref.ruleId];
+        if (status === 'deprecated') continue;
+        findings.push({
+          dimension: 'slop',
+          severity: 3,
+          confidence: 5,
+          file: ref.file,
+          lineStart: ref.line,
+          lineEnd: ref.line,
+          title:
+            ref.name === null
+              ? `Import of a missing module: ${ref.specifier}`
+              : `Import of a name that does not exist: ${ref.name} from ${ref.specifier}`,
+          evidenceQuote: ref.statement,
+          rationale: ref.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: ref.ruleId,
+          yields: null,
+          experimental: status !== 'active',
         });
       }
     }

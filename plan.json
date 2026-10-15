@@ -8397,6 +8397,760 @@
         "FILED + CLAIMED 2026-10-15 from the slop-scorecard comparison: the scorecard's one check RepoPulse lacked was dead exports. The dead_code backlog row waits on knip, which needs installed deps (blocked by --network=none); this is the part that needs nothing installed \u2014 the repo's own import graph \u2014 and leaves knip's cross-package analysis on the backlog.",
         "DONE 2026-10-15 on claude/repopulse-dead-exports. Two-signal rule (graph + text) in packages/security/src/scanners/anti-slop/unused-exports.ts; on this repo it reports 8 exports, all verified unused by hand (the scorecard's name-only check reports 130). Writing it surfaced a lexer gap: a quote inside a regex literal (/'/g) or a nested template opened a 'string' that swallowed the rest of the file \u2014 maskSource now tracks regex literals and ${} nesting. Shadow mode is now wired into persistFindings (IncomingFinding.experimental; a stated value carries over on sighting). Gate: lint 0 \u00b7 typecheck 0 \u00b7 vitest 2471 passed / 58 skipped / 6 failed \u2014 the 6 are environmental on the cloud sandbox and unrelated: 5 deploy/*.test.ts expect no container runtime on PATH (docker is), and snapshot.test.ts SIGKILL timing failed under full-suite load and passes alone."
       ]
+    },
+    {
+      "id": "W18-02",
+      "title": "Fast-lane source index + phantom references (hallucinated imports of names/modules that do not exist)",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2",
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/src/workers/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-01"
+      ],
+      "acceptance": [
+        "Shared in-process source index (masking lexer, export/import tables, TS-order resolution) used by every fast-lane rule",
+        "slop.phantom_symbol: named/default import of a repo module that does not export it (follows export *, skips CommonJS, declaration files, unknowable surfaces); slop.phantom_module: static relative import of a missing file, only when the snapshot read was complete, never for tests, fixtures, assets, directories or paths above the root",
+        "Zero findings on this repo and on ~600 installed npm packages except packages shipped without their sources (recorded in notes)",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "in_progress",
+      "notes": [
+        "CLAIMED 2026-10-15 on claude/repopulse-fast-checks-1 (stacked on W18-01). source-graph.ts split out of unused-exports.ts (shared lexer/graph); resolution now follows TypeScript order (x.ts/.d.ts before x.js for a .js specifier, bundler ?query stripped). Measured: 0 findings on this repo (1,028 files, ~0.4s) and 0 on ~600 installed npm package dirs except @babel/core's published src/ (ships index.ts files whose sibling sources are not in the tarball). Every FP class found on the way is a clean fixture: CommonJS, export =, destructured exports, .d.ts targets (top-level declarations are implicitly exported), require()/import() optional loads, directories via package.json, paths above the root, test/fixture/example importers."
+      ]
+    },
+    {
+      "id": "W18-03",
+      "title": "Test integrity: tests that test nothing (no assertion, tautology, mocked subject, swallowed failure)",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "test.no_assertion (JS/TS it/test bodies and Python test_ functions with no assertion call, counting local helpers that assert), test.tautology (expect(x).toBe(x), literal-vs-same-literal, assert True)",
+        "test.mocks_subject (foo.test.* mocks ./foo) and test.swallowed_failure (assertion inside try with an empty or log-only catch)",
+        "Findings land in dimension test_coverage, severity <= 2",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-04",
+      "title": "Checker-silencing and disabled safety: suppression density, TLS/CSRF/CORS/shell switches turned off",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "slop.suppression_density per KLOC and per PR (as any, @ts-ignore without reason, eslint-disable without rule, # type: ignore, bare # noqa, //nolint), mapped in DEDUP_MAP against Biome noExplicitAny",
+        "sec.disabled_safety across JS/TS/Python/Go/Java: rejectUnauthorized:false, NODE_TLS_REJECT_UNAUTHORIZED=0, verify=False, InsecureSkipVerify:true, CORS * with credentials, shell=True, CSRF disabled",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-05",
+      "title": "Mechanical structural slop: delegation-only wrappers, single-implementation interfaces, stale JSDoc params",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "packages/security/checklists/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "slop.delegation_wrapper: body is a single return of one call passing exactly its own parameters in order",
+        "slop.single_impl_interface: interface/abstract class/ABC/Protocol with exactly one implementation in the repo, not on a public surface; slop.stale_jsdoc_param",
+        "The anti-slop.v1 checklist items these settle are removed in anti-slop.v2 (version bump, never edited in place)",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-06",
+      "title": "Dependency hygiene from the SBOM: duplicate-purpose libraries and library reimplementation",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2",
+        "E10.4"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "slop.duplicate_purpose_deps from a versioned category table (dates, HTTP clients, loggers, test runners, validation, ORMs) per ecosystem",
+        "slop.library_reimplementation: a function named like an API of a dependency already in the SBOM (debounce, deepClone, uuid, slugify, retry...)",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-07",
+      "title": "Fabricated and leftover content: placeholder values, commented-out code, deprecated APIs models still write",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "slop.placeholder_value (YOUR_API_KEY, <your-...>, example.com, lorem ipsum, changeme) outside tests/docs/fixtures; slop.commented_out_code (3+ comment lines that parse as code)",
+        "slop.deprecated_api versioned table per language (new Buffer(, fs.exists, componentWillMount, datetime.utcnow, url.parse ...)",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-08",
+      "title": "Speculative generality and async smells: never-overridden defaults, orphan flags, serial awaits, unbounded retries",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "slop.speculative_param (default no caller in the repo overrides), slop.orphan_flag (flag-shaped literal read once)",
+        "perf.serial_independent_awaits (consecutive awaits with no data dependency), slop.unbounded_retry (retry without max attempts/backoff)",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-09",
+      "title": "Pattern-lane rules: unvalidated LLM output (taint), exception control flow, repository-over-CRUD",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Opengrep taint rule from model-response fields to JSON.parse/exec/SQL/HTML sinks with schema-validation sanitizers, JS/TS + Python",
+        "slop.exception_control_flow and slop.repository_over_crud with fixtures",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-10",
+      "title": "anti-slop.v2: the LLM judges only fast-lane candidates, with evidence",
+      "phase": 18,
+      "module": "analysis",
+      "stories": [
+        "E13.2",
+        "E11.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "packages/analysis/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-05",
+        "W18-08"
+      ],
+      "acceptance": [
+        "Hybrid rules hand the T2 checklist a candidate list (file, line, rule, evidence) instead of the whole diff",
+        "Measured before/after token use and finding counts on the demo repos recorded in evidence",
+        "Verify pass (maker != verifier) unchanged; full gate green"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-11",
+      "title": "Python pack: anti-slop, logging, security baseline and perf rules + Python import graph",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Every JS/TS rule in anti-slop/logging/bpm-baseline/perf with a Python idiom gets a Python variant with fixtures",
+        "Fast-lane index reads Python imports (relative and package-local) so unused-export and phantom-symbol rules cover Python",
+        "Dedup map entries for ruff overlaps",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-12",
+      "title": "Go pack: anti-slop, logging, security baseline + Go import graph",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Go variants (ignored errors `_ = err`, empty if err != nil, panic in library code, fmt.Print in prod, InsecureSkipVerify, sql string concat, math/rand tokens) with fixtures",
+        "Fast-lane index reads go.mod module path + package imports; phantom package import and unused exported identifier checks",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-13",
+      "title": "Java and Kotlin pack",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Java/Kotlin variants of the anti-slop, logging and security baseline rules (empty catch, printStackTrace, System.out in prod, string-concat SQL, weak hash, Random tokens, disabled TLS) with fixtures",
+        "Language routing: rules run only when the snapshot has .java/.kt files",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-14",
+      "title": "Rust pack",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Rust rules: unwrap/expect in non-test library code, todo!/unimplemented! as features, panic! in library code, unsafe blocks without a SAFETY comment, lossy `as` casts on lengths, std::process::Command with shell strings",
+        "Fast-lane index reads mod/use declarations for phantom module and unused pub item checks within a crate",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-15",
+      "title": "C and C++ pack + cppcheck adapter",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Opengrep rules: gets/strcpy/strcat/sprintf, format-string from variable, unchecked malloc/realloc result, memcpy with sizeof(pointer), system()/popen with built strings, rand() for security",
+        "cppcheck ToolAdapter (GPL-3.0 subprocess-only, pinned + checksummed in the scan image) with dedup map entries",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-16",
+      "title": "C#, PHP and Ruby packs",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6",
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-11"
+      ],
+      "acceptance": [
+        "Anti-slop, logging and security baseline variants per language with fixtures",
+        "Language routing + coverage map rows for each",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-17",
+      "title": "Benchmark harness and published accuracy (precision/recall per release)",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "tools/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-03"
+      ],
+      "acceptance": [
+        "Harness replays a pinned corpus: bug-introducing PRs (Signal65 method), OWASP Benchmark subset, AI-slop corpus (slop-scorecard SampleCo); graded labels committed",
+        "Report per rule and per dimension: TP/FP/FN, precision, recall; diffable across releases; no network at run time",
+        "Numbers published in docs/BENCHMARKS.md with method and corpus versions"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-18",
+      "title": "Customer-CI pull: PR findings API + `repopulse check` CLI (Repo Pulse never writes)",
+      "phase": 18,
+      "module": "api",
+      "stories": [
+        "E10.8",
+        "E6.3"
+      ],
+      "write_scope": [
+        "apps/api/**",
+        "tools/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "GET /api/v1/repos/{id}/pulls/{n}/findings?new=true with a scoped read-only token kind",
+        "CLI exits non-zero on configurable thresholds and emits SARIF + markdown so the customer's CI posts with its own token",
+        "D9a unchanged: no forge write scope added (test asserts App/token scopes)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-19",
+      "title": "Verified patches: model-drafted fixes proven by re-scanning the patched snapshot",
+      "phase": 18,
+      "module": "analysis",
+      "stories": [
+        "E11.5",
+        "E6.3"
+      ],
+      "write_scope": [
+        "packages/analysis/**",
+        "packages/security/**",
+        "apps/api/**",
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-18"
+      ],
+      "acceptance": [
+        "T2/T3 drafts a unified diff for a finding; the sandbox applies it to the scan snapshot and re-runs that file's rules",
+        "A patch is shown only if the target finding clears and no new finding appears; otherwise stored as rejected with the reason",
+        "Finding drawer shows the verified patch with copy/download; nothing is written to the forge"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-20",
+      "title": "AI-code governance report: AI-authored vs human changes",
+      "phase": 18,
+      "module": "metrics",
+      "stories": [
+        "E2.3",
+        "E5.1"
+      ],
+      "write_scope": [
+        "packages/metrics/**",
+        "packages/reports/**",
+        "apps/api/**",
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Authorship classifier from Co-Authored-By trailers, agent bot authors and agent branch prefixes, with an editable pattern list",
+        "Per window: share of AI-authored changes and, AI vs human, findings per KLOC changed, 14d rework (M13), revert rate (M14), review depth",
+        "Report section + org tile; signals not grades (N-9), no per-developer ranking"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-21",
+      "title": "Sensitive-change radar: changes that loosen auth, validation, crypto, CORS/TLS or rate limits",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E10.5"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Diff-mode rules flag removed/weakened authz middleware or permission checks, validation schemas, crypto parameters, CORS/TLS settings, rate limits",
+        "Findings say 'needs human review' and are never auto-dismissed by the verify pass",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-22",
+      "title": "Trust surfaces: per-rule precision in the product and an honest coverage map",
+      "phase": 18,
+      "module": "web",
+      "stories": [
+        "E13.5",
+        "E3.6"
+      ],
+      "write_scope": [
+        "apps/web/**",
+        "apps/api/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-17"
+      ],
+      "acceptance": [
+        "Rules screen and finding drawer show each rule's measured precision (triage FP rate + benchmark) and lifecycle state",
+        "Repo coverage map: languages without packs, files skipped for size, scanners not enabled, rules in shadow \u2014 never an empty green panel"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-23",
+      "title": "Measure the AI reviewers a team already runs",
+      "phase": 18,
+      "module": "metrics",
+      "stories": [
+        "E2.2"
+      ],
+      "write_scope": [
+        "packages/metrics/**",
+        "packages/ingest/**",
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Per known review bot: comments per PR, share followed by a code change on the commented lines, time to first comment, repeat-after-dismiss rate",
+        "Bot activity stays excluded from human-flow metrics (METRICS.md section 0)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-24",
+      "title": "Ingest external scanner results (GitHub code-scanning alerts, SARIF) into the findings store",
+      "phase": 18,
+      "module": "ingest",
+      "stories": [
+        "E10.5",
+        "E6.3"
+      ],
+      "write_scope": [
+        "packages/ingest/**",
+        "packages/forge/**",
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Code-scanning alerts via the budgeted forge client (read-only) and SARIF uploads land as findings with tool provenance",
+        "Deduped against Repo Pulse's own rules via the dedup map; priced by the risk model"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-25",
+      "title": "Import-graph exposure in the risk model; repo-wide context for Tier-2 review",
+      "phase": 18,
+      "module": "insights",
+      "stories": [
+        "E6.2"
+      ],
+      "write_scope": [
+        "packages/insights/**",
+        "packages/analysis/**",
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-02"
+      ],
+      "acceptance": [
+        "Exposure factor discounts findings in modules nothing imports and raises those in high fan-in modules (persisted in risk_factors)",
+        "Tier-2 prompts include callers/callees of changed functions from the fast-lane index within the chunk budget"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-26",
+      "title": "More standalone tool adapters: actionlint, shellcheck, hadolint, IaC (checkov)",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Adapters pinned + checksummed in the scan image, detect() language/file routing, dedup map entries",
+        "IaC capability row moves from absent to supported; README table updated",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-27",
+      "title": "Record D16: Repo Pulse is a self-hosted code security and quality platform",
+      "phase": 18,
+      "module": "shared",
+      "stories": [],
+      "write_scope": [
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "FOUNDING_BRIEF D16 + VISION/SCOPE/COMPETITIVE_ANALYSIS rewritten to the positioning (sast-vision/positioning notes)",
+        "D9a reaffirmed: verified patches + customer-CI pull, no repo writes"
+      ],
+      "points": 2,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-28",
+      "title": "UI/UX review of the running product with screenshots, and fixes",
+      "phase": 18,
+      "module": "web",
+      "stories": [
+        "E3.1",
+        "E9.4"
+      ],
+      "write_scope": [
+        "apps/web/**",
+        "e2e/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Every primary screen captured at desktop and 390px from the seeded demo stack; reviewed against UX_SPEC with findings ranked",
+        "Review published with screenshots; top-ranked issues fixed with before/after captures",
+        "Accessibility scans stay green"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-29",
+      "title": "UI for the new capabilities: shadow facet, fast-lane rules, governance, radar, patches",
+      "phase": 18,
+      "module": "web",
+      "stories": [
+        "E3.2",
+        "E13.4"
+      ],
+      "write_scope": [
+        "apps/web/**",
+        "apps/api/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-28"
+      ],
+      "acceptance": [
+        "Findings explorer facet for experimental (shadow) findings; new dimensions and rules filterable",
+        "Screens for AI-code governance, sensitive changes and verified patches with empty/unavailable states"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-30",
+      "title": "anti-slop pattern pack (bpm-ch-*) is loaded but never surfaces: the logging scanner drops it and nothing else runs it",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.2"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/src/workers/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The eight bpm-ch-* rules produce stored findings (dimension slop, scanner anti_slop) on the weekly snapshot pass and on manual scans",
+        "The logging scanner's sweep never closes anti-slop findings and vice versa (sweepScannerKey test)",
+        "Integration test RED on main: a triggering fixture produces zero bpm-ch-* findings; GREEN after",
+        "Full gate green"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "FILED 2026-10-15: found while mapping the fast lane. logging/run.ts runs rulepacks/code-health (anti-slop.v1.yaml + logging.v1.yaml) but keeps only ruleId.startsWith('bpm-log-'); no other scanner runs code-health/ (semgrep scanner -> rulepacks/semgrep; perf -> code-health/perf). Same class as W9-13 (perf pack never loaded). The Code Health route already filters rule ids by 'bpm-ch-', so the UI expects them."
+      ]
     }
   ]
 }
