@@ -119,6 +119,14 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
   });
 
   afterAll(async () => {
+    await db
+      .delete(security.ruleRegistry)
+      .where(
+        and(
+          eq(security.ruleRegistry.workspaceId, workspaceId),
+          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+        ),
+      );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
     await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
@@ -285,6 +293,68 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       trigger: 'schedule',
     });
     expect(result.deterministic).toBe(0);
+  });
+
+  it('W18-01: unused exports run in SHADOW until promoted, and stop when deprecated', async () => {
+    const sources = [
+      { path: 'src/util.ts', source: 'export const used = 1;\nexport const dead = 2;' },
+      { path: 'src/app.ts', source: "import { used } from './util.js';\nconsole.info(used);" },
+    ];
+    const scan = (commitSha: string) =>
+      runAntiSlopScan({
+        db,
+        workspaceId,
+        repoId,
+        commitSha,
+        files: [],
+        sources,
+        trigger: 'schedule',
+      });
+    const rows = () =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.unused_export')));
+
+    // No registry row: the shipped default is candidate, so the finding is
+    // stored and visible but stamped experimental — out of every score.
+    const first = await scan('w18-01-shadow');
+    expect(first.status).toBe('succeeded');
+    const [shadow] = await rows();
+    expect(shadow).toMatchObject({
+      file: 'src/util.ts',
+      lineStart: 2,
+      title: 'Unused export: dead',
+      evidence: 'export const dead = 2;',
+      experimental: true,
+    });
+    expect((await rows()).length).toBe(1);
+
+    // Promoted by an admin: the SAME row starts counting on the next run.
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.unused_export',
+      status: 'active',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    await scan('w18-01-active');
+    const promoted = await rows();
+    expect(promoted.length).toBe(1);
+    expect(promoted[0]?.experimental).toBe(false);
+    expect(promoted[0]?.occurrenceCount).toBe(2);
+
+    // Deprecated: the rule does not run, so the run reports nothing new.
+    await db
+      .update(security.ruleRegistry)
+      .set({ status: 'deprecated' })
+      .where(
+        and(
+          eq(security.ruleRegistry.workspaceId, workspaceId),
+          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+        ),
+      );
+    const deprecated = await scan('w18-01-deprecated');
+    expect(deprecated.deterministic).toBe(0);
   });
 });
 

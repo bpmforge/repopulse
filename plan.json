@@ -8364,6 +8364,39 @@
         "FILED + CLAIMED 2026-09-23 on fix/v1-last-code: finding recorded on fix/v1-residuals (RELEASE-CHECKLIST \u00a74b) \u2014 the first pnpm test of that branch deleted the real-forge smoke connection.",
         "ROOT CAUSES, ranked + checked: (1) the suite and the dev app share one database \u2014 CONFIRMED: every test file reads DATABASE_URL via dotenv/config from .env; RED test: suite DB name == dev DB name. (2) the seed reset is too broad \u2014 true (wipeWorkspace deletes every connection in Default) but correct for a database the suite owns; not changed. DONE 2026-09-23 (033cd17): vitest.config.ts -> scripts/test-db.mjs derives <name>_test, creates it on first use, migrates with the shipped drizzle migrator, sets DATABASE_URL before workers spawn. Offline run unaffected (2 skipped). pnpm e2e still reseeds the dev Default workspace by design (disclosed). RED: dev-db-isolation.integration.test.ts 2 failed; GREEN 2 passed; its only dev-DB write is its own sentinel row, deleted in finally. Also fixed on this branch: pnpm typecheck was red on main 1740747 (packages/forge TS2379 from W17-39), 4c0a49c."
       ]
+    },
+    {
+      "id": "W18-01",
+      "title": "Unused-export detection in the anti_slop deterministic layer (dead_code without installed dependencies), shipped in shadow",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E10.4",
+        "E13.2"
+      ],
+      "write_scope": [
+        "packages/security/src/scanners/anti-slop/**",
+        "packages/insights/src/findings/store.ts",
+        "docs/**",
+        "plan.json",
+        "scripts/validate-plan.mjs"
+      ],
+      "depends_on": [
+        "W9-03",
+        "W9-07"
+      ],
+      "acceptance": [
+        "slop.unused_export reports an export of a JS/TS module that another snapshot file imports, when no importer takes it (graph signal) AND no other file and no other line of its own file mentions the name (text signal); namespace imports, star re-exports, require() and import() mark the whole module used",
+        "Never reports: modules nothing imports, index/main/test/story/config/route/bin/generated files, framework-convention names (default, loader, GET, getServerSideProps, ...); unit fixtures cover each, plus a template-literal use and an unresolved alias import",
+        "Shadow mode (CODE_HEALTH_SUITE.md \u00a78.2): with no rule_registry row the findings are stored experimental=true; promoted to active the same row turns experimental=false on its next sighting; deprecated stops the rule; integration test covers all three",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "FILED + CLAIMED 2026-10-15 from the slop-scorecard comparison: the scorecard's one check RepoPulse lacked was dead exports. The dead_code backlog row waits on knip, which needs installed deps (blocked by --network=none); this is the part that needs nothing installed \u2014 the repo's own import graph \u2014 and leaves knip's cross-package analysis on the backlog.",
+        "DONE 2026-10-15 on claude/repopulse-dead-exports. Two-signal rule (graph + text) in packages/security/src/scanners/anti-slop/unused-exports.ts; on this repo it reports 8 exports, all verified unused by hand (the scorecard's name-only check reports 130). Writing it surfaced a lexer gap: a quote inside a regex literal (/'/g) or a nested template opened a 'string' that swallowed the rest of the file \u2014 maskSource now tracks regex literals and ${} nesting. Shadow mode is now wired into persistFindings (IncomingFinding.experimental; a stated value carries over on sighting). Gate: lint 0 \u00b7 typecheck 0 \u00b7 vitest 2471 passed / 58 skipped / 6 failed \u2014 the 6 are environmental on the cloud sandbox and unrelated: 5 deploy/*.test.ts expect no container runtime on PATH (docker is), and snapshot.test.ts SIGKILL timing failed under full-suite load and passes alone."
+      ]
     }
   ]
 }

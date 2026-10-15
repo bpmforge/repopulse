@@ -71,16 +71,18 @@ for (const t of plan.tickets) {
   // W16 is the make-it-real wave: demo mode, provider UI, dead ends, polish.
   // W17 is the product-completion wave (RP-01..RP-34 of the standalone-product
   // handoff, DECISIONS.md D15) — shipping this as an installable product.
+  // W18 is post-v1 enhancement: checks found missing by comparing RepoPulse
+  // with the public slop-scorecard and the 2026 review-tool landscape.
   //
   // This range LAGGED the board once already: the pattern stopped at 15 while a
   // complete 59-ticket W16 was on the board, so every W16 ticket failed here and
   // `continue` skipped its remaining checks. The validator reported 59 identical
   // id errors and could not print a claimable set at all. Widen this WITH the
   // wave, in the same commit that opens it.
-  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-7])-(\d{2})$/);
+  const m = typeof t.id === 'string' && t.id.match(/^W([0-9]|1[0-8])-(\d{2})$/);
   // The message names the CURRENT range rather than a range that was true two
   // waves ago — a stale error message sends the next person to the wrong fix.
-  if (!m) { err(`${label}: id must match W<0-17>-<nn>`); continue; }
+  if (!m) { err(`${label}: id must match W<0-18>-<nn>`); continue; }
   if (byId.has(t.id)) err(`${t.id}: duplicate id`);
   byId.set(t.id, t);
 

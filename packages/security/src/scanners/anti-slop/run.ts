@@ -13,6 +13,7 @@ import {
 } from '@repopulse/analysis';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
+import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -89,6 +90,33 @@ async function existingSlopsquatFiles(
   return new Set(rows.map((r) => r.file).filter((f): f is string => f !== null));
 }
 
+/**
+ * Where a rule sits in this workspace's lifecycle (§8.2), and so whether its
+ * findings run in shadow.
+ *
+ * A rule that ships in code starts as a candidate: it runs on real scans with
+ * its findings stamped experimental until an admin promotes it on evidence.
+ * No registry row means nobody has decided yet, which is the shipped default.
+ */
+async function shippedRuleStatus(
+  db: Database,
+  workspaceId: number,
+  ruleId: string,
+): Promise<'candidate' | 'active' | 'deprecated'> {
+  const [row] = await db
+    .select({ status: security.ruleRegistry.status })
+    .from(security.ruleRegistry)
+    .where(
+      and(
+        eq(security.ruleRegistry.workspaceId, workspaceId),
+        eq(security.ruleRegistry.ruleId, ruleId),
+      ),
+    )
+    .limit(1);
+  if (row?.status === 'active' || row?.status === 'deprecated') return row.status;
+  return 'candidate';
+}
+
 export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResult> {
   const checklist = loadChecklist('anti_slop', deps.checklistDir);
   const [run] = await deps.db
@@ -154,6 +182,33 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           scannerKey: ANTI_SLOP_SCANNER_KEY,
           ruleId: inflation.ruleId,
           yields: null,
+        });
+      }
+    }
+    // Dead exports (W18-01) — whole-tree, so the snapshot pass only: a diff
+    // cannot say that nothing else imports a name.
+    const unusedStatus = sources.length
+      ? await shippedRuleStatus(deps.db, deps.workspaceId, UNUSED_EXPORT_RULE_ID)
+      : 'deprecated';
+    if (unusedStatus !== 'deprecated') {
+      for (const unused of unusedExports(sources)) {
+        findings.push({
+          dimension: 'slop',
+          severity: 1,
+          // 4, not 5: two independent signals agree, but a consumer outside
+          // this repository is something neither of them can see.
+          confidence: 4,
+          file: unused.file,
+          lineStart: unused.line,
+          lineEnd: unused.line,
+          title: `Unused export: ${unused.name}`,
+          evidenceQuote: unused.declaration,
+          rationale: unused.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: unused.ruleId,
+          yields: null,
+          experimental: unusedStatus !== 'active',
         });
       }
     }
