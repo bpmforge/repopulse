@@ -1,0 +1,16 @@
+diff --git a/src/middleware/limits.ts b/src/middleware/limits.ts
+--- a/src/middleware/limits.ts
++++ b/src/middleware/limits.ts
+@@ -2,7 +2,7 @@ import rateLimit from 'express-rate-limit';
+ export const apiLimiter = rateLimit({
+   windowMs: 60 * 1000,
+-  max: 100,
++  max: 10,
+ });
+diff --git a/app/auth/routes.py b/app/auth/routes.py
+--- a/app/auth/routes.py
++++ b/app/auth/routes.py
+@@ -15,7 +15,7 @@ bp = Blueprint("auth", __name__)
+-@limiter.limit("100/minute")
++@limiter.limit("10/minute")
+ def login():

@@ -1,0 +1,7 @@
+diff --git a/src/middleware/errors.js b/src/middleware/errors.js
+--- a/src/middleware/errors.js
++++ b/src/middleware/errors.js
+@@ -4,7 +4,7 @@ const errorConverter = (err, req, res, next) => {
+-  const message = 'Please authenticate before calling this endpoint';
++  const message = 'Request failed';
+   next(new ApiError(status, message));

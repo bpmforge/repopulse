@@ -1,0 +1,14 @@
+diff --git a/src/routes/index.ts b/src/routes/index.ts
+--- a/src/routes/index.ts
++++ b/src/routes/index.ts
+@@ -3,6 +3,5 @@ const router = Router();
+ router.get('/health', health);
+-router.delete('/projects/:id', requireOwner, deleteProject);
+ export default router;
+diff --git a/src/routes/projects.ts b/src/routes/projects.ts
+--- a/src/routes/projects.ts
++++ b/src/routes/projects.ts
+@@ -8,6 +8,7 @@ const router = Router();
+ router.get('/projects/:id', getProject);
++router.delete('/projects/:id', requireOwner, deleteProject);
+ export default router;

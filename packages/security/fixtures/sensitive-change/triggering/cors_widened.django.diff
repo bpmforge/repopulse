@@ -1,0 +1,10 @@
+diff --git a/config/settings.py b/config/settings.py
+--- a/config/settings.py
++++ b/config/settings.py
+@@ -60,6 +60,4 @@ MIDDLEWARE = [
+ ]
+ 
+-CORS_ALLOWED_ORIGINS = [
+-    "https://app.example.com",
+-]
++CORS_ALLOW_ALL_ORIGINS = True

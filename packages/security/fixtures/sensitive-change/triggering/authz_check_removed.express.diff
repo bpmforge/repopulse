@@ -1,0 +1,9 @@
+diff --git a/src/routes/users.ts b/src/routes/users.ts
+--- a/src/routes/users.ts
++++ b/src/routes/users.ts
+@@ -10,7 +10,7 @@ const router = Router();
+ router.get('/users', listUsers);
+ router.get('/users/:id', getUser);
+-router.delete('/users/:id', requireAdmin, deleteUser);
++router.delete('/users/:id', deleteUser);
+ router.patch('/users/:id', updateUser);

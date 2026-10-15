@@ -1,0 +1,9 @@
+diff --git a/config/settings.py b/config/settings.py
+--- a/config/settings.py
++++ b/config/settings.py
+@@ -42,7 +42,6 @@ MIDDLEWARE = [
+     "django.contrib.sessions.middleware.SessionMiddleware",
+     "django.middleware.common.CommonMiddleware",
+-    "django.middleware.csrf.CsrfViewMiddleware",
+     "django.contrib.auth.middleware.AuthenticationMiddleware",
+ ]
