@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -33,7 +33,15 @@ beforeEach(() => {
   initChart.mockClear();
   Object.values(chart).forEach((fn) => (fn as { mockClear: () => void }).mockClear());
 });
-afterEach(() => vi.unstubAllGlobals());
+// Unmount BEFORE the stubs go. echarts arrives by dynamic import, so a test
+// that never awaits it (the toggle-absent one) can have its chart instance
+// land after the test body; if ResizeObserver is already unstubbed by then,
+// the resize effect throws into the next test. The setup file's cleanup runs
+// after this hook, which is too late.
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 import { Chart } from './Chart.js';
 

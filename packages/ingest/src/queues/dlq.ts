@@ -1,5 +1,5 @@
 import type { Job, Queue, Worker } from 'bullmq';
-import { core, type Database } from '@repopulse/shared';
+import { core, type Database, safeErrorText } from '@repopulse/shared';
 import { QUEUE, safeJobId } from './topology.js';
 import { markRepoStalled } from './stall.js';
 
@@ -33,7 +33,7 @@ export function buildFailureRecord(
     queue,
     jobId: job.id ?? 'unknown',
     payload: job.data,
-    error: error.message,
+    error: safeErrorText(error),
   };
 }
 

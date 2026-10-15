@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { read, security, type Database } from '@repopulse/shared';
+import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import {
   validateFindings,
@@ -30,6 +30,14 @@ import {
   SPECULATIVE_PARAM_RULE_ID,
   speculativeGenerality,
 } from './speculative.js';
+import { runSemgrepScan } from '../semgrep/scanner.js';
+import {
+  ANTI_SLOP_PACK_FILE_PREFIX,
+  CODE_HEALTH_PACK_DIR,
+  DEFAULT_EXCLUDED_GLOBS,
+  isExcluded,
+  type PackRunner,
+} from '../logging/run.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -77,6 +85,16 @@ export interface AntiSlopDeps {
    * missing module be called missing; absent = assume it was not complete.
    */
   sourcesComplete?: boolean;
+  /**
+   * The snapshot directory, for the W9-01 pack's anti-slop rules (W18-30).
+   * Absent = no pack layer: a diff is not a tree, and the PR path has no
+   * snapshot to point the engine at.
+   */
+  targetDir?: string;
+  image?: string;
+  /** Defaults to runSemgrepScan; see PackRunner. */
+  runPack?: PackRunner;
+  excludedGlobs?: readonly string[];
   trigger?: 'pr_synced' | 'schedule' | 'manual';
   pullRequestId?: number | null;
   /** Runs a second, independent judgement. Absent = nothing is surfaced. */
@@ -92,6 +110,10 @@ export interface AntiSlopResult {
   status: 'succeeded' | 'failed';
   scanRunId: number | null;
   deterministic: number;
+  /** Of `deterministic`, the `bpm-ch-*` pack findings (W18-30). */
+  pack: number;
+  /** Pack findings on test, script and fixture paths, dropped. */
+  excluded: number;
   judgment: number;
   /** Fast-lane candidates sent to the model (anti-slop.v2). */
   candidates: number;
@@ -173,6 +195,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
   let rejected = 0;
   let refuted = 0;
   let unverified = 0;
+  let pack = 0;
+  let excluded = 0;
+  let toolVersions: Record<string, string> | null = null;
 
   try {
     // ---- Deterministic layer -------------------------------------------
@@ -435,6 +460,58 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         });
       }
     }
+    // ---- The W9-01 pack, anti-slop rules only (W18-30) -------------------
+    // Eight rules that were loaded on every weekly run — by the LOGGING
+    // scanner, which dropped them by id — and stored by nobody, while the
+    // Code Health tab filtered on `bpm-ch-` waiting for them. They belong here:
+    // their dimension is `slop`, and under this scanner key only this
+    // scanner's runs can ever own or sweep them.
+    if (deps.targetDir) {
+      const globs = deps.excludedGlobs ?? DEFAULT_EXCLUDED_GLOBS;
+      const result = await (deps.runPack ?? runSemgrepScan)({
+        targetDir: deps.targetDir,
+        rulepackDir: CODE_HEALTH_PACK_DIR,
+        rulepackFiles: (file) => file.startsWith(ANTI_SLOP_PACK_FILE_PREFIX),
+        budget: { wallClockMs: 10 * 60 * 1000 },
+        ...(deps.image ? { image: deps.image } : {}),
+      });
+      // Failing the run rather than carrying on with LDR alone: a run that
+      // reports `succeeded` with no pack findings is indistinguishable from a
+      // repository with no empty catches, and that is the lie W18-30 fixes.
+      if (result.status !== 'succeeded') {
+        throw new Error(`anti-slop pack run failed: ${result.error ?? result.status}`);
+      }
+      toolVersions = result.toolVersions;
+
+      for (const finding of result.findings) {
+        if (!finding.ruleId.startsWith('bpm-ch-')) continue;
+        if (isExcluded(finding.file, globs)) {
+          excluded += 1;
+          continue;
+        }
+        pack += 1;
+        findings.push({
+          dimension: 'slop',
+          // The pack tops out at WARNING on purpose; the cap is here so a
+          // later rule cannot outrank a vulnerability by mis-tagging itself.
+          severity: Math.min(3, finding.severity),
+          // 4, not 5: the shape is matched exactly, but several of these
+          // rules (try/catch in a loop, what-comments) name their own
+          // legitimate exceptions, and the finding cannot see the intent.
+          confidence: 4,
+          file: finding.file,
+          lineStart: finding.lineStart,
+          lineEnd: finding.lineEnd,
+          title: finding.title,
+          evidenceQuote: `${finding.file}:${finding.lineStart} — ${finding.ruleId}`,
+          rationale: finding.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: finding.ruleId,
+          yields: null,
+        });
+      }
+    }
     const deterministic = findings.length;
 
     // ---- Judgement layer (anti-slop.v2, W18-10) -------------------------
@@ -553,13 +630,20 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
     await deps.db
       .update(security.scanRuns)
-      .set({ status: 'succeeded', findingCount: findings.length, finishedAt: new Date() })
+      .set({
+        status: 'succeeded',
+        findingCount: findings.length,
+        finishedAt: new Date(),
+        ...(toolVersions ? { toolVersions } : {}),
+      })
       .where(eq(security.scanRuns.id, runId));
 
     return {
       status: 'succeeded',
       scanRunId: runId,
       deterministic,
+      pack,
+      excluded,
       judgment,
       candidates: selection.candidates.length,
       candidatesCapped: selection.capped,
@@ -573,7 +657,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, runId));
@@ -581,6 +665,8 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       status: 'failed',
       scanRunId: runId,
       deterministic: 0,
+      pack: 0,
+      excluded,
       judgment: 0,
       candidates: 0,
       candidatesCapped: 0,
@@ -588,7 +674,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       unverified,
       findingsCreated: 0,
       rejected,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }
