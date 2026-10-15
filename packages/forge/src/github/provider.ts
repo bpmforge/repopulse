@@ -21,6 +21,7 @@ import type {
   ForgeRelease,
   ForgeRepo,
   ForgeReview,
+  ForgeReviewComment,
   ForgeTarball,
   Page,
   SinceQuery,
@@ -38,6 +39,7 @@ import {
   normalizeIssue,
   normalizePR,
   normalizeRelease,
+  normalizeReviewComment,
   normalizeRepo,
   normalizeReview,
   type RawCheckRun,
@@ -50,6 +52,7 @@ import {
   type RawRelease,
   type RawRepo,
   type RawReview,
+  type RawReviewComment,
 } from './normalize.js';
 
 // GitHub's documented capability set (FORGE_PROVIDER §1). supportsRawDiff is
@@ -241,6 +244,27 @@ export class GitHubProvider implements ForgeProvider {
     assertListOk(res, 'reviews');
     const raw = Array.isArray(res.body) ? (res.body as RawReview[]) : [];
     return raw.map((r) => normalizeReview(r, n)).filter((r): r is ForgeReview => r !== null);
+  }
+
+  // W18-23. Same 'pulls' budget family as listReviews: GitHub meters both
+  // under the pulls resource, and a separate family would let the AI-reviewer
+  // fetch starve nothing while silently doubling what the bucket allows.
+  async listReviewComments(
+    ctx: CallCtx,
+    repo: string,
+    n: number,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeReviewComment>> {
+    const res = await this.get(
+      ctx,
+      withPage(`${this.base}/repos/${repo}/pulls/${n}/comments?per_page=100`, cursor),
+      'pulls',
+    );
+    return this.pageOf<RawReviewComment, ForgeReviewComment>(
+      res,
+      (c) => normalizeReviewComment(c, n),
+      { entity: 'review_comments' },
+    );
   }
 
   async listCheckRuns(

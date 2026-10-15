@@ -9,6 +9,7 @@ import type {
   ForgePR,
   ForgeRelease,
   ForgeReview,
+  ForgeReviewComment,
 } from '@repopulse/forge';
 import { parseCommitTrailers } from '@repopulse/metrics';
 import type { DbOrTx } from './db.js';
@@ -163,6 +164,68 @@ export async function upsertReviews(
       });
   }
   return reviews.length;
+}
+
+/**
+ * Inline review comments for one PR (W18-23) — diff anchors only, never the
+ * body. Upserted on the forge id so a re-fetch refreshes `current_line`, which
+ * is the field that changes when a later push rewrites the commented lines.
+ */
+export async function upsertReviewComments(
+  db: DbOrTx,
+  scope: RepoScope,
+  resolver: IdentityResolver,
+  prNumber: number,
+  comments: readonly ForgeReviewComment[],
+  observedAt: Date,
+): Promise<number> {
+  const [pr] = await db
+    .select({ id: facts.pullRequests.id })
+    .from(facts.pullRequests)
+    .where(
+      and(eq(facts.pullRequests.repoId, scope.repoId), eq(facts.pullRequests.number, prNumber)),
+    )
+    .limit(1);
+  if (!pr) return 0;
+  for (const c of comments) {
+    // A deleted account comes back as a null user; keep the row (it is still
+    // a comment on those lines) under the same marker identity as any other
+    // login-less author.
+    const authorId = await resolver.resolve({ login: c.authorLogin || null });
+    const anchor = {
+      currentLine: c.line,
+      commitSha: c.commitSha,
+    };
+    await db
+      .insert(facts.prReviewComments)
+      .values({
+        workspaceId: scope.workspaceId,
+        repoId: scope.repoId,
+        pullRequestId: pr.id,
+        forgeCommentId: c.externalId,
+        forgeReviewId: c.reviewExternalId,
+        authorIdentityId: authorId,
+        createdAt: new Date(c.createdAt),
+        path: c.path,
+        subjectType: c.subjectType,
+        isReply: c.isReply,
+        originalStartLine: c.originalStartLine,
+        originalLine: c.originalLine,
+        originalCommitSha: c.originalCommitSha,
+        ...anchor,
+      })
+      .onConflictDoUpdate({
+        target: [facts.prReviewComments.pullRequestId, facts.prReviewComments.forgeCommentId],
+        set: anchor,
+      });
+  }
+  // Stamped even for zero comments: "fetched, none" is a fact the metrics
+  // need, and it is what tells them this PR has line-level data at all.
+  await db
+    .update(facts.pullRequests)
+    .set({ reviewCommentsObservedAt: observedAt })
+    .where(eq(facts.pullRequests.id, pr.id));
+  return comments.length;
 }
 
 export async function upsertCheckRuns(

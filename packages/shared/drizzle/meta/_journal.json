@@ -229,6 +229,7 @@
     {
       "idx": 32,
       "version": "7",
+<<<<<<< HEAD
       "when": 1792032607146,
       "tag": "0032_ci_tokens",
       "breakpoints": true
@@ -245,6 +246,11 @@
       "tag": "0035_ai_authorship",
       "breakpoints": true,
       "idx": 34
+=======
+      "when": 1792040107078,
+      "tag": "0037_review_comments",
+      "breakpoints": true
+>>>>>>> origin/claude/repopulse-reviewer-metrics
     }
   ]
 }

@@ -64,6 +64,7 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `GET /repos/{id}/trends` | `?window` → snapshot series bundle for the Pulse tab chart grid | FR-METRICS-13, FR-INSIGHTS-4 |
 | `GET /repos/{id}/pr-flow` | `?window` → stage funnel (median+p90/stage), reviewer×week load matrix, size histogram | FR-METRICS-4/5/6/7 |
 | `GET /repos/{id}/ci` | `?window` → pass-rate + duration trends, flaky-workflow ranking | FR-METRICS-9 |
+| `GET /repos/{id}/review-bots` | `?window` → per known AI review bot: PRs reviewed/reach, reviews and inline comments per PR, time to first comment, share followed by a code change, repeat-after-dismiss; `forge` + `line_data` say why comment columns are null. Tools only, never people (N-9) | W18-23, METRICS.md §5 |
 | `GET /repos/{id}/hotspots` | `?window` → ranked files `{path, hotspot_score, decomposition, finding_density, contributing_commit_ids}` | FR-METRICS-2, FR-INSIGHTS-5 |
 | `GET /repos/{id}/contributors` | → identities w/ churn share, bus factor per directory, single-owner flags | FR-METRICS-3 |
 | `GET /repos/{id}/files/{path}` | → file detail: churn series, owners, hotspot history, findings | FR-API-5 |

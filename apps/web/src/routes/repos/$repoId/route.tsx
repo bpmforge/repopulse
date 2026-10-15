@@ -33,6 +33,9 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/repos/$repoId/performance', label: 'Performance' },
   { to: '/repos/$repoId/hotspots', label: 'Hotspots' },
   { to: '/repos/$repoId/pr-flow', label: 'PR Flow' },
+  // W18-23. Beside PR Flow because it is the other half of the review story:
+  // PR Flow measures human review, this measures the tools.
+  { to: '/repos/$repoId/ai-reviewers', label: 'AI Reviewers' },
   { to: '/repos/$repoId/ci', label: 'CI' },
   { to: '/repos/$repoId/findings', label: 'Findings' },
   { to: '/repos/$repoId/security', label: 'Security' },
