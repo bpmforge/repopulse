@@ -7,7 +7,7 @@ import { staleJsdocParams } from './stale-jsdoc.js';
 import { functionAt, parseParams } from './signatures.js';
 import { maskSource } from './source-graph.js';
 import { loadChecklist } from '../owasp/checklist.js';
-import { ANTI_SLOP_CHECKLIST_UP_TO } from './run.js';
+import { CANDIDATE_RULE_IDS } from './candidates.js';
 
 // Structural slop the T2 checklist used to answer (W18-05): delegation-only
 // wrappers, single-implementation interfaces, stale JSDoc parameters. The
@@ -281,30 +281,26 @@ describe('signatures', () => {
 });
 
 describe('anti-slop.v2 checklist', () => {
-  it('narrows the two categories the rules settle to languages the rules do not read', () => {
+  it('judges fast-lane candidates instead of searching a diff; v1 is untouched', () => {
     const v1 = loadChecklist('anti_slop', undefined, { upTo: 1 });
     const v2 = loadChecklist('anti_slop');
     expect(v1.version).toBe('anti-slop.v1');
     expect(v2.version).toBe('anti-slop.v2');
+    // v1 still says what last month's findings were asked.
     expect(v1.prompt).toContain('- **Delegation-only wrapper** —');
     expect(v1.prompt).toContain('- **Single-implementation interface** —');
+    expect(v1.prompt).toContain('You are reviewing a unified diff');
+    // v2 no longer asks the model to find either shape: the rules find them,
+    // and the model is told what each rule cannot see.
     expect(v2.prompt).not.toContain('- **Delegation-only wrapper** —');
     expect(v2.prompt).not.toContain('- **Single-implementation interface** —');
-    expect(v2.prompt).toContain('Delegation-only wrapper (not JavaScript/TypeScript)');
-    expect(v2.prompt).toContain('slop.single_impl_interface');
-    expect(v2.prompt).toContain('slop.delegation_wrapper');
-    // Every other category is carried over word for word.
-    for (const kept of ['Single-use helper', 'Speculative generalization', 'Cargo-cult pattern']) {
-      expect(v2.prompt).toContain(`- **${kept}**`);
-    }
+    expect(v2.prompt).not.toContain('You are reviewing a unified diff');
+    expect(v2.prompt).toContain('You are judging a list of candidates');
+    expect(v2.prompt).toContain('**Judge only the listed candidates.**');
+    for (const rule of CANDIDATE_RULE_IDS) expect(v2.prompt).toContain(`**${rule}**`);
   });
 
-  it('is not read yet: the scanner stays on v1 until W18-10 switches it', () => {
-    // The rules that replace the categories run in shadow; the model keeps
-    // answering for them until findings from the rules are visible.
-    expect(ANTI_SLOP_CHECKLIST_UP_TO).toBe(1);
-    expect(loadChecklist('anti_slop', undefined, { upTo: ANTI_SLOP_CHECKLIST_UP_TO }).version).toBe(
-      'anti-slop.v1',
-    );
+  it('is what the scanner reads: W18-10 removed the v1 pin', () => {
+    expect(loadChecklist('anti_slop').version).toBe('anti-slop.v2');
   });
 });

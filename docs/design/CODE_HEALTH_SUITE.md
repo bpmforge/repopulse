@@ -37,7 +37,7 @@ T2 confirms, **LLM** = T2 checklist judgment (runs through the gateway with veri
 | R-04 serial awaits · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization (deterministic candidates) | **PACK** (in-process fast lane, W18-08, ships in shadow): `perf.serial_independent_awaits` (≥2 adjacent `const x = await read()` with no data dependency; reads only, never on one connection or one stream; dimension `performance`), `slop.unbounded_retry` (`while(true)`/`for(;;)`/flag/do-while retry, or self-recursion from a catch with the same arguments, with no counter-vs-limit, deadline/abort, or sleep/backoff — the same "bounded" the await-in-loop/try-catch-in-loop retry carve-out uses; severity 2), `slop.speculative_param` (literal default of a module-private function that no counted call passes), `slop.orphan_flag` (`const ENABLE_X = true/false` read exactly once in the snapshot). JS/TS only; skips tests, fixtures, `.d.ts` and bundles. The T2 rows below still cover what these cannot see (exported APIs, options fields, retry libraries) | anti_slop deterministic layer |
 | R-20 pattern inconsistency, dependency half · R-30 library reimplementation, named-API half | **PACK** (in-process, W18-06, ships in shadow). `slop.duplicate_purpose_deps`: two libraries from one row of the versioned category table (`dep-categories.v1`: dates, HTTP clients, loggers, test runners, validation, ORMs for npm/PyPI/Go/Maven/Cargo, each row citing why its members overlap, with deliberate exclusions listed) that are BOTH direct runtime declarations of the same manifest directory. `slop.library_reimplementation`: a module-level function named like a dependency's API (`debounce`, `deepClone`, `uuid`, `slugify`, `retry`…) whose library is a direct runtime dependency of an enclosing project, whose body holds the API's mechanism, and which neither imports nor calls the library (JS/TS, Python, Go, Java). Input is the declared-dependency list (`validation/declared.ts`, which reuses the D10 V1 lockfile readers), not the stored SBOM, which cannot tell direct from transitive. The rest of R-20/R-30 stays with T2 | FR-CH-3 |
 | R-03 exception control flow · R-04 serial awaits · R-15 stale JSDoc params · R-24 docstring inflation (doc/impl >3×, LDR) · R-26 unwired scaffolding · R-28 LLM output w/o validation · R-30 library-shaped reimplementation (silent vendor fork) | **HYB** | pack/AST locates candidates → T2 confirms with evidence quote |
-| R-05 single-impl interfaces · R-06 delegation-only wrappers · R-07 single-use helpers · R-08 repository-on-CRUD · R-09 null checks on owned types · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization · R-18 cargo-cult patterns · R-20 pattern inconsistency · R-22 architectural privilege escalation | **LLM** | `anti_slop.v1` T2 checklist (diff-scoped; snapshot mode samples worst files) |
+| R-05 single-impl interfaces · R-06 delegation-only wrappers · R-07 single-use helpers · R-08 repository-on-CRUD · R-09 null checks on owned types · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization · R-18 cargo-cult patterns · R-20 pattern inconsistency · R-22 architectural privilege escalation | **LLM** | `anti_slop.v1` T2 checklist (diff-scoped; snapshot mode samples worst files). **Since anti-slop.v2 (W18-10) the model no longer reviews a diff**: it judges the fast lane's shadow candidates for R-04/R-05/R-06/R-11/R-12/R-15/R-17 and unused exports, each as (file, line, rule, evidence) plus a ≤24-line excerpt, and confirms or stays silent (`scanners/anti-slop/candidates.ts`). R-07/R-08/R-09/R-18/R-20/R-22 and R-28 have no candidate rule yet and are not asked about until one exists |
 
 **LDR (logic density ratio)** — reconciling the two source definitions: file-level
 `LDR = logic_lines / (logic_lines + overhead_lines)` (overhead = imports, type-only
@@ -112,6 +112,17 @@ why-comments only; no defensive null checks on owned types; YAGNI on retries/fla
 config not traceable to a requirement. Verdicts require verbatim evidence quotes
 (SC-13 substring rule) and ride the FR-ANALYSIS-9 verify pass — a judgment finding that
 the second host refutes never surfaces.
+
+**anti-slop.v2 (W18-10): candidates, not diffs.** The fast lane finds; the model only
+judges what it found. Each call carries the checklist and up to 25 candidates — rule id,
+file, line, the rule's quote and claim, and the lines around it — and the model returns a
+finding only for a candidate it confirms (silence rejects). A finding outside every
+candidate's excerpt, or a second one for the same candidate, is rejected and counted: the
+model is not allowed to go back to searching. Only SHADOW candidates are sent (an `active`
+rule's finding is already visible on its own evidence); a pull-request run scopes them to
+the files its diff touched; a run sends at most 200 and reports the rest as
+`candidatesCapped`. The verify pass is unchanged (maker ≠ verifier, severity ≥ 3). Measured
+before/after: `docs/work/product-completion/evidence/w18-10-anti-slop-v2-handoff.md`.
 
 ## 5. Tier-1 debt signals (FR-CH-7 — packages/metrics, no scanner)
 
