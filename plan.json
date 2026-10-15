@@ -9108,8 +9108,10 @@
         "D9a reaffirmed: verified patches + customer-CI pull, no repo writes"
       ],
       "points": 2,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "2026-10-15 done (branch claude/repopulse-d16-docs): D16 recorded in docs/work/FOUNDING_BRIEF.md as a table row plus a full section (decision, why, what sets it apart incl. the Kodus caveat, fix delivery \"Verified + CI pull\" = W18-19 verified patches + W18-18 customer-CI pull, what follows). D9a reaffirmed unchanged: no repo writes, no PR comments, no forge write scope; N-3 and N-9 stand; S-25 (advisory PR comment write-back) withdrawn. VISION.md rewritten to the positioning (problem, answer, five pillars, per-competitor lines). SCOPE.md: product-line note, S-25 withdrawn, new W18 section S-70..S-81 mapped to W18 tickets, out-of-scope summary corrected (Bitbucket only, no repo writes, no grades). COMPETITIVE_ANALYSIS.md: new 2026-10-15 code-review/SAST pass with the approved source facts and links (Signal65, Mend, Ghost Security, OX, Black Duck, CodeRabbit marked vendor-funded, Kodus caveat); the 2026-07-07 metrics pass kept, its \"we do not replicate rule-based SAST\" lines struck as superseded. NON_GOALS.md: N-2/N-3/N-9 clarified for W18-18/19/20/22/23 without weakening; D15 release list notes IaC now planned in W18-26. ROADMAP.md: current-wave banner + W18 section (phases, constraints, exit criteria from ticket acceptance). Docs-only: validate-plan + validate-traceability + pnpm lint."
+      ]
     },
     {
       "id": "W18-28",
