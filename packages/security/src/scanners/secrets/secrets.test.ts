@@ -160,6 +160,37 @@ describe('the rulepack in anger', () => {
     }
   });
 
+  it('catches a Stripe-prefixed key whose body contains underscores', () => {
+    // The W18-17 benchmark miss, SampleCo's fake key verbatim. The generic
+    // rule allowlists it for "sample", so only this rule can catch it. Not an
+    // issued Stripe format, so it stays "unverified", but a live-prefixed
+    // credential in a config file is the finding whatever its exact shape.
+    // Built at runtime so this file is not itself a push-protection hit.
+    const key = ['sk', 'live', '51H8xQ2eZvKf9sampleco_DO_NOT_USE_9f3a'].join('_');
+    const matches = scanPatch('config.js', patch(`+  apiKey: "${key}",`));
+    expect(matches.map((m) => [m.ruleId, m.secret])).toEqual([['stripe-secret-key', key]]);
+    expect(verifyMatch(matches[0]!).outcome).toBe('unverified');
+    // An issued-format key is still reported whole, and still format-checks.
+    const issued = ['sk', 'test', 'a1B2c3D4e5F6g7H8i9J0kLmN'].join('_');
+    const plain = scanPatch('a.ts', patch(`+k = '${issued}'`));
+    expect(plain.map((m) => m.secret)).toEqual([issued]);
+    expect(verifyMatch(plain[0]!).outcome).toBe('format_ok');
+  });
+
+  it('does NOT read an identifier that starts with the Stripe prefix as a key', () => {
+    // Allowing `_` in the body lets names through the regex; the allowlist has
+    // to turn every ordinary naming style away, or the fix above is a new
+    // stream of severity-5 false positives.
+    for (const name of [
+      'sk_live_webhook_endpoint_secret_v2',
+      'sk_test_environment_configuration_value',
+      'sk_live_MAX_RETRY_COUNT_FOR_REQUESTS',
+      'sk_test_webhookSecretRotation_enabledForTenant',
+    ]) {
+      expect(scanPatch('a.ts', patch(`+const ${name} = loadFromVault();`)), name).toEqual([]);
+    }
+  });
+
   it('does NOT fire on low-entropy values under an entropy floor', () => {
     expect(scanPatch('a.ts', patch('+password = "aaaaaaaaaaaaaaaaaaaaaaaa"'))).toEqual([]);
   });

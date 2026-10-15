@@ -1,0 +1,13 @@
+{
+  "name": "sampleco",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deliberately vibe-coded demo app for CodeReckon sample audit. Not a real product.",
+  "main": "src/index.js",
+  "scripts": { "start": "node src/index.js" },
+  "dependencies": {
+    "express": "4.16.0",
+    "sqlite3": "^5.1.0",
+    "json-safe-parse-ultra": "^1.0.0"
+  }
+}

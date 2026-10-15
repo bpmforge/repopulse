@@ -1,0 +1,257 @@
+{
+  "id": "juice-shop",
+  "title": "OWASP Juice Shop code-fix snippets",
+  "description": "Vulnerable snippets and their candidate fixes from Juice Shop's coding challenges (data/static/codefixes), copied verbatim. Each challenge's info.yml says which candidate is the correct fix; the vulnerable/clean labels follow it. Byte-identical duplicates across challenges were kept once (noted per label). Snippets are function fragments, as upstream ships them. routes/login.ts and routes/search.ts are the full upstream files the SQL snippets were cut from: the login snippets are truncated fragments no parser accepts, so the full files are what measures the rule on that code.",
+  "source": {
+    "kind": "vendored",
+    "repository": "https://github.com/juice-shop/juice-shop",
+    "commit": "e39a3bdb8c61295c31fa4e0a03485e68a8ca12a4",
+    "path": "data/static/codefixes (21 files) and routes/{login,search}.ts",
+    "licence": "MIT (Bjoern Kimminich and the OWASP Juice Shop contributors; LICENSE alongside)"
+  },
+  "unlabelled": "fp",
+  "trees": [
+    {
+      "id": "codefixes",
+      "path": "tree/codefixes"
+    },
+    {
+      "id": "routes",
+      "path": "tree/routes"
+    }
+  ],
+  "labels": [
+    {
+      "id": "sqli-dbschema-1",
+      "tree": "codefixes",
+      "file": "dbSchemaChallenge_1.ts",
+      "lines": [5, 5],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Wrong fix per upstream: template literal swapped for \"...\"+criteria+\"...\" concatenation."
+    },
+    {
+      "id": "sqli-dbschema-2",
+      "tree": "codefixes",
+      "file": "dbSchemaChallenge_2_correct.ts",
+      "lines": [5, 8],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Upstream correct fix: Sequelize replacements."
+    },
+    {
+      "id": "sqli-dbschema-3",
+      "tree": "codefixes",
+      "file": "dbSchemaChallenge_3.ts",
+      "lines": [11, 11],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Wrong fix per upstream: blocklist before an interpolated query."
+    },
+    {
+      "id": "sqli-union-1",
+      "tree": "codefixes",
+      "file": "unionSqlInjectionChallenge_1.ts",
+      "lines": [6, 6],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Wrong fix per upstream: blocklist before an interpolated query."
+    },
+    {
+      "id": "sqli-union-2",
+      "tree": "codefixes",
+      "file": "unionSqlInjectionChallenge_2_correct.ts",
+      "lines": [5, 8],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Upstream correct fix: Sequelize replacements."
+    },
+    {
+      "id": "sqli-union-3",
+      "tree": "codefixes",
+      "file": "unionSqlInjectionChallenge_3.ts",
+      "lines": [10, 10],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Wrong fix per upstream: startsWith() filter before an interpolated query."
+    },
+    {
+      "id": "sqli-login-admin-1",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_1.ts",
+      "lines": [18, 18],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Wrong fix per upstream (also loginBender_1, loginJim_4): blocklist that does not even return."
+    },
+    {
+      "id": "sqli-login-admin-2",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_2.ts",
+      "lines": [15, 16],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Upstream marks this fix candidate wrong: user input still reaches the SQL text. The password hash is interpolated while the email is bound."
+    },
+    {
+      "id": "sqli-login-admin-3",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_3.ts",
+      "lines": [15, 16],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Fully bound query; upstream rejects it for a functional bug, not injection."
+    },
+    {
+      "id": "sqli-login-admin-4",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_4_correct.ts",
+      "lines": [15, 16],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Upstream correct fix (also loginJim_1): bind parameters."
+    },
+    {
+      "id": "sqli-login-bender-2",
+      "tree": "codefixes",
+      "file": "loginBenderChallenge_2_correct.ts",
+      "lines": [15, 16],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Upstream correct fix: named bind parameters."
+    },
+    {
+      "id": "sqli-login-bender-3",
+      "tree": "codefixes",
+      "file": "loginBenderChallenge_3.ts",
+      "lines": [15, 16],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Upstream marks this fix candidate wrong: user input still reaches the SQL text. Email replaced, password hash interpolated."
+    },
+    {
+      "id": "sqli-login-bender-4",
+      "tree": "codefixes",
+      "file": "loginBenderChallenge_4.ts",
+      "lines": [15, 15],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Wrong fix per upstream (also loginJim_2): only the plain flag changed."
+    },
+    {
+      "id": "sqli-login-jim-3",
+      "tree": "codefixes",
+      "file": "loginJimChallenge_3.ts",
+      "lines": [15, 16],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Fully bound query; upstream rejects it for a functional bug, not injection."
+    },
+    {
+      "id": "nosql-reviews-1",
+      "tree": "codefixes",
+      "file": "noSqlReviewsChallenge_1.ts",
+      "lines": [10, 12],
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "NoSQL injection (CWE-943): req.body.id reaches the query object; the $ne check is insufficient per upstream. No deterministic rule claims it."
+    },
+    {
+      "id": "nosql-reviews-2",
+      "tree": "codefixes",
+      "file": "noSqlReviewsChallenge_2.ts",
+      "lines": [4, 6],
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "NoSQL injection (CWE-943): req.body.id reaches the query object unchecked. No deterministic rule claims it."
+    },
+    {
+      "id": "nosql-reviews-3",
+      "tree": "codefixes",
+      "file": "noSqlReviewsChallenge_3_correct.ts",
+      "lines": [10, 12],
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Upstream correct fix: id must be a string."
+    },
+    {
+      "id": "redirect-1",
+      "tree": "codefixes",
+      "file": "redirectChallenge_1.ts",
+      "lines": [15, 15],
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Open redirect (CWE-601): includes() on an encoded allowlist entry. No deterministic rule claims it."
+    },
+    {
+      "id": "redirect-2",
+      "tree": "codefixes",
+      "file": "redirectChallenge_2.ts",
+      "lines": [15, 15],
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Upstream wrong fix, but && makes allowed always false: broken, not exploitable."
+    },
+    {
+      "id": "redirect-3",
+      "tree": "codefixes",
+      "file": "redirectChallenge_3.ts",
+      "lines": [15, 15],
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Open redirect (CWE-601): includes() survives HTML-escaping. No deterministic rule claims it."
+    },
+    {
+      "id": "redirect-4",
+      "tree": "codefixes",
+      "file": "redirectChallenge_4_correct.ts",
+      "lines": [15, 15],
+      "dimension": "sast",
+      "expect": "none",
+      "note": "Upstream correct fix: strict equality."
+    },
+    {
+      "id": "routes-login-sqli",
+      "tree": "routes",
+      "file": "login.ts",
+      "lines": [34, 34],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Upstream vuln-line for loginAdmin/Bender/Jim: email and password hash interpolated into the query."
+    },
+    {
+      "id": "routes-search-sqli",
+      "tree": "routes",
+      "file": "search.ts",
+      "lines": [23, 23],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Upstream vuln-line for unionSqlInjection/dbSchema: search criteria interpolated into the query."
+    },
+    {
+      "id": "routes-login-credentials",
+      "tree": "routes",
+      "file": "login.ts",
+      "lines": [59, 65],
+      "dimension": "secrets",
+      "expect": "finding",
+      "note": "Ours, not an upstream challenge label: verifyPreLoginChallenges compares request passwords with seven real account passwords written in source (CWE-798). One defect, so one label; any secrets rule satisfies it."
+    }
+  ]
+}

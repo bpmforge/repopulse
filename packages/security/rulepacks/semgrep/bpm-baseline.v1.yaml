@@ -48,6 +48,52 @@ rules:
       - pattern-either:
           - pattern: $CP.exec($CMD, ...)
           - pattern: $CP.execSync($CMD, ...)
+          # exec/execSync taken out of child_process by name. The engine
+          # usually resolves a bare `exec` to the module already, but saying
+          # so keeps the rule from depending on that; the import has to be in
+          # this file, because a bare `exec(...)` on its own is as likely to
+          # be a query builder or a test helper, and this rule is ERROR.
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      const {..., $FN, ...} = require($MOD);
+                      ...
+                  - pattern-inside: |
+                      import { $FN } from $MOD;
+                      ...
+              - metavariable-regex:
+                  metavariable: $FN
+                  regex: ^exec(Sync)?$
+              - metavariable-regex:
+                  metavariable: $MOD
+                  regex: ^['"]?(node:)?child_process['"]?$
+              - pattern-either:
+                  - pattern: $FN($CMD, ...)
+                  # The benchmark miss: `const run = promisify(exec)` and then
+                  # `await run(`git log ${branch}`)`. The call site never says
+                  # exec, so the alias has to be followed.
+                  - patterns:
+                      - pattern-inside: |
+                          $RUN = $PROMISIFY($FN);
+                          ...
+                      - metavariable-regex:
+                          metavariable: $PROMISIFY
+                          regex: ^(.*\.)?promisify$
+                      - pattern: $RUN($CMD, ...)
+          - patterns:
+              - pattern-inside: |
+                  const $CPM = require($MOD);
+                  ...
+              - metavariable-regex:
+                  metavariable: $MOD
+                  regex: ^['"]?(node:)?child_process['"]?$
+              - pattern-inside: |
+                  $RUN = $PROMISIFY($CPM.exec);
+                  ...
+              - metavariable-regex:
+                  metavariable: $PROMISIFY
+                  regex: ^(.*\.)?promisify$
+              - pattern: $RUN($CMD, ...)
       - metavariable-pattern:
           metavariable: $CMD
           patterns:
@@ -73,6 +119,40 @@ rules:
           - pattern: |
               $DB.query(`...${$X}...`, ...)
           - pattern: $DB.raw("..." + $X, ...)
+          # The shapes above only see SQL written inside the call. These see
+          # SQL built first and passed in later (`const sql = "..." + x;
+          # knex.raw(sql)`), chains whose outermost operand is a variable
+          # (`"...'%" + c + "%'..."` parses as `(... + c) + "..."`), and the
+          # sqlite3 / better-sqlite3 verbs. Those verbs are ordinary method
+          # names (`cache.get`, `job.run`), so here the string itself has to
+          # read as a SQL statement before anything fires.
+          - patterns:
+              - pattern-either:
+                  - pattern: $DB.$SINK($Q, ...)
+                  - patterns:
+                      - pattern-inside: |
+                          $SQL = $Q;
+                          ...
+                      - pattern: $DB.$SINK($SQL, ...)
+              - metavariable-regex:
+                  metavariable: $SINK
+                  regex: ^(query|raw|all|run|get|each|execute|prepare)$
+              - metavariable-pattern:
+                  metavariable: $Q
+                  patterns:
+                    - pattern-either:
+                        - pattern: '"..." + $X'
+                        - pattern: '$X + "..."'
+                        - pattern: |
+                            `...${$X}...`
+                    # A concatenation handed to a helper inside the argument
+                    # (`db.query(sql(id + 1))`) is that helper's business.
+                    - pattern-not-inside: $F(...)
+                    - pattern-not: '"..." + "..."'
+              - metavariable-regex:
+                  metavariable: $Q
+                  # Anchored by the engine, hence the leading `.*`.
+                  regex: (?is).*\b(select\s.*\sfrom|insert\s+into|update\s.*\sset|delete\s+from)\b
 
   - id: bpm-js-weak-hash
     languages: [javascript, typescript]
@@ -106,6 +186,17 @@ rules:
               $TOKEN = Math.random()
           - pattern: |
               $TOKEN = Math.random().toString(...)
+          # The idiom for "a random-looking string": base36, cut off the "0."
+          # (slice/substring/substr, or padStart), often glued to a timestamp.
+          # Whatever string method follows, the entropy is still Math.random.
+          - pattern: |
+              $TOKEN = Math.random().toString(...).$CUT(...)
+          - pattern: |
+              $TOKEN = Math.random().toString(...).$CUT(...) + $MORE
+          - pattern: |
+              $TOKEN = Math.random().toString(...) + $MORE
+          - pattern: |
+              $TOKEN = $MORE + Math.random().toString(...).$CUT(...)
       - metavariable-regex:
           metavariable: $TOKEN
           # `key` alone is deliberately NOT here: `cacheKey` is an ordinary

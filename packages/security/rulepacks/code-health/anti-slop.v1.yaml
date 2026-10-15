@@ -55,6 +55,47 @@ rules:
               while (...) { ... try { ... } catch($E) { ... } ... }
           - pattern: |
               for (...) { ... try { ... } catch { ... } ... }
+      # Retry and backoff loops are sequential on purpose: attempt N+1 only
+      # happens because attempt N failed. The W18-17 benchmark caught this
+      # rule firing on exactly that shape, so a loop is exempt when it hands
+      # the result back on success (return/break) AND it either counts
+      # attempts against a bound with the work in a try, or sleeps/backs off
+      # between attempts. Neither half alone is enough: a counted loop that
+      # returns the first match is a search that could run in parallel, and
+      # a loop that sleeps but never stops early is pacing a batch.
+      - pattern-not-inside:
+          pattern-either:
+            - patterns:
+                - pattern-either:
+                    - pattern: for (...; $I < $N; ...) $BODY
+                    - pattern: for (...; $I <= $N; ...) $BODY
+                    - pattern: for (...; $I > $N; ...) $BODY
+                    - pattern: for (...; $I >= $N; ...) $BODY
+                    - pattern: while ($I < $N) $BODY
+                    - pattern: while ($I <= $N) $BODY
+                - metavariable-pattern:
+                    metavariable: $BODY
+                    pattern-either:
+                      - pattern: try { ... return ...; } catch ($E) { ... }
+                      - pattern: try { ... break; } catch ($E) { ... }
+            - patterns:
+                - pattern-either:
+                    - pattern: for (...) $BODY
+                    - pattern: while ($C) $BODY
+                - metavariable-pattern:
+                    metavariable: $BODY
+                    pattern-either:
+                      - patterns:
+                          - pattern: await $SLEEP(...)
+                          - metavariable-regex:
+                              metavariable: $SLEEP
+                              regex: (?i)^(.*\.)?(\w*(sleep|delay|backoff)\w*|wait|pause|setTimeout)$
+                      - pattern: await new Promise(($R) => setTimeout(...))
+                - metavariable-pattern:
+                    metavariable: $BODY
+                    pattern-either:
+                      - pattern: return ...;
+                      - pattern: break;
 
   - id: bpm-ch-silent-fallback-return
     languages: [javascript, typescript]

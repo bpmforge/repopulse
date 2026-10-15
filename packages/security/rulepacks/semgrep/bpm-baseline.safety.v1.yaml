@@ -77,7 +77,13 @@ rules:
     pattern-either:
       - pattern: requests.$METHOD(..., verify=False, ...)
       - pattern: httpx.$METHOD(..., verify=False, ...)
-      - pattern: $SESSION.$METHOD(..., verify=False, ...)
+      # Any object, but only a request-shaped method: `jwt.decode(...)` or
+      # `client.decode(url, verify=False)` is not a TLS connection.
+      - patterns:
+          - pattern: $SESSION.$METHOD(..., verify=False, ...)
+          - metavariable-regex:
+              metavariable: $METHOD
+              regex: ^(request|get|post|put|patch|delete|head|options|send|stream|fetch|download|upload)$
       - pattern: $SESSION.verify = False
       - pattern: ssl._create_unverified_context(...)
       - pattern: ssl._create_default_https_context = ssl._create_unverified_context
