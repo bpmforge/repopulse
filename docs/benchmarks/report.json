@@ -96,15 +96,15 @@
     }
   ],
   "totals": {
-    "tp": 54,
-    "fp": 8,
-    "fn": 51,
+    "tp": 61,
+    "fp": 2,
+    "fn": 44,
     "tn": 35,
     "duplicate": 1,
     "ignored": 0,
     "skipped": 11,
-    "precision": 0.871,
-    "recall": 0.514
+    "precision": 0.968,
+    "recall": 0.581
   },
   "byDimension": [
     {
@@ -153,55 +153,55 @@
       "dimension": "performance",
       "score": {
         "tp": 13,
-        "fp": 4,
+        "fp": 0,
         "fn": 1,
         "tn": 0,
         "duplicate": 1,
         "ignored": 0,
         "skipped": 0,
-        "precision": 0.765,
+        "precision": 1,
         "recall": 0.929
       }
     },
     {
       "dimension": "sast",
       "score": {
-        "tp": 15,
+        "tp": 21,
         "fp": 0,
-        "fn": 41,
+        "fn": 35,
         "tn": 35,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 8,
         "precision": 1,
-        "recall": 0.268
+        "recall": 0.375
       }
     },
     {
       "dimension": "secrets",
       "score": {
-        "tp": 2,
+        "tp": 3,
         "fp": 0,
-        "fn": 1,
+        "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
         "precision": 1,
-        "recall": 0.667
+        "recall": 1
       }
     },
     {
       "dimension": "slop",
       "score": {
         "tp": 15,
-        "fp": 2,
+        "fp": 0,
         "fn": 8,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
-        "precision": 0.882,
+        "precision": 1,
         "recall": 0.652
       }
     }
@@ -357,13 +357,13 @@
       "dimension": "slop",
       "score": {
         "tp": 1,
-        "fp": 2,
+        "fp": 0,
         "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
-        "precision": 0.333,
+        "precision": 1,
         "recall": 1
       }
     },
@@ -388,15 +388,15 @@
       "engine": "yaml",
       "dimension": "sast",
       "score": {
-        "tp": 1,
+        "tp": 2,
         "fp": 0,
-        "fn": 1,
+        "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
         "precision": 1,
-        "recall": 0.5
+        "recall": 1
       }
     },
     {
@@ -436,15 +436,15 @@
       "engine": "yaml",
       "dimension": "sast",
       "score": {
-        "tp": 1,
+        "tp": 2,
         "fp": 0,
-        "fn": 1,
+        "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
         "precision": 1,
-        "recall": 0.5
+        "recall": 1
       }
     },
     {
@@ -452,15 +452,15 @@
       "engine": "yaml",
       "dimension": "sast",
       "score": {
-        "tp": 7,
+        "tp": 11,
         "fp": 0,
-        "fn": 4,
+        "fn": 0,
         "tn": 2,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 8,
         "precision": 1,
-        "recall": 0.636
+        "recall": 1
       }
     },
     {
@@ -549,13 +549,13 @@
       "dimension": "performance",
       "score": {
         "tp": 3,
-        "fp": 4,
+        "fp": 0,
         "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
-        "precision": 0.429,
+        "precision": 1,
         "recall": 1
       }
     },
@@ -932,15 +932,15 @@
       "engine": "fast-lane",
       "dimension": "secrets",
       "score": {
-        "tp": 0,
+        "tp": 1,
         "fp": 0,
         "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
-        "precision": null,
-        "recall": null
+        "precision": 1,
+        "recall": 1
       }
     }
   ],
@@ -948,29 +948,29 @@
     {
       "suite": "changes",
       "score": {
-        "tp": 18,
-        "fp": 7,
-        "fn": 5,
+        "tp": 21,
+        "fp": 1,
+        "fn": 2,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
-        "precision": 0.72,
-        "recall": 0.783
+        "precision": 0.955,
+        "recall": 0.913
       }
     },
     {
       "suite": "juice-shop",
       "score": {
-        "tp": 6,
+        "tp": 7,
         "fp": 0,
-        "fn": 5,
+        "fn": 4,
         "tn": 5,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 8,
         "precision": 1,
-        "recall": 0.545
+        "recall": 0.636
       }
     },
     {
@@ -1004,15 +1004,15 @@
     {
       "suite": "sampleco",
       "score": {
-        "tp": 1,
+        "tp": 4,
         "fp": 1,
-        "fn": 11,
+        "fn": 8,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 3,
-        "precision": 0.5,
-        "recall": 0.083
+        "precision": 0.8,
+        "recall": 0.333
       }
     }
   ],
@@ -1124,8 +1124,8 @@
       "line": 7,
       "ruleId": "bpm-js-child-process-concat",
       "dimension": "sast",
-      "labelId": "sast-exec-destructured",
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "sast-exec-destructured"
     },
     {
       "suite": "changes",
@@ -1144,18 +1144,18 @@
       "line": 2,
       "ruleId": "bpm-js-math-random-token",
       "dimension": "sast",
-      "labelId": "sast-random-reset-token",
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "sast-random-reset-token"
     },
     {
       "suite": "changes",
       "tree": "sast-sql-built-variable/after",
       "file": "src/reports.js",
-      "line": 3,
+      "line": 4,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
-      "labelId": "sast-sql-built-variable",
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "sast-sql-built-variable"
     },
     {
       "suite": "changes",
@@ -1229,66 +1229,6 @@
     },
     {
       "suite": "changes",
-      "tree": "slop-low-logic-density/after",
-      "file": "src/retry.ts",
-      "line": 30,
-      "ruleId": "bpm-ch-try-catch-in-loop",
-      "dimension": "slop",
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "changes",
-      "tree": "slop-low-logic-density/after",
-      "file": "src/retry.ts",
-      "line": 33,
-      "ruleId": "bpm-perf-await-in-loop",
-      "dimension": "performance",
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "changes",
-      "tree": "slop-low-logic-density/after",
-      "file": "src/retry.ts",
-      "line": 36,
-      "ruleId": "bpm-perf-await-in-loop",
-      "dimension": "performance",
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "changes",
-      "tree": "slop-low-logic-density/before",
-      "file": "src/retry.ts",
-      "line": 10,
-      "ruleId": "bpm-ch-try-catch-in-loop",
-      "dimension": "slop",
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "changes",
-      "tree": "slop-low-logic-density/before",
-      "file": "src/retry.ts",
-      "line": 12,
-      "ruleId": "bpm-perf-await-in-loop",
-      "dimension": "performance",
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "changes",
-      "tree": "slop-low-logic-density/before",
-      "file": "src/retry.ts",
-      "line": 15,
-      "ruleId": "bpm-perf-await-in-loop",
-      "dimension": "performance",
-      "kind": "fp",
-      "labelId": null
-    },
-    {
-      "suite": "changes",
       "tree": "slop-phantom-module/after",
       "file": "src/rates.ts",
       "line": 2,
@@ -1324,8 +1264,8 @@
       "line": 5,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
-      "labelId": "sqli-dbschema-1",
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "sqli-dbschema-1"
     },
     {
       "suite": "juice-shop",
@@ -2482,10 +2422,10 @@
       "tree": "app",
       "file": "src/config.js",
       "line": 5,
-      "ruleId": null,
+      "ruleId": "stripe-secret-key",
       "dimension": "secrets",
-      "labelId": "D1",
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "D1"
     },
     {
       "suite": "sampleco",
@@ -2571,21 +2511,21 @@
       "suite": "sampleco",
       "tree": "app",
       "file": "src/services/invoiceService.js",
-      "line": 7,
+      "line": 8,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
-      "labelId": "D2",
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "D2"
     },
     {
       "suite": "sampleco",
       "tree": "app",
       "file": "src/services/invoiceService.js",
-      "line": 12,
+      "line": 14,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
-      "labelId": "D2b",
-      "kind": "fn"
+      "kind": "tp",
+      "labelId": "D2b"
     },
     {
       "suite": "sampleco",

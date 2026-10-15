@@ -22,7 +22,7 @@ sampleco | vendored https://github.com/bpmforge/slop-scorecard f3ed52573aeb | MI
 
 Scope | TP | FP | FN | Dup | Precision | Recall
 ---|--:|--:|--:|--:|--:|--:
-all | 54 | 8 | 51 | 1 | 87.1% | 51.4%
+all | 61 | 2 | 44 | 1 | 96.8% | 58.1%
 
 ## By dimension
 
@@ -31,20 +31,20 @@ Dimension | TP | FP | FN | Dup | Precision | Recall
 code_health | 0 | 0 | 0 | 0 | — | —
 dependency | 0 | 0 | 0 | 0 | — | —
 logging | 9 | 2 | 0 | 0 | 81.8% | 100.0%
-performance | 13 | 4 | 1 | 1 | 76.5% | 92.9%
-sast | 15 | 0 | 41 | 0 | 100.0% | 26.8%
-secrets | 2 | 0 | 1 | 0 | 100.0% | 66.7%
-slop | 15 | 2 | 8 | 0 | 88.2% | 65.2%
+performance | 13 | 0 | 1 | 1 | 100.0% | 92.9%
+sast | 21 | 0 | 35 | 0 | 100.0% | 37.5%
+secrets | 3 | 0 | 0 | 0 | 100.0% | 100.0%
+slop | 15 | 0 | 8 | 0 | 100.0% | 65.2%
 
 ## By suite
 
 Suite | TP | FP | FN | Dup | Precision | Recall
 ---|--:|--:|--:|--:|--:|--:
-changes | 18 | 7 | 5 | 0 | 72.0% | 78.3%
-juice-shop | 6 | 0 | 5 | 0 | 100.0% | 54.5%
+changes | 21 | 1 | 2 | 0 | 95.5% | 91.3%
+juice-shop | 7 | 0 | 4 | 0 | 100.0% | 63.6%
 owasp-benchmark | 0 | 0 | 30 | 0 | — | 0.0%
 rule-fixtures | 29 | 0 | 0 | 1 | 100.0% | 100.0%
-sampleco | 1 | 1 | 11 | 0 | 50.0% | 8.3%
+sampleco | 4 | 1 | 8 | 0 | 80.0% | 33.3%
 
 ## By rule
 
@@ -61,19 +61,19 @@ bpm-ch-prose-padding | yaml | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-ch-silent-fallback-return | yaml | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-ch-step-narration | yaml | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-ch-stub-as-feature | yaml | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
-bpm-ch-try-catch-in-loop | yaml | slop | 1 | 2 | 0 | 0 | 33.3% | 100.0%
+bpm-ch-try-catch-in-loop | yaml | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-ch-what-comment | yaml | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
-bpm-js-child-process-concat | yaml | sast | 1 | 0 | 1 | 0 | 100.0% | 50.0%
+bpm-js-child-process-concat | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-js-eval-dynamic | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-js-jwt-verify-disabled | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
-bpm-js-math-random-token | yaml | sast | 1 | 0 | 1 | 0 | 100.0% | 50.0%
-bpm-js-sql-string-concat | yaml | sast | 7 | 0 | 4 | 0 | 100.0% | 63.6%
+bpm-js-math-random-token | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
+bpm-js-sql-string-concat | yaml | sast | 11 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-js-weak-hash | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-log-and-rethrow | yaml | logging | 2 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-log-console-in-prod | yaml | logging | 2 | 1 | 0 | 0 | 66.7% | 100.0%
 bpm-log-injection | yaml | logging | 3 | 1 | 0 | 0 | 75.0% | 100.0%
 bpm-log-secret-field | yaml | logging | 2 | 0 | 0 | 0 | 100.0% | 100.0%
-bpm-perf-await-in-loop | yaml | performance | 3 | 4 | 0 | 0 | 42.9% | 100.0%
+bpm-perf-await-in-loop | yaml | performance | 3 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-perf-json-deep-clone | yaml | performance | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-perf-orm-call-in-loop | yaml | performance | 2 | 0 | 1 | 0 | 100.0% | 66.7%
 bpm-perf-orm-call-in-loop-py | yaml | performance | 1 | 0 | 0 | 0 | 100.0% | 100.0%
@@ -97,16 +97,12 @@ slop.low_logic_density | fast-lane | slop | 1 | 0 | 1 | 0 | 100.0% | 50.0%
 slop.phantom_module | fast-lane | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 slop.phantom_symbol | fast-lane | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 slop.unused_export | fast-lane | slop | 1 | 0 | 0 | 0 | 100.0% | 100.0%
-stripe-secret-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
+stripe-secret-key | fast-lane | secrets | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 
-## Missed (false negatives) (51)
+## Missed (false negatives) (44)
 
 - `changes/perf-await-in-loop/after/src/team.js:4` bpm-perf-orm-call-in-loop — label perf-await-in-loop-orm
-- `changes/sast-exec-destructured/after/src/git.js:7` bpm-js-child-process-concat — label sast-exec-destructured
-- `changes/sast-random-reset-token/after/src/reset.js:2` bpm-js-math-random-token — label sast-random-reset-token
-- `changes/sast-sql-built-variable/after/src/reports.js:3` bpm-js-sql-string-concat — label sast-sql-built-variable
 - `changes/slop-low-logic-density/after/src/retry.ts` slop.low_logic_density — label slop-low-logic-density
-- `juice-shop/codefixes/dbSchemaChallenge_1.ts:5` bpm-js-sql-string-concat — label sqli-dbschema-1
 - `juice-shop/codefixes/noSqlReviewsChallenge_1.ts:10` (sast, no rule) — label nosql-reviews-1
 - `juice-shop/codefixes/noSqlReviewsChallenge_2.ts:4` (sast, no rule) — label nosql-reviews-2
 - `juice-shop/codefixes/redirectChallenge_1.ts:15` (sast, no rule) — label redirect-1
@@ -141,27 +137,18 @@ stripe-secret-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00071.java` (sast, no rule) — label BenchmarkTest00071
 - `owasp-benchmark/testcode/BenchmarkTest00077.java` (sast, no rule) — label BenchmarkTest00077
 - `owasp-benchmark/testcode/BenchmarkTest00078.java` (sast, no rule) — label BenchmarkTest00078
-- `sampleco/app/src/config.js:5` (secrets, no rule) — label D1
 - `sampleco/app/src/routes/adminRoutes.js:4` (slop, no rule) — label D5a
 - `sampleco/app/src/routes/adminRoutes.js:16` (sast, no rule) — label D9
 - `sampleco/app/src/routes/authRoutes.js:3` (slop, no rule) — label D5b
 - `sampleco/app/src/routes/authRoutes.js:13` (slop, no rule) — label D12
 - `sampleco/app/src/routes/invoiceRoutes.js:4` (slop, no rule) — label D5c
 - `sampleco/app/src/services/authService.js:8` (slop, no rule) — label D7
-- `sampleco/app/src/services/invoiceService.js:7` bpm-js-sql-string-concat — label D2
-- `sampleco/app/src/services/invoiceService.js:12` bpm-js-sql-string-concat — label D2b
 - `sampleco/app/src/utils/format.js:2` (slop, no rule) — label D4
 - `sampleco/app/src/utils/validate.js:3` (slop, no rule) — label D8
 
-## False positives (8)
+## False positives (2)
 
 - `changes/logging-secret-field/before/src/login.js:5` bpm-log-injection
-- `changes/slop-low-logic-density/after/src/retry.ts:30` bpm-ch-try-catch-in-loop
-- `changes/slop-low-logic-density/after/src/retry.ts:33` bpm-perf-await-in-loop
-- `changes/slop-low-logic-density/after/src/retry.ts:36` bpm-perf-await-in-loop
-- `changes/slop-low-logic-density/before/src/retry.ts:10` bpm-ch-try-catch-in-loop
-- `changes/slop-low-logic-density/before/src/retry.ts:12` bpm-perf-await-in-loop
-- `changes/slop-low-logic-density/before/src/retry.ts:15` bpm-perf-await-in-loop
 - `sampleco/app/src/index.js:12` bpm-log-console-in-prod
 
 ## Duplicates (1)

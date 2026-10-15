@@ -78,7 +78,8 @@ first run. Labels that were added at that point say so in their `note`:
 - `slop-docstring-inflation-ldr`: a second rule that is correct about the same file.
 
 Findings judged wrong stayed as false positives. For example, both the retry loop's
-`await` and its `try/catch` are needed, so those findings are FPs.
+`await` and its `try/catch` are needed, so in the first run those findings were FPs
+(the rule-gap follow-up below removed them by changing the rules, not the labels).
 
 ## Corpus
 
@@ -115,7 +116,9 @@ flag `after/` at the labelled lines and stay quiet on `before/`, so any finding 
 before tree is an FP. The edits were written to look like ordinary refactors:
 `exec` destructured from `child_process`, SQL built in a variable,
 `Math.random().toString(36).slice(2)`. They were not shaped to match the rules, so
-several are expected misses. The cases cover:
+several were misses in the first run. The rule-gap follow-up fixed those rules
+afterwards, with its own trigger and clean fixtures; the cases themselves were left
+as they were. The cases cover:
 
 - **sast:** 7 cases (SQL ×2, exec, eval, JWT, weak hash, random token)
 - **logging:** 3 cases
@@ -146,35 +149,71 @@ changed. When a language pack lands (for example W18's Java pack), its rules joi
 run automatically, because the runner reads every pack file in the mounted directories.
 The OWASP suite starts scoring as soon as a rule reports one of its CWEs.
 
-## Results — first run (2026-10-15)
+## Results (2026-10-15, after the rule-gap follow-up)
 
 Engine: semgrep 1.181.0 (local), 26 YAML rules and 20 fast-lane rules. All five suites
-were scored.
+were scored. The first-run numbers are kept below for comparison; the corpus and its
+labels are the same in both runs, so every difference comes from rule changes.
 
-| Scope | TP | FP | FN | Precision | Recall |
-|---|--:|--:|--:|--:|--:|
-| **All suites** | 54 | 8 | 51 | 87.1% | 51.4% |
-| All but OWASP (no Java rules on this branch) | 54 | 8 | 21 | 87.1% | 72.0% |
-| Unseen code only (sampleco + juice-shop + changes) | 25 | 8 | 21 | 75.8% | 54.3% |
-| `rule-fixtures` (regression floor) | 29 | 0 | 0 | 100% | 100% |
+| Scope | TP | FP | FN | Precision | Recall | First run (P / R) |
+|---|--:|--:|--:|--:|--:|--:|
+| **All suites** | 61 | 2 | 44 | 96.8% | 58.1% | 87.1% / 51.4% |
+| All but OWASP (no Java rules on this branch) | 61 | 2 | 14 | 96.8% | 81.3% | 87.1% / 72.0% |
+| Unseen code only (sampleco + juice-shop + changes) | 32 | 2 | 14 | 94.1% | 69.6% | 75.8% / 54.3% |
+| `rule-fixtures` (regression floor) | 29 | 0 | 0 | 100% | 100% | 100% / 100% |
 
-| Dimension | TP | FP | FN | Precision | Recall |
-|---|--:|--:|--:|--:|--:|
-| logging | 9 | 2 | 0 | 81.8% | 100% |
-| performance | 13 | 4 | 1 | 76.5% | 92.9% |
-| sast | 15 | 0 | 41 | 100% | 26.8% (15/26 = 57.7% without OWASP) |
-| secrets | 2 | 0 | 1 | 100% | 66.7% |
-| slop | 15 | 2 | 8 | 88.2% | 65.2% |
+| Dimension | TP | FP | FN | Precision | Recall | First run (P / R) |
+|---|--:|--:|--:|--:|--:|--:|
+| logging | 9 | 2 | 0 | 81.8% | 100% | 81.8% / 100% |
+| performance | 13 | 0 | 1 | 100% | 92.9% | 76.5% / 92.9% |
+| sast | 21 | 0 | 35 | 100% | 37.5% (21/26 = 80.8% without OWASP) | 100% / 26.8% (57.7%) |
+| secrets | 3 | 0 | 0 | 100% | 100% | 100% / 66.7% |
+| slop | 15 | 0 | 8 | 100% | 65.2% | 88.2% / 65.2% |
 
-| Suite | TP | FP | FN | Precision | Recall |
-|---|--:|--:|--:|--:|--:|
-| changes | 18 | 7 | 5 | 72.0% | 78.3% |
-| juice-shop | 6 | 0 | 5 | 100% | 54.5% |
-| owasp-benchmark | 0 | 0 | 30 | — | 0% |
-| rule-fixtures | 29 | 0 | 0 | 100% | 100% |
-| sampleco | 1 | 1 | 11 | 50.0% | 8.3% |
+| Suite | TP | FP | FN | Precision | Recall | First run (P / R) |
+|---|--:|--:|--:|--:|--:|--:|
+| changes | 21 | 1 | 2 | 95.5% | 91.3% | 72.0% / 78.3% |
+| juice-shop | 7 | 0 | 4 | 100% | 63.6% | 100% / 54.5% |
+| owasp-benchmark | 0 | 0 | 30 | — | 0% | — / 0% |
+| rule-fixtures | 29 | 0 | 0 | 100% | 100% | 100% / 100% |
+| sampleco | 4 | 1 | 8 | 80.0% | 33.3% | 50.0% / 8.3% |
 
-### What the numbers say
+### Rule-gap follow-up
+
+The first run's "what the numbers say" (below) named five gaps. Each was fixed in the
+rule, with a trigger fixture and a near-miss clean fixture under
+`packages/security/fixtures/rule-gaps/` (checked by `src/benchmark/rule-gaps.test.ts`
+through the same engine wrapper the benchmark uses) or, for secrets, cases in
+`secrets.test.ts`. No benchmark label was added, removed or moved.
+
+| Rule | First run TP / FP / FN | Now TP / FP / FN | Precision | Recall | What changed |
+|---|---|---|---|---|---|
+| `bpm-js-sql-string-concat` | 7 / 0 / 4 | 11 / 0 / 0 | 100% → 100% | 63.6% → 100% | Follows SQL built in a variable before the call, matches chains whose outermost operand is a variable, and adds the sqlite3 verbs (`all`, `run`, `get`, `each`, `prepare`, `execute`). Those new shapes fire only when the string reads as a SQL statement. |
+| `bpm-js-child-process-concat` | 1 / 0 / 1 | 2 / 0 / 0 | 100% → 100% | 50% → 100% | Follows `exec` through a `promisify` alias, whether it was destructured, imported or reached through the module object. A bare destructured `exec` was already resolved; the miss was the alias. |
+| `bpm-js-math-random-token` | 1 / 0 / 1 | 2 / 0 / 0 | 100% → 100% | 50% → 100% | Matches `Math.random().toString(n).slice(…)` and the same with a timestamp or prefix concatenated. The secret-name gate is unchanged. |
+| `stripe-secret-key` (secrets dimension) | 0 / 0 / — (D1 missed) | 1 / 0 / — | — → 100% | secrets 66.7% → 100% | Allows `_` in the key body. An allowlist turns away identifiers that start with the prefix (snake_case, SCREAMING_CASE, camelCase words joined by `_`), and an underscore key stays `unverified` because it is not an issued format. |
+| `bpm-perf-await-in-loop` | 3 / 4 / 0 | 3 / 0 / 0 | 42.9% → 100% | 100% → 100% | Retry and backoff exemption, described below. |
+| `bpm-ch-try-catch-in-loop` | 1 / 2 / 0 | 1 / 0 / 0 | 33.3% → 100% | 100% → 100% | Same exemption. |
+
+**The retry exemption.** A loop is exempt when it hands the result back on success
+(`return` or `break`) *and* one of these holds: it counts attempts against a bound
+(`for (…; i < n; …)` or `while (i < n)`) with the work inside a `try`, or it sleeps or
+backs off between attempts (`await sleep/delay/backoff…(…)`, or
+`await new Promise((r) => setTimeout(…))`). Neither half alone is enough. A counted
+loop that returns the first match is a search that could run in parallel, and a loop
+that sleeps but never stops early is pacing a batch. The trigger fixture keeps both
+rules firing on those two shapes.
+
+The remaining FPs are the two logging findings below, which this follow-up did not
+touch. The remaining non-OWASP FNs have no deterministic rule (NoSQL injection, open
+redirect, missing authorisation, the SampleCo judgement defects), or are
+`bpm-perf-orm-call-in-loop` on `team.js` and `slop.low_logic_density` at 0.31.
+
+### What the numbers said after the first run
+
+The first run's tables are in the git history of this file and of
+`docs/benchmarks/report.json`. It scored TP 54 / FP 8 / FN 51 (87.1% / 51.4%). Its
+findings, kept as written because they are why the follow-up exists:
 
 - **SAST precision is perfect and its recall is shape-bound.**
   `bpm-js-sql-string-concat` is 7 TP / 4 FN with no FP. It misses SQL built in a
@@ -229,9 +268,16 @@ were scored.
   fragments that no parser accepts, so their YAML-rule labels are skipped. The full
   `routes/login.ts` and `routes/search.ts` are included so that the rule is still
   measured on that code.
+- **The follow-up was tuned on this corpus.** The six rules in the rule-gap table were
+  changed after their misses and FPs here were read, so their 100% on this corpus is a
+  fit, not an estimate. Their trigger and clean fixtures state the general shape, not
+  the corpus lines, but the next unseen code is the real test of them.
 - **Single-file shapes.** No case requires cross-file data flow, and the fast lane's
   whole-tree checks get only tiny trees. Precision on a real repository will be lower,
   for the reasons the shadow-mode lifecycle exists.
 - **Engine differences.** Production runs opengrep inside the scan image, but this run
   used a local semgrep. The packs are written to be compatible with both, and a
-  divergence would show up as a report diff when re-run under opengrep.
+  divergence would show up as a report diff when re-run under opengrep. The rule-gap
+  follow-up uses a nested `pattern-not-inside` formula and `metavariable-pattern` on a
+  loop body; both are in the shared rule schema, but they have only been run under
+  semgrep so far.
