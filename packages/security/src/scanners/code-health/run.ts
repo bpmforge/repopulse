@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { read, security, type Database } from '@repopulse/shared';
+import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
@@ -281,14 +281,14 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
       },
     );
   } catch (err) {
-    await closeRun(deps.db, runId, 'failed', 0, (err as Error).message.slice(0, 500), null);
+    await closeRun(deps.db, runId, 'failed', 0, safeErrorText(err).slice(0, 500), null);
     return {
       status: 'failed',
       scanRunId: runId,
       findingsCreated: 0,
       findingsTotal: 0,
       metricsWritten: 0,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }

@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
-import { facts, security, type Database } from '@repopulse/shared';
+import { facts, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeDiffFile, ForgeProvider } from '@repopulse/forge';
 import { isEnabled } from '../../config/defaults.js';
@@ -285,7 +285,7 @@ export async function scanOneTarget(
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, run!.id));

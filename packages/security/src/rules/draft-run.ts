@@ -1,5 +1,5 @@
 import { and, eq, gte } from 'drizzle-orm';
-import { read, security, type Database } from '@repopulse/shared';
+import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import type { AnalysisGateway } from '@repopulse/analysis';
 import { acceptDraft, buildDraftPrompt, clusterDismissals } from './intake.js';
 
@@ -128,7 +128,7 @@ export async function runRuleDraftPass(deps: DraftPassDeps): Promise<DraftPassRe
       clusters: clusters.length,
       drafted,
       rejected,
-      error: error instanceof Error ? error.message : String(error),
+      error: safeErrorText(error),
     };
   }
 

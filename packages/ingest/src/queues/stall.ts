@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Job, JobsOptions, Queue } from 'bullmq';
-import { core, type Database } from '@repopulse/shared';
+import { core, safeErrorText, type Database } from '@repopulse/shared';
 import { ForgeBudgetParkedError } from '@repopulse/forge';
 import { QUEUE } from './topology.js';
 
@@ -27,8 +27,8 @@ const MAX_CAUSE = 200;
 /** The repos.last_error fragment for one dead-lettered job. */
 export function stallErrorText(queue: string, jobName: string, err: Error): string {
   const budget = err instanceof ForgeBudgetParkedError || err.name === 'ForgeBudgetParkedError';
-  const cause =
-    err.message.length > MAX_CAUSE ? `${err.message.slice(0, MAX_CAUSE)}…` : err.message;
+  const message = safeErrorText(err);
+  const cause = message.length > MAX_CAUSE ? `${message.slice(0, MAX_CAUSE)}…` : message;
   const lane = queue.replace(/^ingest\./, '');
   return budget
     ? `${STALL_PREFIX} — ${lane} job ${jobName} gave up: forge rate-limit budget exhausted (${cause}); retried by the nightly sweep`
