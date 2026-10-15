@@ -15,6 +15,9 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { DELEGATION_WRAPPER_RULE_ID, delegationWrappers } from './delegation-wrappers.js';
+import { SINGLE_IMPL_RULE_ID, singleImplInterfaces } from './single-impl.js';
+import { STALE_JSDOC_RULE_ID, staleJsdocParams } from './stale-jsdoc.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -26,6 +29,16 @@ import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './p
 // and make the model the authority on the half it is worst at.
 
 export const ANTI_SLOP_SCANNER_KEY = 'anti_slop';
+
+/**
+ * The checklist version this scanner reads, held at v1 on purpose (W18-05).
+ *
+ * anti-slop.v2 drops the single-implementation and delegation-only categories
+ * because the W18-05 rules settle them — but those rules ship in SHADOW, so
+ * switching now would take the categories away from the model before anything
+ * visible replaces them. W18-10 switches, and deletes this pin.
+ */
+export const ANTI_SLOP_CHECKLIST_UP_TO = 1;
 
 export interface AntiSlopDeps {
   db: Database;
@@ -124,7 +137,9 @@ async function shippedRuleStatus(
 }
 
 export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResult> {
-  const checklist = loadChecklist('anti_slop', deps.checklistDir);
+  const checklist = loadChecklist('anti_slop', deps.checklistDir, {
+    upTo: ANTI_SLOP_CHECKLIST_UP_TO,
+  });
   const [run] = await deps.db
     .insert(security.scanRuns)
     .values({
@@ -255,6 +270,80 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           yields: null,
           experimental: status !== 'active',
         });
+      }
+    }
+    // Structural slop (W18-05): delegation-only wrappers, single-implementation
+    // interfaces, stale JSDoc parameters — shapes the T2 checklist used to be
+    // asked about. Whole-file and, for the interface count, whole-tree, so the
+    // snapshot pass only; the interface rule also needs a complete read, since
+    // the second implementation could be in a file the reader skipped.
+    if (sources.length) {
+      const structural: (Omit<IncomingFinding, 'experimental'> & { ruleId: string })[] = [];
+      for (const w of delegationWrappers(sources)) {
+        structural.push({
+          dimension: 'slop',
+          severity: 1,
+          confidence: 5,
+          file: w.file,
+          lineStart: w.line,
+          lineEnd: w.line,
+          title: `Delegation-only wrapper: ${w.name}`,
+          evidenceQuote: w.declaration,
+          rationale: w.message,
+          suggestedFix: `Call ${w.callee} directly.`,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: w.ruleId,
+          yields: null,
+        });
+      }
+      for (const single of singleImplInterfaces(sources, {
+        complete: deps.sourcesComplete === true,
+      })) {
+        structural.push({
+          dimension: 'slop',
+          severity: 1,
+          // 4: the count is exact over this repository; an implementation in
+          // a consumer's repository is the one thing it cannot see.
+          confidence: 4,
+          file: single.file,
+          lineStart: single.line,
+          lineEnd: single.line,
+          title: `Single-implementation ${single.kind}: ${single.name}`,
+          evidenceQuote: single.declaration,
+          rationale: single.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: single.ruleId,
+          yields: null,
+        });
+      }
+      for (const d of staleJsdocParams(sources)) {
+        structural.push({
+          dimension: 'slop',
+          // 2, not 1: a wrong doc is believed, which makes it worse than a
+          // missing one — but it is still documentation, not behaviour.
+          severity: 2,
+          confidence: 5,
+          file: d.file,
+          lineStart: d.line,
+          lineEnd: d.line,
+          title: `Stale JSDoc @param: ${d.stale.join(', ')}${d.name ? ` on ${d.name}` : ''}`,
+          evidenceQuote: d.tag,
+          rationale: d.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: d.ruleId,
+          yields: null,
+        });
+      }
+      const statuses = new Map<string, Awaited<ReturnType<typeof shippedRuleStatus>>>();
+      for (const ruleId of [DELEGATION_WRAPPER_RULE_ID, SINGLE_IMPL_RULE_ID, STALE_JSDOC_RULE_ID]) {
+        statuses.set(ruleId, await shippedRuleStatus(deps.db, deps.workspaceId, ruleId));
+      }
+      for (const finding of structural) {
+        const status = statuses.get(finding.ruleId);
+        if (status === 'deprecated') continue;
+        findings.push({ ...finding, experimental: status !== 'active' });
       }
     }
     const deterministic = findings.length;
