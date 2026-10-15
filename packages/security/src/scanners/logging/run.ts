@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import {
   chunkDiff,
@@ -11,13 +11,18 @@ import {
   type DiffFile,
 } from '@repopulse/analysis';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
-import { runSemgrepScan, SEMGREP_RULEPACK_DIR } from '../semgrep/scanner.js';
+import {
+  runSemgrepScan,
+  SEMGREP_RULEPACK_DIR,
+  type SemgrepRunArgs,
+  type SemgrepRunResult,
+} from '../semgrep/scanner.js';
 import path from 'node:path';
 
 // logging_hygiene (W9-04, CODE_HEALTH_SUITE.md §3, FR-CH-4).
 //
 // The deterministic half is the W9-01 pack — the SAME rules, run through the
-// same engine, filtered to the logging ones. It is not reimplemented here: a
+// same engine, restricted to the logging files. It is not reimplemented here: a
 // second copy of "what does a dangerous log call look like" would drift from
 // the first, and the first is the one with fixtures.
 
@@ -25,6 +30,31 @@ export const LOGGING_SCANNER_KEY = 'logging_hygiene';
 
 /** The pack lives beside the semgrep one; both are ours (W9-01). */
 export const CODE_HEALTH_PACK_DIR = path.resolve(SEMGREP_RULEPACK_DIR, '../code-health');
+
+/**
+ * Which files in CODE_HEALTH_PACK_DIR belong to which scanner (W18-30).
+ *
+ * The directory holds the logging AND anti-slop rules. Until W18-30 this
+ * scanner loaded both and kept only `bpm-log-*` by id, and nothing else loaded
+ * the directory at all — so the eight `bpm-ch-*` rules were evaluated on every
+ * weekly run and stored by nobody (the W9-13 shape, one directory up). Split by
+ * FILE NAME, so each scanner pays for its own rules only and language variants
+ * (`logging.<lang>.v1.yaml`, `anti-slop.<lang>.v1.yaml`) land on the right side
+ * without touching this code. pack.test.ts asserts every file is claimed.
+ */
+export const LOGGING_PACK_FILE_PREFIX = 'logging.';
+export const ANTI_SLOP_PACK_FILE_PREFIX = 'anti-slop.';
+
+/**
+ * The engine call, injectable.
+ *
+ * Production always uses `runSemgrepScan` (the §2.2 sandbox). A test can hand
+ * in the same pack run through a local engine binary, so the wiring — which
+ * files are loaded, which ids are kept, under which scanner key they are
+ * stored — is exercised on a machine without the scan image. Without it every
+ * test of that wiring skips there, which is how W9-13 and W18-30 went unseen.
+ */
+export type PackRunner = (args: SemgrepRunArgs) => Promise<SemgrepRunResult>;
 
 /**
  * Paths whose log calls are not production log calls.
@@ -98,6 +128,8 @@ export interface LoggingRunDeps {
   /** A directory to run the pack over. Absent = judgement layer only. */
   targetDir?: string;
   image?: string;
+  /** Defaults to runSemgrepScan; see PackRunner. */
+  runPack?: PackRunner;
   trigger?: 'pr_synced' | 'schedule' | 'manual';
   pullRequestId?: number | null;
   excludedGlobs?: readonly string[];
@@ -147,9 +179,10 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
     // ---- Deterministic: the W9-01 pack, logging rules only ---------------
     let deterministic = 0;
     if (deps.targetDir) {
-      const pack = await runSemgrepScan({
+      const pack = await (deps.runPack ?? runSemgrepScan)({
         targetDir: deps.targetDir,
         rulepackDir: CODE_HEALTH_PACK_DIR,
+        rulepackFiles: (file) => file.startsWith(LOGGING_PACK_FILE_PREFIX),
         budget: { wallClockMs: 10 * 60 * 1000 },
         ...(deps.image ? { image: deps.image } : {}),
       });
@@ -158,9 +191,10 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
       }
 
       for (const finding of pack.findings) {
-        // Only the logging rules. The anti-slop half of the same pack belongs
-        // to the anti_slop scanner (W9-03), and claiming its findings here
-        // would double-report every empty catch in the repository.
+        // Only the logging rules. The file filter above should already have
+        // guaranteed it; this stays because a misnamed file is the kind of
+        // mistake that would otherwise store anti-slop findings under this
+        // scanner key, where this scanner's runs would own them.
         if (!finding.ruleId.startsWith('bpm-log-')) continue;
         if (isExcluded(finding.file, globs)) {
           excluded += 1;
@@ -295,7 +329,7 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, runId));
@@ -308,7 +342,7 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
       excluded,
       findingsCreated: 0,
       rejected,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }
