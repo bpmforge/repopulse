@@ -6,6 +6,7 @@ import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeProvider } from '@repopulse/forge';
 import { shred, snapshotForScan } from '../../snapshot/index.js';
+import { shadowFindings } from '../../rules/shadow.js';
 import { runSemgrepScan, SEMGREP_SCANNER_KEY, toIncomingFindings } from './scanner.js';
 
 // Full and incremental modes (W8-07, SECURITY_SUITE.md §3.3 / §4).
@@ -137,7 +138,12 @@ export async function runSemgrepFull(
           };
         }
 
-        const findings = toIncomingFindings(scan.findings);
+        // Candidate rules land in shadow; deprecated ones are dropped here
+        // rather than at the engine, so the pack mounted into the sandbox
+        // stays one immutable asset for every workspace.
+        const findings = toIncomingFindings(
+          await shadowFindings(deps.db, deps.workspaceId, scan.findings),
+        );
         const persisted = await persistFindings(deps.db, {
           workspaceId: deps.workspaceId,
           repoId: deps.repoId,
@@ -182,7 +188,10 @@ export async function runSemgrepFull(
   }
 }
 
-const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs|rs)$/;
+// Every language the shipped packs have rules for. Semgrep itself routes rules
+// by extension, so a file here with no rules costs a parse and nothing more —
+// but a language missing here means its rules never run on a PR at all.
+const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs|java|kt|kts|rs)$/;
 
 /**
  * INCREMENTAL mode: the files a PR touched, fetched one by one.
@@ -261,7 +270,9 @@ export async function runSemgrepIncremental(
       };
     }
 
-    const findings = toIncomingFindings(scan.findings);
+    const findings = toIncomingFindings(
+      await shadowFindings(deps.db, deps.workspaceId, scan.findings),
+    );
     const persisted = await persistFindings(deps.db, {
       workspaceId: deps.workspaceId,
       repoId: deps.repoId,

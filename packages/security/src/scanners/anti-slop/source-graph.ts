@@ -62,8 +62,16 @@ function regexCanStart(source: string, index: number): boolean {
  *
  * Regex literals and `${…}` template expressions are tracked, so a quote
  * inside `/'/g` or a nested template does not swallow the rest of the file.
+ *
+ * `commentSpans`, when given, receives each comment's [start, end) offsets: a
+ * directive such as `// @ts-ignore` only acts at the START of a comment, and
+ * a blanked view cannot say where one comment ends and the next begins.
  */
-export function maskSource(source: string, keepStrings = false): string {
+export function maskSource(
+  source: string,
+  keepStrings = false,
+  commentSpans?: [number, number][],
+): string {
   const out = source.split('');
   const blank = (from: number, to: number): void => {
     for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
@@ -103,11 +111,13 @@ export function maskSource(source: string, keepStrings = false): string {
     if (c === '/' && next === '/') {
       const end = source.indexOf('\n', i);
       const stop = end === -1 ? source.length : end;
+      commentSpans?.push([i, stop]);
       blank(i, stop);
       i = stop;
     } else if (c === '/' && next === '*') {
       const end = source.indexOf('*/', i + 2);
       const stop = end === -1 ? source.length : end + 2;
+      commentSpans?.push([i, stop]);
       blank(i, stop);
       i = stop;
     } else if (c === '/' && regexCanStart(source, i)) {

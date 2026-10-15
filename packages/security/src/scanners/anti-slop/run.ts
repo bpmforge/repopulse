@@ -11,11 +11,18 @@ import {
   type AnalysisGateway,
   type DiffFile,
 } from '@repopulse/analysis';
+import { effectiveStatus, registryStatuses } from '../../rules/shadow.js';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
 import { rustPhantomRefs, rustUnusedItems } from './rust-graph.js';
+import {
+  prSuppressionFinding,
+  SUPPRESSION_CEILING_PER_KLOC,
+  SUPPRESSION_DENSITY_RULE_ID,
+  suppressionDensity,
+} from './suppressions.js';
 import { runSemgrepScan } from '../semgrep/scanner.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
@@ -72,6 +79,8 @@ export interface AntiSlopDeps {
   excludedGlobs?: readonly string[];
   trigger?: 'pr_synced' | 'schedule' | 'manual';
   pullRequestId?: number | null;
+  /** Workspace override of SUPPRESSION_CEILING_PER_KLOC (W18-04). */
+  suppressionCeiling?: number;
   /** Runs a second, independent judgement. Absent = nothing is surfaced. */
   verify?: (finding: {
     title: string;
@@ -132,18 +141,8 @@ async function shippedRuleStatus(
   workspaceId: number,
   ruleId: string,
 ): Promise<'candidate' | 'active' | 'deprecated'> {
-  const [row] = await db
-    .select({ status: security.ruleRegistry.status })
-    .from(security.ruleRegistry)
-    .where(
-      and(
-        eq(security.ruleRegistry.workspaceId, workspaceId),
-        eq(security.ruleRegistry.ruleId, ruleId),
-      ),
-    )
-    .limit(1);
-  if (row?.status === 'active' || row?.status === 'deprecated') return row.status;
-  return 'candidate';
+  const registry = await registryStatuses(db, workspaceId, [ruleId]);
+  return effectiveStatus('candidate', registry.get(ruleId));
 }
 
 export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResult> {
@@ -286,6 +285,71 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           ruleId: ref.ruleId,
           yields: null,
           experimental: status !== 'active',
+        });
+      }
+    }
+    // Suppression density (W18-04): a RATE, so one finding for the tree, one
+    // per outlier file, and on a pull request one for what the diff adds.
+    // Severity 1: silencing a checker hides defects without being one.
+    const prMode = deps.trigger === 'pr_synced' && deps.files.length > 0;
+    const suppressionStatus =
+      sources.length || prMode
+        ? await shippedRuleStatus(deps.db, deps.workspaceId, SUPPRESSION_DENSITY_RULE_ID)
+        : 'deprecated';
+    if (suppressionStatus !== 'deprecated') {
+      const ceiling = deps.suppressionCeiling ?? SUPPRESSION_CEILING_PER_KLOC;
+      const density = sources.length ? suppressionDensity(sources, ceiling).findings : [];
+      for (const found of density) {
+        findings.push({
+          dimension: 'slop',
+          severity: 1,
+          // 4, not 5: the arithmetic is exact, but deciding what is a
+          // directive is a lexer's call, and lexers have edge cases.
+          confidence: 4,
+          file: found.file,
+          // Line 1, not the first hit: the finding is about the file's rate,
+          // and a key that moved with its first suppression would re-open it.
+          lineStart: found.file === null ? null : 1,
+          lineEnd: found.file === null ? null : 1,
+          title:
+            found.file === null
+              ? `Checker suppressions at ${found.perKloc} per KLOC across the repository`
+              : `Checker suppressions concentrated in ${found.file}`,
+          // Digits are stripped from the dedup key, so the row survives the
+          // density moving; the counts live in the rationale. Always one
+          // decimal: the normaliser keeps the `.`, and `99.5` against `100`
+          // would otherwise be two keys for one finding.
+          evidenceQuote:
+            found.file === null
+              ? `suppression density ${found.perKloc.toFixed(1)}/KLOC over the ceiling (repository)`
+              : `suppression density ${found.perKloc.toFixed(1)}/KLOC in ${found.file}`,
+          rationale: found.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: found.ruleId,
+          yields: null,
+          experimental: suppressionStatus !== 'active',
+        });
+      }
+      const added = prMode ? prSuppressionFinding(deps.files, ceiling) : null;
+      if (added) {
+        findings.push({
+          dimension: 'slop',
+          severity: 1,
+          confidence: 4,
+          file: null,
+          lineStart: null,
+          lineEnd: null,
+          title: `This change adds ${added.hits} checker suppressions`,
+          // `pr-<id>` keeps its digits through the key normaliser (a token with
+          // a letter is an identifier), so two pull requests stay two findings.
+          evidenceQuote: `suppressions added in pr-${deps.pullRequestId ?? 'unknown'}: ${added.perKloc.toFixed(1)}/KLOC of added code`,
+          rationale: added.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: added.ruleId,
+          yields: null,
+          experimental: suppressionStatus !== 'active',
         });
       }
     }

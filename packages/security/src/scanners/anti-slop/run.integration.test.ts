@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import type { AnalysisGateway, CompleteOpts } from '@repopulse/analysis';
@@ -124,7 +124,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       .where(
         and(
           eq(security.ruleRegistry.workspaceId, workspaceId),
-          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+          inArray(security.ruleRegistry.ruleId, ['slop.unused_export', 'slop.suppression_density']),
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
@@ -438,6 +438,68 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(await rows('slop.unused_export')).toMatchObject([
       { file: 'pay/src/money.rs', lineStart: 2, title: 'Unused export: never_called', experimental: true },
     ]);
+  });
+  it('W18-04: suppression density is stored in shadow, per repository and per pull request', async () => {
+    // 20 `as any` in 200 lines: 100/KLOC, over the ceiling with room to spare.
+    const dense = Array.from({ length: 200 }, (_, i) =>
+      i < 20 ? `export const v${i} = load(${i}) as any;` : `export const v${i} = load(${i});`,
+    ).join('\n');
+    const rows = () =>
+      db
+        .select()
+        .from(read.findings)
+        .where(
+          and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.suppression_density')),
+        );
+
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-snapshot', files: [],
+      sources: [{ path: 'src/dense.ts', source: dense }], trigger: 'schedule',
+    });
+    const [repoRow] = await rows();
+    expect(repoRow).toMatchObject({
+      file: null,
+      lineStart: null,
+      severity: 1,
+      experimental: true,
+      title: 'Checker suppressions at 100 per KLOC across the repository',
+    });
+    expect(repoRow?.recommendation).toContain('as-any 20');
+
+    // The density moving is the same finding, not a new one.
+    const lighter = dense.replace('load(0) as any', 'load(0)');
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-again', files: [],
+      sources: [{ path: 'src/dense.ts', source: lighter }], trigger: 'schedule',
+    });
+    expect((await rows()).length).toBe(1);
+
+    // Pull-request mode counts what the diff adds.
+    const patch = [
+      '@@ -1,1 +1,7 @@',
+      ' const keep = 1;',
+      ...Array.from({ length: 6 }, (_, i) => `+const a${i} = x as any;`),
+    ].join('\n');
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-pr', trigger: 'pr_synced',
+      files: [{ path: 'src/pr.ts', patch }],
+    });
+    const pr = (await rows()).find((r) => r.title.startsWith('This change adds'));
+    expect(pr).toMatchObject({ title: 'This change adds 6 checker suppressions', experimental: true });
+
+    // Deprecated: the rule stops — no row is sighted again.
+    const before = (await rows()).map((r) => [r.id, r.occurrenceCount]);
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.suppression_density',
+      status: 'deprecated',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-04-deprecated', files: [],
+      sources: [{ path: 'src/dense.ts', source: dense }], trigger: 'schedule',
+    });
+    expect((await rows()).map((r) => [r.id, r.occurrenceCount])).toEqual(before);
   });
 });
 
