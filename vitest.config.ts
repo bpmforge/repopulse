@@ -17,7 +17,7 @@ export default defineConfig({
     // when it is removed in the next major the options below would have had
     // nowhere to apply from — which matters more than the warning does,
     // because one of them is load-bearing.
-    projects: ['apps/*', 'packages/*'],
+    projects: ['apps/*', 'packages/*', 'tools/repopulse-cli'],
 
     // Several test files exercise live Postgres/Redis (scripts/dev-up.sh)
     // and share mutable global state — the single `default` workspace's

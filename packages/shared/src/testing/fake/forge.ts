@@ -275,7 +275,7 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
             closed_at: day(i + 1),
             additions: 20,
             deletions: 4,
-            head: { sha: `head-${pr.number}` },
+            head: { sha: `head-${pr.number}`, ref: `feature/pr-${pr.number}` },
             base: { ref: 'main' },
           })),
         );
@@ -425,6 +425,9 @@ export function startFakeForge(port = 0): Promise<FakeForge> {
                   mergedBy: { login: 'fixture-dev' },
                   baseRefName: 'main',
                   headRefOid: `head-${pr.number}`,
+                  // W18-20: the source branch, which the AI-authorship
+                  // classifier reads for agent prefixes.
+                  headRefName: `feature/pr-${pr.number}`,
                   additions: 20,
                   deletions: 4,
                   changedFiles: 2,

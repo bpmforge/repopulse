@@ -364,4 +364,52 @@ describeIfLiveInfra('admin workspace settings (W4-09)', () => {
     // check fail on a correct entry (it did).
     expect(Object.values(entry!)).not.toContain(14);
   });
+  // W18-20: the AI-authorship pattern list, and the org endpoint that applies it.
+  it('stores an edited AI pattern list and reports it as effective; rejects unknown keys', async () => {
+    const cookie = await adminSession();
+    const ok = await patch(cookie, {
+      ai_authorship_patterns: {
+        trailer_patterns: ['noreply@anthropic.com'],
+        bot_logins: ['acme-agent[bot]'],
+        branch_prefixes: [],
+      },
+    });
+    expect(ok.statusCode).toBe(200);
+    const body = (await get(cookie)).json() as {
+      effective: { aiAuthorshipPatterns: Record<string, string[]> };
+      defaults: { aiAuthorshipPatterns: { branchPrefixes: string[] } };
+    };
+    expect(body.effective.aiAuthorshipPatterns).toEqual({
+      trailerPatterns: ['noreply@anthropic.com'],
+      botLogins: ['acme-agent[bot]'],
+      branchPrefixes: [],
+    });
+    expect(body.defaults.aiAuthorshipPatterns.branchPrefixes).toContain('claude/');
+
+    const bad = await patch(cookie, { ai_authorship_patterns: { regexes: ['.*'] } });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('GET /org/ai-governance is aggregate-only and validates its repo filter', async () => {
+    const cookie = await adminSession();
+    const res = await app.inject({
+      method: 'GET',
+      // `person` is the global filter's per-developer key; the endpoint must
+      // not narrow to one person, so it is ignored rather than honoured.
+      url: '/api/v1/org/ai-governance?window=90d&person=someone',
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { window: string; measures: unknown[]; counts: object };
+    expect(body.window).toBe('90d');
+    expect(body.measures).toHaveLength(5);
+    expect(JSON.stringify(body)).not.toContain('someone');
+
+    const bad = await app.inject({
+      method: 'GET',
+      url: '/api/v1/org/ai-governance?repos=1;drop',
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
 });

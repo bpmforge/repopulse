@@ -1,0 +1,6 @@
+diff --git a/src/routes/users.ts b/src/routes/users.ts
+--- a/src/routes/users.ts
++++ b/src/routes/users.ts
+@@ -10,7 +10,6 @@ const router = Router();
+-// TODO: requireAdmin once roles land
+ router.get('/users', listUsers);

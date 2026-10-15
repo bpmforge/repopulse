@@ -1,0 +1,10 @@
+diff --git a/src/auth/guards.ts b/src/auth/guards.ts
+--- a/src/auth/guards.ts
++++ b/src/auth/guards.ts
+@@ -1,9 +1,4 @@
+-export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+-  if (!req.user?.roles.includes('admin')) return next(new HttpError(403));
+-  next();
+-}
+-
+ export function requireUser(req: Request, res: Response, next: NextFunction) {

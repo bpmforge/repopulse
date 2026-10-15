@@ -2,6 +2,7 @@ export * from './commits.js';
 export * from './commit-files.js';
 export * from './pull-requests.js';
 export * from './pr-reviews.js';
+export * from './pr-review-comments.js';
 export * from './pr-files.js';
 export * from './check-runs.js';
 export * from './deployments.js';

@@ -66,6 +66,7 @@ const SEGMENT_LABELS: Record<string, string> = {
 const SUBPAGE_LABELS: Record<string, string> = {
   hotspots: 'Hotspots',
   'pr-flow': 'PR Flow',
+  'ai-reviewers': 'AI Reviewers',
   ci: 'CI',
   findings: 'Findings',
   security: 'Security',

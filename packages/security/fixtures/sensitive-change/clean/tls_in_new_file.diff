@@ -1,0 +1,8 @@
+diff --git a/scripts/local_probe.py b/scripts/local_probe.py
+new file mode 100644
+--- /dev/null
++++ b/scripts/local_probe.py
+@@ -0,0 +1,3 @@
++import requests
++
++requests.get("https://localhost:8443/health", verify=False)

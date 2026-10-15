@@ -7,6 +7,10 @@ import { CODE_HEALTH_SCANNER_KEY } from './scanners/code-health/tools.js';
 import { ANTI_SLOP_SCANNER_KEY } from './scanners/anti-slop/run.js';
 import { LOGGING_SCANNER_KEY } from './scanners/logging/run.js';
 import { PERF_SCANNER_KEY } from './scanners/perf/run.js';
+import {
+  SENSITIVE_CHANGE_SCANNER_KEY,
+  SENSITIVE_CHANGE_VERSION,
+} from './scanners/sensitive-change/run.js';
 import { CHAINER_SCANNER_KEY } from './scanners/chainer/run.js';
 import { ARCHITECTURE_SCANNER_KEY } from './adapters/architecture/tools.js';
 import { SUPPLY_CHAIN_REGISTER_KEY } from './registers/run.js';
@@ -177,6 +181,16 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     version: 'logging.v1',
     inputs: 'snapshot',
     triggers: ['schedule'],
+  }),
+  // W18-21. Arrivals only: it runs inside the secrets stream on the diff that
+  // scan already fetched, so it has no runner of its own and no 'manual' —
+  // and no 'schedule', because a weekly pass has no change to judge.
+  sweeper({
+    key: SENSITIVE_CHANGE_SCANNER_KEY,
+    displayName: 'Sensitive-change radar',
+    version: SENSITIVE_CHANGE_VERSION,
+    inputs: 'diff',
+    triggers: ['pr_synced', 'push'],
   }),
   sweeper({
     key: PERF_SCANNER_KEY,

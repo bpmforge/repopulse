@@ -1,0 +1,11 @@
+diff --git a/src/schemas/user.ts b/src/schemas/user.ts
+--- a/src/schemas/user.ts
++++ b/src/schemas/user.ts
+@@ -3,9 +3,9 @@ import { z } from 'zod';
+ export const UpdateUser = z
+   .object({
+     name: z.string().min(1),
+     email: z.string().email(),
+   })
+-  .strict();
++  .passthrough();

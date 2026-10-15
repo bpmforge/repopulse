@@ -31,6 +31,11 @@ const SECTION_TITLE: Record<string, string> = {
   score_breakdown: 'Health score breakdown',
   sbom: 'SBOM',
   vex: 'VEX',
+  // W18-20. Mapped summary ids also get a heading (below): the governance
+  // summary opens a new topic mid-report and would otherwise run on from the
+  // section above it.
+  ai_governance: 'AI-authored vs human changes',
+  ai_governance_measures: 'AI-authored vs human: measures',
 };
 
 function sectionTitle(id: string | undefined): string {
@@ -223,6 +228,9 @@ function PrintReport() {
 
       {report.sections.map((section, i) => (
         <section key={`${section.kind}-${section.id ?? i}`} className="mb-6" data-testid={`print-section-${section.id ?? section.kind}`}>
+          {section.kind === 'summary' && section.id && SECTION_TITLE[section.id] && (
+            <h2 className={HEADING}>{SECTION_TITLE[section.id]}</h2>
+          )}
           {section.kind === 'summary' && (
             // W16-03 (F10): this was a raw <p>{section.markdown}</p>, so the
             // report and the PDF built from it showed their own Markdown syntax.

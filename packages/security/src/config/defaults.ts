@@ -91,6 +91,14 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     rationale: 'Eight structural rules on the same snapshot — no judgement half, no model cost.',
   },
   {
+    // W18-21. Rides the secrets stream's diff fetch, so it has no schedule and
+    // no cost of its own beyond a regex pass over patches already in memory.
+    key: 'sensitive_change',
+    enabled: true,
+    rationale:
+      'Flags changes that loosen auth, validation, crypto, CORS/TLS or rate limits for a human to look at — reuses the diff secrets already fetched.',
+  },
+  {
     key: 'supply_chain_register',
     enabled: true,
     rationale: 'Deprecations and EOL dates happen on a date rather than on a commit, so nightly.',

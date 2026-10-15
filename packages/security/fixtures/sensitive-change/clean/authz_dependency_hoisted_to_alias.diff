@@ -1,0 +1,14 @@
+diff --git a/app/api/deps.py b/app/api/deps.py
+--- a/app/api/deps.py
++++ b/app/api/deps.py
+@@ -40,3 +40,4 @@ def get_current_active_user(
+     return current_user
++CurrentUser = Annotated[User, Depends(get_current_active_user)]
+diff --git a/app/api/routes/items.py b/app/api/routes/items.py
+--- a/app/api/routes/items.py
++++ b/app/api/routes/items.py
+@@ -10,7 +10,7 @@ router = APIRouter()
+ @router.get("/")
+-def read_items(current_user: User = Depends(get_current_active_user)):
++def read_items(current_user: CurrentUser):
+     return crud.items_for(current_user)

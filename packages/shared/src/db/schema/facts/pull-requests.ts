@@ -42,6 +42,10 @@ export const pullRequests = pgTable(
     ),
     baseRef: text('base_ref').notNull(),
     headSha: text('head_sha').notNull(),
+    // W18-20 (migration 0035): the source branch, for agent branch prefixes
+    // (claude/, copilot/, devin/...). NULL = unknown (ingested before 0035, or
+    // the forge did not say) — never matched by a prefix rule.
+    headRef: text('head_ref'),
     // Set once the enrichment lane has fetched this PR's reviews and check
     // runs. A per-PR marker rather than a repo-level high-watermark: enrich
     // jobs run concurrently and complete out of order, so a watermark could
@@ -51,6 +55,13 @@ export const pullRequests = pgTable(
     // zero reviews and zero checks (counting child rows cannot tell those
     // apart, and would leave such a repo backfilling forever).
     enrichedAt: timestamp('enriched_at', { withTimezone: true }),
+    // W18-23: when this PR's inline review comments were last fetched, null
+    // when never (a forge without comment anchors, a refused fetch, or a PR
+    // enriched before W18-23). METRICS.md §5 reads comment metrics only over
+    // PRs where this is set, and treats a comment's anchor as FINAL only when
+    // this is at or after the PR closed — before that a later push can still
+    // move it.
+    reviewCommentsObservedAt: timestamp('review_comments_observed_at', { withTimezone: true }),
     additions: integer('additions').notNull(),
     deletions: integer('deletions').notNull(),
     changedFiles: integer('changed_files').notNull(),

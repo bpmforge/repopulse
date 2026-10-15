@@ -8873,8 +8873,8 @@
         "D9a unchanged: no forge write scope added (test asserts App/token scopes)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": ["W18-18 done (2026-10-15). Customer-CI pull, D9a unchanged. (1) New credential kind `ci_tokens` (core schema, migration 0032_ci_tokens): `rpci_` + 32 random bytes, stored only as sha256 (unique index), display prefix, scope CHECK in ('pr_findings:read') (the only scope), non-empty repo_ids bigint[] checked against the workspace at mint, default/max 365-day expiry, revocation keeps the row; admin-only POST/GET/DELETE /api/v1/admin/ci-tokens, token shown once, audited ci_token.created/ci_token.revoked (AuditEvent union extended in packages/shared), last_used_at stamped, SC-2 redactor scrubs rpci_ by shape. (2) /api/v1 guard: any Authorization header => token request only (session ignored), decided in onRequest (before body parse/zod), admitted only to routes with config.ciToken and only GET/HEAD; else 403, bad/expired/revoked 401, repo outside token 404. (3) GET /api/v1/repos/{id}/pulls/{n}/findings?new=true|false&include_experimental&cursor&limit: new = first-sighting attribution (pull_request_id = PR, or first seen by a pr_synced scan run at the PR head) AND present on head (live status; bumped by its scanner's latest succeeded head run when one exists, else kept with seen_at_head=false); new=false adds live findings on pr_files paths; experimental excluded by default; keyset paging severity desc/id desc; response carries head.scanned/scanners. GET /api/v1/cli/repopulse.mjs serves the CLI to the token (Dockerfile copies it). (4) tools/repopulse-cli: one dependency-free @ts-check .mjs (pnpm workspace member + vitest project): `repopulse check --server --repo --pr` with REPOPULSE_TOKEN from env only, --fail-on/--max-new/--include-experimental/--sha/--wait/--allow-unscanned, SARIF 2.1.0 / markdown / JSON outputs, exit 0/1/2/3/4. docs/CI_INTEGRATION.md with GitHub Actions, GitLab CI and Gitea Actions snippets posting with the customer's own token; API_DESIGN, SECURITY_CONTROLS (SC-31), DATABASE updated. Tests: routes/pulls/pulls.test.ts (21, live DB: new-on-PR computation incl. fixed-on-later-push, base/pre-existing, experimental, dismissed, unscanned scanner, paging; full /api/v1 route walk with a token => 403 for every route but the two; writes refused; cookie riding along; expiry/revoke; secret absent from DB/list/logs), test/security/no-forge-write-scope.test.ts (8: OAuth scopes, SC-25 list, INSTALL scope table, ForgeProvider method set, forge non-GETs only GraphQL/hooks, CI token scopes, no forge import, CLI GET-only), tools/repopulse-cli/repopulse.test.ts (29 incl. SARIF shape), redact test +1. E2E smoke: real server + curl-fetched CLI => exit 1 with SARIF/markdown, --fail-on critical => 0, bad token => 3. Out of write_scope by necessity: packages/shared (schema, migration, audit union, redactor), pnpm-workspace.yaml + vitest.config.ts (CLI package), Dockerfile (CLI copy). Gate: lint clean, typecheck clean (incl. tools/repopulse-cli), pnpm test 2542 passed / 58 skipped / 7 failed: 5 known docker-on-PATH deploy-*.test.ts + 2 src/workers/heartbeat.test.ts TTL timing under full-suite load (8/8 pass alone). Not done: admin UI for tokens (API only; apps/web out of scope), OpenAPI snapshot in apps/web not regenerated."]
     },
     {
       "id": "W18-19",
@@ -8902,8 +8902,8 @@
         "Finding drawer shows the verified patch with copy/download; nothing is written to the forge"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": ["2026-10-15 done (branch claude/repopulse-verified-patches). Built: packages/security/src/patches/ \u2014 diff.ts (shape gate: one existing file = the finding's, no create/delete/rename/mode, <=16KB/<=200 changed lines, exact-content apply with offset search, ambiguous hunk refused, canonical diff re-rendered), prompt.ts (finding+evidence+file, whole <=600 lines else +-150, 48KB cap), verify.ts (before AND after re-scan in a snap-* scratch dir under the snapshot root, shredded; verified iff target dedup key reproduces before and is gone after, its rule fires fewer times, no rule fires more, every rule set ran), runners.ts (semgrep/bpm-log/bpm-perf packs via the sandboxed runSemgrepScan + anti_slop fast lane in process incl. whole-tree phantom/unused rules on the snapshot tree), target.ts (eligibility + snapshot commit), run.ts (job). Table verified_patches (migration 0033 \u2014 numbered after ci-pull's 0032; re-point the snapshot prevId at merge). Queue patches.draft + apps/api/src/workers/patch-processor.ts. API GET/POST /findings/{id}/patch (members T2; T3 admin + repo opt-in; idempotent per finding x commit; 50/day/workspace; 10/min) + GET /admin/patches. Web: VerifiedFix in the finding drawer (diff, Copy, Download .patch, re-scan note; rejected shows nothing unless the API sent an admin reason). D9a: no forge write \u2014 static test + read-only forge proxy in the job test. Out of write_scope, necessary: packages/shared (table + audit event), packages/ingest (queue). Not re-runnable yet: code_health_tools, secrets, model findings (rejected/ineligible by name). Gate: lint+typecheck clean; tests 2546 passed / 58 skipped / 5 failed (the 5 known docker-on-PATH deploy-*.test.ts)."]
     },
     {
       "id": "W18-20",
@@ -8929,8 +8929,10 @@
         "Report section + org tile; signals not grades (N-9), no per-developer ranking"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-ai-governance. Classifier packages/metrics/src/authorship/: agent bot author, Co-authored-by/Assisted-by/Generated-by trailer patterns, agent branch prefixes, plus PR<->commit linking (head SHA or '(#N)' squash subject); automation and pre-0035 'unknown' rows are counted and excluded. Patterns editable at Admin > Settings (workspaces.settings.ai_authorship_patterns; substrings/prefixes/single-* globs, no regex), applied on read so edits re-classify history. Metrics reuse existing code sliced by cohort: M13 via new attributeRework14d (computeRework14d now sums it, unchanged results), M14 computeRevertRate, M5 computeReviewCoverage + reviews per merged PR, findings per KLOC (PR-linked, else last change to the file before first seen). Signals not grades: direction words only, min sample 20 commits / 10 merged PRs / 1,000 lines per cohort else 'too small to compare'. Surfaces: GET /org/ai-governance (aggregate only, ignores person filter), org tile 'ai-governance', report section ai_governance + ai_governance_measures in repo_health and org_exec. SCOPE EXPANSION (needed for the trailer and branch signals, which ingest dropped): migration 0035_ai_authorship (commits.trailers text[], pull_requests.head_ref text; NULL = not captured) in packages/shared, headRef in packages/forge normalizers (GitHub GraphQL/REST, Gitea, GitLab), packages/ingest writers, seed + fake forge. Screenshots: /mnt/project-files/repopulse/ux-review/w18-20/. Gate: lint 0, typecheck 0, vitest 2525 passed / 58 skipped / 5 failed (environmental: docker on PATH, test/ops/deploy-*)."
+      ]
     },
     {
       "id": "W18-21",
@@ -8955,8 +8957,10 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-sensitive-radar. In-process diff rules in packages/security/src/scanners/sensitive-change/ (patch.ts reads both sides of a unified diff; rules.ts; radar.ts pure engine; run.ts store + shadow mode). Reuses the existing PR-mode path rather than a new pipeline: it rides secrets stream mode (scanOneTarget) on the diff that scan already fetched, so no extra forge call; pr_synced/push only, never history; own scan_run (sensitive_change.v1), own enablement key sensitive_change (default on), failures isolated from the secrets result. The pattern lane cannot see removed lines, which is why this is not an Opengrep pack. 12 rules, JS/TS + Python each: sensitive.authz_check_removed, protection_opt_out_added, validation_removed, validation_relaxed, crypto_parameter_lowered, crypto_algorithm_weakened, signature_check_removed, tls_settings_weakened, cors_widened, protection_middleware_removed, rate_limit_removed, rate_limit_raised. Findings: dimension security, tier 1, title 'Needs human review: ...', evidence = the -/+ lines, no author (N-9), advice only (D9a); severity capped at 3 so a finding never needs a verify confirmation to surface (FR-ANALYSIS-10) and it never enters the verify pass; no reviewedFiles so it is never auto-resolved by a diff run. Shadow: experimental unless rule_registry says active; deprecated stops the rule. Fixtures: 26 triggering + 32 clean (near misses) git-diff files under packages/security/fixtures/sensitive-change/; each triggering fixture must fire exactly its rule. Measured over 4,711 real commits (DRF 1500, express 1500, full-stack-fastapi-template 1500, node-express-boilerplate 211): first cut 37 signals, mostly refactor noise; after string masking, diff-wide 'moved' detection, endpoint-deleted hunks, client-code skip and one-finding-per-rule-per-file: 5 signals in 4 commits (open registration 403 removed; refresh-token verify replaced by a DB lookup; app.use(cors()) added; one parse_obj refactor = the one FP). Gate: lint 0, typecheck 0, vitest 2572 passed / 58 skipped / 5 failed (the 5 known docker-on-PATH apps/api/test/ops/deploy-* tests). Edits outside the new module, all in write_scope: secrets/stream.ts (hook), stream.integration.test.ts (run lookup scoped to secrets key), catalogue.ts + catalogue.test.ts (stream-rider reachability, proven by source check), config/defaults.ts, framework.test.ts (defaults list), index.ts, docs/design/SECURITY_SUITE.md §3.7. Not done: Java/Go/Rust rules (follow-up once those packs land); radar runs only where secrets stream runs (a repo with secrets disabled gets no radar)."
+      ]
     },
     {
       "id": "W18-22",
@@ -9005,8 +9009,10 @@
         "Bot activity stays excluded from human-flow metrics (METRICS.md section 0)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "2026-10-15 (claude/repopulse-reviewer-metrics): Reuse audit first: ingest stored only review-level rows (pr_reviews: reviewer, state, submitted_at) — no inline comments, no lines, no PR-commit linkage, no patches. Built: (1) forge — optional ForgeProvider.listReviewComments (GitHub GET /pulls/{n}/comments, 'pulls' budget family, anchors only, no body); Gitea/GitLab omit it. (2) migration 0037 — pr_review_comments (anchors: path, subject_type, is_reply, original_line, current_line, commit shas; no body), pull_requests.review_comments_observed_at, sync_cursors entity 'review_comments'. (3) ingest — per-PR enrichment fetches comments where the adapter can, stamps observed_at even for zero, records refusals (W17-38 pattern); IdentityResolver marks known review bots is_bot. (4) metrics — engine/review-bots.ts registry (CodeRabbit, Copilot code review, Qodo Merge, Greptile, Cursor BugBot; exact login, case-insensitive) + isNonHumanReviewer; metrics/review-bots.ts computeReviewBotMetrics (reach, reviews/PR, comments/PR, time to first comment median+p90, followed-by-code-change, repeat-after-dismiss; registry order, never ranked); readReviewBotInputs (workspace+repo scoped). (5) §0 FIX: bot REVIEWERS were never excluded — a CodeRabbit/Copilot review counted as M4 first review and M5 coverage; prRowsWithReviews now drops non-human reviewers; review-load route uses the registry too (Copilot has no [bot] suffix). Integration test proves it (fails without the fix). (6) API GET /repos/{id}/review-bots (forge + line_data so the UI says why a column is blank); web AI Reviewers tab beside PR Flow with neutral copy, n-of-d shares, definitions panel; openapi snapshot gained only this path. Definition (METRICS.md §5): followed by a code change = bot's new line comment whose anchor the forge dropped from the final head diff (GitHub line=null, 'Outdated'), counted only on closed/merged PRs whose comments were fetched after the close; others pending. Docs: METRICS §0+§5 (worked example E5), DATABASE, API_DESIGN, UX_SPEC. Screenshots: /mnt/project-files/repopulse/ux-review/w18-23/ (demo data + synthetic bot rows; 390px no page overflow). Gate: lint 0, typecheck 0, test 2511 passed / 58 skipped / 5 failed (the known docker deploy-* ops tests). Outside write_scope (needed): packages/forge, packages/shared (schema+migration+seed wipe), apps/api (route). Follow-ups: live repos never re-enrich PRs after backfill (pre-existing), so comments on PRs open at backfill stay 'pending'; apps/api plans/agreements compute first review from min(pr_reviews.submitted_at) incl. bots."
+      ]
     },
     {
       "id": "W18-24",
@@ -9181,6 +9187,68 @@
         "DONE 2026-10-15 on claude/repopulse-anti-slop-pack. FIX: ownership of rulepacks/code-health/ is by FILE-NAME PREFIX. runSemgrepScan/readRulepack take an optional rulepackFiles predicate (an empty selection is refused, never run with engine defaults). logging_hygiene loads only logging.* files (keeps its bpm-log- id filter as belt-and-braces); anti_slop gains a pack layer (targetDir) that loads only anti-slop.* files and stores bpm-ch-* as dimension slop, scanner anti_slop, severity<=3, confidence 4, same exclusion globs as logging, toolVersions stamped on the scan_run; a failed pack run fails the anti_slop run (no silent LDR-only success). The weekly anti_slop runner (apps/api/src/workers/index.ts) passes targetDir: snapshot.dir; manual 'Run scans' reaches the same runner (scan-processor history->weeklyRunners fallback, W16-28). No rule is evaluated twice: two engine calls, disjoint rule files (the perf precedent: each scanner pays for its own rules). Optional PackRunner seam on both scanners so the wiring is testable without the scan image.",
         "TEST: packages/security/src/scanners/anti-slop/pack.integration.test.ts (6 tests) drives both scanners with a RECORDED engine run (fixtures/code-health/recorded/triggering.opengrep.json, semgrep 1.181 over the two triggering fixtures; arch rule 7 forbids spawning semgrep under src/ even in tests). RED on main 1a009e3: 5 failed (zero bpm-ch-* rows stored; pack files unclaimed); GREEN after: 6 passed. Sweep tests: a persistFindings sweep scoped to logging_hygiene over every file closes all bpm-log rows and no bpm-ch row; scoped to anti_slop the reverse. NOTE: neither scanner passes reviewedFiles today, so neither actually sweeps stale findings (pre-existing; a safe sweep would need a rule-scoped sweep in packages/insights, outside this ticket's scope).",
         "GATE: lint + typecheck green; pnpm test 2457 passed / 58 skipped / 6 failed: the 5 known deploy-* tests (docker on PATH, no daemon) and apps/web Chart.test.tsx ('ResizeObserver is not defined' in jsdom; apps/web untouched by this branch, fails alone too, so pre-existing). An earlier test version spawned semgrep and tripped arch rule 7 (NFR-14); replaced by the recorded engine run."
+      ]
+    },
+    {
+      "id": "W18-31",
+      "title": "Code viewer: highlighted evidence and a side-by-side diff view in the web app",
+      "phase": 18,
+      "module": "web",
+      "stories": [
+        "E3.2",
+        "E13.4"
+      ],
+      "write_scope": [
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A finding's evidence renders as numbered, syntax-coloured code with its line range banded, in the finding panel and the triage queue",
+        "A unified-diff component renders unified, or split when its container is wider than 720px, with whole-row add/remove tints and the +/- marks kept",
+        "Text is rendered as text nodes only (no HTML injection); hidden and bidi characters are shown and flagged",
+        "Code and diff colour tokens clear WCAG AA 4.5:1 in dark and light (measured by a test)",
+        "Source of code beyond the stored evidence is NOT decided here: storing an excerpt at scan time is a follow-up ticket"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-code-viewer. From the 2026-10-15 UX/UI review (project files repopulse/ux-review-2026-10-15/). apps/web/src/components/code: tokenizer (no HTML strings), unified-diff parser, CodeBlock, DiffView; tokens in theme.css measured by styles/codeContrast.test.ts. Wired into FindingDetail and TriageQueue evidence. NOT wired into VerifiedFix.tsx because that component is on PR #54/#69, not main: swap its <pre> for <DiffView diff={...}/> after those merge. Where code beyond the stored evidence comes from (excerpt at scan time, per Brad's 2026-10-15 choice) is the next ticket."
+      ]
+    },
+    {
+      "id": "W18-32",
+      "title": "Store a few scanned lines with each finding so the app can show the code",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E3.2",
+        "E13.4"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "packages/insights/**",
+        "packages/shared/**",
+        "apps/api/**",
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-31"
+      ],
+      "acceptance": [
+        "Scanners that produce code findings copy up to 8 lines either side (max 60 lines, 300 chars a line) from the ephemeral snapshot into the finding (context_lines, context_start_line)",
+        "Never stored for a secrets finding, a credential-named rule, a window matching a credential shape, a path outside the snapshot, a binary or over-1MiB file",
+        "Lines are cleared FINDING_CONTEXT_RETENTION_DAYS (default 90) after a finding closes; open findings keep and refresh theirs",
+        "GET /findings returns context; the finding panel and triage queue show it with the finding's range banded",
+        "Full gate green"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-code-context (stacked on W18-31 / PR #74). Migration 0038_finding_context (journal idx 32): renumber at merge, other W18 PRs claim 0032/0033/0035-0037. Retention runs from persistFindings (no scheduler owns retention sweeps yet). Excerpts wired into logging, perf, anti-slop pack, code-health and semgrep (full and diff-scoped) scanners; owasp, dependency, secrets and LLM findings have none. SC-29a added to SECURITY_CONTROLS."
       ]
     }
   ]

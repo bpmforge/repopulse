@@ -167,6 +167,8 @@ describe('enablement defaults (FR-SEC-11)', () => {
       'anti_slop',
       'logging_hygiene',
       'performance',
+      // W18-21: rides the secrets stream's diff, so it costs one regex pass.
+      'sensitive_change',
       'supply_chain_register',
       'architecture_register',
       'test_gap_register',

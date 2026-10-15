@@ -38,6 +38,10 @@ export * from './scanners/anti-slop/ldr.js';
 export * from './scanners/anti-slop/run.js';
 export * from './scanners/logging/run.js';
 export * from './scanners/perf/run.js';
+export * from './scanners/sensitive-change/patch.js';
+export * from './scanners/sensitive-change/rules.js';
+export * from './scanners/sensitive-change/radar.js';
+export * from './scanners/sensitive-change/run.js';
 export * from './rules/schema.js';
 export * from './rules/lifecycle.js';
 export * from './rules/intake.js';
@@ -67,3 +71,6 @@ export * from './scanners/dependency/run.js';
 // module at all and the ticket cannot land. Declared in the handoff.
 export * from './vex/index.js';
 export * from './catalogue.js';
+// W18-19. Verified patches: model-drafted fixes proven by re-scanning.
+export * from './patches/index.js';
+export * from './excerpt.js';

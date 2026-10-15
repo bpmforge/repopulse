@@ -9,7 +9,9 @@ import type {
   ForgePR,
   ForgeRelease,
   ForgeReview,
+  ForgeReviewComment,
 } from '@repopulse/forge';
+import { parseCommitTrailers } from '@repopulse/metrics';
 import type { DbOrTx } from './db.js';
 import { IdentityResolver } from './identity.js';
 
@@ -51,6 +53,10 @@ export async function upsertCommits(
         authoredAt: new Date(c.authoredAt),
         committedAt: new Date(c.committedAt),
         messageHead: messageHead(c.message),
+        // W18-20: kept for the AI-authorship classifier (Co-authored-by and
+        // friends). [] = parsed and none found; NULL is reserved for rows
+        // written before this column existed.
+        trailers: parseCommitTrailers(c.message),
         isRevertHeuristic: REVERT_RE.test(c.message),
         // >1 parent ⇒ merge commit (METRICS.md §0 excludes them, M1/M2/M3).
         isMerge: c.parentShas.length > 1,
@@ -63,6 +69,8 @@ export async function upsertCommits(
         target: [facts.commits.repoId, facts.commits.sha],
         set: {
           messageHead: messageHead(c.message),
+          // A re-run backfill fills trailers on rows ingested before 0035.
+          trailers: parseCommitTrailers(c.message),
           authoredAt: new Date(c.authoredAt),
           isMerge: c.parentShas.length > 1,
         },
@@ -99,6 +107,7 @@ export async function upsertPullRequests(
         mergedByIdentityId: mergedById,
         baseRef: p.baseRef,
         headSha: p.headSha,
+        headRef: p.headRef ?? null,
         additions: p.additions ?? 0,
         deletions: p.deletions ?? 0,
         changedFiles: p.changedFiles ?? 0,
@@ -111,6 +120,9 @@ export async function upsertPullRequests(
           closedAt: p.closedAt ? new Date(p.closedAt) : null,
           mergedAt: p.mergedAt ? new Date(p.mergedAt) : null,
           mergedByIdentityId: mergedById,
+          // W18-20. Only overwritten with a value: a later listing that omits
+          // the ref (a deleted fork branch) must not erase what was known.
+          ...(p.headRef ? { headRef: p.headRef } : {}),
         },
       });
   }
@@ -152,6 +164,68 @@ export async function upsertReviews(
       });
   }
   return reviews.length;
+}
+
+/**
+ * Inline review comments for one PR (W18-23) — diff anchors only, never the
+ * body. Upserted on the forge id so a re-fetch refreshes `current_line`, which
+ * is the field that changes when a later push rewrites the commented lines.
+ */
+export async function upsertReviewComments(
+  db: DbOrTx,
+  scope: RepoScope,
+  resolver: IdentityResolver,
+  prNumber: number,
+  comments: readonly ForgeReviewComment[],
+  observedAt: Date,
+): Promise<number> {
+  const [pr] = await db
+    .select({ id: facts.pullRequests.id })
+    .from(facts.pullRequests)
+    .where(
+      and(eq(facts.pullRequests.repoId, scope.repoId), eq(facts.pullRequests.number, prNumber)),
+    )
+    .limit(1);
+  if (!pr) return 0;
+  for (const c of comments) {
+    // A deleted account comes back as a null user; keep the row (it is still
+    // a comment on those lines) under the same marker identity as any other
+    // login-less author.
+    const authorId = await resolver.resolve({ login: c.authorLogin || null });
+    const anchor = {
+      currentLine: c.line,
+      commitSha: c.commitSha,
+    };
+    await db
+      .insert(facts.prReviewComments)
+      .values({
+        workspaceId: scope.workspaceId,
+        repoId: scope.repoId,
+        pullRequestId: pr.id,
+        forgeCommentId: c.externalId,
+        forgeReviewId: c.reviewExternalId,
+        authorIdentityId: authorId,
+        createdAt: new Date(c.createdAt),
+        path: c.path,
+        subjectType: c.subjectType,
+        isReply: c.isReply,
+        originalStartLine: c.originalStartLine,
+        originalLine: c.originalLine,
+        originalCommitSha: c.originalCommitSha,
+        ...anchor,
+      })
+      .onConflictDoUpdate({
+        target: [facts.prReviewComments.pullRequestId, facts.prReviewComments.forgeCommentId],
+        set: anchor,
+      });
+  }
+  // Stamped even for zero comments: "fetched, none" is a fact the metrics
+  // need, and it is what tells them this PR has line-level data at all.
+  await db
+    .update(facts.pullRequests)
+    .set({ reviewCommentsObservedAt: observedAt })
+    .where(eq(facts.pullRequests.id, pr.id));
+  return comments.length;
 }
 
 export async function upsertCheckRuns(

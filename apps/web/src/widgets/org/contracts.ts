@@ -206,3 +206,41 @@ export function deltaPctOf(delta: number | null, previous: number | null): numbe
   if (delta === null || previous === null || previous === 0) return null;
   return (delta / Math.abs(previous)) * 100;
 }
+
+/** GET /org/ai-governance (W18-20). Aggregate only — no logins, no trailer values. */
+export interface AiGovernanceMeasure {
+  key: 'findings_per_kloc' | 'rework_14d' | 'revert_rate' | 'review_coverage' | 'reviews_per_pr';
+  label: string;
+  basis: string;
+  unit: 'ratio' | 'per_kloc' | 'count';
+  ai: number | null;
+  human: number | null;
+  aiSample: number;
+  humanSample: number;
+  sampleUnit: string;
+  comparable: boolean;
+  direction: 'higher' | 'lower' | 'similar' | null;
+  note: string | null;
+}
+
+export interface AiGovernance {
+  window: string;
+  aiShareCommits: number | null;
+  aiSharePrs: number | null;
+  counts: {
+    aiCommits: number;
+    humanCommits: number;
+    aiPrs: number;
+    humanPrs: number;
+    automationCommits: number;
+    automationPrs: number;
+    unknownCommits: number;
+    unknownPrs: number;
+  };
+  measures: AiGovernanceMeasure[];
+  anyComparable: boolean;
+  findingsMeasured: boolean;
+  unattributedFindings: number;
+  patternsFingerprint: string;
+  repoCount: number;
+}

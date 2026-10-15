@@ -16,6 +16,7 @@ import type {
   ForgeDeployment,
   ForgeRepo,
   ForgeReview,
+  ForgeReviewComment,
   ForgeCursor,
   Page,
   SinceQuery,
@@ -43,6 +44,18 @@ export interface ForgeProvider {
     cursor?: ForgeCursor,
   ): Promise<Page<ForgeDiffFile>>; // NEVER raw diff (406 risk)
   listReviews(ctx: CallCtx, repo: string, n: number): Promise<ForgeReview[]>;
+  /**
+   * Inline review comments with their diff anchors (W18-23). OPTIONAL because
+   * only GitHub reports whether a comment is still anchored on the head diff;
+   * an adapter without that signal leaves this out, and the AI-reviewer screen
+   * says "line-level data not available for this forge" instead of guessing.
+   */
+  listReviewComments?(
+    ctx: CallCtx,
+    repo: string,
+    n: number,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeReviewComment>>;
   listCheckRuns(
     ctx: CallCtx,
     repo: string,

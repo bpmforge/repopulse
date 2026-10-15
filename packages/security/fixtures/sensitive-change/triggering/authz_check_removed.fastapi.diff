@@ -1,0 +1,10 @@
+diff --git a/app/api/orders.py b/app/api/orders.py
+--- a/app/api/orders.py
++++ b/app/api/orders.py
+@@ -30,7 +30,7 @@ router = APIRouter()
+ 
+ @router.delete("/orders/{order_id}")
+-async def delete_order(order_id: int, user: User = Depends(get_current_user)):
++async def delete_order(order_id: int):
+     await orders.delete(order_id)
+     return {"ok": True}
