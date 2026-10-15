@@ -42,7 +42,7 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
   it('SC-25 still lists only read App permissions', () => {
     const doc = read('docs/SECURITY_CONTROLS.md');
     const sc25 = doc.slice(doc.indexOf('**SC-25'), doc.indexOf('## Web/auth surface'));
-    const list = sc25.slice(sc25.indexOf('(`contents:read'), sc25.indexOf('+ webhook)'));
+    const list = sc25.slice(sc25.indexOf('(`contents:read'), sc25.indexOf('+ webhook'));
     const granted = [...list.matchAll(/([a-z_]+):([a-z]+)/g)].map((m) => `${m[1]}:${m[2]}`);
     expect(granted).toEqual([
       'contents:read',
@@ -51,6 +51,8 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
       'checks:read',
       'deployments:read',
       'issues:read',
+      // W18-24: read-only, for code-scanning alerts (added by the owner's decision).
+      'security_events:read',
     ]);
   });
 
