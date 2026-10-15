@@ -11,6 +11,7 @@ import {
   type DiffFile,
 } from '@repopulse/analysis';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
+import { shadowFindings } from '../../rules/shadow.js';
 import { runSemgrepScan, SEMGREP_RULEPACK_DIR } from '../semgrep/scanner.js';
 import path from 'node:path';
 
@@ -157,11 +158,16 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
         throw new Error(`logging pack run failed: ${pack.error ?? pack.status}`);
       }
 
-      for (const finding of pack.findings) {
-        // Only the logging rules. The anti-slop half of the same pack belongs
-        // to the anti_slop scanner (W9-03), and claiming its findings here
-        // would double-report every empty catch in the repository.
-        if (!finding.ruleId.startsWith('bpm-log-')) continue;
+      // Only the logging rules. The anti-slop half of the same pack belongs
+      // to the anti_slop scanner (W9-03), and claiming its findings here
+      // would double-report every empty catch in the repository. Candidate
+      // rules land in shadow and deprecated ones drop out (rules/shadow.ts).
+      const logging = await shadowFindings(
+        deps.db,
+        deps.workspaceId,
+        pack.findings.filter((f) => f.ruleId.startsWith('bpm-log-')),
+      );
+      for (const finding of logging) {
         if (isExcluded(finding.file, globs)) {
           excluded += 1;
           continue;
@@ -184,6 +190,7 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
             finding.yields.length > 0
               ? Object.fromEntries(finding.yields.map((y) => [y, true]))
               : null,
+          ...(finding.experimental !== undefined ? { experimental: finding.experimental } : {}),
         });
       }
     }

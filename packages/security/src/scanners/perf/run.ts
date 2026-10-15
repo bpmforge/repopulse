@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { security, type Database } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
+import { shadowFindings } from '../../rules/shadow.js';
 import { runSemgrepScan, SEMGREP_RULEPACK_DIR } from '../semgrep/scanner.js';
 import { DEFAULT_EXCLUDED_GLOBS, isExcluded } from '../logging/run.js';
 import path from 'node:path';
@@ -116,12 +117,17 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
       throw new Error(`perf pack run failed: ${pack.error ?? pack.status}`);
     }
 
-    for (const finding of pack.findings) {
-      // The pack dir holds only perf rules, so this filter should never drop
-      // anything. It is here because the directory is the kind of place a
-      // later rule file gets added to, and a finding under the wrong dimension
-      // is harder to notice than one that is missing.
-      if (!finding.ruleId.startsWith(PERF_RULE_PREFIX)) continue;
+    // The pack dir holds only perf rules, so this filter should never drop
+    // anything. It is here because the directory is the kind of place a later
+    // rule file gets added to, and a finding under the wrong dimension is
+    // harder to notice than one that is missing. Candidate rules land in
+    // shadow and deprecated ones drop out (rules/shadow.ts).
+    const perf = await shadowFindings(
+      deps.db,
+      deps.workspaceId,
+      pack.findings.filter((f) => f.ruleId.startsWith(PERF_RULE_PREFIX)),
+    );
+    for (const finding of perf) {
       if (isExcluded(finding.file, globs)) {
         excluded += 1;
         continue;
@@ -154,6 +160,7 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
           finding.yields.length > 0
             ? Object.fromEntries(finding.yields.map((y) => [y, true]))
             : null,
+        ...(finding.experimental !== undefined ? { experimental: finding.experimental } : {}),
       });
     }
 
