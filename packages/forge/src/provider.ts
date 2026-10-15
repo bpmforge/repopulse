@@ -6,6 +6,7 @@ import type {
   CallCtx,
   ForgeCapabilities,
   ForgeCheckRun,
+  ForgeCodeScanningAlert,
   ForgeCommit,
   ForgeDiffFile,
   ForgeFileContent,
@@ -63,6 +64,19 @@ export interface ForgeProvider {
    * build if anything else calls it or if `git clone` appears anywhere.
    */
   getTarball(ctx: CallCtx, repo: string, sha: string): Promise<ForgeTarball>;
+
+  /**
+   * OPEN code-scanning alerts (W18-24) — guarded by
+   * `capabilities.supportsCodeScanningAlerts`, and optional so an adapter for
+   * a forge without the feature does not have to carry a stub that throws.
+   * A missing permission surfaces as ForgeHttpError 403 (the caller says so);
+   * a repository with code scanning off answers 404.
+   */
+  listCodeScanningAlerts?(
+    ctx: CallCtx,
+    repo: string,
+    cursor?: ForgeCursor,
+  ): Promise<Page<ForgeCodeScanningAlert>>;
   registerWebhook(
     ctx: CallCtx,
     repo: string,

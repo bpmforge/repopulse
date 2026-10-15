@@ -164,6 +164,43 @@ export interface ForgeCapabilities {
    * shared secret itself in X-Gitlab-Token.
    */
   webhookScheme: 'hub-signature' | 'gitlab-token';
+  /**
+   * W18-24: the forge serves another scanner's alerts (GitHub code scanning).
+   * Every real adapter declares it (the capability gate requires every key);
+   * OPTIONAL in the type so test fakes written before it existed still read
+   * as false instead of claiming a capability they never had.
+   */
+  supportsCodeScanningAlerts?: boolean;
+}
+
+/**
+ * One open alert from a forge-hosted code scanner (W18-24, GitHub code
+ * scanning). Read-only: RepoPulse never dismisses, reopens or uploads here.
+ *
+ * Every field the alert API may omit is nullable rather than defaulted — an
+ * alert with no location is a repository-level alert, and inventing line 1
+ * would send a reader to the wrong place with confidence.
+ */
+export interface ForgeCodeScanningAlert {
+  /** Per-repository alert number — stable across analyses, so it is the dedup handle. */
+  number: number;
+  state: string;
+  ruleId: string;
+  ruleName: string | null;
+  ruleDescription: string | null;
+  /** The rule's SARIF-style level: 'none' | 'note' | 'warning' | 'error'. */
+  ruleSeverity: string | null;
+  /** 'low' | 'medium' | 'high' | 'critical' for security queries, else null. */
+  securitySeverityLevel: string | null;
+  ruleTags: string[];
+  toolName: string;
+  toolVersion: string | null;
+  path: string | null;
+  startLine: number | null;
+  endLine: number | null;
+  message: string | null;
+  commitSha: string | null;
+  htmlUrl: string | null;
 }
 
 export interface SinceQuery {

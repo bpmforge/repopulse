@@ -295,3 +295,92 @@ entitlement.
 Each backlog scanner ships with: registry entry, rulepack asset, dimension mapping (`iac` uses
 the reserved `iac` dimension; others reuse `sast`/`dependency`), yields vocabulary additions,
 and a fixture-repo contract test — the same acceptance bar as the W8 five.
+
+## 8. External scanner results — SARIF uploads and GitHub code scanning (W18-24)
+
+Repo Pulse is the one place for all findings, including the ones other tools found. Two
+intakes feed the SAME findings store (`read.findings`) as our own scanners — no second table,
+no `external` dimension. Code: `packages/security/src/external/`.
+
+**Intakes.**
+
+| Intake | Trigger | Scanner key | Run row |
+|---|---|---|---|
+| SARIF 2.1.0 upload — `POST /api/v1/repos/{id}/external-findings/sarif` (👑) | manual | `external:<tool>` | one per tool in the file, `trigger=manual` |
+| GitHub code-scanning alerts (read-only pull) | nightly (`REGISTERS_NIGHTLY_CRON`) + manual "run now" | `external:<tool>:code-scanning` | one per tool + one `code_scanning_pull` summary row |
+
+`<tool>` is the slugged `tool.driver.name` (`CodeQL` → `codeql`, `Semgrep OSS` → `semgrep-oss`).
+Upload and pull are deliberately different keys, so a team doing both never has one sweep
+closing the other's findings.
+
+**Untrusted input (upload).** The SARIF body is data from an admin session, never instructions:
+- capped at 10 MiB (`SARIF_MAX_BYTES`, 413 before parsing); `application/json` or
+  `application/sarif+json`; prototype-poisoning keys refused by Fastify's hardened JSON parser;
+- validated against a zod subset of the OASIS 2.1.0 schema (`version` must be exactly `2.1.0`,
+  ≤20 runs, ≤20,000 results, bounded string lengths) — a failure is a 400 with field paths and
+  **nothing stored**; zod strips every key we do not map, so snippets, code flows, fixes,
+  invocations (command lines, environment) and attachments are never read or stored;
+- **nothing is executed, fetched or resolved.** URIs are strings: `file://` and relative paths
+  become repo-relative paths; absolute paths are accepted only under `originalUriBaseIds`, a
+  caller-supplied `source_root`, or a GitHub Actions checkout root; `..` and unknown absolute
+  roots drop the result (counted in `skipped.unusable_path`); non-file URIs make the result
+  repository-level;
+- results that are not failures (`kind` pass/notApplicable/informational), suppressed in the
+  producing tool, or `baselineState: absent` are skipped and counted, never stored.
+
+**Mapping** (`external/map.ts`, one mapper for both intakes):
+- provenance: `scanner_key` = the tool's external key, `rule_id` = `external.<tool>.<native id>`
+  (so FP-rate stats accrue to the tool's rule, never ours), `scan_run_id` → a run row whose
+  `scanner_version` is `<tool>@<version>` and `tool_versions` holds the version and intake;
+- severity: `security-severity` (0-10, GitHub's bands: ≥9→5, ≥7→4, ≥4→3, >0→2) wins; otherwise
+  SARIF level error→4, warning (the spec default)→3, note→2, none→1. Code-scanning alerts carry
+  the band (`security_severity_level`), mapped to the same 1-5;
+- confidence: 3 (our own pattern-rule confidence) unless CodeQL `precision` says high (4) / low (2);
+- dimension — existing `FINDING_DIMENSIONS` only: CVE/GHSA rule ids → `dependency`; secrets tools
+  (gitleaks, trufflehog, …) or a `secret` tag → `secrets`; IaC tools (checkov, tfsec, kics,
+  trivy, …) → `iac`; a `security-severity`, a `security` tag, a CWE tag or a SAST-only tool →
+  `sast`; a `performance` tag → `performance`; else `code_health`;
+- a secrets-dimension result never stores the tool's message (it may contain the value, SC-29);
+- dedup key: the tool's `partialFingerprints` (or the code-scanning alert number) replaces the
+  evidence + 10-line bucket in `dedupKey`, scoped by scanner key, rule and file — so a CodeQL
+  result that drifts 40 lines is the same finding. Our own scanners never set it; no stored key moves.
+
+**Dedup against our own rules.** `DEDUP_MAP` (`scanners/code-health/adapters/registry.ts`) gained
+an optional `tool` scope and external entries (eslint `no-empty`/`no-console`/`no-eval`/
+`no-await-in-loop`, CodeQL `js/*`). An external result is dropped — and reported as
+`superseded_by_pack` — when its native rule maps (`keep: 'pack'`) to one of our pack rules **and**
+that rule has an open finding of ours at the same file within 3 lines. Identity counts as a
+mapping: a team uploading SARIF from our own `bpm-*` pack (semgrep prefixes the config path,
+`rulepacks.semgrep.bpm-js-eval-dynamic`) yields to our live finding. `keep: 'tool'` entries (e.g.
+CodeQL's taint-tracked `js/sql-injection` vs our pattern rule) keep both. Ids only — no rule text
+from any tool is used.
+
+**Sweep isolation.** An upload (or a complete pull) is treated as the tool's full current result
+set: that tool's open findings it no longer reports are auto-resolved (`outdated_diff`), via
+`persistFindings({ sweepScannerKey: external:<tool>… })`. It can never close another tool's
+findings or ours; every one of our scanners already sweeps under its own key, so ours never close
+an external one. `?sweep=false` (a partial upload, e.g. one CodeQL language category) and a pull
+cut short by its 50-page cap close nothing.
+
+**Pricing.** No separate path: the nightly reprice in the `metrics.snapshot` job prices every open
+finding — external ones included — by dimension, severity, confidence, the rule's FP rate and the
+file's hotspot exposure (RISK_MODEL.md). The findings API marks each external finding with
+`external: { tool, source: 'sarif' | 'code_scanning', tool_version }` (null for ours).
+
+**GitHub code scanning — permission.** Listing alerts needs the GitHub App repository permission
+**"Code scanning alerts: Read"** (`security_events: read`). The App registration
+(docs/research/github-app.md) does **not** request it: adding a permission is a product decision
+and makes every installation re-approve. The pull is implemented behind the permission's presence —
+a 403 is recorded as `no_code_scanning_permission` with a sentence telling an org owner what to
+grant, never as "zero alerts" (which would sweep everything closed). No write scope is requested or
+usable: the forge method is a GET of `state=open` alerts, budgeted on the `scan` lane, `checks`
+secondary bucket. A repository without code scanning answers 404 → `code_scanning_not_enabled`.
+A PAT connection needs `security_events` (classic) or "Code scanning alerts: read" (fine-grained).
+
+**GitLab / Gitea: not supported yet.** Their adapters do not declare
+`supportsCodeScanningAlerts`; the pull records `code_scanning_not_supported`. GitLab's
+vulnerability-report API and Gitea (no native code scanning) are follow-ups; teams on either can
+upload SARIF instead.
+
+Note: §7 excludes *running* CodeQL ourselves for licensing reasons. Ingesting results a team
+produced under its own entitlement is a different act and is what this section does.

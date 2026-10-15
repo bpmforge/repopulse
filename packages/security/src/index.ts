@@ -67,3 +67,4 @@ export * from './scanners/dependency/run.js';
 // module at all and the ticket cannot land. Declared in the handoff.
 export * from './vex/index.js';
 export * from './catalogue.js';
+export * from './external/index.js';

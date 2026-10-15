@@ -93,6 +93,11 @@ would just mean GitHub failing every webhook delivery against a dead host.
      and save a **webhook secret** (→ `.env` `WEBHOOK_SECRET`, never committed).
 3. **Permissions** — repository, read-only only (C5 / SC-25):
    Contents · Metadata (mandatory) · Pull requests · Checks · Deployments · Issues.
+   *Optional, NOT requested by default (W18-24):* **Code scanning alerts: Read**
+   (`security_events: read`) lets the nightly `code_scanning_pull` import GitHub
+   code-scanning alerts as findings. Without it the pull records
+   `no_code_scanning_permission` and imports nothing; adding it is a product decision
+   (every installation must re-approve). Read-only either way — never grant write.
 4. **Subscribe to webhook events**: Pull request, Push, Check run/suite, Issues, Deployment.
 5. Create, then note/generate: **App ID**, **Client ID** + **Client secret**,
    **private key** (.pem).

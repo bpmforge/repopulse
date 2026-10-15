@@ -88,6 +88,13 @@ const NOTHING_SCANNED: Record<string, string> = {
   no_clusters:
     'No cluster of dismissals large enough to draft a rule from — the pass ran and found no pattern.',
   no_candidates: 'Nothing met the bar to be considered, so there was nothing to judge.',
+  // W18-24, the code-scanning pull.
+  code_scanning_not_supported:
+    'This forge has no code-scanning alerts RepoPulse can read yet (GitLab and Gitea are not supported), so nothing was imported.',
+  no_code_scanning_permission:
+    'The GitHub App may not read code-scanning alerts, so none were imported — an org owner grants "Code scanning alerts: Read" in the App settings.',
+  code_scanning_not_enabled:
+    'Code scanning is not set up on this repository on GitHub, so there were no alerts to import.',
   source_cap_reached:
     'The source cap was reached before anything was scanned — the repository is larger than one pass covers.',
 };

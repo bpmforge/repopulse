@@ -72,6 +72,8 @@ describe('what the catalogue claims can be started', () => {
     // they are not in the weekly cron group.
     'owasp_web',
     'owasp_llm',
+    // W18-24: the code-scanning alert import, nightly and by hand.
+    'code_scanning_pull',
   ];
 
   it('offers manual runs for exactly the keys the worker wires', () => {

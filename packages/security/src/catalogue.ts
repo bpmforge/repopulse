@@ -11,6 +11,7 @@ import { CHAINER_SCANNER_KEY } from './scanners/chainer/run.js';
 import { ARCHITECTURE_SCANNER_KEY } from './adapters/architecture/tools.js';
 import { SUPPLY_CHAIN_REGISTER_KEY } from './registers/run.js';
 import { DRAFT_PASS_KEY } from './rules/draft-run.js';
+import { CODE_SCANNING_PULL_KEY, CODE_SCANNING_PULL_VERSION } from './external/code-scanning.js';
 
 // The built-in scanner catalogue (W16-28).
 //
@@ -165,6 +166,17 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     // The worker wires it now.
     triggers: ['schedule', 'manual'],
     requiredTools: ['syft@1', 'grype@0'],
+  }),
+  // W18-24. Reads GitHub code-scanning alerts through the budgeted client —
+  // no snapshot, no container. Nightly with the registers, and startable by
+  // hand. It needs a GitHub App permission the default registration does not
+  // request, and says so on its run row instead of failing.
+  sweeper({
+    key: CODE_SCANNING_PULL_KEY,
+    displayName: 'GitHub code scanning alerts (import)',
+    version: CODE_SCANNING_PULL_VERSION,
+    inputs: 'findings',
+    triggers: ['schedule', 'manual'],
   }),
   // NO 'manual' below this line. These two exist and are tested, and nothing
   // in the worker can start one on request: logging_hygiene and performance

@@ -45,6 +45,7 @@ import {
   startSweeper,
   syncEolProducts,
   syncReleaseMeta,
+  runCodeScanningPull,
 } from '@repopulse/security';
 import { security } from '@repopulse/shared';
 
@@ -693,6 +694,38 @@ async function main(): Promise<void> {
               ...(result.error ? { error: result.error } : {}),
             };
           },
+          // W18-24. GitHub code-scanning alerts, read-only through the
+          // budgeted client on the scan lane. Every skip is a reason the run
+          // row states — no connection, a forge without the feature, or the
+          // App lacking "Code scanning alerts: Read" — never a silent zero.
+          code_scanning_pull: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
+            if (!resolved) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            }
+            const result = await runCodeScanningPull({
+              db,
+              provider: resolved.provider,
+              workspaceId,
+              repoId,
+              repo: resolved.repoFullName,
+            });
+            if (result.status === 'skipped') {
+              return {
+                scanned: 0,
+                findingsCreated: 0,
+                deferred: 0,
+                skipped: result.skipped ?? 'code_scanning_not_supported',
+              };
+            }
+            return {
+              // The pull wrote its own run row, so this is never "nothing
+              // scanned" — zero open alerts is a measurement.
+              scanned: 1,
+              findingsCreated: result.tools.reduce((n, t) => n + t.created, 0),
+              deferred: 0,
+            };
+          },
           attack_chainer: async ({ workspaceId, repoId }) => {
             // Runs whether or not the repo has a connection: it reads findings
             // we already have and calls no forge at all.
@@ -889,6 +922,9 @@ async function main(): Promise<void> {
       // anyone had opened the workbench.
       ['rule_draft_pass', weeklyCron],
       ['knowledge_register', registersCron],
+      // W18-24. Nightly with the registers: alerts change when someone's CI
+      // runs, not on our weekly cadence, and the pull is one read per repo.
+      ['code_scanning_pull', registersCron],
     ] as const) {
       await securityScanQueue.add(
         'weekly-sweep',
