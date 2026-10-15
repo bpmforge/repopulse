@@ -747,6 +747,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       for (const finding of structural) {
         const status = statuses.get(finding.ruleId);
         if (status === 'deprecated') continue;
+        findings.push({ ...finding, experimental: status !== 'active' });
       }
     }
     // Dependency hygiene (W18-06): the project's declared dependencies,
