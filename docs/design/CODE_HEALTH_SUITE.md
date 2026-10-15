@@ -48,7 +48,7 @@ computed deterministically in the anti_slop scanner; thresholds workspace-tunabl
 | key | inputs | triggers | requiredTools | dimension |
 |---|---|---|---|---|
 | `code_health_tools` | snapshot | weekly schedule, manual | lizard@1 (MIT), jscpd@4 (MIT) — standalone source parsers, run with no dependency install (sandbox stays `--network=none`) | `code_health` |
-| `anti_slop` | diff + snapshot | pr_synced (diff), weekly (snapshot), manual | semgrep + rulepack `code-health.v{N}` | `slop` |
+| `anti_slop` | diff + snapshot | pr_synced (diff), weekly (snapshot), manual | semgrep + rulepack `code-health.v{N}` | `slop`; the in-process test-integrity rules (`test.no_assertion`, `test.tautology`, `test.mocks_subject`, `test.swallowed_failure` — W18-03, JS/TS + Python, shadow, severity ≤ 2) store under `test_coverage` |
 | `logging_hygiene` | diff + snapshot | pr_synced, weekly, manual | semgrep + same pack (logging rules) | `logging` |
 
 Backlog delta (SECURITY_SUITE.md §7): `anti_slop` **promoted** to W9; new backlog row

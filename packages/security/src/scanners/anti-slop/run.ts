@@ -15,6 +15,13 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import {
+  NO_ASSERTION_RULE_ID,
+  TEST_INTEGRITY_RULE_IDS,
+  TAUTOLOGY_RULE_ID,
+  testIntegrity,
+  type TestIntegrityRuleId,
+} from './test-integrity.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -252,6 +259,41 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           suggestedFix: null,
           scannerKey: ANTI_SLOP_SCANNER_KEY,
           ruleId: ref.ruleId,
+          yields: null,
+          experimental: status !== 'active',
+        });
+      }
+    }
+    // Tests that test nothing (W18-03). Stored under test_coverage, not slop:
+    // what they cost is coverage that is not there, and that is the facet a
+    // reader looks under. Severity stays at or below 2 — a hollow test hides
+    // a bug, it is not one.
+    if (sources.length) {
+      const statuses = new Map<TestIntegrityRuleId, 'candidate' | 'active' | 'deprecated'>();
+      for (const ruleId of TEST_INTEGRITY_RULE_IDS) {
+        statuses.set(ruleId, await shippedRuleStatus(deps.db, deps.workspaceId, ruleId));
+      }
+      const live = TEST_INTEGRITY_RULE_IDS.filter((r) => statuses.get(r) !== 'deprecated');
+      for (const t of live.length ? testIntegrity(sources) : []) {
+        const status = statuses.get(t.ruleId);
+        if (status === 'deprecated') continue;
+        findings.push({
+          dimension: 'test_coverage',
+          // A test with no assertion may be a deliberate smoke test the title
+          // does not admit to; the other three are wrong whatever was meant.
+          severity: t.ruleId === NO_ASSERTION_RULE_ID ? 1 : 2,
+          // A literal compared with itself is arithmetic; the rest read intent
+          // off a file and can miss a helper the snapshot did not contain.
+          confidence: t.ruleId === TAUTOLOGY_RULE_ID ? 5 : 4,
+          file: t.file,
+          lineStart: t.line,
+          lineEnd: t.line,
+          title: t.title,
+          evidenceQuote: t.evidence,
+          rationale: t.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: t.ruleId,
           yields: null,
           experimental: status !== 'active',
         });

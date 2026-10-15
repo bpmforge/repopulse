@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import type { AnalysisGateway, CompleteOpts } from '@repopulse/analysis';
@@ -124,7 +124,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       .where(
         and(
           eq(security.ruleRegistry.workspaceId, workspaceId),
-          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+          inArray(security.ruleRegistry.ruleId, ['slop.unused_export', 'test.tautology']),
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
@@ -390,6 +390,74 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
+  });
+
+  it('W18-03: hollow tests land in test_coverage at severity <= 2, in shadow until promoted', async () => {
+    const sources = [
+      { path: 'src/cart.ts', source: 'export const total = (xs) => xs.length;' },
+      {
+        path: 'src/cart.test.ts',
+        source: [
+          "import { total } from './cart.js';",
+          "it('counts', () => { total([1]); });",
+          "it('is green', () => { expect(true).toBe(true); });",
+        ].join('\n'),
+      },
+    ];
+    const scan = (commitSha: string) =>
+      runAntiSlopScan({
+        db,
+        workspaceId,
+        repoId,
+        commitSha,
+        files: [],
+        sources,
+        trigger: 'schedule',
+      });
+    const rows = () =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.dimension, 'test_coverage')));
+
+    expect((await scan('w18-03-shadow')).status).toBe('succeeded');
+    const shadow = await rows();
+    expect(shadow.map((r) => [r.ruleId, r.lineStart, r.severity, r.experimental]).sort()).toEqual([
+      ['test.no_assertion', 2, 1, true],
+      ['test.tautology', 3, 2, true],
+    ]);
+    expect(shadow.find((r) => r.ruleId === 'test.tautology')).toMatchObject({
+      file: 'src/cart.test.ts',
+      scannerKey: 'anti_slop',
+      title: 'Assertion that cannot fail',
+      evidence: "it('is green', () => { expect(true).toBe(true); });",
+    });
+
+    // Promoted: the same row counts from its next sighting; the others stay shadow.
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'test.tautology',
+      status: 'active',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    await scan('w18-03-active');
+    const promoted = await rows();
+    expect(promoted.length).toBe(2);
+    expect(promoted.find((r) => r.ruleId === 'test.tautology')?.experimental).toBe(false);
+    expect(promoted.find((r) => r.ruleId === 'test.no_assertion')?.experimental).toBe(true);
+
+    // Deprecated: that rule stops; the run reports only the other.
+    await db
+      .update(security.ruleRegistry)
+      .set({ status: 'deprecated' })
+      .where(
+        and(
+          eq(security.ruleRegistry.workspaceId, workspaceId),
+          eq(security.ruleRegistry.ruleId, 'test.tautology'),
+        ),
+      );
+    const deprecated = await scan('w18-03-deprecated');
+    expect(deprecated.deterministic).toBe(1);
   });
 });
 
