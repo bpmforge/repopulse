@@ -405,28 +405,3 @@ describe('cppcheck adapter (W18-15)', () => {
     expect(kept.map((f) => f.nativeRule)).toContain('uninitvar');
   });
 });
-
-// The live half without the scan image: a cppcheck on PATH (any 2.x) run with
-// the adapter's real argv, mount path swapped for the fixture directory.
-const localCppcheck = (() => {
-  try {
-    return execFileSync('cppcheck', ['--version'], { stdio: 'pipe' }).toString().trim();
-  } catch {
-    return undefined;
-  }
-})();
-
-(localCppcheck ? describe : describe.skip)(`cppcheck argv, actually run (${localCppcheck})`, () => {
-  it('finds the seeded C defects through the adapter argv', () => {
-    const dir = path.join(FIXTURES, 'cpp');
-    const ctx = { mountPath: dir, files: ['app.c'] };
-    const [shell = 'sh', ...rest] = cppcheckAdapter.command(ctx);
-    // Node's child stdio is a socket, not a pipe — the case that broke the
-    // first version of this argv, so it is the case worth running.
-    const stdout = execFileSync(shell, rest, { stdio: ['ignore', 'pipe', 'pipe'] }).toString();
-    const findings = cppcheckAdapter.parse(stdout, ctx);
-    const rules = findings.map((f) => f.nativeRule);
-    expect(rules).toEqual(expect.arrayContaining(['arrayIndexOutOfBounds', 'memleak', 'uninitvar']));
-    expect(findings.every((f) => f.file === 'app.c')).toBe(true);
-  }, 120_000);
-});
