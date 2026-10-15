@@ -1,14 +1,16 @@
 name: CI
 
+# MANUAL ONLY. GitHub Actions is not enabled for this repository (W14-03,
+# 2026-08-19: "GitHub should be repo storage only; Actions costs too much").
+# With push/pull_request triggers every run was created, never got a runner,
+# and failed in ~3s with no log, so every PR and every commit on main showed a
+# red check that said nothing about the code. The gate now runs through
+# scripts/ci-local.sh, which mirrors both jobs below step for step, and will
+# move to .gitea/workflows/gate.yaml once a Gitea runner exists. This file is
+# kept, unchanged below, so turning Actions on later is a one-line revert of
+# this block. The nightly schedule is off for the same reason.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
-  schedule:
-    # Nightly Playwright e2e against the seeded stack (docs/TESTING.md §1).
-    # No-ops until the harness lands (W4-00) — see the nightly-e2e job.
-    - cron: '0 3 * * *'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
