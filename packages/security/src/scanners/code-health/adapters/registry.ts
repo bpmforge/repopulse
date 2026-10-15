@@ -51,8 +51,25 @@ export function adaptersFor(ctx: AdapterContext): ToolAdapter[] {
  * When two tools describe the SAME defect, the one that says it with less
  * noise is kept. The alternative — reporting both — hands a reader two rows
  * for one problem and makes them do the deduplication by eye, every time.
+ *
+ * `tool` (W18-24) scopes an entry to one tool's rule namespace. Our in-sandbox
+ * adapters had globally distinctive ids (E722, lint/suspicious/…), so the map
+ * never needed it; external SARIF and code-scanning results do — eslint's
+ * `no-empty` and some other linter's `no-empty` need not mean the same thing.
+ * An entry WITHOUT a tool matches that native id from any tool, which is what
+ * keeps ruff's E722 deduped whether it arrives from our sandbox or a SARIF file.
+ *
+ * `keep: 'tool'` rows drop nothing. They record that the overlap was looked at
+ * and the other tool's finding is the better one (a taint-tracked CodeQL query
+ * against our pattern rule) — so both stay, and the mapping is explicit.
+ * Entries name rules by their published IDS only; no rule text is used.
  */
-export const DEDUP_MAP: { native: string; packRule: string; keep: 'pack' | 'tool' }[] = [
+export const DEDUP_MAP: {
+  native: string;
+  packRule: string;
+  keep: 'pack' | 'tool';
+  tool?: string;
+}[] = [
   // Our own rule carries the reasoning about WHY a swallowed failure matters;
   // ruff's E722 says "do not use bare except".
   { native: 'E722', packRule: 'bpm-ch-empty-catch', keep: 'pack' },
@@ -148,6 +165,60 @@ export function dedupeAcrossTools(findings: readonly AdapterFinding[]): {
     kept.push(finding);
   }
   return { kept, dropped };
+  // --- External tools (W18-24): SARIF uploads and GitHub code scanning. ---
+  // ESLint core rules that say what one of ours says, with less context.
+  { tool: 'eslint', native: 'no-empty', packRule: 'bpm-ch-empty-catch', keep: 'pack' },
+  { tool: 'eslint', native: 'no-console', packRule: 'bpm-log-console-in-prod', keep: 'pack' },
+  { tool: 'eslint', native: 'no-eval', packRule: 'bpm-js-eval-dynamic', keep: 'pack' },
+  { tool: 'eslint', native: 'no-await-in-loop', packRule: 'bpm-perf-await-in-loop', keep: 'pack' },
+  // CodeQL queries that follow data flow where ours matches a shape: where
+  // both fire, CodeQL has proved the source reaches the sink and ours has not,
+  // so its finding is the one worth reading. Both kept.
+  {
+    tool: 'codeql',
+    native: 'js/sql-injection',
+    packRule: 'bpm-js-sql-string-concat',
+    keep: 'tool',
+  },
+  {
+    tool: 'codeql',
+    native: 'js/command-line-injection',
+    packRule: 'bpm-js-child-process-concat',
+    keep: 'tool',
+  },
+  { tool: 'codeql', native: 'js/code-injection', packRule: 'bpm-js-eval-dynamic', keep: 'tool' },
+  {
+    tool: 'codeql',
+    native: 'js/insecure-randomness',
+    packRule: 'bpm-js-math-random-token',
+    keep: 'tool',
+  },
+  { tool: 'codeql', native: 'js/log-injection', packRule: 'bpm-log-injection', keep: 'tool' },
+  // A weak-hash finding has no data flow to prove; ours names the fix.
+  {
+    tool: 'codeql',
+    native: 'js/weak-cryptographic-algorithm',
+    packRule: 'bpm-js-weak-hash',
+    keep: 'pack',
+  },
+];
+
+/**
+ * The pack rule an external tool's native rule duplicates, if it should yield.
+ *
+ * Two routes: a DEDUP_MAP entry with `keep: 'pack'` (scoped to this tool, or
+ * unscoped), or IDENTITY — a team running our own `bpm-*` pack in their CI and
+ * uploading the SARIF produces our rule under our id, possibly prefixed with
+ * the config path semgrep stamps on (`rulepacks.semgrep.bpm-js-eval-dynamic`).
+ * Null when the external finding stands on its own.
+ */
+export function packRuleSupersedingExternal(tool: string, nativeRule: string): string | null {
+  const mapping = DEDUP_MAP.find(
+    (m) => m.native === nativeRule && (m.tool === undefined || m.tool === tool),
+  );
+  if (mapping) return mapping.keep === 'pack' && mapping.packRule !== '' ? mapping.packRule : null;
+  const lastSegment = nativeRule.split('.').pop() ?? nativeRule;
+  return /^bpm-[a-z0-9-]+$/.test(lastSegment) ? lastSegment : null;
 }
 
 /**
@@ -175,6 +246,18 @@ export function dedupeAgainstPack(
       (m) => m.native === finding.nativeRule && m.keep === 'pack' && packSeen.has(m.packRule),
     );
     if (mapping) {
+      dropped.push({
+        ruleId: finding.ruleId,
+        because: `${mapping.packRule} already reports this defect, and it explains why it matters`,
+      });
+      continue;
+    }
+    // ruleId is `tool.{key}.{rule}`; a tool-scoped entry only applies to its tool.
+    const adapterKey = finding.ruleId.split('.')[1];
+    const mapping = DEDUP_MAP.find(
+      (m) => m.native === finding.nativeRule && (m.tool === undefined || m.tool === adapterKey),
+    );
+    if (mapping && mapping.keep === 'pack' && packSeen.has(mapping.packRule)) {
       dropped.push({
         ruleId: finding.ruleId,
         because: `${mapping.packRule} already reports this defect, and it explains why it matters`,

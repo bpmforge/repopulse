@@ -174,6 +174,8 @@ describe('enablement defaults (FR-SEC-11)', () => {
       'test_gap_register',
       'knowledge_register',
       'rule_draft_pass',
+      // W18-24: one read per repo a night; skips with a reason without the permission.
+      'code_scanning_pull',
     ]);
     expect(on).not.toContain('dependency');
   });

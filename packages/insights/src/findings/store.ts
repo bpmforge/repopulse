@@ -47,6 +47,12 @@ export interface IncomingFinding {
    * stored lines follow the code as it was last scanned.
    */
   context?: { startLine: number; lines: string } | null;
+   * W18-24: the external tool's own stable identity for this result (SARIF
+   * partialFingerprints, a code-scanning alert number). Keys the finding in
+   * place of evidence + line bucket — see dedupKey. Never set by our own
+   * scanners, whose keys therefore do not move.
+   */
+  fingerprint?: string | null;
 }
 
 export interface PersistParams {
@@ -134,6 +140,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
       lineStart: f.lineStart,
       scannerKey: f.scannerKey ?? null,
       ruleId: f.ruleId ?? null,
+      fingerprint: f.fingerprint ?? null,
     }),
   }));
 

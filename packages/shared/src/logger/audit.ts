@@ -119,6 +119,11 @@ export type AuditEvent =
   // a model — the workspace's own by default, a third party's at Tier-3 — and
   // spends model time. Who asked, for which finding, at which tier.
   | 'patch.draft_requested';
+  // W18-24. An uploaded SARIF file writes findings — and can CLOSE findings
+  // its tool no longer reports — on someone's say-so rather than a scan we ran.
+  // Who uploaded what, for which repository, is the provenance a reader of
+  // those findings needs. (Outside W18-24's write scope; the union is closed.)
+  | 'external_findings.sarif_uploaded';
 
 export interface AuditEntry {
   event: AuditEvent;

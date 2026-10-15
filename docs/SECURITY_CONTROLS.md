@@ -26,7 +26,8 @@ GT = Gitea adapter (v1.x).
 - **SC-25 Credential least-privilege** (T-13, T-14). Prefer GitHub App (short-lived
   installation tokens, ~1h) over PAT; docs + connect UI demand read-only scopes
   (`contents:read, metadata:read, pull_requests:read, checks:read, deployments:read,
-  issues:read` + webhook). Connect flow surfaces granted scopes and warns on write/admin.
+  issues:read, security_events:read` + webhook; `security_events:read` reads
+  code-scanning alerts for W18-24). Connect flow surfaces granted scopes and warns on write/admin.
   *Lands:* W1 · ingest connect flow + ADMIN_GUIDE. *Verify:* unit test on scope-warning
   logic; manual checklist item at first org connect.
 
