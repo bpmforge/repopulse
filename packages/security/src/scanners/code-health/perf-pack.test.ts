@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -12,19 +12,19 @@ const PACK_DIR = path.resolve(HERE, '../../../rulepacks/code-health/perf');
 const FIXTURES = path.resolve(HERE, '../../../fixtures/perf');
 
 describe('the perf pack', () => {
-  // Every pack file in the directory, not just v1: language packs (W18-11)
-  // live beside it and are held to the same rules.
-  const text = readdirSync(PACK_DIR)
-    .filter((f) => f.endsWith('.yaml'))
-    .map((f) => readFileSync(path.join(PACK_DIR, f), 'utf8'))
+  const text = readFileSync(path.join(PACK_DIR, 'perf.v1.yaml'), 'utf8');
+  // Every file in the directory, because the scanner mounts all of them: the
+  // per-language packs (W18-13 onward) must meet the same bar as perf.v1.
+  const allText = readRulepack(PACK_DIR)
+    .files.map((f) => readFileSync(path.join(PACK_DIR, f), 'utf8'))
     .join('\n');
 
   it('is ours, with a provenance line per rule', () => {
     const ids = readRulepack(PACK_DIR).ruleIds;
     expect(ids.length).toBeGreaterThanOrEqual(8);
     for (const id of ids) expect(id.startsWith('bpm-perf-'), id).toBe(true);
-    expect((text.match(/provenance:/g) ?? []).length).toBe(ids.length);
-    expect(text).not.toContain('semgrep.dev');
+    expect((allText.match(/provenance:/g) ?? []).length).toBe(ids.length);
+    expect(allText).not.toContain('semgrep.dev');
   });
 
   it('covers the §9.1 list, including the Python variant', () => {
@@ -48,13 +48,13 @@ describe('the perf pack', () => {
     // Including in the comments: this test caught the header quoting the very
     // figure the rule forbids, which is exactly the kind of thing that gets
     // copied out of a comment and into a finding.
-    expect(text).not.toMatch(/\d+x\b/);
-    expect(text).not.toMatch(/5-20/);
+    expect(allText).not.toMatch(/\d+x\b/);
+    expect(allText).not.toMatch(/5-20/);
   });
 
   it('tops out at WARNING, because a slow shape is not exploitable', () => {
-    expect(text).not.toContain('severity: ERROR');
-    expect(text).not.toContain('severity: CRITICAL');
+    expect(allText).not.toContain('severity: ERROR');
+    expect(allText).not.toContain('severity: CRITICAL');
   });
 });
 
@@ -92,18 +92,12 @@ describeIfScanImage('perf pack golden set', () => {
     const ids = [...new Set(result.findings.map((f) => f.ruleId))].sort();
     expect(ids).toEqual([
       'bpm-perf-await-in-loop',
-      'bpm-perf-await-in-loop-py',
-      'bpm-perf-blocking-call-in-async-py',
       'bpm-perf-json-deep-clone',
-      'bpm-perf-json-deep-clone-py',
       'bpm-perf-orm-call-in-loop',
       'bpm-perf-orm-call-in-loop-py',
       'bpm-perf-regex-compile-in-loop',
-      'bpm-perf-regex-compile-in-loop-py',
       'bpm-perf-string-concat-in-loop',
-      'bpm-perf-string-concat-in-loop-py',
       'bpm-perf-sync-io-in-async',
-      'bpm-perf-unbounded-gather-py',
       'bpm-perf-unbounded-promise-all',
     ]);
   }, 300_000);

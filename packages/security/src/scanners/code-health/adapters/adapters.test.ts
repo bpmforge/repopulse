@@ -153,6 +153,16 @@ describe('dedupe against the pack', () => {
     expect(kept).toHaveLength(1);
   });
 
+  it('KEEPS Biome noExplicitAny beside the suppression-density rate (W18-04)', () => {
+    // A rate is not a duplicate of the hits it summarises: dropping the
+    // per-line findings would leave a reader a number and nowhere to start.
+    const { kept } = dedupeAgainstPack(
+      [finding('lint/suspicious/noExplicitAny')],
+      ['slop.suppression_density'],
+    );
+    expect(kept).toHaveLength(1);
+  });
+
   it('matches on RULE identity, not on file and line', () => {
     // Two tools flagging one line for different reasons are two findings, and
     // collapsing by position would silently lose one.

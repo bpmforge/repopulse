@@ -248,8 +248,16 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
   };
 }
 
-/** Turns tool output into storable findings (FR-INSIGHTS-1 lifecycle). */
-export function toIncomingFindings(findings: readonly SemgrepFinding[]): IncomingFinding[] {
+/**
+ * Turns tool output into storable findings (FR-INSIGHTS-1 lifecycle).
+ *
+ * `experimental` is whatever rules/shadow.ts stamped on the finding, and is
+ * left out when it stamped nothing — see `applyShadow` for why absent and
+ * false are different statements.
+ */
+export function toIncomingFindings(
+  findings: ReadonlyArray<SemgrepFinding & { experimental?: boolean }>,
+): IncomingFinding[] {
   return findings.map((f) => ({
     dimension: 'sast',
     severity: f.severity,
@@ -267,6 +275,7 @@ export function toIncomingFindings(findings: readonly SemgrepFinding[]): Incomin
     scannerKey: SEMGREP_SCANNER_KEY,
     ruleId: f.ruleId,
     yields: f.yields.length > 0 ? Object.fromEntries(f.yields.map((y) => [y, true])) : null,
+    ...(f.experimental !== undefined ? { experimental: f.experimental } : {}),
   }));
 }
 
@@ -280,7 +289,7 @@ export function scannableFiles(dir: string): string[] {
         walk(full);
         continue;
       }
-      if (/\.(js|jsx|ts|tsx|mjs|cjs|py)$/.test(entry)) out.push(full);
+      if (/\.(js|jsx|ts|tsx|mjs|cjs|py|rs|java|kt|kts)$/.test(entry)) out.push(full);
     }
   };
   walk(dir);

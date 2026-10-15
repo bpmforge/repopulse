@@ -77,6 +77,17 @@ export const DEDUP_MAP: { native: string; packRule: string; keep: 'pack' | 'tool
   { native: 'S602', packRule: 'bpm-py-subprocess-shell-concat', keep: 'tool' },
   { native: 'S605', packRule: 'bpm-py-subprocess-shell-concat', keep: 'tool' },
   { native: 'S311', packRule: 'bpm-py-random-token', keep: 'tool' },
+  // Same family, different claims (W18-04): Biome reports EACH explicit any at
+  // its line; slop.suppression_density reports a RATE, for the repository or
+  // an outlier file, and never points at a single any. 'pack' would drop every
+  // per-line hit the moment the rate finding exists anywhere in the repository
+  // — the actionable rows lost to the summary of them. So the tool keeps its
+  // findings, and the rate rule deliberately emits none per hit.
+  {
+    native: 'lint/suspicious/noExplicitAny',
+    packRule: 'slop.suppression_density',
+    keep: 'tool',
+  },
 ];
 
 /**
