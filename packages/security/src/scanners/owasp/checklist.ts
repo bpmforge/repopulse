@@ -56,6 +56,7 @@ export class ChecklistMissingError extends Error {
  * version's file before it is allowed to read it, because the version that
  * replaces it depends on work that has not landed (anti-slop.v2, W18-05 →
  * W18-10). It is set in code, by the ticket that switches, and removed there.
+ * No scanner pins today: W18-10 switched anti_slop to v2 and removed its pin.
  */
 export function loadChecklist(
   key: ChecklistKey,

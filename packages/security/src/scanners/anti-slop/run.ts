@@ -2,7 +2,6 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import {
-  chunkDiff,
   validateFindings,
   FindingParseError,
   mayBeSurfacedLoudly,
@@ -11,7 +10,14 @@ import {
   type AnalysisGateway,
   type DiffFile,
 } from '@repopulse/analysis';
-import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
+import { loadChecklist } from '../owasp/checklist.js';
+import {
+  batchCandidates,
+  buildCandidatePrompt,
+  candidateFor,
+  candidateHaystack,
+  selectCandidates,
+} from './candidates.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
@@ -33,18 +39,12 @@ import {
 // delegation-only wrappers, speculative generalisation. Asking a model about
 // something a regex already decided would produce two findings for one problem
 // and make the model the authority on the half it is worst at.
+//
+// Since anti-slop.v2 (W18-10) the layers meet at one seam: the fast lane
+// FINDS, the model only JUDGES what it found (candidates.ts). The model never
+// sees a diff; it sees each shadow candidate's rule, claim and lines.
 
 export const ANTI_SLOP_SCANNER_KEY = 'anti_slop';
-
-/**
- * The checklist version this scanner reads, held at v1 on purpose (W18-05).
- *
- * anti-slop.v2 drops the single-implementation and delegation-only categories
- * because the W18-05 rules settle them — but those rules ship in SHADOW, so
- * switching now would take the categories away from the model before anything
- * visible replaces them. W18-10 switches, and deletes this pin.
- */
-export const ANTI_SLOP_CHECKLIST_UP_TO = 1;
 
 export interface AntiSlopDeps {
   db: Database;
@@ -61,9 +61,16 @@ export interface AntiSlopDeps {
   workspaceId: number;
   repoId: number;
   commitSha: string;
-  /** Diff for pr_synced mode; snapshot files for the weekly pass. */
+  /**
+   * The pull request's diff. Since anti-slop.v2 it is a SCOPE, not model
+   * input: candidates are judged only in the files it names. Empty = the
+   * snapshot pass, which judges every candidate in the tree.
+   */
   files: readonly DiffFile[];
-  /** Whole-file sources, for the LDR layer. Diff mode passes none. */
+  /**
+   * Whole-file sources: the fast lane reads them, and they are where every
+   * candidate's evidence comes from. No sources = no candidates = no call.
+   */
   sources?: readonly { path: string; source: string }[];
   /**
    * The snapshot read hit no cap and skipped no file (W18-02). Only then can a
@@ -86,6 +93,10 @@ export interface AntiSlopResult {
   scanRunId: number | null;
   deterministic: number;
   judgment: number;
+  /** Fast-lane candidates sent to the model (anti-slop.v2). */
+  candidates: number;
+  /** Candidates left unjudged by the per-run cap — reported, never silent. */
+  candidatesCapped: number;
   /** Judgement findings a verifier refuted — kept out, and counted. */
   refuted: number;
   /** Judgement findings nobody could verify: stored, never surfaced loudly. */
@@ -143,9 +154,7 @@ async function shippedRuleStatus(
 }
 
 export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResult> {
-  const checklist = loadChecklist('anti_slop', deps.checklistDir, {
-    upTo: ANTI_SLOP_CHECKLIST_UP_TO,
-  });
+  const checklist = loadChecklist('anti_slop', deps.checklistDir);
   const [run] = await deps.db
     .insert(security.scanRuns)
     .values({
@@ -428,12 +437,19 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     }
     const deterministic = findings.length;
 
-    // ---- Judgement layer -----------------------------------------------
-    const chunked = deps.gateway ? chunkDiff(deps.files, 'code_health') : { chunks: [] };
+    // ---- Judgement layer (anti-slop.v2, W18-10) -------------------------
+    // The model judges the fast lane's shadow candidates, each with its
+    // evidence, and nothing else. A pull-request run scopes them to the files
+    // its diff touched; the snapshot pass judges the whole tree's candidates.
+    const diffPaths = deps.files.length ? new Set(deps.files.map((f) => f.path)) : undefined;
+    const selection = deps.gateway
+      ? selectCandidates(findings, sources, diffPaths ? { diffPaths } : {})
+      : { candidates: [], capped: 0 };
+    const batches = batchCandidates(checklist, selection.candidates);
     let judgment = 0;
 
-    for (const chunk of chunked.chunks) {
-      const result = await deps.gateway!.complete(buildChecklistPrompt(checklist, chunk.text), {
+    for (const batch of batches) {
+      const result = await deps.gateway!.complete(buildCandidatePrompt(checklist, batch), {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,
@@ -453,7 +469,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
       let parsed;
       try {
-        parsed = validateFindings(JSON.parse(result.text), chunk.text);
+        parsed = validateFindings(JSON.parse(result.text), candidateHaystack(batch));
       } catch (err) {
         if (err instanceof FindingParseError || err instanceof SyntaxError) {
           rejected += 1;
@@ -463,7 +479,18 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       }
       rejected += parsed.rejected.length;
 
+      const answered = new Set<string>();
       for (const finding of parsed.findings) {
+        // A finding about anything but a listed candidate is the model
+        // searching again, and a second finding for one candidate is one
+        // problem counted twice: both are rejected, and counted.
+        const candidate = candidateFor(finding, batch, answered);
+        if (!candidate) {
+          rejected += 1;
+          continue;
+        }
+        answered.add(candidate.id);
+
         // THE VERIFY GATE (FR-ANALYSIS-9). A judgement finding is a second
         // model's opinion away from being an accusation about someone's code,
         // so it does not reach the store until an independent verifier has had
@@ -489,7 +516,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
         judgment += 1;
         findings.push({
-          dimension: 'slop',
+          // The candidate's facet, not always `slop`: a confirmed serial-await
+          // candidate is still a latency problem.
+          dimension: candidate.dimension,
           // Capped at 3 regardless of what the model said. Structural slop is
           // not exploitable, and a severity-4 wrapper would outrank a real
           // vulnerability in every list that sorts by severity.
@@ -532,6 +561,8 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       scanRunId: runId,
       deterministic,
       judgment,
+      candidates: selection.candidates.length,
+      candidatesCapped: selection.capped,
       refuted,
       unverified,
       findingsCreated: persisted.created,
@@ -551,6 +582,8 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       scanRunId: runId,
       deterministic: 0,
       judgment: 0,
+      candidates: 0,
+      candidatesCapped: 0,
       refuted,
       unverified,
       findingsCreated: 0,

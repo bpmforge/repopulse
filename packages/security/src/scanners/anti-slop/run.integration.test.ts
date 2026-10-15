@@ -1,8 +1,14 @@
 import 'dotenv/config';
 import { and, eq, inArray } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
-import type { AnalysisGateway, CompleteOpts } from '@repopulse/analysis';
+import {
+  buildVerifyPrompt,
+  pickVerifierHost,
+  type AnalysisGateway,
+  type CompleteOpts,
+  type T2Host,
+} from '@repopulse/analysis';
 import { dedupKey } from '@repopulse/insights';
 import { runAntiSlopScan, worstByLdr } from './run.js';
 
@@ -16,40 +22,72 @@ const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
 
 const FP = 'w9-03-fp';
 
+// The pull request's diff: since anti-slop.v2 a SCOPE (which files), never
+// model input. Its content lines must not reach the prompt.
 const PATCH = [
-  '@@ -1,3 +1,7 @@',
-  ' const inner = require("./inner");',
-  '+function fetchUser(id) {',
-  '+  return inner.fetchUser(id);',
+  '@@ -1,3 +1,5 @@',
+  " import { fetchUser } from './api.js';",
+  '+export function getUser(id: string) {',
+  '+  return fetchUser(id);',
   '+}',
-  '+module.exports = { fetchUser };',
+  " getUser('1');",
 ].join('\n');
 
-const JUDGMENT = JSON.stringify({
-  findings: [
-    {
-      dimension: 'code_health',
-      severity: 4,
-      confidence: 4,
-      file: 'src/user.js',
-      line_range: [2, 4],
-      title: 'Delegation-only wrapper: fetchUser',
-      evidence_quote: '  return inner.fetchUser(id);',
-      rationale: 'The wrapper forwards its argument unchanged and returns the result.',
-      suggested_fix: 'Call inner.fetchUser directly.',
-      preconditions: [],
-      yields: [],
-    },
-  ],
-});
+// What the fast lane reads. getUser is a delegation-only wrapper: the one
+// candidate the model is handed.
+const SOURCES = [
+  {
+    path: 'src/accounts/api.ts',
+    source: 'export function fetchUser(id: string) {\n  return { id };\n}',
+  },
+  {
+    path: 'src/accounts/load.ts',
+    source: [
+      "import { fetchUser } from './api.js';",
+      'export function getUser(id: string) {',
+      '  return fetchUser(id);',
+      '}',
+      "getUser('1');",
+    ].join('\n'),
+  },
+];
 
-function fakeGateway(calls: CompleteOpts[], text = JUDGMENT): AnalysisGateway {
+function judgment(over: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    findings: [
+      {
+        candidate: 'c1',
+        dimension: 'code_health',
+        severity: 4,
+        confidence: 4,
+        file: 'src/accounts/load.ts',
+        line_range: [2, 4],
+        title: 'Delegation-only wrapper: getUser',
+        evidence_quote: '  return fetchUser(id);',
+        rationale: 'The wrapper forwards its argument unchanged and returns the result.',
+        suggested_fix: 'Call fetchUser directly.',
+        preconditions: [],
+        yields: [],
+        ...over,
+      },
+    ],
+  });
+}
+const JUDGMENT = judgment();
+
+function fakeGateway(
+  calls: CompleteOpts[],
+  text = JUDGMENT,
+  prompts: string[] = [],
+  model = 'fake-finder',
+): AnalysisGateway {
   return {
-    async complete(_prompt: string, opts: CompleteOpts) {
+    async complete(prompt: string, opts: CompleteOpts) {
       calls.push(opts);
+      prompts.push(prompt);
       return {
         text,
-        model: 'fake-finder',
+        model,
         tokensIn: 10,
         tokensOut: 5,
         costUsd: null,
@@ -68,7 +106,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
   let repoId = 0;
   let userId = 0;
 
-  const files = [{ path: 'src/user.js', patch: PATCH, status: 'modified' as const }];
+  const files = [{ path: 'src/accounts/load.ts', patch: PATCH, status: 'modified' as const }];
 
   beforeAll(async () => {
     const [ws] = await db
@@ -146,6 +184,19 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     await db.$client.end();
   });
 
+  // The candidate fixture's deterministic rows (a shadow delegation wrapper)
+  // would otherwise sit beside the W18-05 test's own and be read first.
+  afterEach(async () => {
+    await db
+      .delete(read.findings)
+      .where(
+        and(
+          eq(read.findings.repoId, repoId),
+          inArray(read.findings.file, ['src/accounts/load.ts', 'src/accounts/api.ts']),
+        ),
+      );
+  });
+
   it('a verifier-REFUTED judgement finding never appears', async () => {
     // The gate that matters. A structural claim is an accusation about
     // someone's code, and the product has to be able to be talked out of one.
@@ -157,6 +208,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       repoId,
       commitSha: 'w9-03-refuted',
       files,
+      sources: SOURCES,
       trigger: 'pr_synced',
       verify: async () => ({ refuted: true, reason: 'the wrapper adds a retry' }),
     });
@@ -180,6 +232,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       repoId,
       commitSha: 'w9-03-confirmed',
       files,
+      sources: SOURCES,
       trigger: 'pr_synced',
       verify: async () => ({ refuted: false, reason: 'confirmed: forwards unchanged' }),
     });
@@ -188,7 +241,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(result.refuted).toBe(0);
     // Accounting says which scanner spent the tokens.
     expect(calls[0]?.meta.initiator).toBe('scanner:anti_slop');
-    expect(calls[0]?.meta.checklistVersion).toBe('anti-slop.v1');
+    expect(calls[0]?.meta.checklistVersion).toBe('anti-slop.v2');
 
     const [row] = await db
       .select()
@@ -210,21 +263,207 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       repoId,
       commitSha: 'w9-03-unverified',
       files,
+      sources: SOURCES,
       trigger: 'pr_synced',
     });
     expect(result.unverified).toBe(1);
     expect(result.judgment).toBe(1);
   });
 
-  it('the deterministic layer runs from SOURCES and the judgement from the DIFF', async () => {
+  it('W18-10: the model is handed the fast-lane candidates with their evidence, never the diff', async () => {
+    const calls: CompleteOpts[] = [];
+    const prompts: string[] = [];
+    const result = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(calls, JUDGMENT, prompts),
+      workspaceId,
+      repoId,
+      commitSha: 'w18-10-handoff',
+      files,
+      sources: SOURCES,
+      trigger: 'pr_synced',
+      verify: async () => ({ refuted: false, reason: 'ok' }),
+    });
+    expect(result.status).toBe('succeeded');
+    expect(result.candidates).toBe(1);
+    expect(result.candidatesCapped).toBe(0);
+    expect(result.judgment).toBe(1);
+    expect(calls).toHaveLength(1);
+    const [prompt] = prompts;
+    // (file, line, rule, evidence), and the lines around it.
+    expect(prompt).toContain('### c1 · slop.delegation_wrapper · src/accounts/load.ts:2');
+    expect(prompt).toContain('Flagged: export function getUser(id: string) {');
+    expect(prompt).toContain("Rule's claim: getUser only forwards its own parameters");
+    expect(prompt).toContain('Lines 1-5 of src/accounts/load.ts:');
+    // Not the diff: no hunk header, no +/- lines, no diff fence.
+    expect(prompt).not.toContain('@@ -1,3 +1,5 @@');
+    expect(prompt).not.toContain('+  return fetchUser(id);');
+    expect(prompt).not.toContain('```diff');
+
+    const [row] = await db
+      .select()
+      .from(read.findings)
+      .where(
+        and(
+          eq(read.findings.repoId, repoId),
+          eq(read.findings.ruleId, 'slop.judgment'),
+          eq(read.findings.file, 'src/accounts/load.ts'),
+        ),
+      );
+    expect(row).toMatchObject({ lineStart: 2, severity: 3, dimension: 'slop' });
+
+    // A diff that touches none of the candidates' files: nothing to judge, no
+    // call, even though the tree still has the wrapper.
+    const outside: CompleteOpts[] = [];
+    const scoped = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(outside),
+      workspaceId,
+      repoId,
+      commitSha: 'w18-10-scoped',
+      files: [{ path: 'src/accounts/api.ts', patch: '@@ -1 +1 @@\n-x\n+y' }],
+      sources: SOURCES,
+      trigger: 'pr_synced',
+    });
+    expect(scoped.candidates).toBe(0);
+    expect(outside).toEqual([]);
+  });
+
+  it('W18-10: a finding about anything but a listed candidate is rejected, not stored', async () => {
+    // The model went back to searching: api.ts is in no candidate's excerpt.
+    const searching = judgment({
+      candidate: undefined,
+      file: 'src/accounts/api.ts',
+      line_range: [1, 3],
+      evidence_quote: 'return { id };',
+      title: 'Single-use helper: fetchUser',
+    });
+    // The right place, but a second finding for the one candidate.
+    const twice = JSON.stringify({
+      findings: [JSON.parse(JUDGMENT).findings[0], JSON.parse(JUDGMENT).findings[0]],
+    });
+    const first = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway([], searching),
+      workspaceId,
+      repoId,
+      commitSha: 'w18-10-searching',
+      files: [],
+      sources: SOURCES,
+      trigger: 'schedule',
+    });
+    expect(first).toMatchObject({ candidates: 1, judgment: 0, rejected: 1 });
+    const second = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway([], twice),
+      workspaceId,
+      repoId,
+      commitSha: 'w18-10-twice',
+      files: [],
+      sources: SOURCES,
+      trigger: 'schedule',
+    });
+    expect(second).toMatchObject({ candidates: 1, judgment: 1, rejected: 1 });
+  });
+
+  it('W18-10: maker != verifier — the candidate judge never verifies its own finding', async () => {
+    // FR-ANALYSIS-9, unchanged by v2. The maker is one host; the verify hook
+    // is wired the way a caller must wire it, through pickVerifierHost, and
+    // every verification has to land on a DIFFERENT host. The maker gateway
+    // must see only candidate prompts: one call per batch, no verify prompt.
+    const makerHost: T2Host = { baseUrl: 'http://finder:1234', modelSlot: 'qwen' };
+    const hosts: T2Host[] = [makerHost, { baseUrl: 'http://checker:1234', modelSlot: 'nemotron' }];
+    const makerCalls: CompleteOpts[] = [];
+    const makerPrompts: string[] = [];
+    const verifiedOn: string[] = [];
+    const verifyPrompts: string[] = [];
+    const verifyVia =
+      (pool: readonly T2Host[]) =>
+      async (finding: { title: string; evidenceQuote: string; file: string }) => {
+        const host = pickVerifierHost(pool, makerHost.baseUrl);
+        if (!host) throw new Error('no independent host: the caller must not pass verify');
+        verifiedOn.push(host.baseUrl);
+        verifyPrompts.push(
+          buildVerifyPrompt(
+            {
+              id: 0,
+              severity: 3,
+              dimension: 'code_health',
+              file: finding.file,
+              title: finding.title,
+              evidenceQuote: finding.evidenceQuote,
+              rationale: '',
+              finderHostUrl: makerHost.baseUrl,
+            },
+            finding.evidenceQuote,
+          ),
+        );
+        return { refuted: false, reason: 'cannot refute: the body only forwards' };
+      };
+
+    const result = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway(makerCalls, JUDGMENT, makerPrompts, makerHost.modelSlot),
+      workspaceId,
+      repoId,
+      commitSha: 'w18-10-maker-verifier',
+      files: [],
+      sources: SOURCES,
+      trigger: 'schedule',
+      verify: verifyVia(hosts),
+    });
+    expect(result).toMatchObject({ judgment: 1, unverified: 0, refuted: 0 });
+    expect(verifiedOn).toEqual(['http://checker:1234']);
+    expect(verifiedOn).not.toContain(makerHost.baseUrl);
+    expect(verifyPrompts[0]).toContain('REFUTE the finding below');
+    expect(makerCalls).toHaveLength(1);
+    expect(makerCalls[0]?.meta.checklistVersion).toBe('anti-slop.v2');
+    for (const prompt of makerPrompts) expect(prompt).not.toContain('REFUTE');
+
+    // Only the maker's host exists: no verifier is picked, the caller passes
+    // none, and the finding is stored UNVERIFIED — never self-confirmed.
+    expect(pickVerifierHost([makerHost], makerHost.baseUrl)).toBeNull();
+    const alone = await runAntiSlopScan({
+      db,
+      gateway: fakeGateway([], JUDGMENT, [], makerHost.modelSlot),
+      workspaceId,
+      repoId,
+      commitSha: 'w18-10-maker-alone',
+      files: [],
+      sources: SOURCES,
+      trigger: 'schedule',
+    });
+    expect(alone).toMatchObject({ judgment: 1, unverified: 1 });
+
+    // Below the verify floor nothing is re-judged at all, as before v2.
+    const low: string[] = [];
+    await runAntiSlopScan({
+      db,
+      gateway: fakeGateway([], judgment({ severity: 2 })),
+      workspaceId,
+      repoId,
+      commitSha: 'w18-10-below-floor',
+      files: [],
+      sources: SOURCES,
+      trigger: 'schedule',
+      verify: async () => {
+        low.push('called');
+        return { refuted: true, reason: 'x' };
+      },
+    });
+    expect(low).toEqual([]);
+  });
+
+  it('the deterministic layer runs from SOURCES; with no candidate, the model is not called', async () => {
     const lowDensity = [
       ...Array.from({ length: 40 }, (_, i) => `// explanation line ${i}`),
       'export const one = 1;',
     ].join('\n');
 
+    const calls: CompleteOpts[] = [];
     const result = await runAntiSlopScan({
       db,
-      gateway: fakeGateway([]),
+      gateway: fakeGateway(calls),
       workspaceId,
       repoId,
       commitSha: 'w9-03-ldr',
@@ -235,6 +474,10 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
 
     expect(result.deterministic).toBe(1);
+    // LDR is arithmetic, not a candidate: nothing for a model to judge, so no
+    // call, where v1 would have sent the whole diff.
+    expect(result.candidates).toBe(0);
+    expect(calls).toEqual([]);
     const [row] = await db
       .select()
       .from(read.findings)

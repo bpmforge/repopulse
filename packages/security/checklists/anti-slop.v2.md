@@ -1,111 +1,110 @@
 # Anti-slop judgment checklist — v2
 
 <!--
-v2 (W18-05). Two categories are settled by a pattern for JavaScript and
-TypeScript now, and running both would produce two findings for one problem:
+v2 (W18-05 drafted, W18-10 switched). The model no longer reviews a diff. It
+judges a CANDIDATE LIST: each entry is a match from one of RepoPulse's
+in-process fast-lane rules, with the rule's id, the file and line, what the
+rule quoted, what it concluded, and the lines around it. The model confirms a
+candidate or stays silent; it does not search (scanners/anti-slop/candidates.ts).
 
-- "Single-implementation interface" -> slop.single_impl_interface (R-05):
-  counts implementations over the whole repository, structural ones included.
-- "Delegation-only wrapper" -> slop.delegation_wrapper (R-06): a body that
-  only forwards its own parameters, unchanged and in order.
+Why: searching is what a model is worst at, and the fast lane already does it
+exactly. What a rule cannot read is intent, and that is the one question left.
+The prompt is a few hundred tokens per candidate instead of the whole diff.
 
-Both rules read JS/TS only, so both categories stay here for every OTHER
-language, narrowed to say so. (A Python ABC count was measured and dropped:
-nearly every hit was a base published for users to subclass.)
+History. W18-05 first drafted v2 as a narrowed diff checklist: the
+single-implementation and delegation-only categories were settled for
+JavaScript and TypeScript by slop.single_impl_interface (R-05) and
+slop.delegation_wrapper (R-06), and running both would produce two findings
+for one problem. The scanner stayed on v1 (a pin in scanners/anti-slop/run.ts)
+until W18-10 switched it to this candidate form; no finding was ever stamped
+with the draft. The two rules now hand the model their matches instead.
 
-slop.stale_jsdoc_param (R-15) was never on this checklist. The examples in the
-framing, rule 2 and the output sample were reworded so they no longer point the
-model at the JS/TS cases. Nothing else changed. The scanner keeps
-reading v1 until W18-10 switches it (ANTI_SLOP_CHECKLIST_UP_TO in
-scanners/anti-slop/run.ts), so the categories are not lost while the new rules
-run in shadow.
+Lost on purpose, and stated so it is not mistaken for a regression nobody
+noticed: v1's search-only categories (single-use helper, cargo-cult pattern,
+architectural privilege escalation, LLM output without validation, and the
+parts of unwired scaffolding and speculative generalisation no rule matches)
+have no candidate rule yet, so the model is no longer asked about them; and the
+candidates come from JS/TS rules only. Each returns here when a fast-lane rule
+can name its candidates.
 
 W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3. Versioned prompt asset: the version
 is stamped on every finding, so editing this file in place would make last
-month's findings stop meaning what they said. Bump to v2 instead.
-
-THIS CHECKLIST ONLY CARRIES THE JUDGEMENT RULES. Everything a pattern can decide
-is in rulepacks/code-health (W9-01) and is not asked about here — running both
-would produce two findings for one problem and make the model the authority on
-something a regex already settled.
+month's findings stop meaning what they said. Bump to v3 instead.
 -->
 
-You are reviewing a unified diff for structural slop: code that is shaped like
-work but is not doing any. Report only what the diff itself shows.
-
-## Framing
-
-The failure mode this catches is code that passes review because it looks
-professional. A helper called once, a strategy hook with one strategy, a
-factory for one concrete type — each is defensible in isolation and each is a
-layer someone will have to read forever.
-
-**You are not reviewing style.** Naming, formatting and comment wording are not
-your concern. The question is always: does this structure carry its own weight?
+You are judging a list of candidates for structural slop: code that is shaped
+like work but is not doing any. A mechanical rule flagged each one. The rule
+matched the shape exactly; what it cannot see is whether the shape is doing a
+job. That is the only question you are asked.
 
 ## Rules
 
-1. **Quote verbatim.** `evidence_quote` is copied character-for-character from
-   the diff. A paraphrase is discarded as a fabrication.
-2. **The diff is the evidence.** "This helper is probably only called once" is
-   a guess unless the diff shows it. Say what you can see.
-3. **Silence is the common answer.** Most diffs contain none of this. Returning
-   `{"findings": []}` is correct and is never penalised.
-4. **One finding per structure**, at the line that introduces it.
+1. **Judge only the listed candidates.** Report a finding only for a candidate
+   you confirm. A finding about anything else in an excerpt is discarded, and
+   so is a second finding for the same candidate.
+2. **Silence rejects.** A candidate you do not report is a candidate you
+   rejected. Most candidates from a new rule are wrong for a reason the rule
+   could not see; returning `{"findings": []}` is correct and never penalised.
+3. **Quote verbatim from that candidate's excerpt.** `evidence_quote` is copied
+   character-for-character from the lines shown for it. A paraphrase is
+   discarded as a fabrication.
+4. **Name it, same place.** `candidate` is the id from its heading (`c1`);
+   `file` is the candidate's file; `line_range` lies inside the lines shown
+   for it.
+5. **The excerpt is the evidence.** Confirm only what the lines shown and the
+   rule's claim support together. If the answer depends on code you cannot
+   see, reject.
 
-## Categories
+## What each rule cannot see
 
-- **Single-implementation interface (not JavaScript/TypeScript)** — a protocol,
-  abstract base or interface introduced alongside exactly one implementation,
-  with no second caller in the diff. In .js/.ts/.jsx/.tsx files a mechanical
-  rule already counts these across the repository: do not report them there.
-- **Delegation-only wrapper (not JavaScript/TypeScript)** — a function whose
-  body forwards its arguments to one other call and returns the result
-  unchanged. In .js/.ts/.jsx/.tsx files a mechanical rule already reports
-  these: do not report them there.
-- **Single-use helper** — a helper extracted and called exactly once, where the
-  extraction does not name a concept the call site was missing.
-- **Speculative generalization** — configuration, strategy hooks or parameters
-  with exactly one value in the diff, for a variation nothing has asked for.
-- **Cargo-cult pattern** — a pattern applied where its precondition is absent: a
-  repository over a single CRUD call, a factory for one concrete type, an event
-  bus with one publisher and one subscriber.
-- **Unwired scaffolding** — code that is defined and never referenced: a
-  registered handler nothing dispatches to, a queue with no consumer, an
-  exported function no caller imports. Report ONLY when the diff shows both
-  halves (the definition and the absence of a call it clearly needs).
-- **Architectural privilege escalation** — a change that widens what a component
-  may reach: a module importing across a boundary it did not before, a service
-  gaining direct database access it previously went through a layer for, a
-  permission check moved outward.
-- **LLM output used without validation** — a model response parsed and used
-  without a schema check, or passed onward to a shell, a query, a file path or
-  rendered markup.
+Reject the candidate when the excerpt shows one of these.
+
+- **slop.delegation_wrapper** — the wrapper's name states a domain concept the
+  callee's does not; it narrows or adapts a type; it is a seam a test replaces;
+  it pins a `this` or an argument order a caller relies on.
+- **slop.single_impl_interface** — the interface is a test seam, a port to an
+  external system, or a contract a second package implements.
+- **slop.stale_jsdoc_param** — the tag documents a destructured field or an
+  options property under its own name, which the rule read as a parameter.
+- **slop.unused_export** — the name is reached by convention rather than by
+  import: a route, a migration, a plugin entry, a config file a tool loads.
+- **slop.speculative_param** / **slop.orphan_flag** — the default or the flag
+  is a documented knob (an operator's kill switch, a public option) rather than
+  a choice nobody makes.
+- **slop.unbounded_retry** — the loop is bounded in a way the rule missed: an
+  abort signal, a deadline, a delay inside a helper it calls.
+- **perf.serial_independent_awaits** — the reads must run in order: one
+  connection or transaction, a rate limit, a side effect the second relies on.
 
 ## Output
 
 Return JSON only:
 
 ```json
-{"findings": [{
-  "dimension": "code_health",
-  "severity": 1,
-  "confidence": 1,
-  "file": "path/from/the/diff.ts",
-  "line_range": [10, 12],
-  "title": "Single-use helper: formatRow",
-  "evidence_quote": "verbatim line from the diff",
-  "rationale": "what the structure costs a reader, in one or two sentences",
-  "suggested_fix": "the smallest change that removes the layer, or null",
-  "preconditions": [],
-  "yields": []
-}]}
+{
+  "findings": [
+    {
+      "candidate": "c1",
+      "dimension": "code_health",
+      "severity": 1,
+      "confidence": 4,
+      "file": "the candidate's file",
+      "line_range": [10, 12],
+      "title": "Delegation-only wrapper: formatRow",
+      "evidence_quote": "verbatim line from that candidate's excerpt",
+      "rationale": "why the structure does not carry its weight here, in one or two sentences",
+      "suggested_fix": "the smallest change that removes the layer, or null",
+      "preconditions": [],
+      "yields": []
+    }
+  ]
+}
 ```
 
 `severity`: at most 3 — none of this is exploitable, and a structural finding
 that outranks a security one in a sorted list is a mis-sorted list.
-`confidence`: 5 if the diff alone settles it, 1 if you are inferring. Below 3,
-rule 2 usually means you should not report it.
+`confidence`: 5 if the excerpt alone settles it, 1 if you are inferring. Below
+3, rule 5 usually means you should not report it.
 
 `preconditions` and `yields` stay EMPTY for these rules. Structural slop hands
 an attacker nothing, and a chain built on "this wrapper is thin" is one nobody
