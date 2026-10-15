@@ -4081,3 +4081,7 @@ logger and the BullMQ worker wrapper keep that text out of logs, stored error
 columns and job records. Gate (`scripts/ci-local.sh` on 9d4a3ad + 00e96e4's
 changes): all 13 steps pass; vitest 2477 passed / 58 skipped / 0 failed;
 osv-scanner no issues; gitleaks clean.
+
+Merged to `main` 2026-10-15 (#72 then #73) and pushed to GitHub only: the
+Gitea remote is not reachable from this environment, so `origin`/Gitea `main`
+is behind until the next push from the LAN.
