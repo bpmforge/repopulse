@@ -1,0 +1,100 @@
+# bpm-rulepacks — logging antipatterns, Ruby variant v1 (W18-16,
+# CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18). Ids start `bpm-log-` because the
+# logging scanner keeps only those; the rest of this directory belongs to
+# anti_slop.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`, CODE_HEALTH_SUITE §8.2).
+#
+# `puts` is a gem's or CLI's real output, so stdout is flagged only in the
+# directories of a Rails application that serve requests or run jobs. Logger
+# receivers are matched by name (`logger`, `Rails.logger`, `log`, `@logger`):
+# a type is not visible to the engine.
+rules:
+  - id: bpm-log-rb-stdout-in-app
+    languages: [ruby]
+    severity: INFO
+    message: >-
+      puts / p / pp in application code. It bypasses Rails.logger's levels,
+      tagging and redaction — under Puma it is untagged stdout that nobody
+      correlates with a request, and in a job it is lost entirely. Use
+      Rails.logger (or the job's logger).
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      include:
+        - '**/app/controllers/**'
+        - '**/app/models/**'
+        - '**/app/jobs/**'
+        - '**/app/services/**'
+        - '**/app/helpers/**'
+        - '**/app/mailers/**'
+        - '**/app/workers/**'
+        - '**/app/channels/**'
+    pattern-either:
+      - pattern: puts(...)
+      - pattern: p(...)
+      - pattern: pp(...)
+      - pattern: print(...)
+      - pattern: $STDOUT.puts(...)
+      - pattern: STDOUT.puts(...)
+      - pattern: $stdout.puts(...)
+      - pattern: $stderr.puts(...)
+
+  - id: bpm-log-rb-secret-field
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log call. Logs outlive the request, sit
+      outside the product's access control, and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        The name list mirrors SC-2's redaction denylist on purpose. Two lists
+        of "what counts as a secret" drift apart, and the one in the logger is
+        the one that is actually enforced.
+    patterns:
+      - pattern-either:
+          - pattern: $LOG.$METHOD(..., $VALUE, ...)
+          - pattern: $LOG.$METHOD("$STR")
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: ^(logger|Rails\.logger|log|@logger|@log|LOGGER|LOG|Logger|self\.logger)$
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(debug|info|warn|error|fatal|unknown)$
+      # The value itself named like a secret, or a message that interpolates
+      # one — `#{user.password}`, `#{params[:token]}`, `#{api_key}`.
+      - pattern-either:
+          - patterns:
+              - metavariable-regex:
+                  metavariable: $VALUE
+                  regex: (?i)^[@\w.\[\]:'"]*?(password|passwd|secret|token|api_?key|private_?key|credentials?|session_?id|cookie)['"\]]*$
+              - pattern: $LOG.$METHOD(..., $VALUE, ...)
+          - pattern-regex: (?i)#\{\s*[@\w.\[\]:'"]*?(password|passwd|secret|token|api_?key|private_?key|credentials?|session_?id)['"\]]*\s*\}
+
+  - id: bpm-log-rb-and-reraise
+    languages: [ruby]
+    severity: INFO
+    message: >-
+      Logged and re-raised. The caller will log it again, and the incident
+      timeline gets the same failure at every level of the stack — log it where
+      it is handled, or re-raise it where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    # Text: `rescue => e`, one logger.error/fatal/warn line, then a bare
+    # `raise` (or `raise e`) and `end`.
+    pattern-regex: (?m)^[ \t]*rescue\b[^\n]*=>\s*(\w+)[ \t]*\n[ \t]*(logger|Rails\.logger|log|@logger|@log|LOGGER|LOG|self\.logger)\.(error|fatal|warn)\b[^\n]*\n[ \t]*raise([ \t]+\1)?[ \t]*\n[ \t]*end\b

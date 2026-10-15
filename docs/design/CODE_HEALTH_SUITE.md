@@ -43,6 +43,19 @@ decls, docstrings/comments, blanks); **file LDR < 0.3 ⇒ structural-slop findin
 per-exported-symbol **doc/impl > 3× ⇒ docstring-inflation finding** (R-24). Both
 computed deterministically in the anti_slop scanner; thresholds workspace-tunable.
 
+**Mechanical candidates for three HYB/LLM rows (W18-09, all shipped in shadow):**
+R-28 is an Opengrep **taint** pack, `rulepacks/semgrep/bpm-baseline.llm-output.v1.yaml`
+(JS/TS + Python): model-SDK response fields → code execution, SQL, markup or a path,
+and model JSON parsed with no schema check; schema validation and structured-output
+fields are the sanitizers (tool-call arguments, generated against a declared
+parameter schema, are not counted by the JSON check but stay tainted for the others). R-03 (`slop.exception_control_flow`: a throw/raise whose
+only catcher is a swallowing handler in the same function) and R-08
+(`slop.repository_over_crud`: a `*Repository` class whose every method forwards its
+own parameters to one ORM call) run in-process in the anti_slop deterministic layer.
+The checklist items stay: these settle the shapes a pattern can see, and leave the
+judgement cases (a repository that is a deliberate port, a throw that should be a
+result type) to T2.
+
 ## 2. Scanner roster (registry entries — zero framework changes, FR-SEC-1 acceptance)
 
 | key | inputs | triggers | requiredTools | dimension |
@@ -229,6 +242,31 @@ one format, per-language variants of each rule where idioms differ. **Engine not
 files, so the SaaS-flip engine swap (DESIGN_REVIEW G-18) is a binary swap, not a rule
 rewrite. The adapter (§10) names the binary; rules never do.
 
+**C#, PHP and Ruby (W18-16)** — three files per language, every rule a shadow-mode
+candidate (`metadata.lifecycle: candidate`):
+
+| Language | Extensions routed | Security (`rulepacks/semgrep/`) | Code health (`rulepacks/code-health/`) | Adapter |
+|---|---|---|---|---|
+| C# | `.cs` | `bpm-baseline.csharp.v1.yaml` — 9 rules (`bpm-cs-*`) | `anti-slop.csharp.v1.yaml` (7), `logging.csharp.v1.yaml` (3) | none (see §10) |
+| PHP | `.php` | `bpm-baseline.php.v1.yaml` — 10 rules (`bpm-php-*`) | `anti-slop.php.v1.yaml` (6), `logging.php.v1.yaml` (3) | none (see §10) |
+| Ruby | `.rb` | `bpm-baseline.ruby.v1.yaml` — 11 rules (`bpm-rb-*`) | `anti-slop.ruby.v1.yaml` (7), `logging.ruby.v1.yaml` (3) | none — brakeman excluded (§10) |
+
+Routing is by each rule's `languages`, so none of these parse anything in a tree without
+the extension; PR mode (`run-modes.ts` SCANNABLE) fetches `.cs`/`.php`/`.rb` files too.
+Measured on real code (KeePass, SharpDevelop, pythonnet; Dolibarr, MantisBT; Rails 7.2
+components, Spree, Solidus, Devise, Sidekiq, Jekyll and others — the W18-16 ticket note
+has the numbers). PHP and Ruby injection, code-evaluation and deserialization rules are
+**taint** rules from the request (superglobals; `params`/`cookies`/`request.*`), because
+mature code in both builds SQL and calls `send`/`class_eval` from its own values
+everywhere; C# has no reliable request source at pattern level, so its rules are shape
+rules with a "spliced-in non-constant" condition. Limits the rules are written around:
+in Ruby an interpolated string is not matched by a `"..."` pattern (semgrep 1.181), so
+interpolation is read from the argument's text; comments are invisible to patterns, so
+"empty catch/rescue" is decided on the text and a comment in the body (or after the
+brace) opts out; `raise NotImplementedError` is Ruby's abstract method and a bare
+`throw new NotImplementedException()` is overwhelmingly a deliberately partial interface
+implementation in C#, so neither is a stub finding (the C# one is, inside a web
+controller).
 **As shipped (W9-01 … W18-30):** the layout is flat — `rulepacks/code-health/` holds
 `anti-slop*.yaml` and `logging*.yaml` side by side, `perf/` is its own directory, and
 `readRulepack` does not recurse. Ownership is by **file-name prefix**: the `anti_slop`
@@ -289,6 +327,9 @@ install`. Tools must parse raw source standalone.
 | actionlint | GitHub Actions workflows | correctness/ci | MIT | backlog |
 | hadolint | Dockerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | backlog |
 | shellcheck | shell scripts | correctness | GPL-3.0 (subprocess-only¹) | backlog |
+| brakeman | Rails security | sast | Brakeman Public Use License | **excluded (W18-16)** — free for non-commercial use only; the licence names "commercial managed/Software-as-a-Service services" and "a component of a value-added service" as Commercial Uses that need a paid licence. It would also need a Ruby runtime in the scan image. The `bpm-rb-*` pack covers its highest-yield checks (SQL/command interpolation, unsafe reflection, deserialization, `permit!`, open redirect, `html_safe`) |
+| Roslyn analyzers / SecurityCodeScan | C# | sast/code_health | MIT | backlog — need `dotnet restore` and a build to resolve types: fails the no-network admission filter |
+| PHPStan / Psalm | PHP | correctness | MIT | backlog — need a PHP runtime in the image and `vendor/` (composer install) for useful results; without the autoloader most findings are "unknown class" noise |
 | sqlfluff | SQL | code_health | MIT | backlog |
 | vale | prose/docs (R-29 companion) | slop (docs) | MIT | backlog |
 | gocyclo | Go complexity | code_health | BSD-3 | backlog |

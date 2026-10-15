@@ -1,0 +1,226 @@
+# bpm-rulepacks — anti-slop, C# variant v1 (W18-16, CODE_HEALTH_SUITE.md §1/§9).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied, adapted or derived
+# from the Semgrep registry (DESIGN_REVIEW.md G-18). `metadata.source` names the
+# bpm-opencode-experts rule each check implements, as in anti-slop.v1.yaml.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): its findings are stamped experimental and
+# kept out of scores until an admin promotes it on evidence (§8.2).
+#
+# The .NET idioms differ from the JS ones in ways that matter for precision:
+#   - An empty catch of a SPECIFIC exception (`catch (ObjectDisposedException)
+#     { }` during shutdown, `catch (OperationCanceledException) { }` after a
+#     cancel) is how .NET code says "this one outcome is expected". The slop
+#     shape is the catch-everything version, so only `catch`, `catch
+#     (Exception)` and `catch (Exception e)` are matched.
+#   - A catch whose body is only a comment is a documented decision, not a
+#     swallowed failure. A pattern cannot see comments, so the empty-body
+#     check is made on the text.
+rules:
+  - id: bpm-ch-cs-empty-catch
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      An empty catch-everything block. The failure still happened; the only
+      thing removed was anyone's chance of knowing. Catch the exception you
+      expect, log it, or say in a comment why dropping it is safe.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # A test that expects a throw and ignores it is asserting something
+        # else; most empty catches in the real-code sample's test projects
+        # were stepping targets for a debugger test.
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/Test/**'
+        - '**/Tests/**'
+        - '*Tests.cs'
+        - '*Test.cs'
+        - '*.Tests/**'
+        - '*.Test/**'
+        - '*.UnitTests/**'
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              try { ... } catch { }
+          - pattern-inside: |
+              try { ... } catch ($T) { }
+          - pattern-inside: |
+              try { ... } catch ($T $E) { }
+      # Truly empty and catch-all only (header). `when (...)` filters are a
+      # deliberate narrowing and are left alone by the `\)\s*\{` adjacency.
+      # A comment after the closing brace on the same line (`catch (Exception)
+      # { } // not supported on older Windows`) is the documented case too.
+      - pattern-regex: catch\s*(\(\s*(System\.)?Exception(\s+\w+)?\s*\))?\s*\{\s*\}(?![ \t]*//)
+
+  - id: bpm-ch-cs-silent-fallback
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      Catches everything and returns an empty value. The caller cannot tell
+      "there is nothing" from "we failed to find out" — catch the specific
+      exception you expect, or let the failure reach someone who can act on it.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        The Try-pattern (`bool TryParse(..., out T value)`) returns false from a
+        catch by contract and is exempt by shape; a Try method without an out
+        parameter is not recognised.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              try { ... } catch { return $DEFAULT; }
+          - pattern-inside: |
+              try { ... } catch ($T) { return $DEFAULT; }
+          - pattern-inside: |
+              try { ... } catch ($T $E) { return $DEFAULT; }
+      # Catch-all, nothing but the return, no comment saying why.
+      - pattern-regex: catch\s*(\(\s*(System\.)?Exception(\s+\w+)?\s*\))?\s*\{\s*return\b[^;{}/]*;\s*\}
+      # Matched as the WHOLE returned text: `return Compute(null)` is not an
+      # empty default.
+      - metavariable-regex:
+          metavariable: $DEFAULT
+          regex: ^(null|false|0|-1|default|default\([\w.<>?]+\)|""|string\.Empty|String\.Empty|Array\.Empty<[\w.<>?]+>\(\)|Enumerable\.Empty<[\w.<>?]+>\(\)|new List<[\w.<>?]+>\(\)|new Dictionary<[\w.<>?, ]+>\(\)|\[\])$
+      # The Try-pattern returns false from its catch by contract. Matched by
+      # its SHAPE (a bool method with an out parameter) rather than its name:
+      # a metavariable-regex over a negated context's binding filters every
+      # match out.
+      - pattern-not-inside: |
+          bool $TRYNAME(..., out $OT $OV) { ... }
+      - pattern-not-inside: |
+          bool $TRYNAME(..., out $OT $OV, ...) { ... }
+
+  - id: bpm-ch-cs-catch-continue-in-loop
+    languages: [csharp]
+    severity: INFO
+    message: >-
+      A catch-everything inside a loop whose only act is `continue`. Any
+      failure, of any kind, is swallowed N times with nobody counting; if
+      skipping bad items is deliberate, catch the specific exception and record
+      how many were skipped.
+    metadata:
+      source: R-02
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      # No loop context is matched: `continue` compiles only inside one.
+      - pattern-either:
+          - pattern-inside: |
+              try { ... } catch { continue; }
+          - pattern-inside: |
+              try { ... } catch ($T) { continue; }
+          - pattern-inside: |
+              try { ... } catch ($T $E) { continue; }
+      - pattern-regex: catch\s*(\(\s*(System\.)?Exception(\s+\w+)?\s*\))?\s*\{\s*continue\s*;\s*\}
+
+  - id: bpm-ch-cs-stub-as-feature
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      A member that exists and does nothing but refuse. A caller sees the
+      name, not the throw — which is how "we support that" survives into a
+      demo. If the operation is refused by design, NotSupportedException says
+      so; a "not implemented" says the work was never finished.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A bare `throw new NotImplementedException()` is flagged only in a web
+        controller, where it is an endpoint that answers 500. Elsewhere it is
+        overwhelmingly a deliberately partial interface implementation (COM
+        interop wrappers, IDE service stubs): 640 of the 650 on the real-code
+        sample were those, so the bare form is not evidence of anything there.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/Test/**'
+        - '**/Tests/**'
+        - '*Tests.cs'
+        - '*Test.cs'
+        - '*.Tests/**'
+        - '*.Test/**'
+        - '*.UnitTests/**'
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: throw new NotImplementedException(...);
+              - pattern: throw new System.NotImplementedException(...);
+          - pattern-inside: |
+              class $C : $BASE { ... }
+          - metavariable-regex:
+              metavariable: $BASE
+              regex: ^(Controller|ControllerBase|ApiController|PageModel|Hub|Hub<.*>)$
+      # The WHOLE message is the stub marker, in any exception: "Not
+      # implemented for X" is a library refusing an operation by design.
+      - pattern-regex: throw\s+new\s+[\w.]*Exception\s*\(\s*"(?i)\s*(not (yet )?implemented|unimplemented|implement me|tbd|todo\b[^"]*|[^"]*\bcoming soon\b[^"]*)\s*[.!]*\s*"\s*\)
+
+  - id: bpm-ch-cs-what-comment
+    languages: [csharp]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        The comment's object must also appear on the next line ("// call
+        trigger" over `call_trigger(...)`): on the real-code sample, the
+        same phrasings over a block that does something else ("// Get
+        parameters" over six GETPOST lines) were section headers. Matches the
+        mechanical phrasings only ("// increment the counter",
+        "// loop through the items"), and only when CODE follows on the next
+        line: the same words over a blank line are a section header. A
+        redundant comment in natural prose belongs to the LLM layer.
+    pattern-regex: >-
+      (?im)^[ \t]*//(?!/)[ \t]*(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new)[ \t]+(the[ \t]+)?(\w{3,})[ \t]*\.?[ \t]*\n[ \t]*(?=[^\s/*#\[])[^\n]*?\3
+
+  - id: bpm-ch-cs-step-narration
+    languages: [csharp]
+    severity: INFO
+    message: >-
+      Step-numbered narration. Three of these in a row usually means the code
+      was written to a plan and the plan was left behind as comments; the
+      structure they describe should be methods with names.
+    metadata:
+      source: R-14
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '(?m)^[ \t]*//[ \t]*(Step|STEP)[ \t]*\d+[ \t]*[:.\-]'
+
+  - id: bpm-ch-cs-prose-padding
+    languages: [csharp]
+    severity: INFO
+    message: >-
+      Filler phrasing in a comment. "It is important to note that" and its
+      relatives carry no information — they are what a model produces when it
+      has nothing specific to say.
+    metadata:
+      source: R-29
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A phrase list, not a measure of density. "This class is responsible
+        for", in the JS/JVM lists, is left out: in docblocks it was ordinary
+        human documentation on every real-code hit (sabre/dav, pythonnet,
+        AvalonEdit). The LDR calculation is the
+        real answer and is computed in the anti_slop scanner, not here.
+    pattern-regex: >-
+      (?i)//.*\b(it is important to note|it should be noted|as we can see|in order to be able to|needless to say|at the end of the day)\b

@@ -1,0 +1,444 @@
+# bpm-rulepacks — disabled safety v1 (W18-04, mechanical-checks plan §A).
+#
+# OUR OWN RULES, written for RepoPulse; none is derived from a registry pack
+# (see bpm-baseline.v1.yaml for why that is a licence matter, not a taste).
+#
+# One family: a protection the platform gives by default, switched off by hand.
+# Certificate checks, CORS's refusal to share credentialed responses, the
+# shell's absence from a process spawn, CSRF tokens. Each switch is usually
+# flipped to make an error go away during development, and each rule fires on
+# the switch itself, with a constant argument, so a value computed at run time
+# (`rejectUnauthorized: config.strictTls`) is left alone: what a pattern
+# cannot know it does not claim.
+#
+# Test files are excluded throughout. A test against a local self-signed
+# server or a test client posting without a CSRF token is the normal case, and
+# a rule that fires there teaches people to ignore it.
+#
+# Severity follows the baseline pack (ERROR → 4, WARNING → 3): ERROR only where
+# the switch alone hands over code execution (a shell fed a variable);
+# WARNING where an attacker also needs a position — on the network path, on a
+# page the victim visits.
+#
+# `lifecycle: candidate` — these ship in shadow: findings are stored and shown
+# but stamped experimental until a workspace promotes the rule (§8.2).
+rules:
+  # ---------------------------------------------------------------------------
+  # TLS certificate verification turned off
+  # ---------------------------------------------------------------------------
+  - id: bpm-sec-tls-verify-disabled-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      TLS certificate verification is switched off, so this connection accepts
+      any certificate — including one presented by whoever sits between this
+      process and the server. Install the right CA (the `ca` option or
+      NODE_EXTRA_CA_CERTS) instead of disabling the check.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: &not-tests
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '*_test.go'
+        - '*_test.py'
+        - 'test_*.py'
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/__tests__/**'
+    pattern-either:
+      - pattern: '{..., rejectUnauthorized: false, ...}'
+      # `$PROC.env`, not the literal: apps/api's config-doc test greps the
+      # tree for env reads, and this pattern would read as one.
+      - pattern: $PROC.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+      - pattern: $PROC.env.NODE_TLS_REJECT_UNAUTHORIZED = 0
+      - pattern: $PROC.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+
+  - id: bpm-sec-tls-verify-disabled-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      TLS certificate verification is switched off, so this connection accepts
+      any certificate — including one presented by whoever sits between this
+      process and the server. Point `verify` at the right CA bundle instead.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      - pattern: requests.$METHOD(..., verify=False, ...)
+      - pattern: httpx.$METHOD(..., verify=False, ...)
+      - pattern: $SESSION.$METHOD(..., verify=False, ...)
+      - pattern: $SESSION.verify = False
+      - pattern: ssl._create_unverified_context(...)
+      - pattern: ssl._create_default_https_context = ssl._create_unverified_context
+      - pattern: $CTX.verify_mode = ssl.CERT_NONE
+
+  - id: bpm-sec-tls-verify-disabled-go
+    languages: [go]
+    severity: WARNING
+    message: >-
+      InsecureSkipVerify makes this TLS client accept any certificate for any
+      host — including one presented by whoever sits on the network path. Add
+      the server's CA to RootCAs instead.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      - pattern: 'tls.Config{..., InsecureSkipVerify: true, ...}'
+      - pattern: $CONFIG.InsecureSkipVerify = true
+
+  - id: bpm-sec-tls-verify-disabled-java
+    languages: [java]
+    severity: WARNING
+    message: >-
+      A trust manager that trusts every certificate, or a hostname verifier
+      that accepts every host. Either one lets whoever sits on the network
+      path impersonate the server. Load the right CA into a KeyStore instead.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      # The trust-all manager: checkServerTrusted with an empty body, which
+      # is the method that is supposed to throw on a bad chain.
+      - pattern: |
+          class $C implements X509TrustManager {
+            ...
+            public void checkServerTrusted(...) {}
+            ...
+          }
+      - pattern: |
+          new X509TrustManager() {
+            ...
+            public void checkServerTrusted(...) {}
+            ...
+          }
+      - pattern: new NoopHostnameVerifier()
+      - pattern: NoopHostnameVerifier.INSTANCE
+      - pattern: SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER
+      - pattern: $X.setHostnameVerifier(($H, $S) -> true)
+      - pattern: HttpsURLConnection.setDefaultHostnameVerifier(($H, $S) -> true)
+
+  # ---------------------------------------------------------------------------
+  # CORS: any origin, with credentials
+  # ---------------------------------------------------------------------------
+  - id: bpm-sec-cors-credentials-any-origin-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      CORS allows credentials for any origin. With a reflected origin (`origin:
+      true`, or echoing the request's Origin header) any website the user
+      visits can read this API's responses with the user's cookies attached.
+      List the origins that may call it.
+    metadata:
+      category: security
+      cwe: 'CWE-942: Permissive Cross-domain Policy with Untrusted Domains'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      - pattern: '{..., origin: "*", ..., credentials: true, ...}'
+      - pattern: '{..., credentials: true, ..., origin: "*", ...}'
+      - pattern: '{..., origin: true, ..., credentials: true, ...}'
+      - pattern: '{..., credentials: true, ..., origin: true, ...}'
+      # Hand-set headers: the reflected Origin is the exploitable form.
+      - patterns:
+          - pattern-inside: |
+              function $F(..., $REQ, $RES, ...) { ... }
+          - pattern-either:
+              - pattern-inside: |
+                  $RES.setHeader("Access-Control-Allow-Credentials", "true");
+                  ...
+              - pattern-inside: |
+                  $RES.header("Access-Control-Allow-Credentials", "true");
+                  ...
+              - pattern-inside: |
+                  ...
+                  $RES.setHeader("Access-Control-Allow-Credentials", "true");
+              - pattern-inside: |
+                  ...
+                  $RES.header("Access-Control-Allow-Credentials", "true");
+          - pattern-either:
+              - pattern: $RES.setHeader("Access-Control-Allow-Origin", $REQ.headers.origin)
+              - pattern: $RES.header("Access-Control-Allow-Origin", $REQ.headers.origin)
+
+  - id: bpm-sec-cors-credentials-any-origin-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      CORS allows credentials for any origin. flask-cors and django-cors-headers
+      both answer a credentialed request by echoing the caller's Origin back,
+      so any website the user visits can read these responses with the user's
+      cookies attached. List the origins that may call this API.
+    metadata:
+      category: security
+      cwe: 'CWE-942: Permissive Cross-domain Policy with Untrusted Domains'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      # flask-cors: origins defaults to "*", so an absent origins is the same.
+      - patterns:
+          - pattern: CORS(..., supports_credentials=True, ...)
+          - pattern-not: CORS(..., origins=$O, ...)
+          - pattern-not: CORS(..., resources=$R, ...)
+      - pattern: CORS(..., supports_credentials=True, ..., origins="*", ...)
+      - pattern: CORS(..., origins="*", ..., supports_credentials=True, ...)
+      # django-cors-headers settings, in either order.
+      - patterns:
+          - pattern-either:
+              - pattern: CORS_ALLOW_ALL_ORIGINS = True
+              - pattern: CORS_ORIGIN_ALLOW_ALL = True
+          - pattern-either:
+              - pattern-inside: |
+                  CORS_ALLOW_CREDENTIALS = True
+                  ...
+              - pattern-inside: |
+                  ...
+                  CORS_ALLOW_CREDENTIALS = True
+
+  - id: bpm-sec-cors-credentials-any-origin-go
+    languages: [go]
+    severity: WARNING
+    message: >-
+      CORS allows credentials for any origin. rs/cors and gin-contrib/cors
+      answer a credentialed request from "*" by echoing the caller's Origin,
+      so any website the user visits can read these responses with the user's
+      cookies attached. List the origins that may call this API.
+    metadata:
+      category: security
+      cwe: 'CWE-942: Permissive Cross-domain Policy with Untrusted Domains'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      - pattern: 'cors.Options{..., AllowedOrigins: []string{"*"}, ..., AllowCredentials: true, ...}'
+      - pattern: 'cors.Options{..., AllowCredentials: true, ..., AllowedOrigins: []string{"*"}, ...}'
+      - pattern: 'cors.Config{..., AllowAllOrigins: true, ..., AllowCredentials: true, ...}'
+      - pattern: 'cors.Config{..., AllowCredentials: true, ..., AllowAllOrigins: true, ...}'
+      - pattern: 'cors.Config{..., AllowOrigins: []string{"*"}, ..., AllowCredentials: true, ...}'
+      - pattern: 'cors.Config{..., AllowCredentials: true, ..., AllowOrigins: []string{"*"}, ...}'
+
+  - id: bpm-sec-cors-credentials-any-origin-java
+    languages: [java]
+    severity: WARNING
+    message: >-
+      CORS allows credentials for any origin pattern. Spring answers a
+      credentialed request matched by "*" by echoing the caller's Origin, so
+      any website the user visits can read these responses with the user's
+      cookies attached. List the origins that may call this API.
+    metadata:
+      category: security
+      cwe: 'CWE-942: Permissive Cross-domain Policy with Untrusted Domains'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      - pattern: '@CrossOrigin(..., origins = "*", ..., allowCredentials = "true", ...)'
+      - pattern: '@CrossOrigin(..., originPatterns = "*", ..., allowCredentials = "true", ...)'
+      - patterns:
+          - pattern: $CHAIN.allowCredentials(true)
+          - metavariable-pattern:
+              metavariable: $CHAIN
+              pattern-either:
+                - pattern: $R.allowedOriginPatterns("*")
+                - pattern: $R.allowedOrigins("*")
+      - patterns:
+          - pattern: $CONFIG.setAllowCredentials(true)
+          - pattern-either:
+              - pattern-inside: |
+                  $CONFIG.addAllowedOriginPattern("*");
+                  ...
+              - pattern-inside: |
+                  $CONFIG.addAllowedOrigin("*");
+                  ...
+
+  # ---------------------------------------------------------------------------
+  # A shell between the program and a command it built
+  # ---------------------------------------------------------------------------
+  - id: bpm-sec-shell-dynamic-command-py
+    languages: [python]
+    severity: ERROR
+    message: >-
+      shell=True with a command that is not a literal: the string is parsed by
+      /bin/sh, so any `;`, `|` or `$(…)` that reaches it runs as a command of
+      its own. Pass an argument list without shell=True.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.$FN($CMD, ..., shell=True, ...)
+          - pattern: subprocess.$FN(..., args=$CMD, ..., shell=True, ...)
+      - pattern-not: subprocess.$FN("...", ...)
+      - metavariable-pattern:
+          metavariable: $CMD
+          patterns:
+            - pattern-not: '"..."'
+
+  - id: bpm-sec-shell-dynamic-command-js
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      `shell: true` with a command that is not a literal: Node joins the
+      command into a /bin/sh string, so any `;`, `|` or `$(…)` that reaches it
+      runs as a command of its own. Drop the shell option and pass arguments
+      as an array.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    patterns:
+      - pattern-either:
+          - pattern: '$CP.$FN($CMD, $ARGS, {..., shell: true, ...})'
+          - pattern: '$CP.$FN($CMD, {..., shell: true, ...})'
+      - metavariable-regex:
+          metavariable: $FN
+          regex: ^(spawn|spawnSync|execFile|execFileSync)$
+      - metavariable-pattern:
+          metavariable: $CMD
+          patterns:
+            - pattern-not: '"..."'
+
+  - id: bpm-sec-shell-dynamic-command-go
+    languages: [go]
+    severity: ERROR
+    message: >-
+      A shell given a command built at run time: `sh -c` parses the string,
+      so any `;`, `|` or `$(…)` that reaches it runs as a command of its own.
+      Call the program directly with exec.Command and separate arguments.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    patterns:
+      - pattern-either:
+          - pattern: exec.Command($SH, "-c", $CMD, ...)
+          - pattern: exec.CommandContext($CTX, $SH, "-c", $CMD, ...)
+      - metavariable-regex:
+          metavariable: $SH
+          regex: ^"(/bin/|/usr/bin/)?(sh|bash|zsh|dash|ksh)"$
+      - metavariable-pattern:
+          metavariable: $CMD
+          patterns:
+            - pattern-not: '"..."'
+
+  - id: bpm-sec-shell-dynamic-command-java
+    languages: [java]
+    severity: ERROR
+    message: >-
+      A shell given a command built at run time: `sh -c` parses the string,
+      so any `;`, `|` or `$(…)` that reaches it runs as a command of its own.
+      Start the program directly with ProcessBuilder and separate arguments.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    patterns:
+      - pattern-either:
+          - pattern: new ProcessBuilder($SH, "-c", $CMD)
+          - pattern: '$RT.exec(new String[]{$SH, "-c", $CMD})'
+      - metavariable-regex:
+          metavariable: $SH
+          regex: ^"(/bin/|/usr/bin/)?(sh|bash|zsh|dash|ksh)"$
+      - metavariable-pattern:
+          metavariable: $CMD
+          patterns:
+            - pattern-not: '"..."'
+
+  # ---------------------------------------------------------------------------
+  # CSRF protection switched off
+  # ---------------------------------------------------------------------------
+  - id: bpm-sec-csrf-disabled-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      CSRF protection is switched off. If this endpoint authenticates by
+      cookie, any website the user visits can submit it on their behalf. A
+      webhook that verifies a signature is the usual legitimate case — say so
+      next to the decorator, and dismiss this finding with that reason.
+    metadata:
+      category: security
+      cwe: 'CWE-352: Cross-Site Request Forgery'
+      yields: ['data-write']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      - pattern: |
+          @csrf_exempt
+          def $F(...):
+            ...
+      - pattern: csrf_exempt($VIEW)
+      - pattern: WTF_CSRF_ENABLED = False
+      - pattern: $APP.config["WTF_CSRF_ENABLED"] = False
+
+  - id: bpm-sec-csrf-disabled-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      CSRF protection is switched off in this configuration. If the app
+      authenticates by cookie, any website the user visits can submit its
+      forms and API calls on their behalf.
+    metadata:
+      category: security
+      cwe: 'CWE-352: Cross-Site Request Forgery'
+      yields: ['data-write']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern: '{..., csrf: false, ...}'
+
+  - id: bpm-sec-csrf-disabled-java
+    languages: [java]
+    severity: WARNING
+    message: >-
+      Spring Security's CSRF protection is switched off. For a stateless API
+      authenticated by a bearer header that is correct; if any route
+      authenticates by session cookie, any website the user visits can submit
+      it on their behalf.
+    metadata:
+      category: security
+      cwe: 'CWE-352: Cross-Site Request Forgery'
+      yields: ['data-write']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths: *not-tests
+    pattern-either:
+      - pattern: $HTTP.csrf().disable()
+      - pattern: $HTTP.csrf($C -> $C.disable())
+      - pattern: $HTTP.csrf(AbstractHttpConfigurer::disable)

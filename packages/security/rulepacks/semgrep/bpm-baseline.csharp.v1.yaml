@@ -1,0 +1,362 @@
+# bpm-rulepacks — baseline, C# variant v1 (W18-16, SECURITY_SUITE.md §3.3,
+# FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse in the semgrep rule format the Opengrep
+# engine reads. Nothing here is copied, adapted or derived from the Semgrep
+# registry, whose licence bars it for service use (CPU_FIRST_OFFLOAD
+# 2026-07-16 §4/§6).
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): findings are stamped experimental and kept
+# out of scores until an admin promotes the rule on evidence.
+#
+# `metadata.yields` feeds the attack chainer (W8-09), exactly as in
+# bpm-baseline.v1.yaml. Severity: ERROR → 4, WARNING → 3; nothing earns 5.
+#
+# Precision notes that shaped these rules:
+#   - MD5/SHA-1 and System.Random are everywhere in .NET code for checksums,
+#     ETags, cache keys, sharding and jitter. Both rules need a SECRET-SHAPED
+#     context (a name that says password/token/secret/salt) before they fire.
+#   - Every "turned the check off" rule matches the unconditional form only.
+#     `callback = cfg.Insecure ? AcceptAll : null` is a deliberate, named
+#     opt-in; `callback = (...) => true` is a decision nobody can see.
+rules:
+  - id: bpm-cs-sql-string-concat
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      SQL assembled by concatenation or string interpolation and handed to the
+      driver. Add the value as a parameter (`cmd.Parameters.AddWithValue`, or
+      Dapper's anonymous-object parameters): escaping by hand is one forgotten
+      call away from an injection.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Sees the SQL only where it is built in the same statement or in a local
+        assigned earlier in the same method. A query string built in a helper
+        method and returned is not followed.
+    patterns:
+      - pattern-either:
+          - pattern: new $CMD($SQL, ...)
+          - pattern: $DB.$EXEC($SQL, ...)
+          - pattern: $X.CommandText = $SQL
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      var $Q = $SQL;
+                      ...
+                  - pattern-inside: |
+                      string $Q = $SQL;
+                      ...
+              - pattern-either:
+                  - pattern: new $CMD($Q, ...)
+                  - pattern: $DB.$EXEC($Q, ...)
+                  - pattern: $X.CommandText = $Q
+      # Sink names are checked against the matched TEXT rather than with a
+      # metavariable-regex per name: a condition on a metavariable that the
+      # matching branch never bound (`$CMD` on a `.Query(...)` match) drops
+      # the match, which is how the first draft went silent.
+      - pattern-regex: (new\s+(SqlCommand|SqliteCommand|SQLiteCommand|NpgsqlCommand|MySqlCommand|OracleCommand|OleDbCommand|OdbcCommand|SqlDataAdapter)\s*\(|[\w.\[\]()]*\.(Query|QueryAsync|QueryFirst|QueryFirstAsync|QueryFirstOrDefault|QueryFirstOrDefaultAsync|QuerySingle|QuerySingleAsync|QuerySingleOrDefault|QuerySingleOrDefaultAsync|QueryMultiple|QueryMultipleAsync|Execute|ExecuteAsync|ExecuteScalar|ExecuteScalarAsync|ExecuteReader|ExecuteReaderAsync|FromSqlRaw|ExecuteSqlRaw|ExecuteSqlRawAsync|SqlQueryRaw)\s*(<[^>]*>)?\s*\(|[\w.]*\.CommandText\s*=)
+      # Must LOOK like SQL, as text: `Execute("label: " + x)` on some other API
+      # is not a database call.
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?is)^\$?@?"\s*(select|insert|update|delete|merge|with|exec|drop|alter|create|truncate)\b.*
+      # Something NON-CONSTANT must be spliced in: a concatenated name that is
+      # not an UPPER_SNAKE or PascalCase-const-looking identifier, or an
+      # interpolation hole. `"SELECT * FROM " + TableName` written by the code
+      # is not a caller's input.
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?s)^(\$@?".*\{[^}]*[a-z_][^}]*\}.*|@?".*"\s*\+\s*\(?\s*(?![A-Z][A-Z0-9_]*\b)[a-z_].*)$
+
+  - id: bpm-cs-shell-command-built
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      A shell is started with a command line assembled from a variable. Anything
+      in that value that the shell treats as syntax (`;`, `&&`, `|`, quotes)
+      becomes a second command. Start the program directly and pass arguments
+      through ProcessStartInfo.ArgumentList, one element per argument.
+    metadata:
+      category: security
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: Process.Start("$SHELL", $ARGS)
+          - pattern: System.Diagnostics.Process.Start("$SHELL", $ARGS)
+          - pattern: new ProcessStartInfo("$SHELL", $ARGS)
+          - patterns:
+              - pattern-inside: |
+                  $PSI.FileName = "$SHELL";
+                  ...
+              - pattern: $PSI.Arguments = $ARGS
+          - patterns:
+              - pattern-inside: |
+                  new ProcessStartInfo { ..., FileName = "$SHELL", ... }
+              - pattern: Arguments = $ARGS
+      - metavariable-regex:
+          metavariable: $SHELL
+          regex: (?i)^(cmd(\.exe)?|/bin/(ba)?sh|(ba)?sh|powershell(\.exe)?|pwsh(\.exe)?)$
+      # Assembled, not literal: a fixed `"/c dir"` chosen by the code is fine.
+      - metavariable-regex:
+          metavariable: $ARGS
+          regex: (?s)^(\$@?".*\{.*\}.*|.*"\s*\+\s*[A-Za-z_(].*|string\.(Format|Concat|Join)\(.*)$
+
+  - id: bpm-cs-weak-hash-password
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      MD5 or SHA-1 used on a password or secret. Both are fast enough that a
+      leaked hash is brute-forced offline in hours; store passwords with a slow,
+      salted KDF (Rfc2898DeriveBytes.Pbkdf2 with a high iteration count,
+      ASP.NET Identity's PasswordHasher, or Argon2/bcrypt).
+    metadata:
+      category: security
+      cwe: 'CWE-916: Use of Password Hash With Insufficient Computational Effort'
+      yields: ['credential-exposure']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Decides "this is a secret" from names in the same expression or the
+        enclosing method. An MD5 of a password stored in a variable called
+        `input` is missed; that is the price of not firing on every ETag.
+    patterns:
+      - pattern-either:
+          - pattern: $ALG.HashData($ARG, ...)
+          - pattern: $ALG.Create().ComputeHash($ARG, ...)
+          - pattern: new $ALG().ComputeHash($ARG, ...)
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      using (var $H = $ALG.Create()) { ... }
+                  - pattern-inside: |
+                      using var $H = $ALG.Create();
+                      ...
+                  - pattern-inside: |
+                      var $H = $ALG.Create();
+                      ...
+                  - pattern-inside: |
+                      using (var $H = new $ALG()) { ... }
+                  - pattern-inside: |
+                      var $H = new $ALG();
+                      ...
+              - pattern: $H.ComputeHash($ARG, ...)
+      - metavariable-regex:
+          metavariable: $ALG
+          regex: ^(System\.Security\.Cryptography\.)?(MD5|SHA1|MD5CryptoServiceProvider|SHA1CryptoServiceProvider|SHA1Managed)$
+      - pattern-either:
+          # The hashed value itself is named like a secret.
+          - patterns:
+              - pattern-inside: $O.$M($ARG, ...)
+              - metavariable-regex:
+                  metavariable: $ARG
+                  regex: (?i).*(password|passwd|pwd|secret|apikey|api_key)
+          - patterns:
+              - pattern-inside: |
+                  $RET $METHOD(...) { ... }
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^.*(password|passwd|pwd|secret)
+
+  - id: bpm-cs-insecure-random-token
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      System.Random used to make a token, password, salt or key. Its output is
+      predictable from a few observed values; use
+      RandomNumberGenerator.GetBytes / GetInt32 for anything an attacker must
+      not guess.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Needs a secret-shaped method or variable name. A Random used for jitter,
+        sampling or test data is the common, correct case and is not flagged.
+    patterns:
+      - pattern-either:
+          - pattern: new Random(...).$NEXT(...)
+          - pattern: Random.Shared.$NEXT(...)
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      var $R = new Random(...);
+                      ...
+                  - pattern-inside: |
+                      Random $R = new Random(...);
+                      ...
+                  - pattern-inside: |
+                      $R = new Random(...);
+                      ...
+              - pattern: $R.$NEXT(...)
+      - metavariable-regex:
+          metavariable: $NEXT
+          regex: ^(Next|NextBytes|NextInt64|NextDouble|GetItems)$
+      - pattern-either:
+          - patterns:
+              - pattern-inside: |
+                  $RET $METHOD(...) { ... }
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^.*(token|password|passwd|secret|salt|nonce|otp|apikey|sessionid|resetcode|verificationcode)
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: var $NAME = <... $RAND ...>;
+                  - pattern-inside: $T $NAME = <... $RAND ...>;
+                  - pattern-inside: $NAME = <... $RAND ...>;
+              - metavariable-regex:
+                  metavariable: $NAME
+                  regex: (?i)^(\w+\.)*\w*(token|password|passwd|secret|salt|nonce|otp|apikey)$
+
+  - id: bpm-cs-cert-validation-disabled
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      TLS certificate validation is switched off: the callback accepts every
+      certificate. Anyone on the network path can present their own and read or
+      rewrite the traffic. Pin the expected certificate, or trust a private CA
+      through X509ChainPolicy.CustomTrustStore.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: $X.ServerCertificateCustomValidationCallback = (...) => true
+      - pattern: $X.ServerCertificateValidationCallback = (...) => true
+      - pattern: $X.ServerCertificateValidationCallback += (...) => true
+      - pattern: $X.RemoteCertificateValidationCallback = (...) => true
+      - pattern: |
+          $X.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+      - pattern: |
+          new HttpClientHandler { ..., ServerCertificateCustomValidationCallback = (...) => true, ... }
+      - pattern: |
+          new HttpClientHandler { ..., ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator, ... }
+      - pattern: |
+          new SocketsHttpHandler { ..., SslOptions = new SslClientAuthenticationOptions { ..., RemoteCertificateValidationCallback = (...) => true, ... }, ... }
+      - pattern: new SslStream($S, $LEAVE, (...) => true, ...)
+
+  - id: bpm-cs-unsafe-deserializer
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      A type-embedding .NET formatter deserializes data. BinaryFormatter,
+      SoapFormatter, NetDataContractSerializer, LosFormatter and
+      ObjectStateFormatter instantiate whatever type the payload names, which
+      is remote code execution for anyone who can supply the bytes; Microsoft
+      has removed BinaryFormatter for this reason. Use System.Text.Json or a
+      DataContractSerializer with a fixed set of known types.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: new $F(...).Deserialize(...)
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      var $V = new $F(...);
+                      ...
+                  - pattern-inside: |
+                      $T $V = new $F(...);
+                      ...
+                  - pattern-inside: |
+                      $V = new $F(...);
+                      ...
+              - pattern-either:
+                  - pattern: $V.Deserialize(...)
+                  - pattern: $V.UnsafeDeserialize(...)
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(BinaryFormatter|SoapFormatter|NetDataContractSerializer|LosFormatter|ObjectStateFormatter)$
+
+  - id: bpm-cs-json-type-name-handling
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      Json.NET is told to honour `$type` from the payload. With any setting but
+      None the document picks the class to instantiate, which is the same
+      gadget-chain hole as BinaryFormatter. If polymorphism is needed, keep
+      TypeNameHandling.None or restrict it with an ISerializationBinder that
+      allows a fixed list of types.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A settings object that also sets SerializationBinder in the same
+        initializer is exempt; one whose binder is set elsewhere still fires.
+    patterns:
+      - pattern-either:
+          - pattern: $S.TypeNameHandling = TypeNameHandling.$MODE
+          - pattern: TypeNameHandling = TypeNameHandling.$MODE
+      - metavariable-regex:
+          metavariable: $MODE
+          regex: ^(All|Auto|Objects|Arrays)$
+      # A binder in the same object initializer is the documented mitigation.
+      - pattern-not-inside: |
+          new JsonSerializerSettings { ..., SerializationBinder = $B, ... }
+      - pattern-not-inside: |
+          new JsonSerializerSettings { ..., Binder = $B, ... }
+
+  - id: bpm-cs-xml-dtd-processing
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      An XML reader is told to process DTDs. Entity declarations in the
+      document can then read local files, reach internal URLs or expand into
+      gigabytes (XXE, CWE-611). Leave DtdProcessing at Prohibit (the default) or
+      Ignore unless the input is your own.
+    metadata:
+      category: security
+      cwe: 'CWE-611: Improper Restriction of XML External Entity Reference'
+      yields: ['file-read', 'ssrf']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: $X.DtdProcessing = DtdProcessing.Parse
+      - pattern: DtdProcessing = DtdProcessing.Parse
+      - pattern: $X.ProhibitDtd = false
+      - pattern: ProhibitDtd = false
+
+  - id: bpm-cs-jwt-unsigned-accepted
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      JWT validation accepts unsigned tokens. With RequireSignedTokens off, or a
+      SignatureValidator that returns the token without checking it, anyone can
+      write their own claims. Keep signatures required and configure the
+      signing keys.
+    metadata:
+      category: security
+      cwe: 'CWE-347: Improper Verification of Cryptographic Signature'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: $P.RequireSignedTokens = false
+      - pattern: RequireSignedTokens = false
+      - pattern: |
+          SignatureValidator = ($T, $P) => new JwtSecurityToken($T)
+      - pattern: |
+          $X.SignatureValidator = ($T, $P) => new JwtSecurityToken($T)
+      - pattern: |
+          SignatureValidator = ($T, $P) => new JsonWebToken($T)
+      - pattern: |
+          $X.SignatureValidator = ($T, $P) => new JsonWebToken($T)

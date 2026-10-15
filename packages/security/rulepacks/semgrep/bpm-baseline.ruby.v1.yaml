@@ -1,0 +1,496 @@
+# bpm-rulepacks — baseline, Ruby variant v1 (W18-16, SECURITY_SUITE.md §3.3,
+# FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse in the semgrep rule format the Opengrep
+# engine reads. Nothing here is copied, adapted or derived from the Semgrep
+# registry, whose licence bars it for service use (CPU_FIRST_OFFLOAD
+# 2026-07-16 §4/§6).
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): findings are stamped experimental and kept
+# out of scores until an admin promotes the rule on evidence.
+#
+# `metadata.yields` feeds the attack chainer (W8-09), exactly as in
+# bpm-baseline.v1.yaml. Severity: ERROR → 4, WARNING → 3; nothing earns 5.
+#
+# Precision notes that shaped these rules:
+#   - Ruby metaprogramming (`class_eval <<~RUBY ... #{name}`, `send(:"#{attr}=")`)
+#     is how Rails and most gems define methods. Code evaluation, reflection
+#     and deserialization are therefore flagged only when REQUEST data
+#     (params, cookies, request.*) reaches them — taint, not shape.
+#   - Interpolation into SQL is flagged only in the ActiveRecord methods that
+#     take raw SQL fragments, and not when the interpolated expression is
+#     itself a quoting/sanitizing call or an integer conversion.
+rules:
+  - id: bpm-rb-sql-from-request
+    mode: taint
+    languages: [ruby]
+    severity: ERROR
+    message: >-
+      Request data reaches a raw SQL fragment. ActiveRecord escapes values
+      passed as bind parameters (`where("name = ?", name)`, `where(name:)`),
+      never ones interpolated or concatenated into the string — this is an
+      injection the day the value holds a quote.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows request data inside one method. A first draft flagged every
+        interpolation into a raw-SQL method and was almost all noise on real
+        code (128 hits over Rails, Spree and Solidus, nearly every one a
+        table or column name such as `#{Spree::Product.quoted_table_name}`),
+        so only request data is followed now. `order`, `reorder` and `pluck`
+        are left out: since Rails 6.1 they refuse a string that is not a
+        column reference unless it is wrapped in Arel.sql.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: params
+              - pattern: cookies
+              - pattern: request.params
+              - pattern: request.query_parameters
+              - pattern: request.request_parameters
+              - pattern: request.headers
+              - pattern: request.body
+              - pattern: request.raw_post
+          # `params` the request, not a method's own argument of that name
+          # (ActiveRecord's StatementCache#execute, ActiveAdmin's form helper).
+          - pattern-not-inside: |
+              def $F(..., params, ...)
+                ...
+              end
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: $X.to_i
+          - pattern: $X.to_f
+          - pattern: Integer(...)
+          - pattern: Float(...)
+          - pattern: $C.quote(...)
+          - pattern: quote(...)
+          - pattern: $C.sanitize_sql(...)
+          - pattern: sanitize_sql(...)
+          - pattern: sanitize_sql_array(...)
+          - pattern: sanitize_sql_like(...)
+          - pattern: $C.sanitize_sql_like(...)
+          - pattern: $L.include?(...)
+          - pattern: $X.present?
+          - pattern: $X.blank?
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $M.$Q($SQL, ...)
+              - pattern: $Q($SQL, ...)
+          - metavariable-regex:
+              metavariable: $Q
+              regex: ^(where|not|or|having|group|joins|select|from|find_by_sql|count_by_sql|exists\?|update_all|delete_all|lock|execute|exec_query|exec_update|exec_delete|exec_insert|select_all|select_one|select_value|select_values|select_rows)$
+          # The SQL TEXT, not a hash of conditions: `where(name: params[:n])`
+          # is bound, and the hash containing request data is not a fragment.
+          - metavariable-regex:
+              metavariable: $SQL
+              regex: ^("|<<[~-]?["A-Z]|%Q?[\[({]|[a-z_]\w*$|params\b|cookies\b|request\.)
+          - focus-metavariable: $SQL
+
+  - id: bpm-rb-shell-interpolation
+    languages: [ruby]
+    severity: ERROR
+    message: >-
+      A shell command built by interpolation. A single string goes through
+      /bin/sh, so any `;`, `|` or `$(...)` in the value runs as a second
+      command. Pass the program and its arguments separately
+      (`system("git", "log", ref)`), or escape with Shellwords.escape.
+    metadata:
+      category: security
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Flags any interpolated value that is not visibly escaped, whether or
+        not it can reach a caller; build scripts that interpolate their own
+        constants are exempt only when the constant is UPPER_CASE.
+    patterns:
+      # One finding per command, not one per interpolation: the whole
+      # command text is read once. Exempt: a visibly escaped value, an
+      # UPPER_CASE constant, an integer conversion, and a process id (an
+      # integer by construction — `ps -p #{pid}` was the commonest hit).
+      - pattern-either:
+          - patterns:
+              - pattern: '`...`'
+              - pattern-regex: >-
+                  `[^`\n]*#\{\s*(?!(Shellwords\.(escape|shellescape|join)|\w+\.shellescape|shellescape)\b)(?![A-Z][A-Z0-9_]*\s*\})(?![^}]*\.(shellescape|to_i)\s*\})(?!\s*(pid|\w+_pid|Process\.pid|\$\$)\s*\})[^}]+\}[^`\n]*`
+          - patterns:
+              # Single-string forms only: `system("ls", dir)` starts no shell.
+              - pattern-either:
+                  - pattern: system($CMD)
+                  - pattern: exec($CMD)
+                  - pattern: spawn($CMD)
+                  - pattern: Kernel.system($CMD)
+                  - pattern: Kernel.exec($CMD)
+                  - pattern: Kernel.spawn($CMD)
+                  - pattern: IO.popen($CMD, ...)
+                  - pattern: Open3.$OPEN($CMD, ...)
+              - metavariable-regex:
+                  metavariable: $CMD
+                  regex: >-
+                    (?s)^("|<<[~-]?["A-Z]|%Q?[\[({]).*#\{\s*(?!(Shellwords\.(escape|shellescape|join)|\w+\.shellescape|shellescape)\b)(?![A-Z][A-Z0-9_]*\s*\})(?![^}]*\.(shellescape|to_i)\s*\})(?!\s*(pid|\w+_pid|Process\.pid|\$\$)\s*\})[^}]+\}.*
+
+  - id: bpm-rb-code-from-request
+    mode: taint
+    languages: [ruby]
+    severity: ERROR
+    message: >-
+      Request data reaches code evaluation or reflection. eval, instance_eval,
+      constantize, send and public_send let the caller choose what runs — a
+      class name or method name from params is an arbitrary method call. Map
+      the request value to a fixed list of allowed choices instead.
+    metadata:
+      category: security
+      cwe: "CWE-470: Use of Externally-Controlled Input to Select Classes or Code ('Unsafe Reflection')"
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: params
+              - pattern: cookies
+              - pattern: request.params
+              - pattern: request.query_parameters
+              - pattern: request.request_parameters
+              - pattern: request.headers
+              - pattern: request.body
+          # `params` the request, not a method's own argument of that name
+          # (ActiveRecord's StatementCache#execute, ActiveAdmin's form helper).
+          - pattern-not-inside: |
+              def $F(..., params, ...)
+                ...
+              end
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: $X.to_i
+          - pattern: Integer(...)
+          - pattern: $LIST.include?(...)
+          - pattern: $X.present?
+          - pattern: $X.blank?
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: eval($CODE, ...)
+              - pattern: instance_eval($CODE, ...)
+              - pattern: $O.instance_eval($CODE, ...)
+              - pattern: class_eval($CODE, ...)
+              - pattern: $O.class_eval($CODE, ...)
+              - pattern: $CODE.constantize
+              - pattern: $CODE.safe_constantize
+              - pattern: Object.const_get($CODE, ...)
+              - pattern: $O.send($CODE, ...)
+              - pattern: $O.public_send($CODE, ...)
+              - pattern: $O.method($CODE)
+          # An allow-list check guarding the call (`if events.include?(e) &&
+          # obj.send(e)`) is the documented fix; taint cannot see a guard.
+          - pattern-not-inside: '<... $L.include?(...) ...> && $B'
+          - pattern-not-inside: |
+              if <... $L.include?(...) ...>
+                ...
+              end
+          - focus-metavariable: $CODE
+
+  - id: bpm-rb-deserialize-request
+    mode: taint
+    languages: [ruby]
+    severity: ERROR
+    message: >-
+      Request data reaches Marshal.load or an unsafe YAML load. Both
+      instantiate whatever classes the payload names, and Rails ships gadget
+      chains that turn that into remote code execution. Use JSON, or
+      YAML.safe_load with an explicit permitted_classes list.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: params
+              - pattern: cookies
+              - pattern: request.body
+              - pattern: request.raw_post
+              - pattern: request.headers
+          # `params` the request, not a method's own argument of that name
+          # (ActiveRecord's StatementCache#execute, ActiveAdmin's form helper).
+          - pattern-not-inside: |
+              def $F(..., params, ...)
+                ...
+              end
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: Marshal.load($DATA, ...)
+              - pattern: Marshal.restore($DATA, ...)
+              - pattern: YAML.load($DATA, ...)
+              - pattern: YAML.unsafe_load($DATA, ...)
+              - pattern: Psych.load($DATA, ...)
+              - pattern: Psych.unsafe_load($DATA, ...)
+              - pattern: Oj.load($DATA, ...)
+          - focus-metavariable: $DATA
+
+  - id: bpm-rb-file-from-request
+    mode: taint
+    languages: [ruby]
+    severity: ERROR
+    message: >-
+      Request data chooses a file path. `../` in that value walks out of the
+      directory you meant (path traversal) and serves or overwrites any file
+      the process can reach. Look the file up by an id, or check
+      File.expand_path(path).start_with?(root) before using it.
+    metadata:
+      category: security
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      yields: ['file-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: params
+              - pattern: cookies
+          # `params` the request, not a method's own argument of that name
+          # (ActiveRecord's StatementCache#execute, ActiveAdmin's form helper).
+          - pattern-not-inside: |
+              def $F(..., params, ...)
+                ...
+              end
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: File.basename(...)
+          - pattern: $X.to_i
+          - pattern: $LIST.include?(...)
+          - pattern: ActiveStorage::Filename.new(...).sanitized
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: send_file($PATH, ...)
+              - pattern: File.read($PATH, ...)
+              - pattern: File.open($PATH, ...)
+              - pattern: File.new($PATH, ...)
+              - pattern: File.write($PATH, ...)
+              - pattern: File.binread($PATH, ...)
+              - pattern: File.readlines($PATH, ...)
+              - pattern: File.delete($PATH, ...)
+              - pattern: FileUtils.rm($PATH, ...)
+              - pattern: FileUtils.rm_rf($PATH, ...)
+              - pattern: IO.read($PATH, ...)
+              - pattern: 'render(file: $PATH, ...)'
+          - focus-metavariable: $PATH
+
+  - id: bpm-rb-permit-all-params
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      params.permit! marks every request parameter as safe for mass
+      assignment — including `admin`, `role`, `user_id` and whatever column
+      gets added next. Permit the attributes the action expects by name.
+    metadata:
+      category: security
+      cwe: 'CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: params.permit!
+          - pattern: params.require(...).permit!
+          - pattern: params[$K].permit!
+      # In a controller, `params` is the request. Elsewhere (ActionController's
+      # own Parameters class) it is any local of that name.
+      - pattern-inside: |
+          class $C < $P
+            ...
+          end
+      - metavariable-regex:
+          metavariable: $C
+          regex: .*Controller$
+
+  - id: bpm-rb-open-redirect
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      A redirect target taken straight from the request. Anyone can send a
+      link to your login page that bounces the user to their phishing copy.
+      Redirect to a path you build, or pass `allow_other_host: false` and a
+      relative URL.
+    metadata:
+      category: security
+      cwe: "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      yields: ['phishing']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: redirect_to params[$K]
+          - pattern: redirect_to params[$K], ...
+          - pattern: redirect_to(params[$K], ...)
+          - pattern: redirect_to params.fetch($K, ...)
+          - pattern: redirect_to request.referer
+          - pattern: redirect_to request.referer, ...
+          - pattern: redirect_to request.headers[$H]
+          - pattern: redirect_to cookies[$K]
+      # Any explicit allow_other_host is a decision someone made and can see
+      # (Rails' own redirect_back passes the caller's choice through).
+      - pattern-not: 'redirect_to $URL, ..., allow_other_host: $A, ...'
+      - pattern-not: 'redirect_to($URL, ..., allow_other_host: $A, ...)'
+
+  - id: bpm-rb-html-safe-request
+    mode: taint
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      Request data reaches html_safe or raw(). html_safe does not escape
+      anything — it tells Rails to STOP escaping, so a `<script>` in that value
+      runs in the user's browser. Build the markup with content_tag / tag
+      helpers, or escape the value with h() first.
+    metadata:
+      category: security
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      yields: ['xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows request data only. A first draft flagged every interpolated
+        string marked html_safe; on Rails, Spree and Solidus that was the tag
+        helpers' own already-escaped output and translated labels (18 hits,
+        none reachable), so only request data is followed now. A stored value
+        rendered with html_safe (stored XSS) is not followed.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: params
+              - pattern: cookies
+              - pattern: request.params
+              - pattern: request.query_parameters
+              - pattern: request.headers
+              - pattern: request.referer
+          # `params` the request, not a method's own argument of that name
+          # (ActiveRecord's StatementCache#execute, ActiveAdmin's form helper).
+          - pattern-not-inside: |
+              def $F(..., params, ...)
+                ...
+              end
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: h(...)
+          - pattern: html_escape(...)
+          - pattern: ERB::Util.html_escape(...)
+          - pattern: ERB::Util.h(...)
+          - pattern: CGI.escapeHTML(...)
+          - pattern: sanitize(...)
+          - pattern: strip_tags(...)
+          - pattern: json_escape(...)
+          - pattern: $X.to_i
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $STR.html_safe
+              - pattern: raw($STR)
+          - focus-metavariable: $STR
+
+  - id: bpm-rb-tls-verify-none
+    languages: [ruby]
+    severity: ERROR
+    message: >-
+      TLS certificate verification is switched off. Anyone on the network path
+      can present their own certificate and read or rewrite the traffic. Trust
+      the right CA (`ca_file:`), or pin the certificate.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Only the unconditional forms. `verify_mode = opts[:verify] ? PEER :
+        NONE` is a named opt-in someone can see, and is not flagged.
+    pattern-either:
+      - pattern: $X.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      - pattern: '{..., verify_mode: OpenSSL::SSL::VERIFY_NONE, ...}'
+      - pattern: '{..., ssl_verify_mode: OpenSSL::SSL::VERIFY_NONE, ...}'
+      - pattern: '$F(..., verify_mode: OpenSSL::SSL::VERIFY_NONE, ...)'
+      - pattern: '$F(..., ssl_verify_mode: OpenSSL::SSL::VERIFY_NONE, ...)'
+      - pattern: '$O.$F(..., verify_mode: OpenSSL::SSL::VERIFY_NONE, ...)'
+      - pattern: '{..., verify: false, ...}'
+      - pattern: OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
+
+  - id: bpm-rb-weak-hash-password
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      MD5 or SHA-1 used on a password. Both are fast enough that a leaked hash
+      is brute-forced offline in hours; store passwords with bcrypt
+      (has_secure_password) or Argon2.
+    metadata:
+      category: security
+      cwe: 'CWE-916: Use of Password Hash With Insufficient Computational Effort'
+      yields: ['credential-exposure']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Decides "this is a password" from the hashed expression's own text.
+    patterns:
+      - pattern-either:
+          - pattern: Digest::$ALG.hexdigest($PW, ...)
+          - pattern: Digest::$ALG.digest($PW, ...)
+          - pattern: Digest::$ALG.base64digest($PW, ...)
+          - pattern: OpenSSL::Digest::$ALG.hexdigest($PW, ...)
+          - pattern: OpenSSL::Digest::$ALG.digest($PW, ...)
+      - metavariable-regex:
+          metavariable: $ALG
+          regex: ^(MD5|SHA1)$
+      - metavariable-regex:
+          metavariable: $PW
+          regex: (?i).*(pass(word|wd)?|pwd)\b.*
+      - metavariable-regex:
+          metavariable: $PW
+          regex: (?i)^(?!.*(_?(len|length|hint|policy|reset|changed|expir\w*|count|min|max|field|label|confirm|type|version)\]?\)?)$).*$
+      # HTTP Digest's HA1 is MD5(user:realm:password) by RFC 7616 — the
+      # protocol, not a storage choice (actionpack's http_authentication).
+      - metavariable-regex:
+          metavariable: $PW
+          regex: (?i)^(?!.*realm).*$
+
+  - id: bpm-rb-insecure-random-token
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      rand / Random used to make a token, password or key. Its output is
+      predictable from a few observed values; use SecureRandom (hex,
+      urlsafe_base64, alphanumeric) for anything an attacker must not guess.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Needs a secret-shaped variable or attribute name on the assignment.
+    patterns:
+      - pattern-either:
+          - pattern: $NAME = <... rand(...) ...>
+          - pattern: $NAME = <... Kernel.rand(...) ...>
+          - pattern: $NAME = <... Random.rand(...) ...>
+          - pattern: $NAME = <... Random.new(...).$M(...) ...>
+          - pattern: $NAME = <... $ARR.sample(...) ...>
+          - pattern: $NAME = <... $ARR.shuffle(...) ...>
+          - pattern: $O.$NAME = <... rand(...) ...>
+          - pattern: $O.$NAME = <... $ARR.sample(...) ...>
+      # SecureRandom.rand / .random_number is the secure spelling of the same
+      # call and must not count.
+      - pattern-not: $NAME = <... SecureRandom.$F(...) ...>
+      - pattern-not: $O.$NAME = <... SecureRandom.$F(...) ...>
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)^@{0,2}\w*(token|password|passwd|secret|salt|nonce|otp|api_?key|csrf)$

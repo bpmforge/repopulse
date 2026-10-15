@@ -1,0 +1,444 @@
+# bpm-rulepacks — baseline, PHP variant v1 (W18-16, SECURITY_SUITE.md §3.3,
+# FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse in the semgrep rule format the Opengrep
+# engine reads. Nothing here is copied, adapted or derived from the Semgrep
+# registry, whose licence bars it for service use (CPU_FIRST_OFFLOAD
+# 2026-07-16 §4/§6).
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): findings are stamped experimental and kept
+# out of scores until an admin promotes the rule on evidence.
+#
+# `metadata.yields` feeds the attack chainer (W8-09), exactly as in
+# bpm-baseline.v1.yaml. Severity: ERROR → 4, WARNING → 3; nothing earns 5.
+#
+# Precision notes that shaped these rules:
+#   - The injection rules are TAINT rules from the request superglobals, not
+#     "a variable reached a query". Mature PHP applications build SQL from
+#     variables everywhere — table prefixes, column lists, ids already cast to
+#     int — and a rule that fires on all of it is a rule nobody reads. What is
+#     left is request data reaching a sink in the same function, which is the
+#     shape that is actually exploited.
+#   - Every common way the ecosystem neutralises a value is a sanitizer:
+#     casts, intval, the driver's own escaping, prepared statements, and the
+#     framework helpers that do the same (WordPress, Dolibarr, MantisBT).
+rules:
+  - id: bpm-php-sql-from-request
+    mode: taint
+    languages: [php]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query without being bound or escaped. Use a
+      prepared statement with placeholders (PDO::prepare / mysqli bind_param):
+      a value spliced into the SQL text is an injection the day it holds a
+      quote.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function. Request data stored in a
+        property, or fetched through a framework helper (GETPOST, Input::get),
+        and used in another function is not followed.
+    pattern-sources:
+      - pattern-either:
+          - pattern: $_GET
+          - pattern: $_POST
+          - pattern: $_REQUEST
+          - pattern: $_COOKIE
+          - pattern: $_SERVER['QUERY_STRING']
+          - pattern: $_SERVER['HTTP_$H']
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: (int) $X
+          - pattern: (integer) $X
+          - pattern: (float) $X
+          - pattern: (bool) $X
+          - pattern: intval(...)
+          - pattern: floatval(...)
+          - pattern: boolval(...)
+          - pattern: is_numeric(...)
+          - pattern: ctype_digit(...)
+          - pattern: count(...)
+          - pattern: in_array(...)
+          - pattern: isset(...)
+          - pattern: empty(...)
+          - pattern: mysqli_real_escape_string(...)
+          - pattern: mysql_real_escape_string(...)
+          - pattern: $DB->real_escape_string(...)
+          - pattern: $DB->quote(...)
+          - pattern: $DB->escape(...)
+          - pattern: $DB->escape_string(...)
+          - pattern: $DB->prepare(...)
+          - pattern: pg_escape_string(...)
+          - pattern: pg_escape_literal(...)
+          - pattern: addslashes(...)
+          - pattern: esc_sql(...)
+          - pattern: sqlite_escape_string(...)
+          - pattern: db_param(...)
+          - pattern: md5(...)
+          - pattern: sha1(...)
+          - pattern: hash(...)
+          # A date built from request parts is a number by the time it is
+          # formatted: on the real-code sample both remaining findings were a
+          # year or day from the request turned into a timestamp.
+          - patterns:
+              - pattern-either:
+                  - pattern: $F(...)
+                  - pattern: $O->$F(...)
+              - metavariable-regex:
+                  metavariable: $F
+                  regex: (?i)^(\w*mktime|strtotime|date|gmdate|idate|\w*datefilter|\w*_(first|last)_day|checkdate)$
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: mysqli_query($C, $SQL, ...)
+              - pattern: mysql_query($SQL, ...)
+              - pattern: pg_query($C, $SQL)
+              - pattern: pg_query($SQL)
+              - pattern: sqlite_query($C, $SQL, ...)
+              - pattern: mysqli_multi_query($C, $SQL)
+              - pattern: $DB->query($SQL, ...)
+              - pattern: $DB->exec($SQL, ...)
+              - pattern: $DB->multi_query($SQL, ...)
+              - pattern: $DB->get_results($SQL, ...)
+              - pattern: $DB->get_row($SQL, ...)
+              - pattern: $DB->get_var($SQL, ...)
+              - pattern: $DB->get_col($SQL, ...)
+              - pattern: $DB->unbuffered_query($SQL, ...)
+              - pattern: $DB->select($SQL, ...)
+              - pattern: $DB->statement($SQL, ...)
+              - pattern: $DB->unprepared($SQL, ...)
+              - pattern: DB::select($SQL, ...)
+              - pattern: DB::statement($SQL, ...)
+              - pattern: DB::unprepared($SQL, ...)
+              - pattern: DB::raw($SQL)
+              - pattern: $Q->whereRaw($SQL, ...)
+              - pattern: $Q->orderByRaw($SQL, ...)
+              - pattern: $Q->selectRaw($SQL, ...)
+              - pattern: $Q->havingRaw($SQL, ...)
+              - pattern: db_query($SQL, ...)
+          - focus-metavariable: $SQL
+
+  - id: bpm-php-command-from-request
+    mode: taint
+    languages: [php]
+    severity: ERROR
+    message: >-
+      Request data reaches a shell command without escapeshellarg(). Any `;`,
+      `|` or `$(...)` in that value runs as a second command on the server.
+      Pass each argument through escapeshellarg(), or use proc_open with an
+      argument array (PHP 7.4+), which starts no shell at all.
+    metadata:
+      category: security
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - pattern-either:
+          - pattern: $_GET
+          - pattern: $_POST
+          - pattern: $_REQUEST
+          - pattern: $_COOKIE
+          - pattern: $_SERVER['HTTP_$H']
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: escapeshellarg(...)
+          - pattern: escapeshellcmd(...)
+          - pattern: (int) $X
+          - pattern: intval(...)
+          - pattern: basename(...)
+          - pattern: isset(...)
+          - pattern: empty(...)
+          - pattern: in_array(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec($CMD, ...)
+              - pattern: system($CMD, ...)
+              - pattern: passthru($CMD, ...)
+              - pattern: shell_exec($CMD)
+              - pattern: popen($CMD, ...)
+              - pattern: proc_open($CMD, ...)
+              - pattern: pcntl_exec($CMD, ...)
+          - focus-metavariable: $CMD
+
+  - id: bpm-php-code-from-request
+    mode: taint
+    languages: [php]
+    severity: ERROR
+    message: >-
+      Request data reaches code evaluation or file inclusion. eval(), assert()
+      on a string, create_function() and include/require of a request-chosen
+      path all run whatever the caller sends. Map the request value to a fixed
+      list of allowed choices instead.
+    metadata:
+      category: security
+      cwe: "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+      yields: ['rce', 'file-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - pattern-either:
+          - pattern: $_GET
+          - pattern: $_POST
+          - pattern: $_REQUEST
+          - pattern: $_COOKIE
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: basename(...)
+          - pattern: (int) $X
+          - pattern: intval(...)
+          - pattern: in_array(...)
+          - pattern: isset(...)
+          - pattern: empty(...)
+          - pattern: preg_match(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: eval($CODE)
+              - pattern: assert($CODE, ...)
+              - pattern: create_function($ARGS, $CODE)
+              - pattern: include $CODE
+              - pattern: include_once $CODE
+              - pattern: require $CODE
+              - pattern: require_once $CODE
+          - focus-metavariable: $CODE
+
+  - id: bpm-php-unserialize-request
+    mode: taint
+    languages: [php]
+    severity: ERROR
+    message: >-
+      unserialize() on request data. A serialized payload names the classes to
+      instantiate, and their __wakeup/__destruct methods run on the attacker's
+      values — the PHP object-injection chain behind most PHP RCEs. Use
+      json_decode(), or pass ['allowed_classes' => false].
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-sources:
+      - pattern-either:
+          - pattern: $_GET
+          - pattern: $_POST
+          - pattern: $_REQUEST
+          - pattern: $_COOKIE
+          - pattern: file_get_contents('php://input')
+    pattern-sinks:
+      - patterns:
+          - pattern: unserialize($DATA)
+          - focus-metavariable: $DATA
+
+  - id: bpm-php-extract-request
+    languages: [php]
+    severity: ERROR
+    message: >-
+      extract() on request data turns every parameter the caller sends into a
+      local variable — including `$is_admin`, `$user_id` and whatever else the
+      code below reads. Read the parameters you expect by name.
+    metadata:
+      category: security
+      cwe: 'CWE-621: Variable Extraction Error'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: extract($_GET, ...)
+          - pattern: extract($_POST, ...)
+          - pattern: extract($_REQUEST, ...)
+          - pattern: extract($_COOKIE, ...)
+          - pattern: parse_str($STR)
+      # EXTR_SKIP cannot overwrite an existing variable; the dangerous mode is
+      # the default one.
+      - pattern-not: extract($X, EXTR_SKIP, ...)
+      - pattern-not: extract($X, EXTR_PREFIX_ALL, ...)
+
+  - id: bpm-php-weak-hash-password
+    languages: [php]
+    severity: WARNING
+    message: >-
+      md5/sha1 used on a password. Both are fast enough that a leaked hash is
+      brute-forced offline in hours; use password_hash() and
+      password_verify(), which salt and stretch for you.
+    metadata:
+      category: security
+      cwe: 'CWE-916: Use of Password Hash With Insufficient Computational Effort'
+      yields: ['credential-exposure']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Decides "this is a password" from the hashed expression's own text. An
+        md5 of a password held in a variable called `$input` is missed; that
+        is the price of not firing on every cache key.
+    patterns:
+      - pattern-either:
+          - pattern: md5($PW, ...)
+          - pattern: sha1($PW, ...)
+          - pattern: crypt($PW)
+          - patterns:
+              - pattern: hash($ALG, $PW, ...)
+              - metavariable-regex:
+                  metavariable: $ALG
+                  regex: (?i)^['"](md5|sha1|md4|crc32b?)['"]$
+      - metavariable-regex:
+          metavariable: $PW
+          regex: (?i).*(pass(word|wd)?|pwd)\b.*
+      # `md5($password_reset_token_id)` names a password-ADJACENT thing; a
+      # hash of a length or a flag hashes nothing secret.
+      - metavariable-regex:
+          metavariable: $PW
+          regex: (?i)^(?!.*(_?(len|length|hint|policy|reset|changed|expir\w*|count|min|max|field|label|confirm|type|version)['"\]]*\)?)$).*$
+      # HTTP Digest's HA1 is MD5(user:realm:password) by RFC 7616 — the
+      # protocol, not a storage choice (sabre/http's Digest auth).
+      - metavariable-regex:
+          metavariable: $PW
+          regex: (?i)^(?!.*realm).*$
+
+  - id: bpm-php-insecure-random-token
+    languages: [php]
+    severity: WARNING
+    message: >-
+      rand()/mt_rand()/uniqid() used to make a token, password or key. They
+      are predictable from a few observed values (uniqid is the clock); use
+      random_bytes() or random_int() for anything an attacker must not guess.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Needs a secret-shaped variable or key name on the assignment. A weak
+        value built in a helper and returned is not followed.
+    patterns:
+      - pattern-either:
+          - pattern: $NAME = <... $RAND(...) ...>;
+          - pattern: $ARR[$NAME] = <... $RAND(...) ...>;
+          - pattern: $OBJ->$NAME = <... $RAND(...) ...>;
+      - metavariable-regex:
+          metavariable: $RAND
+          regex: ^(rand|mt_rand|uniqid|lcg_value|str_shuffle|array_rand|shuffle)$
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)^['"$]?\w*(token|password|passwd|secret|salt|nonce|otp|api_?key|csrf)['"]?$
+
+  - id: bpm-php-tls-verify-disabled
+    languages: [php]
+    severity: ERROR
+    message: >-
+      TLS certificate verification is switched off. Anyone on the network path
+      can present their own certificate and read or rewrite the traffic. Point
+      CURLOPT_CAINFO (or the stream context's cafile) at the right CA instead.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Only the literal forms. A verify flag read from configuration is a
+        decision someone can see and is not flagged.
+    pattern-either:
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYPEER, false)
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYPEER, 0)
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYHOST, false)
+      - pattern: curl_setopt($CH, CURLOPT_SSL_VERIFYHOST, 0)
+      - pattern: '[..., CURLOPT_SSL_VERIFYPEER => false, ...]'
+      - pattern: '[..., CURLOPT_SSL_VERIFYPEER => 0, ...]'
+      - pattern: '[..., CURLOPT_SSL_VERIFYHOST => 0, ...]'
+      - pattern: '[..., CURLOPT_SSL_VERIFYHOST => false, ...]'
+      - pattern: '[..., "verify_peer" => false, ...]'
+      - pattern: "[..., 'verify_peer' => false, ...]"
+      - pattern: "[..., 'verify' => false, ...]"
+
+  - id: bpm-php-xml-entity-expansion
+    languages: [php]
+    severity: WARNING
+    message: >-
+      XML parsed with entity substitution or the external entity loader turned
+      on. A document's DOCTYPE can then read local files or reach internal
+      URLs (XXE, CWE-611). Drop LIBXML_NOENT / LIBXML_DTDLOAD; PHP 8 leaves the
+      loader off by default.
+    metadata:
+      category: security
+      cwe: 'CWE-611: Improper Restriction of XML External Entity Reference'
+      yields: ['file-read', 'ssrf']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: libxml_disable_entity_loader(false)
+      - patterns:
+          - pattern-either:
+              - pattern: $DOC->loadXML($X, $FLAGS)
+              - pattern: $DOC->load($X, $FLAGS)
+              - pattern: simplexml_load_string($X, $C, $FLAGS, ...)
+              - pattern: simplexml_load_file($X, $C, $FLAGS, ...)
+              - pattern: new SimpleXMLElement($X, $FLAGS, ...)
+          - metavariable-regex:
+              metavariable: $FLAGS
+              regex: .*\bLIBXML_(NOENT|DTDLOAD)\b.*
+
+  - id: bpm-php-secret-loose-compare
+    languages: [php]
+    severity: WARNING
+    message: >-
+      A secret compared with `==`. PHP's loose comparison type-juggles
+      ("0e123" == "0e456" is true for two different hashes) and it returns
+      early on the first differing byte, which leaks the value through timing.
+      Use hash_equals() for tokens, HMACs and hashes.
+    metadata:
+      category: security
+      cwe: 'CWE-697: Incorrect Comparison'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Decided from names: both sides must be non-literal and the left one
+        named like a CSRF/API token, signature, HMAC or secret, or compared
+        with a $_SESSION value. A comparison against a
+        literal (`$token == ''`) is a presence check and is left alone.
+    patterns:
+      - pattern-either:
+          - pattern: $A == $B
+          - pattern: $A != $B
+      # `token` alone is too many things — lock tokens, parser tokens, page
+      # tokens; on the real-code sample four of six bare-`token` comparisons
+      # were WebDAV lock ids. A token counts when its name says what kind
+      # (csrf_token, api_token, $SECUREKEY) or it is compared with the copy
+      # kept in the session.
+      - pattern-either:
+          - patterns:
+              - metavariable-regex:
+                  metavariable: $A
+                  regex: (?i)^\$[\w>\[\]'"-]*((csrf|xsrf|api|access|auth|reset|secure|security|session)_?token|signature|hmac|digest|csrf|nonce|api_?key|secret|secure_?key|password_?hash)\b['"\]]*$
+              - pattern: $A
+          # The session copy must itself be a token: Dolibarr compares a
+          # dozen menu ids and currencies with $_SESSION values.
+          - patterns:
+              - pattern-either:
+                  - pattern: $A == $_SESSION[$K]
+                  - pattern: $_SESSION[$K] == $A
+                  - pattern: $A != $_SESSION[$K]
+                  - pattern: $_SESSION[$K] != $A
+              - metavariable-regex:
+                  metavariable: $K
+                  regex: (?i)^['"]\w*(token|csrf|xsrf|nonce|state|secret)\w*['"]$
+              # Already reported by the name branch above; one fact, one finding.
+              - metavariable-regex:
+                  metavariable: $A
+                  regex: (?i)^(?!\$[\w>\[\]'"-]*((csrf|xsrf|api|access|auth|reset|secure|security|session)_?token|signature|hmac|digest|csrf|nonce|api_?key|secret|secure_?key|password_?hash)\b['"\]]*$).*
+      - metavariable-regex:
+          metavariable: $B
+          regex: ^(\$|[\w\\]+\().*
+      - pattern-not: $A == null
+      - pattern-not: $A != null
+      - pattern-not: $A == false
+      - pattern-not: $A != false
