@@ -21,5 +21,5 @@ def load_orders(Order, ids):
 def names(session, connection, query, table):
     # The iterable is evaluated once: one query, then a loop over its rows.
     for row in session.scalars(query):
-        print(row.name)
+        record(row.name)
     return {row[0] for row in connection.execute(table.select())}
