@@ -15,6 +15,13 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { PLACEHOLDER_RULE_ID, placeholderValues } from './placeholder-values.js';
+import { COMMENTED_CODE_RULE_ID, commentedOutCode } from './commented-out-code.js';
+import {
+  DEPRECATED_API_RULE_ID,
+  DEPRECATED_API_TABLE_VERSION,
+  deprecatedApis,
+} from './deprecated-apis.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -255,6 +262,81 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           yields: null,
           experimental: status !== 'active',
         });
+      }
+    }
+    // Leftover content (W18-07): placeholder values, commented-out code and
+    // deprecated APIs. Per-file reads, so they need no complete snapshot, but
+    // they read whole files, so the snapshot pass only. All three land as
+    // candidates — the measured precision is in the W18-07 plan note.
+    if (sources.length) {
+      const leftoverStatus = async (ruleId: string) =>
+        shippedRuleStatus(deps.db, deps.workspaceId, ruleId);
+      const placeholderStatus = await leftoverStatus(PLACEHOLDER_RULE_ID);
+      if (placeholderStatus !== 'deprecated') {
+        for (const p of placeholderValues(sources)) {
+          findings.push({
+            dimension: 'slop',
+            // 2: a value nobody replaced fails at the first real request, or —
+            // a guessable password — works when it should not.
+            severity: 2,
+            confidence: 4,
+            file: p.file,
+            lineStart: p.line,
+            lineEnd: p.line,
+            title: `Placeholder value in shipped code: ${p.literal.slice(0, 80)}`,
+            evidenceQuote: p.literal,
+            rationale: p.message,
+            suggestedFix: null,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: p.ruleId,
+            yields: null,
+            experimental: placeholderStatus !== 'active',
+          });
+        }
+      }
+      const commentedStatus = await leftoverStatus(COMMENTED_CODE_RULE_ID);
+      if (commentedStatus !== 'deprecated') {
+        for (const c of commentedOutCode(sources)) {
+          findings.push({
+            dimension: 'slop',
+            severity: 1,
+            confidence: 4,
+            file: c.file,
+            lineStart: c.line,
+            lineEnd: c.lineEnd,
+            title: `Commented-out code: ${c.codeLines} lines`,
+            evidenceQuote: c.firstLine,
+            rationale: c.message,
+            suggestedFix: null,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: c.ruleId,
+            yields: null,
+            experimental: commentedStatus !== 'active',
+          });
+        }
+      }
+      const deprecatedStatus = await leftoverStatus(DEPRECATED_API_RULE_ID);
+      if (deprecatedStatus !== 'deprecated') {
+        for (const d of deprecatedApis(sources)) {
+          findings.push({
+            dimension: 'slop',
+            severity: 2,
+            // 5 from the table; 4 where the deprecation depends on runtime
+            // state the text only approximates (a running event loop).
+            confidence: d.entry.judge ? 4 : 5,
+            file: d.file,
+            lineStart: d.line,
+            lineEnd: d.line,
+            title: `Deprecated API: ${d.entry.id}`,
+            evidenceQuote: d.statement,
+            rationale: `${d.message} (${DEPRECATED_API_TABLE_VERSION})`,
+            suggestedFix: `Use ${d.entry.replacement}.`,
+            scannerKey: ANTI_SLOP_SCANNER_KEY,
+            ruleId: d.ruleId,
+            yields: null,
+            experimental: deprecatedStatus !== 'active',
+          });
+        }
       }
     }
     const deterministic = findings.length;
