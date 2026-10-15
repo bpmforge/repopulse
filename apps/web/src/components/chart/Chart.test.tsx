@@ -55,7 +55,9 @@ describe('Chart wrapper (DASHBOARD §5)', () => {
     // its own chunk instead of the entry bundle. Init is therefore a microtask
     // later than mount — the behaviour is unchanged, the timing is not.
     await vi.waitFor(() => expect(initChart).toHaveBeenCalledTimes(1));
-    expect(chart.setOption).toHaveBeenCalledTimes(1);
+    // setOption runs in the effect AFTER the re-render that init triggers, so
+    // it needs its own wait; asserting it synchronously raced that render.
+    await vi.waitFor(() => expect(chart.setOption).toHaveBeenCalledTimes(1));
     expect(chart.setOption.mock.calls[0]![0]).toMatchObject({ animation: true });
   });
 
