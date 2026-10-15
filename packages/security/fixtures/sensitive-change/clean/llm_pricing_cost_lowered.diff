@@ -1,0 +1,8 @@
+diff --git a/src/llm/pricing.ts b/src/llm/pricing.ts
+--- a/src/llm/pricing.ts
++++ b/src/llm/pricing.ts
+@@ -1,5 +1,5 @@
+ export const PRICING = {
+-  inputTokens: { cost: 3 },
++  inputTokens: { cost: 2 },
+ };

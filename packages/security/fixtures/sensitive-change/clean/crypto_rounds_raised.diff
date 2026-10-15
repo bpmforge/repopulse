@@ -1,0 +1,7 @@
+diff --git a/src/auth/passwords.ts b/src/auth/passwords.ts
+--- a/src/auth/passwords.ts
++++ b/src/auth/passwords.ts
+@@ -1,6 +1,6 @@
+ import bcrypt from 'bcrypt';
+-const SALT_ROUNDS = 10;
++const SALT_ROUNDS = 12;

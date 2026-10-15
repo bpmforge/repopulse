@@ -12,6 +12,11 @@ no live forge calls in any handler (FR-API-2, Law 4).
 - **Auth**: GitHub OAuth (FR-AUTH-1) → httpOnly secure session cookie backed by Redis
   (FR-AUTH-2). Every route (except `/auth/*`, `/webhooks/*`, `/healthz`) requires a session
   → 401 otherwise (FR-API-4 route-walker test).
+- **CI tokens** (W18-18, SC-31): the one exception to session auth. A request carrying
+  `Authorization: Bearer rpci_…` is judged as a CI-token request and nothing else (any
+  session cookie is ignored). A token reaches only routes marked `config.ciToken` — today
+  the two in "CI pull" below — and only with GET; every other route ⇒ 403, an unknown,
+  expired or revoked token ⇒ 401. See docs/CI_INTEGRATION.md.
 - **Workspace scoping**: active workspace resolved from session (v1 single `default`);
   all queries workspace-filtered (FR-AUTH-3, NFR-4). No workspace id in paths at v1 —
   additive `X-Workspace-Id` header override reserved for SaaS flip (ARCHITECTURE §7).
@@ -59,6 +64,7 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `GET /repos/{id}/trends` | `?window` → snapshot series bundle for the Pulse tab chart grid | FR-METRICS-13, FR-INSIGHTS-4 |
 | `GET /repos/{id}/pr-flow` | `?window` → stage funnel (median+p90/stage), reviewer×week load matrix, size histogram | FR-METRICS-4/5/6/7 |
 | `GET /repos/{id}/ci` | `?window` → pass-rate + duration trends, flaky-workflow ranking | FR-METRICS-9 |
+| `GET /repos/{id}/review-bots` | `?window` → per known AI review bot: PRs reviewed/reach, reviews and inline comments per PR, time to first comment, share followed by a code change, repeat-after-dismiss; `forge` + `line_data` say why comment columns are null. Tools only, never people (N-9) | W18-23, METRICS.md §5 |
 | `GET /repos/{id}/hotspots` | `?window` → ranked files `{path, hotspot_score, decomposition, finding_density, contributing_commit_ids}` | FR-METRICS-2, FR-INSIGHTS-5 |
 | `GET /repos/{id}/contributors` | → identities w/ churn share, bus factor per directory, single-owner flags | FR-METRICS-3 |
 | `GET /repos/{id}/files/{path}` | → file detail: churn series, owners, hotspot history, findings | FR-API-5 |
@@ -84,10 +90,25 @@ no live forge calls in any handler (FR-API-2, Law 4).
 |---|---|---|
 | `GET /findings` | filters `dimension, severity, status, repo_ids, pr` → list | FR-WEB-9 |
 | `GET /findings/stats` | disposition counts + false-positive rate (wont_fix÷dispositioned) trend for the Explorer header widget | FR-INSIGHTS-1, UX §4.e |
-| `GET /findings/{id}` | → detail: evidence, file/line, run/model/checklist version, status history | FR-INSIGHTS-1 |
+| `GET /findings/{id}` | → detail: evidence, file/line, run/model/checklist version, status history. Findings (list and detail) also carry `context: { start_line, lines } \| null` (W18-32): the scanned file's lines around the finding, stored at scan time, `null` for secrets, repo-level findings, old rows and findings closed past retention | FR-INSIGHTS-1 |
 | `POST /findings/{id}/status` | `{to: acknowledged\|resolved\|wont_fix, reason}` → 200 + event row | FR-INSIGHTS-1 |
 | `POST /analyses` | `{repo_id, pr_number, tier:2\|3}` → 202 `{run_id}`; tier 3 without repo opt-in → 403 | FR-ANALYSIS-1/7 |
 | `GET /analyses/{run_id}` | → `{status, chunk_count, findings_count, cost_usd?, error?}` | FR-ANALYSIS-8 |
+| `GET /findings/{id}/patch` | → `{eligible, reason?, commit_sha?, patch: null \| {id, status: pending\|verified\|rejected\|failed, commit_sha, tier, created_at, finished_at, diff?, filename?, model_id?, verification?: {rule_sets[], runs}, reason?, reason_code?}}`. `diff` only when `verified` (any role); a `rejected` patch is `{id, status, …timestamps}` to a member — no diff, no reason; `reason`/`reason_code` (and a rejected diff) only to an admin. Ineligible finding (model finding, repo-level, no scanned commit) → `eligible:false` + why. Other workspace's finding → 404 | W18-19, D16 |
+| `POST /findings/{id}/patch` | `{tier?: "t2"\|"t3"}` (default `t2`, the workspace's own model) → 202 `{patch}` (pending, enqueued on `patches.draft`). Idempotent per finding × scanned commit: pending → 202 same row, verified/rejected → 200 the decided row (no new model call), failed → reset and re-enqueued. `t3` needs admin (403) **and** the repo's Tier-3 opt-in (409). Ineligible → 409; > 50 requests per workspace per rolling 24 h → 429; 10/min per caller (rate limit); no Redis → 503. **Writes nothing to the forge (D9a)** — no branch, commit, PR or comment; the developer copies/downloads the diff | W18-19, D16 |
+
+### CI pull (W18-18, D16 — read by the customer's own CI; RepoPulse never writes)
+| Method+Path | Req → Res | FR |
+|---|---|---|
+| `GET /repos/{id}/pulls/{number}/findings` | `?new=true\|false` (default true) `&include_experimental=true\|false` (default false) `&cursor&limit≤100` (default 50) → `{pull:{number,title,state,head_sha,base_ref}, head:{sha, scanned, scanners:[{scanner_key, scanned_at}]}, items:[{id, rule_id, scanner_key, dimension, severity 1-5, severity_label, confidence, title, file, line_start, line_end, evidence, suggested_fix, experimental, status, introduced_by_pr, seen_at_head, first_seen_at, last_seen_at}], next_cursor}`. Session **or** CI token (repo must be in the token's `repo_ids`, else 404). Ordered severity desc, id desc; keyset cursor. **new=true** = findings first seen on this PR (stamped `pull_request_id`, or first seen by a `pr_synced` scan run at the PR head) that are still present on the head (not dismissed/resolved/wont_fix; and bumped by their scanner's latest succeeded run at the head when it has one — a finding whose scanner has not run at the head is kept with `seen_at_head:false`). **new=false** adds pre-existing live findings on files the PR touches (`introduced_by_pr:false`). Experimental (shadow-mode) findings excluded unless asked. 404 when the PR is not in the warehouse yet. No grades or scores (N-9). | E10.8, E6.3 |
+| `GET /cli/repopulse.mjs` | → the `repopulse check` CLI (one dependency-free file), session or CI token | E10.8 |
+
+### admin → CI tokens 👑 (W18-18, SC-31)
+| Method+Path | Req → Res | FR |
+|---|---|---|
+| `POST /admin/ci-tokens` | `{name, repo_ids[1..100], expires_in_days? 1..365 (default 365)}` → 201 `{id, name, token, prefix, scope:'pr_findings:read', repo_ids, expires_at}` — `token` appears here once and never again; audited `ci_token.created` | E10.8 |
+| `GET /admin/ci-tokens` | → `{items:[{id, name, prefix, scope, repo_ids, created_by, created_at, expires_at, last_used_at, revoked_at}]}` (never the token or its hash) | E10.8 |
+| `DELETE /admin/ci-tokens/{id}` | revoke (row kept) → 204; already revoked/unknown → 404; audited `ci_token.revoked` | E10.8 |
 
 ### reports (FR-REPORTS-*)
 | Method+Path | Req → Res | FR |
@@ -114,6 +135,7 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `GET /admin/egress-audit` | filterable T3 audit rows | NFR-9 |
 | `GET /admin/dlq` · `POST /admin/dlq/{jobId}/retry` | dead-letter queue ops page | NFR-11 |
 | `GET /admin/budget` | forge budget gauges (REST + GraphQL buckets), sync lag | NFR-12 |
+| `GET /admin/patches` | → `{items:[{id, finding_id, status, reason_code, reason, model_id, tier, created_at}]}` — the last 100 verified-patch attempts with reasons, so an admin can see why fixes are rejected (W18-19) | W18-19 |
 
 ### webhooks (machine-facing, no session)
 | Method+Path | Behavior | FR |

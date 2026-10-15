@@ -34,6 +34,13 @@ export const commits = pgTable(
     authoredAt: timestamp('authored_at', { withTimezone: true }).notNull(),
     committedAt: timestamp('committed_at', { withTimezone: true }).notNull(),
     messageHead: text('message_head').notNull(),
+    // W18-20 (migration 0035): the git trailers of the commit message's last
+    // paragraph ("Co-authored-by: Claude <noreply@anthropic.com>"), one
+    // "Key: value" string each. Stored RAW rather than as a verdict so an
+    // admin's edit to the AI-authorship pattern list re-classifies history on
+    // the next read instead of needing a re-ingest. NULL = ingested before
+    // trailers were captured — unknown, which is not the same as "had none".
+    trailers: text('trailers').array(),
     isRevertHeuristic: boolean('is_revert_heuristic').notNull(),
     // >1 parent ⇒ merge commit. Set at ingest from the forge parent list
     // (W2-03 upsert); METRICS.md §0 excludes merges from churn/hotspots/

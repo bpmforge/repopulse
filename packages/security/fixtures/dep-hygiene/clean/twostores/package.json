@@ -1,0 +1,7 @@
+{
+  "name": "twostores",
+  "dependencies": {
+    "@prisma/client": "^5.0.0",
+    "mongoose": "^8.0.0"
+  }
+}

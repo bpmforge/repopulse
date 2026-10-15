@@ -1,0 +1,8 @@
+diff --git a/src/http/etag.ts b/src/http/etag.ts
+--- a/src/http/etag.ts
++++ b/src/http/etag.ts
+@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
+ export function etag(body: string): string {
++  // Cache validator only; collisions cost a cache miss.
++  return createHash('md5').update(body).digest('hex');
+ }

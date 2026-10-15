@@ -1,0 +1,9 @@
+{
+  "name": "devonly",
+  "dependencies": {
+    "react": "^18.3.0"
+  },
+  "devDependencies": {
+    "lodash": "^4.17.21"
+  }
+}

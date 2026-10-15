@@ -54,6 +54,8 @@ export interface Finding {
   file: string | null;
   line_range: [number | null, number | null];
   evidence: string;
+  /** Lines of the scanned file around the finding (W18-32), or null. */
+  context?: { start_line: number; lines: string } | null;
   recommendation: string;
   status: string;
   dismiss_reason: string | null;

@@ -1,0 +1,9 @@
+diff --git a/src/routes/legacy.ts b/src/routes/legacy.ts
+deleted file mode 100644
+--- a/src/routes/legacy.ts
++++ /dev/null
+@@ -1,4 +0,0 @@
+-import { requireAdmin } from '../auth';
+-const router = Router();
+-router.delete('/legacy/:id', requireAdmin, purge);
+-export default router;

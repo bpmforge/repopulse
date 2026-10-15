@@ -1,0 +1,154 @@
+# bpm-rulepacks — anti-slop, Ruby variant v1 (W18-16, CODE_HEALTH_SUITE.md §1/§9).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied, adapted or derived
+# from the Semgrep registry (DESIGN_REVIEW.md G-18). `metadata.source` names the
+# bpm-opencode-experts rule each check implements, as in anti-slop.v1.yaml.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): its findings are stamped experimental and
+# kept out of scores until an admin promotes it on evidence (§8.2).
+#
+# Ruby idioms that shaped these rules:
+#   - `raise NotImplementedError` is how Ruby declares an abstract method; a
+#     base class full of them is design, not a stub. Only a "not implemented"
+#     / TODO MESSAGE on another error is matched.
+#   - A bare `rescue` (or `rescue => e`) catches StandardError, so it is the
+#     catch-all here; `rescue Exception` is worse (it also eats Interrupt and
+#     SignalException). A rescue of a NAMED error class is left alone.
+#   - Comments are invisible to patterns, so "empty" is decided on the text,
+#     and a rescue whose body is only a comment is a documented decision.
+rules:
+  - id: bpm-ch-rb-empty-rescue
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      A catch-everything rescue that does nothing. The failure still happened;
+      the only thing removed was anyone's chance of knowing. Rescue the error
+      you expect, log it, or say in a comment why dropping it is safe.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    # Text, not a pattern: the Ruby grammar folds `rescue` + `end` with no body
+    # into the same tree as one whose body is a comment. Matched: `rescue`,
+    # `rescue => e`, `rescue StandardError`, `rescue Exception` (optionally
+    # `=> e`), then nothing but whitespace up to `end`/`ensure`. A body of
+    # just `nil` is a returned default: bpm-ch-rb-silent-fallback reports it.
+    pattern-regex: (?m)^[ \t]*rescue(\s+(::)?(StandardError|Exception))?(\s*=>\s*\w+)?[ \t]*\n[ \t]*(end|ensure)\b
+
+  - id: bpm-ch-rb-rescue-nil-modifier
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      `expr rescue nil` swallows every StandardError the expression raises —
+      a typo'd method name (NoMethodError) included — and hands back nil. The
+      caller cannot tell "absent" from "broken". Rescue the specific error in
+      a begin/rescue block.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '**/spec/**'
+        - '**/test/**'
+        - '*_spec.rb'
+        - '*_test.rb'
+    pattern-regex: \S[ \t]+rescue[ \t]+(nil|false|\[\]|\{\}|""|''|0)[ \t]*(\)|$|#)
+
+  - id: bpm-ch-rb-silent-fallback
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      Rescues everything and returns an empty value. The caller cannot tell
+      "there is nothing" from "we failed to find out" — rescue the specific
+      error you expect, or let the failure reach someone who can act on it.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: (?m)^[ \t]*rescue(\s+(::)?(StandardError|Exception))?(\s*=>\s*\w+)?[ \t]*\n[ \t]*(return[ \t]+)?(nil|false|\[\]|\{\}|""|''|0)[ \t]*\n[ \t]*(end|ensure)\b
+
+  - id: bpm-ch-rb-stub-as-feature
+    languages: [ruby]
+    severity: WARNING
+    message: >-
+      A method that exists and does nothing but refuse. A caller sees the
+      method's name, not the raise — which is how "we support that" survives
+      into a demo. An abstract method raises NotImplementedError and is not
+      matched; a "not implemented" or TODO message on another error is.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '**/spec/**'
+        - '**/test/**'
+        - '*_spec.rb'
+        - '*_test.rb'
+    pattern-regex: \braise\s*\(?\s*(([A-Z]\w*::)*(?!NotImplementedError)[A-Z]\w*\s*,\s*)?(['"])(?i)\s*(not (yet )?implemented|unimplemented|implement me|tbd|todo\b[^'"]*|[^'"]*\bcoming soon\b[^'"]*)\s*[.!]*\s*\3
+
+  - id: bpm-ch-rb-what-comment
+    languages: [ruby]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        The comment's object must also appear on the next line ("// call
+        trigger" over `call_trigger(...)`): on the real-code sample, the
+        same phrasings over a block that does something else ("// Get
+        parameters" over six GETPOST lines) were section headers. Matches the
+        mechanical phrasings only ("# increment the counter",
+        "# loop through the items"), and only when CODE follows on the next
+        line: the same words over a blank line, or in a method's doc comment
+        block, are documentation. A redundant comment in natural prose belongs
+        to the LLM layer.
+    pattern-regex: >-
+      (?im)^[ \t]*#[ \t]*(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new)[ \t]+(the[ \t]+)?[@$]?(\w{3,})[ \t]*\.?[ \t]*\n[ \t]*(?!def\b|class\b|module\b|attr_\w+\b|private\b|protected\b|public\b)(?=[^\s#])[^\n]*?\3
+
+  - id: bpm-ch-rb-step-narration
+    languages: [ruby]
+    severity: INFO
+    message: >-
+      Step-numbered narration. Three of these in a row usually means the code
+      was written to a plan and the plan was left behind as comments; the
+      structure they describe should be methods with names.
+    metadata:
+      source: R-14
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '(?m)^[ \t]*#[ \t]*(Step|STEP)[ \t]*\d+[ \t]*[:.\-]'
+
+  - id: bpm-ch-rb-prose-padding
+    languages: [ruby]
+    severity: INFO
+    message: >-
+      Filler phrasing in a comment. "It is important to note that" and its
+      relatives carry no information — they are what a model produces when it
+      has nothing specific to say.
+    metadata:
+      source: R-29
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A phrase list, not a measure of density. "This class is responsible
+        for", in the JS/JVM lists, is left out: in docblocks it was ordinary
+        human documentation on every real-code hit (sabre/dav, pythonnet,
+        AvalonEdit). The LDR calculation is the
+        real answer and is computed in the anti_slop scanner, not here.
+    pattern-regex: >-
+      (?im)^[ \t]*#.*\b(it is important to note|it should be noted|as we can see|in order to be able to|needless to say|at the end of the day)\b

@@ -57,3 +57,9 @@ ef5c718f74e7b265eebc04552d2da2d30bb688d5:packages/insights/src/score/health.ts:g
 302cc972b99ff036eb445305e6b1f14b8aec75fb:packages/security/fixtures/benchmark/juice-shop/tree/routes/login.ts:generic-api-key:64
 304d1d1bfe84435e6d0c777ae8a11f13354e0666:packages/security/fixtures/leftovers/triggering/src/client.ts:stripe-access-token:12
 304d1d1bfe84435e6d0c777ae8a11f13354e0666:packages/security/src/scanners/anti-slop/deprecated-apis.v1.ts:generic-api-key:19
+# W18-32 (UX thread branch, code-context): synthetic strings in the test for the
+# secret-line redactor (the access-key string is AWS's documented example;
+# the JWT is a made-up payload). Reviewed one by one; none is a real credential.
+adc466577b079467755608c2862ed58e495e5041:packages/security/src/excerpt.test.ts:aws-access-token:20
+adc466577b079467755608c2862ed58e495e5041:packages/security/src/excerpt.test.ts:aws-access-token:75
+adc466577b079467755608c2862ed58e495e5041:packages/security/src/excerpt.test.ts:jwt:78

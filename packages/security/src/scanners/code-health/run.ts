@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
+import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/index.js';
@@ -235,7 +236,7 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           scanRunId: runId,
           pullRequestId: null,
           tier: 1,
-          findings,
+          findings: await attachExcerpts(snapshot.dir, findings),
           // A snapshot run has seen the whole tree, so it may close what it no
           // longer reports — its own findings only.
           reviewedFiles: [...new Set(findings.map((f) => f.file).filter((f): f is string => !!f))],

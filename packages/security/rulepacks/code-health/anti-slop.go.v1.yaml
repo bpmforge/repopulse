@@ -1,0 +1,191 @@
+# bpm-rulepacks — anti-slop, Go variants v1 (W18-12, CODE_HEALTH_SUITE.md §1).
+#
+# PROVENANCE: every rule below was written for this repository. NONE is copied,
+# adapted or derived from the Semgrep registry (DESIGN_REVIEW.md G-18). Each
+# rule names the bpm-opencode-experts rule number it implements, as the
+# JavaScript pack does.
+#
+# GO HAS NO EXCEPTIONS, so the R-01/R-10 family (empty catch, silent fallback)
+# lands on the error value instead: an `if err != nil` that does nothing, a
+# discarded error, an error replaced by nil on the way out. Those are the same
+# failure — the error happened and nobody can find out — wearing Go syntax.
+#
+# No type information is available to these patterns. A rule that needs to
+# know "this call returns an error" therefore names the calls it knows, rather
+# than guessing from shape: `v, _ := m[k]` and `v, _ := x.(T)` discard a bool,
+# and firing on them would be firing on idiomatic Go.
+rules:
+  - id: bpm-ch-go-discarded-error
+    languages: [go]
+    severity: WARNING
+    message: >-
+      An error from a call whose failure changes the result is thrown away. The
+      value you keep is the zero value when this fails — a parse that returns 0,
+      a decode that leaves the struct empty, a commit that never happened — and
+      nothing downstream can tell that apart from success.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Names the standard-library and database calls whose error decides
+        whether the result is meaningful. `_ = f()` on an unknown f is NOT
+        matched: in Go a call's results can be ignored without `_ =`, so
+        writing it is usually a deliberate acknowledgement (a best-effort
+        os.Remove in cleanup), and without types the rule cannot tell f
+        returns an error at all.
+    patterns:
+      - pattern-either:
+          # Results the caller goes on to USE, with the error dropped.
+          - pattern: $V, _ := $CALL(...)
+          - pattern: $V, _ = $CALL(...)
+          # Calls whose only interesting result is the error.
+          - pattern: _ = $CALL(...)
+      - metavariable-regex:
+          metavariable: $CALL
+          # json.Marshal is deliberately absent: over ten real modules it was
+          # the majority of matches, nearly all on structs that cannot fail
+          # to encode.
+          regex: ^(?:strconv\.(?:Atoi|Parse\w+|Unquote)|time\.(?:Parse|ParseDuration|ParseInLocation|LoadLocation)|url\.(?:Parse|ParseRequestURI|ParseQuery|QueryUnescape|PathUnescape)|json\.Unmarshal|(?:io|ioutil)\.ReadAll|(?:os|ioutil)\.(?:ReadFile|WriteFile)|\w+\.(?:Commit|Decode|Encode|Unmarshal|Scan|Flush|Sync|Execute|ExecuteTemplate))$
+
+  - id: bpm-ch-go-swallowed-error
+    languages: [go]
+    severity: WARNING
+    message: >-
+      An error check that checks nothing. An empty `if err != nil {}`, or one
+      that answers the error with `return nil`, turns a failure into a success
+      on the way up — the Go shape of an empty catch. If the error genuinely
+      does not matter here, say why in the branch.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    # The `if err := f(); err != nil` form needs no pattern of its own: the
+    # engine treats it as the statement followed by the check, and listing it
+    # separately reported one empty branch twice.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if $ERR != nil {
+              }
+          - pattern: |
+              if $ERR != nil {
+                return nil
+              }
+          - pattern: |
+              if $ERR != nil {
+                return nil, nil
+              }
+      - metavariable-regex:
+          metavariable: $ERR
+          regex: ^(?:err|e|\w+Err|\w+Error)$
+      # A branch that says why the error does not matter is a decision, not a
+      # swallow — the comment is exactly what the message asks for.
+      - pattern-not-regex: (?s)!=\s*nil\s*\{\s*//
+
+  - id: bpm-ch-go-panic-in-library
+    languages: [go]
+    severity: WARNING
+    message: >-
+      panic() on an error, inside a function that returns an error. The caller
+      was promised failures as values and gets a crashed process instead; the
+      error was right there to return. Return it (wrapped with context).
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Narrow on purpose. Panic as an invariant assertion is idiomatic Go —
+        run over ten popular modules, a rule matching every library panic
+        reported 909, almost all of them deliberate. This matches only the
+        shape that has no defence: an error in hand, a function whose signature
+        could carry it, and a panic instead.
+    paths:
+      exclude:
+        # Programs and tests may decide how they die; generated mocks panic on
+        # unconfigured calls by design.
+        - '*_test.go'
+        - 'main.go'
+        - 'cmd/'
+        - 'testdata/'
+        - 'mock_*.go'
+        - '*_mock.go'
+        - '*.pb.go'
+        - '*_gen.go'
+        - 'zz_generated*.go'
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              func $F(...) error { ... }
+          - pattern-inside: |
+              func $F(...) ($A, error) { ... }
+          - pattern-inside: |
+              func $F(...) ($A, $B, error) { ... }
+          - pattern-inside: |
+              func ($RECV) $F(...) error { ... }
+          - pattern-inside: |
+              func ($RECV) $F(...) ($A, error) { ... }
+          - pattern-inside: |
+              func ($RECV) $F(...) ($A, $B, error) { ... }
+      - pattern-inside: |
+          if $ERR != nil { ... }
+      - pattern-either:
+          - pattern: panic($ERR)
+          - pattern: panic($ERR.Error())
+          - pattern: panic(fmt.Sprintf(..., $ERR, ...))
+          - pattern: panic(fmt.Errorf(..., $ERR, ...))
+      # A closure inside the function cannot return the outer function's error.
+      - pattern-not-inside: |
+          func(...) { ... }
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(?!(?:Must|must))
+
+  - id: bpm-ch-go-stub-as-feature
+    languages: [go]
+    severity: WARNING
+    message: >-
+      A function that exists and does nothing but refuse, or nothing at all
+      under a TODO. From the outside a caller sees the name and the signature,
+      not the stub — which is how "we support that" survives into a demo.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      # Only a message that is NOTHING but "not implemented" / "TODO": a
+      # `panic("TODO(team): this should never be empty")` is an assertion
+      # with a label on it, and a package-level errNotImplemented sentinel
+      # is how a platform says it cannot do something.
+      - pattern-regex: panic\((["`])(?i)\s*((not |un)implemented\b[^"`]*|implement me[^"`]*|todo\s*[.!]?)\1\)
+      - pattern-regex: return\s+(\w+,\s*)*errors\.New\((["`])(?i)\s*((not |un)implemented\b[^"`]*|implement me[^"`]*|todo\s*[.!]?)\2\)
+      # A function body that is a TODO and, at most, a zero-value return: the
+      # function reports success without having done anything. Function
+      # bodies only — a TODO in an `if` branch is a different smell.
+      - pattern-regex: (?m)^func\b[^\n]*\{[ \t]*\n\s*//\s*TODO[^\n]*\n(\s*//[^\n]*\n)*\s*(return(\s+(nil|nil,\s*nil|""|0|false|""\s*,\s*nil|0\s*,\s*nil|false\s*,\s*nil))?\s*\n)?\s*\}
+
+  - id: bpm-ch-go-what-comment
+    languages: [go]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches the mechanical phrasings only ("// increment the counter",
+        "// loop through the items"). Go doc comments start with the name they
+        document ("// Get returns ...") and are never matched: the phrase list
+        requires the comment to END after one object word. At most one space
+        after the slashes, so commented-out code (`//\t\treturn r`) is not
+        read as prose.
+    pattern-regex: >-
+      (?i)^\s*// ?(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new|check if|check for)\s+(the\s+|an?\s+)?\w+\s*\.?\s*$

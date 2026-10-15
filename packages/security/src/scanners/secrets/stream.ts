@@ -6,6 +6,7 @@ import { isEnabled } from '../../config/defaults.js';
 import { buildSecretFindings, SECRETS_SCANNER_KEY } from './scanner.js';
 import { loadRulepack } from './rulepack.js';
 import type { SecretsVerificationConfig } from './verify.js';
+import { runSensitiveChangeScan } from '../sensitive-change/run.js';
 
 // Stream mode (W8-04, SECURITY_SUITE.md 3.1, FR-SEC-3).
 //
@@ -279,6 +280,28 @@ export async function scanOneTarget(
       .update(security.scanRuns)
       .set({ status: 'succeeded', findingCount: findings.length, finishedAt: new Date() })
       .where(eq(security.scanRuns.id, run!.id));
+
+    // W18-21: the sensitive-change radar reads the SAME diff, so it costs no
+    // second fetch. Arrivals only — history mode sweeps months-old commits,
+    // and asking a person to review a year-old change helps nobody. Its own
+    // scan_run, its own enablement, and its failures stay its own: the
+    // secrets result above is already stored and is returned regardless.
+    if (trigger === 'pr_synced' || trigger === 'push') {
+      try {
+        await runSensitiveChangeScan({
+          db: deps.db,
+          workspaceId: deps.workspaceId,
+          repoId: deps.repoId,
+          commitSha: target.commitSha,
+          trigger,
+          pullRequestId: target.pullRequestId ?? null,
+          files,
+        });
+      } catch {
+        // Enablement lookup or run-row insert failed before the radar could
+        // record anything. Swallowed so the secrets run keeps its result.
+      }
+    }
     return persisted.created;
   } catch (err) {
     await deps.db

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { shippedStatusOf, type ShippedStatus } from '../../rules/shadow.js';
 
 // Opengrep output parsing (W8-07, SECURITY_SUITE.md §3.3).
 //
@@ -44,6 +45,12 @@ export interface SemgrepFinding {
   /** From metadata.yields — the chainer's input (W8-09). */
   yields: string[];
   cwe: string | null;
+  /**
+   * `metadata.lifecycle` from the rule file (CODE_HEALTH_SUITE §8.2): a new
+   * rule ships as a `candidate` and its findings run in shadow until promoted.
+   * Resolved against the workspace's registry by rules/shadow.ts.
+   */
+  shippedStatus: ShippedStatus;
 }
 
 /**
@@ -128,6 +135,7 @@ export function parseOpengrepOutput(args: ParseArgs): ParseResult {
       message: result.extra.message.trim(),
       yields: Array.isArray(metadata.yields) ? metadata.yields.map(String) : [],
       cwe: typeof metadata.cwe === 'string' ? metadata.cwe : null,
+      shippedStatus: shippedStatusOf(result.extra.metadata),
     };
   });
 

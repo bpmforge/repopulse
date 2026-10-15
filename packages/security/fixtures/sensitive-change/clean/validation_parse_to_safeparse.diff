@@ -1,0 +1,7 @@
+diff --git a/src/routes/signup.ts b/src/routes/signup.ts
+--- a/src/routes/signup.ts
++++ b/src/routes/signup.ts
+@@ -8,8 +8,9 @@ import { SignupSchema } from '../schemas';
+-  const body = SignupSchema.parse(req.body);
++  const parsed = SignupSchema.safeParse(req.body);
++  if (!parsed.success) return res.status(400).json(parsed.error);

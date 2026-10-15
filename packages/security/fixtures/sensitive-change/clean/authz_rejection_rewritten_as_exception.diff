@@ -1,0 +1,9 @@
+diff --git a/rest_framework/views.py b/rest_framework/views.py
+--- a/rest_framework/views.py
++++ b/rest_framework/views.py
+@@ -88,8 +88,7 @@ def exception_handler(exc, context):
+     if isinstance(exc, PermissionDenied):
+-        msg = "Permission denied."
+-        return Response({"detail": msg}, status=status.HTTP_403_FORBIDDEN)
++        exc = exceptions.PermissionDenied()
+     return None

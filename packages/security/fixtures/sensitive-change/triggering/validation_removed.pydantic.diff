@@ -1,0 +1,9 @@
+diff --git a/app/schemas/profile.py b/app/schemas/profile.py
+--- a/app/schemas/profile.py
++++ b/app/schemas/profile.py
+@@ -5,6 +5,6 @@ from pydantic import BaseModel, Field
+ 
+ class ProfileUpdate(BaseModel):
+-    display_name: str = Field(..., max_length=64)
++    display_name: str
+     bio: str | None = None

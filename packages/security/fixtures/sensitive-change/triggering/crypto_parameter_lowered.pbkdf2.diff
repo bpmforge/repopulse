@@ -1,0 +1,11 @@
+diff --git a/app/security/kdf.py b/app/security/kdf.py
+--- a/app/security/kdf.py
++++ b/app/security/kdf.py
+@@ -3,7 +3,7 @@ import hashlib
+ 
+-ITERATIONS = 600_000
++ITERATIONS = 1_000
+ 
+ 
+ def derive(password: bytes, salt: bytes) -> bytes:
+     return hashlib.pbkdf2_hmac("sha256", password, salt, ITERATIONS)
