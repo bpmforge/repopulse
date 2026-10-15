@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { runtimeFreeSystemPath } from './runtime-free-path.js';
 
 const run = promisify(execFile);
 const repoRoot = new URL('../../../../', import.meta.url).pathname;
@@ -22,6 +23,11 @@ const composeYaml = path.join(repoRoot, 'deploy/compose.yaml');
  * gates. Each one is a way a customer install fails early with a sentence
  * instead of late with a stack that looks up.
  */
+// The bundle's own arch names (bundle.sh, install.sh), not Node's: on an
+// amd64 host process.arch is 'x64', which install.sh rightly reads as a
+// different architecture.
+const HOST_ARCH = process.arch === 'x64' ? 'amd64' : process.arch;
+
 describe('deploy/bundle.sh (W17-28)', () => {
   let dir: string;
   let emptyBin: string;
@@ -47,7 +53,7 @@ describe('deploy/bundle.sh (W17-28)', () => {
       const { stdout, stderr } = await run('bash', [script, ...args], {
         env: {
           ...process.env,
-          PATH: `${emptyBin}:/usr/bin:/bin:/usr/sbin:/sbin`,
+          PATH: `${emptyBin}:${runtimeFreeSystemPath()}`,
           REPOPULSE_VERSION: '',
           ...env,
         },
@@ -160,7 +166,7 @@ describe('bundle install.sh (W17-28)', () => {
       [
         'REPOPULSE_VERSION=9.9.9',
         'REPOPULSE_IMAGE_PREFIX=localhost/repopulse',
-        `PLATFORM=${opts.platform ?? `linux/${process.arch}`}`,
+        `PLATFORM=${opts.platform ?? `linux/${HOST_ARCH}`}`,
         'GIT_SHA=deadbeef',
         'GIT_DIRTY=false',
         'BUILT_AT=2026-09-10T00:00:00Z',
@@ -193,7 +199,7 @@ describe('bundle install.sh (W17-28)', () => {
         'bash',
         [path.join(bundle, 'install.sh'), '--url=http://x'],
         {
-          env: { ...process.env, PATH: `${emptyBin}:/usr/bin:/bin:/usr/sbin:/sbin`, ...env },
+          env: { ...process.env, PATH: `${emptyBin}:${runtimeFreeSystemPath()}`, ...env },
         },
       );
       return { code: 0, out: stdout + stderr };
