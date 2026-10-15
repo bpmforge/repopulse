@@ -7,6 +7,7 @@ import {
   RULE_STATUS_LABEL,
   type RuleRow,
 } from '../../widgets/rules/contracts.js';
+import { RulePrecisionTable } from '../../widgets/trust/RulePrecision.js';
 
 // Rule workbench (W9-07, CODE_HEALTH_SUITE.md §8, FR-CH-8, FR-AUTH-4).
 //
@@ -122,6 +123,9 @@ function RuleWorkbench() {
           </tbody>
         </table>
       </WidgetFrame>
+      {/* W18-22: every rule's measured precision and lifecycle, including the
+          pack rules this registry does not hold. */}
+      <RulePrecisionTable />
     </div>
   );
 }

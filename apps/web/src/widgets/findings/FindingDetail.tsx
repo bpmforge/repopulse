@@ -9,6 +9,7 @@ import {
   type FindingEvent,
 } from './contracts.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
+import { RulePrecisionSummary } from '../trust/RulePrecision.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -142,6 +143,10 @@ export function FindingDetail({
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Recommendation</h3>
           <p className="mt-1 text-sm">{finding.recommendation}</p>
         </div>
+
+        {/* W18-22: how far this rule has been shown to be right, before
+            anyone acts on what it says. */}
+        {finding.rule_id && <RulePrecisionSummary ruleId={finding.rule_id} />}
 
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">History</h3>

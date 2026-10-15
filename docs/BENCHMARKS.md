@@ -212,6 +212,31 @@ were scored.
   missed for the reasons given above. Its 8.3% recall is a measure of how much of AI slop
   needs the T2 layer, which is out of scope here.
 
+## In the product (W18-22)
+
+The rules screen (`/admin/rules`, "Rule precision") and the finding drawer show
+each rule's benchmark precision beside its triage precision. Two separate
+numbers, each with its sample size and source, never averaged together.
+
+- **Source.** The API reads a copy bundled at build time,
+  `apps/api/src/lib/benchmark-precision.data.ts`, derived from
+  `docs/benchmarks/report.json`. The benchmark is never run at request time.
+  A drift test (`apps/api/src/lib/benchmark-precision.test.ts`) fails when the
+  copy and the committed report disagree. After a new benchmark run, refresh
+  the copy with
+  `UPDATE_BENCHMARK_BUNDLE=1 npx vitest run apps/api/src/lib/benchmark-precision.test.ts`.
+- **Per-rule precision leaves out the `rule-fixtures` suite.** Each rule was
+  written against its own fixtures, so it scores 100% there by construction.
+  Counting that suite would give the best numbers to the rules with the least
+  outside evidence. So the per-rule figures in the product are lower than the
+  `byRule` table in the report, and their samples are small (1 to 6 findings
+  per rule today). The UI marks any sample under 10 as a small sample.
+- **No number where nothing was measured.** A rule outside the corpus, or one
+  that raised nothing on it (only misses), reads "not measured yet". It never
+  reads 0% or 100%.
+- **Engine.** YAML rules carry the report's semgrep version. Fast-lane rules
+  are labelled in-process.
+
 ## Caveats
 
 - **The corpus is small.** It has 151 labels, and most rules have one to three labelled

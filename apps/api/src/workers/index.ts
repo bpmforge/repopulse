@@ -480,6 +480,16 @@ async function main(): Promise<void> {
                     ...(analysisGateway ? { gateway: analysisGateway.gateway } : {}),
                   }),
                 ];
+                // W18-22. The ONE recorded trace of files the reader skipped
+                // (over the size limit, or past the read cap): the run that
+                // read the tree is marked partial, which the coverage map
+                // reports. The skip COUNT has no column to live in yet.
+                if (slop.scanRunId !== null && (sources.truncated || sources.skipped > 0)) {
+                  await db
+                    .update(security.scanRuns)
+                    .set({ partial: true })
+                    .where(eq(security.scanRuns.id, slop.scanRunId));
+                }
                 // W9-13. Third scan on the SAME snapshot: the perf pack needs a
                 // tree, and a second tarball for eight structural rules would
                 // be a rate-limit cost with nothing to show for it. It has no

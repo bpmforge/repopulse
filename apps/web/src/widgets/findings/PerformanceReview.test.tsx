@@ -264,7 +264,8 @@ describe('Performance tab — nothing here was timed, and nothing here runs code
     renderPerformance('/repos/7/performance?finding=2');
     await screen.findByTestId('finding-detail');
     for (const url of requests) {
-      expect(url).toMatch(/\/api\/v1\/(repos\/7\/capabilities|findings)/);
+      // rules/precision (W18-22): the drawer's rule record, also our own DB.
+      expect(url).toMatch(/\/api\/v1\/(repos\/7\/capabilities|findings|rules\/precision)/);
       expect(url).not.toMatch(/tarball|archive|clone|raw|exec|run/);
     }
   });
