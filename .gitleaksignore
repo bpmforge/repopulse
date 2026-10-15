@@ -1,0 +1,59 @@
+# gitleaks findings that are known not to be secrets (SC-18).
+#
+# One line per finding, by fingerprint (commit:file:rule:line), so each entry
+# silences exactly one already-reviewed hit and a NEW secret anywhere, even in
+# the same file, still fails the gate. Paths are never allowlisted wholesale.
+#
+# History of main: every entry is classified, one by one, in
+# docs/work/product-completion/evidence/w17-34-release-20260911/secrets-triage.md
+# (test placeholders, identifiers that look like keys, the demo TOKEN_ENC_KEY,
+# and one long-expired temp_clone_token in a recorded forge fixture). The two
+# evidence files that quote those same values are listed too.
+
+004ff40f6357c33c7730307f93927916c75a1890:packages/security/src/scanners/chainer/run.integration.test.ts:generic-api-key:145
+004ff40f6357c33c7730307f93927916c75a1890:packages/security/src/scanners/chainer/run.integration.test.ts:generic-api-key:153
+004ff40f6357c33c7730307f93927916c75a1890:packages/security/src/scanners/chainer/run.integration.test.ts:generic-api-key:161
+07d15b1d6439f6021a39bd314d5f079b8537adf7:packages/forge/fixtures/github/repo-get-200-etag.json:generic-api-key:132
+2fa0b108f1e4b6344fad39e47f1d235ee6b696ec:e2e/admin.spec.ts:generic-api-key:32
+4b082f59e4bdf0ac53528a368a25f5f15d93785a:deploy/compose.demo.yaml:generic-api-key:97
+56e733e58a6f945499fb497a410d41f63d407d6a:apps/web/src/widgets/auth/CreateUser.test.tsx:generic-api-key:19
+a11f60898387bd91303e26c914015c1b4a9543cc:packages/reports/src/assembler/risk.integration.test.ts:generic-api-key:140
+a73bdbb89978fc0fbc7d31223f1f1b211907f82e:packages/insights/src/score/health.ts:generic-api-key:217
+a73bdbb89978fc0fbc7d31223f1f1b211907f82e:packages/reports/src/assembler/code-health.integration.test.ts:generic-api-key:157
+a73bdbb89978fc0fbc7d31223f1f1b211907f82e:packages/reports/src/assembler/code-health.integration.test.ts:generic-api-key:185
+d7ca0344f63f18fc621b38c034df2b324be33d10:packages/security/src/scanners/anti-slop/run.integration.test.ts:generic-api-key:267
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:36
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:37
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:38
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:39
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:40
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:41
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:42
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:44
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:45
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:generic-api-key:49
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:github-pat:46
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:github-pat:47
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/independent-verifier.md:github-pat:48
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/secrets-triage.md:github-pat:30
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/secrets-triage.md:github-pat:31
+dae71243f7b89c48d63612e22abb602e12d1ce58:docs/work/product-completion/evidence/w17-34-release-20260911/secrets-triage.md:github-pat:32
+e7dc748e0eb738d59ef399fee2bab768ce1a9e61:packages/security/src/scanners/code-health/run.ts:generic-api-key:122
+e9976aca5a3c3686b19ad9121f1277f14290a06f:apps/api/src/routes/connections/index.test.ts:github-pat:20
+e9976aca5a3c3686b19ad9121f1277f14290a06f:packages/auth/src/credentials/vault.test.ts:github-pat:12
+e9976aca5a3c3686b19ad9121f1277f14290a06f:packages/ingest/src/connect/connect.integration.test.ts:github-pat:67
+ef5c718f74e7b265eebc04552d2da2d30bb688d5:packages/insights/src/score/health.ts:generic-api-key:158
+
+# W18 branches (open PRs): deliberate rule fixtures and test inputs. A
+# truncated AWS key in a SARIF mapping test, a checkov trigger's Terraform
+# password, a placeholder Stripe key in the leftovers rule fixture, a planted
+# secret in the benchmark corpus, OWASP Juice Shop's own source (a deliberately
+# vulnerable app), and a version-string constant.
+
+17e0714db58def944015b6d20b4b109a190bf066:packages/security/src/external/sarif.test.ts:aws-access-token:295
+17e0714db58def944015b6d20b4b109a190bf066:packages/security/src/external/sarif.test.ts:aws-access-token:299
+2508474c9b07b2fdd5897066e490485c46600733:packages/security/fixtures/adapters/checkov/triggering/terraform/main.tf:hashicorp-tf-password:19
+302cc972b99ff036eb445305e6b1f14b8aec75fb:packages/security/fixtures/benchmark/changes/secrets-generic-assignment/after/src/payments.js:generic-api-key:1
+302cc972b99ff036eb445305e6b1f14b8aec75fb:packages/security/fixtures/benchmark/juice-shop/tree/routes/login.ts:generic-api-key:64
+304d1d1bfe84435e6d0c777ae8a11f13354e0666:packages/security/fixtures/leftovers/triggering/src/client.ts:stripe-access-token:12
+304d1d1bfe84435e6d0c777ae8a11f13354e0666:packages/security/src/scanners/anti-slop/deprecated-apis.v1.ts:generic-api-key:19
