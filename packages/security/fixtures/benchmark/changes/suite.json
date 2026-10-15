@@ -1,0 +1,392 @@
+{
+  "id": "changes",
+  "title": "Bug-introducing changes (before/after pairs)",
+  "description": "Hand-written pairs in the spirit of Signal65's bug-introducing-commit method: each case is one plausible edit, 'before' is the correct code and 'after' is the same file once the edit has introduced one defect. A scanner should flag the after tree at the labelled lines and stay quiet on the before tree; any finding on a before tree is a false positive. The edits were written to look like ordinary refactors, not shaped to the rules, so several are expected misses.",
+  "source": {
+    "kind": "authored",
+    "licence": "Proprietary (RepoPulse); written for this benchmark"
+  },
+  "unlabelled": "fp",
+  "trees": [
+    {
+      "id": "logging-console-debug/before",
+      "path": "logging-console-debug/before"
+    },
+    {
+      "id": "logging-console-debug/after",
+      "path": "logging-console-debug/after"
+    },
+    {
+      "id": "logging-log-and-rethrow/before",
+      "path": "logging-log-and-rethrow/before"
+    },
+    {
+      "id": "logging-log-and-rethrow/after",
+      "path": "logging-log-and-rethrow/after"
+    },
+    {
+      "id": "logging-secret-field/before",
+      "path": "logging-secret-field/before"
+    },
+    {
+      "id": "logging-secret-field/after",
+      "path": "logging-secret-field/after"
+    },
+    {
+      "id": "perf-await-in-loop/before",
+      "path": "perf-await-in-loop/before"
+    },
+    {
+      "id": "perf-await-in-loop/after",
+      "path": "perf-await-in-loop/after"
+    },
+    {
+      "id": "perf-sync-io-in-async/before",
+      "path": "perf-sync-io-in-async/before"
+    },
+    {
+      "id": "perf-sync-io-in-async/after",
+      "path": "perf-sync-io-in-async/after"
+    },
+    {
+      "id": "sast-eval-formula/before",
+      "path": "sast-eval-formula/before"
+    },
+    {
+      "id": "sast-eval-formula/after",
+      "path": "sast-eval-formula/after"
+    },
+    {
+      "id": "sast-exec-destructured/before",
+      "path": "sast-exec-destructured/before"
+    },
+    {
+      "id": "sast-exec-destructured/after",
+      "path": "sast-exec-destructured/after"
+    },
+    {
+      "id": "sast-jwt-decode/before",
+      "path": "sast-jwt-decode/before"
+    },
+    {
+      "id": "sast-jwt-decode/after",
+      "path": "sast-jwt-decode/after"
+    },
+    {
+      "id": "sast-random-reset-token/before",
+      "path": "sast-random-reset-token/before"
+    },
+    {
+      "id": "sast-random-reset-token/after",
+      "path": "sast-random-reset-token/after"
+    },
+    {
+      "id": "sast-sql-built-variable/before",
+      "path": "sast-sql-built-variable/before"
+    },
+    {
+      "id": "sast-sql-built-variable/after",
+      "path": "sast-sql-built-variable/after"
+    },
+    {
+      "id": "sast-sql-template/before",
+      "path": "sast-sql-template/before"
+    },
+    {
+      "id": "sast-sql-template/after",
+      "path": "sast-sql-template/after"
+    },
+    {
+      "id": "sast-weak-hash/before",
+      "path": "sast-weak-hash/before"
+    },
+    {
+      "id": "sast-weak-hash/after",
+      "path": "sast-weak-hash/after"
+    },
+    {
+      "id": "secrets-generic-assignment/before",
+      "path": "secrets-generic-assignment/before"
+    },
+    {
+      "id": "secrets-generic-assignment/after",
+      "path": "secrets-generic-assignment/after"
+    },
+    {
+      "id": "slop-docstring-inflation/before",
+      "path": "slop-docstring-inflation/before"
+    },
+    {
+      "id": "slop-docstring-inflation/after",
+      "path": "slop-docstring-inflation/after"
+    },
+    {
+      "id": "slop-empty-catch/before",
+      "path": "slop-empty-catch/before"
+    },
+    {
+      "id": "slop-empty-catch/after",
+      "path": "slop-empty-catch/after"
+    },
+    {
+      "id": "slop-low-logic-density/before",
+      "path": "slop-low-logic-density/before"
+    },
+    {
+      "id": "slop-low-logic-density/after",
+      "path": "slop-low-logic-density/after"
+    },
+    {
+      "id": "slop-phantom-module/before",
+      "path": "slop-phantom-module/before"
+    },
+    {
+      "id": "slop-phantom-module/after",
+      "path": "slop-phantom-module/after"
+    },
+    {
+      "id": "slop-phantom-symbol/before",
+      "path": "slop-phantom-symbol/before"
+    },
+    {
+      "id": "slop-phantom-symbol/after",
+      "path": "slop-phantom-symbol/after"
+    },
+    {
+      "id": "slop-unused-export/before",
+      "path": "slop-unused-export/before"
+    },
+    {
+      "id": "slop-unused-export/after",
+      "path": "slop-unused-export/after"
+    }
+  ],
+  "labels": [
+    {
+      "id": "sast-sql-template",
+      "tree": "sast-sql-template/after",
+      "file": "src/users.js",
+      "lines": [4, 6],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Parameterised query rewritten as an interpolated template literal."
+    },
+    {
+      "id": "sast-sql-built-variable",
+      "tree": "sast-sql-built-variable/after",
+      "file": "src/reports.js",
+      "lines": [3, 4],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "ORDER BY column taken from the query string, concatenated into a variable, then passed to knex.raw."
+    },
+    {
+      "id": "sast-exec-destructured",
+      "tree": "sast-exec-destructured/after",
+      "file": "src/git.js",
+      "lines": [7, 7],
+      "rule": "bpm-js-child-process-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "execFile with an argv array replaced by a promisified exec() of an interpolated command line."
+    },
+    {
+      "id": "sast-eval-formula",
+      "tree": "sast-eval-formula/after",
+      "file": "src/pricing.js",
+      "lines": [3, 3],
+      "rule": "bpm-js-eval-dynamic",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Operator table replaced by eval() of a request field."
+    },
+    {
+      "id": "sast-jwt-decode",
+      "tree": "sast-jwt-decode/after",
+      "file": "src/session.js",
+      "lines": [7, 7],
+      "rule": "bpm-js-jwt-verify-disabled",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "jwt.verify replaced by jwt.decode; claims are now caller-supplied."
+    },
+    {
+      "id": "sast-weak-hash",
+      "tree": "sast-weak-hash/after",
+      "file": "src/passwords.js",
+      "lines": [4, 4],
+      "rule": "bpm-js-weak-hash",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "bcrypt replaced by unsalted SHA-1 for password storage."
+    },
+    {
+      "id": "sast-random-reset-token",
+      "tree": "sast-random-reset-token/after",
+      "file": "src/reset.js",
+      "lines": [2, 2],
+      "rule": "bpm-js-math-random-token",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "crypto.randomBytes replaced by Math.random() for a password-reset token."
+    },
+    {
+      "id": "logging-console-debug",
+      "tree": "logging-console-debug/after",
+      "file": "src/orders.js",
+      "lines": [4, 4],
+      "rule": "bpm-log-console-in-prod",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "Debug console.log left in a service path."
+    },
+    {
+      "id": "logging-secret-field",
+      "tree": "logging-secret-field/after",
+      "file": "src/login.js",
+      "lines": [5, 5],
+      "rule": "bpm-log-secret-field",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "Password passed to a log call."
+    },
+    {
+      "id": "logging-secret-field-injection",
+      "tree": "logging-secret-field/after",
+      "file": "src/login.js",
+      "lines": [5, 5],
+      "rule": "bpm-log-injection",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "The same call writes request data unencoded (CWE-117)."
+    },
+    {
+      "id": "logging-log-and-rethrow",
+      "tree": "logging-log-and-rethrow/after",
+      "file": "src/sync.js",
+      "lines": [6, 9],
+      "rule": "bpm-log-and-rethrow",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "Wrapped rethrow replaced by log-then-rethrow."
+    },
+    {
+      "id": "perf-await-in-loop",
+      "tree": "perf-await-in-loop/after",
+      "file": "src/team.js",
+      "lines": [4, 4],
+      "rule": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "Promise.all fan-out replaced by a sequential await per id."
+    },
+    {
+      "id": "perf-await-in-loop-orm",
+      "tree": "perf-await-in-loop/after",
+      "file": "src/team.js",
+      "lines": [4, 4],
+      "rule": "bpm-perf-orm-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "The same change issues one ORM query per id (N+1)."
+    },
+    {
+      "id": "perf-sync-io-in-async",
+      "tree": "perf-sync-io-in-async/after",
+      "file": "src/templates.js",
+      "lines": [5, 5],
+      "rule": "bpm-perf-sync-io-in-async",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "fs/promises replaced by readFileSync inside an async function."
+    },
+    {
+      "id": "slop-empty-catch",
+      "tree": "slop-empty-catch/after",
+      "file": "src/cache.js",
+      "lines": [2, 4],
+      "rule": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Logged, explained catch replaced by an empty one."
+    },
+    {
+      "id": "slop-phantom-symbol",
+      "tree": "slop-phantom-symbol/after",
+      "file": "src/invoice.ts",
+      "lines": [1, 1],
+      "rule": "slop.phantom_symbol",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Imports formatCurrency, which money.ts never exported."
+    },
+    {
+      "id": "slop-phantom-module",
+      "tree": "slop-phantom-module/after",
+      "file": "src/rates.ts",
+      "lines": [2, 2],
+      "rule": "slop.phantom_module",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Imports ./utils/retry.js, which does not exist."
+    },
+    {
+      "id": "slop-unused-export",
+      "tree": "slop-unused-export/after",
+      "file": "src/dates.ts",
+      "lines": [7, 7],
+      "rule": "slop.unused_export",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "New exported helper nothing imports or names."
+    },
+    {
+      "id": "slop-docstring-inflation",
+      "tree": "slop-docstring-inflation/after",
+      "file": "src/ids.ts",
+      "rule": "slop.docstring_inflation",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "A 15-line JSDoc over a three-line function."
+    },
+    {
+      "id": "slop-low-logic-density",
+      "tree": "slop-low-logic-density/after",
+      "file": "src/retry.ts",
+      "rule": "slop.low_logic_density",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Banner and narration comments around a shrunken implementation."
+    },
+    {
+      "id": "secrets-generic-assignment",
+      "tree": "secrets-generic-assignment/after",
+      "file": "src/payments.js",
+      "lines": [1, 1],
+      "dimension": "secrets",
+      "expect": "finding",
+      "note": "A configured secret replaced by a hardcoded high-entropy literal (fake value). Any secrets rule satisfies it."
+    },
+    {
+      "id": "perf-await-in-loop-before-fanout",
+      "tree": "perf-await-in-loop/before",
+      "file": "src/team.js",
+      "lines": [2, 2],
+      "rule": "bpm-perf-unbounded-promise-all",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "The 'before' side is unbounded: one query per id, all at once. Labelled to match rule-fixtures perf-promise-all, which is the same shape; the change under test is the sequential await, not this."
+    },
+    {
+      "id": "slop-docstring-inflation-ldr",
+      "tree": "slop-docstring-inflation/after",
+      "file": "src/ids.ts",
+      "rule": "slop.low_logic_density",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "The same edit leaves 3 logic lines under 15 of comment, which is below the LDR floor by that rule's own definition; both rules are right about this file."
+    }
+  ]
+}

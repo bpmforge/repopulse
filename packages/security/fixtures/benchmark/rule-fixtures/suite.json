@@ -1,0 +1,329 @@
+{
+  "id": "rule-fixtures",
+  "title": "Rule fixtures (triggering and clean)",
+  "description": "The trigger/clean fixture pairs the YAML packs are developed against, read in place from packages/security/fixtures. Every triggering defect is labelled, including the ones a fixture carries incidentally for another family; any finding on a clean tree is a false positive. These fixtures were written alongside the rules, so this suite is a regression floor, not an accuracy estimate.",
+  "source": {
+    "kind": "in-repo",
+    "path": "packages/security/fixtures/{code-health,perf,semgrep}",
+    "licence": "Proprietary (RepoPulse)"
+  },
+  "unlabelled": "fp",
+  "trees": [
+    {
+      "id": "code-health/clean",
+      "path": "../../code-health/clean"
+    },
+    {
+      "id": "code-health/triggering",
+      "path": "../../code-health/triggering"
+    },
+    {
+      "id": "perf/clean",
+      "path": "../../perf/clean"
+    },
+    {
+      "id": "perf/triggering",
+      "path": "../../perf/triggering"
+    },
+    {
+      "id": "semgrep/safe",
+      "path": "../../semgrep/safe"
+    },
+    {
+      "id": "semgrep/vulnerable",
+      "path": "../../semgrep/vulnerable"
+    }
+  ],
+  "labels": [
+    {
+      "id": "ch-console",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "lines": [4, 4],
+      "rule": "bpm-log-console-in-prod",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "console.log in a request handler."
+    },
+    {
+      "id": "ch-log-injection-concat",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "lines": [6, 6],
+      "rule": "bpm-log-injection",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "req.query value concatenated into a log message."
+    },
+    {
+      "id": "ch-log-injection-object",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "lines": [8, 8],
+      "rule": "bpm-log-injection",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "req.body.password logged unencoded; the fixture means it for the secret rule, but it is also a CWE-117 flow."
+    },
+    {
+      "id": "ch-secret-field",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "lines": [8, 8],
+      "rule": "bpm-log-secret-field",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "password field passed to a log call."
+    },
+    {
+      "id": "ch-log-rethrow",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "lines": [11, 14],
+      "rule": "bpm-log-and-rethrow",
+      "dimension": "logging",
+      "expect": "finding",
+      "note": "logger.error then throw of the same error."
+    },
+    {
+      "id": "ch-step-narration",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [1, 1],
+      "rule": "bpm-ch-step-narration",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "\"Step 1:\" narration comment."
+    },
+    {
+      "id": "ch-try-in-loop",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [4, 8],
+      "rule": "bpm-ch-try-catch-in-loop",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "try/catch inside a for loop."
+    },
+    {
+      "id": "ch-empty-catch",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [7, 7],
+      "rule": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Empty catch."
+    },
+    {
+      "id": "ch-await-in-loop",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [6, 6],
+      "rule": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "await inside the loop; a real cost the slop fixture carries incidentally."
+    },
+    {
+      "id": "ch-orm-in-loop",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [6, 6],
+      "rule": "bpm-perf-orm-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "db.get per id inside the loop (N+1), incidental to the slop fixture."
+    },
+    {
+      "id": "ch-silent-fallback",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [15, 17],
+      "rule": "bpm-ch-silent-fallback-return",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "catch that returns null."
+    },
+    {
+      "id": "ch-stub",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [21, 21],
+      "rule": "bpm-ch-stub-as-feature",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Exported function that only throws not implemented."
+    },
+    {
+      "id": "ch-what-comment",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [24, 24],
+      "rule": "bpm-ch-what-comment",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "\"increment the counter\" above a declaration."
+    },
+    {
+      "id": "ch-emoji",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [27, 27],
+      "rule": "bpm-ch-emoji-comment",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Emoji in a comment."
+    },
+    {
+      "id": "ch-prose-padding",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "lines": [29, 29],
+      "rule": "bpm-ch-prose-padding",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "\"It is important to note\" padding."
+    },
+    {
+      "id": "perf-await",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "lines": [6, 6],
+      "rule": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "await db.query per row."
+    },
+    {
+      "id": "perf-orm",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "lines": [6, 6],
+      "rule": "bpm-perf-orm-call-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "db.query per row (N+1)."
+    },
+    {
+      "id": "perf-regex",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "lines": [7, 7],
+      "rule": "bpm-perf-regex-compile-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "new RegExp per row."
+    },
+    {
+      "id": "perf-concat",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "lines": [8, 8],
+      "rule": "bpm-perf-string-concat-in-loop",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "String += in a loop."
+    },
+    {
+      "id": "perf-json-clone",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "lines": [11, 11],
+      "rule": "bpm-perf-json-deep-clone",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "JSON.parse(JSON.stringify()) clone."
+    },
+    {
+      "id": "perf-sync-io",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "lines": [12, 12],
+      "rule": "bpm-perf-sync-io-in-async",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "readFileSync in an async function."
+    },
+    {
+      "id": "perf-promise-all",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "lines": [13, 13],
+      "rule": "bpm-perf-unbounded-promise-all",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "Promise.all over an unbounded map."
+    },
+    {
+      "id": "perf-orm-py",
+      "tree": "perf/triggering",
+      "file": "app.py",
+      "lines": [3, 4],
+      "rule": "bpm-perf-orm-call-in-loop-py",
+      "dimension": "performance",
+      "expect": "finding",
+      "note": "db.execute per row (N+1), Python."
+    },
+    {
+      "id": "sast-eval",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [7, 7],
+      "rule": "bpm-js-eval-dynamic",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "eval of request data."
+    },
+    {
+      "id": "sast-exec",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [8, 8],
+      "rule": "bpm-js-child-process-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "exec of a concatenated command."
+    },
+    {
+      "id": "sast-sql",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [9, 9],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Interpolated SQL."
+    },
+    {
+      "id": "sast-random",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [10, 10],
+      "rule": "bpm-js-math-random-token",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Math.random session token."
+    },
+    {
+      "id": "sast-md5",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [11, 11],
+      "rule": "bpm-js-weak-hash",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "MD5."
+    },
+    {
+      "id": "sast-jwt",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [12, 12],
+      "rule": "bpm-js-jwt-verify-disabled",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "jwt.decode without verify."
+    }
+  ]
+}

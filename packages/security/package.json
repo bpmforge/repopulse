@@ -9,7 +9,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "bench": "node --import tsx src/benchmark/cli.ts",
+    "bench:prepare-owasp": "node --import tsx src/benchmark/prepare-owasp.ts"
   },
   "dependencies": {
     "@repopulse/analysis": "workspace:*",

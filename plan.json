@@ -8819,8 +8819,10 @@
         "Numbers published in docs/BENCHMARKS.md with method and corpus versions"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Done 2026-10-15: benchmark harness for the deterministic layers (no LLM tier). Corpus in packages/security/fixtures/benchmark/ (suite.json per suite: source, pinned commit, licence, trees, graded labels): sampleco (slop-scorecard f3ed525, MIT, vendored, 15 labels), juice-shop (e39a3bd, MIT, 21 codefix snippets + routes/login.ts,search.ts, 24 labels), owasp-benchmark (BenchmarkJava 0a3113b, GPL-2.0 so NOT vendored: 60 test ids + SHA-256s committed, bench:prepare-owasp fetches into gitignored .cache, labels from expectedresults-1.2.csv), changes (19 hand-written before/after bug-introducing pairs, Signal65-style, 23 labels), rule-fixtures (existing trigger/clean fixtures read in place, 29 labels). Runner packages/security/src/benchmark/ (match.ts one-finding-one-label matcher; engines.ts fast lane + YAML packs via local opengrep/semgrep with version check/metrics off; report.ts JSON+markdown, sorted, no timestamps); pnpm --filter @repopulse/security bench [--check|--no-yaml]. Report committed at docs/benchmarks/report.{json,md}; method/licences/caveats in docs/BENCHMARKS.md. First numbers (semgrep 1.181.0): all suites TP 54 FP 8 FN 51, precision 87.1%, recall 51.4%; without OWASP (no Java rules on this branch) recall 72.0%; unseen code only P 75.8% R 54.3%; rule-fixtures 100/100. Gate: lint OK, typecheck OK, tests 2519 passed / 58 skipped / 5 failed (the 5 known docker-on-PATH deploy-* env failures); 34 new tests in src/benchmark."
+      ]
     },
     {
       "id": "W18-18",

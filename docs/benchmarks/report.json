@@ -1,0 +1,2621 @@
+{
+  "schema": 1,
+  "ticket": "W18-17",
+  "scope": "Deterministic layers only: the in-process fast lane (anti_slop arithmetic and graph checks, secrets rulepack) and the YAML rulepacks. No LLM tier is measured.",
+  "engines": {
+    "fastLane": {
+      "rules": 20
+    },
+    "yaml": {
+      "status": "ran",
+      "tool": "semgrep",
+      "version": "1.181.0",
+      "packs": [
+        "rulepacks/code-health/anti-slop.v1.yaml",
+        "rulepacks/code-health/logging.v1.yaml",
+        "rulepacks/code-health/perf/perf.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.v1.yaml"
+      ],
+      "rules": 26,
+      "parseErrors": [
+        "juice-shop/codefixes/loginAdminChallenge_1.ts",
+        "juice-shop/codefixes/loginAdminChallenge_2.ts",
+        "juice-shop/codefixes/loginAdminChallenge_3.ts",
+        "juice-shop/codefixes/loginAdminChallenge_4_correct.ts",
+        "juice-shop/codefixes/loginBenderChallenge_2_correct.ts",
+        "juice-shop/codefixes/loginBenderChallenge_3.ts",
+        "juice-shop/codefixes/loginBenderChallenge_4.ts",
+        "juice-shop/codefixes/loginJimChallenge_3.ts"
+      ]
+    }
+  },
+  "corpus": [
+    {
+      "id": "changes",
+      "title": "Bug-introducing changes (before/after pairs)",
+      "source": {
+        "kind": "authored",
+        "licence": "Proprietary (RepoPulse); written for this benchmark"
+      },
+      "status": "scored",
+      "trees": 38,
+      "labels": 23
+    },
+    {
+      "id": "juice-shop",
+      "title": "OWASP Juice Shop code-fix snippets",
+      "source": {
+        "kind": "vendored",
+        "repository": "https://github.com/juice-shop/juice-shop",
+        "commit": "e39a3bdb8c61295c31fa4e0a03485e68a8ca12a4",
+        "path": "data/static/codefixes (21 files) and routes/{login,search}.ts",
+        "licence": "MIT (Bjoern Kimminich and the OWASP Juice Shop contributors; LICENSE alongside)"
+      },
+      "status": "scored",
+      "trees": 2,
+      "labels": 24
+    },
+    {
+      "id": "owasp-benchmark",
+      "title": "OWASP Benchmark (Java) subset",
+      "source": {
+        "kind": "fetched",
+        "repository": "https://github.com/OWASP-Benchmark/BenchmarkJava",
+        "commit": "0a3113b7054a56a072e694ab65a2f8cd7405aeb7",
+        "licence": "GPL-2.0 (not vendored; fetched at prep time into a gitignored cache)"
+      },
+      "status": "scored",
+      "trees": 1,
+      "labels": 60
+    },
+    {
+      "id": "rule-fixtures",
+      "title": "Rule fixtures (triggering and clean)",
+      "source": {
+        "kind": "in-repo",
+        "path": "packages/security/fixtures/{code-health,perf,semgrep}",
+        "licence": "Proprietary (RepoPulse)"
+      },
+      "status": "scored",
+      "trees": 6,
+      "labels": 29
+    },
+    {
+      "id": "sampleco",
+      "title": "SampleCo planted-defect app (AI-slop corpus)",
+      "source": {
+        "kind": "vendored",
+        "repository": "https://github.com/bpmforge/slop-scorecard",
+        "commit": "f3ed52573aebe6c873d580551e5986aa743c7ca1",
+        "path": "sample/sampleco (src/ and package.json)",
+        "licence": "MIT (bpmforge; LICENSE alongside)"
+      },
+      "status": "scored",
+      "trees": 1,
+      "labels": 15
+    }
+  ],
+  "totals": {
+    "tp": 54,
+    "fp": 8,
+    "fn": 51,
+    "tn": 35,
+    "duplicate": 1,
+    "ignored": 0,
+    "skipped": 11,
+    "precision": 0.871,
+    "recall": 0.514
+  },
+  "byDimension": [
+    {
+      "dimension": "code_health",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 1,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "dimension": "dependency",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 2,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "dimension": "logging",
+      "score": {
+        "tp": 9,
+        "fp": 2,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.818,
+        "recall": 1
+      }
+    },
+    {
+      "dimension": "performance",
+      "score": {
+        "tp": 13,
+        "fp": 4,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 1,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.765,
+        "recall": 0.929
+      }
+    },
+    {
+      "dimension": "sast",
+      "score": {
+        "tp": 15,
+        "fp": 0,
+        "fn": 41,
+        "tn": 35,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 8,
+        "precision": 1,
+        "recall": 0.268
+      }
+    },
+    {
+      "dimension": "secrets",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 0.667
+      }
+    },
+    {
+      "dimension": "slop",
+      "score": {
+        "tp": 15,
+        "fp": 2,
+        "fn": 8,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.882,
+        "recall": 0.652
+      }
+    }
+  ],
+  "byRule": [
+    {
+      "rule": "anthropic-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "aws-access-key-id",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "aws-secret-access-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-emoji-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-empty-catch",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-prose-padding",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-silent-fallback-return",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-step-narration",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-stub-as-feature",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-try-catch-in-loop",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 2,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.333,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-what-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-js-child-process-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 0.5
+      }
+    },
+    {
+      "rule": "bpm-js-eval-dynamic",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-js-jwt-verify-disabled",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-js-math-random-token",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 0.5
+      }
+    },
+    {
+      "rule": "bpm-js-sql-string-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 7,
+        "fp": 0,
+        "fn": 4,
+        "tn": 2,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 8,
+        "precision": 1,
+        "recall": 0.636
+      }
+    },
+    {
+      "rule": "bpm-js-weak-hash",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-and-rethrow",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-console-in-prod",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.667,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-injection",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.75,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-await-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.429,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-json-deep-clone",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-orm-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 0.667
+      }
+    },
+    {
+      "rule": "bpm-perf-orm-call-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-string-concat-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-sync-io-in-async",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-unbounded-promise-all",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 1,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "generic-secret-assignment",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "gitea-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "github-fine-grained-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "github-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "google-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "jwt",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "npm-access-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "openai-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "private-key-block",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "slack-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "slop.docstring_inflation",
+      "engine": "fast-lane",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "slop.low_logic_density",
+      "engine": "fast-lane",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 0.5
+      }
+    },
+    {
+      "rule": "slop.phantom_module",
+      "engine": "fast-lane",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "slop.phantom_symbol",
+      "engine": "fast-lane",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "slop.unused_export",
+      "engine": "fast-lane",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "stripe-secret-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    }
+  ],
+  "bySuite": [
+    {
+      "suite": "changes",
+      "score": {
+        "tp": 18,
+        "fp": 7,
+        "fn": 5,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.72,
+        "recall": 0.783
+      }
+    },
+    {
+      "suite": "juice-shop",
+      "score": {
+        "tp": 6,
+        "fp": 0,
+        "fn": 5,
+        "tn": 5,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 8,
+        "precision": 1,
+        "recall": 0.545
+      }
+    },
+    {
+      "suite": "owasp-benchmark",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 30,
+        "tn": 30,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": 0
+      }
+    },
+    {
+      "suite": "rule-fixtures",
+      "score": {
+        "tp": 29,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 1,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "suite": "sampleco",
+      "score": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 11,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 3,
+        "precision": 0.5,
+        "recall": 0.083
+      }
+    }
+  ],
+  "outcomes": [
+    {
+      "suite": "changes",
+      "tree": "logging-console-debug/after",
+      "file": "src/orders.js",
+      "line": 4,
+      "ruleId": "bpm-log-console-in-prod",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "logging-console-debug"
+    },
+    {
+      "suite": "changes",
+      "tree": "logging-log-and-rethrow/after",
+      "file": "src/sync.js",
+      "line": 4,
+      "ruleId": "bpm-log-and-rethrow",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "logging-log-and-rethrow"
+    },
+    {
+      "suite": "changes",
+      "tree": "logging-secret-field/after",
+      "file": "src/login.js",
+      "line": 5,
+      "ruleId": "bpm-log-injection",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "logging-secret-field-injection"
+    },
+    {
+      "suite": "changes",
+      "tree": "logging-secret-field/after",
+      "file": "src/login.js",
+      "line": 5,
+      "ruleId": "bpm-log-secret-field",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "logging-secret-field"
+    },
+    {
+      "suite": "changes",
+      "tree": "logging-secret-field/before",
+      "file": "src/login.js",
+      "line": 5,
+      "ruleId": "bpm-log-injection",
+      "dimension": "logging",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "changes",
+      "tree": "perf-await-in-loop/after",
+      "file": "src/team.js",
+      "line": 4,
+      "ruleId": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-await-in-loop"
+    },
+    {
+      "suite": "changes",
+      "tree": "perf-await-in-loop/after",
+      "file": "src/team.js",
+      "line": 4,
+      "ruleId": "bpm-perf-orm-call-in-loop",
+      "dimension": "performance",
+      "labelId": "perf-await-in-loop-orm",
+      "kind": "fn"
+    },
+    {
+      "suite": "changes",
+      "tree": "perf-await-in-loop/before",
+      "file": "src/team.js",
+      "line": 2,
+      "ruleId": "bpm-perf-unbounded-promise-all",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-await-in-loop-before-fanout"
+    },
+    {
+      "suite": "changes",
+      "tree": "perf-sync-io-in-async/after",
+      "file": "src/templates.js",
+      "line": 5,
+      "ruleId": "bpm-perf-sync-io-in-async",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-sync-io-in-async"
+    },
+    {
+      "suite": "changes",
+      "tree": "sast-eval-formula/after",
+      "file": "src/pricing.js",
+      "line": 3,
+      "ruleId": "bpm-js-eval-dynamic",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-eval-formula"
+    },
+    {
+      "suite": "changes",
+      "tree": "sast-exec-destructured/after",
+      "file": "src/git.js",
+      "line": 7,
+      "ruleId": "bpm-js-child-process-concat",
+      "dimension": "sast",
+      "labelId": "sast-exec-destructured",
+      "kind": "fn"
+    },
+    {
+      "suite": "changes",
+      "tree": "sast-jwt-decode/after",
+      "file": "src/session.js",
+      "line": 7,
+      "ruleId": "bpm-js-jwt-verify-disabled",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-jwt-decode"
+    },
+    {
+      "suite": "changes",
+      "tree": "sast-random-reset-token/after",
+      "file": "src/reset.js",
+      "line": 2,
+      "ruleId": "bpm-js-math-random-token",
+      "dimension": "sast",
+      "labelId": "sast-random-reset-token",
+      "kind": "fn"
+    },
+    {
+      "suite": "changes",
+      "tree": "sast-sql-built-variable/after",
+      "file": "src/reports.js",
+      "line": 3,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sast-sql-built-variable",
+      "kind": "fn"
+    },
+    {
+      "suite": "changes",
+      "tree": "sast-sql-template/after",
+      "file": "src/users.js",
+      "line": 4,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-sql-template"
+    },
+    {
+      "suite": "changes",
+      "tree": "sast-weak-hash/after",
+      "file": "src/passwords.js",
+      "line": 4,
+      "ruleId": "bpm-js-weak-hash",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-weak-hash"
+    },
+    {
+      "suite": "changes",
+      "tree": "secrets-generic-assignment/after",
+      "file": "src/payments.js",
+      "line": 1,
+      "ruleId": "generic-secret-assignment",
+      "dimension": "secrets",
+      "kind": "tp",
+      "labelId": "secrets-generic-assignment"
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-docstring-inflation/after",
+      "file": "src/ids.ts",
+      "line": 1,
+      "ruleId": "slop.docstring_inflation",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "slop-docstring-inflation"
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-docstring-inflation/after",
+      "file": "src/ids.ts",
+      "line": 1,
+      "ruleId": "slop.low_logic_density",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "slop-docstring-inflation-ldr"
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-empty-catch/after",
+      "file": "src/cache.js",
+      "line": 2,
+      "ruleId": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "slop-empty-catch"
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-low-logic-density/after",
+      "file": "src/retry.ts",
+      "line": null,
+      "ruleId": "slop.low_logic_density",
+      "dimension": "slop",
+      "labelId": "slop-low-logic-density",
+      "kind": "fn"
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-low-logic-density/after",
+      "file": "src/retry.ts",
+      "line": 30,
+      "ruleId": "bpm-ch-try-catch-in-loop",
+      "dimension": "slop",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-low-logic-density/after",
+      "file": "src/retry.ts",
+      "line": 33,
+      "ruleId": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-low-logic-density/after",
+      "file": "src/retry.ts",
+      "line": 36,
+      "ruleId": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-low-logic-density/before",
+      "file": "src/retry.ts",
+      "line": 10,
+      "ruleId": "bpm-ch-try-catch-in-loop",
+      "dimension": "slop",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-low-logic-density/before",
+      "file": "src/retry.ts",
+      "line": 12,
+      "ruleId": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-low-logic-density/before",
+      "file": "src/retry.ts",
+      "line": 15,
+      "ruleId": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-phantom-module/after",
+      "file": "src/rates.ts",
+      "line": 2,
+      "ruleId": "slop.phantom_module",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "slop-phantom-module"
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-phantom-symbol/after",
+      "file": "src/invoice.ts",
+      "line": 1,
+      "ruleId": "slop.phantom_symbol",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "slop-phantom-symbol"
+    },
+    {
+      "suite": "changes",
+      "tree": "slop-unused-export/after",
+      "file": "src/dates.ts",
+      "line": 7,
+      "ruleId": "slop.unused_export",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "slop-unused-export"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "dbSchemaChallenge_1.ts",
+      "line": 5,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-dbschema-1",
+      "kind": "fn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "dbSchemaChallenge_2_correct.ts",
+      "line": 5,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-dbschema-2",
+      "kind": "tn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "dbSchemaChallenge_3.ts",
+      "line": 11,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sqli-dbschema-3"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_1.ts",
+      "line": 18,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-admin-1",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_2.ts",
+      "line": 15,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-admin-2",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_3.ts",
+      "line": 15,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-admin-3",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginAdminChallenge_4_correct.ts",
+      "line": 15,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-admin-4",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginBenderChallenge_2_correct.ts",
+      "line": 15,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-bender-2",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginBenderChallenge_3.ts",
+      "line": 15,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-bender-3",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginBenderChallenge_4.ts",
+      "line": 15,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-bender-4",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "loginJimChallenge_3.ts",
+      "line": 15,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-login-jim-3",
+      "kind": "skipped"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "noSqlReviewsChallenge_1.ts",
+      "line": 10,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "nosql-reviews-1",
+      "kind": "fn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "noSqlReviewsChallenge_2.ts",
+      "line": 4,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "nosql-reviews-2",
+      "kind": "fn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "noSqlReviewsChallenge_3_correct.ts",
+      "line": 10,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "nosql-reviews-3",
+      "kind": "tn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "redirectChallenge_1.ts",
+      "line": 15,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "redirect-1",
+      "kind": "fn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "redirectChallenge_2.ts",
+      "line": 15,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "redirect-2",
+      "kind": "tn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "redirectChallenge_3.ts",
+      "line": 15,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "redirect-3",
+      "kind": "fn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "redirectChallenge_4_correct.ts",
+      "line": 15,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "redirect-4",
+      "kind": "tn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "unionSqlInjectionChallenge_1.ts",
+      "line": 6,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sqli-union-1"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "unionSqlInjectionChallenge_2_correct.ts",
+      "line": 5,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "sqli-union-2",
+      "kind": "tn"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "codefixes",
+      "file": "unionSqlInjectionChallenge_3.ts",
+      "line": 10,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sqli-union-3"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "routes",
+      "file": "login.ts",
+      "line": 34,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "routes-login-sqli"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "routes",
+      "file": "login.ts",
+      "line": 64,
+      "ruleId": "generic-secret-assignment",
+      "dimension": "secrets",
+      "kind": "tp",
+      "labelId": "routes-login-credentials"
+    },
+    {
+      "suite": "juice-shop",
+      "tree": "routes",
+      "file": "search.ts",
+      "line": 23,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "routes-search-sqli"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00001.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00001",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00002.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00002",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00003.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00003",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00005.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00005",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00006.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00006",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00007.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00007",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00008.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00008",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00009.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00009",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00010.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00010",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00011.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00011",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00015.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00015",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00017.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00017",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00018.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00018",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00019.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00019",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00020.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00020",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00022.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00022",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00023.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00023",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00024.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00024",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00025.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00025",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00026.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00026",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00028.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00028",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00029.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00029",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00035.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00035",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00040.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00040",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00042.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00042",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00046.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00046",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00050.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00050",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00051.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00051",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00052.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00052",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00054.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00054",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00058.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00058",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00059.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00059",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00063.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00063",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00064.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00064",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00066.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00066",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00067.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00067",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00068.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00068",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00069.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00069",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00070.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00070",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00071.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00071",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00072.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00072",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00075.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00075",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00077.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00077",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00078.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00078",
+      "kind": "fn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00090.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00090",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00093.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00093",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00094.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00094",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00095.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00095",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00096.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00096",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00104.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00104",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00105.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00105",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00107.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00107",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00110.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00110",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00121.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00121",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00122.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00122",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00131.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00131",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00132.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00132",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00134.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00134",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00158.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00158",
+      "kind": "tn"
+    },
+    {
+      "suite": "owasp-benchmark",
+      "tree": "testcode",
+      "file": "BenchmarkTest00171.java",
+      "line": null,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "BenchmarkTest00171",
+      "kind": "tn"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "line": 4,
+      "ruleId": "bpm-log-console-in-prod",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "ch-console"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "line": 6,
+      "ruleId": "bpm-log-injection",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "ch-log-injection-concat"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "line": 8,
+      "ruleId": "bpm-log-injection",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "ch-log-injection-object"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "line": 8,
+      "ruleId": "bpm-log-secret-field",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "ch-secret-field"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.js",
+      "line": 9,
+      "ruleId": "bpm-log-and-rethrow",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "ch-log-rethrow"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 1,
+      "ruleId": "bpm-ch-step-narration",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-step-narration"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 4,
+      "ruleId": "bpm-ch-try-catch-in-loop",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-try-in-loop"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 5,
+      "ruleId": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-empty-catch"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 6,
+      "ruleId": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "ch-await-in-loop"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 6,
+      "ruleId": "bpm-perf-orm-call-in-loop",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "ch-orm-in-loop"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 13,
+      "ruleId": "bpm-ch-silent-fallback-return",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-silent-fallback"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 21,
+      "ruleId": "bpm-ch-stub-as-feature",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-stub"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 23,
+      "ruleId": "bpm-ch-what-comment",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-what-comment"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 26,
+      "ruleId": "bpm-ch-emoji-comment",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-emoji"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.js",
+      "line": 29,
+      "ruleId": "bpm-ch-prose-padding",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "ch-prose-padding"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 6,
+      "ruleId": "bpm-perf-await-in-loop",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-await"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 6,
+      "ruleId": "bpm-perf-orm-call-in-loop",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-orm"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 7,
+      "ruleId": "bpm-perf-regex-compile-in-loop",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-regex"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 8,
+      "ruleId": "bpm-perf-string-concat-in-loop",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-concat"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 11,
+      "ruleId": "bpm-perf-json-deep-clone",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-json-clone"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 12,
+      "ruleId": "bpm-perf-sync-io-in-async",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-sync-io"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 13,
+      "ruleId": "bpm-perf-unbounded-promise-all",
+      "dimension": "performance",
+      "kind": "duplicate",
+      "labelId": "perf-promise-all"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.js",
+      "line": 13,
+      "ruleId": "bpm-perf-unbounded-promise-all",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-promise-all"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.py",
+      "line": 3,
+      "ruleId": "bpm-perf-orm-call-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "perf-orm-py"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 7,
+      "ruleId": "bpm-js-eval-dynamic",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-eval"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 8,
+      "ruleId": "bpm-js-child-process-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-exec"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 9,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-sql"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 10,
+      "ruleId": "bpm-js-math-random-token",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-random"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 11,
+      "ruleId": "bpm-js-weak-hash",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-md5"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 12,
+      "ruleId": "bpm-js-jwt-verify-disabled",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "sast-jwt"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "package.json",
+      "line": null,
+      "ruleId": null,
+      "dimension": "dependency",
+      "labelId": "D10",
+      "kind": "skipped"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "package.json",
+      "line": null,
+      "ruleId": null,
+      "dimension": "dependency",
+      "labelId": "D3",
+      "kind": "skipped"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/config.js",
+      "line": 5,
+      "ruleId": null,
+      "dimension": "secrets",
+      "labelId": "D1",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/index.js",
+      "line": 12,
+      "ruleId": "bpm-log-console-in-prod",
+      "dimension": "logging",
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/routes/adminRoutes.js",
+      "line": 4,
+      "ruleId": null,
+      "dimension": "slop",
+      "labelId": "D5a",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/routes/adminRoutes.js",
+      "line": 16,
+      "ruleId": null,
+      "dimension": "sast",
+      "labelId": "D9",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/routes/authRoutes.js",
+      "line": 3,
+      "ruleId": null,
+      "dimension": "slop",
+      "labelId": "D5b",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/routes/authRoutes.js",
+      "line": 13,
+      "ruleId": null,
+      "dimension": "slop",
+      "labelId": "D12",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/routes/invoiceRoutes.js",
+      "line": 4,
+      "ruleId": null,
+      "dimension": "slop",
+      "labelId": "D5c",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/routes/invoiceRoutes.js",
+      "line": 21,
+      "ruleId": null,
+      "dimension": "code_health",
+      "labelId": "D11",
+      "kind": "skipped"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/services/authService.js",
+      "line": 8,
+      "ruleId": null,
+      "dimension": "slop",
+      "labelId": "D7",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/services/invoiceService.js",
+      "line": 7,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "D2",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/services/invoiceService.js",
+      "line": 12,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "labelId": "D2b",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/services/userService.js",
+      "line": 6,
+      "ruleId": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "D6"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/utils/format.js",
+      "line": 2,
+      "ruleId": null,
+      "dimension": "slop",
+      "labelId": "D4",
+      "kind": "fn"
+    },
+    {
+      "suite": "sampleco",
+      "tree": "app",
+      "file": "src/utils/validate.js",
+      "line": 3,
+      "ruleId": null,
+      "dimension": "slop",
+      "labelId": "D8",
+      "kind": "fn"
+    }
+  ]
+}
