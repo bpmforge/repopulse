@@ -51,6 +51,8 @@ COPY package.json pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
 COPY apps/api/src apps/api/src
 COPY packages packages
+# W18-18: served to CI tokens at /api/v1/cli/repopulse.mjs. One file, no deps.
+COPY tools/repopulse-cli/repopulse.mjs tools/repopulse-cli/repopulse.mjs
 
 # ---------- web build ----------
 # ON THE BUILD PLATFORM, not the target one (W11-01, 2026-09-23). The SPA's

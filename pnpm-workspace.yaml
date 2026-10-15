@@ -1,3 +1,6 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  # W18-18: the customer-CI check script. A workspace package so pnpm -r typecheck
+  # and the vitest projects cover it; it has no dependencies of its own.
+  - 'tools/repopulse-cli'

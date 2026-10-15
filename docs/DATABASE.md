@@ -70,6 +70,12 @@ credential_fingerprint text (last-4/hash for UI), app_installation_id text null,
 status, created_by, created_at`. AES-256-GCM, key from env — plaintext never in DB/logs
 (FR-AUTH-5, NFR-6). Decryption only inside packages/forge memory.
 
+**ci_tokens** (W18-18, SC-31) — `id, workspace_id, name, token_hash text unique
+(sha256 hex), token_prefix text, scope text CHECK in ('pr_findings:read'), repo_ids
+bigint[] CHECK cardinality > 0, created_by null FK users, created_by_login, created_at,
+expires_at, last_used_at, revoked_at, revoked_by null FK users`. The customer-CI read
+token (D16 CI pull). Only the hash is stored; revoked rows are kept as the record.
+
 **identities** — the forge-login→human map (FR-AUTH-6, FR-METRICS-3 ownership).
 `id, workspace_id, provider, forge_login, forge_user_id text null, display_name,
 user_id null FK users, is_bot bool default false, merged_into_id null self-FK`.
