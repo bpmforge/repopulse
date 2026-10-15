@@ -171,6 +171,12 @@ describeIfScanImage('opengrep, actually run in the sandbox (FR-SEC-6)', () => {
       'bpm-js-math-random-token',
       'bpm-js-sql-string-concat',
       'bpm-js-weak-hash',
+      'bpm-py-eval-dynamic',
+      'bpm-py-jwt-verify-disabled',
+      'bpm-py-random-token',
+      'bpm-py-sql-string-build',
+      'bpm-py-subprocess-shell-concat',
+      'bpm-py-weak-hash',
     ]);
     // Tool AND pack version, stamped from the image rather than assumed.
     expect(result.toolVersions.opengrep).toMatch(/^\d+\.\d+\.\d+$/);

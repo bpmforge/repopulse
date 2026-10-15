@@ -1,5 +1,6 @@
 import pino, { type Logger as PinoLogger } from 'pino';
 import { redactLine } from './redact.js';
+import { redactQueryError } from '../db/pg-error.js';
 
 export type Logger = PinoLogger;
 
@@ -9,6 +10,8 @@ export interface CreateLoggerOptions {
   name?: string;
   /** Injectable so the test does not depend on the ambient environment. */
   env?: NodeJS.ProcessEnv;
+  /** Where lines go. Defaults to stdout; injectable so tests can read them. */
+  destination?: pino.DestinationStream;
 }
 
 // SC-2: the redaction hook runs on every line this logger ever writes,
@@ -22,15 +25,36 @@ export function createLogger(opts: CreateLoggerOptions = {}): Logger {
   // one that does not exist: it costs someone the time they spent trusting it.
   const level = opts.level ?? (opts.env ?? process.env).LOG_LEVEL;
 
-  return pino({
-    ...(level ? { level } : {}),
-    ...(opts.name ? { name: opts.name } : {}),
-    hooks: {
-      streamWrite(line: string): string {
-        return redactLine(line);
+  return pino(
+    {
+      ...(level ? { level } : {}),
+      ...(opts.name ? { name: opts.name } : {}),
+      // A drizzle query failure logged as an object (`{ err }`, or under any
+      // other key) would serialize its statement and bound params: in the
+      // message, the stack and its own `query`/`params` fields. Swap it for the
+      // redacted form before pino's serializers see it. redactLine's
+      // `Failed query:` pattern is the backstop for the text that bypasses this
+      // (a bare `log.error(err)` uses err.message as `msg`, and an
+      // interpolated message is just a string).
+      formatters: {
+        log(object: Record<string, unknown>): Record<string, unknown> {
+          let out: Record<string, unknown> | undefined;
+          for (const [key, value] of Object.entries(object)) {
+            if (!(value instanceof Error)) continue;
+            const safe = redactQueryError(value);
+            if (safe !== value) (out ??= { ...object })[key] = safe;
+          }
+          return out ?? object;
+        },
+      },
+      hooks: {
+        streamWrite(line: string): string {
+          return redactLine(line);
+        },
       },
     },
-  });
+    opts.destination,
+  );
 }
 
 export * from './redact.js';

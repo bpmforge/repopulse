@@ -160,7 +160,7 @@ function rank(scope: DepScope): number {
   return 2;
 }
 
-type AddFn = (
+export type AddFn = (
   ecosystem: ScopeEcosystem,
   name: string,
   version: string | null,
@@ -176,7 +176,7 @@ type AddFn = (
  * only ever reached through `debug`, and depth-by-path would call it direct.
  * The fixture is exactly that shape.
  */
-function readNpmLock(text: string, manifest: string, add: AddFn): boolean {
+export function readNpmLock(text: string, manifest: string, add: AddFn): boolean {
   const document = asRecord(JSON.parse(text));
   const packages = asRecord(document['packages']);
   if (Object.keys(packages).length === 0) return false;
@@ -260,7 +260,7 @@ function readNpmLock(text: string, manifest: string, add: AddFn): boolean {
  * near-universal, and being wrong about it in this direction only ever prices a
  * finding lower — which is why the finding stays on the list either way.
  */
-function readRequirements(text: string, manifest: string, add: AddFn): void {
+export function readRequirements(text: string, manifest: string, add: AddFn): void {
   const dev = /(^|[-_/])(dev|test|tests|ci)\b/i.test(path.basename(manifest, '.txt'));
   for (const rawLine of text.split('\n')) {
     const line = rawLine.split('#')[0]!.trim();
@@ -284,7 +284,7 @@ function readRequirements(text: string, manifest: string, add: AddFn): void {
  * concept), so nothing here is ever reported as dev. Saying so is better than
  * a heuristic that guessed from directory names.
  */
-function readGoMod(text: string, manifest: string, add: AddFn): void {
+export function readGoMod(text: string, manifest: string, add: AddFn): void {
   let inBlock = false;
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim();

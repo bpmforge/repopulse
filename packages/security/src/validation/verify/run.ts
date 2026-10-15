@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { read, type Database } from '@repopulse/shared';
+import { read, type Database, safeErrorText } from '@repopulse/shared';
 import type { AnalysisGateway } from '@repopulse/analysis';
 import { BudgetExceededError, BudgetMeter } from '../../framework/budget.js';
 import type { ScanBudget } from '../../framework/types.js';
@@ -241,7 +241,7 @@ export async function runVerifyPass(deps: VerifyRunDeps): Promise<VerifyRunResul
       outputTokens,
     };
   } catch (error) {
-    const message = (error as Error).message;
+    const message = safeErrorText(error);
     await deps.db
       .update(read.analysisRuns)
       .set({

@@ -1,0 +1,121 @@
+# bpm-rulepacks — logging antipatterns, PHP variant v1 (W18-16,
+# CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18). Ids start `bpm-log-` because the
+# logging scanner keeps only those; the rest of this directory belongs to
+# anti_slop.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`, CODE_HEALTH_SUITE §8.2).
+#
+# PHP's `echo` is a page's real output, so it is never a logging finding. The
+# debugging dumps are different: var_dump and a one-argument print_r write a
+# variable's internals into the HTTP response, which is both a leftover and a
+# disclosure.
+rules:
+  - id: bpm-log-php-debug-dump
+    languages: [php]
+    severity: INFO
+    message: >-
+      A debugging dump left in application code. var_dump / print_r /
+      var_export without their return flag write a variable's internals —
+      object graphs, credentials, paths — straight into the response. Log it
+      through the logger, at debug level, if it is needed at all.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # Tests, dev tooling and CLI scripts print by design.
+        - '**/tests/**'
+        - '**/test/**'
+        - '**/Tests/**'
+        - '*Test.php'
+        - '**/bin/**'
+        - '**/scripts/**'
+        - '**/dev/**'
+        - '**/vendor/**'
+        - '**/examples/**'
+    patterns:
+      - pattern-either:
+          - pattern: var_dump(...)
+          - pattern: debug_zval_dump(...)
+          - pattern: print_r($X)
+          - pattern: var_export($X)
+          - pattern: print_r($X, false)
+          - pattern: var_export($X, false)
+      # Output buffering around the dump is how PHP captured a dump into a
+      # string before print_r(..., true) existed; nothing reaches the page.
+      - pattern-not-inside: |
+          ob_start();
+          ...
+
+  - id: bpm-log-php-secret-field
+    languages: [php]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log call. Logs outlive the request, sit
+      outside the product's access control, and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        The name list mirrors SC-2's redaction denylist on purpose. Two lists
+        of "what counts as a secret" drift apart, and the one in the logger is
+        the one that is actually enforced.
+    patterns:
+      # The value itself, an entry of a PSR-3 context array, or a piece of a
+      # concatenated message — not anything deeper. `strlen($password)` in a
+      # log line describes a secret without disclosing it.
+      - pattern-either:
+          - pattern: error_log($VALUE, ...)
+          - pattern: error_log($S . $VALUE, ...)
+          - pattern: error_log($VALUE . $S, ...)
+          - patterns:
+              - pattern-either:
+                  - pattern: $LOG->$METHOD(..., $VALUE, ...)
+                  - pattern: $LOG->$METHOD(..., [..., $K => $VALUE, ...], ...)
+                  - pattern: $LOG->$METHOD(..., $S . $VALUE, ...)
+                  - pattern: $LOG->$METHOD(..., $VALUE . $S, ...)
+                  - pattern: Log::$METHOD(..., $VALUE, ...)
+                  - pattern: Log::$METHOD(..., [..., $K => $VALUE, ...], ...)
+                  - pattern: Log::$METHOD(..., $S . $VALUE, ...)
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: ^(debug|info|notice|warning|error|critical|alert|emergency|log)$
+      # A VARIABLE or element named like a secret — `$password`,
+      # `$user->api_key`, `$data['token']` — not a literal mentioning one.
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: (?i)^\$[\w>\[\]'"-]*?(password|passwd|secret|token|api_?key|private_?key|credential|credentials|session_?id|cookie)['"\]]*$
+
+  - id: bpm-log-php-and-rethrow
+    languages: [php]
+    severity: INFO
+    message: >-
+      Logged and rethrown. The caller will log it again, and the incident
+      timeline gets the same failure at every level of the stack — log it where
+      it is handled, or rethrow it where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: |
+          try { ... } catch ($T $E) { error_log(...); throw $E; }
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  try { ... } catch ($T $E) { $LOG->$METHOD(...); throw $E; }
+              - pattern: |
+                  try { ... } catch ($T $E) { Log::$METHOD(...); throw $E; }
+          - metavariable-regex:
+              metavariable: $METHOD
+              regex: ^(error|critical|alert|emergency|warning)$
