@@ -129,7 +129,6 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
             'slop.suppression_density',
             'slop.exception_control_flow',
             'slop.repository_over_crud',
-            'test.tautology',
           ]),
         ),
       );
@@ -688,6 +687,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     const after = await scan('w18-09-deprecated');
     expect(after.deterministic).toBe(1);
   });
+            'test.tautology',
 
   it('W18-03: hollow tests land in test_coverage at severity <= 2, in shadow until promoted', async () => {
     const sources = [

@@ -18,6 +18,64 @@ export interface ExportDecl {
 
 export const IDENT = '[A-Za-z_$][\\w$]*';
 
+/**
+ * Files whose exports are someone else's contract (W18-01; shared since W18-05).
+ *
+ * Index and main files are a package's public surface; tests, stories and
+ * configs are read by a runner by convention; route directories export names a
+ * framework looks up by string. Without a package.json in the snapshot these
+ * are recognised by path, and erring towards "public" costs a missed finding
+ * rather than a wrong one.
+ */
+export const PUBLIC_SURFACE = [
+  /(^|\/)(index|main|mod|public-api)\.[cm]?[jt]sx?$/,
+  /\.d\.[cm]?ts$/,
+  /\.(test|spec|stories|story|bench|e2e)\.[cm]?[jt]sx?$/,
+  /(^|\/)(__tests__|__mocks__|tests?|e2e|fixtures?|stories)\//,
+  /(^|\/)[^/]*\.config\.[cm]?[jt]s$/,
+  /(^|\/)(pages|app|routes)\//,
+  /(^|\/)(bin|scripts?)\//,
+  // Generated code: its shape belongs to the generator, not to anyone who
+  // could act on a finding.
+  /\.(gen|generated)\.[cm]?[jt]sx?$/,
+  /(^|\/)(__generated__|generated)\//,
+];
+
+/** Names frameworks and runtimes read off a module by string. */
+export const CONVENTIONAL_NAMES = new Set([
+  'default',
+  'config',
+  'metadata',
+  'generateMetadata',
+  'generateStaticParams',
+  'getStaticProps',
+  'getStaticPaths',
+  'getServerSideProps',
+  'loader',
+  'action',
+  'meta',
+  'links',
+  'headers',
+  'handler',
+  'revalidate',
+  'dynamic',
+  'runtime',
+  'GET',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'HEAD',
+  'OPTIONS',
+]);
+
+/** A package's front door: what a consumer outside the repository imports. */
+export const ENTRY_FILE = /(^|\/)(index|main|mod|public-api)\.[cm]?[jt]sx?$|\.d\.[cm]?ts$/;
+
+/** Tests, test doubles and fixtures — code a rule must count but never report. */
+export const TEST_OR_FIXTURE =
+  /(\.(test|spec|stories|story|bench|e2e)\.[cm]?[jt]sx?$)|(^|\/)(__tests__|__mocks__|__fixtures__|tests?|e2e|fixtures?|mocks?|stories|testing|test-utils|benchmarks?|examples?)\//;
+
 const REGEX_AFTER_WORD = new Set([
   'return',
   'typeof',
@@ -364,4 +422,59 @@ export function maskPython(source: string, blankTripleQuotes = false): string {
     }
   }
   return out.join('');
+}
+export interface Surfaced {
+  /** name → files whose `export { … }` clause names it (with or without `from`). */
+  named: Map<string, Set<string>>;
+  /** Files another file passes on whole with `export * from`. */
+  starred: Set<string>;
+}
+
+/**
+ * Names and modules a file passes on to its own importers (W18-05).
+ *
+ * A declaration re-exported by ANOTHER file is being surfaced: it is an API,
+ * whatever the file names say, and package.json — which would say which file
+ * is the entry — is not in the snapshot.
+ */
+export function surfacedBy(
+  files: readonly { path: string; source: string; masked: string }[],
+): Surfaced {
+  const paths = new Set(files.map((f) => f.path));
+  const named = new Map<string, Set<string>>();
+  const starred = new Set<string>();
+  for (const file of files) {
+    for (const m of file.masked.matchAll(/\bexport\s+(?:type\s+)?\{([^}]*)\}/g)) {
+      for (const name of clauseNames(m[1] as string, 'local')) {
+        const set = named.get(name) ?? new Set<string>();
+        set.add(file.path);
+        named.set(name, set);
+      }
+    }
+    for (const m of file.masked.matchAll(
+      /\bexport\s+\*(?:\s+as\s+\w+)?\s+from\s*(['"])[^'"]*\1/dg,
+    )) {
+      const [start, end] = m.indices?.[0] ?? [0, 0];
+      const spec = /(['"])([^'"]*)\1\s*$/.exec(file.source.slice(start, end));
+      const target = spec ? resolveSpecifier(file.path, spec[2] as string, paths) : null;
+      if (target) starred.add(target);
+    }
+  }
+  return { named, starred };
+}
+
+/** Is `name`, declared in `file`, surfaced by some other file? */
+export function isSurfaced(surfaced: Surfaced, name: string, file: string): boolean {
+  if (surfaced.starred.has(file)) return true;
+  const by = surfaced.named.get(name);
+  return by !== undefined && [...by].some((f) => f !== file);
+}
+
+/**
+ * Minified or bundled output: a line no person wrote. Structural rules about
+ * how code was written have nothing to say about what a bundler emitted.
+ */
+export function looksMinified(path: string, source: string): boolean {
+  if (/\.min\.[cm]?js$/.test(path)) return true;
+  return source.split('\n').some((line) => line.length > 1000);
 }

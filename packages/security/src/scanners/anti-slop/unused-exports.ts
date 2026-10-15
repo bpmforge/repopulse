@@ -21,7 +21,15 @@
 // route as dead code, and the snapshot carries no package.json to tell which.
 // JS/TS only — Python and Go have their own idioms and their own tools.
 
-import { CODE, exportsOf, importsOf, maskSource, resolveSpecifier } from './source-graph.js';
+import {
+  CODE,
+  CONVENTIONAL_NAMES,
+  exportsOf,
+  importsOf,
+  maskSource,
+  PUBLIC_SURFACE,
+  resolveSpecifier,
+} from './source-graph.js';
 
 export { exportsOf, importsOf, maskSource, resolveSpecifier };
 
@@ -38,57 +46,6 @@ export interface UnusedExport {
   importers: number;
   message: string;
 }
-
-/**
- * Files whose exports are someone else's contract, never reported.
- *
- * Index and main files are a package's public surface; tests, stories and
- * configs are read by a runner by convention; route directories export names a
- * framework looks up by string. Without a package.json in the snapshot these
- * are recognised by path, and erring towards "public" costs a missed finding
- * rather than a wrong one.
- */
-const PUBLIC_SURFACE = [
-  /(^|\/)(index|main|mod|public-api)\.[cm]?[jt]sx?$/,
-  /\.d\.[cm]?ts$/,
-  /\.(test|spec|stories|story|bench|e2e)\.[cm]?[jt]sx?$/,
-  /(^|\/)(__tests__|__mocks__|tests?|e2e|fixtures?|stories)\//,
-  /(^|\/)[^/]*\.config\.[cm]?[jt]s$/,
-  /(^|\/)(pages|app|routes)\//,
-  /(^|\/)(bin|scripts?)\//,
-  // Generated code: its shape belongs to the generator, not to anyone who
-  // could act on a finding.
-  /\.(gen|generated)\.[cm]?[jt]sx?$/,
-  /(^|\/)(__generated__|generated)\//,
-];
-
-/** Names frameworks and runtimes read off a module by string. */
-const CONVENTIONAL_NAMES = new Set([
-  'default',
-  'config',
-  'metadata',
-  'generateMetadata',
-  'generateStaticParams',
-  'getStaticProps',
-  'getStaticPaths',
-  'getServerSideProps',
-  'loader',
-  'action',
-  'meta',
-  'links',
-  'headers',
-  'handler',
-  'revalidate',
-  'dynamic',
-  'runtime',
-  'GET',
-  'POST',
-  'PUT',
-  'PATCH',
-  'DELETE',
-  'HEAD',
-  'OPTIONS',
-]);
 
 /** How many files mention each identifier, for the second signal. */
 function identifierCounts(texts: Iterable<string>): Map<string, number> {
