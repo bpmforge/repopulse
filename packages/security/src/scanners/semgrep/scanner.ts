@@ -66,9 +66,12 @@ export interface RulepackInfo {
  * of. If a rule id here is missed, the id falls back to the last dot-segment —
  * degraded, not wrong.
  */
-export function readRulepack(dir: string = SEMGREP_RULEPACK_DIR): RulepackInfo {
+export function readRulepack(
+  dir: string = SEMGREP_RULEPACK_DIR,
+  keepFile: (file: string) => boolean = () => true,
+): RulepackInfo {
   const files = readdirSync(dir)
-    .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
+    .filter((f) => (f.endsWith('.yaml') || f.endsWith('.yml')) && keepFile(f))
     .sort();
   const ruleIds: string[] = [];
   for (const file of files) {
@@ -88,6 +91,15 @@ export interface SemgrepRunArgs {
   budget: Pick<ScanBudget, 'wallClockMs'> & Partial<ScanBudget>;
   image?: string;
   rulepackDir?: string;
+  /**
+   * Keeps only the pack files this predicate accepts (W18-30).
+   *
+   * `rulepacks/code-health/` holds two scanners' rules side by side. Without
+   * this, each scanner pointed at that directory evaluates the other's rules
+   * and has to drop them by id — which is how the anti-slop half came to be
+   * evaluated on every run and stored by nobody.
+   */
+  rulepackFiles?: (file: string) => boolean;
   /** Repo-configured pack reference, validated against the licence rule. */
   configRef?: string;
   runtime?: string;
@@ -139,9 +151,27 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
   // checkout on a dev machine, the synced copy under SCAN_RULES_DIR behind a
   // scan-runner (W17-27, sandbox/tooling.ts). The code-health packs come
   // through here too (logging, perf), so one resolution covers all three.
-  const rulepack = readRulepack(rulepackMountDir(args.rulepackDir ?? SEMGREP_RULEPACK_DIR));
+  const rulepack = readRulepack(
+    rulepackMountDir(args.rulepackDir ?? SEMGREP_RULEPACK_DIR),
+    args.rulepackFiles,
+  );
   const image = args.image ?? DEFAULT_SCAN_IMAGE;
   const started = Date.now();
+
+  // An empty selection is refused rather than run: with no `--config` the
+  // engine falls back to its own defaults, which is a pack we did not write
+  // and may not be licensed to use — and "zero findings" from it would read
+  // as a clean repository.
+  if (rulepack.files.length === 0) {
+    return {
+      status: 'failed',
+      findings: [],
+      toolErrors: [],
+      durationMs: 0,
+      error: `no rule files selected in ${rulepack.dir}`,
+      toolVersions: { rulepack: '' },
+    };
+  }
 
   const result = await runInSandbox({
     image,
