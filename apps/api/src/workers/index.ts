@@ -462,6 +462,11 @@ async function main(): Promise<void> {
                     sources: sources.files,
                     sourcesComplete: !sources.truncated && sources.skipped === 0,
                     snapshotDir: snapshot.dir,
+                    // W18-30. The pack's eight bpm-ch-* rules, on the tree the
+                    // logging scanner already runs over. Each scanner loads only
+                    // its own pack files, so this is no second pass over the
+                    // same rules — it is the first pass over these ones.
+                    targetDir: snapshot.dir,
                     trigger: 'schedule',
                     // THE JUDGEMENT HALF, finally reachable. It was written,
                     // tested against a stub and shipped with no gateway to

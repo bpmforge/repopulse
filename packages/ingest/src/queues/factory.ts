@@ -1,5 +1,6 @@
 import { Queue, Worker, type Processor, type WorkerOptions } from 'bullmq';
 import { Redis } from 'ioredis';
+import { redactQueryError } from '@repopulse/shared';
 import { defaultJobOptions, type QueueName } from './topology.js';
 
 // BullMQ connection + queue/worker construction. One place applies the topology
@@ -24,5 +25,27 @@ export function createWorker<T>(
 ): Worker<T> {
   // Concurrency is deliberately generous: the BudgetedClient's semaphore
   // (FORGE_PROVIDER §3) is the real limiter, not the worker pool (INGESTION §6).
-  return new Worker<T>(name, processor, { connection, concurrency: 10, ...opts });
+  return new Worker<T>(name, redactingProcessor(processor), {
+    connection,
+    concurrency: 10,
+    ...opts,
+  });
+}
+
+/**
+ * Everything a processor throws reaches places that outlive the job: BullMQ
+ * writes `failedReason` and the stack into Redis, and the `failed` listeners
+ * copy the error into job_failure, the DLQ and repos.last_error. A drizzle
+ * query failure's message and stack carry the statement's bound values, so it
+ * is swapped for its redacted form at this one exit. Every other error is
+ * rethrown as the same object (BullMQ's UnrecoverableError must stay one).
+ */
+export function redactingProcessor<T>(processor: Processor<T>): Processor<T> {
+  return async (job, token, signal) => {
+    try {
+      return await processor(job, token, signal);
+    } catch (err) {
+      throw redactQueryError(err);
+    }
+  };
 }
