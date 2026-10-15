@@ -1,0 +1,10 @@
+diff --git a/billing/views.py b/billing/views.py
+--- a/billing/views.py
++++ b/billing/views.py
+@@ -14,7 +14,6 @@ from .models import Invoice
+ 
+ 
+-@login_required
+ def invoice_detail(request, pk):
+     invoice = get_object_or_404(Invoice, pk=pk)
+     return render(request, "billing/invoice.html", {"invoice": invoice})

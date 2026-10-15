@@ -1,0 +1,8 @@
+diff --git a/src/routes/auth.ts b/src/routes/auth.ts
+--- a/src/routes/auth.ts
++++ b/src/routes/auth.ts
+@@ -20,7 +20,7 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5 });
+ 
+-router.post('/login', loginLimiter, login);
++router.post('/login', login);
+ router.post('/logout', logout);

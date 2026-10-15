@@ -1,0 +1,8 @@
+diff --git a/src/app.ts b/src/app.ts
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -14,7 +14,7 @@ const app = express();
+   cors({
+-    origin: '*',
++    origin: ['https://app.example.com'],
+   }),

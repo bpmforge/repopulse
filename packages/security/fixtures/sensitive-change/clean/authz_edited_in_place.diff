@@ -1,0 +1,6 @@
+diff --git a/src/routes/users.ts b/src/routes/users.ts
+--- a/src/routes/users.ts
++++ b/src/routes/users.ts
+@@ -10,7 +10,7 @@ const router = Router();
+-router.get('/users/:id', requireAuth, getUser);
++router.get('/users/:id', requireAuth, cacheFor(60), getUser);

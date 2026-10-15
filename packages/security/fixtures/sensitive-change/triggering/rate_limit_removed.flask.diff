@@ -1,0 +1,9 @@
+diff --git a/app/auth/routes.py b/app/auth/routes.py
+--- a/app/auth/routes.py
++++ b/app/auth/routes.py
+@@ -15,7 +15,6 @@ bp = Blueprint("auth", __name__)
+ 
+ @bp.post("/login")
+-@limiter.limit("5/minute")
+ def login():
+     return do_login(request.json)

@@ -1,0 +1,11 @@
+diff --git a/lib/express.js b/lib/express.js
+--- a/lib/express.js
++++ b/lib/express.js
+@@ -74,9 +74,6 @@ var removedMiddlewares = [
+   'bodyParser',
+   'compress',
+   'cookieSession',
+-  'csrf',
+-  'helmet',
+   'directory',
+ ];

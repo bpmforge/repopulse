@@ -238,6 +238,37 @@ Licensing/tooling notes: govulncheck BSD-3 (Go team) — runs as a sandbox tool 
 semgrep/syft; OpenVEX spec + CycloneDX Apache-2.0; EPSS data is freely published by
 FIRST.org (attribution line in the report footer — VERIFY exact terms at W8, Law 2).
 
+### 3.7 `sensitive_change` — inputs: diff (rides secrets stream) — W18-21
+
+A radar for changes that **loosen** a protection: an auth or permission check removed, a
+validation schema dropped or relaxed, a crypto work factor lowered or algorithm downgraded,
+token/signature verification removed, TLS verification or CORS widened, security-header or
+CSRF middleware removed, a rate limit removed or raised. Code: `src/scanners/sensitive-change/`.
+
+- **Why in-process over patches, not an Opengrep pack.** The thing these rules notice is a line
+  that is *no longer in the tree*. The pattern lane (§3.3 incremental mode included) scans files
+  after the change and cannot see a removal. The radar reads both sides of the unified diff.
+- **Pipeline reuse.** It runs inside secrets stream mode (§3.1) on the diff that scan already
+  fetched for the same head SHA (`scanOneTarget`): no extra forge call, no snapshot, no queue
+  hop. Arrivals only (`pr_synced`, `push`); history mode does not run it, because a year-old
+  change is not something anyone can usefully review now. Own `scan_run` row
+  (`sensitive_change.v1`), own enablement key (`sensitive_change`, default on), failures
+  isolated from the secrets result (NFR-15).
+- **Four rule shapes.** `removed` (guard name on the `-` side that nothing on the `+` side of
+  the whole diff puts back), `added` (explicit weak setting), `lowered` / `raised` (a paired
+  number moved the loose way, e.g. bcrypt rounds 12 → 8, `5/minute` → `1000/hour`).
+- **Precision guards.** Names inside string literals are masked; a guard that reappears
+  anywhere in the diff is "moved", not removed; a hunk that deletes the endpoint itself is
+  skipped; tests, fixtures, docs, browser code (`.jsx`/`.tsx`, `frontend/`, `client/`) and
+  new/deleted files are skipped and counted. One finding per rule per file.
+- **Findings.** Dimension `security`, tier 1, title `Needs human review: …`, evidence = the
+  `-`/`+` lines verbatim, no author (N-9), advice only (D9a). Severity is capped at 3 so a
+  radar finding never needs a verify-pass confirmation to surface (FR-ANALYSIS-10); it is
+  deterministic, never enters the verify pass, and is never auto-resolved by a diff-scoped
+  run. Every rule ships as a shadow-mode candidate (`experimental: true` until the workspace's
+  `rule_registry` row says `active`; `deprecated` stops it).
+- **Languages.** JS/TS and Python. Java, Go and Rust rules are a follow-up once those packs land.
+
 ## 4. Scheduling & triggers (FR-SEC-9)
 
 | Trigger | Scanners (enabled repos) | Queue / idempotency key |

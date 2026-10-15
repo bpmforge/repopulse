@@ -1,0 +1,8 @@
+diff --git a/src/routes/users.ts b/src/routes/users.ts
+--- a/src/routes/users.ts
++++ b/src/routes/users.ts
+@@ -1,4 +1,4 @@
+-import { requireAdmin } from './auth';
++import { requireAdmin } from '../middleware/auth';
+ const router = Router();
+ router.delete('/users/:id', requireAdmin, deleteUser);
