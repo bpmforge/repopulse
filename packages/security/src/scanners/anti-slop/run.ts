@@ -1,6 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database } from '@repopulse/shared';
-import { persistFindings, type IncomingFinding } from '@repopulse/insights';
+import {
+  persistFindings,
+  readImportGraph,
+  writeImportGraph,
+  type IncomingFinding,
+} from '@repopulse/insights';
 import {
   chunkDiff,
   validateFindings,
@@ -11,10 +16,12 @@ import {
   type AnalysisGateway,
   type DiffFile,
 } from '@repopulse/analysis';
+import { repoContextFor } from '../context/repo-context.js';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { buildImportGraph, RESOLVE_EXTENSIONS } from './source-graph.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -152,6 +159,25 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     const alreadyFlagged = await existingSlopsquatFiles(deps.db, deps.workspaceId, deps.repoId);
 
     const sources = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
+
+    // The import graph (W18-25), written down for the two consumers that run
+    // after this snapshot is gone: the reprice (exposure) and Tier-2 prompts
+    // (callers and callees). Built from ALL sources, not the slopsquat-filtered
+    // set: a file being flagged does not stop other files importing it.
+    if (deps.sources?.length) {
+      await writeImportGraph(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        snapshot: {
+          version: 1,
+          commitSha: deps.commitSha,
+          complete: deps.sourcesComplete === true,
+          extensions: RESOLVE_EXTENSIONS,
+          ...buildImportGraph(deps.sources),
+        },
+      });
+    }
+
     for (const ldr of ldrFindings(sources)) {
       findings.push({
         dimension: 'slop',
@@ -261,10 +287,18 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
     // ---- Judgement layer -----------------------------------------------
     const chunked = deps.gateway ? chunkDiff(deps.files, 'code_health') : { chunks: [] };
+    // Callers and callees for each chunk (W18-25). Read once per run, and only
+    // when there is a chunk to give them to.
+    const graph = chunked.chunks.length
+      ? await readImportGraph(deps.db, deps.workspaceId, deps.repoId)
+      : null;
     let judgment = 0;
 
     for (const chunk of chunked.chunks) {
-      const result = await deps.gateway!.complete(buildChecklistPrompt(checklist, chunk.text), {
+      // The context rides beside the diff, never inside it: chunk.text is what
+      // evidence quotes are validated against.
+      const prompt = buildChecklistPrompt(checklist, chunk.text, repoContextFor(graph, chunk).text);
+      const result = await deps.gateway!.complete(prompt, {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,

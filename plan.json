@@ -9029,8 +9029,10 @@
         "Tier-2 prompts include callers/callees of changed functions from the fast-lane index within the chunk budget"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15: risk model v2 (risk_model.v2; RISK_MODEL_V1 kept and ignores the graph). The weekly anti_slop snapshot pass persists the fast-lane import graph (source-graph.ts buildImportGraph: relative imports + re-exports + require/import() + side-effect imports, names taken per edge, 'aliased' marks for files an unresolved specifier may reach) to metric_snapshots key import_graph (latest row only, complete=false on a capped read). No migration (0036 unused). risk.reprice reads it per repo; X = hotspot X x import multiplier (orphan 0.6; fan-in log-scaled 1.0 at <=2 to 1.3 at 32+), re-floored at 0.25, capped 1.0; neutral (1.0) for capped snapshot / unindexed language / entry-point path / possible alias / file not in graph / no graph. risk_factors.inputs gains import_graph, import_fan_in, import_multiplier, exposure_why ('imported by 14 modules', 'nothing imports this file', '... exposure not adjusted') which the existing why? popover prints. Tier-2: owasp/logging/anti_slop checklist prompts carry callers/callees of the chunk's changed functions (scanners/context/repo-context.ts), fenced as DATA beside the diff and never in chunk.text (evidence validation unchanged), budget min(1.2k, 24k - chunk promptTokens), whole lines, shipped files/callers before tests. Measured on 15 Repo Pulse branch diffs vs fast-checks-1 (24 chunks, anti-slop checklist): prompts 435,007 -> 443,407 est. tokens (+1.9%, max +6.5% per diff), 0 chunks over budget, 16/24 chunks got context (diffs of only new files get none). Repo Pulse tree: 1,016 indexed files, 2,027 edges, 120 KB stored, built in ~0.5 s; 601 imported (242 boosted), 316 orphans (313 tests/fixtures; the other 3: one unimported types file, two package.json-only demo scripts), 98 entry points. Gate: lint 0, typecheck 0, vitest 2523 passed / 58 skipped / 5 failed (environmental: docker on PATH for deploy-bundle/deploy-up-behaviour)."
+      ]
     },
     {
       "id": "W18-26",

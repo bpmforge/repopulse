@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import type { AnalysisGateway, CompleteOpts } from '@repopulse/analysis';
-import { dedupKey } from '@repopulse/insights';
+import { dedupKey, readImportGraph } from '@repopulse/insights';
 import { runAntiSlopScan, worstByLdr } from './run.js';
 
 // anti_slop (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
@@ -128,6 +128,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
+    await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.repoId, repoId));
     await db.delete(security.scanRuns).where(eq(security.scanRuns.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
     await db
@@ -390,6 +391,57 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
+  });
+
+  it('writes the import graph and hands Tier-2 the callers of what changed (W18-25)', async () => {
+    const sources = [
+      { path: 'src/user.js', source: 'export function fetchUser(id) { return id; }\n' },
+      { path: 'src/routes/profile.js', source: "import { fetchUser } from '../user.js';\n" },
+      { path: 'src/admin.js', source: "import { fetchUser } from './user.js';\n" },
+    ];
+    const prompts: string[] = [];
+    const gateway: AnalysisGateway = {
+      async complete(prompt: string) {
+        prompts.push(prompt);
+        return {
+          text: '{"findings":[]}',
+          model: 'fake-finder',
+          tokensIn: 1,
+          tokensOut: 1,
+          costUsd: null,
+          durationMs: 1,
+        };
+      },
+      async health() {
+        return { ok: true };
+      },
+    };
+
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-25-sha', files, sources,
+      sourcesComplete: true, trigger: 'manual', gateway,
+    });
+
+    const graph = await readImportGraph(db, workspaceId, repoId);
+    expect(graph).toMatchObject({ commitSha: 'w18-25-sha', complete: true });
+    expect(graph?.files).toEqual(['src/admin.js', 'src/routes/profile.js', 'src/user.js']);
+    expect(graph?.edges).toHaveLength(2);
+
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain(
+      'fetchUser: called from src/admin.js, src/routes/profile.js',
+    );
+    // Beside the diff, never inside it.
+    expect(prompts[0]!.indexOf('called from')).toBeLessThan(prompts[0]!.indexOf('```diff'));
+
+    // A capped snapshot is recorded as such, for the pricer to go neutral on.
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-25-capped', files: [], sources, trigger: 'schedule',
+    });
+    expect(await readImportGraph(db, workspaceId, repoId)).toMatchObject({
+      commitSha: 'w18-25-capped',
+      complete: false,
+    });
   });
 });
 

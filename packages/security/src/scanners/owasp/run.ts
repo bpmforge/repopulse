@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { security, type Database } from '@repopulse/shared';
-import { persistFindings, type IncomingFinding } from '@repopulse/insights';
+import { persistFindings, readImportGraph, type IncomingFinding } from '@repopulse/insights';
 import {
   chunkDiff,
   validateFindings,
@@ -9,6 +9,7 @@ import {
   type AnalysisGateway,
   type DiffFile,
 } from '@repopulse/analysis';
+import { repoContextFor } from '../context/repo-context.js';
 import { buildChecklistPrompt, loadChecklist, type ChecklistKey } from './checklist.js';
 import { owaspLlmApplies } from './llm-packages.js';
 
@@ -118,8 +119,13 @@ export async function runOwaspChecklist(
   const models = new Set<string>();
 
   try {
+    // Callers and callees for each chunk (W18-25), read once per run.
+    const graph = await readImportGraph(deps.db, deps.workspaceId, deps.repoId);
     for (const chunk of chunked.chunks) {
-      const result = await deps.gateway.complete(buildChecklistPrompt(checklist, chunk.text), {
+      // The context rides beside the diff, never inside it: chunk.text is what
+      // evidence quotes are validated against.
+      const prompt = buildChecklistPrompt(checklist, chunk.text, repoContextFor(graph, chunk).text);
+      const result = await deps.gateway.complete(prompt, {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,

@@ -61,6 +61,15 @@ projected output ≈ `min(10k, 0.35 × patchTokens + 800)` per chunk.
    ≤ budget. Property: **every hunk in exactly one chunk** (FR-ANALYSIS-3 acceptance).
 4. Every chunk prompt carries: PR title + description (truncated 1k tok), file path(s),
    language hint, dimension checklist.
+   **Repo-wide context (W18-25):** checklist prompts also carry the callers and callees of
+   the chunk's changed functions, read from the fast-lane import graph the weekly
+   `anti_slop` pass persists (`metric_snapshots`, key `import_graph`, latest row only). The
+   context is fenced as DATA beside the diff, never inside `chunk.text`, so it can never pass
+   evidence validation; its budget is `min(1.2k, 24k − chunk promptTokens)`, cut at whole
+   lines (`[context truncated]`), shipped files and callers before tests. An incomplete
+   (capped) graph is labelled as such. Measured on 15 Repo Pulse branch diffs (24 chunks):
+   prompts +1.9% (435,007 → 443,407 est. tokens), no chunk over budget; diffs of only new
+   files get none (they are not in the base graph).
 5. **Map-reduce**: chunk calls emit findings (map); a final small call gets the deduped
    finding list + PR metadata and emits a PR-level verdict/summary (reduce). Reduce input is
    findings JSON, never re-pasted diff — bounded regardless of PR size.
