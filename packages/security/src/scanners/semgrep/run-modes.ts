@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { security, type Database, safeErrorText } from '@repopulse/shared';
+import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeProvider } from '@repopulse/forge';
 import { shred, snapshotForScan } from '../../snapshot/index.js';
@@ -150,7 +151,7 @@ export async function runSemgrepFull(
           scanRunId: runId,
           pullRequestId: null,
           tier: 1,
-          findings,
+          findings: await attachExcerpts(snapshot.dir, findings),
           // A FULL run has seen the whole tree, so it may close what it no
           // longer reports — but only its own findings. Scoping this to the
           // scanner is what stops a semgrep run resolving a secrets finding.
@@ -279,7 +280,7 @@ export async function runSemgrepIncremental(
       scanRunId: runId,
       pullRequestId: null,
       tier: 1,
-      findings,
+      findings: await attachExcerpts(root, findings),
       // NO reviewedFiles: a diff-scoped run has seen a handful of files, not
       // the repository, and auto-resolving from a partial view would close
       // findings on files this PR never touched.

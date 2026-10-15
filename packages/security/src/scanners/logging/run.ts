@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { security, type Database, safeErrorText } from '@repopulse/shared';
+import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import {
   chunkDiff,
@@ -312,7 +313,7 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
       scanRunId: runId,
       pullRequestId: deps.pullRequestId ?? null,
       tier: 2,
-      findings,
+      findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: LOGGING_SCANNER_KEY,
     });
 

@@ -9207,6 +9207,40 @@
       "notes": [
         "DONE 2026-10-15 on claude/repopulse-code-viewer. From the 2026-10-15 UX/UI review (project files repopulse/ux-review-2026-10-15/). apps/web/src/components/code: tokenizer (no HTML strings), unified-diff parser, CodeBlock, DiffView; tokens in theme.css measured by styles/codeContrast.test.ts. Wired into FindingDetail and TriageQueue evidence. NOT wired into VerifiedFix.tsx because that component is on PR #54/#69, not main: swap its <pre> for <DiffView diff={...}/> after those merge. Where code beyond the stored evidence comes from (excerpt at scan time, per Brad's 2026-10-15 choice) is the next ticket."
       ]
+    },
+    {
+      "id": "W18-32",
+      "title": "Store a few scanned lines with each finding so the app can show the code",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E3.2",
+        "E13.4"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "packages/insights/**",
+        "packages/shared/**",
+        "apps/api/**",
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-31"
+      ],
+      "acceptance": [
+        "Scanners that produce code findings copy up to 8 lines either side (max 60 lines, 300 chars a line) from the ephemeral snapshot into the finding (context_lines, context_start_line)",
+        "Never stored for a secrets finding, a credential-named rule, a window matching a credential shape, a path outside the snapshot, a binary or over-1MiB file",
+        "Lines are cleared FINDING_CONTEXT_RETENTION_DAYS (default 90) after a finding closes; open findings keep and refresh theirs",
+        "GET /findings returns context; the finding panel and triage queue show it with the finding's range banded",
+        "Full gate green"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-code-context (stacked on W18-31 / PR #74). Migration 0038_finding_context (journal idx 32): renumber at merge, other W18 PRs claim 0032/0033/0035-0037. Retention runs from persistFindings (no scheduler owns retention sweeps yet). Excerpts wired into logging, perf, anti-slop pack, code-health and semgrep (full and diff-scoped) scanners; owasp, dependency, secrets and LLM findings have none. SC-29a added to SECURITY_CONTROLS."
+      ]
     }
   ]
 }
