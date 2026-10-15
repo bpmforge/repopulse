@@ -478,3 +478,107 @@ export function looksMinified(path: string, source: string): boolean {
   if (/\.min\.[cm]?js$/.test(path)) return true;
   return source.split('\n').some((line) => line.length > 1000);
 }
+/** The persisted import graph (W18-25): what the risk model and Tier-2 read. */
+export interface ImportGraphBuild {
+  files: string[];
+  edges: [number, number, string[] | null][];
+  aliased: number[];
+}
+
+/** Last path segment of a specifier, without extension or query. */
+function specifierStem(specifier: string): string {
+  const last =
+    specifier
+      .replace(/[?#].*$/, '')
+      .replace(/\/+$/, '')
+      .split('/')
+      .pop() ?? '';
+  return last.replace(/\.[cm]?[jt]sx?$/, '');
+}
+
+/** What an unresolved specifier could be naming: the file's stem, or its directory for an index. */
+function fileStems(file: string): string[] {
+  const parts = file.split('/');
+  const stem = (parts[parts.length - 1] ?? '').replace(/(\.d)?\.[cm]?[jt]sx?$/, '');
+  return stem === 'index' && parts.length > 1 ? [stem, parts[parts.length - 2] as string] : [stem];
+}
+
+/**
+ * `import './register.js'` — a module loaded for what it does, taking no name.
+ *
+ * Kept out of importsOf on purpose: the rules built on it reason about NAMES,
+ * and a bare import changes what they would report. The graph needs it
+ * because it is an edge — a widget registry imported only this way is the
+ * opposite of a file nothing imports.
+ */
+function sideEffectImports(
+  source: string,
+  masked: string,
+): { specifier: string; taken: Set<string> }[] {
+  const out: { specifier: string; taken: Set<string> }[] = [];
+  for (const m of masked.matchAll(/\bimport\s*(['"])[^'"]*\1/dg)) {
+    const [start, end] = m.indices?.[0] ?? [0, 0];
+    const quoted = /(['"])([^'"]*)\1\s*$/.exec(source.slice(start, end));
+    if (quoted) out.push({ specifier: quoted[2] as string, taken: new Set() });
+  }
+  return out;
+}
+
+/**
+ * The repository's import graph, file to file, for the JS/TS sources.
+ *
+ * Only relative specifiers resolve — the snapshot has no tsconfig and no
+ * node_modules — so a file reached through a path alias or a workspace package
+ * name would look like nothing imports it. Those files are marked `aliased`
+ * instead: any unresolved specifier ending in the file's name is enough,
+ * because the cost of that being a coincidence is a missed discount, while the
+ * cost of ignoring it is discounting the most-imported file in the repo.
+ */
+export function buildImportGraph(
+  sources: readonly { path: string; source: string }[],
+): ImportGraphBuild {
+  const code = sources
+    .filter((f) => CODE.test(f.path))
+    .sort((a, b) => a.path.localeCompare(b.path));
+  const files = code.map((f) => f.path);
+  const position = new Map(files.map((f, i) => [f, i]));
+  const paths = new Set(files);
+
+  const edges = new Map<string, [number, number, Set<string> | null]>();
+  const unresolvedStems = new Set<string>();
+  for (const file of code) {
+    const from = position.get(file.path) as number;
+    const masked = maskSource(file.source);
+    for (const { specifier, taken } of [
+      ...importsOf(file.source, masked),
+      ...sideEffectImports(file.source, masked),
+    ]) {
+      const target = resolveSpecifier(file.path, specifier, paths);
+      if (!target) {
+        unresolvedStems.add(specifierStem(specifier));
+        continue;
+      }
+      if (target === file.path) continue;
+      const to = position.get(target) as number;
+      const key = `${from}:${to}`;
+      const edge = edges.get(key) ?? [from, to, new Set<string>()];
+      if (taken === 'all') edge[2] = null;
+      else if (edge[2]) for (const name of taken) edge[2].add(name);
+      edges.set(key, edge);
+    }
+  }
+
+  return {
+    files,
+    edges: [...edges.values()]
+      .map(([from, to, names]): [number, number, string[] | null] => [
+        from,
+        to,
+        names ? [...names].sort() : null,
+      ])
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1]),
+    aliased: files
+      .map((f, i) => (fileStems(f).some((s) => unresolvedStems.has(s)) ? i : -1))
+      .filter((i) => i >= 0),
+  };
+}

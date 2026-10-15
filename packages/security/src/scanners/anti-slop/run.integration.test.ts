@@ -1323,6 +1323,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     });
     expect(stopped.deterministic).toBe(0);
   });
+
 });
 
 describe('layer separation and sampling', () => {

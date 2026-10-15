@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
+import { persistFindings, readImportGraph, type IncomingFinding } from '@repopulse/insights';
 import {
   chunkDiff,
   validateFindings,
@@ -11,6 +12,7 @@ import {
   type AnalysisGateway,
   type DiffFile,
 } from '@repopulse/analysis';
+import { repoContextFor } from '../context/repo-context.js';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { shadowFindings } from '../../rules/shadow.js';
 import {
@@ -235,10 +237,18 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
     excluded += deps.files.length - scannable.length;
 
     const chunked = deps.gateway ? chunkDiff(scannable, 'code_health') : { chunks: [] };
+    // Callers and callees for each chunk (W18-25). Read once per run, and only
+    // when there is a chunk to give them to.
+    const graph = chunked.chunks.length
+      ? await readImportGraph(deps.db, deps.workspaceId, deps.repoId)
+      : null;
     let judgment = 0;
 
     for (const chunk of chunked.chunks) {
-      const result = await deps.gateway!.complete(buildChecklistPrompt(checklist, chunk.text), {
+      // The context rides beside the diff, never inside it: chunk.text is what
+      // evidence quotes are validated against.
+      const prompt = buildChecklistPrompt(checklist, chunk.text, repoContextFor(graph, chunk).text);
+      const result = await deps.gateway!.complete(prompt, {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,

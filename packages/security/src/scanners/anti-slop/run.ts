@@ -5,6 +5,12 @@ import { read, security, type Database, safeErrorText } from '@repopulse/shared'
 import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import {
+  persistFindings,
+  readImportGraph,
+  writeImportGraph,
+  type IncomingFinding,
+} from '@repopulse/insights';
+import {
   validateFindings,
   FindingParseError,
   mayBeSurfacedLoudly,
@@ -22,6 +28,8 @@ import {
   selectCandidates,
 } from './candidates.js';
 import { effectiveStatus, registryStatuses } from '../../rules/shadow.js';
+import { repoContextFor } from '../context/repo-context.js';
+import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { EXCEPTION_FLOW_RULE_ID, exceptionFlows } from './exception-flow.js';
@@ -66,6 +74,7 @@ import {
   readDeclaredDependencies,
   type DeclaredSet,
 } from '../../validation/declared.js';
+import { buildImportGraph, RESOLVE_EXTENSIONS } from './source-graph.js';
 import { runSemgrepScan } from '../semgrep/scanner.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
@@ -247,6 +256,26 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     const all = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
     const isGoMod = (p: string): boolean => p === 'go.mod' || p.endsWith('/go.mod');
     const sources = all.filter((s) => !isGoMod(s.path));
+    const sources = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
+
+    // The import graph (W18-25), written down for the two consumers that run
+    // after this snapshot is gone: the reprice (exposure) and Tier-2 prompts
+    // (callers and callees). Built from ALL sources, not the slopsquat-filtered
+    // set: a file being flagged does not stop other files importing it.
+    if (deps.sources?.length) {
+      await writeImportGraph(deps.db, {
+        workspaceId: deps.workspaceId,
+        repoId: deps.repoId,
+        snapshot: {
+          version: 1,
+          commitSha: deps.commitSha,
+          complete: deps.sourcesComplete === true,
+          extensions: RESOLVE_EXTENSIONS,
+          ...buildImportGraph(deps.sources),
+        },
+      });
+    }
+
     for (const ldr of ldrFindings(sources)) {
       findings.push({
         dimension: 'slop',
@@ -824,6 +853,107 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
 
     for (const batch of batches) {
       const result = await deps.gateway!.complete(buildCandidatePrompt(checklist, batch), {
+        tier: 'T2',
+        maxTokens: 45_000,
+        expectJson: true,
+        meta: {
+          repoId: String(deps.repoId),
+          prNumber: 0,
+          // NOT 'slop' (W9-16). This is the GATEWAY's dimension — which Tier-2
+          // checklist family the model is being asked to apply — and its union
+          // is the four review dimensions, not the finding taxonomy. The
+          // findings this call produces are stored as `slop`; the checklist
+          // driving it is the code-health one.
+          dimension: 'code_health',
+          checklistVersion: checklist.version,
+          initiator: `scanner:${ANTI_SLOP_SCANNER_KEY}`,
+        },
+      });
+
+      let parsed;
+      try {
+        parsed = validateFindings(JSON.parse(result.text), candidateHaystack(batch));
+      } catch (err) {
+        if (err instanceof FindingParseError || err instanceof SyntaxError) {
+          rejected += 1;
+          continue;
+        }
+        throw err;
+      }
+      rejected += parsed.rejected.length;
+
+      const answered = new Set<string>();
+      for (const finding of parsed.findings) {
+        // A finding about anything but a listed candidate is the model
+        // searching again, and a second finding for one candidate is one
+        // problem counted twice: both are rejected, and counted.
+        const candidate = candidateFor(finding, batch, answered);
+        if (!candidate) {
+          rejected += 1;
+          continue;
+        }
+        answered.add(candidate.id);
+
+        // THE VERIFY GATE (FR-ANALYSIS-9). A judgement finding is a second
+        // model's opinion away from being an accusation about someone's code,
+        // so it does not reach the store until an independent verifier has had
+        // the chance to refute it.
+        let verifyStatus: 'unverified' | 'confirmed' | 'contradicted' = 'unverified';
+        if (deps.verify && needsVerification(finding.severity)) {
+          const verdict = await deps.verify({
+            title: finding.title,
+            evidenceQuote: finding.evidence_quote,
+            file: finding.file,
+          });
+          verifyStatus = verdictToStatus(verdict);
+        }
+
+        if (verifyStatus === 'contradicted') {
+          // Dropped entirely, not stored quietly: a refuted structural claim
+          // is one the product got wrong, and keeping it in a list "for
+          // reference" is how a triage queue fills with things nobody trusts.
+          refuted += 1;
+          continue;
+        }
+        if (verifyStatus === 'unverified') unverified += 1;
+
+        judgment += 1;
+        findings.push({
+          // The candidate's facet, not always `slop`: a confirmed serial-await
+          // candidate is still a latency problem.
+          dimension: candidate.dimension,
+          // Capped at 3 regardless of what the model said. Structural slop is
+          // not exploitable, and a severity-4 wrapper would outrank a real
+          // vulnerability in every list that sorts by severity.
+          severity: Math.min(3, finding.severity),
+          confidence: finding.confidence,
+          file: finding.file,
+          lineStart: finding.line_range[0],
+          lineEnd: finding.line_range[1],
+          title: finding.title,
+          evidenceQuote: finding.evidence_quote,
+          rationale: finding.rationale,
+          suggestedFix: finding.suggested_fix,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: 'slop.judgment',
+          yields: null,
+        });
+      }
+    }
+    // ---- Judgement layer -----------------------------------------------
+    const chunked = deps.gateway ? chunkDiff(deps.files, 'code_health') : { chunks: [] };
+    // Callers and callees for each chunk (W18-25). Read once per run, and only
+    // when there is a chunk to give them to.
+    const graph = chunked.chunks.length
+      ? await readImportGraph(deps.db, deps.workspaceId, deps.repoId)
+      : null;
+    let judgment = 0;
+
+    for (const chunk of chunked.chunks) {
+      // The context rides beside the diff, never inside it: chunk.text is what
+      // evidence quotes are validated against.
+      const prompt = buildChecklistPrompt(checklist, chunk.text, repoContextFor(graph, chunk).text);
+      const result = await deps.gateway!.complete(prompt, {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,
