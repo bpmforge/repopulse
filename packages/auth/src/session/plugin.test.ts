@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import { Redis } from 'ioredis';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import sessionPlugin from './plugin.js';
 
 // Live compose Redis (scripts/dev-up.sh), matching redis-store.test.ts.
@@ -42,7 +42,7 @@ describeIfRedis('session plugin shutdown (W17-03)', () => {
   // Spying for the whole file rather than one test matters: the event surfaces
   // in whichever test severs the socket FIRST, so a single-test spy silently
   // misses it depending on ordering.
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: MockInstance<typeof console.error>;
 
   beforeEach(() => {
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

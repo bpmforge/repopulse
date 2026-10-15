@@ -158,7 +158,7 @@ to cheap agents (C3).
 
 | Piece | Pin | Why |
 |---|---|---|
-| vitest | **3.x** | Brief-fixed; one runner for all packages, workspace projects config. |
+| vitest | **4.x** (was 3.x until the 2026-10-15 SC-19 refresh, below) | Brief-fixed; one runner for all packages, workspace projects config. |
 | Playwright | **1.x (latest)** | Brief-fixed; E2E vs seeded stack + doubles as the PDF engine. |
 | nock / msw | latest | Forge-call guard in api tests (FR-API-2 runtime check) + recorded GitHub fixtures (FR-FORGE-2). |
 | ESLint | **9.x flat config** | Carries the law-enforcing rules: no `packages/forge` import outside ingest/api-webhook wiring, no raw fetch to forge/LM hosts (FR-FORGE-6, NFR-8). |
@@ -199,11 +199,11 @@ to cheap agents (C3).
   ~10k tokens on qwen3.6-class models. Never size a chunk assuming 45k output.
 - **GitHub stats endpoints return 202 first** and degrade ≥10k commits (research §3) —
   always code the retry-after-202 loop AND the REST per-commit fallback path.
-- **vitest 3.x `defineWorkspace`/`vitest.workspace.ts` is deprecated** (removal flagged for the
-  next major, printed at every `vitest run` as of 3.2.7) in favor of a `test.projects` array in
-  the root vitest config. W0-01 keeps `vitest.workspace.ts` because it's the pin named in
-  plan.json's write_scope and still fully functional on vitest 3.x; migrate to `test.projects`
-  in the same ticket that bumps vitest to a 4.x major (Version upgrade policy below).
+- **vitest 4.x has no `vitest.workspace.ts`**: projects are the `test.projects` array in the root
+  `vitest.config.ts` (moved there in W16-17). Pool options are top-level (`poolOptions`,
+  `singleFork`, `maxThreads` are gone); the root `fileParallelism: false` still serialises files
+  across every project (checked on 4.1.11 with timestamp probes in two packages). A `vi.fn`
+  called with `new` needs a `function`/`class` implementation, not an arrow.
 
 ## SC-19 dependency-audit refresh (2026-10-15)
 
@@ -256,6 +256,21 @@ What changed for us:
 - Axis-label overflow/overlap prevention is on by default, so axes can move a few pixels.
   `grid.containLabel` is still honoured. Rich text labels are not used.
 - Initial JS stays at 140.8 KB gz (budget 200 KB); ECharts is in a lazy chunk.
+
+**Step 4: vitest ^3.2.7 → ^4.1.11** (root + apps/web; resolved 4.1.11; vite stays 6.4.3, inside
+vitest 4's `^6 || ^7 || ^8` peer range). Fixes GHSA-82fw-gwwq-j7x9 (vitest, @vitest/mocker) and
+GHSA-5gmw-xhrv-c9v3 / GHSA-85c8-ppgw-ccpr (tinypool, which vitest 4 no longer depends on). Read
+the v4 migration guide (vitest.dev/guide/migration#vitest-4). The repo already used
+`test.projects`, so the config is unchanged. The run collects the same 332 files as before
+(the narrower default `exclude` did not pick up anything new). What broke:
+- vitest 4's typings stopped pulling in `@types/node` by accident. Five apps/web test files use
+  `node:fs`/`process`, so apps/web now declares `@types/node` (^22.20.1, same as every other
+  workspace) and names `"node"` in its tsconfig `types`.
+- `ReturnType<typeof vi.spyOn>` is now too loose to type `mock.calls`. packages/auth
+  `session/plugin.test.ts` uses `MockInstance<typeof console.error>`.
+- A teardown race the new module runner exposed: `Chart.test.tsx` unstubbed `ResizeObserver`
+  before the setup file's `cleanup()` unmounted a chart whose lazily imported echarts instance
+  arrived after the test body. That file now unmounts first, then unstubs.
 
 ## Version upgrade policy
 
