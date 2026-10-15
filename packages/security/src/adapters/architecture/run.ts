@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
 import { snapshotForScan } from '../../snapshot/fetch.js';
@@ -134,7 +134,7 @@ export async function runArchitectureScan(
       },
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = safeErrorText(error);
     await closeRun(deps.db, runId, 'failed', 0, message.slice(0, 500), null);
     return {
       status: 'failed',

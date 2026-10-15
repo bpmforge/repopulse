@@ -14,7 +14,7 @@
     "@repopulse/metrics": "workspace:^",
     "@repopulse/shared": "workspace:^",
     "bullmq": "^5",
-    "drizzle-orm": "^0.39.3",
+    "drizzle-orm": "^0.45.2",
     "ioredis": "^5.11.1",
     "prom-client": "^15"
   },
