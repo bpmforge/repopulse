@@ -272,6 +272,16 @@ the v4 migration guide (vitest.dev/guide/migration#vitest-4). The repo already u
   before the setup file's `cleanup()` unmounted a chart whose lazily imported echarts instance
   arrived after the test body. That file now unmounts first, then unstubs.
 
+**Step 5: esbuild 0.18.20 → 0.25.12 by `pnpm.overrides`** (the only override in the repo).
+`"@esbuild-kit/core-utils>esbuild": "^0.25.12"`. Reason: drizzle-kit (latest stable 0.31.11)
+still declares the deprecated `@esbuild-kit/esm-loader` → `@esbuild-kit/core-utils`, which pins
+`esbuild ~0.18.20` (GHSA-67mh-4wv8-2f99), and no drizzle-kit release fixes it. drizzle-kit's
+own code never loads `@esbuild-kit` (it uses tsx and esbuild ^0.25), and core-utils'
+`transformSync` was checked to work on 0.25.12 anyway. Remove the override when drizzle-kit
+drops the dependency. `drizzle-kit check`/`generate`/`migrate` were re-run clean with it.
+
+Result: `osv-scanner scan source --lockfile=pnpm-lock.yaml` reports no issues.
+
 ## Version upgrade policy
 
 1. Majors in this doc are pinned; `package.json` uses `^` within the pinned major, lockfile

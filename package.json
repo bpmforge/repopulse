@@ -45,6 +45,9 @@
     "vitest": "^4.1.11"
   },
   "pnpm": {
+    "overrides": {
+      "@esbuild-kit/core-utils>esbuild": "^0.25.12"
+    },
     "onlyBuiltDependencies": []
   }
 }
