@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { read, security, type Database } from '@repopulse/shared';
+import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import {
   persistFindings,
   readImportGraph,
@@ -407,7 +407,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, runId));
@@ -420,7 +420,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       unverified,
       findingsCreated: 0,
       rejected,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }
