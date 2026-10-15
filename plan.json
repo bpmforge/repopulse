@@ -9144,7 +9144,8 @@
         "packages/security/**",
         "apps/api/src/workers/**",
         "docs/**",
-        "plan.json"
+        "plan.json",
+        "scripts/validate-plan.mjs"
       ],
       "depends_on": [],
       "acceptance": [
@@ -9154,9 +9155,11 @@
         "Full gate green"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "FILED 2026-10-15: found while mapping the fast lane. logging/run.ts runs rulepacks/code-health (anti-slop.v1.yaml + logging.v1.yaml) but keeps only ruleId.startsWith('bpm-log-'); no other scanner runs code-health/ (semgrep scanner -> rulepacks/semgrep; perf -> code-health/perf). Same class as W9-13 (perf pack never loaded). The Code Health route already filters rule ids by 'bpm-ch-', so the UI expects them."
+        "DONE 2026-10-15 on claude/repopulse-anti-slop-pack. FIX: ownership of rulepacks/code-health/ is by FILE-NAME PREFIX. runSemgrepScan/readRulepack take an optional rulepackFiles predicate (an empty selection is refused, never run with engine defaults). logging_hygiene loads only logging.* files (keeps its bpm-log- id filter as belt-and-braces); anti_slop gains a pack layer (targetDir) that loads only anti-slop.* files and stores bpm-ch-* as dimension slop, scanner anti_slop, severity<=3, confidence 4, same exclusion globs as logging, toolVersions stamped on the scan_run; a failed pack run fails the anti_slop run (no silent LDR-only success). The weekly anti_slop runner (apps/api/src/workers/index.ts) passes targetDir: snapshot.dir; manual 'Run scans' reaches the same runner (scan-processor history->weeklyRunners fallback, W16-28). No rule is evaluated twice: two engine calls, disjoint rule files (the perf precedent: each scanner pays for its own rules). Optional PackRunner seam on both scanners so the wiring is testable without the scan image.",
+        "TEST: packages/security/src/scanners/anti-slop/pack.integration.test.ts (6 tests) drives both scanners with a RECORDED engine run (fixtures/code-health/recorded/triggering.opengrep.json, semgrep 1.181 over the two triggering fixtures; arch rule 7 forbids spawning semgrep under src/ even in tests). RED on main 1a009e3: 5 failed (zero bpm-ch-* rows stored; pack files unclaimed); GREEN after: 6 passed. Sweep tests: a persistFindings sweep scoped to logging_hygiene over every file closes all bpm-log rows and no bpm-ch row; scoped to anti_slop the reverse. NOTE: neither scanner passes reviewedFiles today, so neither actually sweeps stale findings (pre-existing; a safe sweep would need a rule-scoped sweep in packages/insights, outside this ticket's scope).",
+        "GATE: lint + typecheck green; pnpm test 2457 passed / 58 skipped / 6 failed: the 5 known deploy-* tests (docker on PATH, no daemon) and apps/web Chart.test.tsx ('ResizeObserver is not defined' in jsdom; apps/web untouched by this branch, fails alone too, so pre-existing). An earlier test version spawned semgrep and tripped arch rule 7 (NFR-14); replaced by the recorded engine run."
       ]
     }
   ]

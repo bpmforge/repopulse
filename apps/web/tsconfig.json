@@ -5,7 +5,10 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client"],
+    // "node" is for the test files that read sources off disk (node:fs,
+    // process.cwd()). vitest 3's typings pulled @types/node in by accident;
+    // vitest 4 no longer does, so it is named here instead.
+    "types": ["vite/client", "node"],
     "rootDir": "src"
   },
   "include": ["src"]
