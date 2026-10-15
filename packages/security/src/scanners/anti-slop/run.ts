@@ -18,6 +18,12 @@ import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './p
 import { DELEGATION_WRAPPER_RULE_ID, delegationWrappers } from './delegation-wrappers.js';
 import { SINGLE_IMPL_RULE_ID, singleImplInterfaces } from './single-impl.js';
 import { STALE_JSDOC_RULE_ID, staleJsdocParams } from './stale-jsdoc.js';
+import { asyncSmells, SERIAL_AWAITS_RULE_ID, UNBOUNDED_RETRY_RULE_ID } from './async-smells.js';
+import {
+  ORPHAN_FLAG_RULE_ID,
+  SPECULATIVE_PARAM_RULE_ID,
+  speculativeGenerality,
+} from './speculative.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -344,6 +350,80 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         const status = statuses.get(finding.ruleId);
         if (status === 'deprecated') continue;
         findings.push({ ...finding, experimental: status !== 'active' });
+      }
+    }
+    // Async smells and speculative generality (W18-08). Whole files, so the
+    // snapshot pass only; the speculative pair also needs every caller and
+    // every read, which only the whole tree has. All four are medium-noise
+    // shapes (mechanical-checks plan, batch 2): candidates until promoted.
+    if (sources.length) {
+      const ids = [
+        SERIAL_AWAITS_RULE_ID,
+        UNBOUNDED_RETRY_RULE_ID,
+        SPECULATIVE_PARAM_RULE_ID,
+        ORPHAN_FLAG_RULE_ID,
+      ] as const;
+      const statuses = new Map(
+        await Promise.all(
+          ids.map(
+            async (id) => [id, await shippedRuleStatus(deps.db, deps.workspaceId, id)] as const,
+          ),
+        ),
+      );
+      for (const smell of asyncSmells(sources)) {
+        const status = statuses.get(smell.ruleId);
+        if (status === 'deprecated') continue;
+        const serial = smell.ruleId === SERIAL_AWAITS_RULE_ID;
+        findings.push({
+          // Serial awaits cost latency, not readability: they belong in the
+          // performance facet beside the await-in-loop rule.
+          dimension: serial ? 'performance' : 'slop',
+          // A retry with no bound turns an outage into a tight loop against
+          // the thing that is down — worse than taste, so one step up.
+          severity: serial ? 1 : 2,
+          // 3: the shape is matched exactly, but whether the reads may run
+          // together, or the loop can really spin, depends on code the rule
+          // did not read.
+          confidence: 3,
+          file: smell.file,
+          lineStart: smell.line,
+          lineEnd: smell.lineEnd,
+          title: serial
+            ? `Independent awaits run one after another (${smell.evidence.split('\n').length})`
+            : 'Retry with no attempt limit or backoff',
+          evidenceQuote: smell.evidence,
+          rationale: smell.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: smell.ruleId,
+          yields: null,
+          experimental: status !== 'active',
+        });
+      }
+      for (const knob of speculativeGenerality(sources)) {
+        const status = statuses.get(knob.ruleId);
+        if (status === 'deprecated') continue;
+        findings.push({
+          dimension: 'slop',
+          severity: 1,
+          confidence: 3,
+          file: knob.file,
+          lineStart: knob.line,
+          lineEnd: knob.line,
+          title:
+            knob.ruleId === ORPHAN_FLAG_RULE_ID
+              ? `Hard-coded flag read once: ${knob.name}`
+              : `Default no caller overrides: ${knob.name}`,
+          // Named, because two parameters of one signature share its line and
+          // would otherwise collapse into one finding under the dedup key.
+          evidenceQuote: `${knob.name}: ${knob.evidence}`,
+          rationale: knob.message,
+          suggestedFix: null,
+          scannerKey: ANTI_SLOP_SCANNER_KEY,
+          ruleId: knob.ruleId,
+          yields: null,
+          experimental: status !== 'active',
+        });
       }
     }
     const deterministic = findings.length;

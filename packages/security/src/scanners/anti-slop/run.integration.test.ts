@@ -80,7 +80,12 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w9-03-user', forgeUserId: 'w9-03-user', login: 'w9-03-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w9-03-user',
+        forgeUserId: 'w9-03-user',
+        login: 'w9-03-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w9-03-user' } })
       .returning();
     userId = user!.id;
@@ -124,7 +129,11 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       .where(
         and(
           eq(security.ruleRegistry.workspaceId, workspaceId),
-          inArray(security.ruleRegistry.ruleId, ['slop.unused_export', 'slop.stale_jsdoc_param']),
+          inArray(security.ruleRegistry.ruleId, [
+            'slop.unused_export',
+            'slop.stale_jsdoc_param',
+            'slop.unbounded_retry',
+          ]),
         ),
       );
     await db.delete(read.findings).where(eq(read.findings.repoId, repoId));
@@ -314,7 +323,9 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       db
         .select()
         .from(read.findings)
-        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.unused_export')));
+        .where(
+          and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'slop.unused_export')),
+        );
 
     // No registry row: the shipped default is candidate, so the finding is
     // stored and visible but stamped experimental — out of every score.
@@ -372,7 +383,13 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
         .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
 
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-02-partial', files: [], sources, trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-02-partial',
+      files: [],
+      sources,
+      trigger: 'schedule',
     });
     const [symbol] = await rows('slop.phantom_symbol');
     expect(symbol).toMatchObject({
@@ -385,8 +402,14 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect(await rows('slop.phantom_module')).toEqual([]);
 
     await runAntiSlopScan({
-      db, workspaceId, repoId, commitSha: 'w18-02-complete', files: [], sources,
-      sourcesComplete: true, trigger: 'schedule',
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-02-complete',
+      files: [],
+      sources,
+      sourcesComplete: true,
+      trigger: 'schedule',
     });
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
@@ -481,6 +504,78 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     await scan('w18-05-deprecated', true);
     expect((await rows('slop.stale_jsdoc_param'))[0]?.occurrenceCount).toBe(before);
     expect((await rows('slop.delegation_wrapper'))[0]?.occurrenceCount).toBe(3);
+  });
+
+  it('W18-08: async smells and speculative generality run in shadow, and stop when deprecated', async () => {
+    const sources = [
+      {
+        path: 'src/net.ts',
+        source: [
+          'export async function connect(url) {',
+          '  while (true) {',
+          '    try {',
+          '      return await open(url);',
+          '    } catch (err) {',
+          '      console.warn(err);',
+          '    }',
+          '  }',
+          '}',
+          'export async function page(api, id) {',
+          '  const user = await api.getUser(id);',
+          '  const prefs = await api.getPrefs(id);',
+          '  return { user, prefs };',
+          '}',
+          'function send(report, retries = 3) { return post(report, retries); }',
+          'const ENABLE_NEW_CHECKOUT = true;',
+          'export function go(r) { send(r); return ENABLE_NEW_CHECKOUT; }',
+        ].join('\n'),
+      },
+    ];
+    const scan = (commitSha: string) =>
+      runAntiSlopScan({
+        db,
+        workspaceId,
+        repoId,
+        commitSha,
+        files: [],
+        sources,
+        trigger: 'schedule',
+      });
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
+
+    const first = await scan('w18-08-shadow');
+    expect(first.status).toBe('succeeded');
+    const [retry] = await rows('slop.unbounded_retry');
+    expect(retry).toMatchObject({
+      dimension: 'slop',
+      severity: 2,
+      lineStart: 2,
+      experimental: true,
+      title: 'Retry with no attempt limit or backoff',
+    });
+    const [serial] = await rows('perf.serial_independent_awaits');
+    expect(serial).toMatchObject({ dimension: 'performance', lineStart: 11, experimental: true });
+    const [param] = await rows('slop.speculative_param');
+    expect(param).toMatchObject({
+      lineStart: 15,
+      title: 'Default no caller overrides: send(retries)',
+    });
+    const [flag] = await rows('slop.orphan_flag');
+    expect(flag).toMatchObject({ lineStart: 16, experimental: true });
+
+    // Deprecated: that one rule stops; the others keep running.
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.unbounded_retry',
+      status: 'deprecated',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    const later = await scan('w18-08-deprecated');
+    expect(later.deterministic).toBe(first.deterministic - 1);
   });
 });
 
