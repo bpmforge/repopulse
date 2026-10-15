@@ -1,0 +1,10 @@
+diff --git a/src/reports/reports.controller.ts b/src/reports/reports.controller.ts
+--- a/src/reports/reports.controller.ts
++++ b/src/reports/reports.controller.ts
+@@ -18,6 +18,7 @@ export class ReportsController {
+   constructor(private readonly reports: ReportsService) {}
+ 
++  @Public()
+   @Get(':id/export')
+   export(@Param('id') id: string) {
+     return this.reports.export(id);

@@ -16,6 +16,7 @@ import { core, facts, type Database } from '@repopulse/shared';
 // exist and a recursive CTE is not needed.
 const canonicalOf = (id: typeof core.identities) =>
   sql`coalesce(${id.mergedIntoId}, ${id.id})`;
+import { isNonHumanReviewer } from '../engine/review-bots.js';
 import type { ChurnFileTouch } from '../metrics/churn.js';
 import type { ReviewCoveragePr, ReviewCoverageReview } from '../metrics/review-coverage.js';
 import type { CyclePr, CycleEvent, CycleEventKind } from '../metrics/cycle.js';
@@ -25,6 +26,7 @@ import type { CiRunInput } from '../metrics/ci.js';
 import type { IssueThroughputInput } from '../metrics/issues.js';
 import type { ReleaseInput } from '../metrics/releases.js';
 import type { DeploymentInput, ReleaseFallbackInput } from '../metrics/dora.js';
+import type { ReviewBotMetricsInput } from '../metrics/review-bots.js';
 
 // Warehouse → metric-input readers (W3-10). The pure metric functions
 // (W3-02..W3-09) were built against these shapes; here we read the actual
@@ -105,7 +107,12 @@ export async function readChurnTouches(
   }));
 }
 
-async function prRowsWithReviews(db: Database, repoId: number, windowStart: Date) {
+async function prRowsWithReviews(
+  db: Database,
+  repoId: number,
+  windowStart: Date,
+  botGlobs?: readonly string[],
+) {
   const prRows = await db
     .select({
       id: facts.pullRequests.id,
@@ -131,6 +138,7 @@ async function prRowsWithReviews(db: Database, repoId: number, windowStart: Date
     .select({
       pullRequestId: facts.prReviews.pullRequestId,
       reviewerLogin: canonicalIdentity.forgeLogin,
+      reviewerIsBot: sql<boolean>`(${core.identities.isBot} or ${canonicalIdentity.isBot})`,
       state: facts.prReviews.state,
       submittedAt: facts.prReviews.submittedAt,
     })
@@ -139,8 +147,15 @@ async function prRowsWithReviews(db: Database, repoId: number, windowStart: Date
     .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
     .where(eq(facts.prReviews.repoId, repoId));
 
+  // METRICS.md §0: a bot's review is not review. Before W18-23 nothing here
+  // looked at the REVIEWER, only at the PR author, so a CodeRabbit or Copilot
+  // comment posted a minute after a PR opened counted as its first review
+  // (M4 open→firstReview) and as human review coverage (M5). Every PR-family
+  // metric reads through this function, so excluding them here covers all of
+  // them; the bots' own activity is measured separately (§5, review-bots.ts).
   const byPr = new Map<number, typeof reviewRows>();
   for (const rv of reviewRows) {
+    if (isNonHumanReviewer(rv.reviewerLogin, botGlobs, rv.reviewerIsBot)) continue;
     const bucket = byPr.get(rv.pullRequestId);
     if (bucket) bucket.push(rv);
     else byPr.set(rv.pullRequestId, [rv]);
@@ -153,8 +168,9 @@ export async function readReviewCoveragePrs(
   db: Database,
   repoId: number,
   windowStart: Date,
+  botGlobs?: readonly string[],
 ): Promise<ReviewCoveragePr[]> {
-  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart);
+  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart, botGlobs);
   return prRows.map((p) => {
     const reviews: ReviewCoverageReview[] = (byPr.get(p.id) ?? []).map((rv) => ({
       reviewerLogin: rv.reviewerLogin,
@@ -189,8 +205,9 @@ export async function readCyclePrs(
   db: Database,
   repoId: number,
   windowStart: Date,
+  botGlobs?: readonly string[],
 ): Promise<CyclePr[]> {
-  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart);
+  const { prRows, byPr } = await prRowsWithReviews(db, repoId, windowStart, botGlobs);
   return prRows.map((p) => {
     const events: CycleEvent[] = (byPr.get(p.id) ?? [])
       .map((rv) => {
@@ -316,5 +333,119 @@ export async function readDoraInputs(
         isDraft: r.isDraft,
         isPrerelease: r.isPrerelease,
       })),
+  };
+}
+
+/**
+ * METRICS.md §5 AI-reviewer inputs (W18-23): every PR opened in the
+ * window with its reviews and inline-comment anchors, plus whether the forge
+ * refused the comment fetch. Workspace AND repo scoped (Law 5) because the API
+ * calls this directly, not only the snapshot job.
+ *
+ * Logins are read through the canonical identity like every other reader, so
+ * an admin merging `Copilot` into `copilot-pull-request-reviewer` changes
+ * nothing about attribution — both are the same registry entry anyway.
+ */
+export async function readReviewBotInputs(
+  db: Database,
+  scope: { workspaceId: number; repoId: number },
+  windowStart: Date,
+): Promise<Omit<ReviewBotMetricsInput, 'botGlobs'>> {
+  const inScope = and(
+    eq(facts.pullRequests.workspaceId, scope.workspaceId),
+    eq(facts.pullRequests.repoId, scope.repoId),
+    gte(facts.pullRequests.createdAt, windowStart),
+  );
+
+  const prRows = await db
+    .select({
+      id: facts.pullRequests.id,
+      isBot: facts.pullRequests.isBot,
+      state: facts.pullRequests.state,
+      createdAt: facts.pullRequests.createdAt,
+      mergedAt: facts.pullRequests.mergedAt,
+      closedAt: facts.pullRequests.closedAt,
+      commentsObservedAt: facts.pullRequests.reviewCommentsObservedAt,
+    })
+    .from(facts.pullRequests)
+    .where(inScope);
+
+  const reviewRows = await db
+    .select({
+      pullRequestId: facts.prReviews.pullRequestId,
+      reviewerLogin: canonicalIdentity.forgeLogin,
+      forgeReviewId: facts.prReviews.forgeReviewId,
+      state: facts.prReviews.state,
+      submittedAt: facts.prReviews.submittedAt,
+    })
+    .from(facts.prReviews)
+    .innerJoin(facts.pullRequests, eq(facts.prReviews.pullRequestId, facts.pullRequests.id))
+    .innerJoin(core.identities, eq(facts.prReviews.reviewerIdentityId, core.identities.id))
+    .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
+    .where(inScope);
+
+  const commentRows = await db
+    .select({
+      pullRequestId: facts.prReviewComments.pullRequestId,
+      authorLogin: canonicalIdentity.forgeLogin,
+      forgeReviewId: facts.prReviewComments.forgeReviewId,
+      createdAt: facts.prReviewComments.createdAt,
+      path: facts.prReviewComments.path,
+      subjectType: facts.prReviewComments.subjectType,
+      isReply: facts.prReviewComments.isReply,
+      originalLine: facts.prReviewComments.originalLine,
+      currentLine: facts.prReviewComments.currentLine,
+    })
+    .from(facts.prReviewComments)
+    .innerJoin(facts.pullRequests, eq(facts.prReviewComments.pullRequestId, facts.pullRequests.id))
+    .innerJoin(core.identities, eq(facts.prReviewComments.authorIdentityId, core.identities.id))
+    .innerJoin(canonicalIdentity, eq(canonicalIdentity.id, canonicalOf(core.identities)))
+    .where(inScope);
+
+  const [refusal] = await db
+    .select({ lastError: core.syncCursors.lastError })
+    .from(core.syncCursors)
+    .where(
+      and(
+        eq(core.syncCursors.workspaceId, scope.workspaceId),
+        eq(core.syncCursors.repoId, scope.repoId),
+        eq(core.syncCursors.entityType, 'review_comments'),
+      ),
+    )
+    .limit(1);
+
+  return {
+    prs: prRows.map((p) => {
+      // A merged PR's merged_at is its close; closed_at is set too on GitHub,
+      // but merged_at is the one every other PR metric keys on.
+      const closed = p.state === 'open' ? null : (p.mergedAt ?? p.closedAt);
+      return {
+        pullRequestId: p.id,
+        isBot: p.isBot,
+        state: p.state as 'open' | 'closed' | 'merged',
+        createdAt: p.createdAt.toISOString(),
+        closedAt: closed ? closed.toISOString() : null,
+        commentsObservedAt: p.commentsObservedAt ? p.commentsObservedAt.toISOString() : null,
+      };
+    }),
+    reviews: reviewRows.map((r) => ({
+      pullRequestId: r.pullRequestId,
+      reviewerLogin: r.reviewerLogin,
+      forgeReviewId: r.forgeReviewId,
+      state: r.state,
+      submittedAt: r.submittedAt.toISOString(),
+    })),
+    comments: commentRows.map((c) => ({
+      pullRequestId: c.pullRequestId,
+      authorLogin: c.authorLogin,
+      forgeReviewId: c.forgeReviewId,
+      createdAt: c.createdAt.toISOString(),
+      path: c.path,
+      subjectType: c.subjectType === 'file' ? 'file' : 'line',
+      isReply: c.isReply,
+      originalLine: c.originalLine,
+      currentLine: c.currentLine,
+    })),
+    lineDataRefused: (refusal?.lastError ?? null) !== null,
   };
 }

@@ -1,0 +1,9 @@
+diff --git a/app/schemas/user.py b/app/schemas/user.py
+--- a/app/schemas/user.py
++++ b/app/schemas/user.py
+@@ -8,7 +8,7 @@ class UserUpdate(BaseModel):
+     email: EmailStr
+ 
+     class Config:
+-        extra = "forbid"
++        extra = "allow"

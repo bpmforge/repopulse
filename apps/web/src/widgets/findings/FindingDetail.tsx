@@ -10,6 +10,7 @@ import {
 } from './contracts.js';
 import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
+import { VerifiedFix } from './VerifiedFix.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -143,6 +144,11 @@ export function FindingDetail({
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">Recommendation</h3>
           <p className="mt-1 text-sm">{finding.recommendation}</p>
         </div>
+
+        {/* W18-19: a model-drafted patch, shown only once the re-scan proved it
+            clears this finding without raising another (D16). Copy and
+            download; never a write to the forge (D9a). */}
+        <VerifiedFix findingId={finding.id} />
 
         <div>
           <h3 className="text-xs tracking-wide text-fg-muted uppercase">History</h3>

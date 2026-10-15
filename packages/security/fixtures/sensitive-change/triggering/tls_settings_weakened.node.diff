@@ -1,0 +1,8 @@
+diff --git a/src/clients/payments.ts b/src/clients/payments.ts
+--- a/src/clients/payments.ts
++++ b/src/clients/payments.ts
+@@ -3,6 +3,7 @@ import https from 'node:https';
+ export const agent = new https.Agent({
+   keepAlive: true,
++  rejectUnauthorized: false,
+ });

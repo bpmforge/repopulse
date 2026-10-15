@@ -1,0 +1,9 @@
+diff --git a/src/mail/transport.ts b/src/mail/transport.ts
+--- a/src/mail/transport.ts
++++ b/src/mail/transport.ts
+@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer';
+ export const transport = nodemailer.createTransport({
+   host: process.env.SMTP_HOST,
+   port: 587,
++  secure: false,
+ });

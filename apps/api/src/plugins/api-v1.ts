@@ -1,9 +1,12 @@
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { FastifyInstance } from 'fastify';
-import type { Database } from '@repopulse/shared';
+import { eq } from 'drizzle-orm';
+import { core, type Database } from '@repopulse/shared';
 import { workspace as workspaceModule } from '@repopulse/auth';
 import { sendProblem } from '../lib/problem.js';
 import '../lib/rbac.js';
+import { bearerFrom, resolveCiToken } from '../lib/ci-token.js';
+import type { RequestWorkspace } from '../lib/rbac.js';
 import viewsRoutes from '../routes/views/index.js';
 import metricsRoutes from '../routes/metrics/index.js';
 import orgRoutes from '../routes/org/index.js';
@@ -20,6 +23,7 @@ import identityRoutes from '../routes/admin/identities/index.js';
 import reportsRoutes from '../routes/reports/index.js';
 import plansRoutes from '../routes/plans/index.js';
 import findingsRoutes from '../routes/findings/index.js';
+import patchRoutes from '../routes/patches/index.js';
 import intentsRoutes from '../routes/intents/index.js';
 import analysisAdminRoutes from '../routes/admin/analysis/index.js';
 import llmProviderRoutes from '../routes/admin/llm-providers/index.js';
@@ -33,6 +37,8 @@ import rulesRoutes from '../routes/rules/index.js';
 import riskRoutes from '../routes/risk/index.js';
 import agreementsRoutes from '../routes/agreements/index.js';
 import workspaceRoutes from '../routes/admin/workspace/index.js';
+import pullsRoutes from '../routes/pulls/index.js';
+import ciTokenRoutes from '../routes/admin/ci-tokens/index.js';
 import systemRoutes from '../routes/admin/system/index.js';
 
 export interface ApiV1Options {
@@ -77,9 +83,52 @@ export interface ApiV1Options {
 // extend it) to inherit the session/workspace/role preHandler and the zod
 // validator/serializer compilers below — registering alongside it at the
 // top level under the same '/api/v1' prefix string does NOT inherit them.
+async function workspaceById(db: Database, id: number): Promise<RequestWorkspace> {
+  const [ws] = await db
+    .select({ id: core.workspaces.id, slug: core.workspaces.slug, name: core.workspaces.name })
+    .from(core.workspaces)
+    .where(eq(core.workspaces.id, id))
+    .limit(1);
+  // The FK makes a missing row impossible while the token row exists.
+  if (!ws) throw new Error(`ci token names workspace ${id}, which does not exist`);
+  return ws;
+}
+
 export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): Promise<void> {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  // W18-18: a customer-CI token instead of a session. Decided in onRequest —
+  // BEFORE body parsing and zod validation, so a token aimed at a route it may
+  // not call is refused outright rather than first told what its payload got
+  // wrong — and decided EXCLUSIVELY: a request carrying an Authorization header
+  // is judged as a token request and nothing else, so a browser cookie riding
+  // along cannot lift a CI token's request into a member's.
+  app.addHook('onRequest', async (request, reply) => {
+    const bearer = bearerFrom(request.headers.authorization);
+    if (bearer === null) return undefined;
+    const resolved = bearer === '' ? null : await resolveCiToken(opts.db, bearer);
+    if (!resolved) {
+      sendProblem(request, reply, 401, 'Invalid, expired or revoked token');
+      return reply;
+    }
+    // Opt-in per route AND read-only per method. The method check is
+    // belt-and-braces: no route carrying the flag is a write today, and one
+    // that became one by accident must still refuse a token.
+    const wanted = request.routeOptions.config.ciToken;
+    const readMethod = request.method === 'GET' || request.method === 'HEAD';
+    if (!wanted || wanted.scope !== resolved.scope || !readMethod) {
+      sendProblem(request, reply, 403, 'This token cannot call this endpoint', {
+        detail: `A CI token carries the read-only scope ${resolved.scope} and can only read pull-request findings.`,
+      });
+      return reply;
+    }
+    request.ciToken = resolved;
+    request.workspace = await workspaceById(opts.db, resolved.workspaceId);
+    // No role: a token is not a member. requireAdmin refuses undefined, and
+    // no route a token can reach reads one.
+    return undefined;
+  });
 
   // Explicitly `return reply` on the early-exit path — Fastify's
   // short-circuit detection between chained preHandlers (this plugin-level
@@ -88,6 +137,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // (api-v1.test.ts caught a real double-onSend/double-session-save
   // otherwise — see rbac.ts's requireAdmin for the same fix).
   app.addHook('preHandler', async (request, reply) => {
+    // Authenticated by token in onRequest; the session is not consulted.
+    if (request.ciToken) return undefined;
     const userId = request.session?.get('userId');
     if (userId === undefined) {
       sendProblem(request, reply, 401, 'No active session');
@@ -197,6 +248,9 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   await app.register(intentsRoutes, { db: opts.db });
   // Findings (W6-04).
   await app.register(findingsRoutes, { db: opts.db });
+  // Verified patches (W18-19, D16): drafted, re-scanned, handed to a person —
+  // never written to the forge (D9a).
+  await app.register(patchRoutes, { db: opts.db, redisUrl: opts.redisUrl });
   // Working agreements (W5-08).
   await app.register(agreementsRoutes, { db: opts.db });
   // Improvement plans (W5-06).
@@ -207,4 +261,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // Workspace settings (W4-09) — the weights, bot list and stale-N that decide
   // what every other number on every screen means.
   await app.register(workspaceRoutes, { db: opts.db });
+  // W18-18 (D16 CI pull): the customer's CI reads what a PR introduced, with a
+  // read-only token minted by an admin. The only routes a CI token can reach.
+  await app.register(pullsRoutes, { db: opts.db });
+  await app.register(ciTokenRoutes, { db: opts.db });
 }

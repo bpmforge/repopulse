@@ -1,0 +1,7 @@
+diff --git a/rest_framework/throttling.py b/rest_framework/throttling.py
+--- a/rest_framework/throttling.py
++++ b/rest_framework/throttling.py
+@@ -230,7 +230,7 @@ class ScopedRateThrottle(SimpleRateThrottle):
+         # We can only determine the scope once we're called by the view.
+-        return super(ScopedRateThrottle, self).allow_request(request, view)
++        return super().allow_request(request, view)

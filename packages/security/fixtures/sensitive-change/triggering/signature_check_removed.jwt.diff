@@ -1,0 +1,11 @@
+diff --git a/src/middleware/session.ts b/src/middleware/session.ts
+--- a/src/middleware/session.ts
++++ b/src/middleware/session.ts
+@@ -12,7 +12,7 @@ export function session(req: Request, _res: Response, next: NextFunction) {
+   const token = req.cookies.session;
+   if (token) {
+-    req.claims = jwt.verify(token, process.env.JWT_SECRET!);
++    req.claims = jwt.decode(token);
+   }
+   next();
+ }

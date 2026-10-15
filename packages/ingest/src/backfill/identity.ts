@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { core } from '@repopulse/shared';
+import { reviewBotForLogin } from '@repopulse/metrics';
 import type { DbOrTx } from './db.js';
 
 // Identity resolution (DATABASE.md §2, FR-METRICS-3). Every fact FKs a raw
@@ -46,7 +47,12 @@ export class IdentityResolver {
     if (cached !== undefined) return cached;
 
     const displayName = ref.displayName ?? ref.login ?? forgeLogin;
-    const isBot = ref.isBot ?? forgeLogin.endsWith('[bot]');
+    // W18-23: a known AI review bot is a bot even without the `[bot]` suffix
+    // (GitHub reports Copilot's reviews as `Copilot`; a self-hosted CodeRabbit
+    // is a plain `coderabbitai` user). The flag is what the review-load matrix
+    // filters on, so a miss here lists a tool as a person.
+    const isBot =
+      ref.isBot ?? (forgeLogin.endsWith('[bot]') || reviewBotForLogin(forgeLogin) !== null);
 
     // Insert-or-nothing, then read back — the unique (workspace, provider,
     // forge_login) makes this a safe get-or-create under concurrent workers.

@@ -1,0 +1,11 @@
+diff --git a/src/routes/signup.ts b/src/routes/signup.ts
+--- a/src/routes/signup.ts
++++ b/src/routes/signup.ts
+@@ -8,8 +8,8 @@ import { SignupSchema } from '../schemas';
+ 
+ export async function signup(req: Request, res: Response) {
+-  const body = SignupSchema.parse(req.body);
+-  const user = await users.create(body);
++  const user = await users.create(req.body);
+   res.status(201).json(user);
+ }

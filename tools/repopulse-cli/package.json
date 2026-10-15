@@ -1,0 +1,17 @@
+{
+  "name": "@repopulse/cli",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "repopulse check — the customer-CI side of the RepoPulse CI pull model (W18-18). One dependency-free file.",
+  "bin": {
+    "repopulse": "./repopulse.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

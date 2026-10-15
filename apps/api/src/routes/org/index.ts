@@ -4,7 +4,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { core, plans, read, type Database } from '@repopulse/shared';
 import { buildPulse, computeMetricTrend } from '@repopulse/insights';
-import { readMetricTrend } from '@repopulse/metrics';
+import { computeAiGovernance, readMetricTrend } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
 import { repoHealthMany } from './health.js';
 import { collectTopActions, serializeTopActions } from './top-actions.js';
@@ -18,6 +18,15 @@ export interface OrgRoutesOptions {
 
 const windowQuery = z.object({ window: z.enum(['7d', '30d', '90d', '365d']).default('30d') });
 const attentionQuery = windowQuery.extend({ since: z.string().optional() });
+// W18-20. `repos` is the global filter's csv. There is deliberately no
+// `person`: the governance view is aggregate-only (N-9), and accepting the
+// global person filter would turn it into a per-developer AI-usage report.
+const governanceQuery = windowQuery.extend({
+  repos: z
+    .string()
+    .regex(/^(all|\d+(,\d+)*)$/)
+    .optional(),
+});
 
 // The 5 KPI tiles (dashboard landing). Org-rollup series (repoId null).
 const KPI_METRICS = ['M5', 'M9', 'M4', 'M1', 'M10'] as const;
@@ -147,6 +156,30 @@ export default async function orgRoutes(
       items.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name));
 
       return reply.send({ items });
+    },
+  );
+
+  // GET /org/ai-governance — AI-authored vs human changes (W18-20).
+  //
+  // Computed on read from the warehouse, not snapshotted: the classification
+  // depends on the admin-editable pattern list, and a stored verdict would keep
+  // the old answer after an admin corrected a pattern. Aggregate only — the
+  // response carries counts and rates, never a login or a trailer value.
+  typedApp.get(
+    '/org/ai-governance',
+    { schema: { querystring: governanceQuery } },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const { window, repos } = request.query;
+      const repoIds = repos && repos !== 'all' ? repos.split(',').map(Number) : [];
+      const result = await computeAiGovernance(opts.db, {
+        workspaceId,
+        repoIds,
+        windowEnd: new Date(),
+        windowDays: Number(window.replace('d', '')),
+      });
+      return reply.send({ window, ...result });
     },
   );
 

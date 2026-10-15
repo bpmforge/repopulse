@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { BUILTIN_SCANNERS, registerBuiltinScanners } from './catalogue.js';
 import { getScanner, listScanners, resetRegistry, scannersForTrigger } from './registry.js';
 import { SCANNER_DEFAULTS, isEnabled } from './config/defaults.js';
@@ -114,13 +116,32 @@ describe('defaults line up with the catalogue (W16-28)', () => {
     }
   });
 
+  // Scanners whose runner is the secrets stream itself (W18-21): they read the
+  // diff that scan already fetched, on pr_synced/push, and have no manual or
+  // scheduled runner of their own. Listed here, and each one proven to be
+  // CALLED by the stream below, so "rides the stream" cannot become the new
+  // way to be enabled and unreachable.
+  const STREAM_RIDERS: Record<string, string> = {
+    sensitive_change: 'runSensitiveChangeScan(',
+  };
+
   it('no scanner is enabled by default that no runner can reach', () => {
     for (const def of SCANNER_DEFAULTS.filter((d) => d.enabled)) {
       const scanner = getScanner(def.key)!;
       const reachable =
-        scanner.triggers.includes('manual') || scanner.triggers.includes('schedule');
+        scanner.triggers.includes('manual') ||
+        scanner.triggers.includes('schedule') ||
+        (def.key in STREAM_RIDERS && scanner.triggers.includes('pr_synced'));
       expect(reachable, def.key).toBe(true);
     }
+  });
+
+  it('every stream rider is actually called by the secrets stream', () => {
+    const stream = readFileSync(
+      fileURLToPath(new URL('./scanners/secrets/stream.ts', import.meta.url)),
+      'utf8',
+    );
+    for (const call of Object.values(STREAM_RIDERS)) expect(stream).toContain(`await ${call}`);
   });
 
   it('enables dependency_cve now that something calls runDependencyScan (W16-36)', () => {

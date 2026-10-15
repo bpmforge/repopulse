@@ -4,10 +4,18 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { core, facts, type Database } from '@repopulse/shared';
 import { rankHotspots } from '@repopulse/insights';
-import { computeReviewLoad, readMetricTrend } from '@repopulse/metrics';
+import {
+  computeReviewBotMetrics,
+  computeReviewLoad,
+  isNonHumanReviewer,
+  readMetricTrend,
+  readReviewBotInputs,
+  type RatioResult,
+} from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
 import { repoHealth, repoHealthMany } from '../org/health.js';
 import { repoCapabilities } from '../../lib/capability.js';
+import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // Drill-down levels 1–2 (FR-API-5, API_DESIGN §2 'repos'). Warehouse-only.
 // Every level returns `links` to its children so a client can walk
@@ -269,7 +277,9 @@ export default async function reposRoutes(
           // inferred in the browser from two lists that may be filtered
           // differently.
           isSelfReview: r.authorIdentityId === r.reviewerIdentityId,
-          isBot: r.reviewerIsBot,
+          // W18-23: the identity flag alone missed `Copilot`, whose login has
+          // no [bot] suffix and whose identity row predates the registry.
+          isBot: isNonHumanReviewer(r.reviewerLogin, undefined, r.reviewerIsBot),
         })),
       );
 
@@ -290,6 +300,78 @@ export default async function reposRoutes(
           self_reviews: load.excluded.selfReviews,
           bot_reviews: load.excluded.botReviews,
         },
+      });
+    },
+  );
+
+  // GET /repos/{id}/review-bots — the AI reviewers a team runs (W18-23,
+  // METRICS.md §5). Computed live from the warehouse like review-load: the
+  // inputs are a window's PRs, reviews and comment anchors, and a snapshot
+  // would add a nightly lag to a screen people open right after trying a tool.
+  //
+  // Tools, not people (N-9): the payload carries no human login and no score.
+  // `forge` and `line_data` are here so the screen can say WHY a column is
+  // empty — "Gitea does not provide line anchors" is a different fact from
+  // "this token was refused" or "not fetched yet", and none of them is zero.
+  typedApp.get(
+    '/repos/:id/review-bots',
+    { schema: { params: idParams, querystring: windowQuery } },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const repo = await requireRepo(db, workspaceId, request.params.id);
+      if (!repo) return fail(request, reply, 404, 'Not Found');
+
+      const days = WINDOW_DAYS[request.query.window] ?? 30;
+      const windowStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const [conn] = await db
+        .select({ provider: core.forgeConnections.provider })
+        .from(core.repos)
+        .innerJoin(core.forgeConnections, eq(core.repos.connectionId, core.forgeConnections.id))
+        .where(and(eq(core.repos.id, repo.id), eq(core.repos.workspaceId, workspaceId)))
+        .limit(1);
+      const { effective } = await readWorkspaceSettings(db, workspaceId);
+      const inputs = await readReviewBotInputs(db, { workspaceId, repoId: repo.id }, windowStart);
+      const result = computeReviewBotMetrics({ ...inputs, botGlobs: effective.botLoginGlobs });
+
+      const r = (x: RatioResult) => ({
+        value: x.value,
+        numerator: x.numerator,
+        denominator: x.denominator,
+      });
+      return reply.send({
+        window: request.query.window,
+        forge: conn?.provider ?? null,
+        line_data: result.lineData,
+        prs_in_window: result.prsInWindow,
+        prs_with_line_data: result.prsWithLineData,
+        other_bot_reviews: result.otherBotReviews,
+        bots: result.bots.map((b) => ({
+          key: b.key,
+          name: b.name,
+          logins_seen: b.loginsSeen,
+          prs_reviewed: b.prsReviewed,
+          reach: r(b.reach),
+          reviews: b.reviews,
+          reviews_per_pr: r(b.reviewsPerPr),
+          prs_with_line_data: b.prsWithLineData,
+          inline_comments: b.inlineComments,
+          comments_per_pr: b.commentsPerPr ? r(b.commentsPerPr) : null,
+          time_to_first: {
+            median_hours: b.timeToFirst.medianHours,
+            p90_hours: b.timeToFirst.p90Hours,
+            n: b.timeToFirst.n,
+          },
+          followed_by_change: b.followedByChange
+            ? { ...r(b.followedByChange), pending: b.followedByChange.pending }
+            : null,
+          repeat_after_dismiss: b.repeatAfterDismiss
+            ? {
+                ...r(b.repeatAfterDismiss),
+                dismissed_without_inline: b.repeatAfterDismiss.dismissedWithoutInline,
+              }
+            : null,
+        })),
       });
     },
   );

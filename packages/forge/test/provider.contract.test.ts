@@ -177,6 +177,97 @@ describe('GitHubProvider contract (W1-06, zero network)', () => {
     expect(reviews[0]).toMatchObject({ reviewerLogin: 'r1', state: 'COMMENTED', prNumber: 2 });
   });
 
+  it('listReviewComments keeps the diff anchors and reads a null line as outdated', async () => {
+    const p = provider([
+      {
+        method: 'GET',
+        url: `${API}/repos/${REPO}/pulls/2/comments?per_page=100`,
+        response: {
+          status: 200,
+          headers: {
+            link: `<${API}/repos/${REPO}/pulls/2/comments?per_page=100&page=2>; rel="next"`,
+          },
+          body: [
+            {
+              id: 11,
+              pull_request_review_id: 501,
+              user: { login: 'coderabbitai[bot]' },
+              created_at: '2026-01-01T00:00:00Z',
+              path: 'src/a.ts',
+              subject_type: 'line',
+              start_line: null,
+              original_start_line: 4,
+              line: null,
+              original_line: 6,
+              commit_id: 'c1',
+              original_commit_id: 'c1',
+              body: 'never stored',
+            },
+            {
+              id: 12,
+              pull_request_review_id: 502,
+              user: { login: 'alice' },
+              created_at: '2026-01-01T01:00:00Z',
+              path: 'src/a.ts',
+              in_reply_to_id: 11,
+              line: 9,
+              original_line: 9,
+              commit_id: 'c2',
+              original_commit_id: 'c1',
+            },
+            {
+              id: 13,
+              pull_request_review_id: null,
+              user: null,
+              created_at: '2026-01-01T02:00:00Z',
+              path: 'README.md',
+              subject_type: 'file',
+              commit_id: 'c2',
+              original_commit_id: 'c2',
+            },
+          ],
+        },
+      },
+    ]);
+    const page = await p.listReviewComments(ctx, REPO, 2);
+    expect(page.nextCursor).toBeDefined();
+    expect(page.items).toHaveLength(3);
+    expect(page.items[0]).toEqual({
+      externalId: '11',
+      prNumber: 2,
+      reviewExternalId: '501',
+      authorLogin: 'coderabbitai[bot]',
+      createdAt: '2026-01-01T00:00:00Z',
+      path: 'src/a.ts',
+      subjectType: 'line',
+      isReply: false,
+      originalStartLine: 4,
+      originalLine: 6,
+      line: null,
+      originalCommitSha: 'c1',
+      commitSha: 'c1',
+    });
+    expect(page.items[0]).not.toHaveProperty('body');
+    expect(page.items[1]).toMatchObject({ isReply: true, line: 9, subjectType: 'line' });
+    expect(page.items[2]).toMatchObject({
+      subjectType: 'file',
+      originalLine: null,
+      authorLogin: '',
+      reviewExternalId: null,
+    });
+  });
+
+  it('listReviewComments rejects an HTTP error instead of reading it as no comments', async () => {
+    const p = provider([
+      {
+        method: 'GET',
+        url: `${API}/repos/${REPO}/pulls/2/comments?per_page=100`,
+        response: { status: 403, body: { message: 'Resource not accessible by integration' } },
+      },
+    ]);
+    await expect(p.listReviewComments(ctx, REPO, 2)).rejects.toThrow();
+  });
+
   it('listCheckRuns unwraps {check_runs}', async () => {
     const p = provider([
       {
