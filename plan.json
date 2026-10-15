@@ -8423,8 +8423,9 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
+        "DONE 2026-10-15: gate lint 0, typecheck 0, vitest 2485 passed / 58 skipped / 5 failed (environmental: docker on PATH for the deploy tests).",
         "CLAIMED 2026-10-15 on claude/repopulse-fast-checks-1 (stacked on W18-01). source-graph.ts split out of unused-exports.ts (shared lexer/graph); resolution now follows TypeScript order (x.ts/.d.ts before x.js for a .js specifier, bundler ?query stripped). Measured: 0 findings on this repo (1,028 files, ~0.4s) and 0 on ~600 installed npm package dirs except @babel/core's published src/ (ships index.ts files whose sibling sources are not in the tarball). Every FP class found on the way is a clean fixture: CommonJS, export =, destructured exports, .d.ts targets (top-level declarations are implicitly exported), require()/import() optional loads, directories via package.json, paths above the root, test/fixture/example importers."
       ]
     },
