@@ -413,7 +413,8 @@ describeIfLiveInfra('VEX routes (W8-14, FR-SEC-14)', () => {
   it('the database refuses an unjustified dismissal even when the route is bypassed', async () => {
     // The second gate. A route check binds only the writer that runs it; a
     // migration, a fixture loader or tomorrow's second endpoint would all be
-    // free to insert an unjustified dismissal without this.
+    // free to insert an unjustified dismissal without this. drizzle (0.44+)
+    // wraps the driver error, so the constraint is read off `cause`.
     await expect(
       db.insert(security.vexStatements).values({
         workspaceId,
@@ -424,7 +425,9 @@ describeIfLiveInfra('VEX routes (W8-14, FR-SEC-14)', () => {
         status: 'not_affected',
         justification: null,
       }),
-    ).rejects.toThrow(/vex_statements_justification_required_check/);
+    ).rejects.toMatchObject({
+      cause: { code: '23514', constraint_name: 'vex_statements_justification_required_check' },
+    });
   });
 
   it('exports OpenVEX that validates against the published schema', async () => {

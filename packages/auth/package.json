@@ -13,7 +13,7 @@
     "@fastify/cookie": "^11.1.2",
     "@fastify/session": "^11.1.2",
     "@repopulse/shared": "workspace:*",
-    "drizzle-orm": "^0.39.3",
+    "drizzle-orm": "^0.45.2",
     "fastify-plugin": "^6.0.0",
     "ioredis": "^5.11.1",
     "jose": "^6.2.9"

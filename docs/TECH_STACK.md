@@ -53,7 +53,7 @@ entrypoint. Dependency rules in ARCHITECTURE.md §3.
 |---|---|---|
 | Fastify | **5.x** | Brief-fixed; schema-first routes → OpenAPI generation (FR-API-1), encapsulated plugins map 1:1 to route groups. |
 | PostgreSQL | **16** | Brief-fixed; single source of truth for UI reads (FR-API-2); RLS available for SaaS flip (D1). |
-| Drizzle ORM | **0.3x (latest 0.3x minor)** | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
+| Drizzle ORM | **0.45.x** (was 0.39.x until the 2026-10-15 SC-19 refresh, below) | Brief-fixed; SQL-transparent (cheap agents can read generated SQL), `drizzle-kit` migrations are plain SQL files (DATABASE.md migration discipline). |
 | postgres (postgres.js) | **3.x** | Not brief-fixed; added W1-01 as the Postgres driver paired with `drizzle-orm/postgres-js` — no driver was pinned in this doc previously. Standard/recommended Drizzle pairing for plain Postgres (vs. Neon/other serverless-specific adapters); reversible, additive choice. |
 | Redis | **7.2 (pinned image)** | Brief-fixed; BullMQ backing store + server-side session store (FR-AUTH-2). **License pin**: 7.2 is the last BSD-3 release — 7.4+/8 are RSALv2/SSPLv1/AGPL (DESIGN_REVIEW.md G-18); Valkey 8 (BSD-3) is the sanctioned swap after a BullMQ-compat check. |
 | ioredis | **5.11.1** | Not brief-fixed; added W1-03 as the Redis client for packages/auth's session store. Chosen over `redis`/`node-redis` because BullMQ (W2) mandates ioredis — one client library, not two. |
@@ -224,6 +224,24 @@ ranges (no `pnpm.overrides` entry is left behind): find-my-way 9.6.0 → 9.10.0,
 own `^1.5.4` range, and moving the router to 1.170.44 in the same step broke three
 repo-layout navigation tests (apps/web `routes/repos/$repoId/route.test.tsx`), which is a
 router upgrade of its own, not an audit fix.
+
+**Step 2: drizzle-orm ^0.39.3 → ^0.45.2** (resolved 0.45.4) in every workspace that declares it
+(root, apps/api, auth, forge, ingest, insights, metrics, reports, security, shared), with
+drizzle-kit ^0.31.10 → ^0.31.11 alongside it. Fixes GHSA-gpj5-g38j-94v9 (`sql.identifier()` /
+`sql.as()` escaping, fixed in 0.45.2). Changelogs 0.40.0–0.45.4 read
+(github.com/drizzle-team/drizzle-orm/tree/main/changelogs/drizzle-orm). What mattered here:
+- **0.44.0 wraps every driver error in `DrizzleQueryError`**: the message becomes
+  `Failed query: <sql>\nparams: <values>` and the postgres.js `PostgresError` (SQLSTATE `code`,
+  `constraint_name`) moves to `.cause`. Matching a constraint name in the message no longer
+  works: the admin LLM-provider route returned 500 instead of 409 for a duplicate name. Fixed by
+  `pgErrorOf` / `isConstraintViolation` in `packages/shared/src/db/pg-error.ts`, which walk the
+  `cause` chain. Side effect to keep in mind: an `err.message` that is logged or stored now
+  carries the SQL text and bound parameter values instead of the Postgres reason.
+- 0.41.0 dropped drizzle's own postgres-js parsers for `numeric[]`, `timestamp[]`,
+  `timestamptz[]`, `interval[]`, `date[]`. The schema has no such array columns (only
+  `bigint[]`), so nothing changes here.
+- `drizzle-kit check` passes and `drizzle-kit generate` reports "No schema changes" against
+  the existing migrations, so no migrations were regenerated.
 
 ## Version upgrade policy
 
