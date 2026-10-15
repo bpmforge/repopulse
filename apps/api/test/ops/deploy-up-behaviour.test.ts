@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { runtimeFreeSystemPath } from './runtime-free-path.js';
 
 const run = promisify(execFile);
 const repoRoot = new URL('../../../../', import.meta.url).pathname;
@@ -154,7 +155,7 @@ exit 1
       const { stdout, stderr } = await run('bash', [path.join(deployDir, 'up.sh')], {
         env: {
           ...process.env,
-          PATH: `${opts.bin ?? path.join(dir, 'bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,
+          PATH: `${opts.bin ?? path.join(dir, 'bin')}:${runtimeFreeSystemPath()}`,
           REPOPULSE_UP_TIMEOUT: '2',
           ...env,
         },
