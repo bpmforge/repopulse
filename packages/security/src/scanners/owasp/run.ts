@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import {
   chunkDiff,
@@ -254,7 +254,7 @@ export async function runOwaspChecklist(
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, runId));
@@ -266,7 +266,7 @@ export async function runOwaspChecklist(
       chunks: chunked.chunks.length,
       rejected,
       escalations,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }

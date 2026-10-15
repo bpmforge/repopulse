@@ -1,9 +1,9 @@
 import 'dotenv/config';
 import { Queue, Worker } from 'bullmq';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { core, createDb, type Database } from '@repopulse/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createRedisConnection } from './factory.js';
+import { createRedisConnection, createWorker } from './factory.js';
 import { attachDeadLetter } from './dlq.js';
 import { QUEUE } from './topology.js';
 
@@ -104,5 +104,82 @@ describeIfLiveInfra('DLQ poison-message (W2-02, NFR-11)', () => {
       .limit(1);
     expect(rows[0], 'job_failure ledger row for the exhausted poison job').toBeTruthy();
     expect(rows[0]?.jobId).toBe(JOB_ID);
+  }, 15_000);
+});
+
+// SC-19 (drizzle 0.45): a job that dies on a failed query must not carry the
+// query's bound values into anything that outlives it: BullMQ's own failed
+// record in Redis, the job_failure row, or the DLQ payload. Built with the
+// production createWorker, whose processor wrapper is what redacts.
+describeIfLiveInfra('dead-lettering a failed query (SC-19)', () => {
+  const SENTINEL = 'SENTINEL-dlq-4c19aa';
+  const QUERY_JOB_ID = 'dl-99998-querytest';
+  const db: Database = createDb(databaseUrl as string);
+  const connection = createRedisConnection(redisUrl as string);
+  let workspaceId: number;
+  let queue: Queue;
+  let dlqQueue: Queue;
+  let worker: Worker;
+
+  beforeAll(async () => {
+    const [ws] = await db
+      .insert(core.workspaces)
+      .values({ slug: 'sc19-dlq-query-test', name: 'sc19-dlq-query-test' })
+      .onConflictDoUpdate({ target: core.workspaces.slug, set: { name: 'sc19-dlq-query-test' } })
+      .returning();
+    if (!ws) throw new Error('workspace upsert failed');
+    workspaceId = ws.id;
+    // delta, not backfill/enrich: this test is about the ledger, not the stall.
+    queue = new Queue(QUEUE.delta, { connection, prefix: TEST_PREFIX });
+    dlqQueue = new Queue(QUEUE.dlq, { connection, prefix: TEST_PREFIX });
+    worker = createWorker(
+      QUEUE.delta,
+      async () => {
+        await db.execute(sql`select ${SENTINEL}::int`);
+      },
+      connection,
+      { prefix: TEST_PREFIX },
+    );
+    attachDeadLetter(worker, dlqQueue, db);
+  });
+
+  afterAll(async () => {
+    await worker.close();
+    await queue.obliterate({ force: true }).catch(() => {});
+    await dlqQueue.obliterate({ force: true }).catch(() => {});
+    await db.delete(core.jobFailure).where(eq(core.jobFailure.workspaceId, workspaceId));
+    await db.delete(core.workspaces).where(eq(core.workspaces.id, workspaceId));
+    await connection.quit();
+    await db.$client.end();
+  });
+
+  it('keeps the Postgres reason and drops the bound value everywhere it is stored', async () => {
+    await queue.add('delta', { workspaceId }, { jobId: QUERY_JOB_ID, attempts: 1 });
+
+    let dlqJobs: Awaited<ReturnType<Queue['getJobs']>> = [];
+    for (let i = 0; i < 100 && dlqJobs.length === 0; i++) {
+      dlqJobs = await dlqQueue.getJobs(['waiting', 'active', 'completed', 'failed', 'delayed']);
+      if (dlqJobs.length === 0) await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(dlqJobs, 'the failed job reached the DLQ').toHaveLength(1);
+
+    const [row] = await db
+      .select()
+      .from(core.jobFailure)
+      .where(
+        and(eq(core.jobFailure.workspaceId, workspaceId), eq(core.jobFailure.jobId, QUERY_JOB_ID)),
+      );
+    const failed = await queue.getJob(QUERY_JOB_ID);
+    const stored = [
+      row?.error,
+      JSON.stringify(dlqJobs[0]?.data),
+      failed?.failedReason,
+      ...(failed?.stacktrace ?? []),
+    ].join('\n');
+
+    expect(row?.error).toBe('invalid input syntax for type integer: "[REDACTED]" (SQLSTATE 22P02)');
+    expect(failed?.failedReason).toBe(row?.error);
+    expect(stored).not.toContain(SENTINEL);
+    expect(stored).not.toContain('Failed query');
   }, 15_000);
 });

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { shadowFindings } from '../../rules/shadow.js';
 import { runSemgrepScan, SEMGREP_RULEPACK_DIR } from '../semgrep/scanner.js';
@@ -192,7 +192,7 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, runId));
@@ -203,7 +203,7 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
       excluded,
       findingsCreated: 0,
       toolErrors: 0,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }
