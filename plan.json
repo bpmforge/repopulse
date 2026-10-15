@@ -9169,6 +9169,34 @@
         "TEST: packages/security/src/scanners/anti-slop/pack.integration.test.ts (6 tests) drives both scanners with a RECORDED engine run (fixtures/code-health/recorded/triggering.opengrep.json, semgrep 1.181 over the two triggering fixtures; arch rule 7 forbids spawning semgrep under src/ even in tests). RED on main 1a009e3: 5 failed (zero bpm-ch-* rows stored; pack files unclaimed); GREEN after: 6 passed. Sweep tests: a persistFindings sweep scoped to logging_hygiene over every file closes all bpm-log rows and no bpm-ch row; scoped to anti_slop the reverse. NOTE: neither scanner passes reviewedFiles today, so neither actually sweeps stale findings (pre-existing; a safe sweep would need a rule-scoped sweep in packages/insights, outside this ticket's scope).",
         "GATE: lint + typecheck green; pnpm test 2457 passed / 58 skipped / 6 failed: the 5 known deploy-* tests (docker on PATH, no daemon) and apps/web Chart.test.tsx ('ResizeObserver is not defined' in jsdom; apps/web untouched by this branch, fails alone too, so pre-existing). An earlier test version spawned semgrep and tripped arch rule 7 (NFR-14); replaced by the recorded engine run."
       ]
+    },
+    {
+      "id": "W18-31",
+      "title": "Code viewer: highlighted evidence and a side-by-side diff view in the web app",
+      "phase": 18,
+      "module": "web",
+      "stories": [
+        "E3.2",
+        "E13.4"
+      ],
+      "write_scope": [
+        "apps/web/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "A finding's evidence renders as numbered, syntax-coloured code with its line range banded, in the finding panel and the triage queue",
+        "A unified-diff component renders unified, or split when its container is wider than 720px, with whole-row add/remove tints and the +/- marks kept",
+        "Text is rendered as text nodes only (no HTML injection); hidden and bidi characters are shown and flagged",
+        "Code and diff colour tokens clear WCAG AA 4.5:1 in dark and light (measured by a test)",
+        "Source of code beyond the stored evidence is NOT decided here: storing an excerpt at scan time is a follow-up ticket"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-code-viewer. From the 2026-10-15 UX/UI review (project files repopulse/ux-review-2026-10-15/). apps/web/src/components/code: tokenizer (no HTML strings), unified-diff parser, CodeBlock, DiffView; tokens in theme.css measured by styles/codeContrast.test.ts. Wired into FindingDetail and TriageQueue evidence. NOT wired into VerifiedFix.tsx because that component is on PR #54/#69, not main: swap its <pre> for <DiffView diff={...}/> after those merge. Where code beyond the stored evidence comes from (excerpt at scan time, per Brad's 2026-10-15 choice) is the next ticket."
+      ]
     }
   ]
 }
