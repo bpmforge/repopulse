@@ -19,6 +19,7 @@ import { listenHost } from '../lib/listen-host.js';
 import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
+import { patchProcessor } from './patch-processor.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { createGatewayResolver, reportGatewayHealth } from './gateway.js';
@@ -796,6 +797,14 @@ async function main(): Promise<void> {
         db,
         dataDir: process.env.DATA_DIR ?? './.data',
         printBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:5273',
+      }),
+      // W18-19. A verified patch: this workspace's model drafts, the sandbox
+      // re-scans. The forge is read through the same scan-lane config as every
+      // scanner above, and only read (D9a).
+      [QUEUE.patchDraft]: patchProcessor({
+        db,
+        gatewayFor: async (workspaceId) => (await gateways.for(workspaceId))?.gateway ?? null,
+        forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
       }),
     },
     // Structured, so an aggregator can alert on it: this is the callback that
