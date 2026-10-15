@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -18,7 +18,13 @@ describe('the perf pack', () => {
     const ids = readRulepack(PACK_DIR).ruleIds;
     expect(ids.length).toBeGreaterThanOrEqual(8);
     for (const id of ids) expect(id.startsWith('bpm-perf-'), id).toBe(true);
-    expect((text.match(/provenance:/g) ?? []).length).toBe(ids.length);
+    // Across every file in the directory: language variants (W18) live in
+    // their own perf.<lang>.v1.yaml beside this one.
+    const all = readdirSync(PACK_DIR)
+      .filter((f) => f.endsWith('.yaml'))
+      .map((f) => readFileSync(path.join(PACK_DIR, f), 'utf8'))
+      .join('\n');
+    expect((all.match(/provenance:/g) ?? []).length).toBe(ids.length);
     expect(text).not.toContain('semgrep.dev');
   });
 

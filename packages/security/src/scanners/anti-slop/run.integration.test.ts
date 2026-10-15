@@ -391,6 +391,70 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
   });
+
+  it('W18-12: Go phantom packages and identifiers share the rule ids, in shadow; go.mod is not code', async () => {
+    const sources = [
+      { path: 'go.mod', source: 'module example.com/app\n\ngo 1.22\n' },
+      {
+        path: 'internal/money/money.go',
+        source: 'package money\n\nfunc Format(c int) string { return "" }\n',
+      },
+      {
+        path: 'pay/pay.go',
+        source: [
+          'package pay',
+          '',
+          'import (',
+          '\t"example.com/app/internal/audit"',
+          '\t"example.com/app/internal/money"',
+          ')',
+          '',
+          'func Pay(c int) string {',
+          '\taudit.Log(c)',
+          '\treturn money.Format(money.ToCents(c))',
+          '}',
+        ].join('\n'),
+      },
+    ];
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.repoId, repoId),
+            eq(read.findings.ruleId, ruleId),
+            eq(read.findings.file, 'pay/pay.go'),
+          ),
+        );
+
+    const result = await runAntiSlopScan({
+      db,
+      workspaceId,
+      repoId,
+      commitSha: 'w18-12-go',
+      files: [],
+      sources,
+      sourcesComplete: true,
+      trigger: 'schedule',
+    });
+    expect(result.status).toBe('succeeded');
+    const [symbol] = await rows('slop.phantom_symbol');
+    expect(symbol).toMatchObject({
+      severity: 3,
+      experimental: true,
+      lineStart: 10,
+      title: 'Reference to a name that does not exist: ToCents in example.com/app/internal/money',
+    });
+    const [pkg] = await rows('slop.phantom_module');
+    expect(pkg).toMatchObject({ lineStart: 4, experimental: true });
+    // go.mod rides along for the graph only: no per-file layer reports on it.
+    const onGoMod = await db
+      .select()
+      .from(read.findings)
+      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.file, 'go.mod')));
+    expect(onGoMod).toEqual([]);
+  });
 });
 
 describe('layer separation and sampling', () => {

@@ -15,6 +15,7 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { goPhantomRefs, goUnusedExports } from './go-graph.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -151,7 +152,12 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     // two findings for one package is two triage decisions for one problem.
     const alreadyFlagged = await existingSlopsquatFiles(deps.db, deps.workspaceId, deps.repoId);
 
-    const sources = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
+    // go.mod rides along with the sources (W18-12) because it is the only map
+    // from a Go import path to a directory; it is not code, so the per-file
+    // layers never see it.
+    const all = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
+    const isGoMod = (p: string): boolean => p === 'go.mod' || p.endsWith('/go.mod');
+    const sources = all.filter((s) => !isGoMod(s.path));
     for (const ldr of ldrFindings(sources)) {
       findings.push({
         dimension: 'slop',
@@ -197,7 +203,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       ? await shippedRuleStatus(deps.db, deps.workspaceId, UNUSED_EXPORT_RULE_ID)
       : 'deprecated';
     if (unusedStatus !== 'deprecated') {
-      for (const unused of unusedExports(sources)) {
+      // Go (W18-12): internal packages only, and only over a complete read.
+      const goUnused = goUnusedExports(all, { complete: deps.sourcesComplete === true });
+      for (const unused of [...unusedExports(sources), ...goUnused]) {
         findings.push({
           dimension: 'slop',
           severity: 1,
@@ -233,7 +241,13 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           PHANTOM_MODULE_RULE_ID,
         ),
       };
-      for (const ref of phantomRefs(sources, { complete: deps.sourcesComplete === true })) {
+      const complete = deps.sourcesComplete === true;
+      // Go phantoms (W18-12) share the rule ids: a package that is not there
+      // is the same bug as a module that is not there, in another language.
+      for (const ref of [
+        ...phantomRefs(sources, { complete }),
+        ...goPhantomRefs(all, { complete }),
+      ]) {
         const status = statuses[ref.ruleId];
         if (status === 'deprecated') continue;
         findings.push({
@@ -246,7 +260,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           title:
             ref.name === null
               ? `Import of a missing module: ${ref.specifier}`
-              : `Import of a name that does not exist: ${ref.name} from ${ref.specifier}`,
+              : ref.file.endsWith('.go')
+                ? `Reference to a name that does not exist: ${ref.name} in ${ref.specifier}`
+                : `Import of a name that does not exist: ${ref.name} from ${ref.specifier}`,
           evidenceQuote: ref.statement,
           rationale: ref.message,
           suggestedFix: null,

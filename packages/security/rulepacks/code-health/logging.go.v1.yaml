@@ -1,0 +1,241 @@
+# bpm-rulepacks — logging antipatterns, Go variants v1 (W18-12, CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for this repository. Nothing here is copied or adapted
+# from the Semgrep registry (DESIGN_REVIEW.md G-18). Ids start `bpm-log-`
+# because the logging scanner keeps only those.
+#
+# STRUCTURED LOGGERS ARE NOT INJECTION SINKS. slog, zap, zerolog and logrus
+# fields encode their values (quoted, escaped, or JSON), so a newline in a
+# field cannot forge a line. Only the printf-style calls write the value raw,
+# and those are the only sinks below. The secret-field rule is the opposite:
+# encoding does not stop a token being readable, so every logger counts there.
+rules:
+  - id: bpm-log-go-print-in-prod
+    languages: [go]
+    severity: INFO
+    message: >-
+      fmt.Print / println in library code. It writes to stdout, bypassing the
+      logger's levels, its redaction and its destination — a line here is
+      unstructured, unfiltered and cannot be turned off by whoever embeds the
+      package.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        "Not main" is judged from the path (main.go, cmd/, tools, examples,
+        tests), because a pattern cannot read the package clause. A main package
+        in an unconventional directory will be reported.
+    paths:
+      exclude:
+        # Programs, tests and tooling legitimately print.
+        - '*_test.go'
+        - 'main.go'
+        - 'cmd/'
+        - 'examples/'
+        - 'example/'
+        - 'tools/'
+        - 'scripts/'
+        - 'testdata/'
+        - 'hack/'
+        # Found by running the rule over ten real modules: CLI command
+        # packages, doc generators and test-support packages all print by
+        # design, and none is a main package.
+        - 'commands/'
+        - 'integration/'
+        - 'doc/'
+        - 'docs/'
+        - '*testing*'
+        - 'testutil/'
+        - 'internal/test*'
+    pattern-either:
+      - pattern: fmt.Print(...)
+      - pattern: fmt.Println(...)
+      - pattern: fmt.Printf(...)
+      - pattern: println(...)
+      - pattern: print(...)
+
+  - id: bpm-log-go-injection
+    mode: taint
+    languages: [go]
+    severity: WARNING
+    message: >-
+      Request data reaches a printf-style log call unencoded (CWE-117). A
+      newline in that value forges a log line, which is how an attacker writes
+      "authentication succeeded" into the file an incident is later
+      reconstructed from. Log it with %q, or as a structured field.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      cwe: 'CWE-117: Improper Output Neutralization for Logs'
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # Test servers and fixtures log fake requests and fake tokens.
+        - '*_test.go'
+        - '*testing.go'
+        - 'testutil/'
+        - 'testdata/'
+    options:
+      # Only the request value itself, not everything computed from it: over
+      # real code, default propagation carried taint through json.Marshal into
+      # the error it returned, and flagged `log %v err` lines that log no
+      # request data at all.
+      taint_assume_safe_functions: true
+    pattern-sources:
+      - pattern-either:
+          - pattern: '($R : *http.Request).URL.Query().Get(...)'
+          - pattern: '($R : *http.Request).URL.Query()'
+          - pattern: '($R : *http.Request).FormValue(...)'
+          - pattern: '($R : *http.Request).PostFormValue(...)'
+          - pattern: '($R : *http.Request).Header.Get(...)'
+          - pattern: '($R : *http.Request).URL.Path'
+          - pattern: '($R : *http.Request).URL.RawQuery'
+          - pattern: '($R : *http.Request).UserAgent()'
+          - pattern: '($R : *http.Request).Referer()'
+    pattern-sanitizers:
+      # Anything that removes or escapes newlines makes it one line again.
+      - pattern-either:
+          - pattern: strconv.Quote(...)
+          - pattern: strings.ReplaceAll($X, "\n", ...)
+          - pattern: url.QueryEscape(...)
+          - pattern: strconv.Atoi(...)
+          - pattern: strconv.ParseInt(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: log.Print(...)
+              - pattern: log.Println(...)
+              - pattern: log.Fatal(...)
+              - pattern: log.Fatalln(...)
+              - pattern: log.Panic(...)
+              - pattern: log.Panicln(...)
+              - patterns:
+                  - pattern-either:
+                      - pattern: log.Printf($FMT, ...)
+                      - pattern: log.Fatalf($FMT, ...)
+                      - pattern: log.Panicf($FMT, ...)
+                      - pattern: $L.Printf($FMT, ...)
+                      - pattern: $L.Infof($FMT, ...)
+                      - pattern: $L.Warnf($FMT, ...)
+                      - pattern: $L.Errorf($FMT, ...)
+                      - pattern: $L.Debugf($FMT, ...)
+                  # %q quotes and escapes; a format that only ever uses %q
+                  # (or numeric verbs) cannot carry a raw newline.
+                  - metavariable-regex:
+                      metavariable: $FMT
+                      regex: .*%[-+# 0-9.]*[svx].*
+          - pattern-not: fmt.Errorf(...)
+          - pattern-not: errors.Errorf(...)
+
+  - id: bpm-log-go-secret-field
+    languages: [go]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log call. Logs outlive the request, sit
+      outside the product's access control, and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        The word list mirrors the JavaScript rule's, which mirrors SC-2's
+        redaction denylist. Go names are camelCase, so a word counts at a
+        camel boundary (accessToken, cfg.APIKey) as well as at an underscore.
+    paths:
+      exclude:
+        # Test servers and fixtures log fake requests and fake tokens.
+        - '*_test.go'
+        - '*testing.go'
+        - 'testutil/'
+        - 'testdata/'
+    patterns:
+      - pattern-either:
+          - pattern: log.$F(..., $OBJ, ...)
+          - pattern: slog.$F(..., $OBJ, ...)
+          - pattern: $L.Info(..., $OBJ, ...)
+          - pattern: $L.Infof(..., $OBJ, ...)
+          - pattern: $L.Warn(..., $OBJ, ...)
+          - pattern: $L.Warnf(..., $OBJ, ...)
+          - pattern: $L.Error(..., $OBJ, ...)
+          - pattern: $L.Errorf(..., $OBJ, ...)
+          - pattern: $L.Debug(..., $OBJ, ...)
+          - pattern: $L.Debugf(..., $OBJ, ...)
+          - pattern: $L.Printf(..., $OBJ, ...)
+          - pattern: $L.Println(..., $OBJ, ...)
+      # The error constructors share these method names and are not logs.
+      - pattern-not: fmt.$F(...)
+      - pattern-not: errors.$F(...)
+      - pattern-not: $L.Errorf("...")
+      # A length or a presence check says nothing about the value.
+      - metavariable-pattern:
+          metavariable: $OBJ
+          patterns:
+            - pattern-not: len(...)
+            - pattern-not: $X != ""
+            - pattern-not: $X == ""
+            - pattern-not: $X != nil
+      - metavariable-regex:
+          metavariable: $OBJ
+          # A bare literal ("password") is a slog key and counts: the value
+          # beside it is the secret.
+          # Only a NAME (ident or selector) or a bare-word slog key: a call or a
+          # concatenation that mentions "token" is usually a message about
+          # one ("Error determining token ID: %v"), which was most of what the
+          # first draft found over real code.
+          regex: ^(?=[A-Za-z_][\w.]*$|"[A-Za-z_]+"$)(?:.*[^A-Za-z]|.*[a-z](?=[A-Z])|)(?:[Pp]assword|PASSWORD|[Pp]asswd|[Ss]ecret|SECRET|[Tt]oken|TOKEN|[Aa]pi_?[Kk]ey|APIKey|API_KEY|[Pp]rivate_?[Kk]ey|[Cc]redential|[Aa]uthorization|[Ss]ession_?[Ii][Dd]|[Cc]ookie|SSN|[Ss]sn)(?!s\b|[a-z]|Err|Error|Count|Len|Length|Type|Expir|TTL|Hash|Name|Path|File|Field|Kind|Size|Policy|Source|Endpoint|URL|Url|ID|Id)
+
+  - id: bpm-log-go-log-and-return
+    languages: [go]
+    severity: INFO
+    message: >-
+      Logged and returned. The caller will log it again, and the incident
+      timeline gets the same failure once per stack frame — log it where it is
+      handled, or return it (wrapped) where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if $E != nil {
+                ...
+                $LOG.$M(..., $E, ...)
+                ...
+                return ..., $E
+              }
+          - pattern: |
+              if $E != nil {
+                ...
+                $LOG.$M(..., $E, ...)
+                ...
+                return $E
+              }
+          - pattern: |
+              if $E != nil {
+                ...
+                $LOG.$M(..., $E, ...)
+                ...
+                return ..., fmt.Errorf(..., $E, ...)
+              }
+          - pattern: |
+              if $E != nil {
+                ...
+                $LOG.$M(..., $E, ...)
+                ...
+                return fmt.Errorf(..., $E, ...)
+              }
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(?:Print|Printf|Println|Error|Errorf|Warn|Warnf|Warning|Warningf|Info|Infof|Debug|Debugf|Log|Logf)$
+      # fmt.Errorf / errors.Errorf build the error; they do not report it.
+      - metavariable-regex:
+          metavariable: $LOG
+          # ...and a test's t.Errorf is the test failing, not a log line.
+          regex: ^(?!(?:fmt|errors|xerrors|pkgerrors|t|b|tb)$)(?!.*\.(?:t|b|tb)$)

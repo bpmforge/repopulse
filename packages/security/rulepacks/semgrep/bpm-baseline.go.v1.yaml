@@ -1,0 +1,254 @@
+# bpm-rulepacks — baseline, Go variants v1 (W18-12, SECURITY_SUITE.md §3.3).
+#
+# OUR OWN RULES, written for RepoPulse in the rule format the Opengrep engine
+# reads; nothing here is copied or adapted from the Semgrep registry, whose
+# licence bars service use (CPU_FIRST_OFFLOAD 2026-07-16 §4/§6).
+#
+# Same contract as bpm-baseline.v1.yaml: `metadata.yields` is what the attack
+# chainer matches, and a rule earns its place only if we can say what it costs
+# to be wrong about it. Severity: ERROR → 4, WARNING → 3, INFO → 2.
+rules:
+  - id: bpm-go-tls-insecure-skip-verify
+    languages: [go]
+    severity: ERROR
+    message: >-
+      TLS certificate verification is switched off. Any machine on the path can
+      present any certificate and read or rewrite the traffic — the connection
+      is encrypted to whoever answered, not to the server you meant.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+    pattern-either:
+      - pattern: 'tls.Config{..., InsecureSkipVerify: true, ...}'
+      - pattern: $C.InsecureSkipVerify = true
+
+  - id: bpm-go-sql-string-build
+    languages: [go]
+    severity: ERROR
+    message: >-
+      SQL assembled with fmt.Sprintf or + and handed to Query/Exec. Use
+      placeholders ($1 / ?) and pass values as arguments: a quoting helper
+      applied by hand is one forgotten call away from an injection.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    # The method names are generic (http.Get, a URL pattern's Exec), so the
+    # receiver must look like a database handle: over ten real modules, every
+    # match without that check was a URL being built, not a query.
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.$M(fmt.Sprintf($F, ...), ...)
+              - pattern: $DB.$M($CTX, fmt.Sprintf($F, ...), ...)
+              - pattern: |
+                  $Q := fmt.Sprintf($F, ...)
+                  ...
+                  $DB.$M($Q, ...)
+              - pattern: |
+                  $Q := fmt.Sprintf($F, ...)
+                  ...
+                  $DB.$M($CTX, $Q, ...)
+          # A Sprintf whose only verbs are numeric cannot carry a quote.
+          - metavariable-regex:
+              metavariable: $F
+              regex: .*%[-+# 0-9.]*[svq].*
+          # Placeholder lists are the safe way to build an IN clause: the
+          # values still travel as arguments, only `?, ?, ?` is formatted.
+          - pattern-not: $DB.$M(fmt.Sprintf($F, ..., strings.Join(...), ...), ...)
+          - pattern-not: $DB.$M($CTX, fmt.Sprintf($F, ..., strings.Join(...), ...), ...)
+          - pattern-not-inside: |
+              $Q := fmt.Sprintf($F, ..., strings.Join(...), ...)
+              ...
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(?:Query|QueryRow|QueryContext|QueryRowContext|Exec|ExecContext|Prepare|PrepareContext|Queryx|QueryRowx|Select|Get|SelectContext|GetContext)$
+          - metavariable-regex:
+              metavariable: $DB
+              regex: (?i)^.*(?:db|tx|conn|pool|sql|database|stmt|store|repo|querier|queries)\w*$
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.$M("..." + $X, ...)
+              - pattern: $DB.$M($CTX, "..." + $X, ...)
+              - pattern: |
+                  $Q := "..." + $X
+                  ...
+                  $DB.$M($Q, ...)
+              - pattern: |
+                  $Q := "..." + $X
+                  ...
+                  $DB.$M($CTX, $Q, ...)
+          - pattern-not: $DB.$M("..." + strings.Join(...) + "...", ...)
+          - pattern-not-inside: |
+              $Q := "..." + strings.Join(...) + "..."
+              ...
+          - metavariable-regex:
+              metavariable: $M
+              regex: ^(?:Query|QueryRow|QueryContext|QueryRowContext|Exec|ExecContext|Prepare|PrepareContext|Queryx|QueryRowx|Select|Get|SelectContext|GetContext)$
+          - metavariable-regex:
+              metavariable: $DB
+              regex: (?i)^.*(?:db|tx|conn|pool|sql|database|stmt|store|repo|querier|queries)\w*$
+
+  - id: bpm-go-weak-hash-credential
+    languages: [go]
+    severity: WARNING
+    message: >-
+      MD5 or SHA-1 over a password, token or secret. Both are fast and broken:
+      a leaked digest is recovered offline in minutes. Passwords want bcrypt,
+      scrypt or argon2; tokens want SHA-256 or an HMAC.
+    metadata:
+      category: security
+      cwe: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm'
+      yields: ['credential-recovery']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Fires only when the hashed expression is NAMED like a credential. An
+        MD5 over a file or a cache key is a checksum, not a security use, and
+        is deliberately not matched.
+    patterns:
+      - pattern-either:
+          - pattern: md5.Sum($ARG)
+          - pattern: sha1.Sum($ARG)
+          - pattern: |
+              $H := md5.New()
+              ...
+              $H.Write($ARG)
+          - pattern: |
+              $H := sha1.New()
+              ...
+              $H.Write($ARG)
+          - pattern: |
+              $H := md5.New()
+              ...
+              io.WriteString($H, $ARG)
+          - pattern: |
+              $H := sha1.New()
+              ...
+              io.WriteString($H, $ARG)
+      - metavariable-regex:
+          metavariable: $ARG
+          regex: (?i).*(?:password|passwd|secret|token|api_?key|credential|pin\b|otp).*
+
+  - id: bpm-go-math-rand-secret
+    languages: [go]
+    severity: WARNING
+    message: >-
+      math/rand used to make something secret. Its output is reproducible from
+      the seed and predictable from previous values; anything that acts as a
+      token, key, nonce or password needs crypto/rand.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      yields: ['predictable-token']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      # The import is what makes `rand` math/rand: crypto/rand has the same
+      # package name, and the engine resolves an aliased import too.
+      - pattern-either:
+          - pattern-inside: |
+              import "math/rand"
+              ...
+          - pattern-inside: |
+              import "math/rand/v2"
+              ...
+      - pattern-either:
+          - pattern: rand.$F(...)
+          - pattern: $R.$F(...)
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(?:Int|Intn|Int31|Int31n|Int63|Int63n|IntN|Int64|Int64N|Int32|Int32N|Uint32|Uint64|Read|Float64|Perm|Shuffle|N)$
+      - pattern-either:
+          - patterns:
+              - pattern-inside: |
+                  func $NAME(...) $RET { ... }
+              - metavariable-regex:
+                  metavariable: $NAME
+                  regex: (?i).*(?:token|secret|password|passwd|nonce|salt|otp|apikey|api_key|session).*
+          - patterns:
+              - pattern-inside: |
+                  $NAME := ...
+              - metavariable-regex:
+                  metavariable: $NAME
+                  regex: (?i).*(?:token|secret|password|passwd|nonce|salt|otp|apikey|api_key|session).*
+          - patterns:
+              - pattern-inside: |
+                  $NAME = ...
+              - metavariable-regex:
+                  metavariable: $NAME
+                  regex: (?i).*(?:token|secret|password|passwd|nonce|salt|otp|apikey|api_key|session).*
+
+  - id: bpm-go-shell-exec-dynamic
+    languages: [go]
+    severity: ERROR
+    message: >-
+      A shell invoked with a command string that is not a constant. Anything
+      in that string is parsed by the shell, so a value containing `;`, `$( )`
+      or backticks runs as a second command. Call the program directly with
+      exec.Command(name, args...) instead.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: exec.Command($SH, "-c", $CMD, ...)
+          - pattern: exec.CommandContext($CTX, $SH, "-c", $CMD, ...)
+      - metavariable-regex:
+          metavariable: $SH
+          regex: ^"(?:/usr)?(?:/bin/)?(?:sh|bash|zsh|dash|ash|ksh)"$
+      - pattern-not: exec.Command($SH, "-c", "...", ...)
+      - pattern-not: exec.CommandContext($CTX, $SH, "-c", "...", ...)
+
+  - id: bpm-go-http-server-no-timeout
+    languages: [go]
+    severity: WARNING
+    message: >-
+      An HTTP server with no header read timeout. A client that sends its
+      headers one byte at a time holds a connection open indefinitely, and a
+      few hundred of them exhaust the server (slowloris). Set ReadHeaderTimeout
+      (or ReadTimeout) on an http.Server; the package-level ListenAndServe
+      cannot set either.
+    metadata:
+      category: security
+      cwe: 'CWE-400: Uncontrolled Resource Consumption'
+      yields: ['dos']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # Test servers and runnable examples are not what a client reaches.
+        - '*_test.go'
+        - 'examples/'
+        - '_examples/'
+        - 'example/'
+        - '*testing.go'
+        - 'testutil/'
+        - 'testdata/'
+    pattern-either:
+      - pattern: http.ListenAndServe(...)
+      - pattern: http.ListenAndServeTLS(...)
+      - patterns:
+          - pattern: http.Server{...}
+          - pattern-not: 'http.Server{..., ReadHeaderTimeout: $T, ...}'
+          - pattern-not: 'http.Server{..., ReadTimeout: $T, ...}'
+          # Set after construction instead of in the literal.
+          - pattern-not-inside: |
+              $S := &http.Server{...}
+              ...
+              $S.ReadHeaderTimeout = $T
+          - pattern-not-inside: |
+              $S := &http.Server{...}
+              ...
+              $S.ReadTimeout = $T
