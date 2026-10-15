@@ -15,6 +15,12 @@ const DENYLIST_KEY_PATTERN =
 // GitHub token prefixes (ghp_/gho_/ghu_/ghs_/ghr_) per SC-2's exact regex.
 const GITHUB_TOKEN_PATTERN = /gh[pous]_[A-Za-z0-9]{36,}/g;
 
+// RepoPulse's own CI read tokens (W18-18): `rpci_` + 43 base64url characters.
+// Scrubbed by shape for the same reason as the forge tokens above — a CI
+// script that pastes the header into an error message must not put a working
+// credential into the log.
+const CI_TOKEN_PATTERN = /rpci_[A-Za-z0-9_-]{20,}/g;
+
 // PEM blocks (GitHub App private keys) - matches both raw newlines and the
 // `\n`-escaped form that appears inside a JSON-stringified log line.
 const PEM_BLOCK_PATTERN = /-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g;
@@ -23,5 +29,6 @@ export function redactLine(line: string): string {
   return line
     .replace(DENYLIST_KEY_PATTERN, '"$1":"[REDACTED]"')
     .replace(GITHUB_TOKEN_PATTERN, '[REDACTED-TOKEN]')
+    .replace(CI_TOKEN_PATTERN, '[REDACTED-TOKEN]')
     .replace(PEM_BLOCK_PATTERN, '[REDACTED-PEM]');
 }

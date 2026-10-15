@@ -237,13 +237,36 @@ GT = Gitea adapter (v1.x).
   *Lands:* W8 · scanner framework. *Verify:* budget-breach fixture keeps flagged partial
   findings; chaos test crashes every scanner with ingest lag + dashboards unaffected.
 
+## Customer-CI pull (W18-18, D16)
+
+- **SC-31 CI read tokens** (T-13, T-6, T-29). The customer's own CI reads PR findings
+  with a RepoPulse-minted token and acts on them with its OWN forge token; RepoPulse
+  posts nothing (D9a, N-3). Token: `rpci_` + 32 random bytes (base64url), shown once in
+  the create response, stored only as `sha256` in `ci_tokens.token_hash` (a high-entropy
+  secret needs no slow KDF, and lookup must be by indexed equality); revocation keeps the
+  row. Scope is a closed list with one member, `pr_findings:read`, enforced by a CHECK
+  constraint; `repo_ids` is a non-empty list of the workspace's own repositories, checked
+  at mint time. Default and maximum lifetime 365 days. The `/api/v1` guard judges any
+  request with an `Authorization` header as a token request and nothing else (a session
+  cookie riding along is ignored), in `onRequest` — before body parsing and validation —
+  and admits it only to routes that opt in with `config.ciToken` AND only for GET/HEAD;
+  everything else ⇒ 403, unknown/expired/revoked ⇒ 401, a repository outside the token ⇒
+  404. Mint and revoke are admin-only and audited (`ci_token.created`, `ci_token.revoked`,
+  SC-22); `last_used_at` is stamped per request; the SC-2 scrubber redacts `rpci_…` by
+  shape. *Lands:* W18-18 · apps/api `lib/ci-token.ts`, `plugins/api-v1.ts`,
+  `routes/pulls`, `routes/admin/ci-tokens`. *Verify:* `routes/pulls/pulls.test.ts` (a
+  route walk over every `/api/v1` route with a token ⇒ 403 except the two allowed; writes
+  refused; revoke/expiry ⇒ 401; secret absent from DB row, list and logs);
+  `test/security/no-forge-write-scope.test.ts` (no forge write scope, SC-25 list and the
+  forge port unchanged).
+
 ## Coverage map (threat → control)
 
 | Threats | Controls |
 |---|---|
 | T-1..T-8 (auth surface) | SC-5, SC-6, SC-7, SC-8, SC-9, SC-10, SC-11, SC-23 |
 | T-9..T-12 (webhook) | SC-3, SC-4, SC-11, SC-22 |
-| T-13..T-17 (ingest/creds) | SC-1, SC-2, SC-10, SC-12, SC-25 |
+| T-13..T-17 (ingest/creds) | SC-1, SC-2, SC-10, SC-12, SC-25, SC-31 |
 | T-18..T-24 (LLM tiers) | SC-13, SC-14, SC-15, SC-24 |
 | T-25..T-28 (data tier) | SC-1, SC-9, SC-10, SC-20, SC-21 |
 | T-29..T-31 (findings/share) | SC-16, SC-17, SC-22 |

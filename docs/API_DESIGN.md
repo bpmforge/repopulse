@@ -12,6 +12,11 @@ no live forge calls in any handler (FR-API-2, Law 4).
 - **Auth**: GitHub OAuth (FR-AUTH-1) → httpOnly secure session cookie backed by Redis
   (FR-AUTH-2). Every route (except `/auth/*`, `/webhooks/*`, `/healthz`) requires a session
   → 401 otherwise (FR-API-4 route-walker test).
+- **CI tokens** (W18-18, SC-31): the one exception to session auth. A request carrying
+  `Authorization: Bearer rpci_…` is judged as a CI-token request and nothing else (any
+  session cookie is ignored). A token reaches only routes marked `config.ciToken` — today
+  the two in "CI pull" below — and only with GET; every other route ⇒ 403, an unknown,
+  expired or revoked token ⇒ 401. See docs/CI_INTEGRATION.md.
 - **Workspace scoping**: active workspace resolved from session (v1 single `default`);
   all queries workspace-filtered (FR-AUTH-3, NFR-4). No workspace id in paths at v1 —
   additive `X-Workspace-Id` header override reserved for SaaS flip (ARCHITECTURE §7).
@@ -88,6 +93,19 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `POST /findings/{id}/status` | `{to: acknowledged\|resolved\|wont_fix, reason}` → 200 + event row | FR-INSIGHTS-1 |
 | `POST /analyses` | `{repo_id, pr_number, tier:2\|3}` → 202 `{run_id}`; tier 3 without repo opt-in → 403 | FR-ANALYSIS-1/7 |
 | `GET /analyses/{run_id}` | → `{status, chunk_count, findings_count, cost_usd?, error?}` | FR-ANALYSIS-8 |
+
+### CI pull (W18-18, D16 — read by the customer's own CI; RepoPulse never writes)
+| Method+Path | Req → Res | FR |
+|---|---|---|
+| `GET /repos/{id}/pulls/{number}/findings` | `?new=true\|false` (default true) `&include_experimental=true\|false` (default false) `&cursor&limit≤100` (default 50) → `{pull:{number,title,state,head_sha,base_ref}, head:{sha, scanned, scanners:[{scanner_key, scanned_at}]}, items:[{id, rule_id, scanner_key, dimension, severity 1-5, severity_label, confidence, title, file, line_start, line_end, evidence, suggested_fix, experimental, status, introduced_by_pr, seen_at_head, first_seen_at, last_seen_at}], next_cursor}`. Session **or** CI token (repo must be in the token's `repo_ids`, else 404). Ordered severity desc, id desc; keyset cursor. **new=true** = findings first seen on this PR (stamped `pull_request_id`, or first seen by a `pr_synced` scan run at the PR head) that are still present on the head (not dismissed/resolved/wont_fix; and bumped by their scanner's latest succeeded run at the head when it has one — a finding whose scanner has not run at the head is kept with `seen_at_head:false`). **new=false** adds pre-existing live findings on files the PR touches (`introduced_by_pr:false`). Experimental (shadow-mode) findings excluded unless asked. 404 when the PR is not in the warehouse yet. No grades or scores (N-9). | E10.8, E6.3 |
+| `GET /cli/repopulse.mjs` | → the `repopulse check` CLI (one dependency-free file), session or CI token | E10.8 |
+
+### admin → CI tokens 👑 (W18-18, SC-31)
+| Method+Path | Req → Res | FR |
+|---|---|---|
+| `POST /admin/ci-tokens` | `{name, repo_ids[1..100], expires_in_days? 1..365 (default 365)}` → 201 `{id, name, token, prefix, scope:'pr_findings:read', repo_ids, expires_at}` — `token` appears here once and never again; audited `ci_token.created` | E10.8 |
+| `GET /admin/ci-tokens` | → `{items:[{id, name, prefix, scope, repo_ids, created_by, created_at, expires_at, last_used_at, revoked_at}]}` (never the token or its hash) | E10.8 |
+| `DELETE /admin/ci-tokens/{id}` | revoke (row kept) → 204; already revoked/unknown → 404; audited `ci_token.revoked` | E10.8 |
 
 ### reports (FR-REPORTS-*)
 | Method+Path | Req → Res | FR |
