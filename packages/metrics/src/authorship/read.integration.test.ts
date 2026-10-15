@@ -99,6 +99,12 @@ describeIfLiveInfra('computeAiGovernance (W18-20)', () => {
         .insert(core.identities)
         .values({ workspaceId, provider: 'github', forgeLogin: 'alice-dev', displayName: 'Alice' })
         .returning();
+      // A person other than the author: since W18-23 a bot's review is not
+      // review (METRICS.md §0), so the PR's approval has to come from a human.
+      const [reviewer] = await db
+        .insert(core.identities)
+        .values({ workspaceId, provider: 'github', forgeLogin: 'bob-reviewer', displayName: 'Bob' })
+        .returning();
       const [bot] = await db
         .insert(core.identities)
         .values({
@@ -184,7 +190,7 @@ describeIfLiveInfra('computeAiGovernance (W18-20)', () => {
         repoId: repo!.id,
         pullRequestId: pr!.id,
         forgeReviewId: `rv-${workspaceId}`,
-        reviewerIdentityId: bot!.id,
+        reviewerIdentityId: reviewer!.id,
         state: 'APPROVED',
         submittedAt: at(5),
       });

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { and, eq } from 'drizzle-orm';
 import { core, createDb, facts, type Database } from '@repopulse/shared';
 import {
+  DEFAULT_GITHUB_BASE_URL,
   GitHubProvider,
   GiteaProvider,
   createAuthHeaderProvider,
@@ -24,7 +25,7 @@ import { enrichPullRequest } from './enrich-pr.js';
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfLiveInfra = databaseUrl ? describe : describe.skip;
 
-const GH = 'https://api.github.com/repos';
+const GH = `${DEFAULT_GITHUB_BASE_URL}/repos`;
 type Canned = Record<string, { status: number; body: unknown; headers?: Record<string, string> }>;
 
 function clientOver(canned: Canned): ForgeHttpClient {
