@@ -24,6 +24,18 @@ const BAND_SEVERITY: Record<string, 'low' | 'medium' | 'high'> = {
   E: 'high',
 };
 
+/**
+ * What the badge SAYS (W18-28). It used to print the tint's severity word, so
+ * every repository in the feed carried "Medium" with nothing saying medium
+ * what. These are the health ramp's own band names (UX_SPEC §2.1), worded as
+ * the action they route to rather than a grade.
+ */
+const BAND_LABEL: Record<string, string> = {
+  C: 'watch',
+  D: 'attend',
+  E: 'attend now',
+};
+
 export function AttentionFeed({ window, search }: Props) {
   const lastSeenAt = useUiStore((s) => s.lastSeenAt);
   const markSeen = useUiStore((s) => s.markSeen);
@@ -64,7 +76,10 @@ export function AttentionFeed({ window, search }: Props) {
               data-testid={`attention-${item.repo_id}`}
             >
               <span className="truncate">{item.name}</span>
-              <SeverityBadge severity={BAND_SEVERITY[item.band] ?? 'low'} />
+              <SeverityBadge
+                severity={BAND_SEVERITY[item.band] ?? 'low'}
+                label={BAND_LABEL[item.band] ?? 'watch'}
+              />
             </Link>
           </li>
         ))}

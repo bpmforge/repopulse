@@ -14,11 +14,11 @@ import {
   type PrDetail as PrDetailResponse,
 } from './contracts.js';
 import {
-  SEVERITY_LABEL,
   VERIFY_LABEL,
   locationOf,
   type Finding,
 } from '../findings/contracts.js';
+import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 
 // PR Detail (UX_SPEC §4.c): stage timeline, review feed, checks summary, and the
 // files list with links into the file drill-down.
@@ -161,7 +161,10 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
             {data.checks.map((c) => (
               <li key={c.name} className="flex items-center justify-between gap-3">
                 <span className="truncate">{c.name}</span>
-                <SeverityBadge severity={CHECK_SEVERITY[c.conclusion ?? ''] ?? 'info'} />
+                <SeverityBadge
+                  severity={CHECK_SEVERITY[c.conclusion ?? ''] ?? 'info'}
+                  label={(c.conclusion ?? 'pending').replace(/_/g, ' ')}
+                />
               </li>
             ))}
           </ul>
@@ -199,43 +202,47 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
         // not the wave it was built in.
         emptyMessage="No automated review recorded for this pull request. Tier-2 diff review runs on a schedule per repo; Tier-3 deep review is opt-in per repo."
       >
-        <table className="w-full text-sm" data-testid="pr-automated-review">
-          <caption className="sr-only">Automated review findings for this pull request</caption>
-          <thead>
-            <tr className="text-left text-xs text-fg-muted">
-              <th scope="col">Severity</th>
-              <th scope="col">Finding</th>
-              <th scope="col">File</th>
-              <th scope="col">Status</th>
-              <th scope="col">Verification</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reviewItems.map((f) => (
-              <tr key={f.id} className="border-t border-border">
-                {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
-                <td className="py-1 whitespace-nowrap">
-                  {SEVERITY_LABEL[f.severity] ?? f.severity}
-                </td>
-                <th scope="row" className="py-1 text-left font-normal">
-                  {/* Triage lives on the repo's Findings tab; this panel
-                      reports rather than duplicating the actions. */}
-                  <Link
-                    to="/repos/$repoId/findings"
-                    params={{ repoId }}
-                    search={(prev: Record<string, unknown>) => ({ ...prev, finding: f.id })}
-                    className="text-accent hover:underline"
-                  >
-                    {f.title}
-                  </Link>
-                </th>
-                <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
-                <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
-                <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+        {/* W18-28: scrolls inside its own region at phone width instead of
+            squeezing every column until the headers run together. */}
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Automated review findings">
+          <table className="table-plain w-full min-w-[40rem] text-sm" data-testid="pr-automated-review">
+            <caption className="sr-only">Automated review findings for this pull request</caption>
+            <thead>
+              <tr className="text-left text-xs text-fg-muted">
+                <th scope="col">Severity</th>
+                <th scope="col">Finding</th>
+                <th scope="col">File</th>
+                <th scope="col">Status</th>
+                <th scope="col">Verification</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {reviewItems.map((f) => (
+                <tr key={f.id} className="border-t border-border">
+                  {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
+                  <td className="py-1 whitespace-nowrap">
+                    <FindingSeverityBadge severity={f.severity} />
+                  </td>
+                  <th scope="row" className="py-1 text-left font-normal">
+                    {/* Triage lives on the repo's Findings tab; this panel
+                        reports rather than duplicating the actions. */}
+                    <Link
+                      to="/repos/$repoId/findings"
+                      params={{ repoId }}
+                      search={(prev: Record<string, unknown>) => ({ ...prev, finding: f.id })}
+                      className="text-accent hover:underline"
+                    >
+                      {f.title}
+                    </Link>
+                  </th>
+                  <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
+                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </WidgetFrame>
     </div>
   );

@@ -187,6 +187,23 @@
   background-image: radial-gradient(120% 80% at 0% 0%, var(--glow), transparent 60%);
 }
 
+/* Hand-built tables (W18-28). DataTable pads its own cells; the eighteen
+   tables written inline did not, so adjacent columns touched whenever the
+   width ran short — at 390px the headers read "RepositoryPR" and "SizeState",
+   and on /setup "FORGE_ALLOW_INSECURE_LOOPBACKno". A gutter on the trailing
+   edge of every cell but the last keeps them apart at any width. */
+@utility table-plain {
+  & :is(th, td) {
+    padding-inline-end: 0.75rem;
+  }
+  & :is(th, td):last-child {
+    padding-inline-end: 0;
+  }
+  & thead th {
+    white-space: nowrap;
+  }
+}
+
 html,
 body,
 #root {

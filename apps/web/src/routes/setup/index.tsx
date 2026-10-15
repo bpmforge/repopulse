@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { docsUrl } from '../../lib/docs.js';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 
 // Setup checklist (W11-02, E1.2).
@@ -62,7 +62,10 @@ function SetupChecklist() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="setup">
-      <h1 className="text-lg font-semibold">Setup</h1>
+      <PageHeader
+        title="Setup"
+        description="Which install steps are done and which configuration is set — never the values."
+      />
 
       <WidgetFrame
         title="Checklist"
@@ -137,7 +140,7 @@ function SetupChecklist() {
           role="region"
           aria-label="Configuration variables"
         >
-          <table className="w-full text-left text-xs">
+          <table className="table-plain w-full text-left text-xs">
             <thead className="text-fg-muted">
               <tr>
                 <th scope="col" className="py-1">

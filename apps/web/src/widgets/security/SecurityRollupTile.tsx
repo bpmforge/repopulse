@@ -11,6 +11,14 @@ import type { OrgSecurity } from './contracts.js';
 // honest — with one scanner running, "0 open" means "one scanner found
 // nothing", and a reader who cannot see that will read it as an audit.
 
+const SEVERITY_NAME: Record<number, string> = {
+  5: 'critical',
+  4: 'high',
+  3: 'medium',
+  2: 'low',
+  1: 'info',
+};
+
 export function SecurityRollupTile() {
   const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSecurity>({
     endpoint: '/org/security',
@@ -33,7 +41,10 @@ export function SecurityRollupTile() {
           <div className="flex flex-wrap gap-3">
             {[5, 4, 3, 2, 1].map((severity) => (
               <div key={severity} className="flex flex-col" data-testid={`sev-${severity}`}>
-                <span className="text-xs text-fg-muted">sev {severity}</span>
+                {/* Named, not "sev 5" (W18-28): every other surface uses the
+                    severity words, and a bare number does not say which end
+                    is bad. */}
+                <span className="text-xs text-fg-muted">{SEVERITY_NAME[severity]}</span>
                 <span className="tabular-nums">{bySeverity[String(severity)] ?? 0}</span>
               </div>
             ))}

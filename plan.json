@@ -9097,8 +9097,8 @@
         "Accessibility scans stay green"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": ["W18-28 done. Seeded demo stack (DEMO_MODE=1 scripts/dev.mjs) captured at 1440x900 and 390x844, dark and light: 33 screens, 132 PNGs before + 132 after. Review with ranked table and before/after pairs: /mnt/project-files/repopulse/ux-review/review.md (3 P1, 12 P2, 13 P3; fixed all P1, 9 P2, 4 P3). Fixes: SeverityBadge `label` so status chips stop printing severity words (CI checks, sync phase, connections, overdue reviews, attention feed, single-owner flag); PageHeader h1 on Overview, Repositories, Reviews, Pull Requests, My Focus, Reports, Saved Views, 404 (Plans/Setup moved onto it); table-plain utility on all 18 inline tables + scroll regions with min width for wide finding/PR tables (headers collided at 390px); default repo/settings tab marked active (includeSearch:false); document.title from the trail; breadcrumb labels match the rail (+Activity/Performance/Setup); finding severity rendered on the severity ramp (FindingSeverityBadge); Code Health scanner display names; setup-needed status dot blue not teal; file drill-down intent control under the file h1 with aria-label; hotspot history axis 0/0.5/1; plan tile empty-state link; named severities on the Security tile; Tier-2 banner links to Models; 24px targets for why?/not-measured/View as table/intent buttons. Open (logged in review.md): top-bar layout, PR/file entity crumbs, health-tile trend (API delta null), enum copy from the API, tab overflow affordance, status-chip ok tone. Gates: e2e/a11y.spec.ts 18/18; web unit 535/535; lint + typecheck clean."]
     },
     {
       "id": "W18-29",

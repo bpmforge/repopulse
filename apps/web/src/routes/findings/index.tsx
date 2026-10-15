@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
+import { ErrorNote, WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
@@ -15,6 +15,7 @@ import {
   type Finding,
   type FindingStats,
 } from '../../widgets/findings/contracts.js';
+import { FindingSeverityBadge } from '../../widgets/findings/FindingSeverity.js';
 
 // Findings Explorer (W6-04, UX_SPEC §4.e, FR-WEB-9).
 //
@@ -314,17 +315,23 @@ function FindingsExplorer() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="findings">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          data-testid="start-triage"
-          disabled={items.length === 0}
-          onClick={() => setTriage(true)}
-        >
-          Triage queue ({items.length})
-        </button>
-      </div>
+      {/* W18-28: titled after the rail entry ("Reviews") that leads here, with
+          the triage action beside the title instead of floating alone. */}
+      <PageHeader
+        title="Reviews"
+        description="Findings from every scanner and model review, across repositories."
+        actions={
+          <button
+            type="button"
+            className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="start-triage"
+            disabled={items.length === 0}
+            onClick={() => setTriage(true)}
+          >
+            Triage queue ({items.length})
+          </button>
+        }
+      />
 
       <div className="flex flex-wrap items-end gap-3" data-testid="finding-filters">
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
@@ -531,7 +538,7 @@ function FindingsExplorer() {
             past 768), so the whole Reviews screen scrolled sideways — visible
             in the RP-01 baseline shot as a file column cut off mid-word. */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="table-plain w-full min-w-[48rem] text-sm">
             <caption className="sr-only">Findings across every analysed repository</caption>
             <thead>
               <tr className="text-left text-xs text-fg-muted">
@@ -577,7 +584,7 @@ function FindingsExplorer() {
                   </td>
                   {/* Paired mark + word — never colour alone (UX_SPEC §7). */}
                   <td className="py-1 whitespace-nowrap">
-                    {SEVERITY_LABEL[f.severity] ?? f.severity}
+                    <FindingSeverityBadge severity={f.severity} />
                   </td>
                   <th scope="row" className="py-1 text-left font-normal">
                     <button
