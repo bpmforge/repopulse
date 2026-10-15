@@ -356,6 +356,41 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     const deprecated = await scan('w18-01-deprecated');
     expect(deprecated.deterministic).toBe(0);
   });
+
+  it('W18-02: phantom imports are stored in shadow at severity 3; missing modules need a complete read', async () => {
+    const sources = [
+      { path: 'src/money.ts', source: 'export function format() {}' },
+      {
+        path: 'src/pay.ts',
+        source: "import { format, toCents } from './money.js';\nimport { audit } from './audit';",
+      },
+    ];
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
+
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-02-partial', files: [], sources, trigger: 'schedule',
+    });
+    const [symbol] = await rows('slop.phantom_symbol');
+    expect(symbol).toMatchObject({
+      severity: 3,
+      experimental: true,
+      title: 'Import of a name that does not exist: toCents from ./money.js',
+      evidence: "import { format, toCents } from './money.js'",
+    });
+    // sourcesComplete not stated: a missing module could be one the reader skipped.
+    expect(await rows('slop.phantom_module')).toEqual([]);
+
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-02-complete', files: [], sources,
+      sourcesComplete: true, trigger: 'schedule',
+    });
+    const [moduleRow] = await rows('slop.phantom_module');
+    expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
+  });
 });
 
 describe('layer separation and sampling', () => {

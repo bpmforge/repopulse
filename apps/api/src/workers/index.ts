@@ -460,6 +460,7 @@ async function main(): Promise<void> {
                     commitSha: head.sha,
                     files: [],
                     sources: sources.files,
+                    sourcesComplete: !sources.truncated && sources.skipped === 0,
                     // W18-30. The pack's eight bpm-ch-* rules, on the tree the
                     // logging scanner already runs over. Each scanner loads only
                     // its own pack files, so this is no second pass over the

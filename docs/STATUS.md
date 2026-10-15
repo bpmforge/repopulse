@@ -4076,6 +4076,14 @@ the fix is a one-line UPDATE renaming the key.
   (project share, not in repo). Gate: lint 0 · typecheck 0 · vitest 2471 passed / 58 skipped /
   6 failed, all environmental on the cloud sandbox (docker on PATH for the 5 deploy tests; a
   SIGKILL timing test under load that passes alone).
+  **W18-02 done** — shared fast-lane source index (`anti-slop/source-graph.ts`: masking lexer,
+  export/import tables, TypeScript-order resolution) and two phantom-reference rules, shadow,
+  severity 3: `slop.phantom_symbol` (named/default import of a repo module that exports no such
+  name; follows `export *`, skips CommonJS, `.d.ts` targets and unknowable surfaces) and
+  `slop.phantom_module` (static relative import of a missing file; only on a complete snapshot
+  read, never tests, fixtures, assets, directories or paths above the root). 0 findings on this
+  repo and on ~600 installed npm packages bar one shipped without its sources. Gate: lint 0 ·
+  typecheck 0 · vitest 2485 passed / 58 skipped / 5 failed (environmental: docker on PATH).
 
 ### 2026-10-15 — CI without GitHub Actions; SC-19 dependency-audit refresh
 
