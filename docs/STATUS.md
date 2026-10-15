@@ -4064,3 +4064,20 @@ the fix is a one-line UPDATE renaming the key.
   typecheck 0 · vitest 2501 passed / 14 skipped · e2e 153 passed / 1 skipped / 0 failed / 0
   flaky (✘ quality.spec.ts:538 = declared test.fail). Evidence:
   docs/work/product-completion/evidence/v1-last-code-20260923/.
+
+### 2026-10-15 — CI without GitHub Actions; SC-19 dependency-audit refresh
+
+GitHub Actions is not enabled for this repository, so `.github/workflows/ci.yml`
+is now manual-only and `scripts/ci-local.sh` runs every step of both CI jobs
+locally (PR #72). Its first full run found the SC-19 audit red: osv-scanner
+reported 59 advisories across 21 packages. This branch clears all of them under
+upgrade-policy rule 4 (security advisories override), which also moves three
+brief-fixed pins: drizzle-orm 0.39 → 0.45, echarts 5 → 6, vitest 3 → 4 (plus
+esbuild via one override). Every bump and its reason is in
+`docs/TECH_STACK.md` → "SC-19 dependency-audit refresh (2026-10-15)".
+drizzle 0.44+ puts a failed query's SQL and bound values in `err.message`;
+`safeErrorText`/`redactQueryError` (packages/shared/src/db/pg-error.ts), the
+logger and the BullMQ worker wrapper keep that text out of logs, stored error
+columns and job records. Gate (`scripts/ci-local.sh` on 9d4a3ad + 00e96e4's
+changes): all 13 steps pass; vitest 2477 passed / 58 skipped / 0 failed;
+osv-scanner no issues; gitleaks clean.
