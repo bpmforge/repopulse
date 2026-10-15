@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DrizzleQueryError } from 'drizzle-orm';
 import { ForgeBudgetParkedError } from '@repopulse/forge';
 import { stallErrorText, withoutStallFragments } from './stall.js';
 import { QUEUE } from './topology.js';
@@ -29,5 +30,16 @@ describe('stall fragments (W17-41)', () => {
     expect(withoutStallFragments(`${refusal} · ${stall}`)).toBe(refusal);
     expect(withoutStallFragments(stall)).toBeNull();
     expect(withoutStallFragments(null)).toBeNull();
+  });
+
+  it('records a database failure by its reason, never its bound values', () => {
+    const pg = Object.assign(new Error('value too long for type character varying(64)'), {
+      severity: 'ERROR',
+      code: '22001',
+    });
+    const err = new DrizzleQueryError('update "repos" set "name" = $1', ['SENTINEL-c0ffee'], pg);
+    const text = stallErrorText(QUEUE.enrich, 'prDetail', err);
+    expect(text).not.toContain('SENTINEL-c0ffee');
+    expect(text).toContain('value too long for type character varying(64) (SQLSTATE 22001)');
   });
 });

@@ -229,6 +229,19 @@ one format, per-language variants of each rule where idioms differ. **Engine not
 files, so the SaaS-flip engine swap (DESIGN_REVIEW G-18) is a binary swap, not a rule
 rewrite. The adapter (§10) names the binary; rules never do.
 
+**As shipped (W9-01 … W18-30):** the layout is flat — `rulepacks/code-health/` holds
+`anti-slop*.yaml` and `logging*.yaml` side by side, `perf/` is its own directory, and
+`readRulepack` does not recurse. Ownership is by **file-name prefix**: the `anti_slop`
+scanner loads only `anti-slop.*` files and stores `bpm-ch-*` as dimension `slop`;
+`logging_hygiene` loads only `logging.*` and stores `bpm-log-*`; `performance` loads
+`perf/`. Each scanner evaluates only its own rules and stores them under its own scanner
+key, so a stale-sweep scoped to one scanner can never close another's findings. A new
+language variant joins the right side by its name (`anti-slop.<lang>.v1.yaml`,
+`logging.<lang>.v1.yaml`); a file neither prefix claims is a test failure
+(`anti-slop/pack.integration.test.ts`). W18-30 is why: until then only the logging
+scanner loaded this directory and dropped the anti-slop rules by id, so `bpm-ch-*` was
+evaluated every week and stored by nobody.
+
 ### 9.1 Performance pack — pattern-shaped perf IS semgrep territory
 
 Cross-function algorithmic analysis stays LLM-tier, but the highest-yield perf defects
