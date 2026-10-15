@@ -22,7 +22,7 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "fastify": "^5.10.0"
+    "fastify": "^5.12.7"
   },
   "peerDependenciesMeta": {
     "fastify": {
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
-    "fastify": "^5.10.0",
+    "fastify": "^5.12.7",
     "typescript": "^5.9.3"
   }
 }

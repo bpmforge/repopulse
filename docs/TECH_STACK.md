@@ -205,6 +205,26 @@ to cheap agents (C3).
   plan.json's write_scope and still fully functional on vitest 3.x; migrate to `test.projects`
   in the same ticket that bumps vitest to a 4.x major (Version upgrade policy below).
 
+## SC-19 dependency-audit refresh (2026-10-15)
+
+osv-scanner 2.4.0 reported 59 advisories across 21 packages against the lockfile. Fixed under
+upgrade-policy rule 4 (security advisories override). Every version below was checked against
+registry.npmjs.org and installed; the Law-3 gate was run after each step.
+
+**Step 1: patch/minor, no overrides.** Direct ranges raised: `fastify` ^5.10.0 → ^5.12.7
+(apps/api dep; packages/auth and packages/shared dev + peer, in lockstep), `@fastify/swagger`
+^9.8.1 → ^9.9.2. Transitive versions refreshed in the lockfile within their parents' existing
+ranges (no `pnpm.overrides` entry is left behind): find-my-way 9.6.0 → 9.10.0, fast-uri
+3.1.3 → 3.1.8 and 4.1.0 → 4.2.2, js-yaml 4.2.0/4.3.0 → 4.3.2 (4.2.0 came from
+`@redocly/openapi-core` 1.34.17's exact pin; openapi-typescript's `^1.34.6` range now resolves
+1.34.21), nanoid 3.3.16 → 3.3.20, postcss 8.5.19 → 8.5.30, seroval/seroval-plugins
+1.5.5 → 1.6.9, source-map-js 1.2.1 → 1.2.2, brace-expansion 1.1.16/2.1.2/5.0.7 →
+1.1.21/2.1.7/5.0.12, browserslist 4.28.6 → 4.29.3, baseline-browser-mapping
+2.10.43 → 2.11.28. TanStack Router stays at 1.170.18: seroval is fixed inside router-core's
+own `^1.5.4` range, and moving the router to 1.170.44 in the same step broke three
+repo-layout navigation tests (apps/web `routes/repos/$repoId/route.test.tsx`), which is a
+router upgrade of its own, not an audit fix.
+
 ## Version upgrade policy
 
 1. Majors in this doc are pinned; `package.json` uses `^` within the pinned major, lockfile
