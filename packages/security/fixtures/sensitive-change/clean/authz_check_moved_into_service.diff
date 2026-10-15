@@ -1,0 +1,22 @@
+diff --git a/src/controllers/auth.controller.js b/src/controllers/auth.controller.js
+--- a/src/controllers/auth.controller.js
++++ b/src/controllers/auth.controller.js
+@@ -15,9 +15,7 @@ const logout = catchAsync(async (req, res) => {
+ const refreshTokens = catchAsync(async (req, res) => {
+-  const doc = await tokenService.verifyToken(req.body.refreshToken, 'refresh');
+-  if (!doc) throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate');
+-  const tokens = await tokenService.generateAuthTokens(doc.user);
++  const tokens = await authService.refreshAuth(req.body.refreshToken);
+   res.send({ ...tokens });
+ });
+diff --git a/src/services/auth.service.js b/src/services/auth.service.js
+new file mode 100644
+--- /dev/null
++++ b/src/services/auth.service.js
+@@ -0,0 +1,6 @@
++const refreshAuth = async (refreshToken) => {
++  const doc = await tokenService.verifyToken(refreshToken, 'refresh');
++  if (!doc) throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate');
++  return tokenService.generateAuthTokens(doc.user);
++};
++module.exports = { refreshAuth };

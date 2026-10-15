@@ -1,0 +1,8 @@
+diff --git a/src/api/pagination.ts b/src/api/pagination.ts
+--- a/src/api/pagination.ts
++++ b/src/api/pagination.ts
+@@ -1,5 +1,5 @@
+ export const PAGE = {
+-  max: 50,
++  max: 100,
+ };

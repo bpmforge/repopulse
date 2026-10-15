@@ -1,0 +1,6 @@
+diff --git a/docs/security.md b/docs/security.md
+--- a/docs/security.md
++++ b/docs/security.md
+@@ -3,6 +3,5 @@
+ Routes are protected by middleware.
+-Use `requireAdmin` on every admin route.

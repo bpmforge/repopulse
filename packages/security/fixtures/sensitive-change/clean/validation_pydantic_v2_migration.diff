@@ -1,0 +1,9 @@
+diff --git a/app/core/config.py b/app/core/config.py
+--- a/app/core/config.py
++++ b/app/core/config.py
+@@ -24,7 +24,7 @@ class Settings(BaseSettings):
+     BACKEND_CORS_ORIGINS: list[AnyHttpUrl] = []
+ 
+-    @validator("BACKEND_CORS_ORIGINS", pre=True)
++    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+     def assemble_cors_origins(cls, v):
