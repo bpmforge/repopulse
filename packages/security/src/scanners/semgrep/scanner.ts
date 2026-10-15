@@ -289,6 +289,7 @@ export function scannableFiles(dir: string): string[] {
         walk(full);
         continue;
       }
+      if (/\.(js|jsx|ts|tsx|mjs|cjs|rs)$/.test(entry)) out.push(full);
       if (/\.(js|jsx|ts|tsx|mjs|cjs|java|kt|kts)$/.test(entry)) out.push(full);
     }
   };

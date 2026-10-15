@@ -1,0 +1,132 @@
+# bpm-rulepacks — logging antipatterns, Rust variants v1 (W18-14, CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for this repository. Nothing here is copied or adapted
+# from the Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# Same two failures as the JS pack — noise and disclosure — in Rust's idiom:
+# printing macros instead of `log` / `tracing`, and secret-named values passed
+# to a logging macro. The secret-name list mirrors SC-2's redaction denylist,
+# minus bare `token`: Rust is where lexers and parsers live, and `token` there
+# is a syntax token far more often than a credential (measured: it was the
+# only source of hits in regex and serde_json). Qualified forms
+# (access_token, auth_token, ...) stay in.
+#
+# The test-region regex below is the anti-slop pack's (see TEST REGIONS in
+# anti-slop.rust.v1.yaml): the engine cannot see `#[cfg(test)]`, so a text
+# region stands in for it.
+rules:
+  - id: bpm-log-rs-print-in-lib
+    languages: [rust]
+    severity: INFO
+    message: >-
+      println!/eprintln! in library code. It writes to the host process's
+      stdout/stderr, bypassing whatever logger the application installed — no
+      level, no filter, no redaction, and no way for the caller to turn it off.
+      Use the `log` or `tracing` macros so the application decides.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Without Cargo.toml the rule cannot tell a library crate from the
+        non-main modules of a binary crate, where printing is the product.
+        main.rs, src/bin/, build.rs (whose println! is Cargo's protocol),
+        examples, benches and tests are excluded by path.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - 'fuzz/**'
+        - 'build.rs'
+        - 'main.rs'
+        - 'src/bin/**'
+        - 'tests.rs'
+        - 'test.rs'
+    patterns:
+      - pattern-either:
+          - pattern: println!(...)
+          - pattern: eprintln!(...)
+          - pattern: print!(...)
+          - pattern: eprint!(...)
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+
+  - id: bpm-log-rs-dbg-macro
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      dbg!() left in shipped code. It prints the expression, its value and the
+      source location to stderr on every call — a debugging session that
+      shipped, including whatever the value happened to contain.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - 'tests.rs'
+        - 'test.rs'
+    patterns:
+      - pattern: dbg!(...)
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+
+  - id: bpm-log-rs-secret-field
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log/tracing macro. Logs outlive the
+      request, sit outside the product's access control, and get shipped to
+      third-party aggregators — a credential that reaches one is a credential
+      to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Three shapes: a positional argument (`info!("{}", password)`), a
+        structured field (`info!(api_key = %k)`, `info!(?client_secret)`) and
+        an inline capture (`info!("{password}")`). The last two are matched by
+        text inside the macro call because the engine parses macro arguments
+        as opaque tokens; a secret word that only appears in the message prose
+        ("password reset sent") does not match.
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: trace!(..., $A, ...)
+              - pattern: debug!(..., $A, ...)
+              - pattern: info!(..., $A, ...)
+              - pattern: warn!(..., $A, ...)
+              - pattern: error!(..., $A, ...)
+              - pattern: event!(..., $A, ...)
+              - pattern: log::trace!(..., $A, ...)
+              - pattern: log::debug!(..., $A, ...)
+              - pattern: log::info!(..., $A, ...)
+              - pattern: log::warn!(..., $A, ...)
+              - pattern: log::error!(..., $A, ...)
+              - pattern: tracing::trace!(..., $A, ...)
+              - pattern: tracing::debug!(..., $A, ...)
+              - pattern: tracing::info!(..., $A, ...)
+              - pattern: tracing::warn!(..., $A, ...)
+              - pattern: tracing::error!(..., $A, ...)
+              - pattern: tracing::event!(..., $A, ...)
+          - metavariable-regex:
+              metavariable: $A
+              # Not a string literal (that is the message), and a secret name
+              # as the last path segment: `cfg.api_key`, `&password`.
+              regex: (?i)^[^"]*\b\w*(password|passwd|passphrase|secret|access_token|refresh_token|auth_token|api_token|bearer_token|session_token|id_token|csrf_token|api_key|apikey|private_key|credentials?|authorization|cookie|session_id)\b[^"]*$
+      # Structured field (`name = ...`) or sigil (`%name`, `?name`) form, and
+      # inline format captures. Bounded to one macro call: no `;` between the
+      # macro name and the match. A bare positional name is the structural
+      # pattern's job above, so the two never report the same argument twice.
+      - pattern-regex: (?i)\b(?:trace|debug|info|warn|error|event)!\s*\((?:[^;]*?,)?\s*(?:[%?]\s*(?:[\w.]*\.)?\w*(?:password|passwd|passphrase|secret|access_token|refresh_token|auth_token|api_token|bearer_token|session_token|id_token|csrf_token|api_key|apikey|private_key|credentials?|authorization|cookie|session_id)\b|\w*(?:password|passwd|passphrase|secret|access_token|refresh_token|auth_token|api_token|bearer_token|session_token|id_token|csrf_token|api_key|apikey|private_key|credentials?|authorization|cookie|session_id)\s*=)
+      - pattern-regex: (?i)\b(?:trace|debug|info|warn|error|event)!\s*\([^;]*?"[^"\n]*\{\w*(?:password|passwd|passphrase|secret|access_token|refresh_token|auth_token|api_token|bearer_token|session_token|id_token|csrf_token|api_key|apikey|private_key|credentials?|authorization|cookie|session_id)(?::[^}]*)?\}
