@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '../../findings/store.js';
 import {
   TEST_GAP_DEFAULTS,
@@ -103,7 +103,7 @@ export async function runTestGapRegister(deps: TestGapRunDeps): Promise<TestGapR
       notRun: result.notRun,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = safeErrorText(error);
     await deps.db
       .update(security.scanRuns)
       .set({ status: 'failed', error: message.slice(0, 500), finishedAt: new Date() })

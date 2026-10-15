@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { core, type Database } from '@repopulse/shared';
+import { core, type Database, safeErrorText } from '@repopulse/shared';
 import { splitRepoFullName, type ForgeRepo } from '@repopulse/forge';
 
 // Connect flow (FR-INGEST-1, INGESTION §1). Orchestration only — this module
@@ -215,7 +215,7 @@ export async function activateRepos(
     } catch (err) {
       // Recorded, not swallowed: silently degrading to polling would leave an
       // operator wondering why updates lag.
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorText(err);
       await deps.db
         .update(core.repos)
         .set({ lastError: `live updates unavailable — webhook registration failed: ${message}` })

@@ -235,8 +235,21 @@ drizzle-kit ^0.31.10 → ^0.31.11 alongside it. Fixes GHSA-gpj5-g38j-94v9 (`sql.
   `constraint_name`) moves to `.cause`. Matching a constraint name in the message no longer
   works: the admin LLM-provider route returned 500 instead of 409 for a duplicate name. Fixed by
   `pgErrorOf` / `isConstraintViolation` in `packages/shared/src/db/pg-error.ts`, which walk the
-  `cause` chain. Side effect to keep in mind: an `err.message` that is logged or stored now
-  carries the SQL text and bound parameter values instead of the Postgres reason.
+  `cause` chain. The same wrapper's message, stack and enumerable `query`/`params` carry every
+  bound value, so it must not reach a log, a stored error column or a response. Handled in
+  `pg-error.ts` and at three choke points:
+  - `safeErrorText(err)` gives the Postgres reason + SQLSTATE + constraint, never the statement.
+    Class-22 messages (which quote the bad value) get every quoted string replaced, and other
+    classes get any quoted bound value replaced. Every catch that stores or returns an error's
+    text uses it: scan/report processors, job_failure + DLQ, repos.last_error stall fragments,
+    webhook-registration last_error, every scanner/register/validation run's `scan_runs.error`.
+  - `createWorker` wraps each BullMQ processor so a thrown query failure is replaced by a
+    `DatabaseQueryError` (`redactQueryError`) before BullMQ stores `failedReason`/`stacktrace`
+    in Redis. Other errors are rethrown as the same object.
+  - `createLogger` swaps any Error value in a log object through `redactQueryError`
+    (`formatters.log`), because pino's `err` serializer prints message, stack and every own
+    enumerable field (`query`, `params`). `redactLine` also scrubs `Failed query: … params: …`
+    text as a backstop for interpolated strings and a bare `log.error(err)`'s `msg`.
 - 0.41.0 dropped drizzle's own postgres-js parsers for `numeric[]`, `timestamp[]`,
   `timestamptz[]`, `interval[]`, `date[]`. The schema has no such array columns (only
   `bigint[]`), so nothing changes here.

@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNotNull, notInArray, sql } from 'drizzle-orm';
-import { read, security, type Database } from '@repopulse/shared';
+import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { buildChains, type Chain, type ChainableFinding } from './build.js';
 import { compoundFindings, type CompoundCluster } from './compound.js';
@@ -281,7 +281,7 @@ export async function runChainer(deps: ChainerDeps): Promise<ChainerResult> {
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, runId));
@@ -292,7 +292,7 @@ export async function runChainer(deps: ChainerDeps): Promise<ChainerResult> {
       compound: 0,
       created: 0,
       autoResolved: 0,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }

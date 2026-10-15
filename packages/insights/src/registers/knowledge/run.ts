@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '../../findings/store.js';
 import {
   KNOWLEDGE_DEFAULTS,
@@ -106,7 +106,7 @@ export async function runKnowledgeRegister(
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (err as Error).message.slice(0, 500),
+        error: safeErrorText(err).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, runId));
@@ -116,7 +116,7 @@ export async function runKnowledgeRegister(
       modules: 0,
       findings: 0,
       created: 0,
-      error: (err as Error).message,
+      error: safeErrorText(err),
     };
   }
 }

@@ -11,7 +11,15 @@ export * as facts from './schema/facts/index.js';
 export * as read from './schema/read/index.js';
 export * as plans from './schema/plans/index.js';
 export * as security from './schema/security/index.js';
-export { pgErrorOf, isConstraintViolation, type PgErrorFields } from './pg-error.js';
+export {
+  pgErrorOf,
+  isConstraintViolation,
+  isQueryError,
+  safeErrorText,
+  redactQueryError,
+  DatabaseQueryError,
+  type PgErrorFields,
+} from './pg-error.js';
 
 const schema = { ...core, ...facts, ...read, ...plans, ...security };
 
