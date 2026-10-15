@@ -1,0 +1,265 @@
+# bpm-rulepacks — anti-slop, Java and Kotlin variants v1 (W18-13,
+# CODE_HEALTH_SUITE.md §1/§9).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied, adapted or derived
+# from the Semgrep registry (DESIGN_REVIEW.md G-18). `metadata.source` names the
+# bpm-opencode-experts rule each check implements, as in anti-slop.v1.yaml.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): its findings are stamped experimental and
+# kept out of scores until an admin promotes it on evidence (§8.2).
+#
+# The JVM idioms differ from the JS ones in ways that matter for precision:
+#   - A caught exception named `ignored`/`expected` is the Java community's way
+#     of writing "this empty catch is deliberate" (IntelliJ's own inspection
+#     honours it). A rule that fires on those fires on code whose author already
+#     did the thing the message asks for.
+#   - A catch of a SPECIFIC exception returning a default is the ordinary
+#     parse-or-default idiom (`catch (NumberFormatException e) { return -1; }`).
+#     The slop shape is the catch-everything version, so only Exception,
+#     Throwable and RuntimeException are matched.
+rules:
+  - id: bpm-ch-java-empty-catch
+    languages: [java]
+    severity: WARNING
+    message: >-
+      An empty catch block, or one whose only act is printStackTrace(). The
+      failure still happened; stderr in a server is a file nobody reads. Handle
+      it, log it through the logger, or name the variable `ignored` and say in
+      a comment why it is safe to drop.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              try { ... } catch ($T $E) { }
+          - pattern-inside: |
+              try { ... } catch ($T $E) { $E.printStackTrace(); }
+      # A pattern cannot see comments, so `{ }` and `{ // why }` are the same
+      # tree. The regex can, and the difference is the whole point: a catch
+      # whose comment says why the failure is safe to drop is the thing this
+      # message asks for. On the real-code sample most comment-only catches
+      # were exactly that (`// Ignore - null test below handles this`).
+      - pattern-regex: catch\s*\(\s*(final\s+)?[\w.]+(\s*\|\s*[\w.]+)*\s+(?!ignored?\b|expected\b|ignore[A-Z_])\w+\s*\)\s*\{\s*(\w+\.printStackTrace\(\)\s*;\s*)?\}
+
+  - id: bpm-ch-kt-empty-catch
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      An empty catch block, or one whose only act is printStackTrace(). The
+      failure still happened; nobody will know. Handle it, log it, or name the
+      variable `ignored`/`_` and say in a comment why it is safe to drop.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              try { ... } catch ($E: $T) { }
+          - pattern-inside: |
+              try { ... } catch ($E: $T) { $E.printStackTrace() }
+      # Truly empty only — see bpm-ch-java-empty-catch on comments.
+      - pattern-regex: catch\s*\(\s*(?!ignored?\b|expected\b|_\b|ignore[A-Z_])\w+\s*:\s*[\w.]+\s*\)\s*\{\s*(\w+\.printStackTrace\(\)\s*)?\}
+
+  - id: bpm-ch-java-silent-fallback-return
+    languages: [java]
+    severity: WARNING
+    message: >-
+      Catches everything and returns an empty value. The caller cannot tell
+      "there is nothing" from "we failed to find out" — catch the specific
+      exception you expect, or let the failure reach someone who can act on it.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              try { ... } catch ($T $E) { return $DEFAULT; }
+          - pattern-inside: |
+              try { ... } catch ($T $E) { $E.printStackTrace(); return $DEFAULT; }
+      # Catch-all, and with no comment saying why the default is safe (a
+      # `// pre-Java-9 runtime: fall back` was the common documented case).
+      - pattern-regex: catch\s*\(\s*(final\s+)?(java\.lang\.)?(Exception|Throwable|RuntimeException)\s+\w+\s*\)\s*\{\s*(\w+\.printStackTrace\(\)\s*;\s*)?return\b[^;{}/]*;\s*\}
+      # Matched as the WHOLE returned text: a metavariable-pattern would search
+      # inside it, and `return compute(null)` is not an empty default.
+      - metavariable-regex:
+          metavariable: $DEFAULT
+          regex: ^(null|false|0|""|Collections\.empty(List|Map|Set)\(\)|(List|Map|Set)\.of\(\)|Optional\.empty\(\)|new (ArrayList|HashMap|HashSet)<>\(\))$
+
+  - id: bpm-ch-kt-silent-fallback
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      Catches everything and yields an empty value. The caller cannot tell
+      "there is nothing" from "we failed to find out" — and in a coroutine a
+      catch-all also eats CancellationException, so the job stops cancelling.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-inside: |
+          try { ... } catch ($E: $T) { $DEFAULT }
+      # The default is matched as TEXT rather than with a metavariable-pattern:
+      # the Kotlin pattern parser stalls on a bare `null` pattern (semgrep
+      # 1.181), and a rule that hangs the engine is worse than one that is
+      # missing. Text also lets a comment in the body (the documented case) and
+      # a `_` catch variable (Kotlin's own "deliberately unused") opt out.
+      - pattern-regex: catch\s*\(\s*(?!_\b)\w+\s*:\s*(Exception|Throwable|RuntimeException)\s*\)\s*\{\s*(return\s+)?(null|false|0|""|emptyList\(\)|emptyMap\(\)|emptySet\(\)|listOf\(\)|mapOf\(\))\s*\}
+
+  - id: bpm-ch-kt-run-catching-swallow
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      runCatching { }.getOrNull() turns every failure — including
+      CancellationException and OutOfMemoryError, since runCatching catches
+      Throwable — into a null nobody can distinguish from "no value". If one
+      exception is expected, catch that one.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: runCatching { ... }.getOrNull()
+      - pattern: $X.runCatching { ... }.getOrNull()
+      - pattern: 'runCatching { ... }.getOrDefault($D)'
+
+  - id: bpm-ch-java-try-catch-in-loop
+    languages: [java]
+    severity: INFO
+    message: >-
+      A catch-everything inside a loop whose only act is `continue`. Any
+      failure, of any kind, is swallowed N times with nobody counting; if
+      skipping bad items is deliberate, catch the specific exception and record
+      how many were skipped.
+    metadata:
+      source: R-02
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Narrower than the JS rule on purpose: a per-item try/catch that logs or
+        collects the error is the CORRECT way to process a batch in Java, and
+        `catch (NoSuchMethodException e) { continue; }` is how a reflective
+        search loop is written. Only a catch-all that continues without trace
+        is matched.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: |
+              do { ... } while (...);
+      # An EMPTY catch in a loop is already bpm-ch-java-empty-catch; one fact,
+      # one finding.
+      - pattern-inside: |
+          try { ... } catch ($T $E) { continue; }
+      - pattern-regex: catch\s*\(\s*(final\s+)?(java\.lang\.)?(Exception|Throwable|RuntimeException)\s+\w+\s*\)\s*\{\s*continue\s*;\s*\}
+
+  - id: bpm-ch-java-stub-as-feature
+    languages: [java]
+    severity: WARNING
+    message: >-
+      A method that exists and does nothing but refuse. A caller sees the
+      method's name, not the throw — which is how "we support that" survives
+      into a demo. A bare UnsupportedOperationException() (an immutable view, a
+      deliberately refused operation) is not matched; a "not implemented" one is.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      # The WHOLE message must be the stub marker. "Not implemented for
+      # ObjectReader" is a library refusing an operation by design, and the
+      # real-code sample had those next to genuine "Not yet implemented"s.
+      - pattern-regex: throw\s+new\s+\w*(Exception|Error)\(\s*"(?i)\s*(not (yet )?implemented|unimplemented|implement me|tbd)\s*[.!]*\s*"\s*\)
+      - pattern-regex: throw\s+new\s+\w*(Exception|Error)\(\s*"(?i)\s*todo\b[^"]*"\s*\)
+      - pattern-regex: throw\s+new\s+\w*(Exception|Error)\(\s*"(?i)[^"]*\bcoming soon\b[^"]*"\s*\)
+      - pattern-regex: throw\s+new\s+(org\.apache\.commons\.lang3?\.)?NotImplementedException\(
+
+  - id: bpm-ch-kt-todo-stub
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      TODO() compiles, ships, and throws NotImplementedError the first time the
+      path runs. As a feature it reads as a capability from the outside; leave
+      it in a branch, not a release.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # A TODO() in a test double is a deliberate "this must not be called".
+        - '**/src/test/**'
+        - '**/src/androidTest/**'
+        - '*Test.kt'
+        - '*Tests.kt'
+    pattern-either:
+      - pattern: TODO()
+      - pattern: TODO($MSG)
+
+  - id: bpm-ch-jvm-what-comment
+    languages: [java, kotlin]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches the mechanical phrasings only ("// increment the counter",
+        "// loop through the items"), and only when CODE follows on the next
+        line: the same words over a blank line are a section header ("// Set
+        operations"), not narration. A redundant comment written in natural
+        prose is a judgement call and belongs to the LLM layer.
+    pattern-regex: >-
+      (?im)^[ \t]*//[ \t]*(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new)[ \t]+(the[ \t]+)?\w+[ \t]*\.?[ \t]*\n[ \t]*[^\s/*]
+
+  - id: bpm-ch-jvm-step-narration
+    languages: [java, kotlin]
+    severity: INFO
+    message: >-
+      Step-numbered narration. Three of these in a row usually means the code
+      was written to a plan and the plan was left behind as comments; the
+      structure they describe should be methods with names.
+    metadata:
+      source: R-14
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '(?m)^[ \t]*//[ \t]*(Step|STEP)[ \t]*\d+[ \t]*[:.\-]'
+
+  - id: bpm-ch-jvm-prose-padding
+    languages: [java, kotlin]
+    severity: INFO
+    message: >-
+      Filler phrasing in a comment. "It is important to note that" and its
+      relatives carry no information — they are what a model produces when it
+      has nothing specific to say.
+    metadata:
+      source: R-29
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A phrase list, not a measure of density. The LDR calculation is the
+        real answer and is computed in the anti_slop scanner, not here.
+    pattern-regex: >-
+      (?i)//.*\b(it is important to note|it should be noted|as we can see|in order to be able to|this (method|function|class) is responsible for|needless to say|at the end of the day)\b

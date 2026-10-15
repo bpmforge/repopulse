@@ -1,0 +1,279 @@
+# bpm-rulepacks — anti-slop, Rust variants v1 (W18-14, CODE_HEALTH_SUITE.md §1/§9).
+#
+# PROVENANCE: every rule below was written for this repository. NONE is copied,
+# adapted or derived from the Semgrep registry or from Clippy's lint set —
+# Clippy has lints with overlapping intent (unwrap_used, panic, todo), and these
+# rules are deliberately narrower than them because a scanner nobody configured
+# cannot know which of a crate's panics are documented contract.
+#
+# WHAT "LIBRARY CODE" MEANS HERE, and why the excludes are what they are.
+# A panic in a library happens in somebody else's process, so that is where
+# these rules fire. Not in:
+#   - tests/, benches/, examples/, fuzz/ and test modules: a test that unwraps
+#     is a test that fails loudly, which is the point of it.
+#   - build.rs: a build script that cannot proceed SHOULD stop the build, and
+#     Cargo prints its panic as the build error.
+#   - main.rs and src/bin/: a binary owns its process. Exiting with a
+#     message at the entry point is an accepted idiom; doing it from a library
+#     function the binary happens to call is not, and that is still covered.
+#
+# WHY THE PANIC RULES ARE NARROW. Measured on twelve popular crates (tokio,
+# hyper, reqwest, clap_builder, serde_json, regex, ...): a bare "any unwrap
+# outside tests" rule fired 313 times and a bare "any panic!" 109 times, and
+# most of those were documented internal invariants — `take().unwrap()` on a
+# future polled once, "inconsistent park state". So the rules fire only where
+# the function ALREADY HAS AN ERROR CHANNEL (returns Result or Option) and
+# panics anyway, or where an Err is turned into a panic on the spot. That is
+# the shape nobody can defend as an invariant: the caller was promised a
+# Result and gets an abort.
+#
+# TEST REGIONS. The Rust parser in semgrep 1.181 (and Opengrep) cannot match an
+# attribute, and a metavariable cannot stand for a module name — so
+# `#[cfg(test)] mod unit { }` is invisible to a structural pattern. The rules
+# therefore drop findings that fall inside a TEXT region: from a
+# `#[cfg(test)]` / `#[cfg(all(test, ...))]` / `#[test]` / `#[tokio::test]`
+# attribute on a mod, fn or impl to the closing brace at the attribute's own
+# indentation (rustfmt's layout; hand-formatted code just gets fewer
+# exclusions, never more findings). `#[cfg(not(test))]` is production code and
+# is not excluded. Out-of-line `#[cfg(test)] mod tests;` lives in tests.rs /
+# test.rs, which the path excludes cover.
+#
+# No metavariable can stand for a macro name either, which is why each macro
+# is spelled out.
+rules:
+  - id: bpm-ch-rs-unwrap-in-lib
+    languages: [rust]
+    severity: INFO
+    message: >-
+      .unwrap() / .expect() inside a function that already returns a Result or
+      an Option. The function has an error channel and panics instead of using
+      it, so the caller — promised a Result — gets an abort in their process.
+      Use `?` (with `ok_or` / `map_err` where the types differ); if this truly
+      cannot fail, say why in a comment so the next reader does not have to
+      re-derive it.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A type checker would know whether the receiver can fail; a pattern does
+        not. `.expect` is matched only with a string-literal message, which is
+        the std signature — parsers often have their own `expect(Token)` that
+        returns a Result, and that is not a panic. Unwraps in functions with no
+        error channel are deliberately out of scope (see the header).
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - 'fuzz/**'
+        - 'build.rs'
+        - 'main.rs'
+        - 'src/bin/**'
+        - 'tests.rs'
+        - 'test.rs'
+    patterns:
+      # One pattern-inside and a regex on the return type, not one
+      # pattern-inside per spelling: five nested-ellipsis matches per function
+      # timed out on hyper's 3,000-line role.rs under a loaded scanner.
+      - pattern-inside: |
+          fn $F(...) -> $RET { ... }
+      - metavariable-regex:
+          metavariable: $RET
+          regex: ^(?:[\w:]*::)?(?:Result|Option)\s*<
+      - pattern-either:
+          - pattern: $X.unwrap()
+          - pattern: $X.expect("...")
+      - pattern-not-inside: |
+          mod tests { ... }
+      # Test code by attribute (see TEST REGIONS in the header).
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+      # Lock poisoning: unwrapping it is the documented idiom, and the panic it
+      # propagates is another thread's panic, not a new one.
+      - pattern-not: $L.lock().unwrap()
+      - pattern-not: $L.read().unwrap()
+      - pattern-not: $L.write().unwrap()
+      - pattern-not: $L.lock().expect("...")
+      # A literal that compiles today compiles tomorrow: a regex or a parse of
+      # a constant cannot fail at run time unless the source text changes.
+      - pattern-not: Regex::new("...").unwrap()
+      - pattern-not: $R::Regex::new("...").unwrap()
+      - pattern-not: '"...".parse().unwrap()'
+      - pattern-not: '"...".parse::<$T>().unwrap()'
+      # write! into a String cannot fail, and the pattern cannot tell a String
+      # from a socket — so neither is flagged.
+      - pattern-not: write!(...).unwrap()
+      - pattern-not: writeln!(...).unwrap()
+
+  - id: bpm-ch-rs-stub-as-feature
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      todo!() / unimplemented!() in shipped code. The function compiles, has a
+      name and a signature, and panics on the first call — a capability that
+      exists from the outside and not from the inside.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - 'tests.rs'
+        - 'test.rs'
+    patterns:
+      - pattern-either:
+          - pattern: todo!(...)
+          - pattern: unimplemented!(...)
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+
+  - id: bpm-ch-rs-panic-in-lib
+    languages: [rust]
+    severity: INFO
+    message: >-
+      panic!() where an error could have been returned: inside a function that
+      returns a Result, or on the Err path of a fallible call. The failure was
+      already a value the caller could handle; this turns it into an abort of
+      the caller's thread — in a server, a request lost with no error to send.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A panic for a broken internal invariant in a function with no error
+        channel is not matched (see the header) — that is what unreachable!()
+        and `# Panics` doc sections are for, and telling the two apart is
+        judgement.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - 'fuzz/**'
+        - 'build.rs'
+        - 'main.rs'
+        - 'src/bin/**'
+        - 'tests.rs'
+        - 'test.rs'
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-inside: |
+                  fn $F(...) -> $RET { ... }
+              - metavariable-regex:
+                  metavariable: $RET
+                  regex: ^(?:[\w:]*::)?Result\s*<
+              - pattern: panic!(...)
+          # Two arms only: the Rust parser rejects an ellipsis between arms.
+          - pattern: |
+              match $R { $P => $B, Err($ERR) => panic!(...) }
+          - pattern: |
+              match $R { Err($ERR) => panic!(...), $P => $B }
+          - pattern: $X.unwrap_or_else(|$ERR| panic!(...))
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}
+
+  - id: bpm-ch-rs-swallowed-err
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A match arm that receives an Err and does nothing with it. The failure
+      still happened; the only thing removed was anyone's chance of knowing.
+      If ignoring it is right, say why in the arm — a comment, a debug log, a
+      counter.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Two-arm matches with an empty-block Err arm only. The Rust parser
+        rejects an ellipsis between arms here, and a unit `()` arm pattern
+        over-matches in the engine (it fired on `Err(_) => Err(SendError(()))`
+        in tokio), so `Err(_) => ()` is not covered. A comment inside the
+        empty block is invisible to the engine, so `Err(_) => {} // why`
+        still fires — the clean fixture shows the forms that do not.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - 'tests.rs'
+        - 'test.rs'
+    pattern-either:
+      - pattern: |
+          match $R { Err($E) => {}, $P => $B }
+      - pattern: |
+          match $R { $P => $B, Err($E) => {} }
+
+  - id: bpm-ch-rs-discarded-write
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      The Result of a write is thrown away. A failed write_all, flush or
+      fs::write is data that did not land, and nothing downstream can tell —
+      this is the shape behind truncated files nobody noticed until they were
+      read back.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Restricted to writes on purpose. `let _ = tx.send(x)` and `.ok();` on a
+        channel send or a best-effort cleanup are idiomatic "I know, and I do
+        not care" — flagging every discarded Result would make the rule the
+        noise it exists to remove.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - 'tests.rs'
+        - 'test.rs'
+    pattern-either:
+      - pattern: let _ = $W.write_all(...);
+      - pattern: let _ = $W.flush();
+      - pattern: let _ = $W.sync_all();
+      - pattern: let _ = std::fs::write(...);
+      - pattern: let _ = fs::write(...);
+      # `.ok();` as a statement. Matched as an expression inside the statement
+      # because the statement pattern alone reports twice (with and without
+      # the semicolon) in semgrep 1.181.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: $W.write_all(...).ok();
+              - pattern-inside: $W.flush().ok();
+              - pattern-inside: $W.sync_all().ok();
+              - pattern-inside: std::fs::write(...).ok();
+              - pattern-inside: fs::write(...).ok();
+          - pattern: $E.ok()
+
+  - id: bpm-ch-rs-what-comment
+    languages: [rust]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches the mechanical phrasings only ("// increment the counter",
+        "// clone the vector"), and only as a stand-alone one-line comment: a
+        line inside a longer comment ("...before the call\n// returns.") is
+        prose, not narration. Doc comments (`///`, `//!`) never match — they
+        describe an interface, which is their job.
+    pattern-regex: >-
+      (?mi)^(?![ \t]*//)[^\n]*\n\K[ \t]*//[ \t]*(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new|clone|unwrap|push)[ \t]+(the[ \t]+)?\w+[ \t]*\.?[ \t]*$(?!\n[ \t]*//)

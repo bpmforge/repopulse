@@ -2,10 +2,11 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
-import { security, type Database } from '@repopulse/shared';
+import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeProvider } from '@repopulse/forge';
 import { shred, snapshotForScan } from '../../snapshot/index.js';
+import { shadowFindings } from '../../rules/shadow.js';
 import { runSemgrepScan, SEMGREP_SCANNER_KEY, toIncomingFindings } from './scanner.js';
 
 // Full and incremental modes (W8-07, SECURITY_SUITE.md §3.3 / §4).
@@ -137,7 +138,12 @@ export async function runSemgrepFull(
           };
         }
 
-        const findings = toIncomingFindings(scan.findings);
+        // Candidate rules land in shadow; deprecated ones are dropped here
+        // rather than at the engine, so the pack mounted into the sandbox
+        // stays one immutable asset for every workspace.
+        const findings = toIncomingFindings(
+          await shadowFindings(deps.db, deps.workspaceId, scan.findings),
+        );
         const persisted = await persistFindings(deps.db, {
           workspaceId: deps.workspaceId,
           repoId: deps.repoId,
@@ -169,20 +175,23 @@ export async function runSemgrepFull(
       },
     );
   } catch (err) {
-    await closeRun(deps, runId, { status: 'failed', error: (err as Error).message.slice(0, 500) });
+    await closeRun(deps, runId, { status: 'failed', error: safeErrorText(err).slice(0, 500) });
     return {
       status: 'failed',
       findingsCreated: 0,
       findingsTotal: 0,
       scanRunId: runId,
       toolErrors: [],
-      error: (err as Error).message,
+      error: safeErrorText(err),
       filesScanned: null,
     };
   }
 }
 
-const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs)$/;
+// Every language the shipped packs have rules for. Semgrep itself routes rules
+// by extension, so a file here with no rules costs a parse and nothing more —
+// but a language missing here means its rules never run on a PR at all.
+const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs|cs|php|rb|go|py|rs|java|kt|kts)$/;
 
 /**
  * INCREMENTAL mode: the files a PR touched, fetched one by one.
@@ -261,7 +270,9 @@ export async function runSemgrepIncremental(
       };
     }
 
-    const findings = toIncomingFindings(scan.findings);
+    const findings = toIncomingFindings(
+      await shadowFindings(deps.db, deps.workspaceId, scan.findings),
+    );
     const persisted = await persistFindings(deps.db, {
       workspaceId: deps.workspaceId,
       repoId: deps.repoId,
@@ -290,14 +301,14 @@ export async function runSemgrepIncremental(
       filesScanned: written,
     };
   } catch (err) {
-    await closeRun(deps, runId, { status: 'failed', error: (err as Error).message.slice(0, 500) });
+    await closeRun(deps, runId, { status: 'failed', error: safeErrorText(err).slice(0, 500) });
     return {
       status: 'failed',
       findingsCreated: 0,
       findingsTotal: 0,
       scanRunId: runId,
       toolErrors: [],
-      error: (err as Error).message,
+      error: safeErrorText(err),
       filesScanned: null,
     };
   } finally {

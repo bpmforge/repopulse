@@ -1,0 +1,1524 @@
+# bpm-rulepacks — model output used without validation (W18-09, R-28,
+# mechanical-checks plan §E, CODE_HEALTH_SUITE.md §1).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied, adapted or derived
+# from the Semgrep registry (DESIGN_REVIEW.md G-18); every rule says so in its
+# metadata.
+#
+# WHAT IS BEING CAUGHT. Text a model wrote is input from whoever wrote the
+# prompt, the documents it retrieved and the pages it read — prompt injection
+# makes any of them the author. The shape AI-written code produces most often is
+# `JSON.parse(completion.choices[0].message.content)` followed by `data.command`,
+# `data.sql` or `data.path`, as if the model were a typed API. These are TAINT
+# rules because the question is a flow, not a call: the model response is the
+# source, a schema check is what cleans it, and the sink is wherever its text
+# becomes code, a query, markup, a path — or a parsed object nobody checked.
+#
+# SOURCES are SDK response fields, not every variable called `response`:
+#   - OpenAI-shaped `.choices[i].message|text|delta` — also LiteLLM, Groq,
+#     Together, OpenRouter, DeepSeek and Ollama's OpenAI-compatible endpoint,
+#     which all return that shape — and Responses-API `output_text`;
+#   - Anthropic `messages.create` / `messages.stream` results and
+#     `.content[i].text`, in files that import the Anthropic SDK;
+#   - Google GenAI `generateContent` / `generate_content` results;
+#   - Ollama `chat` / `generate`, module-level or through its client;
+#   - LangChain chat models' `.invoke(...).content`, in files importing one;
+#   - the Vercel AI SDK's `generateText` / `streamText` results;
+#   - LiteLLM `completion` / `acompletion`, dict subscripts included.
+# Structured output is NOT a source: `.parsed`, `output_parsed`,
+# `generateObject().object` and `experimental_output` came through a schema.
+#
+# SANITIZERS are schema validation (zod, valibot, ajv, yup, pydantic,
+# jsonschema, marshmallow), structured-output fields, and conversions that leave
+# no text behind. Each rule adds only the escapes that clean ITS sink —
+# DOMPurify for markup, a quoting helper for a shell, basename for a path. An
+# escape for a different sink is not a sanitizer: html.escape does nothing for
+# SQL.
+#
+# THE ENGINE IS OPENGREP in production (semgrep-compatible format). Validated at
+# authoring time with semgrep 1.181.0 against fixtures/llm-output/ and a corpus
+# of open-source LLM apps and agents (W18-09 ticket note). Engine behaviour that
+# shaped the patterns:
+#   - `metavariable-regex` is anchored at the start of the bound text, so the
+#     regexes below begin with `.*` wherever a suffix is what matters;
+#   - `a?.b` does not match a pattern written `a.b`, so optional-chaining forms
+#     are spelled out;
+#   - no YAML anchors: shared source and sanitizer lists are written out per
+#     rule, so nothing depends on how a given engine build resolves aliases;
+#   - `$X.exec(...)` is never a JS sink unless the receiver is named for
+#     child_process: `RegExp.prototype.exec` is the most common call by that
+#     name in code that post-processes model output (fences, JSON blocks);
+#   - a pattern-not-inside line written `<... e ...>;` matches expression
+#     statements only, so the validation forms below carry no semicolon and
+#     also match `return Schema.parse(raw)` and `if (!Schema.safeParse(raw)…)`.
+#
+# EVERY RULE IS A CANDIDATE (`metadata.lifecycle: candidate`, §8.2): it runs in
+# shadow and its findings stay out of scores until an admin promotes it on
+# evidence. Test files are excluded — a mocked completion fed to JSON.parse in a
+# test is the test working.
+rules:
+  # ===========================================================================
+  # JavaScript / TypeScript
+  # ===========================================================================
+  - id: bpm-llm-output-exec
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Model output reaches code execution (eval, Function, vm or a child
+      process). Whatever the model was shown — a retrieved document, a web
+      page, a user's message — can steer what it writes, so this runs text an
+      attacker can influence. Map a schema-validated field onto an allowlisted
+      action instead, or run generated code in a sandbox with nothing worth
+      taking.
+    metadata:
+      source: R-28
+      category: security
+      cwe: 'CWE-94: Improper Control of Generation of Code'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # OpenAI-shaped chat/completions responses (also LiteLLM proxy, Groq,
+      # Together, OpenRouter, DeepSeek, Ollama's /v1 endpoint).
+      - pattern: $R.choices[$I].message
+      - pattern: $R.choices[$I]?.message
+      - pattern: $R?.choices[$I]?.message
+      - pattern: $R.choices[$I].text
+      - pattern: $R.choices[$I]?.text
+      - pattern: $R.choices[$I].delta
+      - pattern: $R.choices[$I]?.delta
+      - pattern: $R?.choices[$I]?.delta
+      # OpenAI Responses API.
+      - pattern: $R.output_text
+      # Anthropic: the whole response (tool_use blocks carry model-written input
+      # too) — only in a file that imports the SDK. `.content[0].text` is also the
+      # shape of an MCP tool result, and `messages.create` is Twilio's SMS call.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import $SDK from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  import { $SDK } from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  import * as $SDK from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  $SDK = require('@anthropic-ai/sdk');
+                  ...
+          - pattern-either:
+              - pattern: $C.messages.create(...)
+              - pattern: $C.messages.stream(...)
+              - pattern: $C.beta.messages.create(...)
+              - pattern: $R.content[$I].text
+              - pattern: $R.content[$I]?.text
+      # Google GenAI (both the old and the new SDK name the call this way).
+      - pattern: $M.generateContent(...)
+      - pattern: $M.generateContentStream(...)
+      # Ollama.
+      - pattern: ollama.chat(...)
+      - pattern: ollama.generate(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $O.chat(...)
+              - pattern: $O.generate(...)
+          - pattern-inside: |
+              $O = new Ollama(...);
+              ...
+      # LangChain chat models, in a file that imports one: `.invoke` alone is
+      # every Runnable, Electron IPC and AWS Lambda.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/openai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/anthropic';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/google-genai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/ollama';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/aws';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/mistralai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/groq';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/community/chat_models';
+                  ...
+          - pattern-either:
+              - pattern: (await $LLM.invoke(...)).content
+              - patterns:
+                  - pattern: $MSG.content
+                  - pattern-inside: |
+                      $MSG = await $LLM.invoke(...);
+                      ...
+      # Vercel AI SDK.
+      - pattern: generateText(...)
+      - pattern: streamText(...)
+    pattern-sanitizers:
+      # Structured output: the SDK already parsed against a schema.
+      - pattern: $R.choices[$I].message.parsed
+      - pattern: $R.choices[$I]?.message?.parsed
+      - pattern: $R.output_parsed
+      - pattern: $R.experimental_output
+      # zod / yup / superstruct-style objects named for what they are, and an
+      # inline `z.object({...}).parse(...)`.
+      - patterns:
+          - pattern-either:
+              - pattern: $S.parse(...)
+              - pattern: $S.safeParse(...)
+              - pattern: $S.parseAsync(...)
+              - pattern: $S.safeParseAsync(...)
+              - pattern: $S.validate(...)
+              - pattern: $S.validateSync(...)
+              - pattern: $S.cast(...)
+              - pattern: $S.decode(...)
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?is)(.*(schema|validator|parser)\s*$|z\s*\.)
+      # valibot: v.parse(Schema, data)
+      - patterns:
+          - pattern-either:
+              - pattern: $V.parse($SCH, $X)
+              - pattern: $V.safeParse($SCH, $X)
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^(v|valibot)$
+      # ajv, compiled validators and type guards check the value in place.
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: $AJV.validate($SCH, $X)
+              - patterns:
+                  - pattern: $CHECK($X)
+                  - metavariable-regex:
+                      metavariable: $CHECK
+                      regex: ^(validate\w*|is[A-Z]\w*|assert[A-Z]\w*)$
+              - patterns:
+                  - pattern: $VALIDATE($X)
+                  - pattern-inside: |
+                      $VALIDATE = $AJV.compile(...);
+                      ...
+          - focus-metavariable: $X
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: shellescape(...)
+      - pattern: shellQuote.quote(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: eval($X)
+              - pattern: new Function(..., $X)
+              - pattern: Function(..., $X)
+              - pattern: $VM.runInNewContext($X, ...)
+              - pattern: $VM.runInThisContext($X, ...)
+              - pattern: $VM.runInContext($X, ...)
+              - pattern: new $VM.Script($X, ...)
+              - pattern: execaCommand($X, ...)
+              - pattern: execaCommandSync($X, ...)
+              - pattern: $EXECA.execaCommand($X, ...)
+              - pattern: $EXECA.execaCommandSync($X, ...)
+              # Bare calls: what `import { exec } from 'node:child_process'`
+              # and its promisified forms look like at the call site. A bare
+              # `exec(…)` in JS is a shell; `RegExp#exec` always has a receiver.
+              - pattern: exec($X, ...)
+              - pattern: execSync($X, ...)
+              - pattern: execAsync($X, ...)
+              - pattern: execPromise($X, ...)
+              - pattern: spawn($X, ...)
+              - pattern: spawnSync($X, ...)
+              - pattern: execFile($X, ...)
+              - pattern: execFileSync($X, ...)
+              - pattern: require('child_process').$CPF($X, ...)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern: $CP.$CPF($X, ...)
+          - metavariable-regex:
+              metavariable: $CP
+              regex: (?i)^(child_?process|cp)$
+          - metavariable-regex:
+              metavariable: $CPF
+              regex: ^(exec|execSync|spawn|spawnSync|execFile|execFileSync)$
+          - focus-metavariable: $X
+
+  - id: bpm-llm-output-injection
+    mode: taint
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Model output reaches a SQL string, an HTML sink or a filesystem path
+      without validation. Prompt injection makes the model's text attacker
+      text: generated SQL can read any table, generated markup runs script in
+      the user's session, and a generated path can climb out of its directory.
+      Validate the response against a schema and allowlist what it may name;
+      parameterise the query, sanitize the markup, resolve the path under a
+      fixed root.
+    metadata:
+      source: R-28
+      category: security
+      cwe: 'CWE-74: Improper Neutralization of Special Elements in Output Used by a Downstream Component'
+      yields: ['sql-injection', 'xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # OpenAI-shaped chat/completions responses (also LiteLLM proxy, Groq,
+      # Together, OpenRouter, DeepSeek, Ollama's /v1 endpoint).
+      - pattern: $R.choices[$I].message
+      - pattern: $R.choices[$I]?.message
+      - pattern: $R?.choices[$I]?.message
+      - pattern: $R.choices[$I].text
+      - pattern: $R.choices[$I]?.text
+      - pattern: $R.choices[$I].delta
+      - pattern: $R.choices[$I]?.delta
+      - pattern: $R?.choices[$I]?.delta
+      # OpenAI Responses API.
+      - pattern: $R.output_text
+      # Anthropic: the whole response (tool_use blocks carry model-written input
+      # too) — only in a file that imports the SDK. `.content[0].text` is also the
+      # shape of an MCP tool result, and `messages.create` is Twilio's SMS call.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import $SDK from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  import { $SDK } from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  import * as $SDK from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  $SDK = require('@anthropic-ai/sdk');
+                  ...
+          - pattern-either:
+              - pattern: $C.messages.create(...)
+              - pattern: $C.messages.stream(...)
+              - pattern: $C.beta.messages.create(...)
+              - pattern: $R.content[$I].text
+              - pattern: $R.content[$I]?.text
+      # Google GenAI (both the old and the new SDK name the call this way).
+      - pattern: $M.generateContent(...)
+      - pattern: $M.generateContentStream(...)
+      # Ollama.
+      - pattern: ollama.chat(...)
+      - pattern: ollama.generate(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $O.chat(...)
+              - pattern: $O.generate(...)
+          - pattern-inside: |
+              $O = new Ollama(...);
+              ...
+      # LangChain chat models, in a file that imports one: `.invoke` alone is
+      # every Runnable, Electron IPC and AWS Lambda.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/openai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/anthropic';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/google-genai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/ollama';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/aws';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/mistralai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/groq';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/community/chat_models';
+                  ...
+          - pattern-either:
+              - pattern: (await $LLM.invoke(...)).content
+              - patterns:
+                  - pattern: $MSG.content
+                  - pattern-inside: |
+                      $MSG = await $LLM.invoke(...);
+                      ...
+      # Vercel AI SDK.
+      - pattern: generateText(...)
+      - pattern: streamText(...)
+    pattern-sanitizers:
+      # Structured output: the SDK already parsed against a schema.
+      - pattern: $R.choices[$I].message.parsed
+      - pattern: $R.choices[$I]?.message?.parsed
+      - pattern: $R.output_parsed
+      - pattern: $R.experimental_output
+      # zod / yup / superstruct-style objects named for what they are, and an
+      # inline `z.object({...}).parse(...)`.
+      - patterns:
+          - pattern-either:
+              - pattern: $S.parse(...)
+              - pattern: $S.safeParse(...)
+              - pattern: $S.parseAsync(...)
+              - pattern: $S.safeParseAsync(...)
+              - pattern: $S.validate(...)
+              - pattern: $S.validateSync(...)
+              - pattern: $S.cast(...)
+              - pattern: $S.decode(...)
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?is)(.*(schema|validator|parser)\s*$|z\s*\.)
+      # valibot: v.parse(Schema, data)
+      - patterns:
+          - pattern-either:
+              - pattern: $V.parse($SCH, $X)
+              - pattern: $V.safeParse($SCH, $X)
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^(v|valibot)$
+      # ajv, compiled validators and type guards check the value in place.
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: $AJV.validate($SCH, $X)
+              - patterns:
+                  - pattern: $CHECK($X)
+                  - metavariable-regex:
+                      metavariable: $CHECK
+                      regex: ^(validate\w*|is[A-Z]\w*|assert[A-Z]\w*)$
+              - patterns:
+                  - pattern: $VALIDATE($X)
+                  - pattern-inside: |
+                      $VALIDATE = $AJV.compile(...);
+                      ...
+          - focus-metavariable: $X
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      # Markup and path escapes — only this rule's sinks are cleaned by them.
+      - pattern: DOMPurify.sanitize(...)
+      - pattern: $PURIFY.sanitize(...)
+      - pattern: sanitizeHtml(...)
+      - pattern: sanitize(...)
+      - pattern: xss(...)
+      - pattern: filterXSS(...)
+      - pattern: escapeHtml(...)
+      - pattern: escape(...)
+      - pattern: he.encode(...)
+      - pattern: he.escape(...)
+      - pattern: path.basename(...)
+      - pattern: basename(...)
+    pattern-sinks:
+      # SQL: the query text. A bound parameter is not a sink — it is the fix.
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.query($SQL, ...)
+              - pattern: $DB.raw($SQL, ...)
+              - pattern: $DB.execute($SQL, ...)
+              - pattern: $DB.exec($SQL, ...)
+              - pattern: $DB.prepare($SQL, ...)
+              - pattern: $DB.unsafe($SQL, ...)
+              - pattern: $DB.$queryRawUnsafe($SQL, ...)
+              - pattern: $DB.$executeRawUnsafe($SQL, ...)
+          - metavariable-regex:
+              metavariable: $DB
+              regex: (?i)^(\w+\.)*(db|database|conn|connection|pool|knex|sequelize|sql|pg|mysql|sqlite|tx|trx|prisma|\w*(db|database|conn|connection|pool|sql))$
+          - focus-metavariable: $SQL
+      # Markup.
+      - patterns:
+          - pattern-either:
+              - pattern: $E.innerHTML = $X
+              - pattern: $E.innerHTML += $X
+              - pattern: $E.outerHTML = $X
+              - pattern: $E.insertAdjacentHTML($POS, $X)
+              - pattern: document.write($X)
+              - pattern: document.writeln($X)
+              - pattern: |
+                  <$T dangerouslySetInnerHTML={{__html: $X}} />
+              - pattern: |
+                  <$T dangerouslySetInnerHTML={{__html: $X}}>...</$T>
+          - focus-metavariable: $X
+      # Filesystem paths — the first argument only. Writing model text INTO a
+      # file is fine; letting it choose WHICH file is the problem.
+      - patterns:
+          - pattern-either:
+              - pattern: fs.$FSF($P, ...)
+              - pattern: fs.promises.$FSF($P, ...)
+              - patterns:
+                  - pattern: $FS.$FSF($P, ...)
+                  - metavariable-regex:
+                      metavariable: $FS
+                      regex: ^(fsp|fsPromises|fse|fsExtra|promises)$
+              - pattern: $FSF($P, ...)
+          - metavariable-regex:
+              metavariable: $FSF
+              regex: ^(readFile|readFileSync|writeFile|writeFileSync|appendFile|appendFileSync|unlink|unlinkSync|rm|rmSync|rmdir|rmdirSync|mkdir|mkdirSync|createReadStream|createWriteStream|rename|renameSync|copyFile|copyFileSync|outputFile|outputFileSync|remove|removeSync)$
+          - focus-metavariable: $P
+
+  - id: bpm-llm-output-json-unvalidated
+    mode: taint
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Model output is parsed as JSON and used with no schema check. A model
+      returns the shape it was asked for most of the time; the rest of the time
+      it returns a different shape, a truncated object or prose around the
+      JSON, and every field read after this line is a guess. Validate with a
+      schema (zod, valibot, ajv) or request structured output and read the
+      parsed result.
+    metadata:
+      source: R-28
+      category: code_health
+      cwe: 'CWE-20: Improper Input Validation'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # OpenAI-shaped chat/completions responses (also LiteLLM proxy, Groq,
+      # Together, OpenRouter, DeepSeek, Ollama's /v1 endpoint).
+      - pattern: $R.choices[$I].message
+      - pattern: $R.choices[$I]?.message
+      - pattern: $R?.choices[$I]?.message
+      - pattern: $R.choices[$I].text
+      - pattern: $R.choices[$I]?.text
+      - pattern: $R.choices[$I].delta
+      - pattern: $R.choices[$I]?.delta
+      - pattern: $R?.choices[$I]?.delta
+      # OpenAI Responses API.
+      - pattern: $R.output_text
+      # Anthropic: the whole response (tool_use blocks carry model-written input
+      # too) — only in a file that imports the SDK. `.content[0].text` is also the
+      # shape of an MCP tool result, and `messages.create` is Twilio's SMS call.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import $SDK from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  import { $SDK } from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  import * as $SDK from '@anthropic-ai/sdk';
+                  ...
+              - pattern-inside: |
+                  $SDK = require('@anthropic-ai/sdk');
+                  ...
+          - pattern-either:
+              - pattern: $C.messages.create(...)
+              - pattern: $C.messages.stream(...)
+              - pattern: $C.beta.messages.create(...)
+              - pattern: $R.content[$I].text
+              - pattern: $R.content[$I]?.text
+      # Google GenAI (both the old and the new SDK name the call this way).
+      - pattern: $M.generateContent(...)
+      - pattern: $M.generateContentStream(...)
+      # Ollama.
+      - pattern: ollama.chat(...)
+      - pattern: ollama.generate(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $O.chat(...)
+              - pattern: $O.generate(...)
+          - pattern-inside: |
+              $O = new Ollama(...);
+              ...
+      # LangChain chat models, in a file that imports one: `.invoke` alone is
+      # every Runnable, Electron IPC and AWS Lambda.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/openai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/anthropic';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/google-genai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/ollama';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/aws';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/mistralai';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/groq';
+                  ...
+              - pattern-inside: |
+                  import { ..., $CHAT, ... } from '@langchain/community/chat_models';
+                  ...
+          - pattern-either:
+              - pattern: (await $LLM.invoke(...)).content
+              - patterns:
+                  - pattern: $MSG.content
+                  - pattern-inside: |
+                      $MSG = await $LLM.invoke(...);
+                      ...
+      # Vercel AI SDK.
+      - pattern: generateText(...)
+      - pattern: streamText(...)
+    pattern-sanitizers:
+      # Structured output: the SDK already parsed against a schema.
+      - pattern: $R.choices[$I].message.parsed
+      - pattern: $R.choices[$I]?.message?.parsed
+      - pattern: $R.output_parsed
+      - pattern: $R.experimental_output
+      # zod / yup / superstruct-style objects named for what they are, and an
+      # inline `z.object({...}).parse(...)`.
+      - patterns:
+          - pattern-either:
+              - pattern: $S.parse(...)
+              - pattern: $S.safeParse(...)
+              - pattern: $S.parseAsync(...)
+              - pattern: $S.safeParseAsync(...)
+              - pattern: $S.validate(...)
+              - pattern: $S.validateSync(...)
+              - pattern: $S.cast(...)
+              - pattern: $S.decode(...)
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?is)(.*(schema|validator|parser)\s*$|z\s*\.)
+      # valibot: v.parse(Schema, data)
+      - patterns:
+          - pattern-either:
+              - pattern: $V.parse($SCH, $X)
+              - pattern: $V.safeParse($SCH, $X)
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^(v|valibot)$
+      # ajv, compiled validators and type guards check the value in place.
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: $AJV.validate($SCH, $X)
+              - patterns:
+                  - pattern: $CHECK($X)
+                  - metavariable-regex:
+                      metavariable: $CHECK
+                      regex: ^(validate\w*|is[A-Z]\w*|assert[A-Z]\w*)$
+              - patterns:
+                  - pattern: $VALIDATE($X)
+                  - pattern-inside: |
+                      $VALIDATE = $AJV.compile(...);
+                      ...
+          - focus-metavariable: $X
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      # Tool-call arguments are not free text: they were generated against the
+      # parameter schema the caller declared, and go on to a dispatcher whose
+      # function signature is the check. Parsing them is how every SDK hands
+      # them over. (They stay tainted for the exec and injection rules.)
+      - pattern: $X.function.arguments
+      - pattern: $X?.function?.arguments
+      - pattern: $X.function?.arguments
+      - pattern: $X.partial_json
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: JSON.parse($X, ...)
+              - pattern: JSON5.parse($X, ...)
+          - focus-metavariable: $X
+          # Validated where it is parsed.
+          - pattern-not-inside: $S.parse(..., $P.parse(...), ...)
+          - pattern-not-inside: $S.safeParse(..., $P.parse(...), ...)
+          - pattern-not-inside: $S.parseAsync(..., $P.parse(...), ...)
+          - pattern-not-inside: $S.safeParseAsync(..., $P.parse(...), ...)
+          - pattern-not-inside: $S.validate(..., $P.parse(...), ...)
+          - pattern-not-inside: $S.validateSync(..., $P.parse(...), ...)
+          - pattern-not-inside: $S.decode(..., $P.parse(...), ...)
+          - pattern-not-inside: $S.is(..., $P.parse(...), ...)
+          # Validated after it is parsed: `const raw = JSON.parse(text);
+          # const data = Schema.parse(raw)`, also when the parse sits in a
+          # try block with a fallback.
+          - pattern-not-inside: |
+              $V = $P.parse(...);
+              ...
+              <... $S.parse(..., $V, ...) ...>
+          - pattern-not-inside: |
+              $V = $P.parse(...);
+              ...
+              <... $S.safeParse(..., $V, ...) ...>
+          - pattern-not-inside: |
+              $V = $P.parse(...);
+              ...
+              <... $S.parseAsync(..., $V, ...) ...>
+          - pattern-not-inside: |
+              $V = $P.parse(...);
+              ...
+              <... $S.safeParseAsync(..., $V, ...) ...>
+          - pattern-not-inside: |
+              $V = $P.parse(...);
+              ...
+              <... $S.validate(..., $V, ...) ...>
+          - pattern-not-inside: |
+              $V = $P.parse(...);
+              ...
+              <... $S.validateSync(..., $V, ...) ...>
+          - pattern-not-inside: |
+              $V = $P.parse(...);
+              ...
+              <... $S.decode(..., $V, ...) ...>
+          # An ajv validator compiled earlier, applied to the parsed value.
+          - pattern-not-inside: |
+              $VALIDATE = $AJV.compile(...);
+              ...
+              $V = $P.parse(...);
+              ...
+              <... $VALIDATE($V) ...>
+          - pattern-not-inside: |
+              try { ... $V = $P.parse(...); ... } catch ($E) { ... }
+              ...
+              <... $S.parse(..., $V, ...) ...>
+          - pattern-not-inside: |
+              try { ... $V = $P.parse(...); ... } catch ($E) { ... }
+              ...
+              <... $S.safeParse(..., $V, ...) ...>
+          - pattern-not-inside: |
+              try { ... $V = $P.parse(...); ... } catch { ... }
+              ...
+              <... $S.parse(..., $V, ...) ...>
+          - pattern-not-inside: |
+              try { ... $V = $P.parse(...); ... } catch { ... }
+              ...
+              <... $S.safeParse(..., $V, ...) ...>
+          # Strict structured output requested in the same function: the API
+          # enforced the schema, and JSON.parse is how the SDK hands it back.
+          - pattern-not-inside: |
+              $R = await $C.create({..., response_format: zodResponseFormat(...), ...});
+              ...
+          - pattern-not-inside: |
+              $R = await $C.create({..., response_format: {..., type: "json_schema", ...}, ...});
+              ...
+
+  # ===========================================================================
+  # Python
+  # ===========================================================================
+  - id: bpm-llm-output-exec-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Model output reaches code execution (eval, exec, compile, a shell or a
+      subprocess). Whatever the model was shown — a retrieved document, a web
+      page, a user's message — can steer what it writes, so this runs text an
+      attacker can influence. Map a schema-validated field onto an allowlisted
+      action instead, or run generated code in a sandbox with nothing worth
+      taking.
+    metadata:
+      source: R-28
+      category: security
+      cwe: 'CWE-94: Improper Control of Generation of Code'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # OpenAI-shaped responses, attribute and dict style (LiteLLM, the legacy
+      # openai<1 SDK and raw HTTP clients return dicts).
+      - pattern: $R.choices[$I].message
+      - pattern: $R.choices[$I].text
+      - pattern: $R.choices[$I].delta
+      - pattern: $R["choices"][$I]["message"]
+      - pattern: $R["choices"][$I]["text"]
+      - pattern: $R["choices"][$I]["delta"]
+      - pattern: $R.output_text
+      # Anthropic — only in a file that imports the SDK. `.content[0].text` is
+      # also the shape of an MCP tool result and many other APIs, and
+      # `messages.create` is Twilio's SMS call; the import is what says which,
+      # and it also lets the engine skip every file that has none (these two
+      # patterns alone were most of the pack's run time before the gate).
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import anthropic
+                  ...
+              - pattern-inside: |
+                  from anthropic import $SDK
+                  ...
+          - pattern-either:
+              - pattern: $C.messages.create(...)
+              - pattern: $C.messages.stream(...)
+              - pattern: $C.beta.messages.create(...)
+              - pattern: $R.content[$I].text
+      # Google GenAI (google-genai and google-generativeai).
+      - pattern: $M.generate_content(...)
+      - pattern: $M.generate_content_async(...)
+      # Ollama, module-level and through a client.
+      - pattern: ollama.chat(...)
+      - pattern: ollama.generate(...)
+      - pattern: ollama.Client(...).chat(...)
+      - pattern: ollama.Client(...).generate(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $O.chat(...)
+              - pattern: $O.generate(...)
+          - pattern-either:
+              - pattern-inside: |
+                  $O = ollama.Client(...)
+                  ...
+              - pattern-inside: |
+                  $O = ollama.AsyncClient(...)
+                  ...
+      # LangChain chat models, in a file that imports one: `.invoke` alone is
+      # every Runnable, Electron IPC and AWS Lambda.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  from langchain_openai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_anthropic import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_google_genai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_google_vertexai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_ollama import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_aws import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_mistralai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_groq import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_community.chat_models import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain.chat_models import $CHAT
+                  ...
+          - pattern-either:
+              - pattern: $LLM.invoke(...).content
+              - pattern: (await $LLM.ainvoke(...)).content
+              - patterns:
+                  - pattern: $MSG.content
+                  - pattern-either:
+                      - pattern-inside: |
+                          $MSG = $LLM.invoke(...)
+                          ...
+                      - pattern-inside: |
+                          $MSG = await $LLM.ainvoke(...)
+                          ...
+      # LiteLLM.
+      - pattern: litellm.completion(...)
+      - pattern: litellm.acompletion(...)
+      - pattern: litellm.text_completion(...)
+    pattern-sanitizers:
+      # Structured output.
+      - pattern: $R.choices[$I].message.parsed
+      - pattern: $R.output_parsed
+      - pattern: $R.parsed
+      # pydantic. Spelled out rather than `$M.$P(...)` plus a regex: a pattern
+      # that matches every method call costs on every file.
+      - pattern: $M.model_validate(...)
+      - pattern: $M.model_validate_json(...)
+      - pattern: $M.model_validate_strings(...)
+      - pattern: $M.parse_obj(...)
+      - pattern: $M.parse_raw(...)
+      - pattern: $M.validate_python(...)
+      - pattern: $M.validate_json(...)
+      - pattern: pydantic.parse_obj_as(...)
+      - pattern: pydantic.TypeAdapter(...).validate_python(...)
+      - pattern: pydantic.TypeAdapter(...).validate_json(...)
+      # marshmallow: a `*schema` object's load.
+      - patterns:
+          - pattern: $S.load(...)
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?i).*schema
+      # jsonschema checks the value in place.
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: jsonschema.validate($X, ...)
+              - pattern: jsonschema.validate(instance=$X, ...)
+              - patterns:
+                  - pattern: $VAL.validate($X)
+                  - metavariable-regex:
+                      metavariable: $VAL
+                      regex: (?i).*validator
+          - focus-metavariable: $X
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: shlex.quote(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: eval($X, ...)
+              - pattern: exec($X, ...)
+              - pattern: compile($X, ...)
+              - pattern: os.system($X)
+              - pattern: os.popen($X, ...)
+              - pattern: subprocess.run($X, ...)
+              - pattern: subprocess.call($X, ...)
+              - pattern: subprocess.check_call($X, ...)
+              - pattern: subprocess.check_output($X, ...)
+              - pattern: subprocess.Popen($X, ...)
+              - pattern: subprocess.getoutput($X)
+              - pattern: subprocess.getstatusoutput($X)
+              - pattern: asyncio.create_subprocess_shell($X, ...)
+              - pattern: asyncio.create_subprocess_exec($X, ...)
+              - pattern: pexpect.spawn($X, ...)
+              - pattern: pexpect.run($X, ...)
+          - focus-metavariable: $X
+
+  - id: bpm-llm-output-injection-py
+    mode: taint
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Model output reaches a SQL string, an HTML sink (Markup, mark_safe, a
+      template string, unsafe_allow_html) or a filesystem path without
+      validation. Prompt injection makes the model's text attacker text:
+      generated SQL can read any table, generated markup runs script in the
+      user's session, and a generated path can climb out of its directory.
+      Validate the response against a schema and allowlist what it may name;
+      parameterise the query, escape the markup, resolve the path under a fixed
+      root.
+    metadata:
+      source: R-28
+      category: security
+      cwe: 'CWE-74: Improper Neutralization of Special Elements in Output Used by a Downstream Component'
+      yields: ['sql-injection', 'xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # OpenAI-shaped responses, attribute and dict style (LiteLLM, the legacy
+      # openai<1 SDK and raw HTTP clients return dicts).
+      - pattern: $R.choices[$I].message
+      - pattern: $R.choices[$I].text
+      - pattern: $R.choices[$I].delta
+      - pattern: $R["choices"][$I]["message"]
+      - pattern: $R["choices"][$I]["text"]
+      - pattern: $R["choices"][$I]["delta"]
+      - pattern: $R.output_text
+      # Anthropic — only in a file that imports the SDK. `.content[0].text` is
+      # also the shape of an MCP tool result and many other APIs, and
+      # `messages.create` is Twilio's SMS call; the import is what says which,
+      # and it also lets the engine skip every file that has none (these two
+      # patterns alone were most of the pack's run time before the gate).
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import anthropic
+                  ...
+              - pattern-inside: |
+                  from anthropic import $SDK
+                  ...
+          - pattern-either:
+              - pattern: $C.messages.create(...)
+              - pattern: $C.messages.stream(...)
+              - pattern: $C.beta.messages.create(...)
+              - pattern: $R.content[$I].text
+      # Google GenAI (google-genai and google-generativeai).
+      - pattern: $M.generate_content(...)
+      - pattern: $M.generate_content_async(...)
+      # Ollama, module-level and through a client.
+      - pattern: ollama.chat(...)
+      - pattern: ollama.generate(...)
+      - pattern: ollama.Client(...).chat(...)
+      - pattern: ollama.Client(...).generate(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $O.chat(...)
+              - pattern: $O.generate(...)
+          - pattern-either:
+              - pattern-inside: |
+                  $O = ollama.Client(...)
+                  ...
+              - pattern-inside: |
+                  $O = ollama.AsyncClient(...)
+                  ...
+      # LangChain chat models, in a file that imports one: `.invoke` alone is
+      # every Runnable, Electron IPC and AWS Lambda.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  from langchain_openai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_anthropic import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_google_genai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_google_vertexai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_ollama import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_aws import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_mistralai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_groq import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_community.chat_models import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain.chat_models import $CHAT
+                  ...
+          - pattern-either:
+              - pattern: $LLM.invoke(...).content
+              - pattern: (await $LLM.ainvoke(...)).content
+              - patterns:
+                  - pattern: $MSG.content
+                  - pattern-either:
+                      - pattern-inside: |
+                          $MSG = $LLM.invoke(...)
+                          ...
+                      - pattern-inside: |
+                          $MSG = await $LLM.ainvoke(...)
+                          ...
+      # LiteLLM.
+      - pattern: litellm.completion(...)
+      - pattern: litellm.acompletion(...)
+      - pattern: litellm.text_completion(...)
+    pattern-sanitizers:
+      # Structured output.
+      - pattern: $R.choices[$I].message.parsed
+      - pattern: $R.output_parsed
+      - pattern: $R.parsed
+      # pydantic. Spelled out rather than `$M.$P(...)` plus a regex: a pattern
+      # that matches every method call costs on every file.
+      - pattern: $M.model_validate(...)
+      - pattern: $M.model_validate_json(...)
+      - pattern: $M.model_validate_strings(...)
+      - pattern: $M.parse_obj(...)
+      - pattern: $M.parse_raw(...)
+      - pattern: $M.validate_python(...)
+      - pattern: $M.validate_json(...)
+      - pattern: pydantic.parse_obj_as(...)
+      - pattern: pydantic.TypeAdapter(...).validate_python(...)
+      - pattern: pydantic.TypeAdapter(...).validate_json(...)
+      # marshmallow: a `*schema` object's load.
+      - patterns:
+          - pattern: $S.load(...)
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?i).*schema
+      # jsonschema checks the value in place.
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: jsonschema.validate($X, ...)
+              - pattern: jsonschema.validate(instance=$X, ...)
+              - patterns:
+                  - pattern: $VAL.validate($X)
+                  - metavariable-regex:
+                      metavariable: $VAL
+                      regex: (?i).*validator
+          - focus-metavariable: $X
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: html.escape(...)
+      - pattern: markupsafe.escape(...)
+      - pattern: bleach.clean(...)
+      - pattern: nh3.clean(...)
+      - pattern: os.path.basename(...)
+      - pattern: werkzeug.utils.secure_filename(...)
+      - pattern: secure_filename(...)
+    pattern-sinks:
+      # SQL: the query text. A bound parameter is not a sink — it is the fix.
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.execute($SQL, ...)
+              - pattern: $DB.executemany($SQL, ...)
+              - pattern: $DB.executescript($SQL, ...)
+              - pattern: $DB.exec_driver_sql($SQL, ...)
+              - pattern: $DB.raw($SQL, ...)
+          - metavariable-regex:
+              metavariable: $DB
+              regex: (?i)^(\w+\.)*(cur|cursor|conn|connection|con|db|database|session|engine|tx|objects|\w*(cursor|conn|connection|db|session|engine))$
+          - focus-metavariable: $SQL
+      - patterns:
+          - pattern-either:
+              - pattern: sqlalchemy.text($SQL)
+              - pattern: pandas.read_sql($SQL, ...)
+              - pattern: pandas.read_sql_query($SQL, ...)
+          - focus-metavariable: $SQL
+      # Markup: everything that switches autoescaping off for one value. A
+      # Jinja template's `|safe` is the same switch, flipped in the template;
+      # its Python half is Markup().
+      - patterns:
+          - pattern-either:
+              - pattern: markupsafe.Markup($X)
+              - pattern: jinja2.Markup($X)
+              - pattern: django.utils.safestring.mark_safe($X)
+              - pattern: flask.render_template_string($X, ...)
+              - pattern: jinja2.Template($X, ...)
+              - pattern: $ENV.from_string($X, ...)
+              - pattern: streamlit.markdown($X, ..., unsafe_allow_html=True, ...)
+              - pattern: streamlit.write($X, ..., unsafe_allow_html=True, ...)
+              - pattern: streamlit.html($X, ...)
+              - pattern: streamlit.components.v1.html($X, ...)
+              - pattern: fastapi.responses.HTMLResponse($X, ...)
+              - pattern: fastapi.responses.HTMLResponse(content=$X, ...)
+              - pattern: starlette.responses.HTMLResponse($X, ...)
+              - pattern: starlette.responses.HTMLResponse(content=$X, ...)
+          - focus-metavariable: $X
+      # Filesystem paths — the first argument only.
+      - patterns:
+          - pattern-either:
+              - pattern: open($P, ...)
+              - pattern: os.remove($P, ...)
+              - pattern: os.unlink($P, ...)
+              - pattern: os.rmdir($P, ...)
+              - pattern: os.makedirs($P, ...)
+              - pattern: os.mkdir($P, ...)
+              - pattern: os.rename($P, ...)
+              - pattern: shutil.rmtree($P, ...)
+              - pattern: shutil.move($P, ...)
+              - pattern: shutil.copy($SRC, $P, ...)
+              - pattern: pathlib.Path($P, ...)
+          - focus-metavariable: $P
+
+  - id: bpm-llm-output-json-unvalidated-py
+    mode: taint
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Model output is parsed (json.loads, literal_eval, YAML, json_repair) and
+      used with no schema check. A model returns the shape it was asked for
+      most of the time; the rest of the time it returns a different shape, a
+      truncated object or prose around the JSON, and every key read after this
+      line is a guess. Validate with pydantic or jsonschema, or request
+      structured output and read the parsed result.
+    metadata:
+      source: R-28
+      category: code_health
+      cwe: 'CWE-20: Improper Input Validation'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # OpenAI-shaped responses, attribute and dict style (LiteLLM, the legacy
+      # openai<1 SDK and raw HTTP clients return dicts).
+      - pattern: $R.choices[$I].message
+      - pattern: $R.choices[$I].text
+      - pattern: $R.choices[$I].delta
+      - pattern: $R["choices"][$I]["message"]
+      - pattern: $R["choices"][$I]["text"]
+      - pattern: $R["choices"][$I]["delta"]
+      - pattern: $R.output_text
+      # Anthropic — only in a file that imports the SDK. `.content[0].text` is
+      # also the shape of an MCP tool result and many other APIs, and
+      # `messages.create` is Twilio's SMS call; the import is what says which,
+      # and it also lets the engine skip every file that has none (these two
+      # patterns alone were most of the pack's run time before the gate).
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import anthropic
+                  ...
+              - pattern-inside: |
+                  from anthropic import $SDK
+                  ...
+          - pattern-either:
+              - pattern: $C.messages.create(...)
+              - pattern: $C.messages.stream(...)
+              - pattern: $C.beta.messages.create(...)
+              - pattern: $R.content[$I].text
+      # Google GenAI (google-genai and google-generativeai).
+      - pattern: $M.generate_content(...)
+      - pattern: $M.generate_content_async(...)
+      # Ollama, module-level and through a client.
+      - pattern: ollama.chat(...)
+      - pattern: ollama.generate(...)
+      - pattern: ollama.Client(...).chat(...)
+      - pattern: ollama.Client(...).generate(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $O.chat(...)
+              - pattern: $O.generate(...)
+          - pattern-either:
+              - pattern-inside: |
+                  $O = ollama.Client(...)
+                  ...
+              - pattern-inside: |
+                  $O = ollama.AsyncClient(...)
+                  ...
+      # LangChain chat models, in a file that imports one: `.invoke` alone is
+      # every Runnable, Electron IPC and AWS Lambda.
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  from langchain_openai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_anthropic import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_google_genai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_google_vertexai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_ollama import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_aws import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_mistralai import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_groq import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain_community.chat_models import $CHAT
+                  ...
+              - pattern-inside: |
+                  from langchain.chat_models import $CHAT
+                  ...
+          - pattern-either:
+              - pattern: $LLM.invoke(...).content
+              - pattern: (await $LLM.ainvoke(...)).content
+              - patterns:
+                  - pattern: $MSG.content
+                  - pattern-either:
+                      - pattern-inside: |
+                          $MSG = $LLM.invoke(...)
+                          ...
+                      - pattern-inside: |
+                          $MSG = await $LLM.ainvoke(...)
+                          ...
+      # LiteLLM.
+      - pattern: litellm.completion(...)
+      - pattern: litellm.acompletion(...)
+      - pattern: litellm.text_completion(...)
+    pattern-sanitizers:
+      # Structured output.
+      - pattern: $R.choices[$I].message.parsed
+      - pattern: $R.output_parsed
+      - pattern: $R.parsed
+      # pydantic. Spelled out rather than `$M.$P(...)` plus a regex: a pattern
+      # that matches every method call costs on every file.
+      - pattern: $M.model_validate(...)
+      - pattern: $M.model_validate_json(...)
+      - pattern: $M.model_validate_strings(...)
+      - pattern: $M.parse_obj(...)
+      - pattern: $M.parse_raw(...)
+      - pattern: $M.validate_python(...)
+      - pattern: $M.validate_json(...)
+      - pattern: pydantic.parse_obj_as(...)
+      - pattern: pydantic.TypeAdapter(...).validate_python(...)
+      - pattern: pydantic.TypeAdapter(...).validate_json(...)
+      # marshmallow: a `*schema` object's load.
+      - patterns:
+          - pattern: $S.load(...)
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?i).*schema
+      # jsonschema checks the value in place.
+      - by-side-effect: true
+        patterns:
+          - pattern-either:
+              - pattern: jsonschema.validate($X, ...)
+              - pattern: jsonschema.validate(instance=$X, ...)
+              - patterns:
+                  - pattern: $VAL.validate($X)
+                  - metavariable-regex:
+                      metavariable: $VAL
+                      regex: (?i).*validator
+          - focus-metavariable: $X
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      # Tool-call arguments: generated against a declared parameter schema and
+      # handed to a dispatcher, as in the JavaScript rule; and the SDK's own
+      # serialisation of a response object is not model text.
+      - pattern: $X.function.arguments
+      - pattern: $X.partial_json
+      - pattern: $X.json()
+      - pattern: $X.model_dump_json(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: json.loads($X, ...)
+              - pattern: orjson.loads($X)
+              - pattern: ujson.loads($X, ...)
+              - pattern: json5.loads($X, ...)
+              - pattern: ast.literal_eval($X)
+              - pattern: yaml.safe_load($X)
+              - pattern: yaml.load($X, ...)
+              - pattern: json_repair.loads($X, ...)
+              - pattern: json_repair.repair_json($X, ..., return_objects=True, ...)
+          - focus-metavariable: $X
+          # Validated where it is parsed.
+          - pattern-not-inside: $M.model_validate(...)
+          - pattern-not-inside: $M.parse_obj(...)
+          - pattern-not-inside: $M.validate_python(...)
+          - pattern-not-inside: jsonschema.validate(...)
+          - pattern-not-inside: $S.load(...)
+          - pattern-not-inside: $M(**$J.$L(...))
+          # Structured output requested in the same function: Gemini's
+          # response_schema constrains decoding, so `response.text` is the
+          # schema's JSON (the SDK's `.parsed` is the same object, typed).
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  <... "response_schema" ...>
+                  ...
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  <... $C(..., response_schema=$RS, ...) ...>
+                  ...
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  <... $C(..., response_json_schema=$RS, ...) ...>
+                  ...
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  <... "response_schema" ...>
+                  ...
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  <... $C(..., response_schema=$RS, ...) ...>
+                  ...
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  <... $C(..., response_json_schema=$RS, ...) ...>
+                  ...
+          # Validated later in the same function. Written at function level
+          # so the engine's deep statement matching finds the parse and the
+          # check at any nesting — inside a try with a fallback, under an
+          # `if isinstance(raw, str)`, or a key at a time.
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M.model_validate($V, ...) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M.parse_obj($V, ...) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M.validate_python($V, ...) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M(**$V) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... jsonschema.validate($V, ...) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... jsonschema.validate(instance=$V, ...) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $VAL.validate($V) ...>
+          # A hand-written check on a key's type is a schema check, written out.
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... isinstance($V.get(...), $T) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V[$K] = $J.$L(...)
+                  ...
+                  <... $M.model_validate($V, ...) ...>
+          - pattern-not-inside: |
+              def $F(...):
+                  ...
+                  $V[$K] = $J.$L(...)
+                  ...
+                  <... $M(**$V) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M.model_validate($V, ...) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M.parse_obj($V, ...) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M.validate_python($V, ...) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $M(**$V) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... jsonschema.validate($V, ...) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... jsonschema.validate(instance=$V, ...) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... $VAL.validate($V) ...>
+          # A hand-written check on a key's type is a schema check, written out.
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V = $J.$L(...)
+                  ...
+                  <... isinstance($V.get(...), $T) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V[$K] = $J.$L(...)
+                  ...
+                  <... $M.model_validate($V, ...) ...>
+          - pattern-not-inside: |
+              async def $F(...):
+                  ...
+                  $V[$K] = $J.$L(...)
+                  ...
+                  <... $M(**$V) ...>
+
+  # ===========================================================================
+  # Jinja templates
+  # ===========================================================================
+  - id: bpm-llm-output-jinja-safe
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      A template marks a model-output value `|safe`, switching Jinja's
+      autoescaping off for text a model wrote. Prompt injection makes that
+      text attacker text, and `|safe` renders any <script> in it. Render it
+      escaped, or run it through an HTML sanitizer (bleach, nh3) in Python and
+      mark only the sanitized result safe.
+    metadata:
+      source: R-28
+      category: security
+      cwe: 'CWE-79: Improper Neutralization of Input During Web Page Generation'
+      yields: ['xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      include:
+        - '*.html'
+        - '*.htm'
+        - '*.jinja'
+        - '*.jinja2'
+        - '*.j2'
+    # A template cannot be followed back to an SDK call, so the variable has to
+    # NAME itself as model output. Names that could be anything — `response`,
+    # `content`, `answer` alone — are deliberately not on the list.
+    pattern-regex: >-
+      \{\{-?\s*(?i:[\w.\[\]'"]*(?:llm|gpt|completion|ai_(?:response|answer|reply|message|output)|assistant_(?:message|reply|response)|model_(?:output|response|answer)|chatbot|bot_(?:reply|response|message)|generated_(?:html|text|answer|content))[\w.\[\]'"]*)\s*(?:\|\s*\w+(?:\([^)]*\))?\s*)*\|\s*safe\b

@@ -1,0 +1,8 @@
+{# Clean near-misses: escaped model output, and |safe on values that do not name themselves as model
+output. #}
+<section class="answer">
+  <div>{{ llm_answer }}</div>
+  <div>{{ ai_response | markdown }}</div>
+  <div>{{ csrf_form | safe }}</div>
+  <div>{{ response | safe }}</div>
+</section>

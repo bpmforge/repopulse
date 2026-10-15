@@ -1,0 +1,328 @@
+# bpm-rulepacks — anti-slop, Python (W18-11, CODE_HEALTH_SUITE.md §1, FR-CH-1).
+#
+# PROVENANCE: every rule below was written for this repository. NONE is copied,
+# adapted or derived from the Semgrep registry (DESIGN_REVIEW.md G-18). Each
+# rule names the bpm-opencode-experts rule it implements in `metadata.source`,
+# the same R-xx numbers its JavaScript sibling in anti-slop.v1.yaml carries, so
+# the two can be audited against the §1 inventory together.
+#
+# A PYTHON RULE IS NOT A TRANSLITERATION. Where the idiom differs, the rule
+# follows the idiom: `raise NotImplementedError` in a method is how Python
+# spells an abstract interface, so the stub rule only fires on module-level
+# functions and on messages that say "not yet"; `except: ... raise` is a
+# cleanup handler, not a swallowed failure.
+#
+# Every rule ships as a candidate (§8): findings run in shadow until an admin
+# promotes the rule on evidence.
+rules:
+  - id: bpm-ch-empty-except-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A catch-all except clause that does nothing. Every failure in the try
+      block — including the ones nobody anticipated — now vanishes without a
+      trace. If one specific error genuinely does not matter, catch that one
+      with contextlib.suppress(SpecificError) and say why it is safe.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: |
+          try:
+              ...
+          except:
+              pass
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  try:
+                      ...
+                  except $EXC:
+                      pass
+              - pattern: |
+                  try:
+                      ...
+                  except $EXC as $ERR:
+                      pass
+          - metavariable-regex:
+              metavariable: $EXC
+              # Catch-all handlers only. A JavaScript catch takes everything, so
+              # the faithful port is `except Exception` / bare `except` — a narrow
+              # `except KeyError: pass` is Python's EAFP idiom ("look it up, and
+              # it is fine if it is not there"), and on Django, SQLAlchemy and
+              # urllib3 it was most of what the unrestricted rule found.
+              regex: ^(.*\W)?(Exception|BaseException)\b.*$
+
+  - id: bpm-ch-bare-except-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A bare `except:` that does not re-raise. It also catches KeyboardInterrupt
+      and SystemExit, so Ctrl-C and a clean shutdown are swallowed along with
+      the error it was written for. Name the exception you expect.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern: |
+          try:
+              ...
+          except:
+              ...
+      # A bare except that ends in `raise` is a cleanup handler — roll back,
+      # release, then let the failure through — which is the one legitimate
+      # use of the form.
+      - pattern-not: |
+          try:
+              ...
+          except:
+              ...
+              raise
+      - pattern-not: |
+          try:
+              ...
+          except:
+              ...
+              raise $X
+      # The empty one is the empty-except rule's finding, not a second one.
+      - pattern-not: |
+          try:
+              ...
+          except:
+              pass
+
+  - id: bpm-ch-try-except-in-loop-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      A catch-all try/except inside a loop body. Sometimes deliberate (continue
+      past one bad row), often a swallowed failure repeated N times with nobody
+      counting. If it is deliberate, the handler should record how many it
+      skipped.
+    metadata:
+      source: R-02
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $V in $XS:
+                  ...
+          - pattern-inside: |
+              while $COND:
+                  ...
+      - pattern-either:
+          - pattern: |
+              try:
+                  ...
+              except:
+                  ...
+          - patterns:
+              - pattern: |
+                  try:
+                      ...
+                  except $EXC:
+                      ...
+              - metavariable-regex:
+                  metavariable: $EXC
+                  # Catch-all only, as in the empty-except rule: `except
+                  # ValueError` around int(row) is a decision about one known
+                  # failure, not a swallowed unknown one.
+                  regex: ^(.*\W)?(Exception|BaseException)\b.*$
+      # A handler that re-raises, or that is the retry machinery itself
+      # (`except X: ... sleep(...)` inside a `while`), is not silently skipping.
+      - pattern-not: |
+          try:
+              ...
+          except $EXC:
+              ...
+              raise
+      - pattern-not: |
+          try:
+              ...
+          except $EXC:
+              ...
+              raise $X
+      - pattern-not: |
+          try:
+              ...
+          except $EXC:
+              ...
+              time.sleep(...)
+              ...
+
+  - id: bpm-ch-silent-fallback-return-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A catch-all except clause that returns an empty value. The caller cannot tell
+      "there is nothing" from "we failed to find out", and those are different
+      facts — this is the shape behind most "the dashboard shows zero" bugs.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        A bare `return` is NOT matched: in a function that returns nothing it is
+        an early exit, not a fallback value, and the rule cannot tell which.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try:
+                  ...
+              except:
+                  return $EMPTY
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      try:
+                          ...
+                      except $EXC:
+                          return $EMPTY
+                  - pattern: |
+                      try:
+                          ...
+                      except $EXC as $ERR:
+                          return $EMPTY
+              - metavariable-regex:
+                  metavariable: $EXC
+                  # Catch-all only: `except IndexError: return None` after
+                  # `value[0]` answers exactly one question, and the caller
+                  # asked it.
+                  regex: ^(.*\W)?(Exception|BaseException)\b.*$
+      - metavariable-regex:
+          metavariable: $EMPTY
+          regex: ^(None|\[\]|\{\}|0|False|''|""|set\(\)|dict\(\)|list\(\)|\(\))$
+
+  - id: bpm-ch-stub-as-feature-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A function that exists and does nothing but refuse. A stub reads as a
+      capability from the outside — a caller sees the name, not the raise —
+      which is how "we support that" survives into a demo.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Methods are excluded: `raise NotImplementedError` in a method is the
+        Python spelling of an abstract interface, and only a model can tell an
+        interface from an unfinished feature. Module-level functions and
+        "not yet" messages are what a pattern can decide.
+    pattern-either:
+      # A module-level function whose whole body is the refusal (a docstring
+      # may come first).
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  def $F(...):
+                      raise NotImplementedError
+              - pattern: |
+                  def $F(...):
+                      raise NotImplementedError(...)
+              - pattern: |
+                  def $F(...):
+                      "..."
+                      raise NotImplementedError
+              - pattern: |
+                  def $F(...):
+                      "..."
+                      raise NotImplementedError(...)
+          - pattern-not-inside: |
+              class $C:
+                  ...
+          # typing.overload / singledispatch bases are declarations, not stubs.
+          - pattern-not: |
+              @$DEC
+              def $F(...):
+                  ...
+          # A private helper is not presented as a capability: `_unsupported`
+          # raising for an operator nobody may call is the implementation.
+          - metavariable-regex:
+              metavariable: $F
+              regex: ^[^_]
+      # A refusal that says "not yet" in words, wherever it is.
+      - pattern-regex: raise \w*(Error|Exception)\((['"])(?i)(not (yet )?implemented|unimplemented|todo|tbd)[^'"]*\2\)
+      - pattern-regex: raise \w*(Error|Exception)\((['"])(?i)[^'"]*\bcoming soon\b[^'"]*\2\)
+      # A body that is a TODO and a `pass`: a feature with nothing behind it.
+      - pattern-regex: (?m)^[ \t]*def \w+\([^)]*\)[^:\n]*:[ \t]*\n[ \t]+#[ \t]*(?i:todo|fixme|tbd)\b[^\n]*\n[ \t]+pass[ \t]*$
+
+  - id: bpm-ch-what-comment-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches the mechanical phrasings only ("# increment the counter",
+        "# loop through the items"). A genuinely redundant comment written in
+        natural prose is a judgement call and belongs to the LLM layer.
+    # A STANDALONE comment directly above code: the line before is not a
+    # comment and the line after is code. That shape is what separates "#
+    # set the attribute" over a setattr from the last line of a prose block
+    # ("…unwinds the\n# call stack.") and from commented-out code ("#
+    # return False", which also has no code-shaped line after it as often as
+    # not). \K starts the match at the comment so the finding points at it.
+    pattern-regex: >-
+      (?im)^(?![ \t]*#)[^\n]*\n\K[ \t]*#[ \t]?(increment|decrement|initialize|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new)\s+(the\s+)?\w+[ \t]*\.?[ \t]*(?=\n[ \t]*[^#\s])
+
+  - id: bpm-ch-step-narration-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      Step-numbered narration. Three of these in a row usually means the code
+      was written to a plan and the plan was left behind as comments; the
+      structure they describe should be functions with names.
+    metadata:
+      source: R-14
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '^\s*#\s*(Step|STEP)\s*\d+\s*[:.\-]'
+
+  - id: bpm-ch-emoji-comment-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      An emoji in a comment. Harmless once; at scale it is the clearest tell of
+      generated commentary nobody edited, and it does not survive a grep, a
+      terminal without a font, or a diff someone reads at 6am.
+    metadata:
+      source: R-16
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-regex: '^\s*#.*[\x{1F300}-\x{1FAFF}\x{2700}-\x{27BF}\x{2600}-\x{26FF}]'
+
+  - id: bpm-ch-prose-padding-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      Filler phrasing in a comment. "It is important to note that" and its
+      relatives carry no information — they are the written equivalent of
+      clearing your throat, and they are what a model produces when it has
+      nothing specific to say.
+    metadata:
+      source: R-29
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A phrase list over `#` comments, not a measure of density, and
+        docstrings are not read. The LDR calculation in §1 is the real answer.
+    pattern-regex: >-
+      (?i)^\s*#.*\b(it is important to note|it should be noted|as we can see|in order to be able to|this function is responsible for|needless to say|at the end of the day)\b

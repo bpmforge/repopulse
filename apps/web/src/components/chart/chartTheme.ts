@@ -118,6 +118,10 @@ export function buildChartTheme(root: HTMLElement = document.documentElement): o
     // with nothing on screen saying which was which. The chart looked like one
     // multicoloured series, which encodes nothing.
     legend: {
+      // ECharts 6 moved the default legend from the top edge to the bottom one.
+      // Our charts reserve room for it at the top (the file churn chart's
+      // `grid.top`), and at the bottom it lands on the x-axis labels.
+      top: 0,
       textStyle: { color: fg },
       // The dimmed state of a legend entry someone has clicked off. Muted ink
       // rather than echarts' default, or "hidden" is itself invisible.
