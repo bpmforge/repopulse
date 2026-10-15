@@ -129,6 +129,7 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
             'slop.suppression_density',
             'slop.exception_control_flow',
             'slop.repository_over_crud',
+            'slop.stale_jsdoc_param',
           ]),
         ),
       );
@@ -755,6 +756,97 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
       );
     const deprecated = await scan('w18-03-deprecated');
     expect(deprecated.deterministic).toBe(1);
+  });
+
+  it('W18-05: structural slop runs in shadow; the interface count needs a complete read', async () => {
+    const sources = [
+      {
+        path: 'src/clock.ts',
+        source: [
+          'export interface ClockSource {',
+          '  now(): number;',
+          '}',
+          'export class SystemClock implements ClockSource {',
+          '  now(): number {',
+          '    return Date.now();',
+          '  }',
+          '}',
+        ].join('\n'),
+      },
+      {
+        path: 'src/user.ts',
+        source: [
+          "import { fetchUser } from './api.js';",
+          "import type { ClockSource } from './clock.js';",
+          '/**',
+          ' * @param userId the id',
+          ' */',
+          'export function getUser(id: string) {',
+          '  return fetchUser(id);',
+          '}',
+          'export const at = (c: ClockSource) => c.now();',
+          "getUser('1');",
+        ].join('\n'),
+      },
+      { path: 'src/api.ts', source: 'export function fetchUser(id: string) { return id; }' },
+    ];
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
+    const scan = (commitSha: string, sourcesComplete: boolean) =>
+      runAntiSlopScan({
+        db,
+        workspaceId,
+        repoId,
+        commitSha,
+        files: [],
+        sources,
+        sourcesComplete,
+        trigger: 'schedule',
+      });
+
+    await scan('w18-05-partial', false);
+    const [wrapper] = await rows('slop.delegation_wrapper');
+    expect(wrapper).toMatchObject({
+      file: 'src/user.ts',
+      lineStart: 6,
+      severity: 1,
+      title: 'Delegation-only wrapper: getUser',
+      evidence: 'export function getUser(id: string) {',
+      experimental: true,
+    });
+    const [doc] = await rows('slop.stale_jsdoc_param');
+    expect(doc).toMatchObject({
+      lineStart: 4,
+      severity: 2,
+      evidence: '@param userId the id',
+      experimental: true,
+    });
+    // Partial read: the second implementation could be in a skipped file.
+    expect(await rows('slop.single_impl_interface')).toEqual([]);
+
+    await scan('w18-05-complete', true);
+    const [single] = await rows('slop.single_impl_interface');
+    expect(single).toMatchObject({
+      file: 'src/clock.ts',
+      lineStart: 1,
+      title: 'Single-implementation interface: ClockSource',
+      experimental: true,
+    });
+
+    // Deprecated in this workspace: the rule stops; the others carry on.
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.stale_jsdoc_param',
+      status: 'deprecated',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    const before = (await rows('slop.stale_jsdoc_param'))[0]?.occurrenceCount;
+    await scan('w18-05-deprecated', true);
+    expect((await rows('slop.stale_jsdoc_param'))[0]?.occurrenceCount).toBe(before);
+    expect((await rows('slop.delegation_wrapper'))[0]?.occurrenceCount).toBe(3);
   });
 });
 
