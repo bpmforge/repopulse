@@ -30,6 +30,7 @@ import llmProviderRoutes from '../routes/admin/llm-providers/index.js';
 import runRoutes from '../routes/runs/index.js';
 import scannersRoutes from '../routes/scanners/index.js';
 import securityRoutes from '../routes/security/index.js';
+import sensitiveChangesRoutes from '../routes/security/sensitive-changes.js';
 // W11-02: the setup status endpoints (admin only, values never returned).
 import setupRoutes from '../routes/setup/index.js';
 import codeHealthRoutes from '../routes/code-health/index.js';
@@ -235,6 +236,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // /healthz because it is admin-only and workspace-scoped.
   await app.register(systemRoutes, { db: opts.db, redisUrl: opts.redisUrl });
   await app.register(securityRoutes, { db: opts.db });
+  // W18-29: the sensitive-change radar's screen.
+  await app.register(sensitiveChangesRoutes, { db: opts.db });
   await app.register(setupRoutes, { db: opts.db });
   await app.register(codeHealthRoutes, { db: opts.db });
   await app.register(rulesRoutes, { db: opts.db });

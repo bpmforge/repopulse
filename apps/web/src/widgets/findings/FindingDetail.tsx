@@ -12,6 +12,7 @@ import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
 import { VerifiedFix } from './VerifiedFix.js';
 import { RulePrecisionSummary } from '../trust/RulePrecision.js';
+import { SHADOW_EXPLAINER, ShadowBadge } from './ShadowBadge.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -100,7 +101,25 @@ export function FindingDetail({
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}
           <span data-testid="finding-status">status {finding.status.replace('_', ' ')}</span>
+          {finding.rule_id ? (
+            <span className="font-mono" data-testid="finding-rule">
+              rule {finding.rule_id}
+            </span>
+          ) : null}
         </div>
+
+        {/* W18-29: said in the panel, not only as a chip in the list — the
+            panel is what a shared link opens, with no list around it. */}
+        {finding.experimental ? (
+          <p
+            className="flex flex-wrap items-center gap-2 rounded-sm border border-dashed border-fg-faint px-3 py-2 text-xs text-fg-muted"
+            data-testid="finding-shadow-note"
+            role="note"
+          >
+            <ShadowBadge />
+            <span>{SHADOW_EXPLAINER}</span>
+          </p>
+        ) : null}
 
         {/* The quote is why anyone should believe the finding — it is validated
             to be verbatim from the reviewed diff (W6-02), so it can be read as

@@ -59,6 +59,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   admin: 'Settings',
   me: 'My Focus',
   setup: 'Setup',
+  // W18-29. Not rail entries: reached from the Overview tile and from Reviews.
+  governance: 'AI-code governance',
+  'sensitive-changes': 'Sensitive changes',
 };
 
 /**
@@ -88,6 +91,7 @@ const SUBPAGE_LABELS: Record<string, string> = {
   rules: 'Rules',
   analysis: 'Analysis',
   models: 'Models',
+  patches: 'Verified fixes',
   settings: 'Settings',
   setup: 'Setup',
 };

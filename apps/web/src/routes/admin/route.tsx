@@ -26,6 +26,8 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   // Analysis because the two answer the same question from opposite ends —
   // Analysis says which repos may be analysed, Models says what analyses them.
   { to: '/admin/models', label: 'Models' },
+  // W18-29: the verified-fix attempts, beside the model that drafts them.
+  { to: '/admin/patches', label: 'Verified fixes' },
   { to: '/admin/settings', label: 'Settings' },
   // W11-02. Its own top-level route rather than an /admin child — the setup
   // checklist is what an operator opens when something is not working yet, and

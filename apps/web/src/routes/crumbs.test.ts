@@ -74,6 +74,19 @@ describe('trail wording and the document title', () => {
     expect(deriveCrumbs('/repos/34083/performance', payments).at(-1)?.label).toBe('Performance');
   });
 
+  it('names the W18-29 screens (governance, sensitive changes, verified fixes)', () => {
+    expect(deriveCrumbs('/governance').map((c) => c.label)).toEqual(['Org', 'AI-code governance']);
+    expect(deriveCrumbs('/sensitive-changes').map((c) => c.label)).toEqual([
+      'Org',
+      'Sensitive changes',
+    ]);
+    expect(deriveCrumbs('/admin/patches').map((c) => c.label)).toEqual([
+      'Org',
+      'Settings',
+      'Verified fixes',
+    ]);
+  });
+
   it('titles the tab most-specific first', () => {
     expect(documentTitle(deriveCrumbs('/repos/34083/security', payments))).toBe(
       'Security · payments · RepoPulse',

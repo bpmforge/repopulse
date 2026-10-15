@@ -89,6 +89,9 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | Method+Path | Req → Res | FR |
 |---|---|---|
 | `GET /findings` | filters `dimension, severity, status, repo_ids, pr` → list | FR-WEB-9 |
+| `GET /findings` — shadow + rule facets | `?experimental=exclude\|only\|include` (default **exclude**; unknown values fall back to it) `&rule_id=` → adds `experimental` (the mode applied) and `shadow_hidden` (shadow findings matching the other filters that the default held back; `null` when the mode cannot hold any back). Shadow-mode findings are never mixed into the default list, the same as risk, top actions and the CI pull (W18-29) | W18-29, CODE_HEALTH_SUITE §8.2 |
+| `GET /findings/facets` | → `{rules:[{rule_id, scanner_key, active, shadow, lifecycle: rule_registry status \| null}], shadow_total}` — the rule facet, built from what findings carry so in-process fast-lane rules with no registry row are filterable; active and shadow counts kept apart | W18-29 |
+| `GET /security/sensitive-changes` | `?repos=` → `{repos:{total, enabled, disabled[]}, runs:{window_days, recent, failed, ever, last_finished_at}, rules:[{rule_id, what, category, lifecycle, open_active, open_shadow}], totals:{active, shadow}, active[], shadow[]}` — the radar's review list (open/confirmed, ≤200 each, newest first), split active vs shadow, with the coverage facts the screen needs to tell "nothing loosened" from "nothing read" (radar off, no runs yet) | W18-29, W18-21 |
 | `GET /findings/stats` | disposition counts + false-positive rate (wont_fix÷dispositioned) trend for the Explorer header widget | FR-INSIGHTS-1, UX §4.e |
 | `GET /findings/{id}` | → detail: evidence, file/line, run/model/checklist version, status history. Findings (list and detail) also carry `context: { start_line, lines } \| null` (W18-32): the scanned file's lines around the finding, stored at scan time, `null` for secrets, repo-level findings, old rows and findings closed past retention | FR-INSIGHTS-1 |
 | `GET /findings/{id}` | → detail: evidence, file/line, run/model/checklist version, status history | FR-INSIGHTS-1 |
@@ -138,7 +141,7 @@ no live forge calls in any handler (FR-API-2, Law 4).
 | `GET /admin/egress-audit` | filterable T3 audit rows | NFR-9 |
 | `GET /admin/dlq` · `POST /admin/dlq/{jobId}/retry` | dead-letter queue ops page | NFR-11 |
 | `GET /admin/budget` | forge budget gauges (REST + GraphQL buckets), sync lag | NFR-12 |
-| `GET /admin/patches` | → `{items:[{id, finding_id, status, reason_code, reason, model_id, tier, created_at}]}` — the last 100 verified-patch attempts with reasons, so an admin can see why fixes are rejected (W18-19) | W18-19 |
+| `GET /admin/patches` | → `{counts:{verified?, rejected?, failed?, pending?}, items:[{id, finding_id, status, reason_code, reason, model_id, tier, created_at, finished_at, finding:{title, file}, repo:{id, name}}]}` (counts over every attempt; `finding`/`repo` added in W18-29, null when since deleted) — the last 100 verified-patch attempts with reasons, so an admin can see why fixes are rejected (W18-19) | W18-19 |
 
 ### webhooks (machine-facing, no session)
 | Method+Path | Behavior | FR |

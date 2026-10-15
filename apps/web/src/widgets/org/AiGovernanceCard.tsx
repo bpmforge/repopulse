@@ -56,6 +56,17 @@ export function AiGovernanceCard({ window, search }: Props) {
           : 'No commits in this window to classify.'
       }
       testId="ai-governance"
+      // W18-29: the full comparison — cohorts left out, sample sizes, method.
+      drillDown={
+        <Link
+          to="/governance"
+          search={{ ...(search.repos ? { repos: search.repos } : {}), window } as never}
+          className="min-h-6 text-xs text-fg-muted underline underline-offset-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid="ai-governance-details"
+        >
+          Details
+        </Link>
+      }
     >
       {data && classified > 0 && (
         <div className="flex flex-col gap-3 text-sm" data-testid="ai-governance-body">
