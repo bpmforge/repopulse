@@ -11,6 +11,7 @@ import {
   type AnalysisGateway,
   type DiffFile,
 } from '@repopulse/analysis';
+import { effectiveStatus, registryStatuses } from '../../rules/shadow.js';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
@@ -139,18 +140,8 @@ async function shippedRuleStatus(
   workspaceId: number,
   ruleId: string,
 ): Promise<'candidate' | 'active' | 'deprecated'> {
-  const [row] = await db
-    .select({ status: security.ruleRegistry.status })
-    .from(security.ruleRegistry)
-    .where(
-      and(
-        eq(security.ruleRegistry.workspaceId, workspaceId),
-        eq(security.ruleRegistry.ruleId, ruleId),
-      ),
-    )
-    .limit(1);
-  if (row?.status === 'active' || row?.status === 'deprecated') return row.status;
-  return 'candidate';
+  const registry = await registryStatuses(db, workspaceId, [ruleId]);
+  return effectiveStatus('candidate', registry.get(ruleId));
 }
 
 export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResult> {

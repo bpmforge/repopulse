@@ -1,0 +1,201 @@
+# bpm-rulepacks — performance, Java and Kotlin variants v1 (W18-13,
+# CODE_HEALTH_SUITE.md §9.1).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# Same contract as perf.v1.yaml: STRUCTURAL patterns, no speedup claims, and
+# nothing above WARNING. Every rule here is NEW and ships as a shadow-mode
+# candidate (`metadata.lifecycle: candidate`, CODE_HEALTH_SUITE §8.2).
+#
+# Receivers are matched by NAME (`userRepository`, `em`, `jdbcTemplate`), not
+# type: semgrep cannot resolve an injected field's type across files, and
+# matching every `$X.find(...)` in a loop would flag every Map lookup.
+rules:
+  - id: bpm-perf-java-db-call-in-loop
+    languages: [java]
+    severity: WARNING
+    message: >-
+      A database call inside a loop. N items means N round trips, and the cost
+      grows with data nobody controls. Load the set in one query (findAllById,
+      an IN clause, a join fetch) or batch the writes (saveAll, addBatch).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+          - pattern-inside: |
+              $C.forEach(...)
+      - pattern: $DB.$M(...)
+      - metavariable-regex:
+          metavariable: $DB
+          regex: (?i)^([a-z_]*(repository|repo|dao)|em|entityManager|session|jdbcTemplate|jdbc|namedParameterJdbcTemplate|stmt|statement|ps|preparedStatement|conn|connection)$
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(find\w*|get(One|ById|Reference)|exists\w*|count\w*|save|saveAndFlush|delete\w*|persist|merge|createQuery|createNativeQuery|query\w*|update|execute|executeQuery|executeUpdate|prepareStatement)$
+      # `addBatch`/`executeBatch` are the fix, and a call on the loop's own
+      # ResultSet cursor (`while (rs.next())`) is iteration, not a round trip.
+      - pattern-not-inside: |
+          while ($RS.next()) { ... }
+      # The query that PRODUCES the collection being iterated runs once; it is
+      # only "inside" the forEach because it is the receiver.
+      - pattern-not-inside: $DB.$M(...).forEach(...)
+      - pattern-not-inside: $DB.$M(...).stream().$F(...)
+
+  - id: bpm-perf-kt-db-call-in-loop
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      A database call inside a loop. N items means N round trips, and the cost
+      grows with data nobody controls. Load the set in one query or batch the
+      writes.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for ($X in $XS) { ... }
+          - pattern-inside: |
+              while ($COND) { ... }
+          - pattern-inside: |
+              $C.forEach { ... }
+          - pattern-inside: |
+              $C.map { ... }
+      - pattern: $DB.$M(...)
+      - metavariable-regex:
+          metavariable: $DB
+          regex: (?i)^([a-z_]*(repository|repo|dao)|em|entityManager|jdbcTemplate|jdbc)$
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(find\w*|get(One|ById|Reference)|exists\w*|count\w*|save|saveAndFlush|delete\w*|persist|merge|createQuery|createNativeQuery|query\w*|update|execute)$
+      # The query that PRODUCES the collection being iterated runs once.
+      - pattern-not-inside: '$DB.$M(...).forEach { ... }'
+      - pattern-not-inside: '$DB.$M(...).map { ... }'
+
+  - id: bpm-perf-java-regex-compile-in-loop
+    languages: [java]
+    severity: INFO
+    message: >-
+      A constant regex compiled inside a loop. The pattern is the same on every
+      iteration, so the compile is repeated work — hoist it to a static final
+      Pattern.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+      - pattern-either:
+          - pattern: Pattern.compile($RE, ...)
+          - pattern: $S.replaceAll($RE, $REPL)
+      # Only a SINGLE string literal: a regex built from the loop variable
+      # cannot be hoisted, and flagging it is advice nobody can take. A regex
+      # over the text, not a metavariable-pattern: that searches INSIDE the
+      # binding, so `".*" + word + ".*"` matched on its first literal — the
+      # corpus run caught it. `matches(...)` is not here: TokenQueue, Matcher
+      # and friends have one too, and receivers are not typed.
+      - metavariable-regex:
+          metavariable: $RE
+          regex: ^"([^"\\]|\\.)*"$
+
+  - id: bpm-perf-kt-regex-compile-in-loop
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      A constant regex compiled inside a loop. The pattern is the same on every
+      iteration — hoist it to a top-level or companion val.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for ($X in $XS) { ... }
+          - pattern-inside: |
+              while ($COND) { ... }
+          - pattern-inside: |
+              $C.forEach { ... }
+          - pattern-inside: |
+              $C.map { ... }
+      - pattern-either:
+          - pattern: Regex("...")
+          - pattern: '"...".toRegex()'
+          - pattern: Pattern.compile("...")
+
+  - id: bpm-perf-java-string-concat-in-loop
+    languages: [java]
+    severity: INFO
+    message: >-
+      A String built with += inside a loop. Each iteration copies everything
+      built so far; a StringBuilder (or String.join / Collectors.joining) does
+      the same job without the copies.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      # The declared type is what tells `+=` on a String from `+=` on an int;
+      # without it every counter in a loop would match.
+      - pattern-either:
+          - pattern-inside: |
+              String $S = ...;
+              ...
+          - pattern-inside: |
+              String $S;
+              ...
+      - pattern-either:
+          - pattern-inside: |
+              for (...) { ... }
+          - pattern-inside: |
+              while (...) { ... }
+      - pattern-either:
+          - pattern: $S += $X;
+          - pattern: $S = $S + $X;
+
+  - id: bpm-perf-kt-string-concat-in-loop
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      A String built with += inside a loop. Each iteration copies everything
+      built so far; buildString { } or joinToString does the same job without
+      the copies.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              var $S = "..."
+              ...
+          - pattern-inside: |
+              var $S: String = $INIT
+              ...
+      - pattern-either:
+          - pattern-inside: |
+              for ($X in $XS) { ... }
+          - pattern-inside: |
+              while ($COND) { ... }
+          - pattern-inside: |
+              $C.forEach { ... }
+      - pattern-either:
+          - pattern: $S += $V
+          - pattern: $S = $S + $V
