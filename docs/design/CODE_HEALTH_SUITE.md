@@ -33,7 +33,7 @@ T2 confirms, **LLM** = T2 checklist judgment (runs through the gateway with veri
 | R-01 empty/swallowing catch · R-02 try/catch in loops · R-10 silent fallback returns · R-13 what-comments · R-14 step-narration blocks · R-16 emoji comments · R-27 stub-as-feature (`not implemented` throws, TODO bodies) · R-29 prose padding | **PACK** | FR-CH-1 rulepack → anti_slop deterministic layer |
 | R-19 duplicated blocks | **PACK** (jscpd) | code_health_tools |
 | R-21 hallucinated packages · R-23 credential literals | **PACK** | already shipped: FR-SEC-5 slopsquat · secrets scanner (W8) — anti_slop cross-links, never duplicates |
-| R-25 phantom/unused imports | **PACK** (pack rule; full unused-export analysis needs dep install → backlog `dead_code`) | FR-CH-1 (partial) |
+| R-25 phantom/unused imports · unused exports | **PACK** (pack rule for imports; `slop.unused_export` for exports of imported JS/TS modules, from the repo's own import graph — W18-01, ships in shadow; cross-package/installed-deps analysis stays backlog `dead_code`) | FR-CH-1 (partial) |
 | R-03 exception control flow · R-04 serial awaits · R-15 stale JSDoc params · R-24 docstring inflation (doc/impl >3×, LDR) · R-26 unwired scaffolding · R-28 LLM output w/o validation · R-30 library-shaped reimplementation (silent vendor fork) | **HYB** | pack/AST locates candidates → T2 confirms with evidence quote |
 | R-05 single-impl interfaces · R-06 delegation-only wrappers · R-07 single-use helpers · R-08 repository-on-CRUD · R-09 null checks on owned types · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization · R-18 cargo-cult patterns · R-20 pattern inconsistency · R-22 architectural privilege escalation | **LLM** | `anti_slop.v1` T2 checklist (diff-scoped; snapshot mode samples worst files) |
 
@@ -53,7 +53,8 @@ computed deterministically in the anti_slop scanner; thresholds workspace-tunabl
 
 Backlog delta (SECURITY_SUITE.md §7): `anti_slop` **promoted** to W9; new backlog row
 `dead_code` (knip ISC / vulture MIT / staticcheck MIT — full unused-export analysis
-needs installed dependencies, which conflicts with the no-network sandbox; ships when a
+(the part W18-01's in-process `slop.unused_export` cannot do: unimported files, package
+entry points, Python/Go) needs installed dependencies, which conflicts with the no-network sandbox; ships when a
 deps-cache volume design exists, same pattern as the vuln-DB volumes). Interprocedural/deep
 taint beyond unused-export detection is a separate, selective deep tier — **Joern**
 (Apache-2.0), never CodeQL (barred on non-OSS commercial use) — see SECURITY_SUITE.md §7

@@ -31,6 +31,14 @@ export interface IncomingFinding {
   cveId?: string | null;
   /** What an attacker gains, for the chainer: { 'credential:aws': true }. */
   yields?: Record<string, unknown> | null;
+  /**
+   * A shadow-mode rule's finding (CODE_HEALTH_SUITE.md §8.2): stored and
+   * visible, excluded from scores, banners, plans and reports. Absent = the
+   * scanner has no lifecycle opinion and an existing row keeps its flag; when
+   * stated, a sighting carries it over, so a promoted rule's open findings
+   * start counting on its next run rather than staying in shadow for good.
+   */
+  experimental?: boolean;
 }
 
 export interface PersistParams {
@@ -207,6 +215,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         ruleId: finding.ruleId ?? null,
         cveId: finding.cveId ?? null,
         yields: finding.yields ?? null,
+        experimental: finding.experimental ?? false,
         dedupKey: key,
         status: 'open',
         firstSeenAt: now,
@@ -233,6 +242,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         lastSeenAt: now,
         occurrenceCount: prior.occurrenceCount + 1,
         ...(decision ? { status: decision.next, statusChangedAt: now } : {}),
+        ...(finding.experimental !== undefined ? { experimental: finding.experimental } : {}),
       })
       .where(eq(read.findings.id, prior.id));
     result.updated += 1;

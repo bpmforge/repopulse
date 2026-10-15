@@ -4064,6 +4064,18 @@ the fix is a one-line UPDATE renaming the key.
   typecheck 0 · vitest 2501 passed / 14 skipped · e2e 153 passed / 1 skipped / 0 failed / 0
   flaky (✘ quality.spec.ts:538 = declared test.fail). Evidence:
   docs/work/product-completion/evidence/v1-last-code-20260923/.
+- 2026-10-15 claude/repopulse-dead-exports (from main 1a009e3; pushed, draft PR, not merged).
+  **W18 opened** (post-v1 enhancements; validate-plan id range widened to W18). **W18-01 done** —
+  `slop.unused_export` in the anti_slop deterministic layer: an export of a JS/TS module that
+  another snapshot file imports is reported only when no importer takes it AND no other file or
+  line mentions the name; index/test/config/route/bin/generated files, framework-convention names
+  and unimported modules are never reported. Ships in shadow: no rule_registry row → findings
+  `experimental=true`; `active` flips the same row on its next sighting; `deprecated` stops the
+  rule (persistFindings now writes `experimental`). knip-style analysis stays backlog `dead_code`.
+  Plan for further mechanical (no-LLM) checks: /mnt/project-files/repopulse/mechanical-checks-plan.md
+  (project share, not in repo). Gate: lint 0 · typecheck 0 · vitest 2471 passed / 58 skipped /
+  6 failed, all environmental on the cloud sandbox (docker on PATH for the 5 deploy tests; a
+  SIGKILL timing test under load that passes alone).
 
 ### 2026-10-15 — CI without GitHub Actions; SC-19 dependency-audit refresh
 
