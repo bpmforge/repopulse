@@ -1,0 +1,529 @@
+# bpm-rulepacks — baseline, Java and Kotlin variants v1 (W18-13,
+# SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse in the semgrep rule format the Opengrep
+# engine reads. Nothing here is copied, adapted or derived from the Semgrep
+# registry, whose licence bars it for service use (CPU_FIRST_OFFLOAD
+# 2026-07-16 §4/§6).
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`): findings are stamped experimental and kept
+# out of scores until an admin promotes the rule on evidence.
+#
+# `metadata.yields` feeds the attack chainer (W8-09), exactly as in
+# bpm-baseline.v1.yaml. Severity: ERROR → 4, WARNING → 3; nothing earns 5.
+#
+# Precision notes that shaped these rules:
+#   - MD5/SHA-1 and java.util.Random are everywhere in JVM code for checksums,
+#     ETags, sharding and jitter. Firing on every use would bury the one that
+#     hashes a password, so both rules need a SECRET-SHAPED context (a name or
+#     an enclosing method that says password/token/secret).
+#   - ObjectInputStream is matched only on a network/request stream; reading
+#     an app's own cache file is a different risk with a different owner.
+rules:
+  - id: bpm-java-sql-string-concat
+    languages: [java]
+    severity: ERROR
+    message: >-
+      SQL assembled by concatenation and handed to the driver. Use a
+      PreparedStatement with `?` placeholders (or named parameters in JPQL):
+      escaping by hand is one forgotten call away from an injection.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$EXEC($SQL, ...)
+          - patterns:
+              - pattern-inside: |
+                  String $Q = $SQL;
+                  ...
+              - pattern: $DB.$EXEC($Q, ...)
+          - patterns:
+              - pattern-inside: |
+                  $Q = $SQL;
+                  ...
+              - pattern: $DB.$EXEC($Q, ...)
+      - metavariable-regex:
+          metavariable: $EXEC
+          regex: ^(execute|executeQuery|executeUpdate|executeLargeUpdate|addBatch|prepareStatement|prepareCall|createQuery|createNativeQuery|createSQLQuery|queryForObject|queryForList|queryForMap|queryForRowSet|query|update|batchUpdate)$
+      - metavariable-pattern:
+          metavariable: $SQL
+          patterns:
+            - pattern-either:
+                - pattern: '"$STR" + $X'
+                - pattern: String.format("$STR", ...)
+            # Must LOOK like SQL: `query("label: " + x)` on some other API is
+            # not a database call.
+            - metavariable-regex:
+                metavariable: $STR
+                regex: (?i)^\s*(select|insert|update|delete|merge|with|call|exec|drop|alter|create)\b|.*\b(from|where|values|set|order by)\b
+      # Something NON-CONSTANT must be spliced in. A literal or an UPPER_SNAKE
+      # constant (`"SELECT * FROM " + TABLE + " WHERE id = ?"`) is chosen by the
+      # code, not by a caller. Read off the expression text because a negated
+      # pattern cannot carry a regex filter of its own. (metavariable-regex is
+      # anchored at the start, hence the leading `.*`.)
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?s).*(\+|,)\s*\(?\s*(?![A-Z][A-Z0-9_]*\b)[A-Za-z_]
+
+  - id: bpm-kt-sql-string-concat
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      SQL assembled from a string template or concatenation and handed to the
+      driver. Use placeholders and bind the value; a template is not escaping.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$EXEC("...$X...", ...)
+          - pattern: $DB.$EXEC("...${$X}...", ...)
+          - pattern: $DB.$EXEC("..." + $X, ...)
+      - metavariable-regex:
+          metavariable: $EXEC
+          regex: ^(execute|executeQuery|executeUpdate|prepareStatement|createQuery|createNativeQuery|queryForObject|queryForList|query|update|exec)$
+      - metavariable-regex:
+          metavariable: $X
+          regex: ^(?![A-Z][A-Z0-9_]*$).*
+      - pattern-regex: (?i)"\s*(select|insert|update|delete|with)\b[^"]*
+
+  - id: bpm-java-weak-hash-secret
+    languages: [java]
+    severity: WARNING
+    message: >-
+      MD5 or SHA-1 applied to a password, token or secret. Both are broken for
+      anything security-bearing, and an unsalted fast hash of a password is
+      reversible by lookup table. Use a password hash (bcrypt, scrypt, Argon2,
+      PBKDF2) for passwords and SHA-256+/HMAC for tokens.
+    metadata:
+      category: security
+      cwe: 'CWE-328: Use of Weak Hash'
+      yields: ['credential-recovery']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Needs a secret-shaped name in the hashed value or the enclosing method.
+        A weak hash of a password held in a variable called `input` is missed;
+        a checksum of a file is (correctly) not reported.
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: MessageDigest.getInstance("$ALG")
+              - pattern: MessageDigest.getInstance("$ALG", ...)
+          - metavariable-regex:
+              metavariable: $ALG
+              regex: (?i)^(md5|md4|md2|sha-?1|sha)$
+          - pattern-inside: |
+              $RET $METHOD(...) { ... }
+          - metavariable-regex:
+              metavariable: $METHOD
+              regex: (?i).*(password|passwd|pwd|secret|token|credential|apikey|session|otp|nonce|signature|hashpw).*
+      - patterns:
+          - pattern-either:
+              - pattern: DigestUtils.md5($S)
+              - pattern: DigestUtils.md5Hex($S)
+              - pattern: DigestUtils.sha1($S)
+              - pattern: DigestUtils.sha1Hex($S)
+              - pattern: DigestUtils.shaHex($S)
+              - pattern: Hashing.md5().$H($S, ...)
+              - pattern: Hashing.sha1().$H($S, ...)
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?i).*(password|passwd|secret|token|credential|apikey|api_key|otp|nonce).*
+
+  - id: bpm-kt-weak-hash-secret
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      MD5 or SHA-1 inside a function that handles passwords, tokens or secrets.
+      Both are broken for anything security-bearing. Use bcrypt/scrypt/Argon2/
+      PBKDF2 for passwords and SHA-256+/HMAC for tokens.
+    metadata:
+      category: security
+      cwe: 'CWE-328: Use of Weak Hash'
+      yields: ['credential-recovery']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern: MessageDigest.getInstance("$ALG")
+      - metavariable-regex:
+          metavariable: $ALG
+          regex: (?i)^(md5|md4|md2|sha-?1|sha)$
+      - pattern-inside: |
+          fun $METHOD(...) { ... }
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: (?i).*(password|passwd|pwd|secret|token|credential|apikey|session|otp|nonce|signature|hashpw).*
+
+  - id: bpm-java-insecure-random-token
+    languages: [java]
+    severity: WARNING
+    message: >-
+      java.util.Random (and ThreadLocalRandom, Math.random) is predictable from
+      a few outputs. A token, password, nonce or reset code made from it can
+      be guessed — use SecureRandom.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      yields: ['predictable-token']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: new Random(...).$NEXT(...)
+          - pattern: (java.util.Random $R).$NEXT(...)
+          - pattern: (Random $R).$NEXT(...)
+          - pattern: ThreadLocalRandom.current().$NEXT(...)
+          - pattern: Math.random()
+          - pattern: RandomStringUtils.$NEXT(...)
+          - pattern: RandomUtils.$NEXT(...)
+      - metavariable-regex:
+          metavariable: $NEXT
+          regex: ^(next\w*|ints|longs|random\w*|doubles)$
+      # The secret-shaped context: either the value lands in a secret-named
+      # variable, or the enclosing method generates one. `key` alone is not
+      # here — `cacheKey` and `shardKey` are ordinary names. The name must be
+      # an identifier: `secretArray[i] = random.nextInt()` is a secret being
+      # WIPED, which the corpus run turned up in a vault implementation.
+      - pattern-either:
+          - patterns:
+              - pattern-inside: $T $TOKEN = ...;
+              - metavariable-regex:
+                  metavariable: $TOKEN
+                  regex: (?i)^[\w.]*(token|secret|password|passwd|nonce|otp|salt|sessionid|apikey|api_key|resetcode|verificationcode|activationcode|csrf)\w*$
+          - patterns:
+              - pattern-inside: $TOKEN = ...;
+              - metavariable-regex:
+                  metavariable: $TOKEN
+                  regex: (?i)^[\w.]*(token|secret|password|passwd|nonce|otp|salt|sessionid|apikey|api_key|resetcode|verificationcode|activationcode|csrf)\w*$
+          - patterns:
+              - pattern-inside: |
+                  $RET $METHOD(...) { ... }
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^(generate|create|new|make|issue|random)\w*(token|secret|password|passwd|nonce|otp|salt|sessionid|apikey|code|csrf)\w*$
+
+  - id: bpm-kt-insecure-random-token
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      kotlin.random.Random and java.util.Random are predictable from a few
+      outputs. A token, password, nonce or reset code made from them can be
+      guessed — use java.security.SecureRandom.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      yields: ['predictable-token']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: Random.$NEXT(...)
+          - pattern: Random(...).$NEXT(...)
+          - pattern: ($C).random()
+          - pattern: ThreadLocalRandom.current().$NEXT(...)
+      - metavariable-regex:
+          metavariable: $NEXT
+          regex: ^(next\w*|ints|longs|doubles)$
+      - pattern-either:
+          - patterns:
+              - pattern-inside: val $TOKEN = ...
+              - metavariable-regex:
+                  metavariable: $TOKEN
+                  regex: (?i).*(token|secret|password|passwd|nonce|otp|salt|sessionid|apikey|resetcode|verificationcode|csrf).*
+          - patterns:
+              - pattern-inside: |
+                  fun $METHOD(...): $RET { ... }
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: (?i)^(generate|create|new|make|issue|random)\w*(token|secret|password|passwd|nonce|otp|salt|sessionid|apikey|code|csrf)\w*$
+
+  - id: bpm-java-trust-all-certificates
+    languages: [java]
+    severity: ERROR
+    message: >-
+      A TrustManager whose checkServerTrusted accepts everything. TLS without
+      certificate validation is encryption to whoever answered — any network
+      position can impersonate the server.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: |
+          void checkServerTrusted(...) { }
+      - pattern: |
+          void checkServerTrusted(...) throws $E { }
+      - pattern: TrustAllStrategy.INSTANCE
+      - pattern: InsecureTrustManagerFactory.INSTANCE
+      - patterns:
+          - pattern-either:
+              - pattern: new TrustAllStrategy()
+              - pattern: new TrustSelfSignedStrategy()
+          # The library's own singleton definition is not a use of it.
+          - pattern-not-inside: public static final $T INSTANCE = new $T();
+
+  - id: bpm-kt-trust-all-certificates
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      A TrustManager whose checkServerTrusted accepts everything. TLS without
+      certificate validation is encryption to whoever answered.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: |
+          override fun checkServerTrusted(...) { }
+      - pattern: InsecureTrustManagerFactory.INSTANCE
+
+  - id: bpm-java-hostname-verification-disabled
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Hostname verification switched off. A valid certificate for ANY host is
+      then accepted for this one, which is the same as no certificate check
+      against anyone who owns a domain.
+    metadata:
+      category: security
+      cwe: 'CWE-297: Improper Validation of Certificate with Host Mismatch'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: NoopHostnameVerifier.INSTANCE
+          - pattern: new NoopHostnameVerifier()
+          - pattern: SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER
+          - pattern: new AllowAllHostnameVerifier()
+          # A bare `(a, b) -> true` is every always-true BiPredicate in the
+          # JDK ecosystem; only one handed to a hostname-verifier slot counts.
+          - pattern: $X.setHostnameVerifier(($H, $S) -> true)
+          - pattern: $X.setDefaultHostnameVerifier(($H, $S) -> true)
+          - pattern: $X.hostnameVerifier(($H, $S) -> true)
+          - pattern: 'HostnameVerifier $V = ($H, $S) -> true;'
+          - pattern: |
+              HostnameVerifier $M(...) { ... return ($H, $S) -> true; }
+          - pattern: |
+              public boolean verify(String $H, SSLSession $S) { return true; }
+      # The library's own singleton definition is not a use of it.
+      - pattern-not-inside: public static final $T INSTANCE = new $T();
+
+  - id: bpm-kt-hostname-verification-disabled
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      Hostname verification switched off. A valid certificate for ANY host is
+      then accepted for this one.
+    metadata:
+      category: security
+      cwe: 'CWE-297: Improper Validation of Certificate with Host Mismatch'
+      yields: ['mitm']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: NoopHostnameVerifier.INSTANCE
+      - pattern: NoopHostnameVerifier()
+      - pattern: 'HostnameVerifier { $H, $S -> true }'
+      - pattern: '$B.hostnameVerifier { $H, $S -> true }'
+      - pattern: |
+          override fun verify($H: String?, $S: SSLSession?): Boolean = true
+      - pattern: |
+          override fun verify($H: String, $S: SSLSession): Boolean = true
+
+  - id: bpm-java-command-concat
+    languages: [java]
+    severity: ERROR
+    message: >-
+      A process command built by concatenation. Runtime.exec(String) splits on
+      whitespace, so a value with spaces injects arguments; behind `sh -c` it
+      injects whole commands. Pass an argument array with the value as its own
+      element.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: Runtime.getRuntime().exec($CMD, ...)
+          - pattern: (Runtime $R).exec($CMD, ...)
+          - pattern: new ProcessBuilder($SH, "-c", $CMD, ...)
+          - pattern: new ProcessBuilder($SH, "/c", $CMD, ...)
+      - metavariable-pattern:
+          metavariable: $CMD
+          pattern-either:
+            - pattern: $A + $B
+            - pattern: String.format(...)
+      - metavariable-pattern:
+          metavariable: $CMD
+          patterns:
+            - pattern-not: '"..." + "..."'
+
+  - id: bpm-java-unsafe-deserialization
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Java deserialization of a request or socket stream. readObject runs
+      constructors and callbacks of whatever classes the bytes name — with a
+      gadget on the classpath that is remote code execution. Use a data format
+      (JSON), or at least an ObjectInputFilter allow-list.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: new ObjectInputStream($SRC.getInputStream())
+          - pattern: new ObjectInputStream(new BufferedInputStream($SRC.getInputStream()))
+          - patterns:
+              - pattern-inside: |
+                  InputStream $IN = $SRC.getInputStream();
+                  ...
+              - pattern: new ObjectInputStream($IN)
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: (?i)^(request|req|httpRequest|servletRequest|socket|sock|clientSocket|client|exchange|conn|connection)$
+      # An allow-list filter set on the stream is the documented mitigation.
+      - pattern-not-inside: |
+          $OIS = new ObjectInputStream(...);
+          ...
+          $OIS.setObjectInputFilter(...);
+      - pattern-not-inside: |
+          ObjectInputStream $OIS = new ObjectInputStream(...);
+          ...
+          $OIS.setObjectInputFilter(...);
+
+  - id: bpm-java-xxe-parser
+    languages: [java]
+    severity: WARNING
+    message: >-
+      An XML parser factory used without disabling DTDs/external entities. The
+      JDK defaults resolve them, so a crafted document can read local files
+      (file:///etc/passwd) or make the server issue requests (XXE, SSRF). Set
+      the disallow-doctype-decl feature, or FEATURE_SECURE_PROCESSING.
+    metadata:
+      category: security
+      cwe: 'CWE-611: Improper Restriction of XML External Entity Reference'
+      yields: ['file-read', 'ssrf']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Looks for the hardening in the same method. A factory configured by a
+        helper elsewhere is reported; a factory merely RETURNED to a caller is
+        not (the caller may harden it).
+    patterns:
+      - pattern-either:
+          - pattern: $F = DocumentBuilderFactory.newInstance();
+          - pattern: DocumentBuilderFactory $F = DocumentBuilderFactory.newInstance();
+          - pattern: $F = SAXParserFactory.newInstance();
+          - pattern: SAXParserFactory $F = SAXParserFactory.newInstance();
+          - pattern: $F = XMLInputFactory.newInstance();
+          - pattern: XMLInputFactory $F = XMLInputFactory.newInstance();
+          - pattern: $F = XMLInputFactory.newFactory();
+          - pattern: XMLInputFactory $F = XMLInputFactory.newFactory();
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setProperty("javax.xml.stream.supportDTD", false);
+            ...
+          }
+      # Hardening applied from a table of features (H2 loops over its OWASP
+      # map), or a resolver that decides what external references resolve to:
+      # both are deliberate handling the rule cannot grade, so it stays quiet.
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            for (...) { ... $F.setFeature(...); ... }
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $F.setXMLResolver(...);
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $M(...) {
+            ...
+            $B.setEntityResolver(...);
+            ...
+          }
+
+  - id: bpm-java-jwt-unverified
+    languages: [java]
+    severity: ERROR
+    message: >-
+      A JWT read without verifying its signature, or with the `none`
+      algorithm. Anything read from it — a user id, a role — is whatever the
+      caller typed.
+    metadata:
+      category: security
+      cwe: 'CWE-347: Improper Verification of Cryptographic Signature'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      # jjwt: the unsecured-JWS paths.
+      - pattern: $P.parseClaimsJwt(...)
+      - pattern: $P.parseUnsecuredClaims(...)
+      - pattern: $P.parsePlaintextJwt(...)
+      - pattern: Jwts.parser().unsecured()
+      - pattern: $B.unsecured().build()
+      # auth0 java-jwt: decode() does not verify; `none` signs nothing.
+      - pattern: JWT.decode(...)
+      - pattern: Algorithm.none()
+      # Nimbus: an unsigned token.
+      - pattern: PlainJWT.parse(...)
