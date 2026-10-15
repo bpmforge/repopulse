@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
@@ -50,6 +52,13 @@ import {
   SPECULATIVE_PARAM_RULE_ID,
   speculativeGenerality,
 } from './speculative.js';
+import { DUPLICATE_PURPOSE_RULE_ID, duplicatePurposeDeps } from './duplicate-deps.js';
+import { LIBRARY_REIMPLEMENTATION_RULE_ID, libraryReimplementations } from './library-reimpl.js';
+import {
+  editableManifest,
+  readDeclaredDependencies,
+  type DeclaredSet,
+} from '../../validation/declared.js';
 import { runSemgrepScan } from '../semgrep/scanner.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
@@ -104,6 +113,13 @@ export interface AntiSlopDeps {
    * missing module be called missing; absent = assume it was not complete.
    */
   sourcesComplete?: boolean;
+  /**
+   * The extracted snapshot, for the dependency-hygiene rules (W18-06), which
+   * read the project's manifests. Absent = those rules stay silent: the stored
+   * SBOM cannot tell a direct dependency from a transitive one, and guessing
+   * from it would flag packages nobody in the project chose.
+   */
+  snapshotDir?: string;
   /**
    * The snapshot directory, for the W9-01 pack's anti-slop rules (W18-30).
    * Absent = no pack layer: a diff is not a tree, and the PR path has no
@@ -720,6 +736,12 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         findings.push({ ...finding, experimental: status !== 'active' });
       }
     }
+    // Dependency hygiene (W18-06): the project's declared dependencies,
+    // read once for both rules.
+    if (deps.snapshotDir) {
+      const declared = readDeclaredDependencies(deps.snapshotDir);
+      findings.push(...(await dependencyHygieneFindings(deps, declared, sources)));
+    }
     // ---- The W9-01 pack, anti-slop rules only (W18-30) -------------------
     // Eight rules that were loaded on every weekly run — by the LOGGING
     // scanner, which dropped them by id — and stored by nobody, while the
@@ -913,6 +935,87 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       error: safeErrorText(err),
     };
   }
+}
+
+async function dependencyHygieneFindings(
+  deps: AntiSlopDeps,
+  declared: DeclaredSet,
+  sources: readonly { path: string; source: string }[],
+): Promise<IncomingFinding[]> {
+  const out: IncomingFinding[] = [];
+  const duplicateStatus = await shippedRuleStatus(
+    deps.db,
+    deps.workspaceId,
+    DUPLICATE_PURPOSE_RULE_ID,
+  );
+  if (duplicateStatus !== 'deprecated') {
+    for (const dup of duplicatePurposeDeps(declared.dependencies)) {
+      const file = editableManifest(deps.snapshotDir!, dup.manifest);
+      const line = declarationLine(deps.snapshotDir!, file, dup.packages[dup.packages.length - 1]!);
+      out.push({
+        dimension: 'slop',
+        severity: 1,
+        // 4: the manifest facts are certain; that two members of a row
+        // overlap is the table's claim, and the finding cites the table.
+        confidence: 4,
+        file,
+        lineStart: line,
+        lineEnd: line,
+        title: `Two libraries for one job (${dup.purpose}): ${dup.packages.join(', ')}`,
+        evidenceQuote: `${dup.packages.join(', ')} — direct runtime dependencies in ${file}`,
+        rationale: dup.message,
+        suggestedFix: null,
+        scannerKey: ANTI_SLOP_SCANNER_KEY,
+        ruleId: dup.ruleId,
+        yields: null,
+        experimental: duplicateStatus !== 'active',
+      });
+    }
+  }
+
+  const reimplStatus = sources.length
+    ? await shippedRuleStatus(deps.db, deps.workspaceId, LIBRARY_REIMPLEMENTATION_RULE_ID)
+    : 'deprecated';
+  if (reimplStatus !== 'deprecated') {
+    for (const hit of libraryReimplementations(sources, declared.dependencies)) {
+      out.push({
+        dimension: 'slop',
+        severity: 1,
+        // 3: the name, the dependency and the mechanism agree, but whether the
+        // library's version would do here is a judgement about the call site.
+        confidence: 3,
+        file: hit.file,
+        lineStart: hit.line,
+        lineEnd: hit.line,
+        title: `Re-implements ${hit.api} from ${hit.dependency}: ${hit.name}`,
+        evidenceQuote: hit.declaration,
+        rationale: hit.message,
+        suggestedFix: null,
+        scannerKey: ANTI_SLOP_SCANNER_KEY,
+        ruleId: hit.ruleId,
+        yields: null,
+        experimental: reimplStatus !== 'active',
+      });
+    }
+  }
+  return out;
+}
+
+/** First manifest line naming the package, for the finding's anchor; 1 if none. */
+function declarationLine(snapshotDir: string, manifest: string, name: string): number {
+  let text: string;
+  try {
+    text = readFileSync(path.join(snapshotDir, manifest), 'utf8');
+  } catch {
+    return 1;
+  }
+  // Maven's `group:artifact` is written as two tags; the artifact is the
+  // distinctive half.
+  const needle = name.includes(':') ? name.split(':').pop()! : name;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  const pattern = new RegExp(`(^|[^\\w@/.-])${escaped}([^\\w/.-]|$)`);
+  const index = text.split('\n').findIndex((line) => pattern.test(line));
+  return index === -1 ? 1 : index + 1;
 }
 
 /** Worst-LDR files first — what the weekly snapshot pass samples. */
