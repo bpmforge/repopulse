@@ -391,6 +391,54 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     const [moduleRow] = await rows('slop.phantom_module');
     expect(moduleRow).toMatchObject({ file: 'src/pay.ts', lineStart: 2, experimental: true });
   });
+
+  it('W18-14: the Rust module graph feeds the same shadow rules', async () => {
+    // The W18-01 case above leaves slop.unused_export deprecated; back to the
+    // shipped default (no row = candidate) so the Rust half is observable.
+    await db
+      .delete(security.ruleRegistry)
+      .where(
+        and(
+          eq(security.ruleRegistry.workspaceId, workspaceId),
+          eq(security.ruleRegistry.ruleId, 'slop.unused_export'),
+        ),
+      );
+    const sources = [
+      {
+        path: 'pay/src/lib.rs',
+        source: 'pub mod money;\nmod audit;\nuse crate::money::{Cents, ToDollars};\n',
+      },
+      {
+        path: 'pay/src/money.rs',
+        source: 'pub struct Cents(pub u64);\npub(crate) fn never_called() {}\n',
+      },
+    ];
+    await runAntiSlopScan({
+      db, workspaceId, repoId, commitSha: 'w18-14-rust', files: [], sources,
+      sourcesComplete: true, trigger: 'schedule',
+    });
+    const rows = async (ruleId: string) =>
+      (
+        await db
+          .select()
+          .from(read.findings)
+          .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)))
+      ).filter((r) => r.file?.startsWith('pay/'));
+    expect(await rows('slop.phantom_module')).toMatchObject([
+      { file: 'pay/src/lib.rs', lineStart: 2, severity: 3, experimental: true },
+    ]);
+    expect(await rows('slop.phantom_symbol')).toMatchObject([
+      {
+        file: 'pay/src/lib.rs',
+        lineStart: 3,
+        title: 'Import of a name that does not exist: ToDollars from pay/src/money.rs',
+        experimental: true,
+      },
+    ]);
+    expect(await rows('slop.unused_export')).toMatchObject([
+      { file: 'pay/src/money.rs', lineStart: 2, title: 'Unused export: never_called', experimental: true },
+    ]);
+  });
 });
 
 describe('layer separation and sampling', () => {

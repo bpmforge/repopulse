@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -12,7 +12,13 @@ const PACK_DIR = path.resolve(HERE, '../../../rulepacks/code-health/perf');
 const FIXTURES = path.resolve(HERE, '../../../fixtures/perf');
 
 describe('the perf pack', () => {
-  const text = readFileSync(path.join(PACK_DIR, 'perf.v1.yaml'), 'utf8');
+  // Every file in the pack directory, not just perf.v1.yaml: the scanner loads
+  // them all, so the provenance, no-speedup and severity checks must cover the
+  // per-language files (W18) too.
+  const text = readdirSync(PACK_DIR)
+    .filter((f) => f.endsWith('.yaml'))
+    .map((f) => readFileSync(path.join(PACK_DIR, f), 'utf8'))
+    .join('\n');
 
   it('is ours, with a provenance line per rule', () => {
     const ids = readRulepack(PACK_DIR).ruleIds;

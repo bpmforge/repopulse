@@ -15,6 +15,7 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { rustPhantomRefs, rustUnusedItems } from './rust-graph.js';
 
 // The anti_slop scanner (W9-03, CODE_HEALTH_SUITE.md §1/§4, FR-CH-3).
 //
@@ -197,7 +198,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       ? await shippedRuleStatus(deps.db, deps.workspaceId, UNUSED_EXPORT_RULE_ID)
       : 'deprecated';
     if (unusedStatus !== 'deprecated') {
-      for (const unused of unusedExports(sources)) {
+      // Rust (W18-14) shares the rule id: a dead crate-visible item is the same
+      // finding as a dead export, and one lifecycle row governs both.
+      for (const unused of [...unusedExports(sources), ...rustUnusedItems(sources)]) {
         findings.push({
           dimension: 'slop',
           severity: 1,
@@ -233,7 +236,11 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           PHANTOM_MODULE_RULE_ID,
         ),
       };
-      for (const ref of phantomRefs(sources, { complete: deps.sourcesComplete === true })) {
+      const complete = { complete: deps.sourcesComplete === true };
+      for (const ref of [
+        ...phantomRefs(sources, complete),
+        ...rustPhantomRefs(sources, complete),
+      ]) {
         const status = statuses[ref.ruleId];
         if (status === 'deprecated') continue;
         findings.push({
