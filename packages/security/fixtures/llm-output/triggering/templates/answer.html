@@ -1,0 +1,7 @@
+{# Triggering fixture: a template switching autoescape off for model output. #}
+<section class="answer">
+  {# ruleid: bpm-llm-output-jinja-safe #}
+  <div>{{ llm_answer|safe }}</div>
+  {# ruleid: bpm-llm-output-jinja-safe #}
+  <div>{{ chat.ai_response | markdown | safe }}</div>
+</section>

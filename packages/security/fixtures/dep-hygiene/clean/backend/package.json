@@ -1,0 +1,6 @@
+{
+  "name": "backend",
+  "dependencies": {
+    "got": "^14.0.0"
+  }
+}

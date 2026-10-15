@@ -120,8 +120,16 @@ function regexCanStart(source: string, index: number): boolean {
  *
  * Regex literals and `${…}` template expressions are tracked, so a quote
  * inside `/'/g` or a nested template does not swallow the rest of the file.
+ *
+ * `commentSpans`, when given, receives each comment's [start, end) offsets: a
+ * directive such as `// @ts-ignore` only acts at the START of a comment, and
+ * a blanked view cannot say where one comment ends and the next begins.
  */
-export function maskSource(source: string, keepStrings = false): string {
+export function maskSource(
+  source: string,
+  keepStrings = false,
+  commentSpans?: [number, number][],
+): string {
   const out = source.split('');
   const blank = (from: number, to: number): void => {
     for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
@@ -161,11 +169,13 @@ export function maskSource(source: string, keepStrings = false): string {
     if (c === '/' && next === '/') {
       const end = source.indexOf('\n', i);
       const stop = end === -1 ? source.length : end;
+      commentSpans?.push([i, stop]);
       blank(i, stop);
       i = stop;
     } else if (c === '/' && next === '*') {
       const end = source.indexOf('*/', i + 2);
       const stop = end === -1 ? source.length : end + 2;
+      commentSpans?.push([i, stop]);
       blank(i, stop);
       i = stop;
     } else if (c === '/' && regexCanStart(source, i)) {
@@ -359,6 +369,60 @@ export function resolveSpecifier(
   return candidates.find((c) => files.has(c)) ?? null;
 }
 
+/**
+ * Python's counterpart to `maskSource`: blanks `#` comments and string
+ * contents (single, triple-quoted, any prefix), keeping offsets, newlines and
+ * the quote characters.
+ *
+ * `blankTripleQuotes` blanks the delimiters of triple-quoted strings too, for
+ * readers of block structure.
+ *
+ * The JavaScript masker cannot be reused: it reads `//` (floor division) as a
+ * comment and `#` as code, and a `'` in a docstring would open a string there.
+ */
+export function maskPython(source: string, blankTripleQuotes = false): string {
+  const out = source.split('');
+  const blank = (from: number, to: number): void => {
+    for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
+  };
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i];
+    if (c === '#') {
+      const end = source.indexOf('\n', i);
+      const stop = end === -1 ? source.length : end;
+      blank(i, stop);
+      i = stop;
+    } else if (c === '"' || c === "'") {
+      if (source[i + 1] === c && source[i + 2] === c) {
+        let j = i + 3;
+        while (
+          j < source.length &&
+          !(source[j] === c && source[j + 1] === c && source[j + 2] === c)
+        ) {
+          if (source[j] === '\\') j++;
+          j++;
+        }
+        // A closing `"""` at column 0 would read as a dedent to anything
+        // that follows Python's block structure by indentation.
+        if (blankTripleQuotes) blank(i, Math.min(j + 3, source.length));
+        else blank(i + 3, Math.min(j, source.length));
+        i = j + 3;
+      } else {
+        let j = i + 1;
+        while (j < source.length && source[j] !== c && source[j] !== '\n') {
+          if (source[j] === '\\') j++;
+          j++;
+        }
+        blank(i + 1, Math.min(j, source.length));
+        i = j + 1;
+      }
+    } else {
+      i++;
+    }
+  }
+  return out.join('');
+}
 export interface Surfaced {
   /** name → files whose `export { … }` clause names it (with or without `from`). */
   named: Map<string, Set<string>>;

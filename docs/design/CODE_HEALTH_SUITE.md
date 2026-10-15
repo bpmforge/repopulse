@@ -35,6 +35,7 @@ T2 confirms, **LLM** = T2 checklist judgment (runs through the gateway with veri
 | R-21 hallucinated packages · R-23 credential literals | **PACK** | already shipped: FR-SEC-5 slopsquat · secrets scanner (W8) — anti_slop cross-links, never duplicates |
 | R-25 phantom/unused imports · unused exports | **PACK** (pack rule for imports; `slop.unused_export` for exports of imported JS/TS modules, from the repo's own import graph — W18-01, ships in shadow; cross-package/installed-deps analysis stays backlog `dead_code`) | FR-CH-1 (partial) |
 | R-04 serial awaits · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization (deterministic candidates) | **PACK** (in-process fast lane, W18-08, ships in shadow): `perf.serial_independent_awaits` (≥2 adjacent `const x = await read()` with no data dependency; reads only, never on one connection or one stream; dimension `performance`), `slop.unbounded_retry` (`while(true)`/`for(;;)`/flag/do-while retry, or self-recursion from a catch with the same arguments, with no counter-vs-limit, deadline/abort, or sleep/backoff — the same "bounded" the await-in-loop/try-catch-in-loop retry carve-out uses; severity 2), `slop.speculative_param` (literal default of a module-private function that no counted call passes), `slop.orphan_flag` (`const ENABLE_X = true/false` read exactly once in the snapshot). JS/TS only; skips tests, fixtures, `.d.ts` and bundles. The T2 rows below still cover what these cannot see (exported APIs, options fields, retry libraries) | anti_slop deterministic layer |
+| R-20 pattern inconsistency, dependency half · R-30 library reimplementation, named-API half | **PACK** (in-process, W18-06, ships in shadow). `slop.duplicate_purpose_deps`: two libraries from one row of the versioned category table (`dep-categories.v1`: dates, HTTP clients, loggers, test runners, validation, ORMs for npm/PyPI/Go/Maven/Cargo, each row citing why its members overlap, with deliberate exclusions listed) that are BOTH direct runtime declarations of the same manifest directory. `slop.library_reimplementation`: a module-level function named like a dependency's API (`debounce`, `deepClone`, `uuid`, `slugify`, `retry`…) whose library is a direct runtime dependency of an enclosing project, whose body holds the API's mechanism, and which neither imports nor calls the library (JS/TS, Python, Go, Java). Input is the declared-dependency list (`validation/declared.ts`, which reuses the D10 V1 lockfile readers), not the stored SBOM, which cannot tell direct from transitive. The rest of R-20/R-30 stays with T2 | FR-CH-3 |
 | R-03 exception control flow · R-04 serial awaits · R-15 stale JSDoc params · R-24 docstring inflation (doc/impl >3×, LDR) · R-26 unwired scaffolding · R-28 LLM output w/o validation · R-30 library-shaped reimplementation (silent vendor fork) | **HYB** | pack/AST locates candidates → T2 confirms with evidence quote |
 | R-05 single-impl interfaces · R-06 delegation-only wrappers · R-07 single-use helpers · R-08 repository-on-CRUD · R-09 null checks on owned types · R-11 unspecified retry · R-12 orphan feature flags · R-17 speculative generalization · R-18 cargo-cult patterns · R-20 pattern inconsistency · R-22 architectural privilege escalation | **LLM** | `anti_slop.v1` T2 checklist (diff-scoped; snapshot mode samples worst files). **Since anti-slop.v2 (W18-10) the model no longer reviews a diff**: it judges the fast lane's shadow candidates for R-04/R-05/R-06/R-11/R-12/R-15/R-17 and unused exports, each as (file, line, rule, evidence) plus a ≤24-line excerpt, and confirms or stays silent (`scanners/anti-slop/candidates.ts`). R-07/R-08/R-09/R-18/R-20/R-22 and R-28 have no candidate rule yet and are not asked about until one exists |
 
@@ -44,12 +45,25 @@ decls, docstrings/comments, blanks); **file LDR < 0.3 ⇒ structural-slop findin
 per-exported-symbol **doc/impl > 3× ⇒ docstring-inflation finding** (R-24). Both
 computed deterministically in the anti_slop scanner; thresholds workspace-tunable.
 
+**Mechanical candidates for three HYB/LLM rows (W18-09, all shipped in shadow):**
+R-28 is an Opengrep **taint** pack, `rulepacks/semgrep/bpm-baseline.llm-output.v1.yaml`
+(JS/TS + Python): model-SDK response fields → code execution, SQL, markup or a path,
+and model JSON parsed with no schema check; schema validation and structured-output
+fields are the sanitizers (tool-call arguments, generated against a declared
+parameter schema, are not counted by the JSON check but stay tainted for the others). R-03 (`slop.exception_control_flow`: a throw/raise whose
+only catcher is a swallowing handler in the same function) and R-08
+(`slop.repository_over_crud`: a `*Repository` class whose every method forwards its
+own parameters to one ORM call) run in-process in the anti_slop deterministic layer.
+The checklist items stay: these settle the shapes a pattern can see, and leave the
+judgement cases (a repository that is a deliberate port, a throw that should be a
+result type) to T2.
+
 ## 2. Scanner roster (registry entries — zero framework changes, FR-SEC-1 acceptance)
 
 | key | inputs | triggers | requiredTools | dimension |
 |---|---|---|---|---|
 | `code_health_tools` | snapshot | weekly schedule, manual | lizard@1 (MIT), jscpd@4 (MIT) — standalone source parsers, run with no dependency install (sandbox stays `--network=none`) | `code_health` |
-| `anti_slop` | diff + snapshot | pr_synced (diff), weekly (snapshot), manual | semgrep + rulepack `code-health.v{N}` | `slop` |
+| `anti_slop` | diff + snapshot | pr_synced (diff), weekly (snapshot), manual | semgrep + rulepack `code-health.v{N}` | `slop`; the in-process test-integrity rules (`test.no_assertion`, `test.tautology`, `test.mocks_subject`, `test.swallowed_failure` — W18-03, JS/TS + Python, shadow, severity ≤ 2) store under `test_coverage` |
 | `logging_hygiene` | diff + snapshot | pr_synced, weekly, manual | semgrep + same pack (logging rules) | `logging` |
 
 Backlog delta (SECURITY_SUITE.md §7): `anti_slop` **promoted** to W9; new backlog row
@@ -241,6 +255,31 @@ one format, per-language variants of each rule where idioms differ. **Engine not
 files, so the SaaS-flip engine swap (DESIGN_REVIEW G-18) is a binary swap, not a rule
 rewrite. The adapter (§10) names the binary; rules never do.
 
+**C#, PHP and Ruby (W18-16)** — three files per language, every rule a shadow-mode
+candidate (`metadata.lifecycle: candidate`):
+
+| Language | Extensions routed | Security (`rulepacks/semgrep/`) | Code health (`rulepacks/code-health/`) | Adapter |
+|---|---|---|---|---|
+| C# | `.cs` | `bpm-baseline.csharp.v1.yaml` — 9 rules (`bpm-cs-*`) | `anti-slop.csharp.v1.yaml` (7), `logging.csharp.v1.yaml` (3) | none (see §10) |
+| PHP | `.php` | `bpm-baseline.php.v1.yaml` — 10 rules (`bpm-php-*`) | `anti-slop.php.v1.yaml` (6), `logging.php.v1.yaml` (3) | none (see §10) |
+| Ruby | `.rb` | `bpm-baseline.ruby.v1.yaml` — 11 rules (`bpm-rb-*`) | `anti-slop.ruby.v1.yaml` (7), `logging.ruby.v1.yaml` (3) | none — brakeman excluded (§10) |
+
+Routing is by each rule's `languages`, so none of these parse anything in a tree without
+the extension; PR mode (`run-modes.ts` SCANNABLE) fetches `.cs`/`.php`/`.rb` files too.
+Measured on real code (KeePass, SharpDevelop, pythonnet; Dolibarr, MantisBT; Rails 7.2
+components, Spree, Solidus, Devise, Sidekiq, Jekyll and others — the W18-16 ticket note
+has the numbers). PHP and Ruby injection, code-evaluation and deserialization rules are
+**taint** rules from the request (superglobals; `params`/`cookies`/`request.*`), because
+mature code in both builds SQL and calls `send`/`class_eval` from its own values
+everywhere; C# has no reliable request source at pattern level, so its rules are shape
+rules with a "spliced-in non-constant" condition. Limits the rules are written around:
+in Ruby an interpolated string is not matched by a `"..."` pattern (semgrep 1.181), so
+interpolation is read from the argument's text; comments are invisible to patterns, so
+"empty catch/rescue" is decided on the text and a comment in the body (or after the
+brace) opts out; `raise NotImplementedError` is Ruby's abstract method and a bare
+`throw new NotImplementedException()` is overwhelmingly a deliberately partial interface
+implementation in C#, so neither is a stub finding (the C# one is, inside a web
+controller).
 **As shipped (W9-01 … W18-30):** the layout is flat — `rulepacks/code-health/` holds
 `anti-slop*.yaml` and `logging*.yaml` side by side, `perf/` is its own directory, and
 `readRulepack` does not recurse. Ownership is by **file-name prefix**: the `anti_slop`
@@ -301,6 +340,9 @@ install`. Tools must parse raw source standalone.
 | actionlint | GitHub Actions workflows | correctness/ci | MIT | backlog |
 | hadolint | Dockerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | backlog |
 | shellcheck | shell scripts | correctness | GPL-3.0 (subprocess-only¹) | backlog |
+| brakeman | Rails security | sast | Brakeman Public Use License | **excluded (W18-16)** — free for non-commercial use only; the licence names "commercial managed/Software-as-a-Service services" and "a component of a value-added service" as Commercial Uses that need a paid licence. It would also need a Ruby runtime in the scan image. The `bpm-rb-*` pack covers its highest-yield checks (SQL/command interpolation, unsafe reflection, deserialization, `permit!`, open redirect, `html_safe`) |
+| Roslyn analyzers / SecurityCodeScan | C# | sast/code_health | MIT | backlog — need `dotnet restore` and a build to resolve types: fails the no-network admission filter |
+| PHPStan / Psalm | PHP | correctness | MIT | backlog — need a PHP runtime in the image and `vendor/` (composer install) for useful results; without the autoloader most findings are "unknown class" noise |
 | sqlfluff | SQL | code_health | MIT | backlog |
 | vale | prose/docs (R-29 companion) | slop (docs) | MIT | backlog |
 | gocyclo | Go complexity | code_health | BSD-3 | backlog |

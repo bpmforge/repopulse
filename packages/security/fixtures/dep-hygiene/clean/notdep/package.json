@@ -1,0 +1,6 @@
+{
+  "name": "notdep",
+  "dependencies": {
+    "react": "^18.3.0"
+  }
+}
