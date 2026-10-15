@@ -20,6 +20,7 @@ erDiagram
     commits ||--o{ commit_files : changes
     repos ||--o{ pull_requests : contains
     pull_requests ||--o{ pr_reviews : receives
+    pull_requests ||--o{ pr_review_comments : receives
     pull_requests ||--o{ pr_files : touches
     pull_requests ||--o{ check_runs : gates
     commits ||--o{ check_runs : reports
@@ -148,6 +149,17 @@ review-table aggregation.
 **pr_reviews** — `id, workspace_id, repo_id, pull_request_id, forge_review_id text,
 reviewer_identity_id, state enum('APPROVED','CHANGES_REQUESTED','COMMENTED','DISMISSED'),
 submitted_at`. Unique `(pull_request_id, forge_review_id)` (FR-METRICS-4/5/6).
+
+**pr_review_comments** (W18-23, migration 0037) — `id, workspace_id, repo_id,
+pull_request_id, forge_comment_id text, forge_review_id text NULL, author_identity_id,
+created_at, path, subject_type ('line'|'file'), is_reply, original_start_line,
+original_line, current_line NULL, original_commit_sha, commit_sha`. Unique
+`(pull_request_id, forge_comment_id)`; index `(workspace_id, repo_id, created_at)`. Diff
+anchors only — **no comment body**. `current_line` null = the forge no longer anchors the
+comment on the head diff (a later push rewrote those lines). Filled by per-PR enrichment on
+forges whose adapter implements `listReviewComments` (GitHub today), which also stamps
+`pull_requests.review_comments_observed_at` (null = never fetched, so "no line data" is
+never confused with "zero comments"). Feeds the AI-reviewer metrics (METRICS.md §5) only.
 
 **pr_files** — `workspace_id, repo_id, pull_request_id, path, additions, deletions,
 change_type text`; PK `(pull_request_id, path)`. From GraphQL backfill (research §6);

@@ -1,0 +1,26 @@
+name: ci
+on:
+  pull_request_target:
+    types: [opened]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Greet
+        run: echo "Title -- ${{ github.event.pull_request.title }}"
+      - name: Old output
+        run: echo "::set-output name=ver::1"
+      - name: Bad expression
+        if: ${{ secret.DEPLOY_TOKEN != '' }}
+        run: echo $HOME
+      - name: Unquoted
+        run: |
+          files=$(ls)
+          cp $files /tmp/
+          rm -rf "$OUT_DIR"/
+  test:
+    needs: biuld
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

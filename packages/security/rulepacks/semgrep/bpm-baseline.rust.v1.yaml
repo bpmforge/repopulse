@@ -1,0 +1,240 @@
+# bpm-rulepacks — baseline, Rust variants v1 (W18-14, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse; not derived from the Semgrep registry,
+# RustSec advisories' tooling, or Clippy (licence position: bpm-baseline.v1.yaml
+# header). Severity mapping and the meaning of `yields` are the same as there.
+#
+# Safe Rust removes whole classes of bug, so a Rust baseline is mostly about the
+# places a crate steps outside that guarantee — `unsafe`, a shell, a TLS
+# verifier switched off, an integer narrowed without a check — and the few
+# crypto choices the type system cannot judge.
+#
+# JUDGEMENT CALL, recorded so it is not re-litigated: `rand::thread_rng()` is
+# NOT flagged for secrets. Since rand 0.5 it is a ChaCha-based CSPRNG reseeded
+# from the OS, and flagging it would teach people to ignore the rule. What IS
+# flagged is a generator that is predictable by construction — seeded from a
+# number, or a non-cryptographic one (SmallRng, fastrand) — producing a value
+# named like a secret.
+rules:
+  - id: bpm-rs-unsafe-without-safety-comment
+    languages: [rust]
+    severity: INFO
+    message: >-
+      An `unsafe` block with no comment directly above it. The block is a
+      promise that the code upholds invariants the compiler cannot check; a
+      `// SAFETY:` comment is where that promise is written down, so a
+      reviewer can check it and a later change can tell when it breaks it.
+    metadata:
+      category: security
+      cwe: 'CWE-1068: Inconsistency Between Implementation and Documented Design'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Comments are invisible to the structural matcher, so the check is a
+        text one: it fires when neither of the two lines above the line holding
+        `unsafe {` is a comment. ANY comment there counts as documentation — judging
+        whether it actually argues soundness is a reviewer's job, and a rule
+        that demanded the literal word SAFETY would fire on every crate that
+        writes `// Safety:` or explains it in prose. A comment on the same line
+        after the brace is not seen.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+    patterns:
+      - pattern: unsafe { ... }
+      # The match starts at `unsafe` (\K) on a line where neither of the two
+      # lines above is a `//`, `/*` or `*` comment line or ends a block
+      # comment. Two, not one: rustfmt splits `if let Some(w) =\n unsafe {..}`
+      # and the comment sits above the statement, not above the block.
+      - pattern-regex: (?m)^(?![ \t]*(?://|/\*|\*)|[^\n]*\*/[ \t]*$)[^\n]*\n(?![ \t]*(?://|/\*|\*)|[^\n]*\*/[ \t]*$)[^\n]*\n[^\n]*?\K\bunsafe\b(?![^\n]*//[^\n]*(?i:safety))
+
+  - id: bpm-rs-shell-command-format
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      A shell is handed a command line built at run time (`sh -c` with a
+      formatted string). Anything interpolated into it is parsed by the shell,
+      so a value containing `;`, `$(...)` or a backtick runs as a second
+      command. Call the program directly with `Command::new(prog).arg(value)` —
+      arguments passed that way never meet a shell.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      lifecycle: candidate
+      yields: ['rce']
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: $C.arg("-c").arg(format!(...))
+      - pattern: $C.arg("-c").arg(&format!(...))
+      - pattern: $C.args(["-c", &format!(...)])
+      - pattern: $C.args(&["-c", &format!(...)])
+      - pattern: $C.arg("/C").arg(format!(...))
+      - pattern: $C.arg("/C").arg(&format!(...))
+      - patterns:
+          - pattern-inside: |
+              let $CMD = format!(...);
+              ...
+          - pattern-either:
+              - pattern: $C.arg("-c").arg($CMD)
+              - pattern: $C.arg("-c").arg(&$CMD)
+              - pattern: $C.args(["-c", &$CMD])
+              - pattern: $C.args(&["-c", &$CMD])
+              - pattern: $C.arg("/C").arg(&$CMD)
+
+  - id: bpm-rs-predictable-rng-secret
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A secret-named value produced by a predictable generator. A fixed seed
+      makes every run produce the same "random" value, and SmallRng / fastrand
+      are fast precisely because they are not built to resist prediction. Use
+      rand::rngs::OsRng (or thread_rng, which is a CSPRNG) or getrandom.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      lifecycle: candidate
+      yields: ['predictable-token']
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: let $NAME = <... fastrand::$F(...) ...>;
+          - pattern: 'let $NAME: $TY = <... fastrand::$F(...) ...>;'
+          - pattern: let $NAME = <... $X::seed_from_u64(...) ...>;
+          - pattern: 'let $NAME: $TY = <... $X::seed_from_u64(...) ...>;'
+          - pattern: let $NAME = <... SmallRng::$F(...) ...>;
+          - pattern: 'let $NAME: $TY = <... SmallRng::$F(...) ...>;'
+          - pattern: |
+              let mut $R = $X::seed_from_u64(...);
+              ...
+              let $NAME = <... $R ...>;
+          - pattern: |
+              let mut $R = $X::seed_from_u64(...);
+              ...
+              let $NAME: $TY = <... $R ...>;
+          - pattern: |
+              let mut $R = SmallRng::$F(...);
+              ...
+              let $NAME = <... $R ...>;
+          - pattern: |
+              let mut $R = SmallRng::$F(...);
+              ...
+              let $NAME: $TY = <... $R ...>;
+      - metavariable-regex:
+          metavariable: $NAME
+          # `key` alone is deliberately absent, as in the JS rule: `cache_key`
+          # and `map_key` are ordinary names.
+          regex: (?i).*(token|secret|password|nonce|salt|session|otp|csrf|api_?key|private_?key|signing_?key|secret_?key).*
+
+  - id: bpm-rs-weak-hash-password
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A password hashed with MD5 or SHA-1. Both are fast by design, so an
+      attacker with the hash tries billions of guesses a second; and unsalted,
+      one table cracks every user with the same password. Use argon2, scrypt or
+      bcrypt — a password hash is supposed to be slow.
+    metadata:
+      category: security
+      cwe: 'CWE-916: Use of Password Hash With Insufficient Computational Effort'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Fires only when a password-named value goes into the hash. MD5/SHA-1
+        as a cache key or content fingerprint is fine and not matched.
+    patterns:
+      - pattern-either:
+          - pattern: md5::compute($P)
+          - pattern: Md5::digest($P)
+          - pattern: Sha1::digest($P)
+          - pattern: $M::Md5::digest($P)
+          - pattern: $M::Sha1::digest($P)
+          - pattern: |
+              let mut $H = Md5::new();
+              ...
+              $H.update($P);
+          - pattern: |
+              let mut $H = Sha1::new();
+              ...
+              $H.update($P);
+          - pattern: |
+              let mut $H = $M::Sha1::new();
+              ...
+              $H.update($P);
+          - pattern: |
+              let mut $H = sha1_smol::Sha1::new();
+              ...
+              $H.update($P);
+      - metavariable-regex:
+          metavariable: $P
+          regex: (?i).*(passw|pwd|passphrase).*
+
+  - id: bpm-rs-tls-verification-disabled
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      TLS certificate or hostname verification switched off. The connection is
+      still encrypted — to whoever answered, including anyone on the network
+      path. Trust a specific CA with add_root_certificate instead; if this is
+      test-only, gate it behind cfg(test) or a dev-only feature.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      lifecycle: candidate
+      yields: ['data-read']
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'examples/**'
+        - 'benches/**'
+    pattern-either:
+      - pattern: $B.danger_accept_invalid_certs(true)
+      - pattern: $B.danger_accept_invalid_hostnames(true)
+      - pattern: $B.set_verify(SslVerifyMode::NONE)
+      - pattern: $B.set_verify($M::SslVerifyMode::NONE)
+
+  - id: bpm-rs-truncating-len-cast
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A length narrowed with `as`. `as` truncates silently: a 70,000-byte
+      buffer cast to u16 becomes 4,464, and a length prefix written that way
+      tells the reader to stop early — the next bytes are then parsed as a new
+      message the sender never wrote. Use `u32::try_from(x.len())?`.
+    metadata:
+      category: security
+      cwe: 'CWE-197: Numeric Truncation Error'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A bounds check before the cast (`if buf.len() > u16::MAX as usize`)
+        makes it safe and is not recognised unless it is the enclosing `if`.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'examples/**'
+        - 'benches/**'
+    patterns:
+      - pattern-either:
+          - pattern: $X.len() as u32
+          - pattern: $X.len() as u16
+          - pattern: $X.len() as u8
+          - pattern: $X.len() as i32
+          - pattern: $X.len() as i16
+          - pattern: $X.len() as i8
+      - pattern-not-inside: |
+          if $X.len() <= $MAX { ... }
+      - pattern-not-inside: |
+          if $X.len() < $MAX { ... }
+      # A justification on the same line ("never bigger than 256") is the
+      # author saying they checked; hyper does exactly this.
+      # Whole line, because a not-regex only removes a match it CONTAINS.
+      - pattern-not-regex: (?m)^[^\n]*\.len\(\)\s+as\s+[iu](?:8|16|32)\b[^\n]*//[^\n]*$
+      - pattern-not-inside: |
+          mod tests { ... }
+      - pattern-not-regex: (?ms)^([ \t]*)#\[(?:cfg\([^\n]*(?<!not\()\btest\b[^\n]*\)|(?:[\w:]+::)?test\b[^\n]*)\][ \t]*\n(?:[ \t]*#\[[^\n]*\n)*[ \t]*(?:pub(?:\([^)\n]*\))?\s+)?(?:async\s+)?(?:mod|fn|impl)\b[^;{]*\{.*?^\1\}

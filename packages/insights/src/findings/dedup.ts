@@ -19,6 +19,11 @@ export interface DedupInput {
   // an analysis finding arrives here.
   scannerKey?: string | null | undefined;
   ruleId?: string | null | undefined;
+  /**
+   * W18-24: a stable identity the TOOL computed — SARIF partialFingerprints,
+   * a GitHub code-scanning alert number. Honoured only beside a scannerKey.
+   */
+  fingerprint?: string | null | undefined;
 }
 
 /**
@@ -79,6 +84,18 @@ export function dedupKey(input: DedupInput): string {
   // triage decision and false-positive suppression would silently detach from
   // its finding. Scanner findings get the richer key; analysis findings do not
   // move.
+  // A TOOL-SUPPLIED FINGERPRINT REPLACES the evidence-and-bucket half (W18-24).
+  // External tools (SARIF uploads, code-scanning alerts) already solved line
+  // drift their own way — CodeQL's primaryLocationLineHash survives an
+  // insertion fifty lines up, where the ten-line bucket would mint a new
+  // finding and orphan its triage. The file stays in the key because those
+  // hashes are of line CONTENT, not path: the same flagged line in two files
+  // hashes alike and would otherwise fold into one row. Absent everywhere
+  // else, so no existing key moves.
+  if (input.fingerprint && input.scannerKey) {
+    const fp = `${input.scannerKey}\0${input.ruleId ?? ''}\0fp\0${input.dimension}\0${input.file}\0${input.fingerprint}`;
+    return createHash('sha256').update(fp).digest('hex');
+  }
   const base = `${input.dimension}\0${input.file}\0${normalized}\0${bucket}`;
   const keyed = input.scannerKey
     ? `${input.scannerKey}\0${input.ruleId ?? ''}\0${base}`

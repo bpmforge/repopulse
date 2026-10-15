@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation } from '../../api/useApiQuery.js';
+import { EvidenceCode } from './EvidenceCode.js';
 import { SEVERITY_LABEL, VERIFY_LABEL, type Finding } from './contracts.js';
 
 // Triage queue (W6-06, R-A8). A full-screen stepper over the current filter.
@@ -152,9 +153,7 @@ export function TriageQueue({
 
       {/* Evidence inline — the whole reason a stepper beats a list: the thing
           you need in order to decide is already on screen. */}
-      <pre className="overflow-x-auto panel-inset p-3 font-mono text-xs whitespace-pre-wrap">
-        {current.evidence}
-      </pre>
+      <EvidenceCode finding={current} />
       <p className="text-sm">{current.recommendation}</p>
 
       <label className="flex max-w-lg flex-col gap-1 text-xs text-fg-muted">

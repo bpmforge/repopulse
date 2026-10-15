@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import { repriceFindings, hotspotPercentiles } from './reprice.js';
+import { readImportGraph, writeImportGraph, type ImportGraphSnapshot } from './import-graph.js';
 
 // Nightly reprice (W9-09, RISK_MODEL.md §3, FR-RISK-4).
 
@@ -241,5 +242,57 @@ describeIfLiveInfra('risk.reprice', () => {
     // pricer treats as full exposure rather than as a cold file.
     const other = await hotspotPercentiles(db, workspaceId, repoId + 99_999);
     expect(other.size).toBe(0);
+  });
+
+  it('prices import-graph exposure from the stored graph and persists the why (W18-25)', async () => {
+    // hot.ts is imported by 14 modules, cold.ts by nothing. Same hotspot for
+    // both, so the only thing separating them is the graph.
+    const importers = Array.from({ length: 14 }, (_, i) => `src/caller${i}.ts`);
+    const files = ['src/hot.ts', 'src/cold.ts', ...importers];
+    const graph: ImportGraphSnapshot = {
+      version: 1,
+      commitSha: 'w18-25-sha',
+      complete: true,
+      extensions: ['.ts'],
+      files,
+      edges: importers.map((_, i): [number, number, string[] | null] => [i + 2, 0, ['run']]),
+      aliased: [],
+    };
+    await writeImportGraph(db, { workspaceId, repoId, snapshot: graph });
+    // Written twice: only the latest row is kept.
+    await writeImportGraph(db, { workspaceId, repoId, snapshot: graph });
+    const rows = await db
+      .select()
+      .from(read.metricSnapshots)
+      .where(eq(read.metricSnapshots.metricKey, 'import_graph'));
+    expect(rows.filter((r) => r.repoId === repoId)).toHaveLength(1);
+    expect(await readImportGraph(db, workspaceId, repoId)).toEqual(graph);
+
+    const hotspots = new Map([
+      ['src/hot.ts', 0.5],
+      ['src/cold.ts', 0.5],
+    ]);
+    await repriceFindings({ db, workspaceId, repoId, hotspots });
+    const priced = await db.select().from(read.findings).where(eq(read.findings.repoId, repoId));
+    const factorsOf = (id: number) =>
+      priced.find((r) => r.id === id)?.riskFactors as {
+        X: number;
+        inputs: Record<string, unknown>;
+      };
+    const hot = factorsOf(hotFindingId);
+    const cold = factorsOf(coldFindingId);
+    expect(hot.inputs).toMatchObject({ import_fan_in: 14, exposure_why: 'imported by 14 modules' });
+    expect(cold.inputs).toMatchObject({ import_fan_in: 0, exposure_why: 'nothing imports this file' });
+    expect(hot.X).toBeGreaterThan(cold.X);
+
+    // A capped snapshot: the graph says nothing, and both price as before.
+    await writeImportGraph(db, { workspaceId, repoId, snapshot: { ...graph, complete: false } });
+    await repriceFindings({ db, workspaceId, repoId, hotspots });
+    const capped = await db.select().from(read.findings).where(eq(read.findings.repoId, repoId));
+    const xs = capped
+      .filter((r) => r.id === hotFindingId || r.id === coldFindingId)
+      .map((r) => (r.riskFactors as { X: number; inputs: Record<string, unknown> }));
+    expect(xs[0]?.X).toBe(xs[1]?.X);
+    for (const f of xs) expect(f.inputs['exposure_why']).toMatch(/incomplete.*not adjusted/);
   });
 });

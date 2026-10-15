@@ -1,0 +1,28 @@
+name: ci
+on:
+  pull_request:
+    types: [opened]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Greet
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: echo "Title -- $TITLE"
+      - name: Output
+        id: ver
+        run: echo "ver=1" >> "$GITHUB_OUTPUT"
+      - name: Guarded
+        if: ${{ github.event.pull_request.number == 1 }}
+        run: |
+          echo "$HOME"
+          rm -rf "${OUT_DIR:?}"/
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

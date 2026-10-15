@@ -6,6 +6,7 @@ import { blobUrl, webBaseUrl, type ForgeKind } from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
 import { actorLoginFor } from '../../lib/actor.js';
 import { FINDING_DIMENSIONS } from '@repopulse/shared/dimensions';
+import { parseExternalScannerKey } from '@repopulse/security';
 
 // Findings API (W6-04, API_DESIGN.md §2, FR-API-3 / FR-INSIGHTS-1).
 
@@ -117,6 +118,8 @@ function findingsQuery(db: Database) {
         lineStart: read.findings.lineStart,
         lineEnd: read.findings.lineEnd,
         evidence: read.findings.evidence,
+        contextLines: read.findings.contextLines,
+        contextStartLine: read.findings.contextStartLine,
         recommendation: read.findings.recommendation,
         status: read.findings.status,
         dismissReason: read.findings.dismissReason,
@@ -143,6 +146,7 @@ function findingsQuery(db: Database) {
         forgeKind: core.forgeConnections.provider,
         forgeBaseUrl: core.forgeConnections.baseUrl,
         scanCommitSha: security.scanRuns.commitSha,
+        scanToolVersions: security.scanRuns.toolVersions,
       })
       .from(read.findings)
       .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
@@ -168,6 +172,13 @@ function toFinding(r: FindingRow) {
     file: r.file,
     line_range: [r.lineStart, r.lineEnd],
     evidence: r.evidence,
+    // W18-32: lines of the scanned file around the finding, copied at scan
+    // time. null when there are none to show (secrets, repo-level findings,
+    // old rows, closed past retention); the web app then shows the evidence.
+    context:
+      r.contextLines === null || r.contextStartLine === null
+        ? null
+        : { start_line: r.contextStartLine, lines: r.contextLines },
     recommendation: r.recommendation,
     status: r.status,
     dismiss_reason: r.dismissReason,
@@ -191,6 +202,10 @@ function toFinding(r: FindingRow) {
     risk_band: r.riskBand,
     risk_factors: r.riskFactors,
     experimental: r.experimental,
+    // W18-24. Set when ANOTHER tool raised this finding (a SARIF upload or a
+    // GitHub code-scanning alert), so the UI can say whose opinion it is.
+    // Null for every finding RepoPulse produced itself.
+    external: externalOf(r),
     // OPEN IT IN THE FORGE (W16-41). Null when there is nothing honest to link
     // to — a finding about the whole repository has no file, and a connection
     // with no recorded base URL has no instance to point at.
@@ -207,6 +222,20 @@ function toFinding(r: FindingRow) {
  * (a Tier-2 analysis run records none) it falls back to the default branch and
  * SAYS so, rather than implying a precision it does not have.
  */
+/** `{tool, source, tool_version}` for an external finding, else null (W18-24). */
+function externalOf(
+  r: FindingRow,
+): { tool: string; source: 'sarif' | 'code_scanning'; tool_version: string | null } | null {
+  const parsed = parseExternalScannerKey(r.scannerKey);
+  if (!parsed) return null;
+  const version = r.scanToolVersions?.[parsed.tool];
+  return {
+    tool: parsed.tool,
+    source: parsed.source,
+    tool_version: version && version !== 'unknown' ? version : null,
+  };
+}
+
 function forgeLinkFor(r: FindingRow): { url: string; ref_kind: 'commit' | 'branch' } | null {
   if (r.file === null) return null;
   // The stored base is the API host, not the site — api.github.com serves the

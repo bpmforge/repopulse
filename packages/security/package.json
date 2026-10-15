@@ -9,12 +9,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "bench": "node --import tsx src/benchmark/cli.ts",
+    "bench:prepare-owasp": "node --import tsx src/benchmark/prepare-owasp.ts"
   },
   "dependencies": {
     "@repopulse/analysis": "workspace:*",
     "@repopulse/shared": "workspace:*",
-    "drizzle-orm": "^0.39.3",
+    "drizzle-orm": "^0.45.2",
     "@repopulse/forge": "workspace:*",
     "zod": "^3.25.76",
     "@repopulse/insights": "workspace:*"

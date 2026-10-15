@@ -11,6 +11,12 @@ machine-readable catalog (FR-METRICS-15) with formula text, unit, direction, heu
 - **Bots**: exclude commits/PRs/reviews where author matches workspace bot list
   (default globs: `*[bot]`, `dependabot*`, `renovate*`, `github-actions*`) from every
   human-flow metric; bot activity remains queryable, never contributes to churn/ownership/cycle/review metrics.
+  **Reviews count as activity of their REVIEWER** (W18-23): a review or review comment by a bot —
+  the workspace globs, an identity flagged `is_bot`, or any login in the §5 review-bot registry,
+  which applies even when an admin replaces the default globs — is excluded from M4
+  (open→firstReview and every later stage), M5/M6 coverage and the review-load matrix. Before
+  W18-23 only the PR *author* was tested, so an AI reviewer's comment a minute after opening
+  counted as the PR's first review and as human coverage.
 - **Merge commits** (`parentShas.length > 1`): excluded from churn/ownership/hotspots
   (their stats double-count the branch); still count for DORA lead-time linkage.
 - **Force-push/rebase**: rewritten SHAs upserted by the reconciliation sweep may orphan old
@@ -140,6 +146,60 @@ by effective_risk — pure presentation over these sub-scores, no new arithmetic
 **Presentation rule (Goodhart risk R-x)**: UI/report copy says "signals, not grades"; scores
 are trend/triage aids, never individual performance measures; person-grain data appears only
 in the developer's own view (D6), not in rankings.
+
+## 5. AI reviewers (W18-23)
+
+Per **known review bot**, never per person (N-9). Computed live from the warehouse by
+`GET /repos/{id}/review-bots` (`packages/metrics` `computeReviewBotMetrics`); not snapshotted and
+not part of the health score. Bots are returned in registry order and never ranked; the UI shows
+numerator/denominator beside every share and carries no grades or good/bad colouring.
+
+**Registry** (exact login, case-insensitive; `engine/review-bots.ts`): CodeRabbit
+(`coderabbitai[bot]`, `coderabbitai`), Copilot code review (`copilot-pull-request-reviewer[bot]`,
+`copilot-pull-request-reviewer`, `Copilot`), Qodo Merge (`qodo-merge-pro[bot]`, `qodo-merge[bot]`,
+`qodo-code-review[bot]`, `codiumai-pr-agent-pro[bot]`), Greptile (`greptile-apps[bot]`), Cursor
+BugBot (`cursor[bot]`). Other non-human reviewers are counted (`otherBotReviews`) but not
+attributed. Every registry login is also a bot for §0.
+
+**Population.** Non-bot-authored PRs with `created_at` ∈ W. Reviews = `pr_reviews` rows on those
+PRs; comments = `pr_review_comments` rows on those PRs **whose `review_comments_observed_at` is
+set** (the PR's inline comments were actually fetched). Comment-derived numbers are `null` — not 0
+— when no PR in W has line data, with `line_data` = `refused` (the forge refused the fetch;
+`sync_cursors('review_comments')`) or `not_collected` (the adapter has no comment fetch — Gitea and
+GitLab today — or the PRs were enriched before W18-23).
+
+- **PRs reviewed** = PRs with ≥1 review or inline comment by the bot; **reach** = that ÷ PRs in W.
+- **Reviews per PR** = the bot's review submissions ÷ PRs reviewed.
+- **Comments per PR** = the bot's new inline comments (thread starters; `is_reply` excluded; file-
+  level comments included) ÷ the bot's reviewed PRs that have line data.
+- **Time to first comment** = per reviewed PR, `min(bot review submitted_at, bot comment
+  created_at) − pr.created_at`; median + p90, nearest-rank, pooled. Draft time included (as M4).
+  Negative gaps (clock skew) are dropped.
+- **Followed by a code change on the commented lines.** Over the bot's new **line** comments
+  (`subject_type='line'`, `original_line` set, not a reply) on PRs that are closed or merged **and
+  whose comments were fetched at or after the close** (`review_comments_observed_at ≥
+  coalesce(merged_at, closed_at)`): share whose `current_line` is null — the forge no longer anchors
+  the comment on the PR's final head diff because a later push rewrote the commented line(s)
+  (GitHub REST `line = null`, the "Outdated" marker). Comments on PRs still open, or fetched before
+  the close, are **pending**: reported as a count, excluded from both numerator and denominator.
+  *Caveats (printed in the UI):* a rebase/force-push that moves the lines also outdates the anchor
+  and counts; a fix made on other lines does not count; whether the change *addressed* the comment
+  is not judged. No line-level data ⇒ `null` with the reason above, never a guess from file-level
+  churn.
+- **Repeat after dismiss.** Over the bot's `DISMISSED` reviews that carried ≥1 inline comment:
+  share for which the same bot later (`created_at >` the dismissed review's `submitted_at`) posted
+  an inline comment on one of the **same files** of the same PR in a different review. Dismissed
+  reviews without inline comments are reported (`dismissedWithoutInline`) and excluded. *Caveat:*
+  the reviews API does not give the dismissal time, so "after" is measured from the review's
+  submission — an upper bound.
+
+**E5 (unit fixture, `review-bots.test.ts`).** 4 non-bot PRs in W (a fifth, bot-authored, ignored).
+CodeRabbit reviews PRs 1, 2, 3. PR 1 (merged, comments fetched after merge): review r1 at 2h with
+two line comments on `a.ts` (one later outdated), r1 dismissed; r2 at 10h comments `a.ts` again
+(outdated) plus one file-level comment and one reply. PR 2 (open): one line comment at 3h, review
+at 4h. PR 3: review at 6h, comments never fetched. ⇒ reach 3/4; reviews/PR 4/3; comments/PR
+5 thread starters ÷ 2 PRs with line data = 2.5; time to first {2h, 3h, 6h} ⇒ median 3h, p90 6h;
+followed by a change 2/3 with 1 pending; repeat-after-dismiss 1/1.
 
 ## 4. Worked examples (fixture: repo "demo", W=30d, today=2026-07-07)
 

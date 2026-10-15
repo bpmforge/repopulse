@@ -1,6 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, core, type Database } from '@repopulse/shared';
+import { auditLog, core, isConstraintViolation, type Database } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import {
   PROVIDER_REGISTRY,
@@ -257,7 +257,7 @@ export default async function llmProviderRoutes(
     } catch (err) {
       // The unique (workspace_id, name) index. Two providers with one label make
       // both the picker and the egress audit unreadable.
-      if (String(err).includes('llm_providers_workspace_name_key')) {
+      if (isConstraintViolation(err, 'llm_providers_workspace_name_key')) {
         return fail(request, reply, 409, 'A provider with that name already exists');
       }
       throw err;

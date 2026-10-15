@@ -1,0 +1,86 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [],
+          "commandLine": "semgrep scan --config rulepacks/semgrep --sarif -o out.sarif"
+        }
+      ],
+      "results": [
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "4f1c0b2e9a7d6c5b4a39281706f5e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b0a9f8e7d6c5b4a3928170"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/server.js", "uriBaseId": "%SRCROOT%" },
+                "region": {
+                  "startLine": 12,
+                  "startColumn": 5,
+                  "endLine": 12,
+                  "endColumn": 30,
+                  "snippet": { "text": "    return eval(req.query.expr);" }
+                }
+              }
+            }
+          ],
+          "message": { "text": "eval() is called with a value that is not a literal." },
+          "properties": {},
+          "ruleId": "rulepacks.semgrep.bpm-js-eval-dynamic"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/jobs/cleanup.js", "uriBaseId": "%SRCROOT%" },
+                "region": { "startLine": 40, "startColumn": 3, "endLine": 42, "endColumn": 4 }
+              }
+            }
+          ],
+          "message": { "text": "Temporary files are written to a hard-coded /tmp path." },
+          "properties": {},
+          "ruleId": "team.no-hardcoded-tmp"
+        }
+      ],
+      "tool": {
+        "driver": {
+          "name": "Semgrep OSS",
+          "semanticVersion": "1.85.0",
+          "rules": [
+            {
+              "id": "rulepacks.semgrep.bpm-js-eval-dynamic",
+              "name": "rulepacks.semgrep.bpm-js-eval-dynamic",
+              "shortDescription": {
+                "text": "Semgrep Finding: rulepacks.semgrep.bpm-js-eval-dynamic"
+              },
+              "fullDescription": { "text": "eval() is called with a value that is not a literal." },
+              "defaultConfiguration": { "level": "error" },
+              "properties": {
+                "precision": "very-high",
+                "tags": ["CWE-95: Eval Injection", "security"]
+              }
+            },
+            {
+              "id": "team.no-hardcoded-tmp",
+              "name": "team.no-hardcoded-tmp",
+              "shortDescription": { "text": "Semgrep Finding: team.no-hardcoded-tmp" },
+              "fullDescription": {
+                "text": "Temporary files are written to a hard-coded /tmp path."
+              },
+              "defaultConfiguration": { "level": "warning" },
+              "properties": { "precision": "medium", "tags": [] }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

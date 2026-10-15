@@ -1,5 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { core, security, type Database } from '@repopulse/shared';
+import { core, security, type Database, safeErrorText } from '@repopulse/shared';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { dependencyHealthFindings, type ReleaseFactsRow } from './dependency-health.js';
 import { eolFindings, type EolCycleRow } from './eol.js';
@@ -214,7 +214,7 @@ export async function runSupplyChainRegisters(
       .update(security.scanRuns)
       .set({
         status: 'failed',
-        error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+        error: safeErrorText(error).slice(0, 500),
         finishedAt: new Date(),
       })
       .where(eq(security.scanRuns.id, scanRunId));
@@ -222,7 +222,7 @@ export async function runSupplyChainRegisters(
       status: 'failed',
       scanRunId,
       ...empty,
-      error: error instanceof Error ? error.message : String(error),
+      error: safeErrorText(error),
     };
   }
 }

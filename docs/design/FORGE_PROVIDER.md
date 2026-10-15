@@ -149,6 +149,12 @@ flowchart LR
 - **Never**: raw-diff media type (406 >300 files/20k lines), tarball/zipball/clone (FR-FORGE-6
   lint gate), Events API (300-event/30-day window — unusable), Search API for backfill (30/min, 1k cap).
 - `verifyWebhook`: `X-Hub-Signature-256` = HMAC-SHA256(raw body); `crypto.timingSafeEqual`; ignore legacy SHA1.
+- **Code-scanning alerts** (W18-24): optional `listCodeScanningAlerts(ctx, repo, cursor?)`, guarded by
+  the optional capability `supportsCodeScanningAlerts` (absent = false; GitHub true, GitLab/Gitea
+  absent). `GET /repos/{o}/{r}/code-scanning/alerts?state=open&per_page=100`, Link-header paging,
+  `checks` secondary bucket. 403 (App lacks "Code scanning alerts: Read" / `security_events`) and
+  404 (code scanning off) REJECT as `ForgeHttpError` — never an empty page. Read-only; no write
+  endpoint exists in the adapter. Consumer: SECURITY_SUITE.md §8.
 
 ## 5. GiteaProvider notes (FR-FORGE-7, v1.x)
 

@@ -14,6 +14,7 @@ import {
 import path from 'node:path';
 import { sendProblem } from '../../lib/problem.js';
 import vexRoutes from './vex.js';
+import externalFindingsRoutes from './external.js';
 
 // Security posture API (W8-10, SECURITY_SUITE.md §5, FR-SEC-10 / NFR-15).
 //
@@ -162,6 +163,9 @@ export default async function securityRoutes(
   // security surface, and keeping its registration beside the payload it feeds
   // means the two cannot drift into being wired from different places.
   await app.register(vexRoutes, { db });
+  // W18-24. Same reasoning: external scanner results are part of the security
+  // surface, so their upload is wired beside it.
+  await app.register(externalFindingsRoutes, { db });
 
   /** GET /repos/:repoId/security — the Security tab's whole payload. */
   app.get<{ Params: { repoId: string } }>('/repos/:repoId/security', async (request, reply) => {

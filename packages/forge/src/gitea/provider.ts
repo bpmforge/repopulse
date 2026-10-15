@@ -70,6 +70,8 @@ export const GITEA_CAPABILITIES: ForgeCapabilities = {
   supportsTarball: true, // /archive/{sha}.tar.gz answers with bytes, no redirect
   maxPerPage: GITEA_MAX_PER_PAGE,
   webhookScheme: 'hub-signature',
+  // W18-24: not supported yet — Gitea has no native code scanning. Teams here upload SARIF instead.
+  supportsCodeScanningAlerts: false,
 };
 
 export interface GiteaProviderOptions {

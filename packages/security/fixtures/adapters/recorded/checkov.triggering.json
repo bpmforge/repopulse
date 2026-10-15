@@ -1,0 +1,575 @@
+[
+    {
+        "check_type": "dockerfile",
+        "results": {
+            "failed_checks": [
+                {
+                    "check_id": "CKV_DOCKER_1",
+                    "bc_check_id": null,
+                    "check_name": "Ensure port 22 is not exposed",
+                    "check_result": {
+                        "result": "FAILED",
+                        "results_configuration": [
+                            {
+                                "instruction": "EXPOSE",
+                                "startline": 2,
+                                "endline": 2,
+                                "content": "EXPOSE 22\n",
+                                "value": "22"
+                            }
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/docker/Dockerfile",
+                    "file_abs_path": "/scan/docker/Dockerfile",
+                    "repo_file_path": "/scan/docker/Dockerfile",
+                    "file_line_range": [
+                        3,
+                        3
+                    ],
+                    "resource": "/docker/Dockerfile.EXPOSE",
+                    "evaluations": null,
+                    "check_class": "checkov.dockerfile.checks.ExposePort22",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                },
+                {
+                    "check_id": "CKV_DOCKER_7",
+                    "bc_check_id": null,
+                    "check_name": "Ensure the base image uses a non latest version tag",
+                    "check_result": {
+                        "result": "FAILED",
+                        "results_configuration": [
+                            {
+                                "instruction": "FROM",
+                                "startline": 0,
+                                "endline": 0,
+                                "content": "FROM ubuntu:latest\n",
+                                "value": "ubuntu:latest"
+                            }
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/docker/Dockerfile",
+                    "file_abs_path": "/scan/docker/Dockerfile",
+                    "repo_file_path": "/scan/docker/Dockerfile",
+                    "file_line_range": [
+                        1,
+                        1
+                    ],
+                    "resource": "/docker/Dockerfile.FROM",
+                    "evaluations": null,
+                    "check_class": "checkov.dockerfile.checks.ReferenceLatestTag",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                },
+                {
+                    "check_id": "CKV_DOCKER_8",
+                    "bc_check_id": null,
+                    "check_name": "Ensure the last USER is not root",
+                    "check_result": {
+                        "result": "FAILED",
+                        "results_configuration": [
+                            {
+                                "instruction": "USER",
+                                "startline": 3,
+                                "endline": 3,
+                                "content": "USER root\n",
+                                "value": "root"
+                            }
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/docker/Dockerfile",
+                    "file_abs_path": "/scan/docker/Dockerfile",
+                    "repo_file_path": "/scan/docker/Dockerfile",
+                    "file_line_range": [
+                        4,
+                        4
+                    ],
+                    "resource": "/docker/Dockerfile.USER",
+                    "evaluations": null,
+                    "check_class": "checkov.dockerfile.checks.RootUser",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                }
+            ]
+        },
+        "summary": {
+            "passed": 2,
+            "failed": 3,
+            "skipped": 0,
+            "parsing_errors": 0,
+            "resource_count": 1,
+            "checkov_version": "3.3.29"
+        }
+    },
+    {
+        "check_type": "terraform",
+        "results": {
+            "failed_checks": [
+                {
+                    "check_id": "CKV_AWS_24",
+                    "bc_check_id": null,
+                    "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "ingress/[0]/from_port",
+                            "ingress/[0]/to_port",
+                            "ingress/[0]/cidr_blocks",
+                            "ingress/[0]/ipv6_cidr_blocks"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/terraform/main.tf",
+                    "file_abs_path": "/scan/terraform/main.tf",
+                    "repo_file_path": "/scan/terraform/main.tf",
+                    "file_line_range": [
+                        1,
+                        12
+                    ],
+                    "resource": "aws_security_group.ssh",
+                    "evaluations": null,
+                    "check_class": "checkov.terraform.checks.resource.aws.SecurityGroupUnrestrictedIngress22",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": {},
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": "/scan/terraform/main.tf"
+                },
+                {
+                    "check_id": "CKV_AWS_16",
+                    "bc_check_id": null,
+                    "check_name": "Ensure all data stored in the RDS is securely encrypted at rest",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "storage_encrypted"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/terraform/main.tf",
+                    "file_abs_path": "/scan/terraform/main.tf",
+                    "repo_file_path": "/scan/terraform/main.tf",
+                    "file_line_range": [
+                        14,
+                        22
+                    ],
+                    "resource": "aws_db_instance.main",
+                    "evaluations": null,
+                    "check_class": "checkov.terraform.checks.resource.aws.RDSEncryption",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": {},
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": "/scan/terraform/main.tf"
+                },
+                {
+                    "check_id": "CKV_AWS_17",
+                    "bc_check_id": null,
+                    "check_name": "Ensure all data stored in RDS is not publicly accessible",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "publicly_accessible"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/terraform/main.tf",
+                    "file_abs_path": "/scan/terraform/main.tf",
+                    "repo_file_path": "/scan/terraform/main.tf",
+                    "file_line_range": [
+                        14,
+                        22
+                    ],
+                    "resource": "aws_db_instance.main",
+                    "evaluations": null,
+                    "check_class": "checkov.terraform.checks.resource.aws.RDSPubliclyAccessible",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": {},
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": "/scan/terraform/main.tf"
+                }
+            ]
+        },
+        "summary": {
+            "passed": 3,
+            "failed": 3,
+            "skipped": 0,
+            "parsing_errors": 0,
+            "resource_count": 2,
+            "checkov_version": "3.3.29"
+        }
+    },
+    {
+        "check_type": "cloudformation",
+        "results": {
+            "failed_checks": [
+                {
+                    "check_id": "CKV_AWS_20",
+                    "bc_check_id": null,
+                    "check_name": "Ensure the S3 bucket does not allow READ permissions to everyone",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "Properties/AccessControl"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/cloudformation/template.yaml",
+                    "file_abs_path": "/scan/cloudformation/template.yaml",
+                    "repo_file_path": "/scan/cloudformation/template.yaml",
+                    "file_line_range": [
+                        3,
+                        6
+                    ],
+                    "resource": "AWS::S3::Bucket.Bucket",
+                    "evaluations": {},
+                    "check_class": "checkov.cloudformation.checks.resource.aws.S3PublicACLRead",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                },
+                {
+                    "check_id": "CKV_AWS_57",
+                    "bc_check_id": null,
+                    "check_name": "Ensure the S3 bucket does not allow WRITE permissions to everyone",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "Properties/AccessControl"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/cloudformation/template.yaml",
+                    "file_abs_path": "/scan/cloudformation/template.yaml",
+                    "repo_file_path": "/scan/cloudformation/template.yaml",
+                    "file_line_range": [
+                        3,
+                        6
+                    ],
+                    "resource": "AWS::S3::Bucket.Bucket",
+                    "evaluations": {},
+                    "check_class": "checkov.cloudformation.checks.resource.aws.S3PublicACLWrite",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                },
+                {
+                    "check_id": "CKV_AWS_25",
+                    "bc_check_id": null,
+                    "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 3389",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "Properties/SecurityGroupIngress"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/cloudformation/template.yaml",
+                    "file_abs_path": "/scan/cloudformation/template.yaml",
+                    "repo_file_path": "/scan/cloudformation/template.yaml",
+                    "file_line_range": [
+                        7,
+                        15
+                    ],
+                    "resource": "AWS::EC2::SecurityGroup.Sg",
+                    "evaluations": {},
+                    "check_class": "checkov.cloudformation.checks.resource.aws.SecurityGroupUnrestrictedIngress3389",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                }
+            ]
+        },
+        "summary": {
+            "passed": 2,
+            "failed": 3,
+            "skipped": 0,
+            "parsing_errors": 0,
+            "resource_count": 2,
+            "checkov_version": "3.3.29"
+        }
+    },
+    {
+        "check_type": "kubernetes",
+        "results": {
+            "failed_checks": [
+                {
+                    "check_id": "CKV_K8S_14",
+                    "bc_check_id": null,
+                    "check_name": "Image Tag should be fixed - not latest or blank",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "spec/template/spec/containers/[0]/image"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/k8s/deployment.yaml",
+                    "file_abs_path": "/scan/k8s/deployment.yaml",
+                    "repo_file_path": "/scan/k8s/deployment.yaml",
+                    "file_line_range": [
+                        1,
+                        22
+                    ],
+                    "resource": "Deployment.shop.web",
+                    "evaluations": {},
+                    "check_class": "checkov.kubernetes.checks.resource.k8s.ImageTagFixed",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                },
+                {
+                    "check_id": "CKV_K8S_19",
+                    "bc_check_id": null,
+                    "check_name": "Containers should not share the host network namespace",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": []
+                    },
+                    "code_block": null,
+                    "file_path": "/k8s/deployment.yaml",
+                    "file_abs_path": "/scan/k8s/deployment.yaml",
+                    "repo_file_path": "/scan/k8s/deployment.yaml",
+                    "file_line_range": [
+                        1,
+                        22
+                    ],
+                    "resource": "Deployment.shop.web",
+                    "evaluations": {},
+                    "check_class": "checkov.kubernetes.checks.resource.k8s.SharedHostNetworkNamespace",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                },
+                {
+                    "check_id": "CKV_K8S_16",
+                    "bc_check_id": null,
+                    "check_name": "Container should not be privileged",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "spec/template/spec/containers/[0]/securityContext/privileged"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/k8s/deployment.yaml",
+                    "file_abs_path": "/scan/k8s/deployment.yaml",
+                    "repo_file_path": "/scan/k8s/deployment.yaml",
+                    "file_line_range": [
+                        1,
+                        22
+                    ],
+                    "resource": "Deployment.shop.web",
+                    "evaluations": {},
+                    "check_class": "checkov.kubernetes.checks.resource.k8s.PrivilegedContainers",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                },
+                {
+                    "check_id": "CKV_K8S_20",
+                    "bc_check_id": null,
+                    "check_name": "Containers should not run with allowPrivilegeEscalation",
+                    "check_result": {
+                        "result": "FAILED",
+                        "evaluated_keys": [
+                            "spec/template/spec/containers/[0]/securityContext/allowPrivilegeEscalation"
+                        ]
+                    },
+                    "code_block": null,
+                    "file_path": "/k8s/deployment.yaml",
+                    "file_abs_path": "/scan/k8s/deployment.yaml",
+                    "repo_file_path": "/scan/k8s/deployment.yaml",
+                    "file_line_range": [
+                        1,
+                        22
+                    ],
+                    "resource": "Deployment.shop.web",
+                    "evaluations": {},
+                    "check_class": "checkov.kubernetes.checks.resource.k8s.AllowPrivilegeEscalation",
+                    "fixed_definition": null,
+                    "entity_tags": null,
+                    "caller_file_path": null,
+                    "caller_file_line_range": null,
+                    "resource_address": null,
+                    "severity": null,
+                    "bc_category": null,
+                    "benchmarks": null,
+                    "description": null,
+                    "short_description": null,
+                    "vulnerability_details": null,
+                    "connected_node": null,
+                    "guideline": null,
+                    "details": [],
+                    "check_len": null,
+                    "definition_context_file_path": null
+                }
+            ]
+        },
+        "summary": {
+            "passed": 4,
+            "failed": 4,
+            "skipped": 0,
+            "parsing_errors": 0,
+            "resource_count": 2,
+            "checkov_version": "3.3.29"
+        }
+    }
+]

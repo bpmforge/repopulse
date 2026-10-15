@@ -18,6 +18,64 @@ export interface ExportDecl {
 
 export const IDENT = '[A-Za-z_$][\\w$]*';
 
+/**
+ * Files whose exports are someone else's contract (W18-01; shared since W18-05).
+ *
+ * Index and main files are a package's public surface; tests, stories and
+ * configs are read by a runner by convention; route directories export names a
+ * framework looks up by string. Without a package.json in the snapshot these
+ * are recognised by path, and erring towards "public" costs a missed finding
+ * rather than a wrong one.
+ */
+export const PUBLIC_SURFACE = [
+  /(^|\/)(index|main|mod|public-api)\.[cm]?[jt]sx?$/,
+  /\.d\.[cm]?ts$/,
+  /\.(test|spec|stories|story|bench|e2e)\.[cm]?[jt]sx?$/,
+  /(^|\/)(__tests__|__mocks__|tests?|e2e|fixtures?|stories)\//,
+  /(^|\/)[^/]*\.config\.[cm]?[jt]s$/,
+  /(^|\/)(pages|app|routes)\//,
+  /(^|\/)(bin|scripts?)\//,
+  // Generated code: its shape belongs to the generator, not to anyone who
+  // could act on a finding.
+  /\.(gen|generated)\.[cm]?[jt]sx?$/,
+  /(^|\/)(__generated__|generated)\//,
+];
+
+/** Names frameworks and runtimes read off a module by string. */
+export const CONVENTIONAL_NAMES = new Set([
+  'default',
+  'config',
+  'metadata',
+  'generateMetadata',
+  'generateStaticParams',
+  'getStaticProps',
+  'getStaticPaths',
+  'getServerSideProps',
+  'loader',
+  'action',
+  'meta',
+  'links',
+  'headers',
+  'handler',
+  'revalidate',
+  'dynamic',
+  'runtime',
+  'GET',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'HEAD',
+  'OPTIONS',
+]);
+
+/** A package's front door: what a consumer outside the repository imports. */
+export const ENTRY_FILE = /(^|\/)(index|main|mod|public-api)\.[cm]?[jt]sx?$|\.d\.[cm]?ts$/;
+
+/** Tests, test doubles and fixtures — code a rule must count but never report. */
+export const TEST_OR_FIXTURE =
+  /(\.(test|spec|stories|story|bench|e2e)\.[cm]?[jt]sx?$)|(^|\/)(__tests__|__mocks__|__fixtures__|tests?|e2e|fixtures?|mocks?|stories|testing|test-utils|benchmarks?|examples?)\//;
+
 const REGEX_AFTER_WORD = new Set([
   'return',
   'typeof',
@@ -62,8 +120,16 @@ function regexCanStart(source: string, index: number): boolean {
  *
  * Regex literals and `${…}` template expressions are tracked, so a quote
  * inside `/'/g` or a nested template does not swallow the rest of the file.
+ *
+ * `commentSpans`, when given, receives each comment's [start, end) offsets: a
+ * directive such as `// @ts-ignore` only acts at the START of a comment, and
+ * a blanked view cannot say where one comment ends and the next begins.
  */
-export function maskSource(source: string, keepStrings = false): string {
+export function maskSource(
+  source: string,
+  keepStrings = false,
+  commentSpans?: [number, number][],
+): string {
   const out = source.split('');
   const blank = (from: number, to: number): void => {
     for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
@@ -103,11 +169,13 @@ export function maskSource(source: string, keepStrings = false): string {
     if (c === '/' && next === '/') {
       const end = source.indexOf('\n', i);
       const stop = end === -1 ? source.length : end;
+      commentSpans?.push([i, stop]);
       blank(i, stop);
       i = stop;
     } else if (c === '/' && next === '*') {
       const end = source.indexOf('*/', i + 2);
       const stop = end === -1 ? source.length : end + 2;
+      commentSpans?.push([i, stop]);
       blank(i, stop);
       i = stop;
     } else if (c === '/' && regexCanStart(source, i)) {
@@ -299,4 +367,218 @@ export function resolveSpecifier(
     ...[...TS_FIRST, ...RESOLVE_EXTENSIONS].map((ext) => `${base}/index${ext}`),
   ];
   return candidates.find((c) => files.has(c)) ?? null;
+}
+
+/**
+ * Python's counterpart to `maskSource`: blanks `#` comments and string
+ * contents (single, triple-quoted, any prefix), keeping offsets, newlines and
+ * the quote characters.
+ *
+ * `blankTripleQuotes` blanks the delimiters of triple-quoted strings too, for
+ * readers of block structure.
+ *
+ * The JavaScript masker cannot be reused: it reads `//` (floor division) as a
+ * comment and `#` as code, and a `'` in a docstring would open a string there.
+ */
+export function maskPython(source: string, blankTripleQuotes = false): string {
+  const out = source.split('');
+  const blank = (from: number, to: number): void => {
+    for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
+  };
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i];
+    if (c === '#') {
+      const end = source.indexOf('\n', i);
+      const stop = end === -1 ? source.length : end;
+      blank(i, stop);
+      i = stop;
+    } else if (c === '"' || c === "'") {
+      if (source[i + 1] === c && source[i + 2] === c) {
+        let j = i + 3;
+        while (
+          j < source.length &&
+          !(source[j] === c && source[j + 1] === c && source[j + 2] === c)
+        ) {
+          if (source[j] === '\\') j++;
+          j++;
+        }
+        // A closing `"""` at column 0 would read as a dedent to anything
+        // that follows Python's block structure by indentation.
+        if (blankTripleQuotes) blank(i, Math.min(j + 3, source.length));
+        else blank(i + 3, Math.min(j, source.length));
+        i = j + 3;
+      } else {
+        let j = i + 1;
+        while (j < source.length && source[j] !== c && source[j] !== '\n') {
+          if (source[j] === '\\') j++;
+          j++;
+        }
+        blank(i + 1, Math.min(j, source.length));
+        i = j + 1;
+      }
+    } else {
+      i++;
+    }
+  }
+  return out.join('');
+}
+export interface Surfaced {
+  /** name → files whose `export { … }` clause names it (with or without `from`). */
+  named: Map<string, Set<string>>;
+  /** Files another file passes on whole with `export * from`. */
+  starred: Set<string>;
+}
+
+/**
+ * Names and modules a file passes on to its own importers (W18-05).
+ *
+ * A declaration re-exported by ANOTHER file is being surfaced: it is an API,
+ * whatever the file names say, and package.json — which would say which file
+ * is the entry — is not in the snapshot.
+ */
+export function surfacedBy(
+  files: readonly { path: string; source: string; masked: string }[],
+): Surfaced {
+  const paths = new Set(files.map((f) => f.path));
+  const named = new Map<string, Set<string>>();
+  const starred = new Set<string>();
+  for (const file of files) {
+    for (const m of file.masked.matchAll(/\bexport\s+(?:type\s+)?\{([^}]*)\}/g)) {
+      for (const name of clauseNames(m[1] as string, 'local')) {
+        const set = named.get(name) ?? new Set<string>();
+        set.add(file.path);
+        named.set(name, set);
+      }
+    }
+    for (const m of file.masked.matchAll(
+      /\bexport\s+\*(?:\s+as\s+\w+)?\s+from\s*(['"])[^'"]*\1/dg,
+    )) {
+      const [start, end] = m.indices?.[0] ?? [0, 0];
+      const spec = /(['"])([^'"]*)\1\s*$/.exec(file.source.slice(start, end));
+      const target = spec ? resolveSpecifier(file.path, spec[2] as string, paths) : null;
+      if (target) starred.add(target);
+    }
+  }
+  return { named, starred };
+}
+
+/** Is `name`, declared in `file`, surfaced by some other file? */
+export function isSurfaced(surfaced: Surfaced, name: string, file: string): boolean {
+  if (surfaced.starred.has(file)) return true;
+  const by = surfaced.named.get(name);
+  return by !== undefined && [...by].some((f) => f !== file);
+}
+
+/**
+ * Minified or bundled output: a line no person wrote. Structural rules about
+ * how code was written have nothing to say about what a bundler emitted.
+ */
+export function looksMinified(path: string, source: string): boolean {
+  if (/\.min\.[cm]?js$/.test(path)) return true;
+  return source.split('\n').some((line) => line.length > 1000);
+}
+/** The persisted import graph (W18-25): what the risk model and Tier-2 read. */
+export interface ImportGraphBuild {
+  files: string[];
+  edges: [number, number, string[] | null][];
+  aliased: number[];
+}
+
+/** Last path segment of a specifier, without extension or query. */
+function specifierStem(specifier: string): string {
+  const last =
+    specifier
+      .replace(/[?#].*$/, '')
+      .replace(/\/+$/, '')
+      .split('/')
+      .pop() ?? '';
+  return last.replace(/\.[cm]?[jt]sx?$/, '');
+}
+
+/** What an unresolved specifier could be naming: the file's stem, or its directory for an index. */
+function fileStems(file: string): string[] {
+  const parts = file.split('/');
+  const stem = (parts[parts.length - 1] ?? '').replace(/(\.d)?\.[cm]?[jt]sx?$/, '');
+  return stem === 'index' && parts.length > 1 ? [stem, parts[parts.length - 2] as string] : [stem];
+}
+
+/**
+ * `import './register.js'` — a module loaded for what it does, taking no name.
+ *
+ * Kept out of importsOf on purpose: the rules built on it reason about NAMES,
+ * and a bare import changes what they would report. The graph needs it
+ * because it is an edge — a widget registry imported only this way is the
+ * opposite of a file nothing imports.
+ */
+function sideEffectImports(
+  source: string,
+  masked: string,
+): { specifier: string; taken: Set<string> }[] {
+  const out: { specifier: string; taken: Set<string> }[] = [];
+  for (const m of masked.matchAll(/\bimport\s*(['"])[^'"]*\1/dg)) {
+    const [start, end] = m.indices?.[0] ?? [0, 0];
+    const quoted = /(['"])([^'"]*)\1\s*$/.exec(source.slice(start, end));
+    if (quoted) out.push({ specifier: quoted[2] as string, taken: new Set() });
+  }
+  return out;
+}
+
+/**
+ * The repository's import graph, file to file, for the JS/TS sources.
+ *
+ * Only relative specifiers resolve — the snapshot has no tsconfig and no
+ * node_modules — so a file reached through a path alias or a workspace package
+ * name would look like nothing imports it. Those files are marked `aliased`
+ * instead: any unresolved specifier ending in the file's name is enough,
+ * because the cost of that being a coincidence is a missed discount, while the
+ * cost of ignoring it is discounting the most-imported file in the repo.
+ */
+export function buildImportGraph(
+  sources: readonly { path: string; source: string }[],
+): ImportGraphBuild {
+  const code = sources
+    .filter((f) => CODE.test(f.path))
+    .sort((a, b) => a.path.localeCompare(b.path));
+  const files = code.map((f) => f.path);
+  const position = new Map(files.map((f, i) => [f, i]));
+  const paths = new Set(files);
+
+  const edges = new Map<string, [number, number, Set<string> | null]>();
+  const unresolvedStems = new Set<string>();
+  for (const file of code) {
+    const from = position.get(file.path) as number;
+    const masked = maskSource(file.source);
+    for (const { specifier, taken } of [
+      ...importsOf(file.source, masked),
+      ...sideEffectImports(file.source, masked),
+    ]) {
+      const target = resolveSpecifier(file.path, specifier, paths);
+      if (!target) {
+        unresolvedStems.add(specifierStem(specifier));
+        continue;
+      }
+      if (target === file.path) continue;
+      const to = position.get(target) as number;
+      const key = `${from}:${to}`;
+      const edge = edges.get(key) ?? [from, to, new Set<string>()];
+      if (taken === 'all') edge[2] = null;
+      else if (edge[2]) for (const name of taken) edge[2].add(name);
+      edges.set(key, edge);
+    }
+  }
+
+  return {
+    files,
+    edges: [...edges.values()]
+      .map(([from, to, names]): [number, number, string[] | null] => [
+        from,
+        to,
+        names ? [...names].sort() : null,
+      ])
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1]),
+    aliased: files
+      .map((f, i) => (fileStems(f).some((s) => unresolvedStems.has(s)) ? i : -1))
+      .filter((i) => i >= 0),
+  };
 }

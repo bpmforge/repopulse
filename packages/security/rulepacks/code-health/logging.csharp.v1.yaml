@@ -1,0 +1,97 @@
+# bpm-rulepacks — logging antipatterns, C# variant v1 (W18-16,
+# CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18). Ids start `bpm-log-` because the
+# logging scanner keeps only those; the rest of this directory belongs to
+# anti_slop.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`, CODE_HEALTH_SUITE §8.2).
+#
+# Loggers are matched by the METHOD (Microsoft.Extensions.Logging's LogX
+# extension methods, Serilog's static `Log.X`), not by the receiver's type:
+# semgrep cannot see a field's type across files. `LogInformation` and friends
+# are distinctive enough that a non-logger with the same method name is rare.
+rules:
+  - id: bpm-log-cs-console-in-web
+    languages: [csharp]
+    severity: INFO
+    message: >-
+      Console output from a web endpoint or hosted service. It bypasses the
+      ILogger pipeline's levels, scopes, redaction and sinks — in a container it
+      is unstructured stdout that nobody correlates with a request. Inject an
+      ILogger<T> instead.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Only inside types that are recognisably server-side (controllers, Razor
+        page models, SignalR hubs, hosted services, middleware). A console app
+        prints by design, and a library's Console call cannot be told apart
+        from a CLI's without knowing the project type, so neither is flagged.
+    patterns:
+      - pattern-either:
+          - pattern: Console.$PRINT(...)
+          - pattern: System.Console.$PRINT(...)
+      - metavariable-regex:
+          metavariable: $PRINT
+          regex: ^(WriteLine|Write)$
+      - pattern-inside: |
+          class $C : $BASE { ... }
+      - metavariable-regex:
+          metavariable: $BASE
+          regex: ^(Controller|ControllerBase|ApiController|PageModel|Hub|Hub<.*>|BackgroundService|IHostedService|IMiddleware)$
+
+  - id: bpm-log-cs-secret-field
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log call. Logs outlive the request, sit
+      outside the product's access control, and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        The name list mirrors SC-2's redaction denylist on purpose. Two lists
+        of "what counts as a secret" drift apart, and the one in the logger is
+        the one that is actually enforced.
+    patterns:
+      - pattern: $LOG.$METHOD(..., $VALUE, ...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(LogTrace|LogDebug|LogInformation|LogWarning|LogError|LogCritical|Log|Verbose|Debug|Information|Warning|Error|Fatal|Info|Warn|Trace)$
+      # A NAME that ends in a secret noun — not a literal (those carry quotes)
+      # and not `passwordLength` / `tokenCount`, which describe a secret
+      # without being one. Continuation and cancellation tokens are not
+      # credentials.
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: (?i)^(?!.*(cancellation|continuation|page|paging|sync|next|resume|stopping)token$)[\w.]*(password|passwd|secret|token|apikey|api_key|privatekey|private_key|credential|credentials|connectionstring|sessionid|cookie)$
+
+  - id: bpm-log-cs-and-rethrow
+    languages: [csharp]
+    severity: INFO
+    message: >-
+      Logged and rethrown. The caller will log it again, and the incident
+      timeline gets the same failure at every level of the stack — log it where
+      it is handled, or rethrow it where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try { ... } catch ($T $E) { $LOG.$METHOD(...); throw; }
+          - pattern: |
+              try { ... } catch ($T $E) { $LOG.$METHOD(...); throw $E; }
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(LogError|LogCritical|LogWarning|Error|Fatal|Warning)$

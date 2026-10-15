@@ -1,0 +1,182 @@
+# bpm-rulepacks — baseline, Python (W18-11, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, in the semgrep format the Opengrep engine reads. Semgrep's
+# registry packs are barred for service use by their licence
+# (CPU_FIRST_OFFLOAD 2026-07-16 §4/§6); nothing here is copied, adapted or
+# derived from them.
+#
+# The Python siblings of bpm-baseline.v1.yaml, one per JavaScript rule. They
+# carry the same `metadata.yields` vocabulary, so the attack chainer (W8-09)
+# treats a Python RCE exactly like a JavaScript one.
+#
+# WHERE PYTHON DIFFERS FROM THE JAVASCRIPT ORIGINAL:
+# - PyJWT's `jwt.decode` VERIFIES by default; jsonwebtoken's does not. So the
+#   Python JWT rule fires only on verification switched off, never on decode.
+# - `hashlib.md5(..., usedforsecurity=False)` is the language's own way of
+#   saying "this is a checksum", so it is the clean form, not a finding.
+# - `cursor.execute("... %s", (x,))` is the parameterised form. The `%`
+#   OPERATOR is the injection; the comma is the fix. The rules hinge on that.
+#
+# Severity mapping (see output.ts): ERROR → 4, WARNING → 3, INFO → 2.
+rules:
+  - id: bpm-py-eval-dynamic
+    languages: [python]
+    severity: ERROR
+    message: >-
+      eval()/exec() runs whatever string it is given. If any part of that string
+      can come from a request, a database row or a file, this is remote code
+      execution. ast.literal_eval parses data without running it.
+    metadata:
+      category: security
+      cwe: 'CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: eval($X, ...)
+          - pattern: exec($X, ...)
+      - pattern-not: eval("...", ...)
+      - pattern-not: exec("...", ...)
+
+  - id: bpm-py-subprocess-shell-concat
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A shell command built from a string with values spliced in. Anything
+      interpolated into it is executed by the shell, so a value containing `;`
+      or `$(…)` runs as a second command. Pass an argument list without
+      shell=True.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.$FN($CMD, ..., shell=True, ...)
+          - pattern: os.system($CMD)
+          - pattern: os.popen($CMD, ...)
+      - metavariable-pattern:
+          metavariable: $CMD
+          pattern-either:
+            - pattern: f"...{$X}..."
+            - pattern: '"..." + $X'
+            - pattern: $X + "..."
+            - pattern: '"..." % $X'
+            - pattern: '"...".format(...)'
+
+  - id: bpm-py-sql-string-build
+    languages: [python]
+    severity: ERROR
+    message: >-
+      SQL assembled by f-string, `%`, `+` or .format() and handed to execute().
+      Use the driver's parameters — execute("… WHERE id = %s", (id,)) — an
+      escaping helper applied by hand is one forgotten call away from an
+      injection.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$EXEC($SQL, ...)
+          - patterns:
+              - pattern-inside: |
+                  $Q = $SQL
+                  ...
+              - pattern: $DB.$EXEC($Q, ...)
+      - metavariable-regex:
+          metavariable: $EXEC
+          regex: ^(execute|executemany|executescript|raw|exec_driver_sql)$
+      - metavariable-pattern:
+          metavariable: $SQL
+          pattern-either:
+            - pattern: f"...{$X}..."
+            - pattern: '"..." + $X'
+            - pattern: '"..." % $X'
+            - pattern: '"...".format(...)'
+      # Only strings that read as SQL: `.execute` is also a task runner's verb.
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?is)^[frbu]*['"]{1,3}\s*(select|insert|update|delete|with|merge|replace|create|drop|alter)\b.*
+
+  - id: bpm-py-weak-hash
+    languages: [python]
+    severity: WARNING
+    message: >-
+      MD5 and SHA-1 are broken for anything security-bearing. They are still
+      fine as non-security checksums — if that is what this is, pass
+      usedforsecurity=False, which says so to the reader and to FIPS builds.
+    metadata:
+      category: security
+      cwe: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: hashlib.md5(...)
+          - pattern: hashlib.sha1(...)
+          - pattern: hashlib.new("md5", ...)
+          - pattern: hashlib.new("sha1", ...)
+          - pattern: hashlib.new("MD5", ...)
+          - pattern: hashlib.new("SHA1", ...)
+      - pattern-not: hashlib.$H(..., usedforsecurity=False, ...)
+
+  - id: bpm-py-random-token
+    languages: [python]
+    severity: WARNING
+    message: >-
+      The random module is not a cryptographic source; its Mersenne Twister
+      state can be recovered from its outputs. Use the secrets module
+      (token_urlsafe, token_hex, choice) for anything that acts as a secret.
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      yields: ['predictable-token']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: $TOKEN = <... random.$FN(...) ...>
+          - pattern: $OBJ.$TOKEN = <... random.$FN(...) ...>
+      - metavariable-regex:
+          metavariable: $FN
+          # SystemRandom is os.urandom underneath — the safe one.
+          regex: ^(random|randint|randrange|choice|choices|sample|getrandbits|randbytes|uniform)$
+      - metavariable-regex:
+          metavariable: $TOKEN
+          # `key` alone is deliberately NOT here, as in the JavaScript rule:
+          # `cache_key` is an ordinary name, and a rule that cries wolf on cache
+          # keys is a rule people turn off.
+          regex: (?i).*(token|secret|password|passwd|nonce|session|api_?key|private_?key|otp|salt).*
+
+  - id: bpm-py-jwt-verify-disabled
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A JWT decoded with verification switched off is an attacker-supplied JSON
+      document. Anything read from it — a user id, a role — is whatever the
+      caller typed.
+    metadata:
+      category: security
+      cwe: 'CWE-347: Improper Verification of Cryptographic Signature'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          # PyJWT 2.x.
+          - pattern: '$JWT.decode(..., options={..., "verify_signature": False, ...}, ...)'
+          # PyJWT 1.x, still pinned in plenty of lockfiles.
+          - pattern: $JWT.decode(..., verify=False, ...)
+          - pattern: '$JWT.decode(..., algorithms=[..., "none", ...], ...)'
+      # `.decode(verify=False)` is also a TLS client's spelling; only a
+      # JWT-shaped receiver says what was decoded.
+      - metavariable-regex:
+          metavariable: $JWT
+          regex: (?i)^(.*\.)?_*(jwt|pyjwt|jose|jwt_?\w*)$

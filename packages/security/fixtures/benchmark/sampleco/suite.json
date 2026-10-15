@@ -1,0 +1,152 @@
+{
+  "id": "sampleco",
+  "title": "SampleCo planted-defect app (AI-slop corpus)",
+  "description": "A deliberately vibe-coded Express invoice API with twelve documented planted defects (PLANTED_DEFECTS.md upstream). Files are copied verbatim, including the upstream 'Dn:' marker comments. Labels follow the upstream ledger; D2b and the per-file split of D5 are ours and say so in their notes.",
+  "source": {
+    "kind": "vendored",
+    "repository": "https://github.com/bpmforge/slop-scorecard",
+    "commit": "f3ed52573aebe6c873d580551e5986aa743c7ca1",
+    "path": "sample/sampleco (src/ and package.json)",
+    "licence": "MIT (bpmforge; LICENSE alongside)"
+  },
+  "unlabelled": "fp",
+  "trees": [{ "id": "app", "path": "tree" }],
+  "labels": [
+    {
+      "id": "D1",
+      "tree": "app",
+      "file": "src/config.js",
+      "lines": [5, 6],
+      "dimension": "secrets",
+      "expect": "finding",
+      "note": "Hardcoded API key and JWT secret (CWE-798). Any secrets rule satisfies it."
+    },
+    {
+      "id": "D2",
+      "tree": "app",
+      "file": "src/services/invoiceService.js",
+      "lines": [7, 8],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "SQL built by concatenation, then passed to db.all through a variable."
+    },
+    {
+      "id": "D2b",
+      "tree": "app",
+      "file": "src/services/invoiceService.js",
+      "lines": [12, 14],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Ours, not in the upstream ledger: createInvoice repeats D2's pattern with db.run."
+    },
+    {
+      "id": "D3",
+      "tree": "app",
+      "file": "package.json",
+      "dimension": "dependency",
+      "expect": "finding",
+      "note": "Slopsquat dependency json-safe-parse-ultra. Needs registry data; the dependency scanner is outside this benchmark."
+    },
+    {
+      "id": "D4",
+      "tree": "app",
+      "file": "src/utils/format.js",
+      "lines": [2, 2],
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Phantom import of an uninstalled package (currency-fmt) via require. No rule claims bare packages; slop.phantom_module resolves relative specifiers only."
+    },
+    {
+      "id": "D5a",
+      "tree": "app",
+      "file": "src/routes/adminRoutes.js",
+      "lines": [4, 12],
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Copy-pasted requireAuth block (R-19 duplication), first copy."
+    },
+    {
+      "id": "D5b",
+      "tree": "app",
+      "file": "src/routes/authRoutes.js",
+      "lines": [3, 11],
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Copy-pasted requireAuth block (R-19 duplication), second copy."
+    },
+    {
+      "id": "D5c",
+      "tree": "app",
+      "file": "src/routes/invoiceRoutes.js",
+      "lines": [4, 12],
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Copy-pasted requireAuth block (R-19 duplication), third copy."
+    },
+    {
+      "id": "D6",
+      "tree": "app",
+      "file": "src/services/userService.js",
+      "lines": [6, 10],
+      "rule": "bpm-ch-empty-catch",
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Comment-only catch block (R-01)."
+    },
+    {
+      "id": "D7",
+      "tree": "app",
+      "file": "src/services/authService.js",
+      "lines": [8, 14],
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Dead primary path behind a fallback that always succeeds (R-10). Needs data flow; no deterministic rule claims it."
+    },
+    {
+      "id": "D8",
+      "tree": "app",
+      "file": "src/utils/validate.js",
+      "lines": [3, 8],
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Validator exported and never called. CommonJS, which slop.unused_export deliberately does not read."
+    },
+    {
+      "id": "D9",
+      "tree": "app",
+      "file": "src/routes/adminRoutes.js",
+      "lines": [16, 19],
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Admin route without a role check (CWE-862). No deterministic rule claims missing authorisation."
+    },
+    {
+      "id": "D10",
+      "tree": "app",
+      "file": "package.json",
+      "dimension": "dependency",
+      "expect": "finding",
+      "note": "express@4.16.0 with known CVEs. Dependency scanner; outside this benchmark."
+    },
+    {
+      "id": "D11",
+      "tree": "app",
+      "file": "src/routes/invoiceRoutes.js",
+      "lines": [21, 24],
+      "dimension": "code_health",
+      "expect": "finding",
+      "note": "Request body used with no runtime validation (type safety). No benchmarked engine reports code_health."
+    },
+    {
+      "id": "D12",
+      "tree": "app",
+      "file": "src/routes/authRoutes.js",
+      "lines": [13, 14],
+      "dimension": "slop",
+      "expect": "finding",
+      "note": "Stale comment describing a removed rate limiter (R-15). Needs judgement; no deterministic rule claims it."
+    }
+  ]
+}

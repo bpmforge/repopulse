@@ -1,0 +1,281 @@
+/* Code and diff views (W18-30). Tokens live in styles/theme.css (--code-*,
+   --tok-*). Line numbers are generated from data-line so they are never in the
+   copied text or the accessibility tree. */
+.code-host {
+  container-type: inline-size;
+}
+.code-view {
+  border: 1px solid var(--code-border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-ligatures: none;
+  tab-size: 2;
+}
+.code-head,
+.code-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--code-head-bg);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-fg-muted);
+}
+.code-head {
+  border-bottom: 1px solid var(--code-border);
+}
+.code-foot {
+  border-top: 1px solid var(--code-border);
+}
+.code-path {
+  min-width: 0;
+  flex: 1 1 12rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.code-lang {
+  flex: none;
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-fg);
+}
+.code-path-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* truncate the directory from the left, keep the file name */
+  text-align: left;
+}
+.code-path-text bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.code-path-dir {
+  color: var(--color-fg-muted);
+}
+.code-path-base {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+.code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.code-btn {
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  background: transparent;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-fg);
+  cursor: pointer;
+}
+.code-btn:hover {
+  border-color: var(--color-accent);
+}
+.code-btn[aria-pressed='true'] {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-strong);
+}
+.code-btn:focus-visible,
+.code-body:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.code-chip-warn {
+  border: 1px solid var(--color-warn);
+  border-radius: 999px;
+  padding: 0 8px;
+  color: var(--color-warn);
+}
+.code-body {
+  max-height: 28rem;
+  overflow: auto;
+}
+.code-row {
+  display: grid;
+  grid-template-columns: 52px 20px minmax(0, 1fr);
+  min-width: max-content;
+}
+.code-body[data-wrap='true'] .code-row {
+  min-width: 0;
+}
+.code-body[data-wrap='true'] .code-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.code-ln {
+  position: sticky;
+  left: 0;
+  user-select: none;
+  background: var(--code-gutter-bg);
+  color: var(--code-gutter);
+  text-align: right;
+  padding: 0 10px 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+.code-ln::before {
+  content: attr(data-line);
+}
+.code-mark {
+  user-select: none;
+  text-align: center;
+  font-weight: 700;
+}
+.code-text {
+  white-space: pre;
+  padding-right: 12px;
+  min-height: 20px;
+}
+.code-row[data-range='true'] {
+  background: var(--code-range-bg);
+}
+.code-row[data-range='true'] .code-ln {
+  box-shadow: inset 2px 0 0 var(--color-accent);
+  color: var(--color-fg);
+}
+.code-row[data-kind='add'] {
+  background: var(--code-add-bg);
+}
+.code-row[data-kind='add'] .code-ln {
+  background: var(--code-add-gutter);
+  color: var(--code-fg);
+}
+.code-row[data-kind='add'] .code-mark {
+  color: var(--code-add-mark);
+}
+.code-row[data-kind='del'] {
+  background: var(--code-del-bg);
+}
+.code-row[data-kind='del'] .code-ln {
+  background: var(--code-del-gutter);
+  color: var(--code-fg);
+}
+.code-row[data-kind='del'] .code-mark {
+  color: var(--code-del-mark);
+}
+.code-hunk {
+  background: var(--code-hunk-bg);
+  color: var(--code-hunk-fg);
+  padding: 0 12px;
+  min-width: max-content;
+  user-select: none;
+}
+.code-file-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--code-head-bg);
+  border-bottom: 1px solid var(--code-border);
+  font-size: 12px;
+}
+.code-stat-add {
+  color: var(--code-add-mark);
+}
+.code-stat-del {
+  color: var(--code-del-mark);
+}
+
+/* Split diff: two halves in one scroll container so rows stay aligned. */
+.code-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+/* Halves are equal width on every row, so a long line wraps rather than push
+   one row out of line with the rest; nothing is clipped. */
+.code-split .code-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.code-split-cell {
+  display: grid;
+  grid-template-columns: 52px 20px minmax(0, 1fr);
+  min-width: 0;
+}
+.code-split-cell:nth-child(odd) {
+  border-right: 1px solid var(--code-border);
+}
+.code-split-cell[data-kind='empty'] {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--color-fg) 4%, transparent) 6px 7px
+  );
+}
+.code-split-cell[data-kind='add'] {
+  background: var(--code-add-bg);
+}
+.code-split-cell[data-kind='add'] .code-ln {
+  background: var(--code-add-gutter);
+  color: var(--code-fg);
+}
+.code-split-cell[data-kind='add'] .code-mark {
+  color: var(--code-add-mark);
+}
+.code-split-cell[data-kind='del'] {
+  background: var(--code-del-bg);
+}
+.code-split-cell[data-kind='del'] .code-ln {
+  background: var(--code-del-gutter);
+  color: var(--code-fg);
+}
+.code-split-cell[data-kind='del'] .code-mark {
+  color: var(--code-del-mark);
+}
+
+.tok-kw {
+  color: var(--tok-keyword);
+}
+.tok-str {
+  color: var(--tok-string);
+}
+.tok-num {
+  color: var(--tok-number);
+}
+.tok-fn {
+  color: var(--tok-func);
+}
+.tok-type {
+  color: var(--tok-type);
+}
+.tok-com {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.tok-punct {
+  color: var(--tok-punct);
+}
+.tok-hidden {
+  color: var(--color-warn);
+  border: 1px solid var(--color-warn);
+  border-radius: 3px;
+  padding: 0 2px;
+  font-size: 11px;
+}
+
+@media (max-width: 480px) {
+  .code-split-cell,
+  .code-row {
+    grid-template-columns: 40px 16px minmax(0, 1fr);
+  }
+  .code-ln {
+    padding: 0 6px 0 6px;
+  }
+}

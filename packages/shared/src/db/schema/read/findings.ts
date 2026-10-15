@@ -107,6 +107,17 @@ export const findings = pgTable(
     effectiveRisk: numeric('effective_risk', { precision: 6, scale: 2 }),
     riskFactors: jsonb('risk_factors').$type<Record<string, unknown>>(),
     riskBand: text('risk_band'),
+    /**
+     * W18-32. A few lines of the scanned file around the finding, copied from
+     * the ephemeral snapshot at scan time so the app can show the code without
+     * a clone or a forge call. NULL when there is nothing safe to keep: a
+     * secrets finding (never store the value, SC-29), a repo-level finding, an
+     * unreadable or binary file, or a window that looks like it holds a
+     * credential. Cleared a retention window after the finding closes
+     * (insights/findings/context.ts). context_start_line numbers the first line.
+     */
+    contextLines: text('context_lines'),
+    contextStartLine: integer('context_start_line'),
   },
   (t) => [
     unique('findings_workspace_repo_dedup_key').on(t.workspaceId, t.repoId, t.dedupKey),

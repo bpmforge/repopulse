@@ -1176,6 +1176,42 @@
         }
       }
     },
+    "/api/v1/repos/{id}/review-bots": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d",
+                "365d"
+              ],
+              "default": "30d"
+            },
+            "in": "query",
+            "name": "window",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": true,
+              "minimum": 0
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/repos/{id}/ci": {
       "get": {
         "parameters": [

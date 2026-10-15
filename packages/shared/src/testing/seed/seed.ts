@@ -164,6 +164,9 @@ async function wipeWorkspace(
   await db.delete(read.egressAudit).where(eq(read.egressAudit.workspaceId, workspaceId));
   await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.workspaceId, workspaceId));
   await db.delete(facts.commitFiles).where(eq(facts.commitFiles.workspaceId, workspaceId));
+  await db
+    .delete(facts.prReviewComments)
+    .where(eq(facts.prReviewComments.workspaceId, workspaceId));
   await db.delete(facts.prReviews).where(eq(facts.prReviews.workspaceId, workspaceId));
   await db.delete(facts.prFiles).where(eq(facts.prFiles.workspaceId, workspaceId));
   await db.delete(facts.checkRuns).where(eq(facts.checkRuns.workspaceId, workspaceId));

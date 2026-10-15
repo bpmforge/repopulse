@@ -26,7 +26,8 @@ GT = Gitea adapter (v1.x).
 - **SC-25 Credential least-privilege** (T-13, T-14). Prefer GitHub App (short-lived
   installation tokens, ~1h) over PAT; docs + connect UI demand read-only scopes
   (`contents:read, metadata:read, pull_requests:read, checks:read, deployments:read,
-  issues:read` + webhook). Connect flow surfaces granted scopes and warns on write/admin.
+  issues:read, security_events:read` + webhook; `security_events:read` reads
+  code-scanning alerts for W18-24). Connect flow surfaces granted scopes and warns on write/admin.
   *Lands:* W1 · ingest connect flow + ADMIN_GUIDE. *Verify:* unit test on scope-warning
   logic; manual checklist item at first org connect.
 
@@ -227,6 +228,7 @@ GT = Gitea adapter (v1.x).
   config-gated, default OFF. *Lands:* W8 · secrets scanner + shared findings helper.
   *Verify:* DB-dump + log grep with a planted fixture secret finds zero plaintext
   occurrences; serializer snapshot test on Security tab/report payloads.
+- **SC-29a Stored code excerpts** (W18-32, T-38). A finding may keep up to 60 lines of the scanned file around it (8 either side, 300 characters a line) so the app can show the code without a clone. Never for a secrets finding or a rule whose id names a credential; never when the window matches a credential shape (private-key header, AWS, GitHub, Slack, JWT, key-assignment); never outside the snapshot directory (path and symlink checked) or for files over 1 MiB or with a NUL byte. Cleared `FINDING_CONTEXT_RETENTION_DAYS` (default 90) after the finding closes. *Verify:* `packages/security/src/excerpt.test.ts`, `packages/insights/src/findings/context.test.ts`.
 - **SC-30 Per-scanner budgets + scan lane** (T-39). `ScanBudget` per scanner (workspace
   defaults, per-repo override): wall-clock timeout, container CPU/mem caps, forge-call quota
   drawn from a new low-priority `scan` lane in the budgeted client (FR-FORGE-3 budget), LLM

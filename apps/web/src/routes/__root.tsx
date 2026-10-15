@@ -76,6 +76,7 @@ const SUBPAGE_LABELS: Record<string, string> = {
   performance: 'Performance',
   hotspots: 'Hotspots',
   'pr-flow': 'PR Flow',
+  'ai-reviewers': 'AI Reviewers',
   ci: 'CI',
   findings: 'Findings',
   security: 'Security',

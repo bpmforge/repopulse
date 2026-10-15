@@ -1,0 +1,122 @@
+# bpm-rulepacks — performance, Go variants v1 (W18-12, CODE_HEALTH_SUITE.md §9.1).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# Same contract as perf.v1.yaml: STRUCTURAL shapes, no speedup figures, nothing
+# above WARNING. A slow shape is not exploitable.
+#
+# `for ... { ... }` covers every Go loop form — three-clause, condition-only,
+# range and bare `for {}` — so each rule names the loop once.
+rules:
+  - id: bpm-perf-go-db-call-in-loop
+    languages: [go]
+    severity: WARNING
+    message: >-
+      A database call inside a loop. N rows means N round trips, and the cost
+      grows with data nobody controls. Batch it — one query with IN / ANY, or a
+      multi-row insert — or say in a comment why N is small and bounded.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern: $DB.$M(...)
+      - pattern-inside: |
+          for ... { ... }
+      - metavariable-regex:
+          metavariable: $M
+          # database/sql, sqlx and pgx share these names. Get/Select are left
+          # out: over real code they were sync.Pool.Get and in-memory go-memdb
+          # transactions, neither of which is a round trip.
+          regex: ^(?:Query|QueryRow|QueryContext|QueryRowContext|Exec|ExecContext|QueryRowx|Queryx|NamedExec|NamedExecContext)$
+      - metavariable-regex:
+          metavariable: $DB
+          # A prepared statement executed per row is the batching idiom this
+          # rule would otherwise recommend against itself, and the receiver
+          # must look like a database handle.
+          regex: ^(?!.*(?i:stmt)).*(?i:db|tx|conn|pool|sql|database|store|repo)\w*$
+      # A closure started in the loop runs elsewhere; its calls are not this
+      # loop's round trips in sequence.
+      - pattern-not-inside: |
+          go func(...) { ... }(...)
+
+  - id: bpm-perf-go-regex-compile-in-loop
+    languages: [go]
+    severity: WARNING
+    message: >-
+      A regular expression compiled inside a loop. The pattern does not change
+      between iterations, so the compile is repeated work; hoist it to a
+      package-level var, compiled once.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          # MatchString and friends compile their pattern on every call.
+          - pattern: regexp.MustCompile(...)
+          - pattern: regexp.Compile(...)
+          - pattern: regexp.MatchString(...)
+          - pattern: regexp.Match(...)
+      - pattern-inside: |
+          for ... { ... }
+
+  - id: bpm-perf-go-string-concat-in-loop
+    languages: [go]
+    severity: INFO
+    message: >-
+      A string grown with += inside a loop. Go strings are immutable, so each
+      iteration copies everything built so far; strings.Builder (or a []string
+      and strings.Join) keeps it linear.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Without types, a += is only known to be string concatenation when the
+        right-hand side is visibly a string (a literal, a Sprintf, string(...),
+        strconv) or the left-hand side was declared a string in view. Numeric
+        accumulators are never matched.
+    patterns:
+      - pattern-either:
+          - pattern: $S += "..."
+          - pattern: $S += "..." + $X
+          - pattern: $S += $X + "..."
+          - pattern: $S += fmt.Sprint(...)
+          - pattern: $S += fmt.Sprintf(...)
+          - pattern: $S += fmt.Sprintln(...)
+          - pattern: $S += string(...)
+          - pattern: $S += strconv.Itoa(...)
+          - pattern: $S += strconv.FormatInt(...)
+          - pattern: '($S : string) += $X'
+      - pattern-inside: |
+          for ... { ... }
+
+  - id: bpm-perf-go-defer-in-loop
+    languages: [go]
+    severity: WARNING
+    message: >-
+      defer inside a loop. Deferred calls run when the FUNCTION returns, not at
+      the end of the iteration — every file, lock or connection opened in this
+      loop stays held until the loop has finished. Wrap the body in a function,
+      or close explicitly.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern: defer $X(...)
+      - pattern-inside: |
+          for ... { ... }
+      # The fix this rule asks for: a per-iteration function scope.
+      - pattern-not-inside: |
+          func(...) { ... }(...)
+      - pattern-not-inside: |
+          $F := func(...) { ... }
+      - pattern-not-inside: |
+          go func(...) { ... }(...)
