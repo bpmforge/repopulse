@@ -267,10 +267,25 @@ versions. Nothing is pushed anywhere; there is no registry. The bundle's own
 
 ## CI
 
-**There is no CI running today, and there never has been.** Every gate this
-project has ever passed was run locally. GitHub Actions is configured
-(`.github/workflows/ci.yml`) but has never executed — the account has no
-Actions billing — so no green check in this repository has ever meant anything.
+**There is no hosted CI.** GitHub Actions is not enabled for this repository
+(GitHub is repo storage only), so `.github/workflows/ci.yml` runs on manual
+dispatch only. Before that change every push and pull request created a run
+that never got a runner and failed in seconds, which made every check red and
+meaningless.
+
+The gate is run locally, and it is the check of record:
+
+```bash
+scripts/dev-up.sh            # Postgres + Redis, if they are not already up
+scripts/ci-local.sh          # every step of both ci.yml jobs, then a summary
+```
+
+It runs install, migrate, lint, typecheck, `pnpm test` with
+`REQUIRE_LIVE_INFRA=1`, the bundle budget, the four validators, the `.npmrc`
+baseline, osv-scanner and gitleaks, and exits 0 only when every step passed.
+`--no-supply-chain` skips the two scanners (the summary says so) when the
+pinned releases cannot be downloaded. A pull request's description states the
+commit it was run on and its summary.
 
 `.gitea/workflows/gate.yaml` is the replacement, aimed at the maintainers'
 self-hosted Gitea (an internal host, not reachable from outside). It mirrors
