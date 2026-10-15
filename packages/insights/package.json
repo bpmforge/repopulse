@@ -12,7 +12,7 @@
   "dependencies": {
     "@repopulse/metrics": "workspace:^",
     "@repopulse/shared": "workspace:^",
-    "drizzle-orm": "^0.39.3"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

@@ -19,8 +19,18 @@ const GITHUB_TOKEN_PATTERN = /gh[pous]_[A-Za-z0-9]{36,}/g;
 // `\n`-escaped form that appears inside a JSON-stringified log line.
 const PEM_BLOCK_PATTERN = /-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g;
 
+// A drizzle query failure's text (drizzle-orm >= 0.44): "Failed query: <sql>
+// \nparams: <bound values>". In a JSON line the newline is the escaped `\n`.
+// Runs up to the end of the JSON string or the first stack frame, whichever
+// comes first. The structured form is handled before serialization (see the
+// `formatters.log` hook in index.ts); this catches the same text when it
+// arrives as a plain string.
+const QUERY_FAILURE_PATTERN =
+  /Failed query: (?:\\.|[^"\\])*?\\nparams: (?:\\.|[^"\\])*?(?=\\n {4}at |")/g;
+
 export function redactLine(line: string): string {
   return line
+    .replace(QUERY_FAILURE_PATTERN, 'Failed query: [REDACTED-SQL]')
     .replace(DENYLIST_KEY_PATTERN, '"$1":"[REDACTED]"')
     .replace(GITHUB_TOKEN_PATTERN, '[REDACTED-TOKEN]')
     .replace(PEM_BLOCK_PATTERN, '[REDACTED-PEM]');
