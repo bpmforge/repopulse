@@ -1,4 +1,5 @@
 import type { ScanBudget, ScanRunResult, ScanRunStatus, Scanner, ScannerContext } from './types.js';
+import { safeErrorText } from '@repopulse/shared';
 
 // Budget enforcement and failure isolation (W8-01, §1.2, NFR-15).
 
@@ -79,7 +80,7 @@ export async function runScanner(
       findings: [],
       partial: budgetHit,
       durationMs: now() - started,
-      error: error instanceof Error ? error.message : String(error),
+      error: safeErrorText(error),
     };
   }
 }

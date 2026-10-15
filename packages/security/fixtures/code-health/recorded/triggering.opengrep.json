@@ -1,0 +1,201 @@
+{
+  "version": "1.181.0",
+  "results": [
+    {
+      "check_id": "bpm-log-console-in-prod",
+      "path": "src/logging.js",
+      "start": {
+        "line": 4
+      },
+      "end": {
+        "line": 4
+      },
+      "extra": {
+        "message": "console.log in a production path. It bypasses the logger's redaction, its levels and its destination \u2014 a line here is unstructured, unfiltered and un-turn-off-able.",
+        "severity": "INFO",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-log-injection",
+      "path": "src/logging.js",
+      "start": {
+        "line": 6
+      },
+      "end": {
+        "line": 6
+      },
+      "extra": {
+        "message": "Request data reaches a log call unencoded (CWE-117). A newline in that value forges a log line, which is how an attacker writes \"authentication succeeded\" into the file an incident is later reconstructed from.",
+        "severity": "WARNING",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-log-injection",
+      "path": "src/logging.js",
+      "start": {
+        "line": 8
+      },
+      "end": {
+        "line": 8
+      },
+      "extra": {
+        "message": "Request data reaches a log call unencoded (CWE-117). A newline in that value forges a log line, which is how an attacker writes \"authentication succeeded\" into the file an incident is later reconstructed from.",
+        "severity": "WARNING",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-log-secret-field",
+      "path": "src/logging.js",
+      "start": {
+        "line": 8
+      },
+      "end": {
+        "line": 8
+      },
+      "extra": {
+        "message": "A secret-shaped field passed to a log call. Logs outlive the request, sit outside the product's access control, and get shipped to third-party aggregators \u2014 a token that reaches one is a token to rotate.",
+        "severity": "WARNING",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-log-and-rethrow",
+      "path": "src/logging.js",
+      "start": {
+        "line": 9
+      },
+      "end": {
+        "line": 14
+      },
+      "extra": {
+        "message": "Logged and rethrown. The caller will log it again, and the incident timeline gets the same failure three times at three levels of the stack \u2014 log it where it is handled, or rethrow it where it is not.",
+        "severity": "INFO",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-step-narration",
+      "path": "src/slop.js",
+      "start": {
+        "line": 1
+      },
+      "end": {
+        "line": 1
+      },
+      "extra": {
+        "message": "Step-numbered narration. Three of these in a row usually means the code was written to a plan and the plan was left behind as comments; the structure they describe should be functions with names.",
+        "severity": "INFO",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-try-catch-in-loop",
+      "path": "src/slop.js",
+      "start": {
+        "line": 4
+      },
+      "end": {
+        "line": 8
+      },
+      "extra": {
+        "message": "try/catch inside a loop body. Sometimes deliberate (continue past one bad row), often a swallowed failure repeated N times with nobody counting. If it is deliberate, the catch should record how many it skipped.",
+        "severity": "INFO",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-empty-catch",
+      "path": "src/slop.js",
+      "start": {
+        "line": 5
+      },
+      "end": {
+        "line": 7
+      },
+      "extra": {
+        "message": "An empty or comment-only catch block. The failure still happened; the only thing removed was anyone's chance of knowing. If the error genuinely does not matter, say so by handling it \u2014 a logged line, a fallback with a comment explaining why it is safe.",
+        "severity": "WARNING",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-silent-fallback-return",
+      "path": "src/slop.js",
+      "start": {
+        "line": 13
+      },
+      "end": {
+        "line": 17
+      },
+      "extra": {
+        "message": "A catch block that returns an empty value. The caller cannot tell \"there is nothing\" from \"we failed to find out\", and those are different facts \u2014 this is the shape behind most \"the dashboard shows zero\" bugs.",
+        "severity": "WARNING",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-stub-as-feature",
+      "path": "src/slop.js",
+      "start": {
+        "line": 21
+      },
+      "end": {
+        "line": 21
+      },
+      "extra": {
+        "message": "A function that exists and does nothing but refuse. Exported stubs read as capabilities from the outside \u2014 a caller sees the name, not the throw \u2014 which is how \"we support that\" survives into a demo.",
+        "severity": "WARNING",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-what-comment",
+      "path": "src/slop.js",
+      "start": {
+        "line": 23
+      },
+      "end": {
+        "line": 24
+      },
+      "extra": {
+        "message": "A comment restating what the next line does. It costs a line to read and goes stale the moment the code changes \u2014 a comment earns its place by saying WHY, or by naming a constraint the code cannot express.",
+        "severity": "INFO",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-emoji-comment",
+      "path": "src/slop.js",
+      "start": {
+        "line": 26
+      },
+      "end": {
+        "line": 27
+      },
+      "extra": {
+        "message": "An emoji in a comment. Harmless once; at scale it is the clearest tell of generated commentary nobody edited, and it does not survive a grep, a terminal without a font, or a diff someone reads at 6am.",
+        "severity": "INFO",
+        "metadata": {}
+      }
+    },
+    {
+      "check_id": "bpm-ch-prose-padding",
+      "path": "src/slop.js",
+      "start": {
+        "line": 29
+      },
+      "end": {
+        "line": 29
+      },
+      "extra": {
+        "message": "Filler phrasing in a comment. \"It is important to note that\" and its relatives carry no information \u2014 they are the written equivalent of clearing your throat, and they are what a model produces when it has nothing specific to say.",
+        "severity": "INFO",
+        "metadata": {}
+      }
+    }
+  ],
+  "errors": []
+}

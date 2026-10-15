@@ -4084,3 +4084,24 @@ the fix is a one-line UPDATE renaming the key.
   read, never tests, fixtures, assets, directories or paths above the root). 0 findings on this
   repo and on ~600 installed npm packages bar one shipped without its sources. Gate: lint 0 ·
   typecheck 0 · vitest 2485 passed / 58 skipped / 5 failed (environmental: docker on PATH).
+
+### 2026-10-15 — CI without GitHub Actions; SC-19 dependency-audit refresh
+
+GitHub Actions is not enabled for this repository, so `.github/workflows/ci.yml`
+is now manual-only and `scripts/ci-local.sh` runs every step of both CI jobs
+locally (PR #72). Its first full run found the SC-19 audit red: osv-scanner
+reported 59 advisories across 21 packages. This branch clears all of them under
+upgrade-policy rule 4 (security advisories override), which also moves three
+brief-fixed pins: drizzle-orm 0.39 → 0.45, echarts 5 → 6, vitest 3 → 4 (plus
+esbuild via one override). Every bump and its reason is in
+`docs/TECH_STACK.md` → "SC-19 dependency-audit refresh (2026-10-15)".
+drizzle 0.44+ puts a failed query's SQL and bound values in `err.message`;
+`safeErrorText`/`redactQueryError` (packages/shared/src/db/pg-error.ts), the
+logger and the BullMQ worker wrapper keep that text out of logs, stored error
+columns and job records. Gate (`scripts/ci-local.sh` on 9d4a3ad + 00e96e4's
+changes): all 13 steps pass; vitest 2477 passed / 58 skipped / 0 failed;
+osv-scanner no issues; gitleaks clean.
+
+Merged to `main` 2026-10-15 (#72 then #73) and pushed to GitHub only: the
+Gitea remote is not reachable from this environment, so `origin`/Gitea `main`
+is behind until the next push from the LAN.
