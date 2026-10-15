@@ -1,0 +1,101 @@
+# bpm-rulepacks — performance, Rust variants v1 (W18-14, CODE_HEALTH_SUITE.md §9.1).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry or from Clippy (DESIGN_REVIEW.md G-18).
+#
+# Same contract as perf.v1.yaml: structural shapes, no claimed speedups, nothing
+# above WARNING. Rust is a language where the compiler already removes most
+# accidental cost, so each rule here names a cost the optimiser provably CANNOT
+# remove — a heap allocation it must perform, or a regex compile with side
+# effects it may not elide — rather than a style preference.
+rules:
+  - id: bpm-perf-rs-regex-compile-in-loop
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      A regex compiled from a constant pattern inside a loop. Compilation is the
+      expensive half of using a regex and the pattern never changes between
+      iterations — build it once outside the loop, or in a static
+      (std::sync::LazyLock / once_cell::sync::Lazy) if it is shared.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Literal patterns only. A pattern built from loop data has to be
+        compiled per iteration, and one built from a loop-invariant variable
+        cannot be told apart from it without dataflow.
+    patterns:
+      # `while ... { }` rather than `while $C { }`: with a metavariable in the
+      # condition, semgrep 1.181 raises an internal matching error on some
+      # files (NoTokenLocation), which reaches the scan as a tool error.
+      - pattern-either:
+          - pattern-inside: |
+              for $P in $I { ... }
+          - pattern-inside: |
+              while ... { ... }
+          - pattern-inside: |
+              while let $Q = $E { ... }
+          - pattern-inside: |
+              loop { ... }
+      - pattern-either:
+          - pattern: Regex::new("...")
+          - pattern: $M::Regex::new("...")
+          - pattern: RegexBuilder::new("...")
+          - pattern: $M::RegexBuilder::new("...")
+
+  - id: bpm-perf-rs-clone-loop-collection
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      The collection being iterated is cloned inside its own loop. Every pass
+      copies the whole collection — O(n) allocation per element, O(n²) for the
+      loop — to get data the loop already has a borrow of.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Only a clone of the iterated collection itself. Cloning the loop
+        ELEMENT (`item.clone()`) is often the cheapest correct way to get an
+        owned value, and telling a cheap clone (an Arc) from an expensive one
+        needs types.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $P in $C.iter() { ... }
+          - pattern-inside: |
+              for $P in $C.iter_mut() { ... }
+          - pattern-inside: |
+              for $P in &$C { ... }
+          - pattern-inside: |
+              for $P in 0..$C.len() { ... }
+      - pattern-either:
+          - pattern: $C.clone()
+          - pattern: $C.to_vec()
+          - pattern: $C.to_owned()
+
+  - id: bpm-perf-rs-collect-then-iterate
+    languages: [rust]
+    severity: INFO
+    message: >-
+      An iterator collected into a Vec only to be iterated or counted
+      immediately. The Vec is a heap allocation that holds every element at
+      once for no reader — keep the iterator lazy (`.count()` instead of
+      `.len()`, or just drop the collect).
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        `.collect::<Vec<_>>().into_iter()` is NOT matched: collecting to end a
+        borrow before mutating the source, or to reverse an iterator that is
+        not double-ended, is the common reason to write it, and both are
+        correct.
+    pattern-either:
+      - pattern: $X.collect::<Vec<$T>>().iter()
+      - pattern: $X.collect::<Vec<$T>>().len()
+      - pattern: $X.collect::<Vec<$T>>().is_empty()

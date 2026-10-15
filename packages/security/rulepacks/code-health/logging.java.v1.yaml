@@ -1,0 +1,331 @@
+# bpm-rulepacks — logging antipatterns, Java and Kotlin variants v1 (W18-13,
+# CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18). Ids start `bpm-log-` because the
+# logging scanner keeps only those; the rest of this directory belongs to
+# anti_slop.
+#
+# Every rule here is NEW and ships as a shadow-mode candidate
+# (`metadata.lifecycle: candidate`, CODE_HEALTH_SUITE §8.2).
+#
+# Logger receivers are matched by NAME (`log`, `logger`, `LOG`, `LOGGER`, …),
+# not by type. Semgrep cannot see a field's type across files, and `$X.info(...)`
+# on any receiver would match every builder, DSL and metrics API with an `info`
+# method. A logger called `audit` is missed; that is the price of not crying
+# wolf on `response.error(...)`.
+rules:
+  - id: bpm-log-java-stdout-in-prod
+    languages: [java]
+    severity: INFO
+    message: >-
+      System.out / System.err in a production path. It bypasses the logger's
+      levels, redaction and destination — a line here is unstructured,
+      unfiltered and cannot be turned off without a redeploy.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        # Tests, samples and build tooling legitimately print. A rule that
+        # fires there is a rule people disable everywhere.
+        - '**/src/test/**'
+        - '**/src/it/**'
+        - '**/src/jmh/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '*Test.java'
+        - '*Tests.java'
+        - '*IT.java'
+        - '**/examples/**'
+        - '**/samples/**'
+    patterns:
+      - pattern-either:
+          - pattern: System.out.$PRINT(...)
+          - pattern: System.err.$PRINT(...)
+      - metavariable-regex:
+          metavariable: $PRINT
+          regex: ^(println|print|printf|format|write)$
+      # A main method IS the command line; printing is its job.
+      - pattern-not-inside: |
+          public static void main(String[] $ARGS) { ... }
+      - pattern-not-inside: |
+          public static void main(String... $ARGS) { ... }
+      # Usage text in a CLI helper is the other legitimate printer. Named
+      # explicitly: a metavariable-regex over a NEGATED context's binding
+      # filters every match out, which is how the first draft went silent.
+      - pattern-not-inside: |
+          $RET printUsage(...) { ... }
+      - pattern-not-inside: |
+          $RET usage(...) { ... }
+      - pattern-not-inside: |
+          $RET printHelp(...) { ... }
+
+  - id: bpm-log-kt-stdout-in-prod
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      println / System.out in a production path. It bypasses the logger's
+      levels, redaction and destination — a line here is unstructured,
+      unfiltered and cannot be turned off without a redeploy.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '**/src/test/**'
+        - '**/src/androidTest/**'
+        - '**/src/jvmTest/**'
+        - '**/src/commonTest/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '*Test.kt'
+        - '*Tests.kt'
+        # Gradle and Kotlin scripts are tooling, and printing is how they talk.
+        - '*.kts'
+        - '**/examples/**'
+        - '**/samples/**'
+    patterns:
+      - pattern-either:
+          - pattern: println(...)
+          - pattern: print(...)
+          - pattern: System.out.println(...)
+          - pattern: System.err.println(...)
+      - pattern-not-inside: |
+          fun main(...) { ... }
+      - pattern-not-inside: |
+          fun main(...) = ...
+
+  - id: bpm-log-java-print-stack-trace
+    languages: [java]
+    severity: INFO
+    message: >-
+      printStackTrace() writes to stderr, outside the logger: no level, no
+      request context, no redaction, and in a container often nowhere anyone
+      looks. Pass the exception to the logger instead.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '**/src/test/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/examples/**'
+    patterns:
+      - pattern: $E.printStackTrace()
+      # A catch whose ONLY act is printStackTrace is the anti-slop empty-catch
+      # finding already. One fact, one finding — reported where the fix is.
+      - pattern-not-inside: |
+          try { ... } catch ($T $E) { $E.printStackTrace(); }
+      - pattern-not-inside: |
+          public static void main(String[] $ARGS) { ... }
+
+  - id: bpm-log-kt-print-stack-trace
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      printStackTrace() writes to stderr, outside the logger: no level, no
+      request context, no redaction, and in a container often nowhere anyone
+      looks. Pass the exception to the logger instead.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '**/src/test/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '*Test.kt'
+        - '*Tests.kt'
+        - '*.kts'
+        - '**/examples/**'
+    patterns:
+      - pattern: $E.printStackTrace()
+      - pattern-not-inside: |
+          try { ... } catch ($E: $T) { $E.printStackTrace() }
+      - pattern-not-inside: |
+          fun main(...) { ... }
+
+  - id: bpm-log-java-injection
+    mode: taint
+    languages: [java]
+    severity: WARNING
+    message: >-
+      Request data concatenated into a log message unencoded (CWE-117). A
+      newline in that value forges a log line, which is how an attacker writes
+      "authentication succeeded" into the file an incident is later
+      reconstructed from. Strip CR/LF, or use an encoder that does.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      cwe: 'CWE-117: Improper Output Neutralization for Logs'
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Sources are the Servlet request accessors only. Spring's @RequestParam
+        and JAX-RS @QueryParam values are request data too, but matching an
+        annotated parameter would also match every internal call into the same
+        method; the judgement checklist covers those.
+    pattern-sources:
+      - pattern-either:
+          - pattern: $REQ.getParameter(...)
+          - pattern: $REQ.getParameterValues(...)
+          - pattern: $REQ.getHeader(...)
+          - pattern: $REQ.getQueryString()
+          - pattern: $REQ.getRequestURI()
+          - pattern: $REQ.getRemoteUser()
+          - pattern: (javax.servlet.http.Cookie $C).getValue()
+          - pattern: (jakarta.servlet.http.Cookie $C).getValue()
+          - pattern: (Cookie $C).getValue()
+    pattern-sanitizers:
+      # Anything that removes CR/LF makes the value one log line again.
+      - pattern-either:
+          - pattern: $X.replace('\n', ...)
+          - pattern: $X.replace("\n", ...)
+          - pattern: $X.replaceAll("[\r\n]", ...)
+          - pattern: $X.replaceAll("[\\r\\n]", ...)
+          - pattern: $X.replaceAll("[\r\n]+", ...)
+          - pattern: $X.replaceAll("[\\r\\n]+", ...)
+          - pattern: Encode.forJava(...)
+          - pattern: StringEscapeUtils.escapeJava(...)
+          - pattern: URLEncoder.encode(...)
+          - pattern: Integer.parseInt(...)
+          - pattern: Long.parseLong(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $LOG.$LEVEL($MSG, ...)
+          - metavariable-regex:
+              metavariable: $LOG
+              regex: (?i)^(log|logger|_log|_logger|LOGGER|LOG|log4j|slf4j|logging|accessLog|auditLog)$
+          - metavariable-regex:
+              metavariable: $LEVEL
+              regex: ^(trace|debug|info|warn|error|fatal|severe|warning|fine|finer|finest|config|log)$
+          # The CONCATENATED message is the sink: with SLF4J's `{}` the value
+          # is still unencoded, but it is a parameter the layout can escape.
+          - metavariable-pattern:
+              metavariable: $MSG
+              pattern-either:
+                - pattern: $A + $B
+                - pattern: String.format(...)
+          - focus-metavariable: $MSG
+
+  - id: bpm-log-java-secret-field
+    languages: [java]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log call. Logs outlive the request, sit
+      outside the product's access control and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        The names mirror SC-2's redaction denylist, adapted to camelCase: the
+        secret word must END the identifier (`accessToken`, `dbPassword`), so
+        `tokenCount`, `passwordPolicy` and `secretName` are not matched.
+    patterns:
+      - pattern-either:
+          - pattern: $LOG.$LEVEL(..., $SECRET, ...)
+          - pattern: $LOG.$LEVEL(..., $OBJ.$SECRET, ...)
+          - pattern: $LOG.$LEVEL(..., <... "..." + $SECRET ...>, ...)
+          - pattern: $LOG.$LEVEL(..., <... "..." + $OBJ.$SECRET ...>, ...)
+          - pattern: $LOG.$LEVEL(..., $OBJ.$SECRET(), ...)
+          - pattern: $LOG.$LEVEL(..., <... "..." + $OBJ.$SECRET() ...>, ...)
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(log|logger|_log|_logger|LOGGER|LOG|log4j|slf4j|logging)$
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(trace|debug|info|warn|error|fatal|severe|warning|fine|finer|finest|config|log)$
+      - metavariable-regex:
+          metavariable: $SECRET
+          regex: (?i)^(get)?[a-z0-9_]*(password|passwd|secret|token|apikey|api_key|privatekey|private_key|credentials?|sessionid|session_id|authorization|cookie|ssn|creditcard|credit_card|cardnumber)$
+
+  - id: bpm-log-kt-secret-field
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      A secret-shaped value passed to a log call. Logs outlive the request, sit
+      outside the product's access control and get shipped to third-party
+      aggregators — a token that reaches one is a token to rotate.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: $LOG.$LEVEL(..., $SECRET, ...)
+          - pattern: $LOG.$LEVEL(..., $OBJ.$SECRET, ...)
+          - pattern: $LOG.$LEVEL(..., <... "..." + $SECRET ...>, ...)
+          - pattern: $LOG.$LEVEL(..., "...$SECRET...", ...)
+          - pattern: $LOG.$LEVEL(..., "...${$SECRET}...", ...)
+          - pattern: $LOG.$LEVEL(..., "...${$OBJ.$SECRET}...", ...)
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(log|logger|_log|_logger|LOGGER|LOG|logging)$
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(trace|debug|info|warn|error|fatal|severe|warning|fine)$
+      - metavariable-regex:
+          metavariable: $SECRET
+          regex: (?i)^[a-z0-9_]*(password|passwd|secret|token|apikey|api_key|privatekey|private_key|credentials?|sessionid|session_id|authorization|cookie|ssn|creditcard|credit_card|cardnumber)$
+
+  - id: bpm-log-java-and-rethrow
+    languages: [java]
+    severity: INFO
+    message: >-
+      Logged and rethrown. The caller will log it again, and the incident
+      timeline gets the same failure several times at several levels of the
+      stack — log it where it is handled, or rethrow it where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern: |
+          try { ... } catch ($T $E) { $LOG.$LEVEL(...); throw $E; }
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(log|logger|_log|_logger|LOGGER|LOG|log4j|slf4j|logging)$
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(error|warn|severe|warning|fatal)$
+
+  - id: bpm-log-kt-and-rethrow
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      Logged and rethrown. The caller will log it again, and the incident
+      timeline gets the same failure several times at several levels of the
+      stack — log it where it is handled, or rethrow it where it is not.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern: |
+          try { ... } catch ($E: $T) { $LOG.$LEVEL(...)
+          throw $E }
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(log|logger|_log|_logger|LOGGER|LOG|logging)$
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(error|warn|severe|warning|fatal)$

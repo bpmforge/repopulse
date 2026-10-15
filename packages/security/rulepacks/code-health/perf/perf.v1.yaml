@@ -183,13 +183,55 @@ rules:
       source: CODE_HEALTH_SUITE 9.1
       category: performance
       provenance: written for RepoPulse; not derived from any registry pack
+    # Tightened in W18-11 after a run over seventeen real Python codebases
+    # (Django, SQLAlchemy, Flask, …): the first version matched `.get`,
+    # `.filter` and `.all` on ANY receiver — every dict lookup in a loop — and
+    # reported the whole loop rather than the call. Each surface below is one
+    # whose receiver says "database".
     patterns:
+      # The loop BODY, not the loop: `for row in session.scalars(q):` calls
+      # once, and so does a comprehension's iterable. pattern-inside alone
+      # covers the header too, so each form focuses on its body.
       - pattern-either:
-          - pattern: |
-              for $ROW in $ROWS:
-                  ...
-                  $DB.$M(...)
-      - metavariable-regex:
-          metavariable: $M
-          # SQLAlchemy / Django / raw DB-API surfaces.
-          regex: ^(execute|query|get|filter|all|first|one|fetchone|fetchall|save)$
+          - patterns:
+              - pattern-inside: |
+                  for $ROW in $ROWS:
+                      $...BODY
+              - focus-metavariable: $...BODY
+          - patterns:
+              - pattern-inside: |
+                  while $COND:
+                      $...BODY
+              - focus-metavariable: $...BODY
+          # A comprehension is a loop too, and the commonest place for this.
+          - patterns:
+              - pattern-inside: '[$E for $V in $XS]'
+              - focus-metavariable: $E
+          - patterns:
+              - pattern-inside: '{$E for $V in $XS}'
+              - focus-metavariable: $E
+          - patterns:
+              - pattern-inside: '($E for $V in $XS)'
+              - focus-metavariable: $E
+      - pattern-either:
+          # DB-API cursors and SQLAlchemy connections.
+          - patterns:
+              - pattern: $DB.$M(...)
+              - metavariable-regex:
+                  metavariable: $M
+                  regex: ^(execute|executemany|exec_driver_sql)$
+          # Django managers: `Model.objects.<anything>` is a query.
+          - pattern: $MODEL.objects.$Q(...)
+          # SQLAlchemy sessions, by the names sessions are actually given.
+          - patterns:
+              - pattern: $SESSION.$M(...)
+              - metavariable-regex:
+                  metavariable: $SESSION
+                  regex: (?i)^(.*\.)?_?(session|db_session|dbsession|db)$
+              - metavariable-regex:
+                  metavariable: $M
+                  regex: ^(query|get|scalar|scalars|execute|refresh|merge|flush)$
+          # Django model saves: no positional arguments, which is what tells
+          # `instance.save()` apart from `image.save(path)`.
+          - pattern: $OBJ.save()
+          - pattern: $OBJ.save($KW=$V, ...)
