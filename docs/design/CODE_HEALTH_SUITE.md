@@ -229,6 +229,32 @@ one format, per-language variants of each rule where idioms differ. **Engine not
 files, so the SaaS-flip engine swap (DESIGN_REVIEW G-18) is a binary swap, not a rule
 rewrite. The adapter (§10) names the binary; rules never do.
 
+**C#, PHP and Ruby (W18-16)** — three files per language, every rule a shadow-mode
+candidate (`metadata.lifecycle: candidate`):
+
+| Language | Extensions routed | Security (`rulepacks/semgrep/`) | Code health (`rulepacks/code-health/`) | Adapter |
+|---|---|---|---|---|
+| C# | `.cs` | `bpm-baseline.csharp.v1.yaml` — 9 rules (`bpm-cs-*`) | `anti-slop.csharp.v1.yaml` (7), `logging.csharp.v1.yaml` (3) | none (see §10) |
+| PHP | `.php` | `bpm-baseline.php.v1.yaml` — 10 rules (`bpm-php-*`) | `anti-slop.php.v1.yaml` (6), `logging.php.v1.yaml` (3) | none (see §10) |
+| Ruby | `.rb` | `bpm-baseline.ruby.v1.yaml` — 11 rules (`bpm-rb-*`) | `anti-slop.ruby.v1.yaml` (7), `logging.ruby.v1.yaml` (3) | none — brakeman excluded (§10) |
+
+Routing is by each rule's `languages`, so none of these parse anything in a tree without
+the extension; PR mode (`run-modes.ts` SCANNABLE) fetches `.cs`/`.php`/`.rb` files too.
+Measured on real code (KeePass, SharpDevelop, pythonnet; Dolibarr, MantisBT; Rails 7.2
+components, Spree, Solidus, Devise, Sidekiq, Jekyll and others — the W18-16 ticket note
+has the numbers). PHP and Ruby injection, code-evaluation and deserialization rules are
+**taint** rules from the request (superglobals; `params`/`cookies`/`request.*`), because
+mature code in both builds SQL and calls `send`/`class_eval` from its own values
+everywhere; C# has no reliable request source at pattern level, so its rules are shape
+rules with a "spliced-in non-constant" condition. Limits the rules are written around:
+in Ruby an interpolated string is not matched by a `"..."` pattern (semgrep 1.181), so
+interpolation is read from the argument's text; comments are invisible to patterns, so
+"empty catch/rescue" is decided on the text and a comment in the body (or after the
+brace) opts out; `raise NotImplementedError` is Ruby's abstract method and a bare
+`throw new NotImplementedException()` is overwhelmingly a deliberately partial interface
+implementation in C#, so neither is a stub finding (the C# one is, inside a web
+controller).
+
 ### 9.1 Performance pack — pattern-shaped perf IS semgrep territory
 
 Cross-function algorithmic analysis stays LLM-tier, but the highest-yield perf defects
@@ -276,6 +302,9 @@ install`. Tools must parse raw source standalone.
 | actionlint | GitHub Actions workflows | correctness/ci | MIT | backlog |
 | hadolint | Dockerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | backlog |
 | shellcheck | shell scripts | correctness | GPL-3.0 (subprocess-only¹) | backlog |
+| brakeman | Rails security | sast | Brakeman Public Use License | **excluded (W18-16)** — free for non-commercial use only; the licence names "commercial managed/Software-as-a-Service services" and "a component of a value-added service" as Commercial Uses that need a paid licence. It would also need a Ruby runtime in the scan image. The `bpm-rb-*` pack covers its highest-yield checks (SQL/command interpolation, unsafe reflection, deserialization, `permit!`, open redirect, `html_safe`) |
+| Roslyn analyzers / SecurityCodeScan | C# | sast/code_health | MIT | backlog — need `dotnet restore` and a build to resolve types: fails the no-network admission filter |
+| PHPStan / Psalm | PHP | correctness | MIT | backlog — need a PHP runtime in the image and `vendor/` (composer install) for useful results; without the autoloader most findings are "unknown class" noise |
 | sqlfluff | SQL | code_health | MIT | backlog |
 | vale | prose/docs (R-29 companion) | slop (docs) | MIT | backlog |
 | gocyclo | Go complexity | code_health | BSD-3 | backlog |
