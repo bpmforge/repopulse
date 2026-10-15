@@ -47,6 +47,7 @@ export interface IncomingFinding {
    * stored lines follow the code as it was last scanned.
    */
   context?: { startLine: number; lines: string } | null;
+  /**
    * W18-24: the external tool's own stable identity for this result (SARIF
    * partialFingerprints, a code-scanning alert number). Keys the finding in
    * place of evidence + line bucket — see dedupKey. Never set by our own

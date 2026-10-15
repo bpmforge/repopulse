@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
-import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { persistFindings, readImportGraph, type IncomingFinding } from '@repopulse/insights';
 import {
   chunkDiff,

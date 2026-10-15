@@ -120,51 +120,6 @@ export const DEDUP_MAP: {
     packRule: 'slop.suppression_density',
     keep: 'tool',
   },
-];
-
-/**
- * Two ADAPTERS reporting the same defect in the same file (W18-26).
- *
- * checkov's Dockerfile checks and hadolint overlap on four defects. Unlike the
- * pack map above, both sources run in the same scan, so this is matched on
- * rule AND file: the pair only collapses when both tools flagged the same
- * Dockerfile. Which one is kept is per pair — hadolint for Dockerfile hygiene
- * (it points at the exact instruction and knows the build semantics), checkov
- * for the root-user check, because that one is a privilege finding and
- * belongs in the iac dimension with the other privilege findings.
- */
-export const TOOL_DEDUP_MAP: { keep: string; drop: string }[] = [
-  { keep: 'tool.hadolint.DL3007', drop: 'tool.checkov.CKV_DOCKER_7' },
-  { keep: 'tool.hadolint.DL3000', drop: 'tool.checkov.CKV_DOCKER_10' },
-  { keep: 'tool.hadolint.DL3024', drop: 'tool.checkov.CKV_DOCKER_11' },
-  { keep: 'tool.checkov.CKV_DOCKER_8', drop: 'tool.hadolint.DL3002' },
-];
-
-/**
- * Drops one adapter's finding when another adapter reported the same defect
- * in the same file, per TOOL_DEDUP_MAP.
- */
-export function dedupeAcrossTools(findings: readonly AdapterFinding[]): {
-  kept: AdapterFinding[];
-  dropped: { ruleId: string; because: string }[];
-} {
-  const present = new Set(findings.map((f) => `${f.ruleId}\u0000${f.file}`));
-  const kept: AdapterFinding[] = [];
-  const dropped: { ruleId: string; because: string }[] = [];
-  for (const finding of findings) {
-    const pair = TOOL_DEDUP_MAP.find(
-      (m) => m.drop === finding.ruleId && present.has(`${m.keep}\u0000${finding.file}`),
-    );
-    if (pair) {
-      dropped.push({
-        ruleId: finding.ruleId,
-        because: `${pair.keep} already reports this defect in ${finding.file}`,
-      });
-      continue;
-    }
-    kept.push(finding);
-  }
-  return { kept, dropped };
   // --- External tools (W18-24): SARIF uploads and GitHub code scanning. ---
   // ESLint core rules that say what one of ours says, with less context.
   { tool: 'eslint', native: 'no-empty', packRule: 'bpm-ch-empty-catch', keep: 'pack' },
@@ -222,6 +177,51 @@ export function packRuleSupersedingExternal(tool: string, nativeRule: string): s
 }
 
 /**
+ * Two ADAPTERS reporting the same defect in the same file (W18-26).
+ *
+ * checkov's Dockerfile checks and hadolint overlap on four defects. Unlike the
+ * pack map above, both sources run in the same scan, so this is matched on
+ * rule AND file: the pair only collapses when both tools flagged the same
+ * Dockerfile. Which one is kept is per pair — hadolint for Dockerfile hygiene
+ * (it points at the exact instruction and knows the build semantics), checkov
+ * for the root-user check, because that one is a privilege finding and
+ * belongs in the iac dimension with the other privilege findings.
+ */
+export const TOOL_DEDUP_MAP: { keep: string; drop: string }[] = [
+  { keep: 'tool.hadolint.DL3007', drop: 'tool.checkov.CKV_DOCKER_7' },
+  { keep: 'tool.hadolint.DL3000', drop: 'tool.checkov.CKV_DOCKER_10' },
+  { keep: 'tool.hadolint.DL3024', drop: 'tool.checkov.CKV_DOCKER_11' },
+  { keep: 'tool.checkov.CKV_DOCKER_8', drop: 'tool.hadolint.DL3002' },
+];
+
+/**
+ * Drops one adapter's finding when another adapter reported the same defect
+ * in the same file, per TOOL_DEDUP_MAP.
+ */
+export function dedupeAcrossTools(findings: readonly AdapterFinding[]): {
+  kept: AdapterFinding[];
+  dropped: { ruleId: string; because: string }[];
+} {
+  const present = new Set(findings.map((f) => `${f.ruleId}\u0000${f.file}`));
+  const kept: AdapterFinding[] = [];
+  const dropped: { ruleId: string; because: string }[] = [];
+  for (const finding of findings) {
+    const pair = TOOL_DEDUP_MAP.find(
+      (m) => m.drop === finding.ruleId && present.has(`${m.keep}\u0000${finding.file}`),
+    );
+    if (pair) {
+      dropped.push({
+        ruleId: finding.ruleId,
+        because: `${pair.keep} already reports this defect in ${finding.file}`,
+      });
+      continue;
+    }
+    kept.push(finding);
+  }
+  return { kept, dropped };
+}
+
+/**
  * Drops adapter findings a pack rule already reported for the same defect.
  *
  * Matched on rule identity, NOT on file and line: two tools flagging the same
@@ -238,26 +238,19 @@ export function dedupeAgainstPack(
 
   for (const finding of adapterFindings) {
     // ANY matching row, not the first: one native rule can duplicate more
-    // than one pack rule (CKV_AWS_41 covers both halves of an AWS key pair).
-    // Every mapping for the native rule, not the first: E722 is a bare except
-    // in both the JavaScript-era entry and the Python pack's, and whichever
-    // of them fired in this repository is the one that covers it.
-    const mapping = DEDUP_MAP.find(
-      (m) => m.native === finding.nativeRule && m.keep === 'pack' && packSeen.has(m.packRule),
-    );
-    if (mapping) {
-      dropped.push({
-        ruleId: finding.ruleId,
-        because: `${mapping.packRule} already reports this defect, and it explains why it matters`,
-      });
-      continue;
-    }
+    // than one pack rule (CKV_AWS_41 covers both halves of an AWS key pair;
+    // E722 is a bare except in the JavaScript-era entry and the Python pack's),
+    // and whichever of them fired in this repository is the one that covers it.
     // ruleId is `tool.{key}.{rule}`; a tool-scoped entry only applies to its tool.
     const adapterKey = finding.ruleId.split('.')[1];
     const mapping = DEDUP_MAP.find(
-      (m) => m.native === finding.nativeRule && (m.tool === undefined || m.tool === adapterKey),
+      (m) =>
+        m.native === finding.nativeRule &&
+        (m.tool === undefined || m.tool === adapterKey) &&
+        m.keep === 'pack' &&
+        packSeen.has(m.packRule),
     );
-    if (mapping && mapping.keep === 'pack' && packSeen.has(mapping.packRule)) {
+    if (mapping) {
       dropped.push({
         ruleId: finding.ruleId,
         because: `${mapping.packRule} already reports this defect, and it explains why it matters`,
