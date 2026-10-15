@@ -8875,8 +8875,8 @@
         "Finding drawer shows the verified patch with copy/download; nothing is written to the forge"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": ["2026-10-15 done (branch claude/repopulse-verified-patches). Built: packages/security/src/patches/ \u2014 diff.ts (shape gate: one existing file = the finding's, no create/delete/rename/mode, <=16KB/<=200 changed lines, exact-content apply with offset search, ambiguous hunk refused, canonical diff re-rendered), prompt.ts (finding+evidence+file, whole <=600 lines else +-150, 48KB cap), verify.ts (before AND after re-scan in a snap-* scratch dir under the snapshot root, shredded; verified iff target dedup key reproduces before and is gone after, its rule fires fewer times, no rule fires more, every rule set ran), runners.ts (semgrep/bpm-log/bpm-perf packs via the sandboxed runSemgrepScan + anti_slop fast lane in process incl. whole-tree phantom/unused rules on the snapshot tree), target.ts (eligibility + snapshot commit), run.ts (job). Table verified_patches (migration 0033 \u2014 numbered after ci-pull's 0032; re-point the snapshot prevId at merge). Queue patches.draft + apps/api/src/workers/patch-processor.ts. API GET/POST /findings/{id}/patch (members T2; T3 admin + repo opt-in; idempotent per finding x commit; 50/day/workspace; 10/min) + GET /admin/patches. Web: VerifiedFix in the finding drawer (diff, Copy, Download .patch, re-scan note; rejected shows nothing unless the API sent an admin reason). D9a: no forge write \u2014 static test + read-only forge proxy in the job test. Out of write_scope, necessary: packages/shared (table + audit event), packages/ingest (queue). Not re-runnable yet: code_health_tools, secrets, model findings (rejected/ineligible by name). Gate: lint+typecheck clean; tests 2546 passed / 58 skipped / 5 failed (the 5 known docker-on-PATH deploy-*.test.ts)."]
     },
     {
       "id": "W18-20",

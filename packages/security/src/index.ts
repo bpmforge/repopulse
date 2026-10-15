@@ -67,3 +67,5 @@ export * from './scanners/dependency/run.js';
 // module at all and the ticket cannot land. Declared in the handoff.
 export * from './vex/index.js';
 export * from './catalogue.js';
+// W18-19. Verified patches: model-drafted fixes proven by re-scanning.
+export * from './patches/index.js';
