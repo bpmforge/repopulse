@@ -16,6 +16,7 @@ import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { PHANTOM_MODULE_RULE_ID, PHANTOM_SYMBOL_RULE_ID, phantomRefs } from './phantom-refs.js';
+import { goPhantomRefs, goUnusedExports } from './go-graph.js';
 import { pythonPhantomRefs } from './python-graph.js';
 import { rustPhantomRefs, rustUnusedItems } from './rust-graph.js';
 import {
@@ -177,7 +178,12 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     // two findings for one package is two triage decisions for one problem.
     const alreadyFlagged = await existingSlopsquatFiles(deps.db, deps.workspaceId, deps.repoId);
 
-    const sources = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
+    // go.mod rides along with the sources (W18-12) because it is the only map
+    // from a Go import path to a directory; it is not code, so the per-file
+    // layers never see it.
+    const all = (deps.sources ?? []).filter((s) => !alreadyFlagged.has(s.path));
+    const isGoMod = (p: string): boolean => p === 'go.mod' || p.endsWith('/go.mod');
+    const sources = all.filter((s) => !isGoMod(s.path));
     for (const ldr of ldrFindings(sources)) {
       findings.push({
         dimension: 'slop',
@@ -223,9 +229,12 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       ? await shippedRuleStatus(deps.db, deps.workspaceId, UNUSED_EXPORT_RULE_ID)
       : 'deprecated';
     if (unusedStatus !== 'deprecated') {
-      // Rust (W18-14) shares the rule id: a dead crate-visible item is the same
-      // finding as a dead export, and one lifecycle row governs both.
-      for (const unused of [...unusedExports(sources), ...rustUnusedItems(sources)]) {
+      // Rust (W18-14) and Go (W18-12) share the rule id: a dead crate-visible
+      // item or an unused internal-package symbol is the same finding as a dead
+      // export, and one lifecycle row governs all of them. Go: internal
+      // packages only, and only over a complete read.
+      const goUnused = goUnusedExports(all, { complete: deps.sourcesComplete === true });
+      for (const unused of [...unusedExports(sources), ...rustUnusedItems(sources), ...goUnused]) {
         findings.push({
           dimension: 'slop',
           severity: 1,
@@ -269,6 +278,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         ...phantomRefs(sources, complete),
         ...pythonPhantomRefs(sources, complete),
         ...rustPhantomRefs(sources, complete),
+        ...goPhantomRefs(all, complete),
       ]) {
         const status = statuses[ref.ruleId];
         if (status === 'deprecated') continue;
@@ -282,7 +292,9 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
           title:
             ref.name === null
               ? `Import of a missing module: ${ref.specifier}`
-              : `Import of a name that does not exist: ${ref.name} from ${ref.specifier}`,
+              : ref.file.endsWith('.go')
+                ? `Reference to a name that does not exist: ${ref.name} in ${ref.specifier}`
+                : `Import of a name that does not exist: ${ref.name} from ${ref.specifier}`,
           evidenceQuote: ref.statement,
           rationale: ref.message,
           suggestedFix: null,

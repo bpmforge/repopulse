@@ -10,8 +10,12 @@ import path from 'node:path';
 // each scanner: a scanner that reads its own files is a scanner that can
 // forget a limit.
 
-/** Extensions the W9 scanners can say anything about. */
-const READABLE = /\.(js|jsx|ts|tsx|mjs|cjs|py|go|rb|java|kt|cs|php|rs)$/;
+/**
+ * Extensions the W9 scanners can say anything about — plus go.mod, which is
+ * not source but is the only place a Go import path maps to a directory
+ * (W18-12). Consumers that compute over code filter by extension.
+ */
+const READABLE = /(\.(js|jsx|ts|tsx|mjs|cjs|py|go|rb|java|kt|cs|php|rs)|^go\.mod)$/;
 
 /** Directories nothing useful comes out of, skipped before they are read. */
 const SKIP_DIRS = new Set([
