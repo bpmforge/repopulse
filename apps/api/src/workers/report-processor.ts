@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { core, read, type Database } from '@repopulse/shared';
+import { core, read, type Database, safeErrorText } from '@repopulse/shared';
 import {
   artifactPresent,
   createReportAssembler,
@@ -156,7 +156,7 @@ export function reportProcessor(deps: ReportProcessorDeps) {
     } catch (err) {
       // The reason is stored ON the row. A report that just says "failed"
       // sends its owner to the worker logs, which they may not have.
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorText(err);
       await deps.db
         .update(read.reports)
         .set({ status: 'failed', error: message.slice(0, 2000) })
