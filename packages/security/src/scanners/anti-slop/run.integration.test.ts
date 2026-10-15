@@ -848,6 +848,80 @@ describeIfLiveInfra('anti_slop scanner (W9-03)', () => {
     expect((await rows('slop.stale_jsdoc_param'))[0]?.occurrenceCount).toBe(before);
     expect((await rows('slop.delegation_wrapper'))[0]?.occurrenceCount).toBe(3);
   });
+
+  it('W18-07: leftover-content rules land in shadow, and a deprecated rule stops', async () => {
+    const sources = [
+      {
+        path: 'src/pay.ts',
+        source: [
+          "export const apiKey = 'YOUR_API_KEY';",
+          '// const old = charge(card);',
+          '// if (old.ok) {',
+          '//   receipt(old);',
+          '// }',
+          "export const raw = new Buffer('x');",
+        ].join('\n'),
+      },
+      { path: 'app/clock.py', source: 'import datetime\nnow = datetime.datetime.utcnow()\n' },
+    ];
+    const scan = (commitSha: string) =>
+      runAntiSlopScan({
+        db,
+        workspaceId,
+        repoId,
+        commitSha,
+        files: [],
+        sources,
+        trigger: 'schedule',
+      });
+    const rows = (ruleId: string) =>
+      db
+        .select()
+        .from(read.findings)
+        .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, ruleId)));
+
+    expect((await scan('w18-07-shadow')).status).toBe('succeeded');
+    expect(await rows('slop.placeholder_value')).toEqual([
+      expect.objectContaining({
+        file: 'src/pay.ts',
+        lineStart: 1,
+        severity: 2,
+        evidence: "'YOUR_API_KEY'",
+        experimental: true,
+      }),
+    ]);
+    expect(await rows('slop.commented_out_code')).toEqual([
+      expect.objectContaining({ file: 'src/pay.ts', lineStart: 2, lineEnd: 5, experimental: true }),
+    ]);
+    const deprecated = await rows('slop.deprecated_api');
+    expect(deprecated.map((r) => [r.file, r.lineStart, r.title, r.experimental]).sort()).toEqual([
+      ['app/clock.py', 2, 'Deprecated API: python.datetime_utcnow', true],
+      ['src/pay.ts', 6, 'Deprecated API: node.buffer_constructor', true],
+    ]);
+
+    // Deprecating one rule stops it without touching the other two.
+    await db.insert(security.ruleRegistry).values({
+      workspaceId,
+      ruleId: 'slop.commented_out_code',
+      status: 'deprecated',
+      provenance: { source: 'ours', license: 'UNLICENSED', author: 'test', date: '2026-10-15' },
+    });
+    try {
+      const before = (await rows('slop.commented_out_code'))[0]?.occurrenceCount;
+      await scan('w18-07-deprecated');
+      expect((await rows('slop.commented_out_code'))[0]?.occurrenceCount).toBe(before);
+      expect((await rows('slop.placeholder_value'))[0]?.occurrenceCount).toBe(2);
+    } finally {
+      await db
+        .delete(security.ruleRegistry)
+        .where(
+          and(
+            eq(security.ruleRegistry.workspaceId, workspaceId),
+            eq(security.ruleRegistry.ruleId, 'slop.commented_out_code'),
+          ),
+        );
+    }
+  });
 });
 
 describe('layer separation and sampling', () => {
