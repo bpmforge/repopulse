@@ -21,7 +21,6 @@ import {
   selectCandidates,
 } from './candidates.js';
 import { effectiveStatus, registryStatuses } from '../../rules/shadow.js';
-import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { docstringInflation, ldrFindings, LDR_FLOOR } from './ldr.js';
 import { UNUSED_EXPORT_RULE_ID, unusedExports } from './unused-exports.js';
 import { EXCEPTION_FLOW_RULE_ID, exceptionFlows } from './exception-flow.js';
@@ -46,9 +45,6 @@ import {
   SUPPRESSION_DENSITY_RULE_ID,
   suppressionDensity,
 } from './suppressions.js';
-import { DELEGATION_WRAPPER_RULE_ID, delegationWrappers } from './delegation-wrappers.js';
-import { SINGLE_IMPL_RULE_ID, singleImplInterfaces } from './single-impl.js';
-import { STALE_JSDOC_RULE_ID, staleJsdocParams } from './stale-jsdoc.js';
 import { PLACEHOLDER_RULE_ID, placeholderValues } from './placeholder-values.js';
 import { COMMENTED_CODE_RULE_ID, commentedOutCode } from './commented-out-code.js';
 import {
@@ -389,7 +385,6 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       for (const t of live.length ? testIntegrity(sources) : []) {
         const status = statuses.get(t.ruleId);
         if (status === 'deprecated') continue;
-        findings.push({ ...finding, experimental: status !== 'active' });
         findings.push({
           dimension: 'test_coverage',
           // A test with no assertion may be a deliberate smoke test the title
@@ -752,7 +747,6 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       for (const finding of structural) {
         const status = statuses.get(finding.ruleId);
         if (status === 'deprecated') continue;
-        findings.push({ ...finding, experimental: status !== 'active' });
       }
     }
     // Dependency hygiene (W18-06): the project's declared dependencies,
