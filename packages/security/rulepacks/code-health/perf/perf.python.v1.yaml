@@ -1,0 +1,221 @@
+# bpm-rulepacks — performance, Python (W18-11, CODE_HEALTH_SUITE.md §9.1).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied or adapted from the
+# Semgrep registry (DESIGN_REVIEW.md G-18).
+#
+# The Python siblings of perf.v1.yaml. Same contract: these are STRUCTURAL
+# patterns, not benchmarks, and no message claims a speedup. The ORM-in-loop
+# rule already has a Python variant in perf.v1.yaml and is not repeated here.
+#
+# Severity tops out at WARNING, as in the JavaScript pack: a slow shape is not
+# exploitable.
+rules:
+  - id: bpm-perf-blocking-call-in-async-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A blocking call inside an `async def`. It stops the event loop, so every
+      other coroutine waits — including the health check that would have told
+      you. Use the async client, `await asyncio.sleep`, or hand the call to
+      `asyncio.to_thread`.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      note: >-
+        open() is deliberately NOT listed: reading a small local file in a
+        coroutine is common and usually harmless, and a rule that fires on
+        every config read is a rule people turn off.
+    patterns:
+      - pattern-inside: |
+          async def $F(...):
+              ...
+      # A sync helper defined inside the coroutine is what gets passed to
+      # to_thread / run_in_executor — the fix, not the defect.
+      - pattern-not-inside:
+          patterns:
+            - pattern-inside: |
+                def $INNER(...):
+                    ...
+            # `def` also matches `async def`, so the coroutine itself must be
+            # carved back out or nothing would ever fire.
+            - pattern-not-inside: |
+                async def $INNER(...):
+                    ...
+      - pattern-not-inside: asyncio.to_thread(...)
+      - pattern-not-inside: $LOOP.run_in_executor(...)
+      - pattern-either:
+          - pattern: time.sleep(...)
+          - pattern: requests.$METHOD(...)
+          - pattern: urllib.request.urlopen(...)
+          - pattern: subprocess.run(...)
+          - pattern: subprocess.call(...)
+          - pattern: subprocess.check_call(...)
+          - pattern: subprocess.check_output(...)
+
+  - id: bpm-perf-await-in-loop-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      An await inside a loop serialises work that may be independent. If the
+      iterations do not depend on each other, the loop is N times its own
+      latency for no reason — and if they do, a comment saying so saves the
+      next reader the analysis.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      # The loop BODY, not the loop: `for row in session.scalars(q):` calls
+      # once, and so does a comprehension's iterable. pattern-inside alone
+      # covers the header too, so each form focuses on its body.
+      - pattern-either:
+          - patterns:
+              - pattern-inside: |
+                  for $V in $XS:
+                      $...BODY
+              - focus-metavariable: $...BODY
+          - patterns:
+              - pattern-inside: |
+                  while $COND:
+                      $...BODY
+              - focus-metavariable: $...BODY
+      - pattern: await $X
+      # Sleeping in a loop is a poll or a backoff, sequential on purpose.
+      - pattern-not: await asyncio.sleep(...)
+      # Awaiting a bounded batch inside a loop is the fix this rule asks for.
+      - pattern-not: await asyncio.gather(...)
+      # A queue consumer takes one item at a time by design.
+      - pattern-not: await $Q.get()
+      # Ordered stream I/O is sequential by definition: chunk N+1 cannot be
+      # sent before chunk N. On Starlette and FastAPI this was most of what
+      # the rule found.
+      - pattern-not: await send(...)
+      - pattern-not: await receive(...)
+      - pattern-not: await $S.send(...)
+      - pattern-not: await $S.receive(...)
+      - pattern-not: await $S.write(...)
+      - pattern-not: await $S.drain()
+      - pattern-not: await $S.send_text(...)
+      - pattern-not: await $S.send_bytes(...)
+      - pattern-not: await $S.send_json(...)
+      - pattern-not: await $S.receive_text(...)
+      - pattern-not: await $S.receive_json(...)
+      - pattern-not: await $S.receive_bytes(...)
+
+  - id: bpm-perf-json-deep-clone-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      json.loads(json.dumps(x)) as a deep copy. It serialises the whole
+      structure to text and parses it back, turns tuples into lists and
+      non-string keys into strings, and fails on datetimes and sets —
+      copy.deepcopy does the job without the surprises.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern: json.loads(json.dumps($X))
+
+  - id: bpm-perf-regex-compile-in-loop-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      re.compile of a fixed pattern inside a loop. The re module caches recent
+      patterns, so each iteration pays a cache lookup at best and a recompile
+      when the cache churns; a module-level constant costs nothing and names
+      the pattern.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      # The loop BODY, not the loop: `for row in session.scalars(q):` calls
+      # once, and so does a comprehension's iterable. pattern-inside alone
+      # covers the header too, so each form focuses on its body.
+      - pattern-either:
+          - patterns:
+              - pattern-inside: |
+                  for $V in $XS:
+                      $...BODY
+              - focus-metavariable: $...BODY
+          - patterns:
+              - pattern-inside: |
+                  while $COND:
+                      $...BODY
+              - focus-metavariable: $...BODY
+      # Literal patterns only: a pattern built from the loop variable has to be
+      # compiled per iteration, and that is not the defect.
+      - pattern-either:
+          - pattern: re.compile("...", ...)
+          - pattern: re.compile(r"...", ...)
+
+  - id: bpm-perf-string-concat-in-loop-py
+    languages: [python]
+    severity: INFO
+    message: >-
+      Building a string by repeated += in a loop. CPython sometimes resizes in
+      place, and sometimes copies the whole string each time — which one depends
+      on reference counts the code does not show. Collect parts in a list and
+      "".join them when the loop is large or hot.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              for $V in $XS:
+                  ...
+          - pattern-inside: |
+              while $COND:
+                  ...
+      # Only when the value is visibly a string — a name list like the
+      # JavaScript rule's would fire on `total += row.amount`.
+      - pattern-either:
+          - pattern: $S += "..."
+          - pattern: $S += f"..."
+          - pattern: $S += str(...)
+          - pattern: $S += $A + "..."
+          - pattern: $S += "..." + $A
+          - pattern: $S += "...".format(...)
+          - pattern: $S += "..." % $A
+          - patterns:
+              - pattern-inside: |
+                  $S = "..."
+                  ...
+              - pattern: $S += $X
+
+  - id: bpm-perf-unbounded-gather-py
+    languages: [python]
+    severity: WARNING
+    message: >-
+      asyncio.gather over a whole collection with no concurrency limit. One
+      task per element means the fan-out is whatever the data happens to be —
+      fine for ten rows, an outage for ten thousand. Bound it with a semaphore
+      or batch it.
+    metadata:
+      source: CODE_HEALTH_SUITE 9.1
+      category: performance
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: asyncio.gather(*[$CALL for $V in $XS], ...)
+          - pattern: asyncio.gather(*($CALL for $V in $XS), ...)
+          - pattern: asyncio.gather(*map($FN, $XS), ...)
+      # A slice IS the bound — batching is the fix this rule asks for.
+      - pattern-not: asyncio.gather(*[$CALL for $V in $YS[$A:$B]], ...)
+      - pattern-not: asyncio.gather(*($CALL for $V in $YS[$A:$B]), ...)
+      # Wrapping each call in a semaphore-guarded helper is the other fix.
+      - pattern-not-inside: |
+          async with $SEM:
+              ...
+      - pattern-not-inside: |
+          $SEM = asyncio.Semaphore(...)
+          ...

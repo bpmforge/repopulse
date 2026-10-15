@@ -107,18 +107,31 @@ describeIfScanImage('golden finding set (W9-01)', () => {
     // The golden set. A rule that stops firing is a rule that has quietly
     // become decoration, and the count is what notices.
     expect(ids).toEqual([
+      'bpm-ch-bare-except-py',
       'bpm-ch-emoji-comment',
+      'bpm-ch-emoji-comment-py',
       'bpm-ch-empty-catch',
+      'bpm-ch-empty-except-py',
       'bpm-ch-prose-padding',
+      'bpm-ch-prose-padding-py',
       'bpm-ch-silent-fallback-return',
+      'bpm-ch-silent-fallback-return-py',
       'bpm-ch-step-narration',
+      'bpm-ch-step-narration-py',
       'bpm-ch-stub-as-feature',
+      'bpm-ch-stub-as-feature-py',
       'bpm-ch-try-catch-in-loop',
+      'bpm-ch-try-except-in-loop-py',
       'bpm-ch-what-comment',
+      'bpm-ch-what-comment-py',
+      'bpm-log-and-reraise-py',
       'bpm-log-and-rethrow',
       'bpm-log-console-in-prod',
       'bpm-log-injection',
+      'bpm-log-injection-py',
+      'bpm-log-print-in-prod-py',
       'bpm-log-secret-field',
+      'bpm-log-secret-field-py',
     ]);
   }, 300_000);
 
