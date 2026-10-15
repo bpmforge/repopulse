@@ -8766,8 +8766,10 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 8,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "DONE 2026-10-15 on claude/repopulse-cpp-pack. Built: (1) rulepacks/semgrep/bpm-baseline.c-cpp.v1.yaml, 12 C/C++ security rules (bpm-c-gets, -unbounded-string-copy, -sprintf-unbounded, -scanf-unbounded-string, -format-string-variable, -command-built-string, -memcpy-sizeof-pointer, -alloc-unchecked, -realloc-self-assign, -rand-for-secret, -strncpy-unterminated, -alloca-variable-size); (2) rulepacks/code-health/anti-slop.c-cpp.v1.yaml (bpm-ch-empty-catch-cpp, -catch-all-fallback-cpp, -stub-fake-success-c, -what-comment-c) and logging.c-cpp.v1.yaml (bpm-log-c-debug-print, marker-text only: plain printf in C is a CLI's real output). Every rule metadata.lifecycle: candidate + provenance; trigger+clean fixtures under fixtures/c-cpp/, proven by c-cpp-pack.test.ts with the local engine (semgrep 1.181.0). SCANNABLE/scannableFiles extended to C/C++ extensions. (3) cppcheck ToolAdapter (adapters/cppcheck.ts, GPL-3.0-or-later subprocess-only) registered with 8 DEDUP_MAP rows (pack wins); parse() tested against REAL cppcheck 2.22.0 output (fixtures/adapters/cppcheck-2.22.0.xml) plus a live run of the argv with the local cppcheck 2.13. Containerfile.scan builds 2.22.0 from the SourceForge source tarball (no Linux binary is published): SHA-256 computed by us, cross-checked against the publisher's MD5 from two mirrors; image NOT built here (no podman). Measured on ~440 real C/C++ files / ~560k lines (zlib unreachable; brotli 1.2.0, lz4 4.4.5, ujson 6.0.0, cmark-gfm, pybind11 2.13.6, cppcheck 2.22 lib+cli): final pack = 21 findings (14 what-comment INFO, 2 strcpy, 2 command-built, 1 unchecked calloc [TP], 1 empty catch [TP], 1 catch(...) return [TP]); drafts' FPs (3 TODO early-outs, 4 commented empty catches, strcpy after strlen-sized alloc) became clean fixtures. cppcheck: 15 raw / 11 kept over 4 C libs; ujson's multi-MB generated test files hit a 400s cap and cppcheck's own tree exceeded 30 min under load 15+, hence the 480s in-container timeout with results printed only on completion. Gate: lint+typecheck green; pnpm test 2504 passed / 58 skipped / 5 failed (the known docker-on-PATH apps/api/test/ops/deploy-* tests)."
+      ]
     },
     {
       "id": "W18-16",

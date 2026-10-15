@@ -229,6 +229,16 @@ one format, per-language variants of each rule where idioms differ. **Engine not
 files, so the SaaS-flip engine swap (DESIGN_REVIEW G-18) is a binary swap, not a rule
 rewrite. The adapter (§10) names the binary; rules never do.
 
+**C and C++ (W18-15)** — `rulepacks/semgrep/bpm-baseline.c-cpp.v1.yaml` (security),
+`rulepacks/code-health/anti-slop.c-cpp.v1.yaml`, `logging.c-cpp.v1.yaml`. What the engine
+reliably parses in both `c` and `cpp` (verified on fixtures and ~440 real files): calls,
+assignments, declarations with initialisers, casts, `sizeof`, `->`, subscripts, statement
+sequences, C++ `try`/`catch`, `std::string` concatenation, `<<` chains. Limits the rules are
+written around: no preprocessor (macros are opaque calls; partial-parse errors on
+macro-heavy files are normal and do not fail the run), no types (pointer-ness is read from a
+declaration in the same function), nothing interprocedural, and in a pattern `catch (...)`
+is an ellipsis that also matches typed catches. cppcheck (§10) covers the dataflow half.
+
 ### 9.1 Performance pack — pattern-shaped perf IS semgrep territory
 
 Cross-function algorithmic analysis stays LLM-tier, but the highest-yield perf defects
@@ -276,6 +286,7 @@ install`. Tools must parse raw source standalone.
 | actionlint | GitHub Actions workflows | correctness/ci | MIT | backlog |
 | hadolint | Dockerfiles | correctness/container | GPL-3.0 (subprocess-only¹) | backlog |
 | shellcheck | shell scripts | correctness | GPL-3.0 (subprocess-only¹) | backlog |
+| cppcheck | C/C++ defects (no build needed: bundled std.cfg) | correctness/code_health | GPL-3.0-or-later (subprocess-only¹) | **W18-15 adapter** — 2.22.0 built from the SourceForge source tarball in the scan image (no Linux binary is published); SHA-256 computed by us, cross-checked against the publisher's MD5 |
 | sqlfluff | SQL | code_health | MIT | backlog |
 | vale | prose/docs (R-29 companion) | slop (docs) | MIT | backlog |
 | gocyclo | Go complexity | code_health | BSD-3 | backlog |
@@ -283,8 +294,14 @@ install`. Tools must parse raw source standalone.
 | Joern | interprocedural/deep taint (selective, high-value targets) | dead_code (deep tier) | Apache-2.0 | backlog — per-engagement not per-run (RAM-hungry); CodeQL excluded (non-OSS commercial-use license bar) |
 
 ¹ GPL is triggered by *distribution*, not server-side subprocess execution — running
-hadolint/shellcheck in our sandbox is fine for internal AND SaaS as long as we never
-ship modified binaries; noted for the G-18 ledger.
+hadolint/shellcheck/cppcheck in our sandbox is fine for internal AND SaaS as long as we
+never ship modified binaries; noted for the G-18 ledger. cppcheck (W18-15) is the first
+of these actually shipped: it is compiled unmodified from the upstream tarball inside
+the scan image and invoked only as a subprocess. Whenever the scan image itself is handed
+to someone else (e.g. a published image for self-hosted installs), that is distribution
+of the cppcheck binary, and the GPL's corresponding-source obligation applies to it — the
+pinned, checksummed upstream tarball in Containerfile.scan is that source, unmodified.
+The same holds for hadolint/shellcheck if they ship.
 
 Adapter findings dedupe against pack rules covering the same defect (ruff/Biome overlap
 with our slop pack is expected — the dedup key wins, lowest-noise source is kept per

@@ -1,12 +1,21 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { biomeAdapter } from './biome.js';
+import { cppcheckAdapter } from './cppcheck.js';
 import { ruffAdapter } from './ruff.js';
-import { adaptersFor, dedupeAgainstPack, listAdapters, registerAdapter } from './registry.js';
+import {
+  adaptersFor,
+  DEDUP_MAP,
+  dedupeAgainstPack,
+  listAdapters,
+  registerAdapter,
+} from './registry.js';
 import { extractJson, relativeTo, type ToolAdapter } from './types.js';
 import { buildSandboxArgs } from '../../../../sandbox/profile.js';
+import { readRulepack } from '../../semgrep/scanner.js';
 
 // Tool adapters (W9-08, CODE_HEALTH_SUITE.md §10, FR-CH-10).
 
@@ -216,4 +225,172 @@ describeIfScanImage('ruff and Biome, actually run in the sandbox', () => {
     const findings = biomeAdapter.parse(stdout, { mountPath: '/scan', files: [] });
     expect(findings.map((f) => f.nativeRule).join(' ')).toMatch(/noDoubleEquals|noUnusedVariables/);
   }, 300_000);
+});
+
+// cppcheck (W18-15). The parse tests read REAL output: cppcheck 2.22.0, built
+// from the pinned source tarball, run with exactly cppcheckAdapter.command()
+// over fixtures/adapters/cpp plus fixtures/c-cpp/security/triggering copied
+// under a directory standing in for /scan (the only edit to the recording is
+// that path prefix, rewritten to /scan).
+describe('cppcheck adapter (W18-15)', () => {
+  const ctx = { mountPath: '/scan', files: [] };
+  const recorded = readFileSync(path.join(FIXTURES, 'cppcheck-2.22.0.xml'), 'utf8');
+
+  it('routes C and C++ to cppcheck, and nothing else', () => {
+    for (const file of ['src/a.c', 'src/a.cc', 'lib/a.cpp', 'a.cxx', 'include/a.h', 'a.hpp']) {
+      expect(adaptersFor({ mountPath: '/scan', files: [file] }).map((a) => a.key), file).toContain(
+        'cppcheck',
+      );
+    }
+    for (const file of ['src/app.py', 'src/app.ts', 'README.md', 'a.cs']) {
+      expect(adaptersFor({ mountPath: '/scan', files: [file] }).map((a) => a.key), file).not.toContain(
+        'cppcheck',
+      );
+    }
+  });
+
+  it('runs standalone, with OUR settings, and puts the XML on stdout', () => {
+    const argv = cppcheckAdapter.command(ctx);
+    expect(argv.slice(0, 2)).toEqual(['sh', '-c']);
+    const script = argv[2] ?? '';
+    // Bounded, and the results printed only when cppcheck FINISHED: a run
+    // cut off by the timeout must surface as an empty section (an adapter
+    // error), never as a partial list that looks complete.
+    expect(script).toMatch(/^rm -f \/tmp\/cppcheck-results\.xml; timeout 480 cppcheck /);
+    expect(script).not.toMatch(/install|--project|--inline-suppr|compile_commands|--inconclusive/);
+    // cppcheck writes results to stderr by default and the scanner's shell
+    // discards stderr; the file-then-cat is the difference between findings
+    // and an "adapter produced no output" error on every C repository.
+    expect(script).toContain(`'--output-file=/tmp/cppcheck-results.xml'`);
+    expect(script).toMatch(/ && cat \/tmp\/cppcheck-results\.xml$/);
+    for (const flag of ['--xml', '-q', '--suppress=missingIncludeSystem', '--max-configs=1']) {
+      expect(script).toContain(`'${flag}'`);
+    }
+    expect(script).toContain(`'--enable=warning,portability,performance'`);
+    expect(script).toContain(`'/scan'`);
+    // GPL: recorded so the licence ledger has something to check against.
+    expect(cppcheckAdapter.license).toBe('GPL-3.0-or-later');
+  });
+
+  it('quotes the mount path so it cannot be re-parsed by the shell', () => {
+    const script = cppcheckAdapter.command({ mountPath: "/odd dir/it's", files: [] })[2] ?? '';
+    expect(script).toContain(`'/odd dir/it'\\''s'`);
+  });
+
+  it('parses the recorded 2.22.0 run, one finding per <error>', () => {
+    const findings = cppcheckAdapter.parse(recorded, ctx);
+    expect(findings.map((f) => f.nativeRule).sort()).toEqual([
+      'allocaCalled',
+      'arrayIndexOutOfBounds',
+      'getsCalled',
+      'invalidScanfArgType_int',
+      'invalidscanf',
+      'invalidscanf',
+      'literalWithCharPtrCompare',
+      'memleak',
+      'memleakOnRealloc',
+      'nullPointerOutOfMemory',
+      'nullPointerOutOfMemory',
+      'nullPointerOutOfMemory',
+      'pointerSize',
+      'pointerSize',
+      'uninitvar',
+    ]);
+    const oob = findings.find((f) => f.nativeRule === 'arrayIndexOutOfBounds');
+    expect(oob).toMatchObject({
+      ruleId: 'tool.cppcheck.arrayIndexOutOfBounds',
+      file: 'app.c',
+      lineStart: 8,
+      severity: 3,
+      dimension: 'correctness',
+    });
+    // Entities decoded, CWE carried into the message.
+    expect(oob?.title).toContain("Array 'values[4]'");
+    expect(oob?.message).toContain('(CWE-788)');
+  });
+
+  it('reports a multi-location error at its FIRST location, not the trail', () => {
+    // nullPointerOutOfMemory lists the dereference and then the allocation;
+    // the defect is the dereference.
+    const findings = cppcheckAdapter.parse(recorded, ctx).filter(
+      (f) => f.nativeRule === 'nullPointerOutOfMemory',
+    );
+    expect(findings.map((f) => `${f.file}:${f.lineStart}`).sort()).toEqual([
+      'security/unsafe.c:67',
+      'security/unsafe.c:73',
+      'security/unsafe.c:80',
+    ]);
+  });
+
+  it('drops cppcheck talking about its own run, and classes it did not ask for', () => {
+    const xml = `<?xml version="1.0"?><results version="2"><errors>
+      <error id="syntaxError" severity="error" msg="syntax error"><location file="/scan/a.c" line="3"/></error>
+      <error id="unknownMacro" severity="error" msg="unknown macro"><location file="/scan/a.c" line="4"/></error>
+      <error id="checkersReport" severity="information" msg="Active checkers: 100/800"/>
+      <error id="constVariable" severity="style" msg="could be const"><location file="/scan/a.c" line="5"/></error>
+      <error id="passedByValue" severity="performance" msg="pass by reference"><location file="/scan/b.cpp" line="9"/></error>
+    </errors></results>`;
+    const findings = cppcheckAdapter.parse(xml, ctx);
+    expect(findings.map((f) => f.nativeRule)).toEqual(['passedByValue']);
+    expect(findings[0]).toMatchObject({ dimension: 'code_health', file: 'b.cpp', lineStart: 9 });
+  });
+
+  it('returns NOTHING rather than throwing on unreadable output', () => {
+    for (const stdout of [
+      '',
+      'not xml',
+      '<?xml version="1.0"?><results version="2"><errors>',
+      '<error id="x" severity="error" msg="no location and no file0"/>',
+      '<results><errors></errors></results>',
+    ]) {
+      expect(cppcheckAdapter.parse(stdout, ctx), stdout).toEqual([]);
+    }
+  });
+
+  it('maps only to pack rules that exist, and lets the pack win', () => {
+    // A mapping to a renamed or deleted rule would silently stop deduping.
+    const cRules = new Set(
+      readRulepack(path.resolve(HERE, '../../../../rulepacks/semgrep')).ruleIds,
+    );
+    const cppcheckRows = DEDUP_MAP.filter((m) => m.packRule.startsWith('bpm-c-'));
+    expect(cppcheckRows.length).toBeGreaterThanOrEqual(6);
+    for (const row of cppcheckRows) {
+      expect(cRules.has(row.packRule), row.packRule).toBe(true);
+      expect(row.keep).toBe('pack');
+    }
+    const findings = cppcheckAdapter.parse(recorded, ctx);
+    const { kept, dropped } = dedupeAgainstPack(findings, ['bpm-c-gets', 'bpm-c-alloc-unchecked']);
+    expect(dropped.map((d) => d.ruleId).sort()).toEqual([
+      'tool.cppcheck.getsCalled',
+      'tool.cppcheck.nullPointerOutOfMemory',
+      'tool.cppcheck.nullPointerOutOfMemory',
+      'tool.cppcheck.nullPointerOutOfMemory',
+    ]);
+    expect(kept.map((f) => f.nativeRule)).toContain('uninitvar');
+  });
+});
+
+// The live half without the scan image: a cppcheck on PATH (any 2.x) run with
+// the adapter's real argv, mount path swapped for the fixture directory.
+const localCppcheck = (() => {
+  try {
+    return execFileSync('cppcheck', ['--version'], { stdio: 'pipe' }).toString().trim();
+  } catch {
+    return undefined;
+  }
+})();
+
+(localCppcheck ? describe : describe.skip)(`cppcheck argv, actually run (${localCppcheck})`, () => {
+  it('finds the seeded C defects through the adapter argv', () => {
+    const dir = path.join(FIXTURES, 'cpp');
+    const ctx = { mountPath: dir, files: ['app.c'] };
+    const [shell = 'sh', ...rest] = cppcheckAdapter.command(ctx);
+    // Node's child stdio is a socket, not a pipe — the case that broke the
+    // first version of this argv, so it is the case worth running.
+    const stdout = execFileSync(shell, rest, { stdio: ['ignore', 'pipe', 'pipe'] }).toString();
+    const findings = cppcheckAdapter.parse(stdout, ctx);
+    const rules = findings.map((f) => f.nativeRule);
+    expect(rules).toEqual(expect.arrayContaining(['arrayIndexOutOfBounds', 'memleak', 'uninitvar']));
+    expect(findings.every((f) => f.file === 'app.c')).toBe(true);
+  }, 120_000);
 });

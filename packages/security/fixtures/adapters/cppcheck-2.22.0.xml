@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<results version="2">
+    <cppcheck version="2.22.0"/>
+    <errors>
+        <error id="arrayIndexOutOfBounds" severity="error" msg="Array &apos;values[4]&apos; accessed at index 4, which is out of bounds." verbose="Array &apos;values[4]&apos; accessed at index 4, which is out of bounds." cwe="788" hash="15712454711166766887" file0="/scan/app.c">
+            <location file="/scan/app.c" line="8" column="16" info="Array index out of bounds"/>
+        </error>
+        <error id="memleak" severity="error" msg="Memory leak: scratch" verbose="Memory leak: scratch" cwe="401" hash="4900569664835186336" file0="/scan/app.c">
+            <location file="/scan/app.c" line="22" column="1"/>
+            <symbol>scratch</symbol>
+        </error>
+        <error id="memleakOnRealloc" severity="error" msg="Common realloc mistake: &apos;buf&apos; nulled but not freed upon failure" verbose="Common realloc mistake: &apos;buf&apos; nulled but not freed upon failure" cwe="401" hash="8686941499680276637" file0="/scan/app.c">
+            <location file="/scan/app.c" line="14" column="3"/>
+            <symbol>buf</symbol>
+        </error>
+        <error id="literalWithCharPtrCompare" severity="warning" msg="String literal compared with variable &apos;a&apos;. Did you intend to use strcmp() instead?" verbose="String literal compared with variable &apos;a&apos;. Did you intend to use strcmp() instead?" cwe="595" hash="8013450525736806610" file0="/scan/app.c">
+            <location file="/scan/app.c" line="34" column="12"/>
+            <symbol>a</symbol>
+        </error>
+        <error id="uninitvar" severity="error" msg="Uninitialized variable: total" verbose="Uninitialized variable: total" cwe="457" hash="6424401293708484624" file0="/scan/app.c">
+            <location file="/scan/app.c" line="26" column="10"/>
+            <symbol>total</symbol>
+        </error>
+        <error id="getsCalled" severity="warning" msg="Obsolete function &apos;gets&apos; called. It is recommended to use &apos;fgets&apos; or &apos;gets_s&apos; instead." verbose="The obsolete function &apos;gets&apos; is called. With &apos;gets&apos; you&apos;ll get a buffer overrun if the input data exceeds the size of the buffer. It is recommended to use the functions &apos;fgets&apos; or &apos;gets_s&apos; instead." cwe="477" hash="13564876869967049312" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="17" column="3"/>
+        </error>
+        <error id="allocaCalled" severity="warning" msg="Obsolete function &apos;alloca&apos; called. In C99 and later it is recommended to use a variable length array instead." verbose="The obsolete function &apos;alloca&apos; is called. In C99 and later it is recommended to use a variable length array or a dynamically allocated array instead. The function &apos;alloca&apos; is dangerous for many reasons (http://stackoverflow.com/questions/1018853/why-is-alloca-not-considered-good-practice and http://linux.die.net/man/3/alloca)." hash="14195008933546361721" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="108" column="15"/>
+            <symbol>alloca</symbol>
+        </error>
+        <error id="invalidScanfArgType_int" severity="warning" msg="%d in format string (no. 1) requires &apos;int *&apos; but the argument type is &apos;char *&apos;." verbose="%d in format string (no. 1) requires &apos;int *&apos; but the argument type is &apos;char *&apos;." cwe="686" hash="7315320368770384329" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="33" column="3"/>
+        </error>
+        <error id="invalidscanf" severity="warning" msg="scanf() without field width limits can crash with huge input data." verbose="scanf() without field width limits can crash with huge input data. Add a field width specifier to fix this problem.\012\012Sample program that can crash:\012\012#include &lt;stdio.h&gt;\012int main()\012{\012    char c[5];\012    scanf(&quot;%s&quot;, c);\012    return 0;\012}\012\012Typing in 5 or more characters may make the program crash. The correct usage here is &apos;scanf(&quot;%4s&quot;, c);&apos;, as the maximum field width does not include the terminating null byte.\012Source: http://linux.die.net/man/3/scanf\012Source: http://www.opensource.apple.com/source/xnu/xnu-1456.1.26/libkern/stdio/scanf.c" cwe="119" hash="1468352625821810076" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="32" column="3"/>
+        </error>
+        <error id="invalidscanf" severity="warning" msg="fscanf() without field width limits can crash with huge input data." verbose="fscanf() without field width limits can crash with huge input data. Add a field width specifier to fix this problem.\012\012Sample program that can crash:\012\012#include &lt;stdio.h&gt;\012int main()\012{\012    char c[5];\012    scanf(&quot;%s&quot;, c);\012    return 0;\012}\012\012Typing in 5 or more characters may make the program crash. The correct usage here is &apos;scanf(&quot;%4s&quot;, c);&apos;, as the maximum field width does not include the terminating null byte.\012Source: http://linux.die.net/man/3/scanf\012Source: http://www.opensource.apple.com/source/xnu/xnu-1456.1.26/libkern/stdio/scanf.c" cwe="119" hash="15772325106743963946" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="33" column="3"/>
+        </error>
+        <error id="nullPointerOutOfMemory" severity="warning" msg="If memory allocation fails, then there is a possible null pointer dereference: p" verbose="If memory allocation fails, then there is a possible null pointer dereference: p" cwe="476" hash="5996825432210032022" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="67" column="3" info="Null pointer dereference"/>
+            <location file="/scan/security/unsafe.c" line="66" column="19" info="Assignment &apos;p=malloc(n)&apos;, assigned value is 0"/>
+            <location file="/scan/security/unsafe.c" line="66" column="19" info="Assuming allocation function fails"/>
+            <symbol>p</symbol>
+        </error>
+        <error id="nullPointerOutOfMemory" severity="warning" msg="If memory allocation fails, then there is a possible null pointer dereference: r" verbose="If memory allocation fails, then there is a possible null pointer dereference: r" cwe="476" hash="12159531928546394707" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="73" column="3" info="Null pointer dereference"/>
+            <location file="/scan/security/unsafe.c" line="72" column="22" info="Assignment &apos;r=(struct record*)calloc(1,sizeof(*r))&apos;, assigned value is 0"/>
+            <location file="/scan/security/unsafe.c" line="72" column="45" info="Assuming allocation function fails"/>
+            <symbol>r</symbol>
+        </error>
+        <error id="nullPointerOutOfMemory" severity="warning" msg="If memory allocation fails, then there is a possible null pointer dereference: p" verbose="If memory allocation fails, then there is a possible null pointer dereference: p" cwe="476" hash="2845651757627180017" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="80" column="10" info="Null pointer dereference"/>
+            <location file="/scan/security/unsafe.c" line="79" column="13" info="Assignment &apos;p=malloc(n)&apos;, assigned value is 0"/>
+            <location file="/scan/security/unsafe.c" line="79" column="13" info="Assuming allocation function fails"/>
+            <symbol>p</symbol>
+        </error>
+        <error id="pointerSize" severity="warning" msg="Size of pointer &apos;dst&apos; used instead of size of its data." verbose="Size of pointer &apos;dst&apos; used instead of size of its data. This is likely to lead to a buffer overflow. You probably intend to write &apos;sizeof(*dst)&apos;." cwe="467" hash="17065994340227035118" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="56" column="10"/>
+        </error>
+        <error id="pointerSize" severity="warning" msg="Size of pointer &apos;buf&apos; used instead of size of its data." verbose="Size of pointer &apos;buf&apos; used instead of size of its data. This is likely to lead to a buffer overflow. You probably intend to write &apos;sizeof(*buf)&apos;." cwe="467" hash="13336387512143069475" file0="/scan/security/unsafe.c">
+            <location file="/scan/security/unsafe.c" line="62" column="11"/>
+        </error>
+    </errors>
+</results>
