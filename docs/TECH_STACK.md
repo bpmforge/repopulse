@@ -137,7 +137,7 @@ Tier-2 wrapper hard-codes C2 discipline: `max_tokens: 45000`, retry + warm-up on
 | TanStack Query | **5.x** | Brief-fixed; cache/invalidations keyed per endpoint; pairs with SSE cache-bust for NFR-10 freshness. |
 | Tailwind CSS | **4.x** | Brief-fixed; CSS-first config (see traps), dark-first theme via CSS variables (FR-WEB-1). |
 | shadcn/ui | **latest (vendored)** | Brief-fixed; components are copied into `apps/web/src/components/ui` — no runtime dep to version-drift. |
-| ECharts | **5.x** | Brief-fixed; sparklines, treemap heatmap, histograms (FR-WEB-3) in one lib; canvas renderer handles 50-repo org rollups. |
+| ECharts | **6.x** (was 5.x until the 2026-10-15 SC-19 refresh, below) | Brief-fixed; sparklines, treemap heatmap, histograms (FR-WEB-3) in one lib; canvas renderer handles 50-repo org rollups. |
 
 ## PDF generation — decision
 
@@ -242,6 +242,20 @@ drizzle-kit ^0.31.10 → ^0.31.11 alongside it. Fixes GHSA-gpj5-g38j-94v9 (`sql.
   `bigint[]`), so nothing changes here.
 - `drizzle-kit check` passes and `drizzle-kit generate` reports "No schema changes" against
   the existing migrations, so no migrations were regenerated.
+
+**Step 3: echarts ^5 → ^6.1.0** (apps/web; resolved 6.1.0). Fixes GHSA-fgmj-fm8m-jvvx (fixed
+in 6.1.0, no 5.x fix). Read the v6 upgrade guide
+(echarts.apache.org/handbook/en/basics/release-note/v6-upgrade-guide). Our tree-shaken imports
+(`echarts/core`, `/charts`, `/components`, `/renderers`) and `init`/`setOption` are unchanged.
+What changed for us:
+- **The default legend moved from the top edge to the bottom.** Our theme
+  (`apps/web/src/components/chart/chartTheme.ts`) now sets `legend.top: 0`. Without it the
+  file-churn legend rendered at y=186 of a 220px chart, on the x-axis labels (measured with
+  ECharts' SSR SVG renderer and pinned by `chartTheme.test.ts`).
+- The new default palette does not apply: the theme sets `color` from our tokens.
+- Axis-label overflow/overlap prevention is on by default, so axes can move a few pixels.
+  `grid.containLabel` is still honoured. Rich text labels are not used.
+- Initial JS stays at 140.8 KB gz (budget 200 KB); ECharts is in a lazy chunk.
 
 ## Version upgrade policy
 

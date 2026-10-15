@@ -18,7 +18,7 @@
     "@tanstack/react-router": "^1",
     "@tanstack/react-table": "^8",
     "@tanstack/react-virtual": "^3",
-    "echarts": "^5",
+    "echarts": "^6.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5"
