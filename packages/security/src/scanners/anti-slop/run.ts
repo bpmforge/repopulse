@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
+import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import {
   chunkDiff,
@@ -571,7 +572,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       // model, and a reader sorting by tier is asking "was a model involved",
       // not "which line of this scanner produced it".
       tier: 2,
-      findings,
+      findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: ANTI_SLOP_SCANNER_KEY,
     });
 

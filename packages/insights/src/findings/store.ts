@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
 import { dedupKey } from './dedup.js';
+import { pruneClosedFindingContext } from './context.js';
 import {
   autoResolveOutdated,
   isSuppressed,
@@ -39,6 +40,13 @@ export interface IncomingFinding {
    * start counting on its next run rather than staying in shadow for good.
    */
   experimental?: boolean;
+  /**
+   * W18-32: the scanned file's lines around the finding, copied at scan time
+   * (security/excerpt.ts). Absent = the scanner has no excerpt to give and an
+   * existing row keeps what it has; when stated, a sighting replaces it, so the
+   * stored lines follow the code as it was last scanned.
+   */
+  context?: { startLine: number; lines: string } | null;
 }
 
 export interface PersistParams {
@@ -216,6 +224,8 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         cveId: finding.cveId ?? null,
         yields: finding.yields ?? null,
         experimental: finding.experimental ?? false,
+        contextLines: finding.context?.lines ?? null,
+        contextStartLine: finding.context?.startLine ?? null,
         dedupKey: key,
         status: 'open',
         firstSeenAt: now,
@@ -243,6 +253,12 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         occurrenceCount: prior.occurrenceCount + 1,
         ...(decision ? { status: decision.next, statusChangedAt: now } : {}),
         ...(finding.experimental !== undefined ? { experimental: finding.experimental } : {}),
+        ...(finding.context !== undefined
+          ? {
+              contextLines: finding.context?.lines ?? null,
+              contextStartLine: finding.context?.startLine ?? null,
+            }
+          : {}),
       })
       .where(eq(read.findings.id, prior.id));
     result.updated += 1;
@@ -310,6 +326,13 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
       result.autoResolved += 1;
     }
   }
+
+  // Retention: lines of code are not kept for findings that closed long ago.
+  await pruneClosedFindingContext(db, {
+    workspaceId: params.workspaceId,
+    repoId: params.repoId,
+    nowMs: now.getTime(),
+  });
 
   return result;
 }

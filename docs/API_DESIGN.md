@@ -84,7 +84,7 @@ no live forge calls in any handler (FR-API-2, Law 4).
 |---|---|---|
 | `GET /findings` | filters `dimension, severity, status, repo_ids, pr` → list | FR-WEB-9 |
 | `GET /findings/stats` | disposition counts + false-positive rate (wont_fix÷dispositioned) trend for the Explorer header widget | FR-INSIGHTS-1, UX §4.e |
-| `GET /findings/{id}` | → detail: evidence, file/line, run/model/checklist version, status history | FR-INSIGHTS-1 |
+| `GET /findings/{id}` | → detail: evidence, file/line, run/model/checklist version, status history. Findings (list and detail) also carry `context: { start_line, lines } \| null` (W18-32): the scanned file's lines around the finding, stored at scan time, `null` for secrets, repo-level findings, old rows and findings closed past retention | FR-INSIGHTS-1 |
 | `POST /findings/{id}/status` | `{to: acknowledged\|resolved\|wont_fix, reason}` → 200 + event row | FR-INSIGHTS-1 |
 | `POST /analyses` | `{repo_id, pr_number, tier:2\|3}` → 202 `{run_id}`; tier 3 without repo opt-in → 403 | FR-ANALYSIS-1/7 |
 | `GET /analyses/{run_id}` | → `{status, chunk_count, findings_count, cost_usd?, error?}` | FR-ANALYSIS-8 |

@@ -117,6 +117,8 @@ function findingsQuery(db: Database) {
         lineStart: read.findings.lineStart,
         lineEnd: read.findings.lineEnd,
         evidence: read.findings.evidence,
+        contextLines: read.findings.contextLines,
+        contextStartLine: read.findings.contextStartLine,
         recommendation: read.findings.recommendation,
         status: read.findings.status,
         dismissReason: read.findings.dismissReason,
@@ -168,6 +170,13 @@ function toFinding(r: FindingRow) {
     file: r.file,
     line_range: [r.lineStart, r.lineEnd],
     evidence: r.evidence,
+    // W18-32: lines of the scanned file around the finding, copied at scan
+    // time. null when there are none to show (secrets, repo-level findings,
+    // old rows, closed past retention); the web app then shows the evidence.
+    context:
+      r.contextLines === null || r.contextStartLine === null
+        ? null
+        : { start_line: r.contextStartLine, lines: r.contextLines },
     recommendation: r.recommendation,
     status: r.status,
     dismiss_reason: r.dismissReason,
