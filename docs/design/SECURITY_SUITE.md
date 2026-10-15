@@ -369,8 +369,9 @@ file's hotspot exposure (RISK_MODEL.md). The findings API marks each external fi
 
 **GitHub code scanning — permission.** Listing alerts needs the GitHub App repository permission
 **"Code scanning alerts: Read"** (`security_events: read`). The App registration
-(docs/research/github-app.md) does **not** request it: adding a permission is a product decision
-and makes every installation re-approve. The pull is implemented behind the permission's presence —
+(docs/research/github-app.md) requests it, read-only (product decision, 2026-10-15). Existing
+installations must re-approve before it takes effect, so the pull still runs behind the
+permission's presence —
 a 403 is recorded as `no_code_scanning_permission` with a sentence telling an org owner what to
 grant, never as "zero alerts" (which would sweep everything closed). No write scope is requested or
 usable: the forge method is a GET of `state=open` alerts, budgeted on the `scan` lane, `checks`

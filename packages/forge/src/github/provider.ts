@@ -70,8 +70,9 @@ export const GITHUB_CAPABILITIES: ForgeCapabilities = {
   webhookScheme: 'hub-signature',
   // W18-24. The ENDPOINT exists on every GitHub repository; whether this
   // installation may read it is a permission ("Code scanning alerts: Read",
-  // security_events) the App does not request by default. A 403 is how the
-  // pull learns that, and it reports it rather than reading it as zero alerts.
+  // security_events). The App requests it, but an installation that has not
+  // re-approved the new permission answers 403. That is how the pull learns
+  // it, and it reports it rather than reading it as zero alerts.
   supportsCodeScanningAlerts: true,
 };
 

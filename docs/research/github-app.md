@@ -92,12 +92,12 @@ would just mean GitHub failing every webhook delivery against a dead host.
    - **Webhook**: Active, URL `https://repopulse.bpmforge.com/webhooks/github`, generate
      and save a **webhook secret** (→ `.env` `WEBHOOK_SECRET`, never committed).
 3. **Permissions** — repository, read-only only (C5 / SC-25):
-   Contents · Metadata (mandatory) · Pull requests · Checks · Deployments · Issues.
-   *Optional, NOT requested by default (W18-24):* **Code scanning alerts: Read**
-   (`security_events: read`) lets the nightly `code_scanning_pull` import GitHub
-   code-scanning alerts as findings. Without it the pull records
-   `no_code_scanning_permission` and imports nothing; adding it is a product decision
-   (every installation must re-approve). Read-only either way — never grant write.
+   Contents · Metadata (mandatory) · Pull requests · Checks · Deployments · Issues ·
+   **Code scanning alerts** (`security_events: read`, added 2026-10-15 for W18-24 by
+   product decision). It lets the nightly `code_scanning_pull` import GitHub
+   code-scanning alerts as findings. An installation that has not yet re-approved the
+   new permission answers 403, and the pull records `no_code_scanning_permission` and
+   imports nothing. Read-only — never grant write.
 4. **Subscribe to webhook events**: Pull request, Push, Check run/suite, Issues, Deployment.
 5. Create, then note/generate: **App ID**, **Client ID** + **Client secret**,
    **private key** (.pem).
@@ -120,7 +120,7 @@ would just mean GitHub failing every webhook delivery against a dead host.
 | GitHub App ID | _pending_ |
 | GitHub App Client ID | _pending_ |
 | Installation ID | _pending_ |
-| Permissions granted | contents:read, metadata:read, pull_requests:read, checks:read, deployments:read, issues:read (verify the actual grant matches — not a superset) |
+| Permissions granted | contents:read, metadata:read, pull_requests:read, checks:read, deployments:read, issues:read, security_events:read (verify the actual grant matches — not a superset) |
 | Webhook URL | `https://repopulse.bpmforge.com/webhooks/github` |
 | Webhook events | pull_request, push, check_run, check_suite, issues, deployment |
 | Dev OAuth app Client ID | _pending_ |

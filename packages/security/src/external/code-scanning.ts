@@ -12,10 +12,10 @@ import type { ExternalResult } from './map.js';
 // GitHub code-scanning alerts → findings (W18-24). READ-ONLY.
 //
 // PERMISSION. Listing alerts needs the GitHub App permission "Code scanning
-// alerts: Read" (`security_events: read`), which the App registration in
-// docs/research/github-app.md does NOT request — adding a permission is a
-// product decision, and every installation would have to re-approve. So this
-// pull runs behind the permission's PRESENCE: GitHub answers 403 without it,
+// alerts: Read" (`security_events: read`). The App registration in
+// docs/research/github-app.md requests it, but every existing installation
+// has to re-approve a new permission before it applies. So this pull runs
+// behind the permission's PRESENCE: GitHub answers 403 without it,
 // and the pull reports `no_code_scanning_permission` instead of an error or,
 // worse, an empty result set that its sweep would read as "every alert fixed".
 // Nothing here asks for, or could use, a write scope.
