@@ -115,7 +115,13 @@ describe('the Rust pack is ours and ships in shadow', () => {
 
 // semgrep phones home for a version check unless told not to, which costs a
 // minute behind a proxy; opengrep ignores the variable.
-const ENGINE_ENV = { ...process.env, SEMGREP_ENABLE_VERSION_CHECK: '0' };
+// PYTHONUTF8: the packs contain non-ASCII; the engine's Python layer crashes under a C locale.
+const ENGINE_ENV = {
+  ...process.env,
+  SEMGREP_ENABLE_VERSION_CHECK: '0',
+  PYTHONUTF8: '1',
+  LC_ALL: 'en_US.UTF-8',
+};
 
 const engine = (() => {
   for (const bin of ['opengrep', 'semgrep']) {
@@ -136,7 +142,14 @@ interface EngineResult {
 }
 
 function runEngine(bin: string, config: string, target: string): EngineResult {
-  const args = ['--metrics=off', '--config', config, '--json', '--quiet', target];
+  const args = [
+    ...(engine === 'semgrep' ? ['--metrics=off'] : []),
+    '--config',
+    config,
+    '--json',
+    '--quiet',
+    target,
+  ];
   const out = execFileSync(bin, args, {
     env: ENGINE_ENV,
     stdio: ['ignore', 'pipe', 'pipe'],

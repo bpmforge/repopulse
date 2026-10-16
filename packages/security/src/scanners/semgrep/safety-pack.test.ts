@@ -31,6 +31,18 @@ const RULES = [
   'bpm-sec-tls-verify-disabled-py',
 ];
 
+// The triggering fixtures are real Go, Java and Python, so the language
+// baseline packs (mounted alongside this one on every run) fire on the same
+// defects. Listed apart from RULES: these are not this pack's rules.
+const SIBLING_PACK_RULES = [
+  'bpm-go-shell-exec-dynamic',
+  'bpm-go-tls-insecure-skip-verify',
+  'bpm-java-command-concat',
+  'bpm-java-hostname-verification-disabled',
+  'bpm-java-trust-all-certificates',
+  'bpm-py-subprocess-shell-concat',
+];
+
 describe('the disabled-safety pack', () => {
   const text = readFileSync(PACK_FILE, 'utf8');
   const ids = readRulepack(path.dirname(PACK_FILE)).ruleIds.filter((id) => RULES.includes(id));
@@ -98,7 +110,9 @@ describeIfScanImage('disabled-safety golden set', () => {
     });
     expect(result.status, result.error ?? '').toBe('succeeded');
     expect(result.toolErrors).toEqual([]);
-    expect([...new Set(result.findings.map((f) => f.ruleId))].sort()).toEqual(RULES);
+    expect([...new Set(result.findings.map((f) => f.ruleId))].sort()).toEqual(
+      [...RULES, ...SIBLING_PACK_RULES].sort(),
+    );
   }, 300_000);
 
   it('NOTHING fires on the clean fixtures', async () => {

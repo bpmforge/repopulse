@@ -177,6 +177,9 @@ describeIfScanImage('opengrep, actually run in the sandbox (FR-SEC-6)', () => {
       'bpm-py-sql-string-build',
       'bpm-py-subprocess-shell-concat',
       'bpm-py-weak-hash',
+      // The disabled-safety pack (W18-04) flags the same shell-fed-a-variable
+      // call as bpm-py-subprocess-shell-concat; both packs are mounted on every run.
+      'bpm-sec-shell-dynamic-command-py',
     ]);
     // Tool AND pack version, stamped from the image rather than assumed.
     expect(result.toolVersions.opengrep).toMatch(/^\d+\.\d+\.\d+$/);

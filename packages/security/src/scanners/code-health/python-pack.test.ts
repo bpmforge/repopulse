@@ -128,6 +128,9 @@ const ENGINE_ENV = {
   ...process.env,
   SEMGREP_ENABLE_VERSION_CHECK: '0',
   SEMGREP_SEND_METRICS: 'off',
+  // The packs contain non-ASCII; the engine's Python layer crashes under a C locale.
+  PYTHONUTF8: '1',
+  LC_ALL: 'en_US.UTF-8',
 };
 
 const engine = (() => {
@@ -150,12 +153,16 @@ interface EngineResult {
 }
 
 function scan(config: string, target: string): EngineResult {
-  const stdout = execFileSync(engine!, ['--metrics=off', '--json', '--config', config, target], {
-    stdio: ['ignore', 'pipe', 'ignore'],
-    timeout: 120_000,
-    maxBuffer: 32 * 1024 * 1024,
-    env: ENGINE_ENV,
-  }).toString();
+  const stdout = execFileSync(
+    engine!,
+    [...(engine === 'semgrep' ? ['--metrics=off'] : []), '--json', '--config', config, target],
+    {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 120_000,
+      maxBuffer: 32 * 1024 * 1024,
+      env: ENGINE_ENV,
+    },
+  ).toString();
   return JSON.parse(stdout) as EngineResult;
 }
 
