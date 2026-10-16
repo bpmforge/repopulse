@@ -186,6 +186,11 @@ rules:
           - pattern-inside: |
               var $S = "..."
               ...
+          # `"..."` does not match the EMPTY literal on Opengrep 1.27.1 (the
+          # pinned engine), and `var out = ""` is the usual shape.
+          - pattern-inside: |
+              var $S = ""
+              ...
           - pattern-inside: |
               var $S: String = $INIT
               ...

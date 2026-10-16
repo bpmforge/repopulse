@@ -156,7 +156,15 @@ export function findYamlTool(override?: string): YamlTool | null {
 
 function quietEnv(): NodeJS.ProcessEnv {
   // No version check, no metrics: the run must not reach the network.
-  return { ...process.env, SEMGREP_ENABLE_VERSION_CHECK: '0', SEMGREP_SEND_METRICS: 'off' };
+  // UTF-8: the packs contain non-ASCII, and the engine's Python layer dies
+  // silently (exit 2, empty stdout) under a bare C locale.
+  return {
+    ...process.env,
+    SEMGREP_ENABLE_VERSION_CHECK: '0',
+    SEMGREP_SEND_METRICS: 'off',
+    PYTHONUTF8: '1',
+    LC_ALL: 'en_US.UTF-8',
+  };
 }
 
 function parseCwe(cwe: string | null): number | null {
