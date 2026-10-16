@@ -1,0 +1,454 @@
+# bpm-rulepacks — C and C++ security baseline v1 (W18-15, SECURITY_SUITE.md §3.3).
+#
+# PROVENANCE: every rule below was written for RepoPulse. None is copied,
+# adapted or derived from the Semgrep registry (DESIGN_REVIEW.md G-18) — the
+# same licence position as bpm-baseline.v1.yaml, which this file sits beside
+# and is loaded with.
+#
+# WHAT THE ENGINE CAN AND CANNOT SEE IN C (verified with semgrep 1.181.0 on
+# fixtures, 2026-10-15; Opengrep reads the same rule files):
+#   - Calls, assignments, declarations with initialisers, casts, `sizeof`,
+#     `->`, subscripts and statement sequences (`...`) parse reliably in both
+#     `c` and `cpp`, so every rule here is declared for both.
+#   - metavariable-regex is a MATCH from the start of the value, not a
+#     search; every regex below that looks inside a format string starts with
+#     `.*` for that reason.
+#   - The preprocessor is NOT run. A call hidden behind a macro is invisible,
+#     and a macro that wraps a NULL check (`CHECK_ALLOC(p)`) is seen only as a
+#     call — which is why the unchecked-allocation rule treats any call whose
+#     name says "check"/"assert" as a check rather than ignoring it.
+#   - There is no type information. "Is this a pointer?" is answered from the
+#     declaration in the same function or parameter list, never inferred, so a
+#     pointer declared in a header or a struct field is not seen.
+#   - Nothing is interprocedural. A buffer filled in one function and passed to
+#     system() in another is out of reach; that is what the LLM tier is for.
+#
+# Every rule ships as a shadow-mode candidate (`lifecycle: candidate`): its
+# findings are experimental until a workspace promotes it on evidence (§8.2).
+#
+# `yields` uses only the chain vocabulary (chainer/build.ts). A buffer overflow
+# is NOT tagged 'rce': a pattern match cannot know the overflow is reachable or
+# exploitable, and a chain built on that claim would be unfalsifiable.
+#
+# Severity mapping (output.ts): ERROR → 4, WARNING → 3, INFO → 2.
+rules:
+  - id: bpm-c-gets
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      gets() cannot be used safely: it has no length argument, so any input line
+      longer than the buffer overwrites the stack. It was removed from C11 for
+      that reason. Use fgets() with the buffer size.
+    metadata:
+      category: security
+      cwe: 'CWE-242: Use of Inherently Dangerous Function'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern: gets($BUF)
+
+  - id: bpm-c-unbounded-string-copy
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      strcpy/strcat copy until the source's terminator with no idea how big the
+      destination is. When the source can be longer than the destination, the
+      excess overwrites whatever follows it. Use a bounded copy that always
+      terminates (snprintf, strlcpy where available) and check for truncation.
+    metadata:
+      category: security
+      cwe: 'CWE-120: Buffer Copy without Checking Size of Input'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: strcpy($DST, $SRC)
+          - pattern: strcat($DST, $SRC)
+      # A string LITERAL source has a length the author could see when they
+      # wrote the line. It can still overflow a too-small destination, but that
+      # is a fixed-size bug a test finds, not input-driven corruption — and in
+      # real C code it is the majority of strcpy/strcat calls. Firing on it
+      # buries the calls that copy caller-controlled data.
+      - pattern-not: strcpy($DST, "...")
+      - pattern-not: strcat($DST, "...")
+      # The source's length was measured first — the destination allocated
+      # from strlen(src), or a branch that compared it. That is the correct
+      # way to use strcpy, and it was the false positive on real code
+      # (cmark's `name = calloc(1, strlen(name) + 1); strcpy(name, ...)`).
+      - pattern-not-inside: |
+          $DST = <... strlen($SRC) ...>;
+          ...
+      - pattern-not-inside: |
+          $T $DST = <... strlen($SRC) ...>;
+          ...
+      - pattern-not-inside: |
+          if (<... strlen($SRC) ...>) $S;
+          ...
+      - pattern-not-inside: |
+          if (<... strlen($SRC) ...>) $S;
+
+  - id: bpm-c-sprintf-unbounded
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      sprintf/vsprintf write as many bytes as the formatted result needs, with
+      no bound. A %s argument longer than the buffer overflows it. Use
+      snprintf/vsnprintf with the buffer size and check the return value for
+      truncation.
+    metadata:
+      category: security
+      cwe: 'CWE-787: Out-of-bounds Write'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: sprintf($BUF, $FMT, ...)
+          - pattern: vsprintf($BUF, $FMT, ...)
+      # A literal format with no string conversion (`"%d"`, `"%02x"`) has a
+      # bounded output width the author can size for; the overflow risk is a
+      # %s of unknown length or a format nobody can see. Firing on every
+      # integer sprintf is what makes people silence the whole rule.
+      - metavariable-regex:
+          metavariable: $FMT
+          regex: '^(?!").*|^".*%[-+ #0-9.*]*s.*"$'
+
+  - id: bpm-c-scanf-unbounded-string
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      A scanf-family %s or %[ conversion with no field width reads an unbounded
+      amount of input into a fixed buffer — the same defect as gets(). Give the
+      conversion a width one less than the buffer size (%63s for char[64]).
+    metadata:
+      category: security
+      cwe: 'CWE-120: Buffer Copy without Checking Size of Input'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: scanf("$FMT", ...)
+          - pattern: fscanf($F, "$FMT", ...)
+          - pattern: sscanf($S, "$FMT", ...)
+      # `%*s` assigns nothing (suppression) and `%%s` is a literal percent
+      # sign followed by an s — neither writes to a buffer.
+      - metavariable-regex:
+          metavariable: $FMT
+          # Anchored at the start of the value (semgrep's metavariable-regex
+          # is a match, not a search), hence the leading `.*`.
+          regex: .*(?<!%)%(s|\[)
+
+  - id: bpm-c-format-string-variable
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      The format argument is a variable, and nothing else is passed. If that
+      string can ever contain text from outside the program, a %n writes to
+      memory and a %s reads it. Print data with a literal format: printf("%s",
+      msg), not printf(msg).
+    metadata:
+      category: security
+      cwe: 'CWE-134: Use of Externally-Controlled Format String'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Fires only when the non-literal format is the LAST argument. A wrapper
+        that forwards `fmt` plus arguments (`fprintf(out, fmt, a, b)`) is the
+        normal shape of a logging helper and is not flagged; whether its
+        callers pass literals is an interprocedural question.
+    patterns:
+      - pattern-either:
+          - pattern: printf($FMT)
+          - pattern: fprintf($STREAM, $FMT)
+          - pattern: dprintf($FD, $FMT)
+          - pattern: sprintf($BUF, $FMT)
+          - pattern: snprintf($BUF, $SIZE, $FMT)
+          - pattern: syslog($PRI, $FMT)
+      - pattern-not: printf("...")
+      - pattern-not: fprintf($STREAM, "...")
+      - pattern-not: dprintf($FD, "...")
+      - pattern-not: sprintf($BUF, "...")
+      - pattern-not: snprintf($BUF, $SIZE, "...")
+      - pattern-not: syslog($PRI, "...")
+      # gettext's `_("...")` and an ALL_CAPS name are, in practice, literals the
+      # preprocessor or a translation catalogue supplies — the engine sees a
+      # call or an identifier because it does not run cpp.
+      - metavariable-regex:
+          metavariable: $FMT
+          regex: ^(?!_\(|N_\(|gettext\(|[A-Z][A-Z0-9_]*$)
+
+  - id: bpm-c-command-built-string
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      A shell command assembled from a formatted or concatenated string and
+      handed to system()/popen(). Anything interpolated is parsed by /bin/sh,
+      so a value containing `;`, `$(` or a backtick runs a second command.
+      Use fork/execv with an argument vector, or posix_spawn.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: system($CMD)
+          - pattern: popen($CMD, $MODE)
+          - pattern: system($CMD.c_str())
+          - pattern: popen($CMD.c_str(), $MODE)
+          - pattern: system(($A + $B).c_str())
+          - pattern: popen(($A + $B).c_str(), $MODE)
+      - pattern-either:
+          # (A + B).c_str() inline: concatenation is visible in the call itself.
+          - pattern: system(($A + $B).c_str())
+          - pattern: popen(($A + $B).c_str(), $MODE)
+          # A %s placed into the buffer earlier in the same function. An
+          # integer-only format ("kill -HUP %d") cannot carry shell syntax and
+          # is deliberately not matched.
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      sprintf($CMD, "$FMT", ...);
+                      ...
+                  - pattern-inside: |
+                      snprintf($CMD, $N, "$FMT", ...);
+                      ...
+              - metavariable-regex:
+                  metavariable: $FMT
+                  regex: .*(?<!%)%[-0-9.*]*s
+          - pattern-inside: |
+              strcat($CMD, $X);
+              ...
+          - pattern-inside: |
+              strncat($CMD, $X, $N);
+              ...
+          - pattern-inside: |
+              std::string $CMD = $A + $B;
+              ...
+          - pattern-inside: |
+              $CMD += $X;
+              ...
+
+  - id: bpm-c-memcpy-sizeof-pointer
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      sizeof applied to a POINTER as the length of a copy. That is the size of
+      the address (4 or 8 bytes), not of the buffer it points at — the copy is
+      silently short, or, when the destination is smaller than a pointer,
+      overflows it. Pass the buffer's real length.
+    metadata:
+      category: security
+      cwe: 'CWE-467: Use of sizeof() on a Pointer Type'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        "Is a pointer" is read from a declaration in the same function or its
+        parameter list. A pointer declared elsewhere (a struct field, a global
+        in a header) is not seen, and an array parameter written `char a[16]`
+        is not flagged even though it decays to a pointer.
+    patterns:
+      - pattern-either:
+          - pattern: memcpy($DST, $SRC, sizeof($P))
+          - pattern: memmove($DST, $SRC, sizeof($P))
+      - metavariable-comparison:
+          comparison: str($P) == str($DST) or str($P) == str($SRC)
+      - pattern-either:
+          - pattern-inside: |
+              $R $FN(..., $T *$P, ...) { ... }
+          - pattern-inside: |
+              $R $FN(..., const $T *$P, ...) { ... }
+          - pattern-inside: |
+              $T *$P = $INIT;
+              ...
+          - pattern-inside: |
+              $T *$P;
+              ...
+
+  - id: bpm-c-alloc-unchecked
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      The result of malloc/calloc/realloc is written through before anything
+      checks it for NULL. Allocation fails under memory pressure or a hostile
+      size, and a write through NULL (or NULL plus an offset) is a crash at
+      best and a write to a mapped address at worst. Check the result first.
+    metadata:
+      category: security
+      cwe: 'CWE-690: Unchecked Return Value to NULL Pointer Dereference'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Same-function and straight-line only. Any `if`/`while` condition or
+        call statement that mentions the pointer before the write counts as a
+        check, even if it checks something else (or is `init(p)`) — chosen so
+        that the rule errs towards silence. Project allocators (xmalloc, g_malloc)
+        that abort on failure are not matched at all.
+    patterns:
+      - pattern-either:
+          - pattern: $P[$I] = $V
+          - pattern: $P->$F = $V
+          - pattern: '*$P = $V'
+          - patterns:
+              - pattern: $COPY($P, ...)
+              - metavariable-regex:
+                  metavariable: $COPY
+                  regex: ^(memcpy|memmove|memset|strcpy|strncpy|strcat|sprintf|snprintf|fgets|fread)$
+      - pattern-either:
+          - pattern-inside: |
+              $P = $ALLOC(...);
+              ...
+          - pattern-inside: |
+              $T $P = $ALLOC(...);
+              ...
+          - pattern-inside: |
+              $P = ($C) $ALLOC(...);
+              ...
+          - pattern-inside: |
+              $T $P = ($C) $ALLOC(...);
+              ...
+      - metavariable-regex:
+          metavariable: $ALLOC
+          regex: ^(malloc|calloc|realloc)$
+      # The write is inside a branch that tested the pointer, or comes after
+      # any statement that did.
+      # (`if (...) $S;` matches braced and unbraced bodies, with or without an
+      # else, in the C grammar semgrep uses.)
+      - pattern-not-inside: |
+          if (<... $P ...>) $S;
+      - pattern-not-inside: |
+          if (<... $P ...>) $S;
+          ...
+      - pattern-not-inside: |
+          while (<... $P ...>) $S;
+      # ANY earlier call statement that is handed the pointer ends the search,
+      # not only ones named like a check. A name filter cannot be applied
+      # here — a metavariable bound only inside a negation is unbound for
+      # metavariable-regex, which silently filters out every match — and the
+      # broad version is the one that errs towards silence: `CHECK_ALLOC(p)`,
+      # `assert(p)` and `die_if_null(p)` all count, at the cost of also
+      # counting `init(p)`.
+      - pattern-not-inside: |
+          $CHECK(<... $P ...>);
+          ...
+
+  - id: bpm-c-realloc-self-assign
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      `p = realloc(p, n)` overwrites the only pointer to the old block with
+      NULL when realloc fails — the old block leaks, and code that then checks
+      `p` has lost the data it was trying to grow. Assign to a temporary, check
+      it, then replace p.
+    metadata:
+      category: security
+      cwe: 'CWE-401: Missing Release of Memory after Effective Lifetime'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    pattern-either:
+      - pattern: $P = realloc($P, $N)
+      - pattern: $P = ($T) realloc($P, $N)
+
+  - id: bpm-c-rand-for-secret
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      rand()/random() produce a predictable sequence — seeded from the clock it
+      is guessable to the second. A token, key, nonce or password built from it
+      can be reproduced by anyone who knows roughly when it was made. Use the
+      OS CSPRNG (getrandom, arc4random_buf, /dev/urandom, or a crypto
+      library's RNG).
+    metadata:
+      category: security
+      cwe: 'CWE-338: Use of Cryptographically Weak PRNG'
+      yields: ['predictable-token']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Decided by NAMES — the variable assigned or the enclosing function —
+        because the engine cannot know what a number is used for. `key` alone
+        is not in the list, for the same reason as bpm-js-math-random-token: a
+        hash-table key is an ordinary name.
+    patterns:
+      - pattern-either:
+          - pattern: rand()
+          - pattern: random()
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: $NAME = $E
+                  - pattern-inside: $NAME[$I] = $E
+                  - pattern-inside: $T $NAME = $E;
+              - metavariable-regex:
+                  metavariable: $NAME
+                  regex: (?i).*(token|secret|passw|nonce|salt|session|csrf|otp|api_?key|private_?key|auth_?key).*
+          - patterns:
+              - pattern-inside: |
+                  $R $FN(...) { ... }
+              - metavariable-regex:
+                  metavariable: $FN
+                  regex: (?i).*(token|secret|passw|nonce|salt|session_?id|csrf|otp|gen_?key|generate_?key|make_?key).*
+
+  - id: bpm-c-strncpy-unterminated
+    languages: [c, cpp]
+    severity: INFO
+    message: >-
+      strncpy does not terminate the destination when the source is at least
+      as long as the count, and nothing after this call does it either. The
+      next strlen/printf on the buffer reads past its end. Terminate it
+      explicitly (`dst[n - 1] = '\0'`) or use snprintf.
+    metadata:
+      category: security
+      cwe: 'CWE-170: Improper Null Termination'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A judgement rule. The `sizeof(dst) - 1` idiom is assumed to sit on a
+        zero-initialised buffer and is not flagged, and any later write of 0 or
+        '\0' into the destination counts as termination. Fixed-width record
+        fields that are deliberately unterminated will still fire — that is
+        the false positive to dismiss.
+    patterns:
+      - pattern: strncpy($DST, $SRC, $N)
+      - pattern-not: strncpy($DST, $SRC, $X - 1)
+      - pattern-not-inside: |
+          strncpy($DST, $SRC, $N);
+          ...
+          $DST[$I] = $Z;
+      - pattern-not-inside: |
+          strncpy($DST, $SRC, $N);
+          ...
+          *($DST + $I) = $Z;
+
+  - id: bpm-c-alloca-variable-size
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      alloca with a size that is not a constant. There is no failure return: a
+      large or attacker-chosen size moves the stack pointer past the guard page
+      and into whatever is mapped below it. Use malloc and check the result, or
+      bound the size first.
+    metadata:
+      category: security
+      cwe: 'CWE-770: Allocation of Resources Without Limits or Throttling'
+      yields: []
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    patterns:
+      - pattern-either:
+          - pattern: alloca($N)
+          - pattern: __builtin_alloca($N)
+      - pattern-not: alloca(sizeof(...))
+      - pattern-not: __builtin_alloca(sizeof(...))
+      # An integer literal or an ALL_CAPS constant is a size the author fixed.
+      - metavariable-regex:
+          metavariable: $N
+          regex: ^(?!\d+[uUlL]*$|[A-Z][A-Z0-9_]*$)

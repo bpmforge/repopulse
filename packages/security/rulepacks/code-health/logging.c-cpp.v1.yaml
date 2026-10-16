@@ -1,0 +1,52 @@
+# bpm-rulepacks — logging hygiene for C and C++ v1 (W18-15, CODE_HEALTH_SUITE.md §3).
+#
+# PROVENANCE: written for RepoPulse; not derived from any registry pack
+# (DESIGN_REVIEW.md G-18).
+#
+# ONE rule, deliberately. C has no logging convention to measure against:
+# printf to stdout IS the output of a command-line tool, and fprintf(stderr)
+# IS its error channel, so "printf in library code" cannot be told apart from
+# a CLI's normal behaviour without knowing which files are a library — and a
+# rule that fires on every printf in a C repository is a rule people disable.
+# What CAN be told apart is a print whose own text says it is debugging.
+rules:
+  - id: bpm-log-c-debug-print
+    languages: [c, cpp]
+    severity: INFO
+    message: >-
+      A print whose text marks it as a debugging leftover ("DEBUG", "got here",
+      ">>>"). It ships in the binary, writes to a stream the program's users
+      see, and usually prints internal state nobody meant to expose. Remove
+      it, or route it through the project's logging with a debug level.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Decided by the literal's first word. A leftover printf("x=%d\n", x)
+        with no marker is indistinguishable from real output and is not
+        flagged; a deliberate debug channel that prints "DEBUG:" behind a
+        runtime flag will fire and should be dismissed.
+    paths:
+      exclude:
+        - 'test/**'
+        - 'tests/**'
+        - '*_test.c'
+        - '*_test.cc'
+        - '*_test.cpp'
+        - 'examples/**'
+    patterns:
+      - pattern-either:
+          - pattern: printf("$S", ...)
+          - pattern: puts("$S")
+          - pattern: fprintf(stderr, "$S", ...)
+          - pattern: fprintf(stdout, "$S", ...)
+          # `a << b << c` parses as `(a << b) << c`, so the inner operand
+          # alone matches every chain once; adding a `<< ...` form as well
+          # reports the same line twice.
+          - pattern: std::cerr << "$S"
+          - pattern: std::cout << "$S"
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?i)^\s*(\[?debug\]?\s*[:>\-\]]|dbg\s*[:>\-]|xxx\b|got here|here\s*[0-9!:]|>>>|<<<|-{2,}>|trace\s*:)

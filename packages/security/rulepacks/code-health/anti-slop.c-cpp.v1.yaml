@@ -1,0 +1,133 @@
+# bpm-rulepacks — anti-slop for C and C++ v1 (W18-15, CODE_HEALTH_SUITE.md §1/§9).
+#
+# PROVENANCE: written for RepoPulse. None of these is copied, adapted or derived
+# from the Semgrep registry (DESIGN_REVIEW.md G-18). Each carries
+# `metadata.source` naming the R-xx rule from our own inventory it ports.
+#
+# Language notes, verified with semgrep 1.181.0 on the fixtures (2026-10-15):
+#   - try/catch exists only in C++, so the catch rules are `cpp` only. Both
+#     `catch (...)` and typed catches (`const std::exception &e`) parse as
+#     patterns; a comment-only body counts as empty because the engine drops
+#     comments.
+#   - Comments are invisible to structural patterns, so the comment rules are
+#     pattern-regex — the same approach, and the same limits, as the JS pack.
+#
+# Every rule is a shadow-mode candidate (`lifecycle: candidate`), and nothing
+# here exceeds WARNING: none of it is exploitable.
+rules:
+  - id: bpm-ch-empty-catch-cpp
+    languages: [cpp]
+    severity: WARNING
+    message: >-
+      An empty catch block, or one whose only comment says "ignore". The
+      exception still happened; the only thing removed was anyone's chance of
+      knowing. If it genuinely does not matter, log it, or say in the handler
+      why ignoring it is safe.
+    metadata:
+      source: R-01
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    # In a PATTERN, `catch (...)` is an ellipsis over the parameter, so the
+    # one form below matches typed catches (`const std::exception &e`) and the
+    # literal catch-all alike — which is what this rule wants.
+    patterns:
+      - pattern: |
+          try { ... } catch (...) { }
+      # A comment that gives a REASON excuses the empty handler; one that only
+      # says "ignore" does not. On real C++ (cppcheck, pybind11) every empty
+      # catch found carried a reason ("Bad integer literal", "Analysis is
+      # terminated") or an explicit NOLINT, and flagging those is the noise
+      # that gets a rule switched off. The engine drops comments, so this is
+      # a text check over the handler's opening.
+      - pattern-not-regex: >-
+          catch\s*\([^)]*\)\s*\{\s*(//|/\*)(?!\s*(?i:ignored?|do nothing|nothing|empty|todo|swallow\w*|no-?op)\b)
+
+  - id: bpm-ch-catch-all-fallback-cpp
+    languages: [cpp]
+    severity: WARNING
+    message: >-
+      catch (...) that turns every possible failure — std::bad_alloc, a logic
+      error, a library's own exception type — into one ordinary return value.
+      The caller cannot tell "the answer is false" from "we failed to find
+      out". Catch the types you can handle and let the rest propagate.
+    metadata:
+      source: R-10
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Fires only when the handler's ENTIRE body is one return statement. A
+        catch-all that logs first, or rethrows with `throw;`, is a decision
+        someone made and is not flagged.
+    # `catch (...)` in a pattern is an ellipsis that ALSO matches typed
+    # catches — the clean fixture's `catch (const std::invalid_argument &)`
+    # fired on the first draft. The typed forms are subtracted to leave only
+    # the literal catch-all.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try { ... } catch (...) { return $V; }
+          - pattern: |
+              try { ... } catch (...) { return; }
+      - pattern-not: |
+          try { ... } catch ($T) { return $V; }
+      - pattern-not: |
+          try { ... } catch ($T $E) { return $V; }
+      - pattern-not: |
+          try { ... } catch ($T) { return; }
+      - pattern-not: |
+          try { ... } catch ($T $E) { return; }
+
+  - id: bpm-ch-stub-fake-success-c
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      A function whose whole body is a TODO and a success return. Callers see
+      the name and the "it worked" value, not the comment — which is how an
+      unimplemented feature reports itself as done. Return an error (or
+      ENOSYS) until it exists.
+    metadata:
+      source: R-27
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        The return must be the function's only statement and the TODO a
+        comment inside it. A stub with any other statement in it is not seen,
+        and neither is one that returns a computed "success".
+    pattern-either:
+      # The structural half picks out a FUNCTION whose only statement is a
+      # return; the regex half finds the TODO inside it. A text-only first
+      # draft matched `if (...) { // TODO: add bailout message\n return 0; }`
+      # three times in cppcheck's own source — an early-out with a note, not a
+      # stub. (Within `patterns`, the finding takes the regex's range, which
+      # is why it lands on the comment line.)
+      - patterns:
+          - pattern: |
+              $R $FN(...) { return $V; }
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^(0|1|true|TRUE|EXIT_SUCCESS|S_OK|[A-Z][A-Z0-9_]*_(OK|SUCCESS))$
+          - pattern-regex: (?i)(//|/\*)\s*(todo|fixme|xxx|stub|not implemented)\b
+      - pattern-regex: >-
+          throw\s+std::(logic_error|runtime_error)\(\s*"(?i:not implemented|unimplemented|todo|tbd)[^"]*"\s*\)
+
+  - id: bpm-ch-what-comment-c
+    languages: [c, cpp]
+    severity: INFO
+    message: >-
+      A comment restating what the next line does. It costs a line to read and
+      goes stale the moment the code changes — a comment earns its place by
+      saying WHY, or by naming a constraint the code cannot express.
+    metadata:
+      source: R-13
+      category: code_health
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches the mechanical phrasings only ("// increment the counter",
+        "/* free the buffer */"). A genuinely redundant comment written in
+        natural prose is a judgement call and belongs to the LLM layer.
+    pattern-regex: >-
+      (?i)^\s*(//|/\*)\s*(increment|decrement|initialize|initialise|instantiate|declare|assign|set|get|return|call|invoke|loop through|iterate over|create a new|allocate|free|close|open)\s+(the\s+)?\w+\s*\.?\s*(\*/)?\s*$

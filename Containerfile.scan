@@ -85,6 +85,33 @@ ARG RUFF_SHA256_X86=d67c9b5949981698c48915abf65e0b3406ba9184ad73521cdf20a926bc88
 ARG BIOME_VERSION=2.5.9
 ARG BIOME_SHA256_AARCH64=37c70ee8614af49c0332930e1190ee59c0a5c5518ef19c6c55ac041c5093f313
 ARG BIOME_SHA256_X86=593eed8e3db3220cc1be7380e5a001fbeec75d8fe522af472e985da4b4bafde8
+# W18-15 cppcheck (C/C++ defects, GPL-3.0-or-later).
+#
+# GPL, and admitted anyway, on the same terms as hadolint/shellcheck in
+# CODE_HEALTH_SUITE.md §10: it runs as a SUBPROCESS over source in this
+# sandbox, is never linked into anything of ours, and is never redistributed
+# modified. GPL obligations attach to distribution, not to execution.
+#
+# cppcheck publishes NO prebuilt Linux binary — its release assets are a
+# Windows installer and source archives — so it is BUILT here from the source
+# tarball, inside one RUN whose compiler is removed again before the layer is
+# committed (the .build-cppcheck virtual package below).
+#
+# HOW THE TARBALL IS PINNED, HONESTLY: the project's release host
+# (SourceForge, linked from cppcheck.sourceforge.io) publishes an MD5 per file
+# and no SHA-256. The SHA-256 below was computed from the downloaded artefact on
+# 2026-10-15, and that same download matched the publisher's listed MD5
+# (d1eb0c80d4660eed2c93620a2e0b9de3) — so it is "our record of bytes the
+# publisher vouched for by MD5", not a vendor-signed SHA-256. Both are checked
+# on every build: the SHA-256 is the pin, the MD5 ties it back to the
+# publisher's own listing.
+#
+# The build itself was verified on 2026-10-15 with the plain Makefile (no
+# cmake, no pcre/HAVE_RULES, no Qt) on Ubuntu glibc; it has NOT been verified
+# inside this alpine/musl image, which could not be built in that session.
+ARG CPPCHECK_VERSION=2.22.0
+ARG CPPCHECK_SHA256=d74945deb2d50393430e07596b766f8a779512c7f60dac2a30ea64e059ece57b
+ARG CPPCHECK_MD5=d1eb0c80d4660eed2c93620a2e0b9de3
 # W10-03 architecture-drift adapters.
 #
 # grimp is the Python import-graph engine import-linter is built on. It is
@@ -211,6 +238,32 @@ RUN set -eux; \
     apk del .fetch-adapters; \
     ruff --version; \
     biome --version
+
+# cppcheck, built from the pinned source tarball (see the ARG block above).
+#
+# FILESDIR is compiled in: it is where cppcheck looks for std.cfg (its model of
+# the C and C++ standard libraries, which is what lets it run with no system
+# headers present). Only cfg/ and platforms/ are installed — the python
+# addons are not run by this scanner and are not shipped. libstdc++ stays; the
+# compiler does not.
+RUN set -eux; \
+    apk add --no-cache libstdc++; \
+    apk add --no-cache --virtual .build-cppcheck curl g++ make; \
+    curl -fsSL -o /tmp/cppcheck.tar.gz \
+      "https://downloads.sourceforge.net/project/cppcheck/cppcheck/${CPPCHECK_VERSION%.*}/cppcheck-${CPPCHECK_VERSION}.tar.gz"; \
+    echo "${CPPCHECK_SHA256}  /tmp/cppcheck.tar.gz" | sha256sum -c -; \
+    echo "${CPPCHECK_MD5}  /tmp/cppcheck.tar.gz" | md5sum -c -; \
+    tar -xzf /tmp/cppcheck.tar.gz -C /tmp; \
+    make -C "/tmp/cppcheck-${CPPCHECK_VERSION}" -j"$(nproc)" \
+      CXXFLAGS="-O2 -DNDEBUG" FILESDIR=/usr/share/cppcheck cppcheck; \
+    install -m 0755 "/tmp/cppcheck-${CPPCHECK_VERSION}/cppcheck" /usr/local/bin/cppcheck; \
+    mkdir -p /usr/share/cppcheck; \
+    cp -r "/tmp/cppcheck-${CPPCHECK_VERSION}/cfg" "/tmp/cppcheck-${CPPCHECK_VERSION}/platforms" /usr/share/cppcheck/; \
+    chmod -R a+rX /usr/share/cppcheck; \
+    rm -rf /tmp/cppcheck.tar.gz "/tmp/cppcheck-${CPPCHECK_VERSION}"; \
+    apk del .build-cppcheck; \
+    rm -rf /var/cache/apk/*; \
+    cppcheck --version
 
 # grimp + the driver that turns it into a graph document.
 #

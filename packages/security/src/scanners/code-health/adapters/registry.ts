@@ -1,5 +1,6 @@
 import { actionlintAdapter } from './actionlint.js';
 import { biomeAdapter } from './biome.js';
+import { cppcheckAdapter } from './cppcheck.js';
 import { checkovAdapter } from './checkov.js';
 import { hadolintAdapter } from './hadolint.js';
 import { ruffAdapter } from './ruff.js';
@@ -32,6 +33,7 @@ export function resetAdapters(): void {
   registry.clear();
   registerAdapter(ruffAdapter);
   registerAdapter(biomeAdapter);
+  registerAdapter(cppcheckAdapter);
   registerAdapter(actionlintAdapter);
   registerAdapter(shellcheckAdapter);
   registerAdapter(hadolintAdapter);
@@ -80,6 +82,25 @@ export const DEDUP_MAP: {
   // Both flag console usage; ours knows about the production-path exclusions.
   { native: 'lint/suspicious/noConsoleLog', packRule: 'bpm-log-console-in-prod', keep: 'pack' },
   { native: 'lint/suspicious/noConsole', packRule: 'bpm-log-console-in-prod', keep: 'pack' },
+  // cppcheck (W18-15) against the C/C++ SAST pack. Ours wins each pair: the
+  // pack finding is the one in the security dimension, carrying the CWE and
+  // the reason the shape is dangerous; cppcheck's says what it saw. Ids
+  // verified against cppcheck 2.22.0 output on the pack's triggering fixture.
+  { native: 'getsCalled', packRule: 'bpm-c-gets', keep: 'pack' },
+  { native: 'invalidscanf', packRule: 'bpm-c-scanf-unbounded-string', keep: 'pack' },
+  { native: 'pointerSize', packRule: 'bpm-c-memcpy-sizeof-pointer', keep: 'pack' },
+  { native: 'memleakOnRealloc', packRule: 'bpm-c-realloc-self-assign', keep: 'pack' },
+  // cppcheck also reports CONSTANT-size alloca; ours deliberately does not.
+  // Once our rule is firing in a repository, the constant-size ones are the
+  // noise our rule was written to leave out.
+  { native: 'allocaCalled', packRule: 'bpm-c-alloca-variable-size', keep: 'pack' },
+  // cppcheck's null-after-allocation family is dataflow-based and catches
+  // writes our straight-line pattern cannot see. It still loses the pair
+  // when both fire, so one defect is one row; when ours is silent (the more
+  // common case, since ours errs towards silence) cppcheck's is kept.
+  { native: 'nullPointerOutOfMemory', packRule: 'bpm-c-alloc-unchecked', keep: 'pack' },
+  { native: 'nullPointerArithmeticOutOfMemory', packRule: 'bpm-c-alloc-unchecked', keep: 'pack' },
+  { native: 'ctunullpointerOutOfMemory', packRule: 'bpm-c-alloc-unchecked', keep: 'pack' },
   // Hard-coded credentials (W18-26). The secrets scanner owns this defect:
   // it verifies the key's format, redacts it in the finding, and drives the
   // rotation advice. checkov's and actionlint's versions say "a credential is
@@ -265,6 +286,7 @@ export function dedupeAgainstPack(
 export {
   ruffAdapter,
   biomeAdapter,
+  cppcheckAdapter,
   actionlintAdapter,
   shellcheckAdapter,
   hadolintAdapter,
