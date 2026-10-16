@@ -92,12 +92,19 @@ describeIfScanImage('perf pack golden set', () => {
     const ids = [...new Set(result.findings.map((f) => f.ruleId))].sort();
     expect(ids).toEqual([
       'bpm-perf-await-in-loop',
+      // fixtures/perf/triggering/async_app.py exercises the Python half of the pack.
+      'bpm-perf-await-in-loop-py',
+      'bpm-perf-blocking-call-in-async-py',
       'bpm-perf-json-deep-clone',
+      'bpm-perf-json-deep-clone-py',
       'bpm-perf-orm-call-in-loop',
       'bpm-perf-orm-call-in-loop-py',
       'bpm-perf-regex-compile-in-loop',
+      'bpm-perf-regex-compile-in-loop-py',
       'bpm-perf-string-concat-in-loop',
+      'bpm-perf-string-concat-in-loop-py',
       'bpm-perf-sync-io-in-async',
+      'bpm-perf-unbounded-gather-py',
       'bpm-perf-unbounded-promise-all',
     ]);
   }, 300_000);
