@@ -93,6 +93,14 @@ benchmarks, by CWE*.
 | `owasp-benchmark` | OWASP Benchmark for Java v1.2: every case of eleven categories (cmdi, crypto, hash, ldapi, pathtraver, securecookie, sqli, trustbound, weakrand, xpathi, xss), with OWASP's own verdict per case | GPL-2.0, fetched and hash-pinned, never committed |
 | `juliet-java` | NIST Juliet Java v1.3: a stride sample of up to 150 files for each of thirteen weakness directories (22, 78, 80/81/83, 89, 90, 259, 327, 328, 330, 601, 643) | public domain, fetched and hash-pinned |
 
+**First measured run (2026-10-16, opengrep 1.27.1, commit a7d15ea).** 2,740 OWASP cases and
+3,095 Juliet labels. Across both suites precision is 52.6% and recall 28.9%. Where we are
+bad is stated, not hidden: nothing reports CWE 22, 90, 259, 327, 328, 330, 501, 614 or 643
+(TPR 0%), and the SQL-injection rule flags almost every safe OWASP look-alike (CWE 89: TPR
+97.4%, FPR 96.1%, Youden 0.013). Commands to reproduce are below. Five `antbuild/` template
+files in the Juliet download are not test cases and fail to parse; excluding them is a
+known follow-up.
+
 **Method.** A case is one label with a CWE. A real vulnerability that a rule with that CWE
 reports is a true positive; one nothing reports is a false negative. A safe look-alike
 that a rule with that CWE reports is a false positive; one that stays quiet is a true

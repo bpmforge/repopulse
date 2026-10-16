@@ -9479,10 +9479,10 @@
         "Numbers appear in the product's coverage and accuracy view (W18-22) with the date and version, including where we score badly"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
         "Measure after W18-33 so the numbers describe the taint rules.",
-        "Code shipped 2026-10-16: per-CWE TPR/FPR/Youden in the report, full OWASP Benchmark selection, a Juliet Java suite with labels derived from bad()/good*(), and a public-benchmark table in the rule precision view with its date. The numbers themselves need the Mac (the cloud cannot download either suite): run bench:prepare-owasp --pin, bench:prepare-juliet --pin and bench --date --commit, then commit the pins and report. Status stays in_progress until that run lands."
+        "Code shipped 2026-10-16: per-CWE TPR/FPR/Youden in the report, full OWASP Benchmark selection, a Juliet Java suite with labels derived from bad()/good*(), and a public-benchmark table in the rule precision view with its date. The numbers themselves need the Mac (the cloud cannot download either suite): run bench:prepare-owasp --pin, bench:prepare-juliet --pin and bench --date --commit, then commit the pins and report. First run landed 2026-10-16 on opengrep 1.27.1 (2,740 OWASP cases, 3,095 Juliet labels; overall precision 52.6%, recall 28.9%). Weak spots are published as measured: no rule yet for CWE 22, 90, 259, 327, 328, 330, 501, 614 or 643 (TPR 0%), and SQL injection flags nearly every safe OWASP look-alike (FPR 96%). Known follow-up: prepare-juliet also picked up five ant-build template Main.java files under antbuild/ that the engine cannot parse; exclude antbuild/ and re-pin."
       ]
     },
     {
