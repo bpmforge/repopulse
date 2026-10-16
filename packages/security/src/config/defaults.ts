@@ -38,6 +38,15 @@ export const SCANNER_DEFAULTS: readonly ScannerDefault[] = [
     rationale: 'Reads manifests already in the warehouse; no code leaves the network.',
   },
   {
+    // W18-34. Opt-in: it makes outbound registry pulls and, for private images,
+    // uses credentials the self-hoster supplies (IMAGE_SCAN_AUTH_FILE).
+    key: 'container_image',
+    enabled: false,
+    schedule: 'manual',
+    rationale:
+      'Pulls the images your Dockerfiles and manifests name from their registries, so it is off until you turn it on.',
+  },
+  {
     key: 'semgrep',
     enabled: true,
     schedule: 'weekly',

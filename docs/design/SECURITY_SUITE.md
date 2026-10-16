@@ -184,6 +184,16 @@ sanitizers are per sink. **Limit, stated plainly:** the engine follows a value t
 function. A flow that crosses a call into another function, a field or a framework injection
 is missed, not misreported — real interprocedural dataflow is the next step, not claimed here.
 
+**Container images (W18-34).** `container_image` is opt-in (off by default,
+manual trigger). Image references are extracted from Dockerfiles, compose files
+and Kubernetes manifests (`scanners/image/refs.ts`), pulled host-side with
+skopeo into ephemeral scratch (C1a), scanned with grype over the archive in the
+network-less sandbox, and deleted. Registry credentials are the self-hoster's
+(`IMAGE_SCAN_AUTH_FILE`). Findings use the `dependency` dimension at the
+Dockerfile line; a file naming an image that failed to pull is never declared
+reviewed, so an outage cannot close findings. Upgrade suggestions come from
+scanning up to two newer same-variant tags.
+
 ### 3.4 `owasp_web` / `owasp_llm` — inputs: diff + targeted contents — FR-SEC-7
 
 LLM checklist scanners: OWASP Web Top-10 (2021) and OWASP LLM Top-10 (2025) checklists as

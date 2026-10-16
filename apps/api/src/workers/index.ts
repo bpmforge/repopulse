@@ -33,6 +33,7 @@ import {
   runOwaspChecklist,
   diffOf,
   runDependencyScan,
+  runImageScan,
   runLoggingScan,
   runPerfScan,
   snapshotForScan,
@@ -418,6 +419,38 @@ async function main(): Promise<void> {
               // Carried rather than dropped: a CVE count over an unstated
               // fraction of a dependency tree is a number with no denominator.
               deferred: Math.max(0, result.componentsScanned - result.syncableComponents),
+              ...(result.error ? { error: result.error } : {}),
+            };
+          },
+          // W18-34. Opt-in (container_image is off by default), so the scheduler
+          // and the manual route only reach this for a repository whose owner
+          // turned it on. Pulls happen host-side in runImageScan.
+          container_image: async ({ workspaceId, repoId }) => {
+            const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
+            if (!resolved) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            }
+            const [head] = await db
+              .select({ sha: facts.commits.sha })
+              .from(facts.commits)
+              .where(eq(facts.commits.repoId, repoId))
+              .orderBy(desc(facts.commits.committedAt))
+              .limit(1);
+            if (!head?.sha) {
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_head_sha' };
+            }
+            const result = await runImageScan({
+              db,
+              provider: resolved.provider,
+              workspaceId,
+              repoId,
+              repo: resolved.repoFullName,
+              commitSha: head.sha,
+            });
+            return {
+              scanned: result.imagesScanned,
+              findingsCreated: result.findingsCreated,
+              deferred: result.imagesFailed.length + result.imagesOverCap,
               ...(result.error ? { error: result.error } : {}),
             };
           },

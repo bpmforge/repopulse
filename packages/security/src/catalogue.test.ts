@@ -76,6 +76,8 @@ describe('what the catalogue claims can be started', () => {
     'owasp_llm',
     // W18-24: the code-scanning alert import, nightly and by hand.
     'code_scanning_pull',
+    // W18-34: container images, opt-in and started by hand.
+    'container_image',
   ];
 
   it('offers manual runs for exactly the keys the worker wires', () => {

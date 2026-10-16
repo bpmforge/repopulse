@@ -404,6 +404,28 @@ it ran and reported its tool versions. A build date that stops moving means
 your cron entry is not running — and stale vulnerability data is quietly wrong
 rather than loudly broken, so it is worth an alert.
 
+### Container image scanning (optional, off by default)
+
+RepoPulse can scan the container images your Dockerfiles, compose files and
+Kubernetes manifests name, for known CVEs in their OS packages and base
+layers. It is **off** until you turn on the *Container image CVEs* scanner for
+a repository (Security tab → scanners), because it is the one scanner that
+reaches out to registries.
+
+How it works: a host-side job copies each image into a scratch directory with
+[`skopeo`](https://github.com/containers/skopeo), the scan image's `grype`
+reads it with no network, and the scratch copy is deleted. Nothing but findings
+is kept. Install `skopeo` on the host that runs the RepoPulse worker; if it is
+missing the run says so and no findings are closed.
+
+**Private registries are yours to configure.** RepoPulse stores no registry
+credentials. Log in once with `skopeo login --authfile /etc/repopulse/registry-auth.json <registry>`
+and set `IMAGE_SCAN_AUTH_FILE` to that path in the worker's environment. Public
+images need nothing. Images pinned by digest are scanned as written; for images
+pinned by tag, a finding also says when a newer tag of the same variant would
+clear it. References that cannot be pulled as written (build arguments, stage
+names, `scratch`) are counted as skipped, not scanned.
+
 ## Put TLS in front
 
 RepoPulse publishes one plain-HTTP port. Your terminator should:
