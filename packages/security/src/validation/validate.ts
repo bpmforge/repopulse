@@ -2,6 +2,7 @@ import type { DependencyMatch } from '../scanners/dependency/matches.js';
 import { dedupeByAlias } from './aliases.js';
 import { readResolvedSet, scopeEcosystemOf, scopeFor } from './scope.js';
 import { scanImports, usageFor } from './usage.js';
+import { callsFor, hasSymbolData, type SymbolReachabilityResult } from './symbol-reachability.js';
 import {
   reachabilityFor,
   type GoReachabilityResult,
@@ -33,6 +34,8 @@ export interface ValidateArgs {
   snapshotDir: string;
   /** V3's output, when a call-graph prover ran. Null when none did. */
   goReachability?: GoReachabilityResult | null;
+  /** V3 for npm and PyPI: call sites of catalogued vulnerable functions (W18-46). */
+  symbolReachability?: SymbolReachabilityResult | null;
   /**
    * grype's own match count, before parseGrypeMatches collapsed its (purl, CVE)
    * duplicates. Defaults to `matches.length`, which understates the raw figure
@@ -89,13 +92,25 @@ export function validateVulnerabilities(args: ValidateArgs): ValidationResult {
 
     // --- V3 --------------------------------------------------------------
     const proof = goProof ? proofFor(goProof.vulnerabilities, group.match, group) : null;
+    const ids = [group.primaryId, ...group.aliases, ...match.ids];
+    const symbolSites =
+      ecosystem === 'npm' || ecosystem === 'pypi'
+        ? args.symbolReachability?.status === 'succeeded'
+          ? callsFor(args.symbolReachability, match, ids)
+          : []
+        : [];
     const reachability = reachabilityFor(
       usage.status,
       proof,
       // The reason is only attached when nothing PROVED anything: a verdict
       // that carries both a tier and an excuse for not having one reads as
       // less certain than it is.
-      proof ? null : ecosystem === 'go' ? goUnavailable : reachabilityGap(ecosystem),
+      proof || symbolSites.length > 0
+        ? null
+        : ecosystem === 'go'
+          ? goUnavailable
+          : reachabilityGap(ecosystem, match, ids, args.symbolReachability ?? null),
+      symbolSites,
     );
     if (reachability.tier === 'symbol_reachable') funnel.reachability.symbolReachable += 1;
     else if (reachability.tier === 'proven_unreachable') funnel.reachability.provenUnreachable += 1;
@@ -138,7 +153,29 @@ export function validateVulnerabilities(args: ValidateArgs): ValidationResult {
 }
 
 /** Why V3 said nothing for an ecosystem that has no call-graph prover. */
-function reachabilityGap(ecosystem: string | null): string {
+function reachabilityGap(
+  ecosystem: string | null,
+  match: DependencyMatch,
+  ids: readonly string[],
+  symbols: SymbolReachabilityResult | null,
+): string {
+  if ((ecosystem === 'npm' || ecosystem === 'pypi') && hasSymbolData(match, ids)) {
+    if (symbols?.status === 'succeeded') {
+      return (
+        `the functions this advisory names were searched for as call sites and none was ` +
+        `found — that is not proof they are unused (dynamic access, re-exports and ` +
+        `transitive callers are invisible to it), so the finding stays at its import tier`
+      );
+    }
+    return `the call-site search for this advisory did not run: ${symbols?.reason ?? 'not attempted'}`;
+  }
+  if (ecosystem === 'npm' || ecosystem === 'pypi') {
+    return (
+      `no call-graph prover for ${ecosystem} — govulncheck is Go-only, and no affected-symbol ` +
+      `data for this advisory is in the catalogue (OSV names a vulnerable function for few ` +
+      `${ecosystem} advisories), so reachability stops at import`
+    );
+  }
   return (
     `no call-graph prover for ${ecosystem ?? 'this ecosystem'} — govulncheck is Go-only, and ` +
     `symbol-level OSV data for other ecosystems is not carried in grype's output`

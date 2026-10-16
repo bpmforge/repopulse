@@ -322,10 +322,19 @@ function rationaleFor(vulnerability: ValidatedVulnerability, fix: string): strin
 
   if (vulnerability.reachability.tier === 'symbol_reachable') {
     const site = vulnerability.reachability.callSites[0];
-    parts.push(
-      `${vulnerability.reachability.provenBy} traced a call to ${site?.symbol ?? 'the vulnerable symbol'}` +
-        `${site ? ` from ${site.file}:${site.line}` : ''}.`,
-    );
+    if (vulnerability.reachability.provenBy === 'opengrep') {
+      // A call SITE, not a call graph: say what it does and does not show.
+      parts.push(
+        `This repository calls ${site?.symbol ?? 'the vulnerable function'}` +
+          `${site ? ` at ${site.file}:${site.line}` : ''}, a function the advisory names. ` +
+          'That shows the function is used, not that untrusted data reaches it.',
+      );
+    } else {
+      parts.push(
+        `${vulnerability.reachability.provenBy} traced a call to ${site?.symbol ?? 'the vulnerable symbol'}` +
+          `${site ? ` from ${site.file}:${site.line}` : ''}.`,
+      );
+    }
   } else if (vulnerability.reachability.tier === 'proven_unreachable') {
     parts.push(
       `${vulnerability.reachability.provenBy} found no call path from this repository to the ` +

@@ -17,14 +17,17 @@ import type { CallSite, ReachabilityVerdict } from './types.js';
 //     the vulnerable symbol. A vulnerability with module- and package-level
 //     findings but NO function frame is proven unreachable: the tool loaded
 //     the package, looked for a path to the symbol, and there is none.
-//   JS/TS and Python — NOTHING EQUIVALENT, and this file says so rather than
-//     shipping a weaker check under the same word. §3.6 proposes semgrep rules
-//     generated from OSV affected-symbol data; that needs an OSV feed carrying
-//     `ecosystem_specific.imports[].symbols`, which the grype database does not
-//     expose through grype's JSON (it emits advisories, not symbol lists). So
-//     those ecosystems stop at V2's answer — 'imported' or 'manifest_only' —
-//     and their verdict carries the reason in `unavailableReason`, where a
-//     reader sees WHY the tier is silent instead of reading silence as proof.
+//   JS/TS and Python — call SITES, not a call graph (W18-46, symbols.ts and
+//     symbol-reachability.ts). Opengrep rules generated from a catalogue of
+//     advisories that name a public vulnerable function find calls to it, and a
+//     call upgrades the finding to 'symbol_reachable' with provenBy 'opengrep'.
+//     That is weaker than govulncheck's proof and is worded that way: it shows
+//     the function is used, not that attacker data reaches it, and finding NO
+//     call proves nothing (dynamic access, re-exports and transitive callers are
+//     invisible), so these ecosystems never answer 'proven_unreachable'. The
+//     catalogue is small because OSV names a vulnerable function for few npm
+//     and PyPI advisories; everything else stops at V2's 'imported' or
+//     'manifest_only', with the reason in `unavailableReason`.
 //
 // WHAT IS NOT WIRED UP YET, STATED BECAUSE IT IS LOAD-BEARING. The scan image
 // (Containerfile.scan) contains no Go toolchain and no govulncheck, and
@@ -334,7 +337,19 @@ export function reachabilityFor(
   usageStatus: 'imported' | 'not_imported' | 'unknown',
   proof: GoVulnerability | null,
   unavailableReason: string | null,
+  symbolCalls: readonly CallSite[] = [],
 ): ReachabilityVerdict {
+  if (!proof && symbolCalls.length > 0) {
+    // A call SITE, not a call graph: the function is called somewhere in this
+    // repository's own sources, which says nothing about whether attacker
+    // data reaches it. Never 'proven_unreachable' from this path.
+    return {
+      tier: 'symbol_reachable',
+      provenBy: 'opengrep',
+      unavailableReason: null,
+      callSites: [...symbolCalls],
+    };
+  }
   if (proof) {
     return {
       tier: proof.symbolReachable ? 'symbol_reachable' : 'proven_unreachable',

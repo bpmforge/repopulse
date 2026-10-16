@@ -514,3 +514,24 @@ message. Rendering is offline: a chart whose dependencies are not vendored, or a
 overlay with a remote base, is reported as `tool.iacrender.render-failed` ("not
 checked"), never as clean. Per-environment values files are not applied. Findings are
 shadow candidates like every checkov rule.
+
+**Symbol reachability for npm and PyPI (W18-46).** V3 used to stop at "imported"
+outside Go. `src/validation/symbols.ts` now holds a catalogue of advisories that
+name a public vulnerable function (lodash `template` and the prototype-pollution
+set, PyYAML `load`, jsonwebtoken `verify`, minimist, ejs, underscore, node-serialize),
+and `pnpm --filter @repopulse/security reach:generate` renders one Opengrep rule per
+symbol into `rulepacks/reachability/bpm-reach.v1.yaml` (a test holds the committed file
+equal to its rendering). The rules spell out every way the symbol is bound (require,
+`import x`, `import * as x`, destructuring, aliases, per-method modules such as
+`lodash/template`) because the engine resolves only some of them itself. PyYAML calls
+that pass a safe loader are excluded.
+
+A call site upgrades the finding to `symbol_reachable`, proven by `opengrep`, and the
+finding says "this repository calls X at file:line … that shows the function is used,
+not that untrusted data reaches it". The absence of a call changes nothing and the
+verdict says so: these ecosystems never answer `proven_unreachable`, because a text-level
+call search cannot see dynamic access, re-exports or transitive callers. A scan that has
+no catalogued vulnerable package starts no container. The rules are shadow candidates and
+produce no findings of their own. Growth is by adding catalogue rows (each needs a trigger
+and a clean fixture), or via `symbolsFromOsv` when a feed carries
+`ecosystem_specific.imports[].symbols`, which npm and PyPI records rarely do.
