@@ -10,6 +10,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathFactory;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.w3c.dom.Document;
 
 public class Web {
@@ -33,6 +34,12 @@ public class Web {
     XPath xp = XPathFactory.newInstance().newXPath();
     String ignored = name;
     return xp.evaluate("/users/user[@name='admin']", doc);
+  }
+
+  Object xpathEscaped(HttpServletRequest request, Document doc) throws Exception {
+    String name = StringEscapeUtils.escapeXml(request.getParameter("name"));
+    XPath xp = XPathFactory.newInstance().newXPath();
+    return xp.evaluate("/users/user[@name='" + name + "']", doc);
   }
 
   void session(HttpServletRequest request, HttpSession session) {

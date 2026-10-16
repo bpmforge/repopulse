@@ -270,6 +270,12 @@ rules:
       - pattern: Double.parseDouble(...)
       - pattern: Boolean.parseBoolean(...)
       - pattern: UUID.fromString(...)
+      # Escaping that removes the quote an XPath string literal is closed with:
+      # &apos; in a literal is text, not a delimiter.
+      - pattern: StringEscapeUtils.escapeXml(...)
+      - pattern: StringEscapeUtils.escapeXml10(...)
+      - pattern: StringEscapeUtils.escapeXml11(...)
+      - pattern: $E.encodeForXPath(...)
     pattern-sinks:
       - patterns:
           - pattern-either:
