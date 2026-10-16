@@ -502,3 +502,15 @@ the scan image and writes `docs/ecosystems.json` and `docs/ECOSYSTEMS.md`, so a
 row reads Supported, Read-but-unmatched, or Unsupported from a measurement, never
 from the tools' documentation. Until that has been run, every row says "Not yet
 run". A test holds the committed doc equal to its rendering.
+
+**Helm and Kustomize (W18-45).** The `iacrender` adapter renders every Helm chart
+(`helm template`, the chart's own default values, vendored subcharts through
+their parent) and every kustomize overlay (`kustomize build`, default load
+restrictor, no plugins and no helm inflation) into the sandbox tmpfs, then runs
+checkov's `kubernetes` framework over the result with the same allowlist as plain
+manifests. Findings are attributed to `Chart.yaml` or `kustomization.yaml` at line 1,
+because generated YAML has no source line, with the rendered resource named in the
+message. Rendering is offline: a chart whose dependencies are not vendored, or an
+overlay with a remote base, is reported as `tool.iacrender.render-failed` ("not
+checked"), never as clean. Per-environment values files are not applied. Findings are
+shadow candidates like every checkov rule.

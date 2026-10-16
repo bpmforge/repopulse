@@ -1,0 +1,18 @@
+@@CHART 1 charts/web
+@@OVERLAY 2 kustomize/base
+@@OVERLAY 3 kustomize/overlays/prod
+@@CHECKOV
+{
+    "check_type": "kubernetes",
+    "results": {
+        "failed_checks": []
+    },
+    "summary": {
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "parsing_errors": 0,
+        "resource_count": 6,
+        "checkov_version": "3.3.29"
+    }
+}

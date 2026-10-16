@@ -9602,7 +9602,7 @@
     },
     {
       "id": "W18-45",
-      "title": "IaC rendering and promotion: Helm and Kustomize offline, measure checkov precision",
+      "title": "IaC rendering: Helm and Kustomize rendered offline before scanning",
       "phase": 18,
       "module": "security",
       "stories": [
@@ -9620,12 +9620,13 @@
       ],
       "acceptance": [
         "Helm charts and Kustomize overlays are rendered offline before scanning, with trigger and clean fixtures",
-        "checkov, actionlint, hadolint and shellcheck rules measured on the benchmark (W18-17) and promoted through the shadow rule where the floor holds",
         "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
+        "iacrender adapter landed: renders every Chart.yaml (not vendored subcharts) with helm template and every kustomization with kustomize build into the sandbox tmpfs, then runs checkov's kubernetes framework on the allowlist; findings point at Chart.yaml/kustomization.yaml line 1; a chart or overlay that cannot render offline is reported as tool.iacrender.render-failed, never as clean. Tested on real charts with helm 3.16.4, kustomize 5.5.0, checkov 3.3.29. helm 3.16.4 and kustomize 5.5.0 are in Containerfile.scan, pinned by the publishers' own sha256 files; run for real in the built scan image the fixtures give exactly the 8 expected findings on triggering and none on clean (checkov 24 passed, 0 failed).",
+        "The second original criterion (measure checkov, actionlint, hadolint and shellcheck on the benchmark and promote them through the shadow rule) moved to W18-48.",
         "Split from W18-35. Rendering needs scan-image tool changes verified on the Mac."
       ]
     },
@@ -9680,6 +9681,34 @@
       "notes": [
         "Measured 2026-10-16 with syft 1.51.0 and grype 0.117.0: 14 of 17 ecosystems read and matched (including Cargo, Gradle, NuGet, Composer, Bundler, Conan). SwiftPM and CocoaPods are read by syft but grype matched nothing for the pinned package, so Swift and Objective-C dependency vulnerabilities are not detected by the current database and must not be advertised as covered. vcpkg.json is not read at all (listed as unsupported). Follow-up: a Swift and CocoaPods advisory source (OSV) or a vcpkg manifest reader if either is wanted.",
         "Split from W18-37. Brad 2026-10-16 asked for SwiftPM, CocoaPods, Conan and vcpkg alongside the rest."
+      ]
+    },
+    {
+      "id": "W18-48",
+      "title": "Measure and promote tool-adapter rules: checkov, actionlint, hadolint, shellcheck",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-45"
+      ],
+      "acceptance": [
+        "The benchmark (W18-17) runs the checkov, actionlint, hadolint and shellcheck adapters over labelled IaC, workflow, Dockerfile and shell fixtures and reports precision and recall per rule",
+        "A rule whose measured precision holds the floor is promoted out of shadow through the rule registry; the rest stay candidates with the numbers shown",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Split from W18-45. The benchmark harness scores the fast lane and the YAML packs today; the adapters run only inside the scan image, so labelled runs need the Mac."
       ]
     }
   ]

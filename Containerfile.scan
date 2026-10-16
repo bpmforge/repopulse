@@ -156,6 +156,22 @@ ARG GRYPE_VERSION=0.117.0
 ARG GRYPE_SHA256_AARCH64=935f628bdf9331ffdd946931ea5fdb50045d3970ba52670cbeb44a88f127291b
 ARG GRYPE_SHA256_X86=38525dab1e06f162ebaa02f94d82d1f807076b011a44180cf2777edf1a7b9c26
 
+# W18-45 helm and kustomize (both Apache-2.0): the code_health_tools IaC adapter
+# renders charts and overlays offline before checkov reads them (iacrender.ts).
+# Both are static Go binaries, so they run on this musl base unchanged.
+#
+# The checksums below are the PUBLISHERS' OWN, copied from
+#   helm      https://get.helm.sh/helm-v3.16.4-linux-<arch>.tar.gz.sha256sum
+#   kustomize checksums.txt on the kubernetes-sigs/kustomize release
+#             kustomize/v5.5.0
+# and re-verified with sha256sum -c at build time.
+ARG HELM_VERSION=3.16.4
+ARG HELM_SHA256_AARCH64=d3f8f15b3d9ec8c8678fbf3280c3e5902efabe5912e2f9fcf29107efbc8ead69
+ARG HELM_SHA256_X86=fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179
+ARG KUSTOMIZE_VERSION=5.5.0
+ARG KUSTOMIZE_SHA256_AARCH64=b4170d1acb8cfacace9f72884bef957ff56efdcd4813b66e7604aabc8b57e93d
+ARG KUSTOMIZE_SHA256_X86=6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77
+
 # musllinux builds, because the base is alpine. Both arches are listed so the
 # image builds on an arm64 laptop and an x86 server from the same file.
 ARG OPENGREP_SHA256_AARCH64=06e7de74ba49e6e619f5109c68a8d235357dff143f18a0a6296a416f47c90924
@@ -405,6 +421,35 @@ RUN set -eux; \
     rm -rf /var/cache/apk/*; \
     syft version; \
     grype version
+
+# helm + kustomize. Fetched here, at build time, because the scan container has
+# no network at run time. Each tarball is checked against the publisher's own
+# checksum before anything is extracted, and the stanza ends by running both
+# binaries so an image that cannot execute them fails the build.
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch-iac curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) goarch=arm64; helm_sha="$HELM_SHA256_AARCH64"; kustomize_sha="$KUSTOMIZE_SHA256_AARCH64" ;; \
+      x86_64) goarch=amd64; helm_sha="$HELM_SHA256_X86"; kustomize_sha="$KUSTOMIZE_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/helm.tar.gz \
+      "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${goarch}.tar.gz"; \
+    echo "${helm_sha}  /tmp/helm.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/helm.tar.gz -C /tmp "linux-${goarch}/helm"; \
+    mv "/tmp/linux-${goarch}/helm" /usr/local/bin/helm; \
+    curl -fsSL -o /tmp/kustomize.tar.gz \
+      "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_${goarch}.tar.gz"; \
+    echo "${kustomize_sha}  /tmp/kustomize.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/kustomize.tar.gz -C /tmp kustomize; \
+    mv /tmp/kustomize /usr/local/bin/kustomize; \
+    chmod 0755 /usr/local/bin/helm /usr/local/bin/kustomize; \
+    rm -rf /tmp/helm.tar.gz /tmp/kustomize.tar.gz "/tmp/linux-${goarch}"; \
+    apk del .fetch-iac; \
+    rm -rf /var/cache/apk/*; \
+    helm version; \
+    kustomize version
 
 # The mount points the profile uses. Created at build time so the container
 # never needs to mkdir anything on a read-only root. /vuln-db is its own mount
