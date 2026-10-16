@@ -225,6 +225,15 @@ are in each pack header. `Package.resolved` and `Podfile.lock` fixtures are in
 `fixtures/ecosystems/swift` for the W18-47 matrix; syft's directory scan is
 expected to catalogue them, which has not been run.
 
+**Kotlin (W18-42).** Its own `bpm-baseline.kotlin.v1.yaml` (WebView file access and
+JavaScript bridge, accept-all `TrustManager`), `bpm-baseline.kotlin-android.v1.yaml`
+(`AndroidManifest.xml` cleartext traffic and exported components without a
+permission, generic matcher), and Kotlin anti-slop (`!!`, `GlobalScope`,
+`runBlocking`) and logging packs, all shadow candidates with fixtures under
+`fixtures/kotlin/`. `!!` is a text match because the parser drops the operator.
+A `gradle.lockfile` fixture is in `fixtures/ecosystems/kotlin` for the W18-47
+matrix; `build.gradle(.kts)` is not read.
+
 ### 3.4 `owasp_web` / `owasp_llm` — inputs: diff + targeted contents — FR-SEC-7
 
 LLM checklist scanners: OWASP Web Top-10 (2021) and OWASP LLM Top-10 (2025) checklists as

@@ -1,0 +1,87 @@
+# bpm-rulepacks — security baseline, Kotlin variants v1 (W18-42, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse; not derived from the Semgrep registry,
+# detekt, Android Lint or any vendor pack (licence position: bpm-baseline.v1.yaml
+# header). The few Kotlin rules inside the Java packs (W18-13) are unchanged.
+#
+# ENGINE LIMITS, measured 2026-10-16 with semgrep 1.181 (the scan image's
+# Opengrep 1.27.1 is not measurable from the build host; the golden test runs
+# whichever engine is on PATH): the Kotlin parser handles `GlobalScope.launch(...)`,
+# `runBlocking { ... }`, property assignments (`x.y = true`), method calls and
+# `override fun f(...) { }` patterns. `!!` is NOT matched structurally (the
+# operator is dropped from the AST), so it is a text regex, and string templates
+# and comments are not structure either.
+rules:
+  - id: bpm-kt-webview-file-access
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      A web view is allowed to read other files, or any origin, from a file://
+      page. A script in one local page (or one loaded from an untrusted source)
+      can then read the app's private files and send them out. Leave these
+      settings at their default (off) and serve local content through
+      `WebViewAssetLoader`.
+    metadata:
+      category: security
+      cwe: 'CWE-200: Exposure of Sensitive Information to an Unauthorized Actor'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Sees the literal `= true` assignment only; a value passed through a
+        variable is missed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+    pattern-either:
+      - pattern: '$S.allowUniversalAccessFromFileURLs = true'
+      - pattern: '$S.allowFileAccessFromFileURLs = true'
+
+  - id: bpm-kt-webview-js-bridge
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      A Kotlin object is exposed to JavaScript in a web view. Any page the view
+      loads can call its `@JavascriptInterface` methods, so a bridge on a view
+      that can show third-party content hands that content the app's
+      capabilities. Load only content you control, check the origin, and
+      expose the narrowest methods possible.
+    metadata:
+      category: security
+      cwe: 'CWE-749: Exposed Dangerous Method or Function'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Cannot tell which pages the view loads, so a bridge on a view that only
+        shows bundled assets is reported too.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+    pattern: '$W.addJavascriptInterface(...)'
+
+  - id: bpm-kt-trust-manager-accepts-all
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      A TrustManager whose `checkServerTrusted` does nothing. Every certificate
+      then passes, including an attacker's, so TLS no longer authenticates the
+      server. Delegate to the platform's default trust manager, or pin the
+      expected certificate or key.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reports an empty body only; a body that returns early or catches the
+        exception is missed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+    pattern: |
+      override fun checkServerTrusted(...) { }

@@ -1,0 +1,64 @@
+# bpm-rulepacks — logging antipatterns, Kotlin variants v1 (W18-42, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse; not derived from the Semgrep registry,
+# detekt, Android Lint or any vendor pack (licence position: bpm-baseline.v1.yaml
+# header). The few Kotlin rules inside the Java packs (W18-13) are unchanged.
+#
+# ENGINE LIMITS, measured 2026-10-16 with semgrep 1.181 (the scan image's
+# Opengrep 1.27.1 is not measurable from the build host; the golden test runs
+# whichever engine is on PATH): the Kotlin parser handles `GlobalScope.launch(...)`,
+# `runBlocking { ... }`, property assignments (`x.y = true`), method calls and
+# `override fun f(...) { }` patterns. `!!` is NOT matched structurally (the
+# operator is dropped from the AST), so it is a text regex, and string templates
+# and comments are not structure either.
+rules:
+  - id: bpm-log-kt-println-in-lib
+    languages: [kotlin]
+    severity: INFO
+    message: >-
+      `println` in application or library code. It writes to stdout with no
+      level, no tag and no way for the host to filter or redirect it. Use the
+      project's logger (SLF4J, `Log`, Timber) so the host decides.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Command-line programs print as their product; Main.kt, scripts and
+        tests are excluded by path, other CLI modules are not.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - 'Main.kt'
+        - '*.kts'
+    pattern: println(...)
+
+  - id: bpm-log-kt-secret-in-log
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      A secret-named value is interpolated into a log line. Logs are collected,
+      shipped and read by people and tools that were never meant to hold
+      credentials. Log that the value was present, not the value.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches secret-looking names inside a string template passed to println,
+        Log.* or a logger on one line; a value logged through a variable is
+        missed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+    patterns:
+      - pattern-either:
+          - pattern: println($S)
+          - pattern: $L.$M($S)
+      - pattern-regex: (?i)(?:println|\bLog\.[diwev]|\blogger\.\w+|\blog\.\w+)\([^\n]*"[^"\n]*\$\{?[\w.]*(?:password|passwd|secret|apikey|api_key|accesstoken|access_token|authtoken|auth_token)

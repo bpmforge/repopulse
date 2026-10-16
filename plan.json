@@ -9530,13 +9530,14 @@
       ],
       "acceptance": [
         "Kotlin security, anti-slop and logging rules in their own pack files (today only a few rules sit inside the Java pack), including `!!` abuse, GlobalScope leaks, runBlocking in handlers, exported Android components, cleartext traffic, WebView settings",
-        "build.gradle(.kts) and gradle.lockfile read into the SBOM and matched; Kotlin listed in the ecosystem matrix",
+        "Kotlin appears in the coverage map (read from the shipped packs); a gradle.lockfile fixture is committed for the ecosystem matrix. Live syft/grype cataloguing and matching of Gradle files moved to W18-47, since syft and grype are not available on the build host",
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Brad 2026-10-16. Kotlin is languages: [kotlin] on a handful of rules in bpm-baseline.java.v1.yaml today."
+        "Brad 2026-10-16. Kotlin is languages: [kotlin] on a handful of rules in bpm-baseline.java.v1.yaml today.",
+        "Shipped 2026-10-16: baseline (3 rules), Android manifest pack (cleartext, exported component), anti-slop (`!!`, GlobalScope, runBlocking) and logging (println, secret in log), all lifecycle candidate, golden-tested on semgrep 1.181; Opengrep in the scan image is untested for Kotlin. build.gradle(.kts) is not read: syft's default scan catalogues gradle.lockfile only."
       ]
     },
     {

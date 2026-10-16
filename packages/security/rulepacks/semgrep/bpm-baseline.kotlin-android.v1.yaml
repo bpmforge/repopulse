@@ -1,0 +1,47 @@
+# bpm-rulepacks — baseline, Android manifest variants v1 (W18-42).
+#
+# OUR OWN RULES, written for RepoPulse. AndroidManifest.xml is configuration, so
+# these use the generic matcher and are regex checks over the file text.
+rules:
+  - id: bpm-kt-android-cleartext-traffic
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      The app allows cleartext HTTP (`usesCleartextTraffic="true"`). Traffic can
+      then be read and altered on the network. Remove it, or scope an exception
+      to one domain in a network security config.
+    metadata:
+      category: security
+      cwe: 'CWE-319: Cleartext Transmission of Sensitive Information'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reads the manifest text only; a network security config that allows
+        cleartext is not seen.
+    paths:
+      include:
+        - 'AndroidManifest.xml'
+    pattern-regex: android:usesCleartextTraffic\s*=\s*"true"
+
+  - id: bpm-kt-android-exported-component
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      A service, receiver or provider is exported with no permission. Any app on
+      the device can start it or read its data. Set `android:exported="false"`,
+      or require a signature-level `android:permission`.
+    metadata:
+      category: security
+      cwe: 'CWE-926: Improper Export of Android Application Components'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Activities are not checked: a launcher activity must be exported. A
+        component protected by a permission declared on `<application>` is
+        reported.
+    paths:
+      include:
+        - 'AndroidManifest.xml'
+    pattern-regex: <(?:service|receiver|provider)\b(?:(?!android:permission)[^>])*?android:exported\s*=\s*"true"(?:(?!android:permission)[^>])*>
