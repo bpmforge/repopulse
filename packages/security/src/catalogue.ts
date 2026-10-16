@@ -3,6 +3,7 @@ import type { Scanner, ScannerContext, ScannerFinding } from './framework/types.
 import { SECRETS_SCANNER_KEY } from './scanners/secrets/scanner.js';
 import { SEMGREP_SCANNER_KEY } from './scanners/semgrep/scanner.js';
 import { DEPENDENCY_SCANNER_KEY } from './scanners/dependency/findings.js';
+import { IMAGE_SCANNER_KEY } from './scanners/image/findings.js';
 import { CODE_HEALTH_SCANNER_KEY } from './scanners/code-health/tools.js';
 import { ANTI_SLOP_SCANNER_KEY } from './scanners/anti-slop/run.js';
 import { LOGGING_SCANNER_KEY } from './scanners/logging/run.js';
@@ -170,6 +171,18 @@ export const BUILTIN_SCANNERS: readonly Scanner[] = [
     // The worker wires it now.
     triggers: ['schedule', 'manual'],
     requiredTools: ['syft@1', 'grype@0'],
+  }),
+  // W18-34. OFF BY DEFAULT: pulls the images named in Dockerfiles, compose files
+  // and Kubernetes manifests from their registries (host-side, skopeo) and scans
+  // them with grype. A self-hoster turns it on per repository and supplies any
+  // private-registry credentials through IMAGE_SCAN_AUTH_FILE.
+  sweeper({
+    key: IMAGE_SCANNER_KEY,
+    displayName: 'Container image CVEs',
+    version: 'container_image.v1',
+    inputs: 'manifests',
+    triggers: ['manual'],
+    requiredTools: ['grype@0'],
   }),
   // W18-24. Reads GitHub code-scanning alerts through the budgeted client —
   // no snapshot, no container. Nightly with the registers, and startable by

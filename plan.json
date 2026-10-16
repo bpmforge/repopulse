@@ -9313,12 +9313,12 @@
       "acceptance": [
         "Image references extracted from the snapshot; images pulled by a host-side job (like the vuln-DB sync) into scratch and scanned with grype, never in the network-less sandbox; nothing persisted but findings",
         "Base-image upgrade suggestion when a newer tag of the same image clears findings",
-        "Needs Brad's decision on egress and registry credentials before work starts; full gate green"
+        "Opt-in per repository and off by default; registry credentials supplied by the self-hoster; full gate green"
       ],
       "points": 8,
-      "status": "blocked",
+      "status": "done",
       "notes": [
-        "BLOCKED ON DECISION: registry pulls need egress and, for private images, credentials."
+        "Brad 2026-10-16 decided: opt-in, off by default, self-hosters supply their own registry credentials (IMAGE_SCAN_AUTH_FILE). Built with skopeo host-side pulls and grype over the archive; live verification of the pull and scan needs a host with skopeo and the scan image (Mac)."
       ]
     },
     {
