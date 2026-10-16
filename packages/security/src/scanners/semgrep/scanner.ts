@@ -188,6 +188,12 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
       'scan',
       '--json',
       '--quiet',
+      // A taint rule follows a value through a helper defined in the SAME file
+      // (the request value goes into `clean(x)`, which returns a constant).
+      // Without this the helper's result is assumed tainted whenever its
+      // argument is, which is the largest single source of false positives on
+      // the public benchmarks (see docs/BENCHMARKS.md, W18-49).
+      '--taint-intrafile',
       // Every pack file by name. `--config /rules` would also work today and
       // would silently pick up anything a future mount put there.
       ...rulepack.files.flatMap((f) => ['--config', `${RULES_MOUNT_PATH}/${f}`]),
