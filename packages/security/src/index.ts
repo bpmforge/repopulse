@@ -76,3 +76,10 @@ export * from './patches/index.js';
 export * from './excerpt.js';
 export * from './external/index.js';
 export * from './scanners/dependency/fixpath/index.js';
+
+export * from './scanners/image/refs.js';
+export * from './scanners/image/upgrade.js';
+export * from './scanners/image/pull.js';
+export * from './scanners/image/scan.js';
+export * from './scanners/image/findings.js';
+export * from './scanners/image/run.js';
