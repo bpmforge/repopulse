@@ -242,6 +242,15 @@ common unsafe deserialization sink. Fixtures announce each finding with
 `// ruleid:` on the line before, and the golden test requires the engine to
 report exactly those lines and nothing on the clean tree.
 
+**C and C++ dataflow (W18-44).** `bpm-baseline.c-cpp-flow.v1.yaml` adds five taint
+rules beside the W18-15 shape rules: argv, getenv and the buffer of fgets, read,
+recv and fread reach system/popen/exec* (command), fopen/open/unlink (path), the
+printf family (format string), strcpy/strcat/sprintf (unbounded copy) and the
+length of memcpy/strncpy/read (size). Taint does not survive a write into a
+buffer, so a command built with snprintf stays with `bpm-c-command-built-string`;
+C++ stream declarations are not reported; a bounds check is not understood.
+cppcheck reports none of these defects, so the dedup map is unchanged.
+
 ### 3.4 `owasp_web` / `owasp_llm` — inputs: diff + targeted contents — FR-SEC-7
 
 LLM checklist scanners: OWASP Web Top-10 (2021) and OWASP LLM Top-10 (2025) checklists as

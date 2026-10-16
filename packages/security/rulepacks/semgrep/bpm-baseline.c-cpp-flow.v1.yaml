@@ -1,0 +1,428 @@
+# bpm-rulepacks — C and C++ dataflow v1 (W18-44), beside bpm-baseline.c-cpp.v1.yaml
+# (W18-15). That file matches DANGEROUS SHAPES (`gets`, `printf(var)`, a command
+# built with snprintf and handed to system()); this one is TAINT mode, and says
+# where the value CAME from: argv, the environment, a line read from a stream,
+# a socket or a file.
+#
+# PROVENANCE: written for RepoPulse; not derived from the Semgrep registry.
+#
+# SOURCES. `argv[...]`, `getenv(...)`/`std::getenv(...)`, and the buffer
+# argument of fgets, gets-family reads, read, recv, recvfrom and fread, which the
+# engine taints BY SIDE EFFECT (the buffer is tainted from that call on).
+#
+# SINKS (rule id -> weakness):
+#   cmd      CWE-78   system, popen, exec*, std::system
+#   path     CWE-22   fopen, open, openat, creat, unlink, remove, rename, chdir,
+#                     opendir, chmod, stat, access
+#   format   CWE-134  the format argument of the printf family, syslog, err, warn
+#   copy     CWE-120  the source of an unbounded strcpy/strcat/sprintf
+#   size     CWE-787  the length argument of memcpy, memmove, strncpy, strncat,
+#                     read, recv, fread
+#
+# C++ file streams (`std::ifstream in(path)`) are NOT covered: the engine's C++
+# frontend does not report a declaration with a constructor call as a taint
+# sink (measured; plain calls, including std::system, are). Use of fopen/open
+# from C++ is covered.
+#
+# ENGINE LIMITS, measured with semgrep 1.181 (Opengrep in the scan image is not
+# measurable from the build host). Taint does NOT survive a write into a
+# buffer: a command assembled with snprintf/strcat and then passed to system()
+# is invisible to a taint rule here (the engine's propagators only follow
+# assignments, not out-parameters), and that shape is exactly what
+# bpm-c-command-built-string in the W18-15 pack already matches. A bounds check
+# (`if (n > sizeof buf) return;`) is not understood either, so a guarded copy is
+# still reported; the sanitizers below are the explicit clamps (MIN, strnlen,
+# sizeof). The preprocessor is not run and nothing is interprocedural. That is
+# why every rule is a shadow candidate.
+rules:
+  - id: bpm-flow-cmd-c
+    mode: taint
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      Program input reaches a command that is run. A value from argv, the
+      environment, a stream or a socket that becomes the command line lets
+      whoever controls it run what they choose. Call execve with an argument
+      vector instead of system or popen, and validate the value against an
+      allowlist.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['command-injection', 'rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function through assignments. It does not
+        follow it through a buffer write (snprintf, strcat), a struct field,
+        another function or a macro, and it does not understand an `if` bounds
+        check.
+    paths:
+      exclude:
+        - 'test/**'
+        - 'tests/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/*_test.c'
+        - '**/*_test.cpp'
+        - '**/*_test.cc'
+        - 'fuzz/**'
+        - 'examples/**'
+    pattern-sources:
+      - pattern: argv[...]
+      - pattern: getenv(...)
+      - pattern: std::getenv(...)
+      - patterns:
+          - pattern: fgets($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: read($FD, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recv($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recvfrom($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: fread($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+    pattern-sanitizers:
+      - pattern: 'shell_escape(...)'
+      - pattern: 'escape_shell(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'system($C)'
+              - pattern: 'std::system($C)'
+              - pattern: 'popen($C, ...)'
+              - pattern: 'execl($C, ...)'
+              - pattern: 'execlp($C, ...)'
+              - pattern: 'execv($C, ...)'
+              - pattern: 'execvp($C, ...)'
+              - pattern: 'execve($C, ...)'
+          - focus-metavariable: $C
+      - patterns:
+          - pattern-either:
+              - pattern: 'execl($P, $A, $C, ...)'
+              - pattern: 'execlp($P, $A, $C, ...)'
+          - focus-metavariable: $C
+
+  - id: bpm-flow-path-c
+    mode: taint
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      Program input reaches a file path. A value containing `../` or an absolute
+      path opens or removes a file outside the directory you meant. Reduce it to
+      a base name, or resolve it with realpath and check it stays under the base
+      directory.
+    metadata:
+      category: security
+      cwe: 'CWE-22: Path Traversal'
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'file-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function through assignments. It does not
+        follow it through a buffer write (snprintf, strcat), a struct field,
+        another function or a macro, and it does not understand an `if` bounds
+        check.
+    paths:
+      exclude:
+        - 'test/**'
+        - 'tests/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/*_test.c'
+        - '**/*_test.cpp'
+        - '**/*_test.cc'
+        - 'fuzz/**'
+        - 'examples/**'
+    pattern-sources:
+      - pattern: argv[...]
+      - pattern: getenv(...)
+      - pattern: std::getenv(...)
+      - patterns:
+          - pattern: fgets($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: read($FD, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recv($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recvfrom($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: fread($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+    pattern-sanitizers:
+      - pattern: 'basename(...)'
+      - pattern: 'realpath(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'fopen($P, ...)'
+              - pattern: 'freopen($P, ...)'
+              - pattern: 'open($P, ...)'
+              - pattern: 'creat($P, ...)'
+              - pattern: 'unlink($P)'
+              - pattern: 'remove($P)'
+              - pattern: 'rmdir($P)'
+              - pattern: 'chdir($P)'
+              - pattern: 'opendir($P)'
+              - pattern: 'rename($P, ...)'
+              - pattern: 'stat($P, ...)'
+              - pattern: 'access($P, ...)'
+              - pattern: 'chmod($P, ...)'
+          - focus-metavariable: $P
+      - patterns:
+          - pattern-either:
+              - pattern: 'openat($D, $P, ...)'
+          - focus-metavariable: $P
+
+  - id: bpm-flow-format-c
+    mode: taint
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      Program input is used as a printf-style format string. A value containing
+      %n or many %s directives reads or writes memory the caller chose. Pass the
+      value as an argument to a fixed format: printf("%s", value).
+    metadata:
+      category: security
+      cwe: 'CWE-134: Use of Externally-Controlled Format String'
+      owasp: 'A03:2021 Injection'
+      yields: ['format-string', 'memory-corruption']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function through assignments. It does not
+        follow it through a buffer write (snprintf, strcat), a struct field,
+        another function or a macro, and it does not understand an `if` bounds
+        check.
+    paths:
+      exclude:
+        - 'test/**'
+        - 'tests/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/*_test.c'
+        - '**/*_test.cpp'
+        - '**/*_test.cc'
+        - 'fuzz/**'
+        - 'examples/**'
+    pattern-sources:
+      - pattern: argv[...]
+      - pattern: getenv(...)
+      - pattern: std::getenv(...)
+      - patterns:
+          - pattern: fgets($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: read($FD, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recv($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recvfrom($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: fread($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'printf($F)'
+              - pattern: 'printf($F, ...)'
+              - pattern: 'vprintf($F, ...)'
+              - pattern: 'warn($F, ...)'
+              - pattern: 'err($S, $F, ...)'
+              - pattern: 'errx($S, $F, ...)'
+              - pattern: 'warnx($F, ...)'
+          - focus-metavariable: $F
+      - patterns:
+          - pattern-either:
+              - pattern: 'fprintf($O, $F)'
+              - pattern: 'fprintf($O, $F, ...)'
+              - pattern: 'sprintf($D, $F)'
+              - pattern: 'sprintf($D, $F, ...)'
+              - pattern: 'dprintf($O, $F, ...)'
+              - pattern: 'syslog($L, $F)'
+              - pattern: 'syslog($L, $F, ...)'
+          - focus-metavariable: $F
+      - patterns:
+          - pattern-either:
+              - pattern: 'snprintf($D, $N, $F)'
+              - pattern: 'snprintf($D, $N, $F, ...)'
+          - focus-metavariable: $F
+
+  - id: bpm-flow-copy-c
+    mode: taint
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      Program input is copied into a buffer with no length limit. strcpy, strcat
+      and sprintf copy until the terminating NUL, so an input longer than the
+      destination overwrites what follows it. Use a bounded copy (snprintf,
+      strlcpy, memcpy with a checked length) and handle truncation.
+    metadata:
+      category: security
+      cwe: 'CWE-120: Buffer Copy without Checking Size of Input'
+      owasp: 'A03:2021 Injection'
+      yields: ['buffer-overflow']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function through assignments. It does not
+        follow it through a buffer write (snprintf, strcat), a struct field,
+        another function or a macro, and it does not understand an `if` bounds
+        check.
+    paths:
+      exclude:
+        - 'test/**'
+        - 'tests/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/*_test.c'
+        - '**/*_test.cpp'
+        - '**/*_test.cc'
+        - 'fuzz/**'
+        - 'examples/**'
+    pattern-sources:
+      - pattern: argv[...]
+      - pattern: getenv(...)
+      - pattern: std::getenv(...)
+      - patterns:
+          - pattern: fgets($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: read($FD, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recv($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recvfrom($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: fread($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+    pattern-sanitizers:
+      - pattern: 'strnlen(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'strcpy($D, $S)'
+              - pattern: 'strcat($D, $S)'
+              - pattern: 'stpcpy($D, $S)'
+              - pattern: 'wcscpy($D, $S)'
+          - focus-metavariable: $S
+      - patterns:
+          - pattern-either:
+              - pattern: 'sprintf($D, "...", $S)'
+              - pattern: 'sprintf($D, "...", ..., $S)'
+          - focus-metavariable: $S
+
+  - id: bpm-flow-size-c
+    mode: taint
+    languages: [c, cpp]
+    severity: ERROR
+    message: >-
+      Program input decides how many bytes are copied or read. A length from
+      argv, the environment, a stream or a socket that is not clamped to the
+      destination size lets the caller write past the end of the buffer. Clamp
+      it first: MIN(len, sizeof dest).
+    metadata:
+      category: security
+      cwe: 'CWE-787: Out-of-bounds Write'
+      owasp: 'A03:2021 Injection'
+      yields: ['buffer-overflow']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function through assignments. It does not
+        follow it through a buffer write (snprintf, strcat), a struct field,
+        another function or a macro, and it does not understand an `if` bounds
+        check.
+    paths:
+      exclude:
+        - 'test/**'
+        - 'tests/**'
+        - '**/test/**'
+        - '**/tests/**'
+        - '**/*_test.c'
+        - '**/*_test.cpp'
+        - '**/*_test.cc'
+        - 'fuzz/**'
+        - 'examples/**'
+    pattern-sources:
+      - pattern: argv[...]
+      - pattern: getenv(...)
+      - pattern: std::getenv(...)
+      - patterns:
+          - pattern: fgets($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: read($FD, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recv($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: recvfrom($S, $B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+      - patterns:
+          - pattern: fread($B, ...)
+          - focus-metavariable: $B
+        by-side-effect: true
+    pattern-sanitizers:
+      - pattern: 'MIN(...)'
+      - pattern: 'min(...)'
+      - pattern: 'std::min(...)'
+      - pattern: 'strnlen(...)'
+      - pattern: 'sizeof(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'memcpy($D, $S, $N)'
+              - pattern: 'memmove($D, $S, $N)'
+              - pattern: 'strncpy($D, $S, $N)'
+              - pattern: 'strncat($D, $S, $N)'
+              - pattern: 'memset($D, $V, $N)'
+          - focus-metavariable: $N
+      - patterns:
+          - pattern-either:
+              - pattern: 'read($FD, $D, $N)'
+              - pattern: 'recv($FD, $D, $N, ...)'
+              - pattern: 'fread($D, $Z, $N, $F)'
+          - focus-metavariable: $N
+

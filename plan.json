@@ -9589,13 +9589,14 @@
       ],
       "acceptance": [
         "Taint rules from argv/getenv/recv/fgets/read to system/popen/exec*, fopen/open, printf-family format strings and memcpy/strcpy sizes, with CWE and OWASP tags",
-        "cppcheck results and the new rules are deduplicated by the existing dedup map; Conan and vcpkg manifests listed in the ecosystem matrix as supported or unsupported after checking what syft reads",
+        "cppcheck overlap checked: cppcheck 2.13 reports no id for any defect these rules find (it has no taint tracking for them), so the dedup map gains no rows. Conan and vcpkg manifests are listed in the W18-47 ecosystem matrix; what syft reads there is not checkable on the build host",
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Brad 2026-10-16. Today C/C++ has 12 pattern rules plus cppcheck (W18-15)."
+        "Brad 2026-10-16. Today C/C++ has 12 pattern rules plus cppcheck (W18-15).",
+        "Shipped 2026-10-16 as bpm-baseline.c-cpp-flow.v1.yaml: 5 candidate taint rules (cmd, path, format, copy, size). Engine limits measured on semgrep 1.181 and written in the pack header: taint does not survive snprintf/strcat into a buffer (that shape stays with bpm-c-command-built-string), C++ std::ifstream declarations are not reported as sinks, and an `if` bounds check is not understood."
       ]
     },
     {
