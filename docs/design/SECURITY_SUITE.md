@@ -173,6 +173,17 @@ manifest changes only. Yields: `yields: ['vuln-dependency:{cve}']`.
   the bpm-opencode-experts semgrep-runner triage discipline, on RepoPulse's lifecycle rails.
 - Yields where rules declare them (e.g. `yields: ['injection:sql', 'ssrf']`).
 
+**Injection dataflow (W18-33)** — `rulepacks/semgrep/bpm-baseline.injection.v1.yaml`, 28 taint-mode
+rules, every one a shadow-mode candidate, each tagged with a CWE and an OWASP Top 10 (2021)
+category. Seven weakness classes across JS/TS, Python, Java and Go: SQL injection (CWE-89),
+OS command injection (CWE-78), path traversal (CWE-22), cross-site scripting (CWE-79, plus a
+browser-side DOM variant), SSRF (CWE-918), open redirect (CWE-601) and unsafe deserialization
+(CWE-502; no common JS sink, so no JS rule). Sources are request objects (express/fastify/koa,
+flask/django/starlette, servlet and Spring bound parameters, net/http/gin/echo/chi);
+sanitizers are per sink. **Limit, stated plainly:** the engine follows a value through one
+function. A flow that crosses a call into another function, a field or a framework injection
+is missed, not misreported — real interprocedural dataflow is the next step, not claimed here.
+
 ### 3.4 `owasp_web` / `owasp_llm` — inputs: diff + targeted contents — FR-SEC-7
 
 LLM checklist scanners: OWASP Web Top-10 (2021) and OWASP LLM Top-10 (2025) checklists as

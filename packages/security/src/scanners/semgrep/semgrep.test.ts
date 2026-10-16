@@ -165,6 +165,8 @@ describeIfScanImage('opengrep, actually run in the sandbox (FR-SEC-6)', () => {
     expect(result.toolErrors).toEqual([]);
     const ids = [...new Set(result.findings.map((f) => f.ruleId))].sort();
     expect(ids).toEqual([
+      'bpm-inj-cmd-js',
+      'bpm-inj-sql-js',
       'bpm-js-child-process-concat',
       'bpm-js-eval-dynamic',
       'bpm-js-jwt-verify-disabled',

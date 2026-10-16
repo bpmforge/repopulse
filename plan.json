@@ -9288,9 +9288,10 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Gap analysis: /mnt/project-files/repopulse/snyk-gap-analysis.md. Today only 3 packs use taint mode."
+        "Gap analysis: /mnt/project-files/repopulse/snyk-gap-analysis.md. Today only 3 packs use taint mode.",
+        "DONE 2026-10-16 on claude/repopulse-taint-injection: rulepacks/semgrep/bpm-baseline.injection.v1.yaml, 28 taint rules (sql, cmd, path, xss, ssrf, redirect for JS/TS, Python, Java and Go; deserialize for Python, Java and Go; browser DOM XSS for JS), each with cwe and owasp metadata, all candidates (shadow). Fixtures in fixtures/injection (triggering and clean per language, `ruleid:` announcements). Validated with host semgrep 1.181.0: every announced line fires, every clean near-miss is silent, zero engine errors; the opengrep 1.27.1 image run is the golden test in injection-pack.test.ts (skips without the podman scan image). Limit recorded in the pack header and SECURITY_SUITE.md 3.3: single-function dataflow only, no interprocedural. semgrep.test.ts expected list gains bpm-inj-cmd-js and bpm-inj-sql-js (they fire on fixtures/semgrep/vulnerable/app.js, correctly). Gotchas: a metavariable-regex inside a patterns block applies to the whole block; patterns with ': ' need quoting; fully-qualified constructors/annotations do not match short-name patterns."
       ]
     },
     {
@@ -9393,7 +9394,7 @@
       "acceptance": [
         "OpenSSF malicious-packages data synced nightly alongside the CVE data and matched against the SBOM; a hit is severity 5",
         "Call-site reachability for JS/TS and Python by generated Opengrep rules from OSV affected symbols, with 'imported' kept for what it cannot prove",
-        "Docs list the lockfile ecosystems actually tested (npm, pnpm, yarn, pip, poetry, uv, go, cargo, maven, gradle, nuget, composer, bundler) with a fixture per row"
+        "Docs list the lockfile ecosystems actually tested (npm, pnpm, yarn, pip, poetry, uv, go, cargo, maven, gradle, nuget, composer, bundler, SwiftPM, CocoaPods, Conan, vcpkg) with a fixture per row; an ecosystem syft or grype cannot read is listed as unsupported, not omitted"
       ],
       "points": 8,
       "status": "todo",
@@ -9480,6 +9481,117 @@
       "status": "todo",
       "notes": [
         "Measure after W18-33 so the numbers describe the taint rules."
+      ]
+    },
+    {
+      "id": "W18-41",
+      "title": "Swift: first rule packs (security baseline, anti-slop, logging) and SwiftPM/CocoaPods dependency coverage",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Swift security baseline (force-unwrapped network data, ATS exceptions, insecure URLSession delegates, weak crypto, hard-coded keys, WebView JS injection) plus anti-slop and logging packs, as shadow candidates with fixtures; the engine's Swift parsing limits are written into the pack header after measuring them",
+        "Package.resolved and Podfile.lock read into the SBOM and matched; Swift appears in the coverage map and the ecosystem matrix",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Brad 2026-10-16: Rust, Swift, Kotlin, .NET, C and C++ must be covered alongside Python and Go. Swift has no pack today."
+      ]
+    },
+    {
+      "id": "W18-42",
+      "title": "Kotlin: a first-class pack (coroutines, null-safety escapes, Android and Spring Kotlin) and Gradle Kotlin DSL dependencies",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-13"
+      ],
+      "acceptance": [
+        "Kotlin security, anti-slop and logging rules in their own pack files (today only a few rules sit inside the Java pack), including `!!` abuse, GlobalScope leaks, runBlocking in handlers, exported Android components, cleartext traffic, WebView settings",
+        "build.gradle(.kts) and gradle.lockfile read into the SBOM and matched; Kotlin listed in the ecosystem matrix",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Brad 2026-10-16. Kotlin is languages: [kotlin] on a handful of rules in bpm-baseline.java.v1.yaml today."
+      ]
+    },
+    {
+      "id": "W18-43",
+      "title": "Injection dataflow for C#, Kotlin and Rust: ASP.NET, Spring-on-Kotlin and actix/axum/rocket sources and sinks",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-33"
+      ],
+      "acceptance": [
+        "Taint rules for SQL, command, path, XSS, SSRF, redirect and deserialization where the language has a common sink (C# BinaryFormatter, Rust unsafe FFI excluded), with CWE and OWASP tags, extending bpm-baseline.injection.v1.yaml",
+        "Pack test asserts every claimed language and weakness class; coverage map shows them",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Extends W18-33, which covers JS/TS, Python, Java and Go."
+      ]
+    },
+    {
+      "id": "W18-44",
+      "title": "C and C++ dataflow: command, path, format-string and buffer-size flows from argv, getenv, sockets and files",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-33",
+        "W18-15"
+      ],
+      "acceptance": [
+        "Taint rules from argv/getenv/recv/fgets/read to system/popen/exec*, fopen/open, printf-family format strings and memcpy/strcpy sizes, with CWE and OWASP tags",
+        "cppcheck results and the new rules are deduplicated by the existing dedup map; Conan and vcpkg manifests listed in the ecosystem matrix as supported or unsupported after checking what syft reads",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Brad 2026-10-16. Today C/C++ has 12 pattern rules plus cppcheck (W18-15)."
       ]
     }
   ]
