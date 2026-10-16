@@ -9676,8 +9676,9 @@
         "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
+        "Fixtures, matrix module, CLI and freshness test landed; docs/ECOSYSTEMS.md shows every row as not yet run. Stays in_progress until the CLI is run on a machine with the scan image and grype DB (the Mac) and the measured results are committed.",
         "Split from W18-37. Brad 2026-10-16 asked for SwiftPM, CocoaPods, Conan and vcpkg alongside the rest."
       ]
     }

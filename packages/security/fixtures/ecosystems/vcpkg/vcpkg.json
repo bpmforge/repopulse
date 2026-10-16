@@ -1,0 +1,6 @@
+{
+  "name": "eco-vcpkg",
+  "version": "1.0.0",
+  "dependencies": ["openssl", "zlib"],
+  "builtin-baseline": "0000000000000000000000000000000000000000"
+}

@@ -1,0 +1,15 @@
+version = 1
+requires-python = ">=3.9"
+
+[[package]]
+name = "django"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "eco-uv"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "django" },
+]
