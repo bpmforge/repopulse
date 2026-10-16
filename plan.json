@@ -9451,9 +9451,9 @@
         "Attribution/NOTICE export from the SBOM; findings stay posture-only, never a gate (N-3)"
       ],
       "points": 3,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Today: AGPL and SSPL plus unknown are flagged (registers/license.ts)."
+        "Categories: permissive, weak, strong, network copyleft, unknown. OR picks the side that obliges least, AND the strictest, WITH linking exceptions downgrade GPL to weak. Default flags network and strong copyleft (workspace-tunable via licensePolicy.flagCategories); LGPL/MPL stay silent unless opted in. GET /repos/:id/attribution exports a NOTICE-style markdown inventory. Posture only (N-3)."
       ]
     },
     {
