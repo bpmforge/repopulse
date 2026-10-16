@@ -24,6 +24,27 @@ export interface BenchmarkReportInput {
   engines: { yaml?: { status?: string; tool?: string; version?: string } };
   outcomes: { suite: string; ruleId?: string | null; kind: string }[];
   byRule?: { rule: string; engine: string }[];
+  /** Per-CWE accuracy on the public suites (absent in reports older than W18-40). */
+  byCwe?: PublicCweScore[];
+  corpus?: { id: string; title: string; status: string }[];
+  measured?: { date: string | null; commit: string | null };
+}
+
+/**
+ * One CWE on a public benchmark suite, in the Benchmark's own units: TPR is the
+ * share of real vulnerabilities found, FPR the share of safe look-alikes
+ * flagged, Youden their difference (0 = coin flip, negative = worse).
+ */
+export interface PublicCweScore {
+  suite: string;
+  cwe: number;
+  tp: number;
+  fp: number;
+  fn: number;
+  tn: number;
+  tpr: number | null;
+  fpr: number | null;
+  youden: number | null;
 }
 
 export interface BenchmarkRuleScore {
@@ -47,6 +68,12 @@ export interface BenchmarkSummary {
   /** Suites left out, with why — the reader is owed the denominator. */
   excludedSuites: { suite: string; reason: string }[];
   rules: Record<string, BenchmarkRuleScore>;
+  /** Public-suite accuracy per CWE, including where we score badly; empty until a public suite is prepared and run. */
+  cwes: PublicCweScore[];
+  /** Titles of the public suites that were scored, so the table says what it measured. */
+  publicSuites: { id: string; title: string }[];
+  /** When the numbers were taken; both null if the run did not record it. */
+  measured: { date: string | null; commit: string | null };
 }
 
 /**
@@ -95,6 +122,11 @@ export function summariseBenchmark(report: BenchmarkReportInput): BenchmarkSumma
       yaml?.status === 'ran' && yaml.tool ? `${yaml.tool} ${yaml.version ?? ''}`.trim() : null,
     excludedSuites: EXCLUDED_SUITES,
     rules: Object.fromEntries(Object.entries(rules).sort(([a], [b]) => a.localeCompare(b))),
+    cwes: report.byCwe ?? [],
+    publicSuites: (report.corpus ?? [])
+      .filter((c) => c.status === 'scored' && (report.byCwe ?? []).some((w) => w.suite === c.id))
+      .map((c) => ({ id: c.id, title: c.title })),
+    measured: report.measured ?? { date: null, commit: null },
   };
 }
 
@@ -138,7 +170,10 @@ export interface RulePrecision {
 }
 
 export interface RulePrecisionReport {
-  benchmark: Pick<BenchmarkSummary, 'ticket' | 'engine' | 'excludedSuites'>;
+  benchmark: Pick<
+    BenchmarkSummary,
+    'ticket' | 'engine' | 'excludedSuites' | 'cwes' | 'publicSuites' | 'measured'
+  >;
   rules: RulePrecision[];
 }
 
@@ -245,6 +280,9 @@ export async function rulePrecision(
       ticket: summary.ticket,
       engine: summary.engine,
       excludedSuites: summary.excludedSuites,
+      cwes: summary.cwes,
+      publicSuites: summary.publicSuites,
+      measured: summary.measured,
     },
     rules,
   };

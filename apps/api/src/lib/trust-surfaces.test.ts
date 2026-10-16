@@ -77,6 +77,9 @@ describeIfDb('trust surfaces over the database (W18-22)', () => {
       },
       'bpm-both': { tp: 1, fp: 1, fn: 2, precision: 0.5, suites: ['sampleco'], engine: 'yaml' },
     },
+    cwes: [],
+    publicSuites: [],
+    measured: { date: null, commit: null },
   };
 
   beforeAll(async () => {

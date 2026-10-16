@@ -53,15 +53,45 @@ const fetchSchema = z
   .object({
     /** Raw-file URL template; `{commit}` and `{path}` are substituted. */
     rawUrl: z.string().min(1),
+    /**
+     * Repository tarball at the pinned commit, `{commit}` substituted. When set,
+     * the prep step downloads it once instead of fetching test files one by
+     * one (the full Benchmark is ~2,700 files).
+     */
+    archiveUrl: z.string().min(1).optional(),
     commit: z.string().regex(/^[0-9a-f]{40}$/),
     answerKey: z.object({ path: z.string(), sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
     sourceDir: z.string(),
     selection: z.object({
       categories: z.array(z.string()).min(1),
-      perVerdict: z.number().int().positive(),
+      /** Cases taken per category and verdict, in answer-key order; absent = every case. */
+      perVerdict: z.number().int().positive().optional(),
     }),
     files: z.array(
       z.object({ test: z.string(), sha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
+    ),
+  })
+  .strict();
+
+// A suite fetched as one archive and labelled from the code itself (Juliet).
+// Like `fetch`, it commits only digests: the archive's, and each selected file's.
+const archiveSchema = z
+  .object({
+    url: z.string().min(1),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    /** Archive paths are taken relative to this prefix, e.g. `C/testcases`. */
+    root: z.string(),
+    language: z.enum(['java', 'c', 'csharp']),
+    /** Juliet directory CWE number -> the CWE our rules report it as. */
+    cwes: z
+      .array(
+        z.object({ dir: z.number().int().positive(), cwe: z.number().int().positive() }).strict(),
+      )
+      .min(1),
+    /** At most this many files per directory CWE, picked by a fixed stride so every variant is represented. */
+    perCwe: z.number().int().positive(),
+    files: z.array(
+      z.object({ path: z.string(), sha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
     ),
   })
   .strict();
@@ -76,11 +106,13 @@ export const suiteSchema = z
     trees: z.array(z.object({ id: z.string().min(1), path: z.string().min(1) }).strict()).min(1),
     labels: z.array(labelSchema),
     fetch: fetchSchema.optional(),
+    archive: archiveSchema.optional(),
   })
   .strict();
 
 export type SuiteManifest = z.infer<typeof suiteSchema>;
 export type FetchSpec = z.infer<typeof fetchSchema>;
+export type ArchiveSpec = z.infer<typeof archiveSchema>;
 
 export interface Tree {
   suite: string;
@@ -112,7 +144,7 @@ export function loadSuite(dir: string): Suite {
   );
   let rawLabels = manifest.labels;
   let prepared = true;
-  if (manifest.fetch) {
+  if (manifest.fetch || manifest.archive) {
     const generated = path.join(cacheDir(dir), 'labels.json');
     prepared = existsSync(generated);
     rawLabels = prepared

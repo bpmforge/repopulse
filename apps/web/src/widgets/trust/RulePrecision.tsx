@@ -32,6 +32,99 @@ export function PrecisionValue({ text, testId }: { text: PrecisionText; testId: 
   );
 }
 
+const rate = (v: number | null): string => (v === null ? '—' : `${(v * 100).toFixed(1)}%`);
+
+/**
+ * Accuracy on the public SAST benchmarks, per CWE, in the Benchmark's own units
+ * (W18-40). Every CWE we were scored on is listed, including those where the
+ * detection rate is 0%: leaving out the bad rows would turn a measurement into
+ * marketing.
+ */
+export function PublicBenchmarkTable({
+  benchmark,
+}: {
+  benchmark: RulePrecisionReport['benchmark'];
+}) {
+  const cwes = benchmark.cwes ?? [];
+  if (cwes.length === 0) {
+    return (
+      <p className="mb-3 text-xs text-fg-muted" data-testid="public-benchmark-empty">
+        No public benchmark (OWASP Benchmark, Juliet) has been run yet, so there are no published
+        per-CWE accuracy numbers.
+      </p>
+    );
+  }
+  const titles = new Map((benchmark.publicSuites ?? []).map((s) => [s.id, s.title]));
+  const measured = benchmark.measured;
+  return (
+    <section className="mb-4" data-testid="public-benchmark">
+      <h3 className="text-sm font-medium">Accuracy on public SAST benchmarks</h3>
+      <p className="mb-2 text-xs text-fg-muted">
+        Measured {measured?.date ?? 'on an unrecorded date'}
+        {benchmark.engine ? ` with ${benchmark.engine}` : ''}. <strong>Detected</strong> is the
+        share of real vulnerabilities found; <strong>False alarms</strong> is the share of safe
+        look-alikes flagged; <strong>Score</strong> is Detected − False alarms (0 is a coin flip,
+        negative is worse than guessing). A weakness we have no rule for shows 0% detected.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" data-testid="public-benchmark-table">
+          <caption className="sr-only">Detection and false alarm rate per CWE</caption>
+          <thead>
+            <tr className="text-left text-xs text-fg-muted">
+              <th scope="col" className="pr-2">
+                Benchmark
+              </th>
+              <th scope="col" className="pr-2">
+                CWE
+              </th>
+              <th scope="col" className="pr-2 text-right">
+                Detected
+              </th>
+              <th scope="col" className="pr-2 text-right">
+                False alarms
+              </th>
+              <th scope="col" className="text-right">
+                Score
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {cwes.map((c) => (
+              <tr
+                key={`${c.suite}-${c.cwe}`}
+                className="border-t border-border"
+                data-testid={`public-benchmark-${c.suite}-${c.cwe}`}
+              >
+                <th scope="row" className="py-1 pr-2 text-left text-xs font-normal">
+                  {titles.get(c.suite) ?? c.suite}
+                </th>
+                <td className="py-1 pr-2 tabular-nums">CWE-{c.cwe}</td>
+                <td className="py-1 pr-2 text-right tabular-nums">
+                  {rate(c.tpr)}
+                  <span className="text-xs text-fg-faint">
+                    {' '}
+                    ({c.tp} of {c.tp + c.fn})
+                  </span>
+                </td>
+                <td className="py-1 pr-2 text-right tabular-nums">
+                  {rate(c.fpr)}
+                  <span className="text-xs text-fg-faint">
+                    {' '}
+                    ({c.fp} of {c.fp + c.tn})
+                  </span>
+                </td>
+                <td className="py-1 text-right tabular-nums">
+                  {c.youden === null ? '—' : c.youden.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 const ALL = { endpoint: '/rules/precision' } as const;
 
 /** Every rule this workspace can say something about — the rules screen table. */
@@ -51,6 +144,7 @@ export function RulePrecisionTable() {
     >
       {report && (
         <>
+          <PublicBenchmarkTable benchmark={report.benchmark} />
           <p className="mb-2 text-xs text-fg-muted">
             Two separate measurements. <strong>Your triage</strong>: the share of triaged findings
             nobody dismissed as a false positive. <strong>Benchmark</strong>: the share of findings

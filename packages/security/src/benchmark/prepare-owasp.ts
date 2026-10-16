@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CORPUS_DIR, cacheDir, suiteSchema, type FetchSpec } from './corpus.js';
@@ -25,7 +26,25 @@ const SUITE_DIR = path.join(CORPUS_DIR, 'owasp-benchmark');
 
 const sha256 = (b: Buffer): string => createHash('sha256').update(b).digest('hex');
 
-function download(spec: FetchSpec, file: string): Buffer {
+/** The repository at the pinned commit, extracted once, so ~2,700 files are one download. */
+function extractArchive(spec: FetchSpec): string | null {
+  if (!spec.archiveUrl) return null;
+  const dir = mkdtempSync(path.join(tmpdir(), 'owasp-bench-'));
+  const tarball = path.join(dir, 'repo.tar.gz');
+  execFileSync('curl', [
+    '-sSfL',
+    '--retry',
+    '3',
+    '-o',
+    tarball,
+    spec.archiveUrl.replace('{commit}', spec.commit),
+  ]);
+  execFileSync('tar', ['-xzf', tarball, '-C', dir, '--strip-components=1']);
+  return dir;
+}
+
+function download(spec: FetchSpec, file: string, extracted: string | null): Buffer {
+  if (extracted && !file.endsWith('.csv')) return readFileSync(path.join(extracted, file));
   const url = spec.rawUrl.replace('{commit}', spec.commit).replace('{path}', file);
   return execFileSync('curl', ['-sSfL', '--retry', '3', url], { maxBuffer: 64 * 1024 * 1024 });
 }
@@ -53,7 +72,9 @@ export function selectTests(rows: readonly Row[], spec: FetchSpec['selection']):
   for (const category of spec.categories) {
     for (const real of [true, false]) {
       picked.push(
-        ...rows.filter((r) => r.category === category && r.real === real).slice(0, spec.perVerdict),
+        ...rows
+          .filter((r) => r.category === category && r.real === real)
+          .slice(0, spec.perVerdict ?? Number.POSITIVE_INFINITY),
       );
     }
   }
@@ -66,7 +87,8 @@ function main(pin: boolean): void {
   const spec = manifest.fetch;
   if (!spec) throw new Error('owasp-benchmark suite.json has no fetch spec');
 
-  const keyBytes = download(spec, spec.answerKey.path);
+  const extracted = extractArchive(spec);
+  const keyBytes = download(spec, spec.answerKey.path, null);
   if (pin) spec.answerKey.sha256 = sha256(keyBytes);
   else if (sha256(keyBytes) !== spec.answerKey.sha256) {
     throw new Error(`answer key hash mismatch for ${spec.answerKey.path}`);
@@ -84,7 +106,7 @@ function main(pin: boolean): void {
 
   const pinned: FetchSpec['files'] = [];
   for (const test of tests) {
-    const bytes = download(spec, `${spec.sourceDir}/${test}.java`);
+    const bytes = download(spec, `${spec.sourceDir}/${test}.java`, extracted);
     const digest = sha256(bytes);
     const expected = spec.files.find((f) => f.test === test)?.sha256;
     if (!pin && digest !== expected) throw new Error(`hash mismatch for ${test}`);
@@ -111,6 +133,7 @@ function main(pin: boolean): void {
     spec.files = pinned;
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   }
+  if (extracted) rmSync(extracted, { recursive: true, force: true });
   process.stdout.write(
     `owasp-benchmark: ${tests.length} test cases in ${path.relative(process.cwd(), cache)}\n`,
   );

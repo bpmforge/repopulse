@@ -81,6 +81,52 @@ Findings judged wrong stayed as false positives. For example, both the retry loo
 `await` and its `try/catch` are needed, so in the first run those findings were FPs
 (the rule-gap follow-up below removed them by changing the rules, not the labels).
 
+## Public benchmarks, by CWE (W18-40)
+
+Two public suites are scored in the units their authors publish, next to our own corpus.
+The numbers appear in the product's rule precision view with the date they were taken, and
+the full tables are in [`benchmarks/report.md`](benchmarks/report.md) under *Public
+benchmarks, by CWE*.
+
+| Suite | What | Licence |
+|---|---|---|
+| `owasp-benchmark` | OWASP Benchmark for Java v1.2: every case of eleven categories (cmdi, crypto, hash, ldapi, pathtraver, securecookie, sqli, trustbound, weakrand, xpathi, xss), with OWASP's own verdict per case | GPL-2.0, fetched and hash-pinned, never committed |
+| `juliet-java` | NIST Juliet Java v1.3: a stride sample of up to 150 files for each of thirteen weakness directories (22, 78, 80/81/83, 89, 90, 259, 327, 328, 330, 601, 643) | public domain, fetched and hash-pinned |
+
+**Method.** A case is one label with a CWE. A real vulnerability that a rule with that CWE
+reports is a true positive; one nothing reports is a false negative. A safe look-alike
+that a rule with that CWE reports is a false positive; one that stays quiet is a true
+negative. Findings carrying another CWE are ignored, not counted against us, following
+OWASP Benchmark's own scoring. Per CWE:
+
+- **TPR** = TP / (TP + FN): the share of real vulnerabilities found.
+- **FPR** = FP / (FP + TN): the share of safe look-alikes flagged.
+- **Youden** = TPR − FPR: 0 is a coin flip, 1 is perfect, negative is worse than guessing.
+  This is the single number the OWASP Benchmark publishes.
+
+Juliet labels are read from the code. In a single-file case a `bad()` method is a defect
+and each `good*()` method is a near-miss, at the method's own lines. In the multi-file flow
+variants a `_NN_bad.java` class is a whole-file defect, a `_NN_good*.java` class a whole-file
+near-miss, and the `_NN_base.java` class has no label. Juliet splits cross-site scripting
+over CWE 80, 81 and 83; the labels report them as 79, which is what our rules say.
+
+**Where we score badly is published too.** A weakness class we have no rule for stays in the
+table at 0% detected. Our taint rules follow a value through one function (SECURITY_SUITE.md
+§3.3), and both suites route data through other files, classes and helper methods, so the
+cross-file flow variants are missed by construction. That is a limit of the engine, not a
+fault of the corpus, and the table shows its size.
+
+```sh
+pnpm --filter @repopulse/security bench:prepare-owasp --pin     # once, or to move the pin (needs network)
+pnpm --filter @repopulse/security bench:prepare-juliet --pin
+pnpm --filter @repopulse/security bench --date 2026-10-16 --commit <sha>
+```
+
+Without the prepare step a suite reports `not-prepared` and contributes nothing; the view
+then says that no public benchmark has been run. `--date` and `--commit` are recorded in
+the report so a published number says when it was taken; omitting them keeps a rerun
+byte-identical.
+
 ## Corpus
 
 | Suite | What | Source and pin | Licence | Labels |

@@ -59,6 +59,8 @@ export interface Outcome {
   ruleId: string | null;
   dimension: string;
   labelId: string | null;
+  /** The finding's CWE for tp/fp/duplicate/ignored; the label's for fn/tn/skipped. null if neither has one. */
+  cwe: number | null;
 }
 
 export interface MatchInput {
@@ -159,6 +161,7 @@ export function matchFindings(input: MatchInput): Outcome[] {
       line: f.lineStart,
       ruleId: f.ruleId,
       dimension: f.dimension,
+      cwe: f.cwe,
     };
     if (free) {
       matched.add(free);
@@ -190,6 +193,7 @@ export function matchFindings(input: MatchInput): Outcome[] {
       ruleId: l.rule ?? null,
       dimension: l.dimension,
       labelId: l.id,
+      cwe: l.cwe ?? null,
     };
     if (!active.includes(l)) {
       outcomes.push({ ...base, kind: 'skipped' });

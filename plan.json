@@ -9479,9 +9479,10 @@
         "Numbers appear in the product's coverage and accuracy view (W18-22) with the date and version, including where we score badly"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "in_progress",
       "notes": [
-        "Measure after W18-33 so the numbers describe the taint rules."
+        "Measure after W18-33 so the numbers describe the taint rules.",
+        "Code shipped 2026-10-16: per-CWE TPR/FPR/Youden in the report, full OWASP Benchmark selection, a Juliet Java suite with labels derived from bad()/good*(), and a public-benchmark table in the rule precision view with its date. The numbers themselves need the Mac (the cloud cannot download either suite): run bench:prepare-owasp --pin, bench:prepare-juliet --pin and bench --date --commit, then commit the pins and report. Status stays in_progress until that run lands."
       ]
     },
     {
