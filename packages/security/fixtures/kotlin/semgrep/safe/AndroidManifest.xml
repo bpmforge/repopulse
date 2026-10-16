@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:usesCleartextTraffic="false">
+    <activity android:name=".Main" android:exported="true" />
+    <service android:name=".Sync" android:exported="false" />
+    <service android:name=".Bound" android:exported="true" android:permission="com.example.BIND" />
+  </application>
+</manifest>

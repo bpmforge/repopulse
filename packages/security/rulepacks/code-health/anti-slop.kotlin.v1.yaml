@@ -1,0 +1,87 @@
+# bpm-rulepacks — anti-slop, Kotlin variants v1 (W18-42, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse; not derived from the Semgrep registry,
+# detekt, Android Lint or any vendor pack (licence position: bpm-baseline.v1.yaml
+# header). The few Kotlin rules inside the Java packs (W18-13) are unchanged.
+#
+# ENGINE LIMITS, measured 2026-10-16 with semgrep 1.181 (the scan image's
+# Opengrep 1.27.1 is not measurable from the build host; the golden test runs
+# whichever engine is on PATH): the Kotlin parser handles `GlobalScope.launch(...)`,
+# `runBlocking { ... }`, property assignments (`x.y = true`), method calls and
+# `override fun f(...) { }` patterns. `!!` is NOT matched structurally (the
+# operator is dropped from the AST), so it is a text regex, and string templates
+# and comments are not structure either.
+rules:
+  - id: bpm-ch-kt-non-null-assertion
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      `!!` throws a NullPointerException when the value is null. The type
+      system was asked to prove it is not, and this tells it to stop. Handle
+      the null (`?.`, `?:`, `requireNotNull` with a message) so the failure is
+      deliberate and explained.
+    metadata:
+      source: CODE_HEALTH_SUITE §1
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A text check on `!!` after an identifier, call or index; it cannot tell
+        a proven invariant from a hope. Tests are excluded by path.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - '*.kts'
+    pattern-regex: '[\w\)\]]!!'
+
+  - id: bpm-ch-kt-global-scope
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      A coroutine is launched in `GlobalScope`. It is tied to no lifecycle, so
+      it outlives the screen or request that started it, leaks what it holds
+      and cannot be cancelled with its owner. Launch in a scope that is
+      cancelled with its owner (`viewModelScope`, `lifecycleScope`, or one you
+      own and cancel).
+    metadata:
+      source: CODE_HEALTH_SUITE §1
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A deliberate process-lifetime job is reported as well.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+    pattern-either:
+      - pattern: GlobalScope.launch(...)
+      - pattern: GlobalScope.async(...)
+
+  - id: bpm-ch-kt-run-blocking
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      `runBlocking` blocks the calling thread until the coroutine finishes. In a
+      request handler, a UI callback or another coroutine it ties up a thread
+      the framework needs, and can deadlock a single-threaded dispatcher.
+      Make the caller `suspend`, or hand the work to a scope.
+    metadata:
+      source: CODE_HEALTH_SUITE §1
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Cannot tell a handler from a program entry point. Tests and files named
+        Main.kt are excluded by path; other top-level mains are reported.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - 'Main.kt'
+        - '*.kts'
+    pattern: 'runBlocking { ... }'
