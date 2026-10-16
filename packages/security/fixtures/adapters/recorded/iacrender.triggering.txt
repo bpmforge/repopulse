@@ -1,0 +1,282 @@
+@@FAILED chart charts/needs-deps
+@@CHART 2 charts/web
+@@OVERLAY 3 kustomize/base
+@@OVERLAY 4 kustomize/overlays/prod
+@@CHECKOV
+{
+    "check_type": "kubernetes",
+    "results": {
+        "failed_checks": [
+            {
+                "check_id": "CKV_K8S_20",
+                "bc_check_id": null,
+                "check_name": "Containers should not run with allowPrivilegeEscalation",
+                "check_result": {
+                    "result": "FAILED",
+                    "evaluated_keys": [
+                        "spec/template/spec/containers/[0]/securityContext/allowPrivilegeEscalation"
+                    ]
+                },
+                "code_block": null,
+                "file_path": "/3/rendered.yaml",
+                "file_abs_path": "/tmp/iacrender/3/rendered.yaml",
+                "repo_file_path": "/tmp/iacrender/3/rendered.yaml",
+                "file_line_range": [
+                    1,
+                    17
+                ],
+                "resource": "Deployment.default.api",
+                "evaluations": {},
+                "check_class": "checkov.kubernetes.checks.resource.k8s.AllowPrivilegeEscalation",
+                "fixed_definition": null,
+                "entity_tags": null,
+                "caller_file_path": null,
+                "caller_file_line_range": null,
+                "resource_address": null,
+                "severity": null,
+                "bc_category": null,
+                "benchmarks": null,
+                "description": null,
+                "short_description": null,
+                "vulnerability_details": null,
+                "connected_node": null,
+                "guideline": null,
+                "details": [],
+                "check_len": null,
+                "definition_context_file_path": null
+            },
+            {
+                "check_id": "CKV_K8S_19",
+                "bc_check_id": null,
+                "check_name": "Containers should not share the host network namespace",
+                "check_result": {
+                    "result": "FAILED",
+                    "evaluated_keys": []
+                },
+                "code_block": null,
+                "file_path": "/2/rendered.yaml",
+                "file_abs_path": "/tmp/iacrender/2/rendered.yaml",
+                "repo_file_path": "/tmp/iacrender/2/rendered.yaml",
+                "file_line_range": [
+                    3,
+                    22
+                ],
+                "resource": "Deployment.default.release-web",
+                "evaluations": {},
+                "check_class": "checkov.kubernetes.checks.resource.k8s.SharedHostNetworkNamespace",
+                "fixed_definition": null,
+                "entity_tags": null,
+                "caller_file_path": null,
+                "caller_file_line_range": null,
+                "resource_address": null,
+                "severity": null,
+                "bc_category": null,
+                "benchmarks": null,
+                "description": null,
+                "short_description": null,
+                "vulnerability_details": null,
+                "connected_node": null,
+                "guideline": null,
+                "details": [],
+                "check_len": null,
+                "definition_context_file_path": null
+            },
+            {
+                "check_id": "CKV_K8S_16",
+                "bc_check_id": null,
+                "check_name": "Container should not be privileged",
+                "check_result": {
+                    "result": "FAILED",
+                    "evaluated_keys": [
+                        "spec/template/spec/containers/[0]/securityContext/privileged"
+                    ]
+                },
+                "code_block": null,
+                "file_path": "/2/rendered.yaml",
+                "file_abs_path": "/tmp/iacrender/2/rendered.yaml",
+                "repo_file_path": "/tmp/iacrender/2/rendered.yaml",
+                "file_line_range": [
+                    3,
+                    22
+                ],
+                "resource": "Deployment.default.release-web",
+                "evaluations": {},
+                "check_class": "checkov.kubernetes.checks.resource.k8s.PrivilegedContainers",
+                "fixed_definition": null,
+                "entity_tags": null,
+                "caller_file_path": null,
+                "caller_file_line_range": null,
+                "resource_address": null,
+                "severity": null,
+                "bc_category": null,
+                "benchmarks": null,
+                "description": null,
+                "short_description": null,
+                "vulnerability_details": null,
+                "connected_node": null,
+                "guideline": null,
+                "details": [],
+                "check_len": null,
+                "definition_context_file_path": null
+            },
+            {
+                "check_id": "CKV_K8S_20",
+                "bc_check_id": null,
+                "check_name": "Containers should not run with allowPrivilegeEscalation",
+                "check_result": {
+                    "result": "FAILED",
+                    "evaluated_keys": [
+                        "spec/template/spec/containers/[0]/securityContext/allowPrivilegeEscalation"
+                    ]
+                },
+                "code_block": null,
+                "file_path": "/2/rendered.yaml",
+                "file_abs_path": "/tmp/iacrender/2/rendered.yaml",
+                "repo_file_path": "/tmp/iacrender/2/rendered.yaml",
+                "file_line_range": [
+                    3,
+                    22
+                ],
+                "resource": "Deployment.default.release-web",
+                "evaluations": {},
+                "check_class": "checkov.kubernetes.checks.resource.k8s.AllowPrivilegeEscalation",
+                "fixed_definition": null,
+                "entity_tags": null,
+                "caller_file_path": null,
+                "caller_file_line_range": null,
+                "resource_address": null,
+                "severity": null,
+                "bc_category": null,
+                "benchmarks": null,
+                "description": null,
+                "short_description": null,
+                "vulnerability_details": null,
+                "connected_node": null,
+                "guideline": null,
+                "details": [],
+                "check_len": null,
+                "definition_context_file_path": null
+            },
+            {
+                "check_id": "CKV_K8S_17",
+                "bc_check_id": null,
+                "check_name": "Containers should not share the host process ID namespace",
+                "check_result": {
+                    "result": "FAILED",
+                    "evaluated_keys": []
+                },
+                "code_block": null,
+                "file_path": "/4/rendered.yaml",
+                "file_abs_path": "/tmp/iacrender/4/rendered.yaml",
+                "repo_file_path": "/tmp/iacrender/4/rendered.yaml",
+                "file_line_range": [
+                    1,
+                    20
+                ],
+                "resource": "Deployment.default.api",
+                "evaluations": {},
+                "check_class": "checkov.kubernetes.checks.resource.k8s.ShareHostPID",
+                "fixed_definition": null,
+                "entity_tags": null,
+                "caller_file_path": null,
+                "caller_file_line_range": null,
+                "resource_address": null,
+                "severity": null,
+                "bc_category": null,
+                "benchmarks": null,
+                "description": null,
+                "short_description": null,
+                "vulnerability_details": null,
+                "connected_node": null,
+                "guideline": null,
+                "details": [],
+                "check_len": null,
+                "definition_context_file_path": null
+            },
+            {
+                "check_id": "CKV_K8S_16",
+                "bc_check_id": null,
+                "check_name": "Container should not be privileged",
+                "check_result": {
+                    "result": "FAILED",
+                    "evaluated_keys": [
+                        "spec/template/spec/containers/[0]/securityContext/privileged"
+                    ]
+                },
+                "code_block": null,
+                "file_path": "/4/rendered.yaml",
+                "file_abs_path": "/tmp/iacrender/4/rendered.yaml",
+                "repo_file_path": "/tmp/iacrender/4/rendered.yaml",
+                "file_line_range": [
+                    1,
+                    20
+                ],
+                "resource": "Deployment.default.api",
+                "evaluations": {},
+                "check_class": "checkov.kubernetes.checks.resource.k8s.PrivilegedContainers",
+                "fixed_definition": null,
+                "entity_tags": null,
+                "caller_file_path": null,
+                "caller_file_line_range": null,
+                "resource_address": null,
+                "severity": null,
+                "bc_category": null,
+                "benchmarks": null,
+                "description": null,
+                "short_description": null,
+                "vulnerability_details": null,
+                "connected_node": null,
+                "guideline": null,
+                "details": [],
+                "check_len": null,
+                "definition_context_file_path": null
+            },
+            {
+                "check_id": "CKV_K8S_20",
+                "bc_check_id": null,
+                "check_name": "Containers should not run with allowPrivilegeEscalation",
+                "check_result": {
+                    "result": "FAILED",
+                    "evaluated_keys": [
+                        "spec/template/spec/containers/[0]/securityContext/allowPrivilegeEscalation"
+                    ]
+                },
+                "code_block": null,
+                "file_path": "/4/rendered.yaml",
+                "file_abs_path": "/tmp/iacrender/4/rendered.yaml",
+                "repo_file_path": "/tmp/iacrender/4/rendered.yaml",
+                "file_line_range": [
+                    1,
+                    20
+                ],
+                "resource": "Deployment.default.api",
+                "evaluations": {},
+                "check_class": "checkov.kubernetes.checks.resource.k8s.AllowPrivilegeEscalation",
+                "fixed_definition": null,
+                "entity_tags": null,
+                "caller_file_path": null,
+                "caller_file_line_range": null,
+                "resource_address": null,
+                "severity": null,
+                "bc_category": null,
+                "benchmarks": null,
+                "description": null,
+                "short_description": null,
+                "vulnerability_details": null,
+                "connected_node": null,
+                "guideline": null,
+                "details": [],
+                "check_len": null,
+                "definition_context_file_path": null
+            }
+        ]
+    },
+    "summary": {
+        "passed": 17,
+        "failed": 7,
+        "skipped": 0,
+        "parsing_errors": 0,
+        "resource_count": 6,
+        "checkov_version": "3.3.29"
+    }
+}

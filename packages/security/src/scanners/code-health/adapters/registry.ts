@@ -3,6 +3,7 @@ import { biomeAdapter } from './biome.js';
 import { cppcheckAdapter } from './cppcheck.js';
 import { checkovAdapter } from './checkov.js';
 import { hadolintAdapter } from './hadolint.js';
+import { iacRenderAdapter } from './iacrender.js';
 import { ruffAdapter } from './ruff.js';
 import { shellcheckAdapter } from './shellcheck.js';
 import type { AdapterContext, AdapterFinding, ToolAdapter } from './types.js';
@@ -38,6 +39,7 @@ export function resetAdapters(): void {
   registerAdapter(shellcheckAdapter);
   registerAdapter(hadolintAdapter);
   registerAdapter(checkovAdapter);
+  registerAdapter(iacRenderAdapter);
 }
 
 resetAdapters();

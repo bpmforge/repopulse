@@ -1,0 +1,14 @@
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: Deployment
+      name: api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/hostPID
+        value: true
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          privileged: true

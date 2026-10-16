@@ -1,0 +1,5 @@
+resources:
+  - ../../base
+replicas:
+  - name: api
+    count: 3

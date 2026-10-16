@@ -166,7 +166,7 @@ function looksLikeIac(file: string): boolean {
   );
 }
 
-interface CheckovFailed {
+export interface CheckovFailed {
   check_id?: unknown;
   check_name?: unknown;
   file_abs_path?: unknown;
@@ -178,6 +178,80 @@ interface CheckovFailed {
 /** checkov prints one report object, a list of them, or a bare summary. */
 function reports(parsed: unknown): unknown[] {
   return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+/**
+ * Reads checkov's JSON report into findings on the allowlist. `fileOf` decides
+ * which file a failed check is attributed to, so a caller that scanned
+ * generated files (the rendered Helm and Kustomize output) can point the
+ * finding at the source it came from.
+ */
+export function parseCheckovReport(
+  stdout: string,
+  fileOf: (raw: CheckovFailed) => string,
+  rulePrefix = 'tool.checkov',
+): AdapterFinding[] {
+  const json = extractJson(stdout);
+  if (!json) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+
+  const out: AdapterFinding[] = [];
+  for (const report of reports(parsed)) {
+    if (!report || typeof report !== 'object') continue;
+    const results = (report as { results?: { failed_checks?: unknown } }).results;
+    const failed = results?.failed_checks;
+    if (!Array.isArray(failed)) continue;
+    for (const raw of failed as CheckovFailed[]) {
+      const id = typeof raw?.check_id === 'string' ? raw.check_id : '';
+      // The allowlist is enforced here too: --check is the cost control,
+      // this is the guarantee — a checkov upgrade that changed how --check
+      // matches must not widen what we report.
+      const severity = CHECKOV_CHECKS[id];
+      if (severity === undefined) continue;
+      const name = typeof raw.check_name === 'string' ? raw.check_name : id;
+      const resource = typeof raw.resource === 'string' ? raw.resource : '';
+      const range = Array.isArray(raw.file_line_range) ? raw.file_line_range : [];
+      const start = typeof range[0] === 'number' && range[0] > 0 ? range[0] : 1;
+      const end = typeof range[1] === 'number' && range[1] >= start ? range[1] : start;
+      const message = resource ? `${name} (${resource})` : name;
+      out.push({
+        ruleId: `${rulePrefix}.${id}`,
+        file: fileOf(raw),
+        lineStart: start,
+        lineEnd: end,
+        severity,
+        title: `${id}: ${name}`.slice(0, 120),
+        message,
+        dimension: 'iac',
+        nativeRule: id,
+      });
+    }
+  }
+  return out;
+}
+
+/** The checkov flags both adapters share: allowlist, JSON out, no platform calls. */
+export function checkovFlags(frameworks: readonly string[]): string[] {
+  return [
+    '--framework',
+    ...frameworks,
+    '--check',
+    Object.keys(CHECKOV_CHECKS).join(','),
+    '--output',
+    'json',
+    '--quiet',
+    '--compact',
+    // No call to the Prisma Cloud platform for guidelines or severities.
+    // Without it checkov still makes no network request when no API key is
+    // set — verified under `unshare -n` — and the sandbox has no network
+    // anyway; this keeps it from trying.
+    '--skip-download',
+  ];
 }
 
 export const checkovAdapter: ToolAdapter = {
@@ -205,70 +279,17 @@ export const checkovAdapter: ToolAdapter = {
       'sh',
       'checkov',
       `--directory=${ctx.mountPath}`,
-      '--framework',
-      ...FRAMEWORKS,
-      '--check',
-      Object.keys(CHECKOV_CHECKS).join(','),
-      '--output',
-      'json',
-      '--quiet',
-      '--compact',
-      // No call to the Prisma Cloud platform for guidelines or severities.
-      // Without it checkov still makes no network request when no API key is
-      // set — verified under `unshare -n` — and the sandbox has no network
-      // anyway; this keeps it from trying.
-      '--skip-download',
+      ...checkovFlags(FRAMEWORKS),
     ];
   },
 
   parse(stdout: string, ctx: AdapterContext): AdapterFinding[] {
-    const json = extractJson(stdout);
-    if (!json) return [];
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(json);
-    } catch {
-      return [];
-    }
-
-    const out: AdapterFinding[] = [];
-    for (const report of reports(parsed)) {
-      if (!report || typeof report !== 'object') continue;
-      const results = (report as { results?: { failed_checks?: unknown } }).results;
-      const failed = results?.failed_checks;
-      if (!Array.isArray(failed)) continue;
-      for (const raw of failed as CheckovFailed[]) {
-        const id = typeof raw?.check_id === 'string' ? raw.check_id : '';
-        // The allowlist is enforced here too: --check is the cost control,
-        // this is the guarantee — a checkov upgrade that changed how --check
-        // matches must not widen what we report.
-        const severity = CHECKOV_CHECKS[id];
-        if (severity === undefined) continue;
-        const name = typeof raw.check_name === 'string' ? raw.check_name : id;
-        const resource = typeof raw.resource === 'string' ? raw.resource : '';
-        const range = Array.isArray(raw.file_line_range) ? raw.file_line_range : [];
-        const start = typeof range[0] === 'number' && range[0] > 0 ? range[0] : 1;
-        const end = typeof range[1] === 'number' && range[1] >= start ? range[1] : start;
-        const file =
-          typeof raw.file_abs_path === 'string'
-            ? relativeTo(ctx.mountPath, raw.file_abs_path)
-            : typeof raw.file_path === 'string'
-              ? raw.file_path.replace(/^\//, '')
-              : '';
-        const message = resource ? `${name} (${resource})` : name;
-        out.push({
-          ruleId: `tool.checkov.${id}`,
-          file,
-          lineStart: start,
-          lineEnd: end,
-          severity,
-          title: `${id}: ${name}`.slice(0, 120),
-          message,
-          dimension: 'iac',
-          nativeRule: id,
-        });
-      }
-    }
-    return out;
+    return parseCheckovReport(stdout, (raw) =>
+      typeof raw.file_abs_path === 'string'
+        ? relativeTo(ctx.mountPath, raw.file_abs_path)
+        : typeof raw.file_path === 'string'
+          ? raw.file_path.replace(/^\//, '')
+          : '',
+    );
   },
 };
