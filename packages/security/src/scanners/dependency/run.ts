@@ -10,6 +10,7 @@ import {
   type ValidationFunnel,
 } from '../../validation/index.js';
 import { loadMaliciousIndex, matchMalicious, maliciousFinding, packagesFromSbom } from './malicious.js';
+import { adviseFix, readFixGraphs } from './fixpath/index.js';
 import { runDependencyTools, vulnDbDir } from './tools.js';
 import {
   dependencyFindings,
@@ -235,7 +236,17 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           rawMatchCount: tools.matchFunnel?.rawMatches ?? tools.matches.length,
         });
 
-        const mapped = dependencyFindings(validation.vulnerabilities, tools.document);
+        // W18-36: lockfile graphs, so a transitive CVE names the direct dependency
+        // to bump instead of only the vulnerable package's own fixed version.
+        const fixGraphs = readFixGraphs(snapshot.dir).graphs;
+        const mapped = dependencyFindings(validation.vulnerabilities, tools.document, (v) =>
+          adviseFix(fixGraphs, {
+            packageType: v.packageType,
+            name: v.packageName,
+            version: v.packageVersion,
+            fixVersions: v.fixVersions,
+          }),
+        );
 
         // W18-37: OpenSSF malicious packages. A hit is its own finding at
         // severity 5; a missing index is a stated note on the run, never a
