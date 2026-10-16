@@ -1,0 +1,82 @@
+# bpm-rulepacks — anti-slop, Swift variants v1 (W18-41, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse; not derived from the Semgrep registry,
+# SwiftLint, or any vendor pack (licence position: bpm-baseline.v1.yaml header).
+#
+# ENGINE LIMITS, measured 2026-10-16 with semgrep 1.181 (Opengrep 1.27.1 in the
+# scan image is not measurable from the build host; the golden test runs
+# whichever engine is on PATH): the Swift parser handles `URL(string: $X)!`,
+# `try!`, `as!`, `do { } catch { }`, `func` patterns with labelled parameters and
+# `Type.method(...)` calls. It does NOT see string interpolation as structure,
+# so interpolation checks (`"\(x)"`) are text regexes, and a rule that must know a
+# call is guarded elsewhere in the function can only look for the guard as an
+# enclosing `if`. Comments are invisible. Property wrappers and attributes
+# (`@objc`, `@MainActor`) are not matchable.
+rules:
+  - id: bpm-ch-sw-try-bang
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      `try!` turns any thrown error into a crash. Where the failure is
+      possible at run time, handle it or propagate it; keep `try!` for
+      operations that provably cannot fail and say why.
+    metadata:
+      source: CODE_HEALTH_SUITE §1
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Cannot judge whether the call can fail; a `try!` on a bundled resource
+        is reported. Tests are excluded by path.
+    paths:
+      exclude:
+        - 'Tests/**'
+        - '**/*Tests/**'
+        - 'main.swift'
+    pattern-regex: \btry!
+
+  - id: bpm-ch-sw-force-cast
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      `as!` crashes when the value is not the type. Use `as?` with a `guard`
+      so an unexpected type is handled instead of aborting the process.
+    metadata:
+      source: CODE_HEALTH_SUITE §1
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Dequeuing a storyboard-registered cell with `as!` is a common accepted
+        idiom and is reported too.
+    paths:
+      exclude:
+        - 'Tests/**'
+        - '**/*Tests/**'
+        - 'main.swift'
+    pattern-regex: \bas!\s
+
+  - id: bpm-ch-sw-empty-catch
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      A `catch` block that does nothing. The error is thrown away, so a failure
+      leaves no trace and the caller carries on as if it succeeded. Log it,
+      propagate it, or write down why ignoring it is safe.
+    metadata:
+      source: CODE_HEALTH_SUITE §1
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        A catch holding only a comment is empty to the parser, so a documented
+        deliberate ignore is reported.
+    paths:
+      exclude:
+        - 'Tests/**'
+        - '**/*Tests/**'
+    pattern: |
+      do { ... } catch { }

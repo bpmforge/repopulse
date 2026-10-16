@@ -1,0 +1,64 @@
+# bpm-rulepacks — logging antipatterns, Swift variants v1 (W18-41, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse; not derived from the Semgrep registry,
+# SwiftLint, or any vendor pack (licence position: bpm-baseline.v1.yaml header).
+#
+# ENGINE LIMITS, measured 2026-10-16 with semgrep 1.181 (Opengrep 1.27.1 in the
+# scan image is not measurable from the build host; the golden test runs
+# whichever engine is on PATH): the Swift parser handles `URL(string: $X)!`,
+# `try!`, `as!`, `do { } catch { }`, `func` patterns with labelled parameters and
+# `Type.method(...)` calls. It does NOT see string interpolation as structure,
+# so interpolation checks (`"\(x)"`) are text regexes, and a rule that must know a
+# call is guarded elsewhere in the function can only look for the guard as an
+# enclosing `if`. Comments are invisible. Property wrappers and attributes
+# (`@objc`, `@MainActor`) are not matchable.
+rules:
+  - id: bpm-log-sw-print-in-lib
+    languages: [swift]
+    severity: INFO
+    message: >-
+      `print` in app or library code. It always writes to stdout, with no
+      level, no subsystem and no privacy control, and ships in release builds.
+      Use `os.Logger` so the level, redaction and destination are decided in
+      one place.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Command-line tools print as their product; main.swift and tests are
+        excluded by path, other CLI modules are not.
+    paths:
+      exclude:
+        - 'Tests/**'
+        - '**/*Tests/**'
+        - 'main.swift'
+    pattern: print(...)
+
+  - id: bpm-log-sw-secret-in-log
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      A secret-named value is interpolated into a log line. Logs are collected,
+      shipped and read by people and tools that were never meant to hold
+      credentials. Log that the value was present, not the value.
+    metadata:
+      source: CODE_HEALTH_SUITE §3
+      category: code_health
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Matches secret-looking names inside an interpolation passed to print or
+        NSLog on one line; a value logged through a variable is missed.
+    paths:
+      exclude:
+        - 'Tests/**'
+        - '**/*Tests/**'
+    patterns:
+      - pattern-either:
+          - pattern: print($S)
+          - pattern: NSLog($S, ...)
+      - pattern-regex: (?i)(?:print|NSLog)\(\s*"[^"\n]*\\\([^)\n]*(?:password|passwd|secret|apikey|api_key|accesstoken|access_token|authtoken|auth_token)

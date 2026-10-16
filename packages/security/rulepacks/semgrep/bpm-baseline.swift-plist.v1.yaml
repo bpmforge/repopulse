@@ -1,0 +1,26 @@
+# bpm-rulepacks — baseline, Swift property-list variants v1 (W18-41).
+#
+# OUR OWN RULES, written for RepoPulse. A plist is configuration, not Swift, so
+# this pack uses the generic matcher over *.plist files and is a regex check.
+rules:
+  - id: bpm-sw-ats-allow-arbitrary-loads
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      App Transport Security is switched off for the whole app
+      (`NSAllowsArbitraryLoads` is true). Every connection may then use
+      cleartext HTTP or weak TLS. Remove it and add a narrowly scoped
+      `NSExceptionDomains` entry for the one host that needs it.
+    metadata:
+      category: security
+      cwe: 'CWE-319: Cleartext Transmission of Sensitive Information'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reads Info.plist text; a value set through build settings or an
+        xcconfig is not seen. Does not judge the exception domains.
+    paths:
+      include:
+        - '*.plist'
+    pattern-regex: <key>NSAllowsArbitraryLoads</key>\s*<true\s*/>
