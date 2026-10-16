@@ -9651,9 +9651,9 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "Landed 2026-10-16: catalogue (lodash, underscore, minimist, node-serialize, ejs, jsonwebtoken, PyYAML), generated pack rulepacks/reachability/bpm-reach.v1.yaml, call-site join and funnel verdict. Golden fixtures (21 trigger lines, clean silent) verified on a host semgrep 1.181; the same golden test runs through the scan image and is run on the Mac (opengrep 1.27.1) before this is marked done. A call site never yields proven_unreachable.",
+        "Landed 2026-10-16: catalogue (lodash, underscore, minimist, node-serialize, ejs, jsonwebtoken, PyYAML), generated pack rulepacks/reachability/bpm-reach.v1.yaml, call-site join and funnel verdict. Golden fixtures (21 trigger lines, clean silent) verified on a host semgrep 1.181; the same golden tests pass in the scan image on the Mac (opengrep 1.27.1), no differences. A call site never yields proven_unreachable.",
         "Split from W18-37. V3 symbol reachability exists for Go only today (validation/reachability.ts)."
       ]
     },
