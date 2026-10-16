@@ -135,7 +135,8 @@ describe('runBenchmark', () => {
     // YAML-rule labels are skipped, not counted as misses, when the packs did not run.
     const sql = one.outcomes.find((o) => o.labelId === 'sast-sql-template');
     expect(sql?.kind).toBe('skipped');
-  });
+    // With the fetched public suites present the fast lane walks ~5,800 labels twice.
+  }, 60_000);
 
   it.skipIf(findYamlTool() === null)(
     'scores the rule fixtures at full recall with no false positives (the regression floor)',
