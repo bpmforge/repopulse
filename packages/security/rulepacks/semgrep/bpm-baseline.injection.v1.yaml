@@ -1180,9 +1180,32 @@ rules:
               - pattern: $REQ.getRequestURI()
               - pattern: $REQ.getPathInfo()
               - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
           - metavariable-regex:
               metavariable: $REQ
               regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
       # Spring MVC bound parameters.
       - patterns:
           - pattern-inside: |
@@ -1282,9 +1305,32 @@ rules:
               - pattern: $REQ.getRequestURI()
               - pattern: $REQ.getPathInfo()
               - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
           - metavariable-regex:
               metavariable: $REQ
               regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
       # Spring MVC bound parameters.
       - patterns:
           - pattern-inside: |
@@ -1371,9 +1417,32 @@ rules:
               - pattern: $REQ.getRequestURI()
               - pattern: $REQ.getPathInfo()
               - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
           - metavariable-regex:
               metavariable: $REQ
               regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
       # Spring MVC bound parameters.
       - patterns:
           - pattern-inside: |
@@ -1427,14 +1496,28 @@ rules:
           - pattern-either:
               - pattern: new File($X)
               - pattern: new File($PARENT, $X)
+              - pattern: new File($X, $CHILD)
               - pattern: new FileInputStream($X)
               - pattern: new FileOutputStream($X, ...)
               - pattern: new FileReader($X)
               - pattern: new FileWriter($X, ...)
-              - pattern: Paths.get($X, ...)
-              - pattern: Path.of($X, ...)
+              - pattern: Paths.get(..., $X, ...)
+              - pattern: Path.of(..., $X, ...)
               - pattern: Files.readAllBytes($X)
               - pattern: Files.readString($X, ...)
+              # The same classes written fully qualified, which is how code that
+              # avoids an import (or a name clash) spells them.
+              - pattern: new java.io.File($X)
+              - pattern: new java.io.File($PARENT, $X)
+              - pattern: new java.io.File($X, $CHILD)
+              - pattern: new java.io.FileInputStream($X)
+              - pattern: new java.io.FileOutputStream($X, ...)
+              - pattern: new java.io.FileReader($X)
+              - pattern: new java.io.FileWriter($X, ...)
+              - pattern: java.nio.file.Paths.get(..., $X, ...)
+              - pattern: java.nio.file.Path.of(..., $X, ...)
+              - pattern: java.nio.file.Files.readAllBytes($X)
+              - pattern: java.nio.file.Files.readString($X, ...)
               - pattern: new ClassPathResource($X)
               - pattern: new FileSystemResource($X)
           - focus-metavariable: $X
@@ -1472,9 +1555,32 @@ rules:
               - pattern: $REQ.getRequestURI()
               - pattern: $REQ.getPathInfo()
               - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
           - metavariable-regex:
               metavariable: $REQ
               regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
       # Spring MVC bound parameters.
       - patterns:
           - pattern-inside: |
@@ -1571,9 +1677,32 @@ rules:
               - pattern: $REQ.getRequestURI()
               - pattern: $REQ.getPathInfo()
               - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
           - metavariable-regex:
               metavariable: $REQ
               regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
       # Spring MVC bound parameters.
       - patterns:
           - pattern-inside: |
@@ -1668,9 +1797,32 @@ rules:
               - pattern: $REQ.getRequestURI()
               - pattern: $REQ.getPathInfo()
               - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
           - metavariable-regex:
               metavariable: $REQ
               regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
       # Spring MVC bound parameters.
       - patterns:
           - pattern-inside: |

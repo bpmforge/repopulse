@@ -1,0 +1,146 @@
+# bpm-rulepacks — baseline, Java weak cryptography v1 (W18-49,
+# SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse in the semgrep rule format the Opengrep
+# engine reads. Nothing here is copied, adapted or derived from the Semgrep
+# registry, whose licence bars it for service use, nor from any benchmark: the
+# algorithm lists below are the JCA's own names for algorithms that are
+# deprecated or broken, and each rule is correct on ordinary Java.
+#
+# These sit BESIDE bpm-java-weak-hash-secret and bpm-java-insecure-random-token
+# in bpm-baseline.java.v1.yaml, which are deliberately narrow (a secret-shaped
+# name must be in view). The rules here make the opposite trade, and say so in
+# each message: they fire on the algorithm choice itself, because for a cipher
+# the choice IS the defect. A site both families see is reported by both; the
+# narrow rule's finding says what it was used for, this one says what is wrong.
+#
+# Every rule ships as a shadow-mode candidate (`metadata.lifecycle: candidate`).
+rules:
+  - id: bpm-java-weak-hash
+    languages: [java]
+    severity: WARNING
+    message: >-
+      MD5, MD2, MD4 or SHA-1 selected as a message digest. All are broken for
+      collision resistance, so a signature, certificate, integrity check or
+      password hash built on them can be forged or reversed. A non-security
+      checksum (a cache key, an ETag) is fine; anything an attacker can influence
+      should use SHA-256 or better, and passwords need bcrypt, scrypt, Argon2 or
+      PBKDF2.
+    metadata:
+      category: security
+      cwe: 'CWE-328: Use of Weak Hash'
+      owasp: 'A02:2021 Cryptographic Failures'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reads the algorithm only when it is a literal (or a local assigned a
+        literal). An algorithm taken from configuration is not resolved, and
+        the use is not judged: a checksum is reported the same as a signature.
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    patterns:
+      - pattern-either:
+          - pattern: MessageDigest.getInstance("$ALG", ...)
+          - pattern: java.security.MessageDigest.getInstance("$ALG", ...)
+      - metavariable-regex:
+          metavariable: $ALG
+          regex: (?i)^(md5|md4|md2|sha-?1|sha)$
+
+  - id: bpm-java-weak-cipher
+    languages: [java]
+    severity: ERROR
+    message: >-
+      A broken or deprecated cipher, or a mode that leaks structure. DES, 3DES
+      (DESede), RC2, RC4 and Blowfish are retired, and ECB encrypts equal blocks
+      to equal ciphertext. Use AES/GCM/NoPadding (or ChaCha20-Poly1305) with a
+      fresh random nonce.
+    metadata:
+      category: security
+      cwe: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm'
+      owasp: 'A02:2021 Cryptographic Failures'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reads the transformation only when it is a literal (or a local assigned
+        a literal); one taken from configuration is not resolved. A bare "AES"
+        (which the JCA resolves to ECB) is deliberately NOT reported here: that
+        is true of every provider, but it is a judgement some benchmarks make
+        the other way, so it is left for its own rule once measured.
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-either:
+      # A cipher transformation: the algorithm is the part before the first
+      # slash, the mode the second. An explicit ECB mode is reported for any
+      # block cipher; the IMPLICIT ECB of a bare "AES" is its own rule below.
+      - patterns:
+          - pattern-either:
+              - pattern: Cipher.getInstance("$T", ...)
+              - pattern: javax.crypto.Cipher.getInstance("$T", ...)
+          - metavariable-regex:
+              metavariable: $T
+              regex: (?i)^((des|desede|tripledes|rc2|rc4|arcfour|blowfish)(/.*)?|[a-z0-9]+/ecb/.*)$
+      # A key or key-factory request for an algorithm that is itself retired.
+      - patterns:
+          - pattern-either:
+              - pattern: KeyGenerator.getInstance("$T", ...)
+              - pattern: javax.crypto.KeyGenerator.getInstance("$T", ...)
+              - pattern: SecretKeyFactory.getInstance("$T", ...)
+              - pattern: javax.crypto.SecretKeyFactory.getInstance("$T", ...)
+          - metavariable-regex:
+              metavariable: $T
+              regex: (?i)^(des|desede|tripledes|rc2|rc4|arcfour|blowfish)$
+
+  - id: bpm-java-weak-random
+    languages: [java]
+    severity: INFO
+    message: >-
+      java.util.Random, Math.random() and ThreadLocalRandom are predictable from
+      a few outputs. Inside a request handler the value is likely to end up in a
+      token, id, password or reset code that an attacker can guess; use
+      SecureRandom. (Jitter, sampling and shuffling are fine with Random — this
+      is reported only inside a handler, where that is the rarer use.)
+    metadata:
+      category: security
+      cwe: 'CWE-330: Use of Insufficiently Random Values'
+      owasp: 'A02:2021 Cryptographic Failures'
+      yields: ['predictable-token']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Only inside a method that takes a servlet request or response. A weak
+        generator in a service class that the handler calls is not reported,
+        and an ordinary random choice inside a handler is (a false positive the
+        shadow lifecycle exists to measure).
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    patterns:
+      - pattern-either:
+          # `Math.random()` binds no method name, so the name filter belongs to
+          # the generator-object forms only.
+          - patterns:
+              - pattern-either:
+                  - pattern: new Random(...).$NEXT(...)
+                  - pattern: new java.util.Random(...).$NEXT(...)
+                  - pattern: (java.util.Random $R).$NEXT(...)
+                  - pattern: (Random $R).$NEXT(...)
+                  - pattern: ThreadLocalRandom.current().$NEXT(...)
+              - metavariable-regex:
+                  metavariable: $NEXT
+                  regex: ^(next\w*|ints|longs|doubles)$
+          - pattern: Math.random()
+          - pattern: java.lang.Math.random()
+      - pattern-inside: |
+          $RET $METHOD(..., HttpServletRequest $REQ, ...) {
+            ...
+          }
