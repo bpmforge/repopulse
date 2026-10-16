@@ -326,7 +326,7 @@ describeIfDb('trust surfaces over the database (W18-22)', () => {
       expect(map.scanners.items.some((s) => s.reason === 'never_run')).toBe(true);
       // The unsupported capabilities are always listed.
       expect(map.scanners.items.map((s) => s.key)).toEqual(
-        expect.arrayContaining(['iac', 'test_coverage']),
+        expect.arrayContaining(['test_coverage']),
       );
       expect(map.shadowRules.items.map((r) => r.ruleId)).toContain('slop.unused_export');
     });

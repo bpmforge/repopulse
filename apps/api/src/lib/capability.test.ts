@@ -219,6 +219,15 @@ describeIfDb('repoCapabilities (W17-10)', () => {
     }
   });
 
+  it('IaC is derived from the code-health run, not reported as unsupported', async () => {
+    expect((await cap('iac'))?.state).toBe('not_configured');
+    await addScanRun({ status: 'succeeded', finishedAt: RECENT, scannerKey: 'code_health_tools' });
+    const iac = await cap('iac');
+    expect(iac?.state).toBe('succeeded');
+    expect(iac?.lastSuccessAt).not.toBeNull();
+    expect(iac?.detail).toMatch(/shadow/i);
+  });
+
   it('AI review with no enabled model is not_configured and says it is OPTIONAL', async () => {
     const ai = await cap('ai_review');
     // No provider is enabled in this workspace.
