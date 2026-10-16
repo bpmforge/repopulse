@@ -44,6 +44,7 @@ function toFinding(
 ): SecretFindingRow {
   const result = verifyMatch(match, verification ?? {});
   const level = escalate(match, result);
+  const rule = pack.rules.find((r) => r.id === match.ruleId);
   const redacted = redactSecretFinding({
     file: match.file,
     lineStart: match.line,
@@ -59,7 +60,7 @@ function toFinding(
     file: redacted.file,
     lineStart: redacted.lineStart,
     lineEnd: redacted.lineEnd,
-    title: `${titleFor(match.kind)} committed in ${match.file}`,
+    title: `${titleFor(match.kind, rule?.description)} committed in ${match.file}`,
     // The rulepack version is on the evidence line as well as the scan_run:
     // a finding is only reproducible against the pack that produced it, and
     // the evidence is what a person reads when they ask why this fired.
@@ -75,10 +76,11 @@ function toFinding(
     yields: { [`credential:${match.kind}`]: true },
     fingerprint: redacted.fingerprint,
     surfaceImmediately: level.surfaceImmediately,
+    ...(rule?.candidate ? { experimental: true } : {}),
   };
 }
 
-function titleFor(kind: string): string {
+function titleFor(kind: string, description?: string): string {
   const named: Record<string, string> = {
     aws: 'AWS credential',
     github: 'GitHub token',
@@ -94,7 +96,7 @@ function titleFor(kind: string): string {
     jwt: 'JSON Web Token',
     generic: 'Secret',
   };
-  return named[kind] ?? 'Secret';
+  return named[kind] ?? description ?? 'Secret';
 }
 
 /** Exported for the chainer and for tests that assert nothing else leaks. */

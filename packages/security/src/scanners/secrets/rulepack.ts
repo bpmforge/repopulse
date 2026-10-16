@@ -27,6 +27,11 @@ export interface SecretRule {
   entropy?: number;
   /** Matches that are known non-secrets (placeholders, other rules' prefixes). */
   allowlist: RegExp[];
+  /**
+   * Shadow candidate (W18-38): the rule runs and its findings are stored, but
+   * flagged experimental so they stay out of scores until an admin promotes it.
+   */
+  candidate: boolean;
 }
 
 export interface Rulepack {
@@ -170,7 +175,7 @@ function toRegExp(source: string, flags: string): RegExp {
 }
 
 const REQUIRED = ['id', 'description', 'kind', 'severity', 'regex'] as const;
-const KNOWN = new Set([...REQUIRED, 'keywords', 'entropy', 'allowlist']);
+const KNOWN = new Set([...REQUIRED, 'keywords', 'entropy', 'allowlist', 'lifecycle']);
 
 export function compileRulepack(parsed: { version: number; rules: RawRule[] }): Rulepack {
   const seen = new Set<string>();
@@ -191,6 +196,11 @@ export function compileRulepack(parsed: { version: number; rules: RawRule[] }): 
     const severity = Number(raw['severity']);
     if (!Number.isInteger(severity) || severity < 1 || severity > 5) {
       throw new RulepackError(`rule "${id}" has severity ${String(raw['severity'])}, expected 1-5`);
+    }
+
+    const lifecycle = raw['lifecycle'] === undefined ? 'active' : String(raw['lifecycle']);
+    if (lifecycle !== 'active' && lifecycle !== 'candidate') {
+      throw new RulepackError(`rule "${id}" has lifecycle "${lifecycle}", expected active or candidate`);
     }
 
     let regex: RegExp;
@@ -216,6 +226,7 @@ export function compileRulepack(parsed: { version: number; rules: RawRule[] }): 
       regex,
       keywords: (raw['keywords'] as string[] | undefined) ?? [],
       allowlist,
+      candidate: lifecycle === 'candidate',
     };
     if (raw['entropy'] !== undefined) rule.entropy = Number(raw['entropy']);
     return rule;
