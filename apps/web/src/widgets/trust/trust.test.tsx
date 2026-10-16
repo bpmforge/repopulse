@@ -222,3 +222,56 @@ describe('CoverageMap', () => {
     );
   });
 });
+
+describe('public benchmark accuracy (W18-40)', () => {
+  it('says so when no public benchmark has been run, and shows no numbers', async () => {
+    bodies['/rules/precision'] = REPORT;
+    wrap(<RulePrecisionTable />);
+    expect(await screen.findByTestId('public-benchmark-empty')).toBeTruthy();
+    expect(screen.queryByTestId('public-benchmark-table')).toBeNull();
+  });
+
+  it('lists every CWE with its date, including the ones scored 0% detected', async () => {
+    bodies['/rules/precision'] = {
+      ...REPORT,
+      benchmark: {
+        ...SOURCE,
+        publicSuites: [{ id: 'owasp-benchmark', title: 'OWASP Benchmark (Java) v1.2' }],
+        measured: { date: '2026-10-16', commit: 'abc' },
+        cwes: [
+          {
+            suite: 'owasp-benchmark',
+            cwe: 89,
+            tp: 60,
+            fn: 40,
+            fp: 5,
+            tn: 95,
+            tpr: 0.6,
+            fpr: 0.05,
+            youden: 0.55,
+          },
+          {
+            suite: 'owasp-benchmark',
+            cwe: 643,
+            tp: 0,
+            fn: 10,
+            fp: 0,
+            tn: 10,
+            tpr: 0,
+            fpr: 0,
+            youden: 0,
+          },
+        ],
+      },
+    };
+    wrap(<RulePrecisionTable />);
+    const sql = await screen.findByTestId('public-benchmark-owasp-benchmark-89');
+    expect(sql.textContent).toMatch(/OWASP Benchmark \(Java\) v1\.2/);
+    expect(sql.textContent).toMatch(/60\.0% \(60 of 100\)/);
+    expect(sql.textContent).toMatch(/5\.0% \(5 of 100\)/);
+    expect(sql.textContent).toMatch(/0\.55/);
+    const bad = screen.getByTestId('public-benchmark-owasp-benchmark-643');
+    expect(bad.textContent).toMatch(/0\.0% \(0 of 10\)/);
+    expect(screen.getByTestId('public-benchmark').textContent).toMatch(/2026-10-16/);
+  });
+});

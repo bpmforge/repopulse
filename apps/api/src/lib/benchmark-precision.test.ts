@@ -90,3 +90,45 @@ describe('summariseBenchmark', () => {
     ).toBeNull();
   });
 });
+
+describe('summariseBenchmark: public suites (W18-40)', () => {
+  const base = {
+    ticket: 'T',
+    engines: { yaml: { status: 'ran', tool: 'semgrep', version: '1.0.0' } },
+    outcomes: [],
+  };
+
+  it('carries per-CWE scores, scored public suites and the measurement date through', () => {
+    const cwe = {
+      suite: 'owasp-benchmark',
+      cwe: 89,
+      tp: 3,
+      fp: 1,
+      fn: 1,
+      tn: 3,
+      tpr: 0.75,
+      fpr: 0.25,
+      youden: 0.5,
+    };
+    const summary = summariseBenchmark({
+      ...base,
+      byCwe: [cwe],
+      corpus: [
+        { id: 'owasp-benchmark', title: 'OWASP Benchmark', status: 'scored' },
+        { id: 'juliet-java', title: 'Juliet', status: 'not-prepared' },
+        { id: 'sampleco', title: 'SampleCo', status: 'scored' },
+      ],
+      measured: { date: '2026-10-16', commit: 'abc' },
+    });
+    expect(summary.cwes).toEqual([cwe]);
+    expect(summary.publicSuites).toEqual([{ id: 'owasp-benchmark', title: 'OWASP Benchmark' }]);
+    expect(summary.measured).toEqual({ date: '2026-10-16', commit: 'abc' });
+  });
+
+  it('is empty, not invented, for a report that predates public suites', () => {
+    const summary = summariseBenchmark(base);
+    expect(summary.cwes).toEqual([]);
+    expect(summary.publicSuites).toEqual([]);
+    expect(summary.measured).toEqual({ date: null, commit: null });
+  });
+});

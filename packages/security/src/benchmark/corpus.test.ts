@@ -14,10 +14,11 @@ import { runBenchmark } from './run.js';
 const suites = loadCorpus();
 
 describe('benchmark corpus', () => {
-  it('has the four committed suites and the fetched OWASP one', () => {
+  it('has the four committed suites and the two fetched public ones', () => {
     expect(suites.map((s) => s.manifest.id)).toEqual([
       'changes',
       'juice-shop',
+      'juliet-java',
       'owasp-benchmark',
       'rule-fixtures',
       'sampleco',
@@ -69,7 +70,7 @@ describe('benchmark corpus', () => {
   it('commits no OWASP Benchmark source: only ids and hashes, fetched into a gitignored cache', () => {
     const owasp = suites.find((s) => s.manifest.id === 'owasp-benchmark')!;
     const spec = owasp.manifest.fetch!;
-    expect(spec.files).toHaveLength(60);
+    expect(spec.files.length).toBeGreaterThanOrEqual(60);
     expect(spec.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(owasp.manifest.labels).toEqual([]);
     expect(treeFiles(owasp.dir)).toEqual(['suite.json']);

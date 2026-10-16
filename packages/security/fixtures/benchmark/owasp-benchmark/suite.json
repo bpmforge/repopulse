@@ -1,7 +1,7 @@
 {
   "id": "owasp-benchmark",
-  "title": "OWASP Benchmark (Java) subset",
-  "description": "Test cases from OWASP Benchmark v1.2 with their published verdicts (expectedresults-1.2.csv). The first five real and five false-positive cases of six categories, in answer-key order. Scored per OWASP's own unit: a case is a file and a CWE, so only findings carrying the case's CWE count, and findings for other CWEs are ignored rather than counted against us. GPL-2.0, so NOT vendored: run the prepare script to fetch the pinned bytes into the gitignored .cache.",
+  "title": "OWASP Benchmark (Java) v1.2",
+  "description": "Test cases from OWASP Benchmark v1.2 with their published verdicts (expectedresults-1.2.csv): every case of all eleven categories once prepared with --pin (until then the pinned subset below). Scored per OWASP's own unit: a case is a file and a CWE, so only findings carrying the case's CWE count, and findings for other CWEs are ignored rather than counted against us. GPL-2.0, so NOT vendored: run the prepare script to fetch the pinned bytes into the gitignored .cache.",
   "source": {
     "kind": "fetched",
     "repository": "https://github.com/OWASP-Benchmark/BenchmarkJava",
@@ -25,8 +25,19 @@
     },
     "sourceDir": "src/main/java/org/owasp/benchmark/testcode",
     "selection": {
-      "categories": ["sqli", "cmdi", "pathtraver", "hash", "crypto", "weakrand"],
-      "perVerdict": 5
+      "categories": [
+        "cmdi",
+        "crypto",
+        "hash",
+        "ldapi",
+        "pathtraver",
+        "securecookie",
+        "sqli",
+        "trustbound",
+        "weakrand",
+        "xpathi",
+        "xss"
+      ]
     },
     "files": [
       {
@@ -269,6 +280,7 @@
         "test": "BenchmarkTest00096",
         "sha256": "ea29b61690df55d2baa8978a4bb92d4ea135911e0769447093aed951e9f21ca5"
       }
-    ]
+    ],
+    "archiveUrl": "https://codeload.github.com/OWASP-Benchmark/BenchmarkJava/tar.gz/{commit}"
   }
 }

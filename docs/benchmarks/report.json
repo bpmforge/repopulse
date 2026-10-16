@@ -4,7 +4,7 @@
   "scope": "Deterministic layers only: the in-process fast lane (anti_slop arithmetic and graph checks, secrets rulepack) and the YAML rulepacks. No LLM tier is measured.",
   "engines": {
     "fastLane": {
-      "rules": 20
+      "rules": 130
     },
     "yaml": {
       "status": "ran",
@@ -15,39 +15,49 @@
         "rulepacks/code-health/anti-slop.csharp.v1.yaml",
         "rulepacks/code-health/anti-slop.go.v1.yaml",
         "rulepacks/code-health/anti-slop.java.v1.yaml",
+        "rulepacks/code-health/anti-slop.kotlin.v1.yaml",
         "rulepacks/code-health/anti-slop.php.v1.yaml",
         "rulepacks/code-health/anti-slop.python.v1.yaml",
         "rulepacks/code-health/anti-slop.ruby.v1.yaml",
         "rulepacks/code-health/anti-slop.rust.v1.yaml",
+        "rulepacks/code-health/anti-slop.swift.v1.yaml",
         "rulepacks/code-health/anti-slop.v1.yaml",
         "rulepacks/code-health/logging.c-cpp.v1.yaml",
         "rulepacks/code-health/logging.csharp.v1.yaml",
         "rulepacks/code-health/logging.go.v1.yaml",
         "rulepacks/code-health/logging.java.v1.yaml",
+        "rulepacks/code-health/logging.kotlin.v1.yaml",
         "rulepacks/code-health/logging.php.v1.yaml",
         "rulepacks/code-health/logging.python.v1.yaml",
         "rulepacks/code-health/logging.ruby.v1.yaml",
         "rulepacks/code-health/logging.rust.v1.yaml",
+        "rulepacks/code-health/logging.swift.v1.yaml",
         "rulepacks/code-health/logging.v1.yaml",
         "rulepacks/code-health/perf/perf.go.v1.yaml",
         "rulepacks/code-health/perf/perf.java.v1.yaml",
         "rulepacks/code-health/perf/perf.python.v1.yaml",
         "rulepacks/code-health/perf/perf.rust.v1.yaml",
         "rulepacks/code-health/perf/perf.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.c-cpp-flow.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.c-cpp.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.csharp.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.go.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.injection.dotnet-kotlin-rust.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.injection.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.java.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.kotlin-android.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.kotlin.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.llm-output.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.php.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.python.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.ruby.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.rust.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.safety.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.swift-plist.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.swift.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.v1.yaml"
       ],
-      "rules": 254,
+      "rules": 299,
       "parseErrors": [
         "juice-shop/codefixes/loginAdminChallenge_1.ts",
         "juice-shop/codefixes/loginAdminChallenge_2.ts",
@@ -87,8 +97,20 @@
       "labels": 24
     },
     {
+      "id": "juliet-java",
+      "title": "Juliet Test Suite for Java v1.3 (subset)",
+      "source": {
+        "kind": "fetched",
+        "repository": "https://samate.nist.gov/SARD/test-suites/111",
+        "licence": "Public domain (US government work); fetched at prep time into a gitignored cache"
+      },
+      "status": "not-prepared",
+      "trees": 1,
+      "labels": 0
+    },
+    {
       "id": "owasp-benchmark",
-      "title": "OWASP Benchmark (Java) subset",
+      "title": "OWASP Benchmark (Java) v1.2",
       "source": {
         "kind": "fetched",
         "repository": "https://github.com/OWASP-Benchmark/BenchmarkJava",
@@ -239,7 +261,87 @@
   ],
   "byRule": [
     {
+      "rule": "age-secret-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "airtable-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "alibaba-access-key-id",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "anthropic-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "artifactory-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "atlassian-api-token",
       "engine": "fast-lane",
       "dimension": "secrets",
       "score": {
@@ -272,6 +374,54 @@
     },
     {
       "rule": "aws-secret-access-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "azure-ad-client-secret",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "azure-storage-account-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bitbucket-token",
       "engine": "fast-lane",
       "dimension": "secrets",
       "score": {
@@ -911,6 +1061,54 @@
       }
     },
     {
+      "rule": "bpm-ch-kt-global-scope",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-kt-non-null-assertion",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-kt-run-blocking",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-ch-kt-run-catching-swallow",
       "engine": "yaml",
       "dimension": "slop",
@@ -1407,6 +1605,54 @@
       }
     },
     {
+      "rule": "bpm-ch-sw-empty-catch",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-sw-force-cast",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-sw-try-bang",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-ch-try-catch-in-loop",
       "engine": "yaml",
       "dimension": "slop",
@@ -1631,6 +1877,86 @@
       }
     },
     {
+      "rule": "bpm-flow-cmd-c",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-flow-copy-c",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-flow-format-c",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-flow-path-c",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-flow-size-c",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-go-http-server-no-timeout",
       "engine": "yaml",
       "dimension": "sast",
@@ -1727,6 +2053,22 @@
       }
     },
     {
+      "rule": "bpm-inj-cmd-cs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-inj-cmd-go",
       "engine": "yaml",
       "dimension": "sast",
@@ -1775,6 +2117,22 @@
       }
     },
     {
+      "rule": "bpm-inj-cmd-kt",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-inj-cmd-py",
       "engine": "yaml",
       "dimension": "sast",
@@ -1788,6 +2146,38 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-cmd-rs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-inj-deserialize-cs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -1823,6 +2213,22 @@
       }
     },
     {
+      "rule": "bpm-inj-deserialize-kt",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-inj-deserialize-py",
       "engine": "yaml",
       "dimension": "sast",
@@ -1852,6 +2258,22 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-path-cs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -1903,6 +2325,22 @@
       }
     },
     {
+      "rule": "bpm-inj-path-kt",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-inj-path-py",
       "engine": "yaml",
       "dimension": "sast",
@@ -1916,6 +2354,38 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-path-rs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-inj-redirect-cs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -1967,6 +2437,22 @@
       }
     },
     {
+      "rule": "bpm-inj-redirect-kt",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-inj-redirect-py",
       "engine": "yaml",
       "dimension": "sast",
@@ -1980,6 +2466,38 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-redirect-rs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-inj-sql-cs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -2031,6 +2549,22 @@
       }
     },
     {
+      "rule": "bpm-inj-sql-kt",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-inj-sql-py",
       "engine": "yaml",
       "dimension": "sast",
@@ -2044,6 +2578,38 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-sql-rs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-inj-ssrf-cs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -2095,6 +2661,22 @@
       }
     },
     {
+      "rule": "bpm-inj-ssrf-kt",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-inj-ssrf-py",
       "engine": "yaml",
       "dimension": "sast",
@@ -2108,6 +2690,38 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-ssrf-rs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-inj-xss-cs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -2172,6 +2786,22 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-xss-rs",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -2415,6 +3045,38 @@
       }
     },
     {
+      "rule": "bpm-kt-android-cleartext-traffic",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-kt-android-exported-component",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-kt-hostname-verification-disabled",
       "engine": "yaml",
       "dimension": "sast",
@@ -2479,7 +3141,55 @@
       }
     },
     {
+      "rule": "bpm-kt-trust-manager-accepts-all",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-kt-weak-hash-secret",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-kt-webview-file-access",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-kt-webview-js-bridge",
       "engine": "yaml",
       "dimension": "sast",
       "score": {
@@ -2927,7 +3637,39 @@
       }
     },
     {
+      "rule": "bpm-log-kt-println-in-lib",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-log-kt-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-kt-secret-in-log",
       "engine": "yaml",
       "dimension": "logging",
       "score": {
@@ -3148,6 +3890,38 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-sw-print-in-lib",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-sw-secret-in-log",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -4351,6 +5125,566 @@
       }
     },
     {
+      "rule": "bpm-sw-ats-allow-arbitrary-loads",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sw-hardcoded-key",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sw-url-force-unwrap",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sw-urlsession-trust-all",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sw-weak-hash",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sw-webview-js-interpolation",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "braintree-access-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "brevo-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "buildkite-agent-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "circleci-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "clojars-deploy-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "cloudflare-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "cloudflare-origin-ca-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "cloudinary-url",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "contentful-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "database-connection-url",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "databricks-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "datadog-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "datadog-app-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "digitalocean-oauth-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "digitalocean-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "digitalocean-refresh-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "discord-bot-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "discord-webhook-url",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "dockerhub-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "doppler-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "dropbox-short-lived-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "duffel-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "dynatrace-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "easypost-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "figma-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "firebase-cloud-messaging-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "flutterwave-secret-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "fly-io-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gcp-oauth-client-secret",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "generic-secret-assignment",
       "engine": "fast-lane",
       "dimension": "secrets",
@@ -4415,7 +5749,151 @@
       }
     },
     {
+      "rule": "gitlab-agent-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-ci-job-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-deploy-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-feed-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-incoming-mail-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-oauth-app-secret",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "gitlab-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-pipeline-trigger-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gitlab-runner-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "gocardless-token",
       "engine": "fast-lane",
       "dimension": "secrets",
       "score": {
@@ -4447,7 +5925,407 @@
       }
     },
     {
+      "rule": "google-oauth-access-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "grafana-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "grafana-cloud-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "grafana-service-account-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "groq-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "heroku-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "heroku-platform-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "hubspot-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "huggingface-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "jenkins-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "jwt",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "langsmith-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "launchdarkly-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "linear-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "linode-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "mailchimp-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "mailgun-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "mapbox-secret-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "neon-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "netlify-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "new-relic-ingest-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "new-relic-license-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "new-relic-user-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "ngrok-authtoken",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "notion-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "notion-integration-token",
       "engine": "fast-lane",
       "dimension": "secrets",
       "score": {
@@ -4479,7 +6357,135 @@
       }
     },
     {
+      "rule": "nuget-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "okta-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "onepassword-service-account-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "openai-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "openrouter-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "perplexity-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "plaid-access-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "planetscale-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "postman-api-key",
       "engine": "fast-lane",
       "dimension": "secrets",
       "score": {
@@ -4511,7 +6517,231 @@
       }
     },
     {
+      "rule": "pulumi-access-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "pypi-upload-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "readme-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "replicate-api-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "rubygems-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "sendgrid-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "sentry-org-auth-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "sentry-user-auth-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "shopify-access-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "shopify-custom-app-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "shopify-private-app-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "shopify-shared-secret",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "slack-app-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "slack-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "slack-webhook-url",
       "engine": "fast-lane",
       "dimension": "secrets",
       "score": {
@@ -4607,6 +6837,86 @@
       }
     },
     {
+      "rule": "sonarqube-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "sourcegraph-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "square-access-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "square-oauth-secret",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "stripe-restricted-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "stripe-secret-key",
       "engine": "fast-lane",
       "dimension": "secrets",
@@ -4620,6 +6930,198 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "stripe-webhook-secret",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "tailscale-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "teams-webhook-url",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "telegram-bot-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "terraform-cloud-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "twilio-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "twilio-auth-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "typeform-pat",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "vault-batch-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "vault-service-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "vercel-token",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "xai-api-key",
+      "engine": "fast-lane",
+      "dimension": "secrets",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     }
   ],
@@ -4650,6 +7152,20 @@
         "skipped": 8,
         "precision": 1,
         "recall": 0.636
+      }
+    },
+    {
+      "suite": "juliet-java",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -4695,6 +7211,11 @@
       }
     }
   ],
+  "byCwe": [],
+  "measured": {
+    "date": null,
+    "commit": null
+  },
   "outcomes": [
     {
       "suite": "changes",
@@ -4703,6 +7224,7 @@
       "line": 4,
       "ruleId": "bpm-log-console-in-prod",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "logging-console-debug"
     },
@@ -4713,6 +7235,7 @@
       "line": 4,
       "ruleId": "bpm-log-and-rethrow",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "logging-log-and-rethrow"
     },
@@ -4723,6 +7246,7 @@
       "line": 5,
       "ruleId": "bpm-log-injection",
       "dimension": "logging",
+      "cwe": 117,
       "kind": "tp",
       "labelId": "logging-secret-field-injection"
     },
@@ -4733,6 +7257,7 @@
       "line": 5,
       "ruleId": "bpm-log-secret-field",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "logging-secret-field"
     },
@@ -4743,6 +7268,7 @@
       "line": 5,
       "ruleId": "bpm-log-injection",
       "dimension": "logging",
+      "cwe": 117,
       "kind": "fp",
       "labelId": null
     },
@@ -4753,6 +7279,7 @@
       "line": 4,
       "ruleId": "bpm-perf-await-in-loop",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-await-in-loop"
     },
@@ -4764,6 +7291,7 @@
       "ruleId": "bpm-perf-orm-call-in-loop",
       "dimension": "performance",
       "labelId": "perf-await-in-loop-orm",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -4773,6 +7301,7 @@
       "line": 2,
       "ruleId": "bpm-perf-unbounded-promise-all",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-await-in-loop-before-fanout"
     },
@@ -4783,6 +7312,7 @@
       "line": 5,
       "ruleId": "bpm-perf-sync-io-in-async",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-sync-io-in-async"
     },
@@ -4793,6 +7323,7 @@
       "line": 3,
       "ruleId": "bpm-js-eval-dynamic",
       "dimension": "sast",
+      "cwe": 95,
       "kind": "tp",
       "labelId": "sast-eval-formula"
     },
@@ -4803,6 +7334,7 @@
       "line": 7,
       "ruleId": "bpm-js-child-process-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "sast-exec-destructured"
     },
@@ -4813,6 +7345,7 @@
       "line": 7,
       "ruleId": "bpm-js-jwt-verify-disabled",
       "dimension": "sast",
+      "cwe": 347,
       "kind": "tp",
       "labelId": "sast-jwt-decode"
     },
@@ -4823,6 +7356,7 @@
       "line": 2,
       "ruleId": "bpm-js-math-random-token",
       "dimension": "sast",
+      "cwe": 338,
       "kind": "tp",
       "labelId": "sast-random-reset-token"
     },
@@ -4833,6 +7367,7 @@
       "line": 4,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "sast-sql-built-variable"
     },
@@ -4843,6 +7378,7 @@
       "line": 4,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "sast-sql-template"
     },
@@ -4853,6 +7389,7 @@
       "line": 4,
       "ruleId": "bpm-js-weak-hash",
       "dimension": "sast",
+      "cwe": 327,
       "kind": "tp",
       "labelId": "sast-weak-hash"
     },
@@ -4863,6 +7400,7 @@
       "line": 1,
       "ruleId": "generic-secret-assignment",
       "dimension": "secrets",
+      "cwe": null,
       "kind": "tp",
       "labelId": "secrets-generic-assignment"
     },
@@ -4873,6 +7411,7 @@
       "line": 1,
       "ruleId": "slop.docstring_inflation",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "slop-docstring-inflation"
     },
@@ -4883,6 +7422,7 @@
       "line": 1,
       "ruleId": "slop.low_logic_density",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "slop-docstring-inflation-ldr"
     },
@@ -4893,6 +7433,7 @@
       "line": 2,
       "ruleId": "bpm-ch-empty-catch",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "slop-empty-catch"
     },
@@ -4904,6 +7445,7 @@
       "ruleId": "slop.low_logic_density",
       "dimension": "slop",
       "labelId": "slop-low-logic-density",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -4913,6 +7455,7 @@
       "line": 2,
       "ruleId": "slop.phantom_module",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "slop-phantom-module"
     },
@@ -4923,6 +7466,7 @@
       "line": 1,
       "ruleId": "slop.phantom_symbol",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "slop-phantom-symbol"
     },
@@ -4933,6 +7477,7 @@
       "line": 7,
       "ruleId": "slop.unused_export",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "slop-unused-export"
     },
@@ -4943,6 +7488,7 @@
       "line": 5,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "sqli-dbschema-1"
     },
@@ -4954,6 +7500,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-dbschema-2",
+      "cwe": null,
       "kind": "tn"
     },
     {
@@ -4963,6 +7510,7 @@
       "line": 11,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "sqli-dbschema-3"
     },
@@ -4974,6 +7522,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-admin-1",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -4984,6 +7533,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-admin-2",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -4994,6 +7544,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-admin-3",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -5004,6 +7555,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-admin-4",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -5014,6 +7566,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-bender-2",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -5024,6 +7577,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-bender-3",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -5034,6 +7588,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-bender-4",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -5044,6 +7599,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-login-jim-3",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -5054,6 +7610,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "nosql-reviews-1",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -5064,6 +7621,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "nosql-reviews-2",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -5074,6 +7632,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "nosql-reviews-3",
+      "cwe": null,
       "kind": "tn"
     },
     {
@@ -5084,6 +7643,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "redirect-1",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -5094,6 +7654,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "redirect-2",
+      "cwe": null,
       "kind": "tn"
     },
     {
@@ -5104,6 +7665,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "redirect-3",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -5114,6 +7676,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "redirect-4",
+      "cwe": null,
       "kind": "tn"
     },
     {
@@ -5123,6 +7686,7 @@
       "line": 6,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "sqli-union-1"
     },
@@ -5134,6 +7698,7 @@
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
       "labelId": "sqli-union-2",
+      "cwe": null,
       "kind": "tn"
     },
     {
@@ -5143,6 +7708,7 @@
       "line": 10,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "sqli-union-3"
     },
@@ -5153,6 +7719,7 @@
       "line": 34,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "routes-login-sqli"
     },
@@ -5163,6 +7730,7 @@
       "line": 64,
       "ruleId": "generic-secret-assignment",
       "dimension": "secrets",
+      "cwe": null,
       "kind": "tp",
       "labelId": "routes-login-credentials"
     },
@@ -5173,6 +7741,7 @@
       "line": 23,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "routes-search-sqli"
     },
@@ -5183,6 +7752,7 @@
       "line": 4,
       "ruleId": "bpm-log-console-in-prod",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-console"
     },
@@ -5193,6 +7763,7 @@
       "line": 6,
       "ruleId": "bpm-log-injection",
       "dimension": "logging",
+      "cwe": 117,
       "kind": "tp",
       "labelId": "ch-log-injection-concat"
     },
@@ -5203,6 +7774,7 @@
       "line": 8,
       "ruleId": "bpm-log-injection",
       "dimension": "logging",
+      "cwe": 117,
       "kind": "tp",
       "labelId": "ch-log-injection-object"
     },
@@ -5213,6 +7785,7 @@
       "line": 8,
       "ruleId": "bpm-log-secret-field",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-secret-field"
     },
@@ -5223,6 +7796,7 @@
       "line": 9,
       "ruleId": "bpm-log-and-rethrow",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-log-rethrow"
     },
@@ -5233,6 +7807,7 @@
       "line": 11,
       "ruleId": "bpm-log-print-in-prod-py",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-log-print-in-prod-py-11"
     },
@@ -5243,6 +7818,7 @@
       "line": 13,
       "ruleId": "bpm-log-injection-py",
       "dimension": "logging",
+      "cwe": 117,
       "kind": "tp",
       "labelId": "py-log-injection-py-13"
     },
@@ -5253,6 +7829,7 @@
       "line": 14,
       "ruleId": "bpm-log-injection-py",
       "dimension": "logging",
+      "cwe": 117,
       "kind": "tp",
       "labelId": "py-log-injection-py-14"
     },
@@ -5263,6 +7840,7 @@
       "line": 20,
       "ruleId": "bpm-log-secret-field-py",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-log-secret-field-py-20"
     },
@@ -5273,6 +7851,7 @@
       "line": 21,
       "ruleId": "bpm-log-secret-field-py",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-log-secret-field-py-21"
     },
@@ -5283,6 +7862,7 @@
       "line": 22,
       "ruleId": "bpm-log-injection-py",
       "dimension": "logging",
+      "cwe": 117,
       "kind": "tp",
       "labelId": "py-log-injection-py-22"
     },
@@ -5293,6 +7873,7 @@
       "line": 22,
       "ruleId": "bpm-log-secret-field-py",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-log-secret-field-py-22"
     },
@@ -5303,6 +7884,7 @@
       "line": 27,
       "ruleId": "bpm-log-and-reraise-py",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-log-and-reraise-py-27"
     },
@@ -5313,6 +7895,7 @@
       "line": 35,
       "ruleId": "bpm-log-and-reraise-py",
       "dimension": "logging",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-log-and-reraise-py-35"
     },
@@ -5323,6 +7906,7 @@
       "line": 1,
       "ruleId": "bpm-ch-step-narration",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-step-narration"
     },
@@ -5333,6 +7917,7 @@
       "line": 4,
       "ruleId": "bpm-ch-try-catch-in-loop",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-try-in-loop"
     },
@@ -5343,6 +7928,7 @@
       "line": 5,
       "ruleId": "bpm-ch-empty-catch",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-empty-catch"
     },
@@ -5353,6 +7939,7 @@
       "line": 6,
       "ruleId": "bpm-perf-await-in-loop",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-await-in-loop"
     },
@@ -5363,6 +7950,7 @@
       "line": 6,
       "ruleId": "bpm-perf-orm-call-in-loop",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-orm-in-loop"
     },
@@ -5373,6 +7961,7 @@
       "line": 13,
       "ruleId": "bpm-ch-silent-fallback-return",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-silent-fallback"
     },
@@ -5383,6 +7972,7 @@
       "line": 21,
       "ruleId": "bpm-ch-stub-as-feature",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-stub"
     },
@@ -5393,6 +7983,7 @@
       "line": 23,
       "ruleId": "bpm-ch-what-comment",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-what-comment"
     },
@@ -5403,6 +7994,7 @@
       "line": 26,
       "ruleId": "bpm-ch-emoji-comment",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-emoji"
     },
@@ -5413,6 +8005,7 @@
       "line": 29,
       "ruleId": "bpm-ch-prose-padding",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "ch-prose-padding"
     },
@@ -5423,6 +8016,7 @@
       "line": 7,
       "ruleId": "bpm-ch-empty-except-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-empty-except-py-7"
     },
@@ -5433,6 +8027,7 @@
       "line": 15,
       "ruleId": "bpm-ch-empty-except-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-empty-except-py-15"
     },
@@ -5443,6 +8038,7 @@
       "line": 22,
       "ruleId": "bpm-ch-bare-except-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-bare-except-py-22"
     },
@@ -5453,6 +8049,7 @@
       "line": 31,
       "ruleId": "bpm-ch-try-except-in-loop-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-try-except-in-loop-py-31"
     },
@@ -5463,6 +8060,7 @@
       "line": 39,
       "ruleId": "bpm-ch-silent-fallback-return-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-silent-fallback-return-py-39"
     },
@@ -5473,6 +8071,7 @@
       "line": 46,
       "ruleId": "bpm-ch-silent-fallback-return-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-silent-fallback-return-py-46"
     },
@@ -5483,6 +8082,7 @@
       "line": 52,
       "ruleId": "bpm-ch-stub-as-feature-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-stub-as-feature-py-52"
     },
@@ -5493,6 +8093,7 @@
       "line": 56,
       "ruleId": "bpm-ch-stub-as-feature-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-stub-as-feature-py-56"
     },
@@ -5503,6 +8104,7 @@
       "line": 63,
       "ruleId": "bpm-ch-stub-as-feature-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-stub-as-feature-py-63"
     },
@@ -5513,6 +8115,7 @@
       "line": 67,
       "ruleId": "bpm-ch-stub-as-feature-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-stub-as-feature-py-67"
     },
@@ -5523,6 +8126,7 @@
       "line": 70,
       "ruleId": "bpm-ch-stub-as-feature-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-stub-as-feature-py-70"
     },
@@ -5533,6 +8137,7 @@
       "line": 76,
       "ruleId": "bpm-ch-what-comment-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-what-comment-py-76"
     },
@@ -5543,6 +8148,7 @@
       "line": 78,
       "ruleId": "bpm-ch-step-narration-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-step-narration-py-78"
     },
@@ -5553,6 +8159,7 @@
       "line": 81,
       "ruleId": "bpm-ch-emoji-comment-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-emoji-comment-py-81"
     },
@@ -5563,6 +8170,7 @@
       "line": 82,
       "ruleId": "bpm-ch-prose-padding-py",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-ch-prose-padding-py-82"
     },
@@ -5573,6 +8181,7 @@
       "line": 18,
       "ruleId": "bpm-inj-sql-py",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-py-app-18"
     },
@@ -5583,6 +8192,7 @@
       "line": 18,
       "ruleId": "bpm-py-sql-string-build",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-also-py-sql-string-build-app-18"
     },
@@ -5593,6 +8203,7 @@
       "line": 20,
       "ruleId": "bpm-inj-sql-py",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-py-app-20"
     },
@@ -5603,6 +8214,7 @@
       "line": 20,
       "ruleId": "bpm-py-sql-string-build",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-also-py-sql-string-build-app-20"
     },
@@ -5613,6 +8225,7 @@
       "line": 28,
       "ruleId": "bpm-inj-cmd-py",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-inj-cmd-py-app-28"
     },
@@ -5623,6 +8236,7 @@
       "line": 28,
       "ruleId": "bpm-py-subprocess-shell-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-also-py-subprocess-shell-concat-app-28"
     },
@@ -5633,6 +8247,7 @@
       "line": 30,
       "ruleId": "bpm-inj-cmd-py",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-inj-cmd-py-app-30"
     },
@@ -5643,6 +8258,7 @@
       "line": 30,
       "ruleId": "bpm-py-subprocess-shell-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-also-py-subprocess-shell-concat-app-30"
     },
@@ -5653,6 +8269,7 @@
       "line": 30,
       "ruleId": "bpm-sec-shell-dynamic-command-py",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-also-sec-shell-dynamic-command-py-app-30"
     },
@@ -5663,6 +8280,7 @@
       "line": 38,
       "ruleId": "bpm-inj-path-py",
       "dimension": "sast",
+      "cwe": 22,
       "kind": "tp",
       "labelId": "inj-inj-path-py-app-38"
     },
@@ -5673,6 +8291,7 @@
       "line": 44,
       "ruleId": "bpm-inj-path-py",
       "dimension": "sast",
+      "cwe": 22,
       "kind": "tp",
       "labelId": "inj-inj-path-py-app-44"
     },
@@ -5683,6 +8302,7 @@
       "line": 51,
       "ruleId": "bpm-inj-xss-py",
       "dimension": "sast",
+      "cwe": 79,
       "kind": "tp",
       "labelId": "inj-inj-xss-py-app-51"
     },
@@ -5693,6 +8313,7 @@
       "line": 58,
       "ruleId": "bpm-inj-ssrf-py",
       "dimension": "sast",
+      "cwe": 918,
       "kind": "tp",
       "labelId": "inj-inj-ssrf-py-app-58"
     },
@@ -5703,6 +8324,7 @@
       "line": 64,
       "ruleId": "bpm-inj-redirect-py",
       "dimension": "sast",
+      "cwe": 601,
       "kind": "tp",
       "labelId": "inj-inj-redirect-py-app-64"
     },
@@ -5713,6 +8335,7 @@
       "line": 70,
       "ruleId": "bpm-inj-deserialize-py",
       "dimension": "sast",
+      "cwe": 502,
       "kind": "tp",
       "labelId": "inj-inj-deserialize-py-app-70"
     },
@@ -5723,6 +8346,7 @@
       "line": 72,
       "ruleId": "bpm-inj-deserialize-py",
       "dimension": "sast",
+      "cwe": 502,
       "kind": "tp",
       "labelId": "inj-inj-deserialize-py-app-72"
     },
@@ -5733,6 +8357,7 @@
       "line": 17,
       "ruleId": "bpm-inj-sql-go",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-go-go-main-17"
     },
@@ -5743,6 +8368,7 @@
       "line": 19,
       "ruleId": "bpm-go-sql-string-build",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-also-go-sql-string-build-go-main-19"
     },
@@ -5753,6 +8379,7 @@
       "line": 19,
       "ruleId": "bpm-inj-sql-go",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-go-go-main-19"
     },
@@ -5763,6 +8390,7 @@
       "line": 25,
       "ruleId": "bpm-go-shell-exec-dynamic",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-also-go-shell-exec-dynamic-go-main-25"
     },
@@ -5773,6 +8401,7 @@
       "line": 25,
       "ruleId": "bpm-inj-cmd-go",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-inj-cmd-go-go-main-25"
     },
@@ -5783,6 +8412,7 @@
       "line": 25,
       "ruleId": "bpm-sec-shell-dynamic-command-go",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-also-sec-shell-dynamic-command-go-go-main-25"
     },
@@ -5793,6 +8423,7 @@
       "line": 31,
       "ruleId": "bpm-inj-path-go",
       "dimension": "sast",
+      "cwe": 22,
       "kind": "tp",
       "labelId": "inj-inj-path-go-go-main-31"
     },
@@ -5803,6 +8434,7 @@
       "line": 40,
       "ruleId": "bpm-inj-xss-go",
       "dimension": "sast",
+      "cwe": 79,
       "kind": "tp",
       "labelId": "inj-inj-xss-go-go-main-40"
     },
@@ -5813,6 +8445,7 @@
       "line": 46,
       "ruleId": "bpm-inj-ssrf-go",
       "dimension": "sast",
+      "cwe": 918,
       "kind": "tp",
       "labelId": "inj-inj-ssrf-go-go-main-46"
     },
@@ -5823,6 +8456,7 @@
       "line": 52,
       "ruleId": "bpm-inj-redirect-go",
       "dimension": "sast",
+      "cwe": 601,
       "kind": "tp",
       "labelId": "inj-inj-redirect-go-go-main-52"
     },
@@ -5833,6 +8467,7 @@
       "line": 58,
       "ruleId": "bpm-inj-deserialize-go",
       "dimension": "sast",
+      "cwe": 502,
       "kind": "tp",
       "labelId": "inj-inj-deserialize-go-go-main-58"
     },
@@ -5843,6 +8478,7 @@
       "line": 20,
       "ruleId": "bpm-inj-sql-java",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-java-java-UserController-20"
     },
@@ -5853,6 +8489,7 @@
       "line": 20,
       "ruleId": "bpm-java-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-also-java-sql-string-concat-java-UserController-20"
     },
@@ -5863,6 +8500,7 @@
       "line": 26,
       "ruleId": "bpm-inj-sql-java",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-java-java-UserController-26"
     },
@@ -5873,6 +8511,7 @@
       "line": 26,
       "ruleId": "bpm-java-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-also-java-sql-string-concat-java-UserController-26"
     },
@@ -5883,6 +8522,7 @@
       "line": 33,
       "ruleId": "bpm-inj-cmd-java",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-inj-cmd-java-java-UserController-33"
     },
@@ -5893,6 +8533,7 @@
       "line": 33,
       "ruleId": "bpm-java-command-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-also-java-command-concat-java-UserController-33"
     },
@@ -5903,6 +8544,7 @@
       "line": 39,
       "ruleId": "bpm-inj-path-java",
       "dimension": "sast",
+      "cwe": 22,
       "kind": "tp",
       "labelId": "inj-inj-path-java-java-UserController-39"
     },
@@ -5913,6 +8555,7 @@
       "line": 45,
       "ruleId": "bpm-inj-xss-java",
       "dimension": "sast",
+      "cwe": 79,
       "kind": "tp",
       "labelId": "inj-inj-xss-java-java-UserController-45"
     },
@@ -5923,6 +8566,7 @@
       "line": 51,
       "ruleId": "bpm-inj-ssrf-java",
       "dimension": "sast",
+      "cwe": 918,
       "kind": "tp",
       "labelId": "inj-inj-ssrf-java-java-UserController-51"
     },
@@ -5933,6 +8577,7 @@
       "line": 57,
       "ruleId": "bpm-inj-redirect-java",
       "dimension": "sast",
+      "cwe": 601,
       "kind": "tp",
       "labelId": "inj-inj-redirect-java-java-UserController-57"
     },
@@ -5943,6 +8588,7 @@
       "line": 62,
       "ruleId": "bpm-inj-deserialize-java",
       "dimension": "sast",
+      "cwe": 502,
       "kind": "tp",
       "labelId": "inj-inj-deserialize-java-java-UserController-62"
     },
@@ -5953,6 +8599,7 @@
       "line": 62,
       "ruleId": "bpm-java-unsafe-deserialization",
       "dimension": "sast",
+      "cwe": 502,
       "kind": "tp",
       "labelId": "inj-also-java-unsafe-deserialization-java-UserController-62"
     },
@@ -5963,6 +8610,7 @@
       "line": 13,
       "ruleId": "bpm-inj-sql-js",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-js-server-13"
     },
@@ -5973,6 +8621,7 @@
       "line": 13,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-also-js-sql-string-concat-server-13"
     },
@@ -5983,6 +8632,7 @@
       "line": 20,
       "ruleId": "bpm-inj-sql-js",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-inj-sql-js-server-20"
     },
@@ -5993,6 +8643,7 @@
       "line": 20,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-also-js-sql-string-concat-server-20"
     },
@@ -6003,6 +8654,7 @@
       "line": 27,
       "ruleId": "bpm-inj-cmd-js",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-inj-cmd-js-server-27"
     },
@@ -6013,6 +8665,7 @@
       "line": 27,
       "ruleId": "bpm-js-child-process-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-also-js-child-process-concat-server-27"
     },
@@ -6023,6 +8676,7 @@
       "line": 33,
       "ruleId": "bpm-inj-path-js",
       "dimension": "sast",
+      "cwe": 22,
       "kind": "tp",
       "labelId": "inj-inj-path-js-server-33"
     },
@@ -6033,6 +8687,7 @@
       "line": 38,
       "ruleId": "bpm-inj-path-js",
       "dimension": "sast",
+      "cwe": 22,
       "kind": "tp",
       "labelId": "inj-inj-path-js-server-38"
     },
@@ -6043,6 +8698,7 @@
       "line": 44,
       "ruleId": "bpm-inj-xss-js",
       "dimension": "sast",
+      "cwe": 79,
       "kind": "tp",
       "labelId": "inj-inj-xss-js-server-44"
     },
@@ -6053,6 +8709,7 @@
       "line": 50,
       "ruleId": "bpm-inj-ssrf-js",
       "dimension": "sast",
+      "cwe": 918,
       "kind": "tp",
       "labelId": "inj-inj-ssrf-js-server-50"
     },
@@ -6063,6 +8720,7 @@
       "line": 56,
       "ruleId": "bpm-inj-redirect-js",
       "dimension": "sast",
+      "cwe": 601,
       "kind": "tp",
       "labelId": "inj-inj-redirect-js-server-56"
     },
@@ -6073,6 +8731,7 @@
       "line": 61,
       "ruleId": "bpm-inj-dom-xss-js",
       "dimension": "sast",
+      "cwe": 79,
       "kind": "tp",
       "labelId": "inj-inj-dom-xss-js-server-61"
     },
@@ -6083,6 +8742,7 @@
       "line": 6,
       "ruleId": "bpm-perf-await-in-loop",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-await"
     },
@@ -6093,6 +8753,7 @@
       "line": 6,
       "ruleId": "bpm-perf-orm-call-in-loop",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-orm"
     },
@@ -6103,6 +8764,7 @@
       "line": 7,
       "ruleId": "bpm-perf-regex-compile-in-loop",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-regex"
     },
@@ -6113,6 +8775,7 @@
       "line": 8,
       "ruleId": "bpm-perf-string-concat-in-loop",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-concat"
     },
@@ -6123,6 +8786,7 @@
       "line": 11,
       "ruleId": "bpm-perf-json-deep-clone",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-json-clone"
     },
@@ -6133,6 +8797,7 @@
       "line": 12,
       "ruleId": "bpm-perf-sync-io-in-async",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-sync-io"
     },
@@ -6143,6 +8808,7 @@
       "line": 13,
       "ruleId": "bpm-perf-unbounded-promise-all",
       "dimension": "performance",
+      "cwe": null,
       "kind": "duplicate",
       "labelId": "perf-promise-all"
     },
@@ -6153,6 +8819,7 @@
       "line": 13,
       "ruleId": "bpm-perf-unbounded-promise-all",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-promise-all"
     },
@@ -6163,6 +8830,7 @@
       "line": 4,
       "ruleId": "bpm-perf-orm-call-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "perf-orm-py"
     },
@@ -6173,6 +8841,7 @@
       "line": 9,
       "ruleId": "bpm-perf-orm-call-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-orm-call-in-loop-py-9"
     },
@@ -6183,6 +8852,7 @@
       "line": 14,
       "ruleId": "bpm-perf-orm-call-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-orm-call-in-loop-py-14"
     },
@@ -6193,6 +8863,7 @@
       "line": 16,
       "ruleId": "bpm-perf-orm-call-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-orm-call-in-loop-py-16"
     },
@@ -6203,6 +8874,7 @@
       "line": 12,
       "ruleId": "bpm-perf-blocking-call-in-async-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-blocking-call-in-async-py-12"
     },
@@ -6213,6 +8885,7 @@
       "line": 13,
       "ruleId": "bpm-perf-blocking-call-in-async-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-blocking-call-in-async-py-13"
     },
@@ -6223,6 +8896,7 @@
       "line": 20,
       "ruleId": "bpm-perf-await-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-await-in-loop-py-20"
     },
@@ -6233,6 +8907,7 @@
       "line": 25,
       "ruleId": "bpm-perf-json-deep-clone-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-json-deep-clone-py-25"
     },
@@ -6243,6 +8918,7 @@
       "line": 31,
       "ruleId": "bpm-perf-regex-compile-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-regex-compile-in-loop-py-31"
     },
@@ -6253,6 +8929,7 @@
       "line": 39,
       "ruleId": "bpm-perf-string-concat-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-string-concat-in-loop-py-39"
     },
@@ -6263,6 +8940,7 @@
       "line": 47,
       "ruleId": "bpm-perf-string-concat-in-loop-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-string-concat-in-loop-py-47"
     },
@@ -6273,6 +8951,7 @@
       "line": 52,
       "ruleId": "bpm-perf-unbounded-gather-py",
       "dimension": "performance",
+      "cwe": null,
       "kind": "tp",
       "labelId": "py-perf-unbounded-gather-py-52"
     },
@@ -6283,6 +8962,7 @@
       "line": 7,
       "ruleId": "bpm-js-eval-dynamic",
       "dimension": "sast",
+      "cwe": 95,
       "kind": "tp",
       "labelId": "sast-eval"
     },
@@ -6293,6 +8973,7 @@
       "line": 8,
       "ruleId": "bpm-inj-cmd-js",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "inj-cmd-js-vulnerable"
     },
@@ -6303,6 +8984,7 @@
       "line": 8,
       "ruleId": "bpm-js-child-process-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "sast-exec"
     },
@@ -6313,6 +8995,7 @@
       "line": 9,
       "ruleId": "bpm-inj-sql-js",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "inj-sql-js-vulnerable"
     },
@@ -6323,6 +9006,7 @@
       "line": 9,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "sast-sql"
     },
@@ -6333,6 +9017,7 @@
       "line": 10,
       "ruleId": "bpm-js-math-random-token",
       "dimension": "sast",
+      "cwe": 338,
       "kind": "tp",
       "labelId": "sast-random"
     },
@@ -6343,6 +9028,7 @@
       "line": 11,
       "ruleId": "bpm-js-weak-hash",
       "dimension": "sast",
+      "cwe": 327,
       "kind": "tp",
       "labelId": "sast-md5"
     },
@@ -6353,6 +9039,7 @@
       "line": 12,
       "ruleId": "bpm-js-jwt-verify-disabled",
       "dimension": "sast",
+      "cwe": 347,
       "kind": "tp",
       "labelId": "sast-jwt"
     },
@@ -6363,6 +9050,7 @@
       "line": 13,
       "ruleId": "bpm-py-eval-dynamic",
       "dimension": "sast",
+      "cwe": 95,
       "kind": "tp",
       "labelId": "py-py-eval-dynamic-13"
     },
@@ -6373,6 +9061,7 @@
       "line": 17,
       "ruleId": "bpm-py-eval-dynamic",
       "dimension": "sast",
+      "cwe": 95,
       "kind": "tp",
       "labelId": "py-py-eval-dynamic-17"
     },
@@ -6383,6 +9072,7 @@
       "line": 21,
       "ruleId": "bpm-py-subprocess-shell-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "py-py-subprocess-shell-concat-21"
     },
@@ -6393,6 +9083,7 @@
       "line": 21,
       "ruleId": "bpm-sec-shell-dynamic-command-py",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "py-sec-shell-dynamic-command-py-21"
     },
@@ -6403,6 +9094,7 @@
       "line": 22,
       "ruleId": "bpm-py-subprocess-shell-concat",
       "dimension": "sast",
+      "cwe": 78,
       "kind": "tp",
       "labelId": "py-py-subprocess-shell-concat-22"
     },
@@ -6413,6 +9105,7 @@
       "line": 26,
       "ruleId": "bpm-py-sql-string-build",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "py-py-sql-string-build-26"
     },
@@ -6423,6 +9116,7 @@
       "line": 32,
       "ruleId": "bpm-py-sql-string-build",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "py-py-sql-string-build-32"
     },
@@ -6433,6 +9127,7 @@
       "line": 37,
       "ruleId": "bpm-py-weak-hash",
       "dimension": "sast",
+      "cwe": 327,
       "kind": "tp",
       "labelId": "py-py-weak-hash-37"
     },
@@ -6443,6 +9138,7 @@
       "line": 41,
       "ruleId": "bpm-py-random-token",
       "dimension": "sast",
+      "cwe": 338,
       "kind": "tp",
       "labelId": "py-py-random-token-41"
     },
@@ -6453,6 +9149,7 @@
       "line": 42,
       "ruleId": "bpm-py-random-token",
       "dimension": "sast",
+      "cwe": 338,
       "kind": "tp",
       "labelId": "py-py-random-token-42"
     },
@@ -6463,6 +9160,7 @@
       "line": 47,
       "ruleId": "bpm-py-jwt-verify-disabled",
       "dimension": "sast",
+      "cwe": 347,
       "kind": "tp",
       "labelId": "py-py-jwt-verify-disabled-47"
     },
@@ -6474,6 +9172,7 @@
       "ruleId": null,
       "dimension": "dependency",
       "labelId": "D10",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -6484,6 +9183,7 @@
       "ruleId": null,
       "dimension": "dependency",
       "labelId": "D3",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -6493,6 +9193,7 @@
       "line": 5,
       "ruleId": "stripe-secret-key",
       "dimension": "secrets",
+      "cwe": null,
       "kind": "tp",
       "labelId": "D1"
     },
@@ -6503,6 +9204,7 @@
       "line": 12,
       "ruleId": "bpm-log-console-in-prod",
       "dimension": "logging",
+      "cwe": null,
       "kind": "fp",
       "labelId": null
     },
@@ -6514,6 +9216,7 @@
       "ruleId": null,
       "dimension": "slop",
       "labelId": "D5a",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -6524,6 +9227,7 @@
       "ruleId": null,
       "dimension": "sast",
       "labelId": "D9",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -6534,6 +9238,7 @@
       "ruleId": null,
       "dimension": "slop",
       "labelId": "D5b",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -6544,6 +9249,7 @@
       "ruleId": null,
       "dimension": "slop",
       "labelId": "D12",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -6554,6 +9260,7 @@
       "ruleId": null,
       "dimension": "slop",
       "labelId": "D5c",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -6564,6 +9271,7 @@
       "ruleId": null,
       "dimension": "code_health",
       "labelId": "D11",
+      "cwe": null,
       "kind": "skipped"
     },
     {
@@ -6574,6 +9282,7 @@
       "ruleId": null,
       "dimension": "slop",
       "labelId": "D7",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -6583,6 +9292,7 @@
       "line": 8,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "D2"
     },
@@ -6593,6 +9303,7 @@
       "line": 14,
       "ruleId": "bpm-js-sql-string-concat",
       "dimension": "sast",
+      "cwe": 89,
       "kind": "tp",
       "labelId": "D2b"
     },
@@ -6603,6 +9314,7 @@
       "line": 6,
       "ruleId": "bpm-ch-empty-catch",
       "dimension": "slop",
+      "cwe": null,
       "kind": "tp",
       "labelId": "D6"
     },
@@ -6614,6 +9326,7 @@
       "ruleId": null,
       "dimension": "slop",
       "labelId": "D4",
+      "cwe": null,
       "kind": "fn"
     },
     {
@@ -6624,6 +9337,7 @@
       "ruleId": null,
       "dimension": "slop",
       "labelId": "D8",
+      "cwe": null,
       "kind": "fn"
     }
   ]

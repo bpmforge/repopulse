@@ -1,0 +1,37 @@
+{
+  "id": "juliet-java",
+  "title": "Juliet Test Suite for Java v1.3 (subset)",
+  "description": "NIST SARD's synthetic Java suite: each test case has a bad() method that contains the weakness and good*() methods that look similar and are safe (the multi-file variants split these into _bad and _good classes). Labels are derived from that naming when the suite is prepared. A sample of each selected weakness class, scored per CWE: a bad method is a defect, a good method must stay quiet, and findings for other CWEs are ignored. Public domain, but about 100 MB, so fetched and hash-pinned rather than vendored: run the prepare script.",
+  "source": {
+    "kind": "fetched",
+    "repository": "https://samate.nist.gov/SARD/test-suites/111",
+    "licence": "Public domain (US government work); fetched at prep time into a gitignored cache",
+    "notes": "Committed here: the archive URL, its SHA-256, the selected file paths and their SHA-256 digests only."
+  },
+  "unlabelled": "ignore",
+  "trees": [{ "id": "testcases", "path": ".cache/testcases" }],
+  "labels": [],
+  "archive": {
+    "url": "https://samate.nist.gov/SARD/downloads/test-suites/2017-10-01-juliet-test-suite-for-java-v1-3.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "root": "src/testcases",
+    "language": "java",
+    "cwes": [
+      { "dir": 22, "cwe": 22 },
+      { "dir": 78, "cwe": 78 },
+      { "dir": 80, "cwe": 79 },
+      { "dir": 81, "cwe": 79 },
+      { "dir": 83, "cwe": 79 },
+      { "dir": 89, "cwe": 89 },
+      { "dir": 90, "cwe": 90 },
+      { "dir": 259, "cwe": 259 },
+      { "dir": 327, "cwe": 327 },
+      { "dir": 328, "cwe": 328 },
+      { "dir": 330, "cwe": 330 },
+      { "dir": 601, "cwe": 601 },
+      { "dir": 643, "cwe": 643 }
+    ],
+    "perCwe": 150,
+    "files": []
+  }
+}

@@ -9,6 +9,7 @@ import { runBenchmark } from './run.js';
 //   pnpm --filter @repopulse/security bench            # writes docs/benchmarks/report.{json,md}
 //   pnpm --filter @repopulse/security bench --check    # exits 1 if the committed report is stale
 //   ... --no-yaml | --yaml-bin <path> | --out <dir>
+//   ... --date YYYY-MM-DD --commit <sha>   (recorded in the report; a published number says when)
 //
 // No network: the corpus is on disk (a fetched suite is fetched by its own
 // prep script, never here) and the YAML engine runs with its version check and
@@ -21,12 +22,16 @@ function main(argv: string[]): number {
   let yaml = true;
   let yamlBin: string | undefined;
   let check = false;
+  let date: string | null = null;
+  let commit: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--no-yaml') yaml = false;
     else if (arg === '--check') check = true;
     else if (arg === '--out') out = path.resolve(argv[++i] ?? out);
     else if (arg === '--yaml-bin') yamlBin = argv[++i];
+    else if (arg === '--date') date = argv[++i] ?? null;
+    else if (arg === '--commit') commit = argv[++i] ?? null;
     else if (arg === '--') continue;
     else {
       process.stderr.write(`unknown argument: ${arg}\n`);
@@ -34,7 +39,11 @@ function main(argv: string[]): number {
     }
   }
 
-  const report = runBenchmark({ yaml, ...(yamlBin ? { yamlBin } : {}) });
+  const report = runBenchmark({
+    yaml,
+    ...(yamlBin ? { yamlBin } : {}),
+    ...(date || commit ? { measured: { date, commit } } : {}),
+  });
   const json = `${JSON.stringify(report, null, 2)}\n`;
   const md = renderMarkdown(report);
   const jsonPath = path.join(out, 'report.json');

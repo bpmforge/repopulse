@@ -238,5 +238,11 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       ],
       "engine": "fast-lane"
     }
+  },
+  "cwes": [],
+  "publicSuites": [],
+  "measured": {
+    "date": null,
+    "commit": null
   }
 };

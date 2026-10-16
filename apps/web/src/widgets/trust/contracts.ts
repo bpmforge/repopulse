@@ -23,11 +23,30 @@ export interface RulePrecision {
   benchmark: BenchmarkRuleScore | null;
 }
 
+export interface PublicCweScore {
+  suite: string;
+  cwe: number;
+  tp: number;
+  fp: number;
+  fn: number;
+  tn: number;
+  /** Share of real vulnerabilities found; null when the suite has none for this CWE. */
+  tpr: number | null;
+  /** Share of safe look-alikes flagged; null when the suite has none for this CWE. */
+  fpr: number | null;
+  /** TPR − FPR: 0 is a coin flip, 1 is perfect, negative is worse than guessing. */
+  youden: number | null;
+}
+
 export interface RulePrecisionReport {
   benchmark: {
     ticket: string;
     engine: string | null;
     excludedSuites: { suite: string; reason: string }[];
+    /** Absent from an API older than W18-40. */
+    cwes?: PublicCweScore[];
+    publicSuites?: { id: string; title: string }[];
+    measured?: { date: string | null; commit: string | null };
   };
   rules: RulePrecision[];
 }

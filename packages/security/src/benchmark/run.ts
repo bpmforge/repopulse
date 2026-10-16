@@ -17,6 +17,8 @@ export interface BenchmarkOptions {
   yaml?: boolean;
   /** Engine binary to use instead of searching PATH for opengrep, then semgrep. */
   yamlBin?: string;
+  /** Recorded in the report so a published number says when it was taken. */
+  measured?: { date: string | null; commit: string | null };
 }
 
 /**
@@ -118,5 +120,6 @@ export function runBenchmark(opts: BenchmarkOptions = {}): BenchmarkReport {
     })),
     rules: rules.sort((a, b) => (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0)),
     outcomes,
+    ...(opts.measured ? { measured: opts.measured } : {}),
   });
 }

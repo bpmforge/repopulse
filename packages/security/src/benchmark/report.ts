@@ -53,7 +53,64 @@ export interface BenchmarkReport {
   byDimension: { dimension: string; score: Score }[];
   byRule: (RuleInfo & { score: Score })[];
   bySuite: { suite: string; score: Score }[];
+  /** Per CWE on the public benchmark suites, in their own units (TPR, FPR). */
+  byCwe: CweScore[];
+  /** When and with what the numbers were taken; null fields = not recorded. */
+  measured: { date: string | null; commit: string | null };
   outcomes: Outcome[];
+}
+
+/**
+ * OWASP Benchmark's own unit: for one CWE, the share of real vulnerabilities
+ * found (TPR) and the share of safe look-alikes wrongly flagged (FPR). `youden`
+ * is TPR - FPR, the single number the Benchmark publishes: 0 is a coin flip, 1
+ * is perfect, below 0 is worse than guessing.
+ */
+export interface CweScore {
+  suite: string;
+  cwe: number;
+  tp: number;
+  fp: number;
+  fn: number;
+  tn: number;
+  tpr: number | null;
+  fpr: number | null;
+  youden: number | null;
+}
+
+const r3 = (n: number): number => Math.round(n * 1000) / 1000;
+
+/** Per (suite, CWE) TPR and FPR for the given suites. Skipped, duplicate and ignored outcomes do not count. */
+export function cweScores(outcomes: readonly Outcome[], suites: ReadonlySet<string>): CweScore[] {
+  const groups = new Map<string, CweScore>();
+  for (const o of outcomes) {
+    if (o.cwe === null || !suites.has(o.suite)) continue;
+    if (o.kind !== 'tp' && o.kind !== 'fp' && o.kind !== 'fn' && o.kind !== 'tn') continue;
+    const key = `${o.suite}\u0000${String(o.cwe).padStart(6, '0')}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        suite: o.suite,
+        cwe: o.cwe,
+        tp: 0,
+        fp: 0,
+        fn: 0,
+        tn: 0,
+        tpr: null,
+        fpr: null,
+        youden: null,
+      };
+      groups.set(key, g);
+    }
+    g[o.kind] += 1;
+  }
+  return [...groups.keys()].sort().map((k) => {
+    const g = groups.get(k)!;
+    g.tpr = g.tp + g.fn === 0 ? null : r3(g.tp / (g.tp + g.fn));
+    g.fpr = g.fp + g.tn === 0 ? null : r3(g.fp / (g.fp + g.tn));
+    g.youden = g.tpr === null || g.fpr === null ? null : r3(g.tpr - g.fpr);
+    return g;
+  });
 }
 
 export const SCOPE =
@@ -65,6 +122,7 @@ export function buildReport(args: {
   corpus: SuiteSummary[];
   rules: readonly RuleInfo[];
   outcomes: Outcome[];
+  measured?: { date: string | null; commit: string | null };
 }): BenchmarkReport {
   const { outcomes } = args;
   const ruleInfo = new Map(args.rules.map((r) => [r.rule, r]));
@@ -95,6 +153,11 @@ export function buildReport(args: {
       (o) => o.suite,
       args.corpus.map((c) => c.id),
     ).map(({ key, score: s }) => ({ suite: key, score: s })),
+    byCwe: cweScores(
+      outcomes,
+      new Set(args.corpus.filter((c) => c.source.kind === 'fetched').map((c) => c.id)),
+    ),
+    measured: args.measured ?? { date: null, commit: null },
     outcomes,
   };
 }
@@ -145,6 +208,29 @@ export function renderMarkdown(r: BenchmarkReport): string {
   out.push('', '## By suite', '');
   out.push(`Suite | ${SCORE_HEAD}`, `---|${SCORE_RULE}`);
   for (const s of r.bySuite) out.push(`${s.suite} | ${scoreCells(s.score)}`);
+  if (r.byCwe.length > 0) {
+    out.push('', '## Public benchmarks, by CWE', '');
+    out.push(
+      `Measured ${r.measured.date ?? '(date not recorded)'}${r.measured.commit ? ` at ${r.measured.commit.slice(0, 12)}` : ''}` +
+        (r.engines.yaml.status === 'ran'
+          ? ` with ${r.engines.yaml.tool} ${r.engines.yaml.version}.`
+          : '.'),
+      '',
+      'TPR is the share of real vulnerabilities found; FPR is the share of safe look-alikes flagged; ' +
+        'Youden is TPR − FPR (0 = a coin flip, 1 = perfect, negative = worse than guessing). ' +
+        'A CWE we have no rule for shows a TPR of 0%, and stays in the table.',
+      '',
+    );
+    out.push(
+      'Suite | CWE | TP | FN | FP | TN | TPR | FPR | Youden',
+      '---|--:|--:|--:|--:|--:|--:|--:|--:',
+    );
+    for (const c of r.byCwe) {
+      out.push(
+        `${c.suite} | ${c.cwe} | ${c.tp} | ${c.fn} | ${c.fp} | ${c.tn} | ${pct(c.tpr)} | ${pct(c.fpr)} | ${c.youden === null ? '—' : c.youden.toFixed(3)}`,
+      );
+    }
+  }
   out.push('', '## By rule', '');
   out.push(
     'Every rule that ran has a row; all zeros means the corpus neither labels nor provokes it. ' +
