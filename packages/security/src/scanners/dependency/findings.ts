@@ -7,6 +7,7 @@ import {
 } from '@repopulse/insights';
 import { readComponents } from '../../registers/sbom.js';
 import type { ValidatedVulnerability } from '../../validation/index.js';
+import type { FixAdvice } from './fixpath/advise.js';
 
 // Validated vulnerabilities -> stored findings (W8-06 + W8-13, FR-SEC-5/13, D12).
 //
@@ -104,6 +105,8 @@ export function manifestPaths(document: Record<string, unknown>): string[] {
 export function dependencyFindings(
   vulnerabilities: readonly ValidatedVulnerability[],
   sbomDocument: Record<string, unknown>,
+  /** W18-36: the lockfile-graph fix path for a vulnerability, when one can be given. */
+  fixAdvice?: (vulnerability: ValidatedVulnerability) => FixAdvice | null,
 ): DependencyFindingsResult {
   const funnel: FindingFunnel = {
     matches: vulnerabilities.length,
@@ -126,7 +129,7 @@ export function dependencyFindings(
       : vulnerability.severity;
     if (vulnerability.kev && severity > vulnerability.severity) funnel.kevFloored += 1;
 
-    return priceOne(vulnerability, severity);
+    return priceOne(vulnerability, severity, fixAdvice?.(vulnerability) ?? null);
   });
 
   funnel.findings = priced.length;
@@ -152,11 +155,16 @@ export function dependencyFindings(
   };
 }
 
-function priceOne(vulnerability: ValidatedVulnerability, severity: number): PricedIncomingFinding {
+function priceOne(
+  vulnerability: ValidatedVulnerability,
+  severity: number,
+  advice: FixAdvice | null,
+): PricedIncomingFinding {
   const identifier = vulnerability.primaryId;
   const purl = vulnerability.purl ?? `${vulnerability.packageName}@${vulnerability.packageVersion}`;
-  const fix =
-    vulnerability.fixVersions.length > 0
+  const fix = advice
+    ? advice.text
+    : vulnerability.fixVersions.length > 0
       ? `Upgrade to ${vulnerability.fixVersions.join(' or ')}.`
       : 'No fixed version is published yet — the options are a workaround, a pin, or removal.';
 
@@ -200,7 +208,7 @@ function priceOne(vulnerability: ValidatedVulnerability, severity: number): Pric
     // verbatim.
     evidenceQuote: `${purl} is affected by ${identifier}`,
     rationale: rationaleFor(vulnerability, fix),
-    suggestedFix: vulnerability.fixVersions.length > 0 ? fix : null,
+    suggestedFix: vulnerability.fixVersions.length > 0 || (advice !== null && advice.kind !== 'no_fix') ? fix : null,
     scannerKey: DEPENDENCY_SCANNER_KEY,
     // The vulnerability id, not a constant: dedupKey normalizes digits out of
     // the evidence quote, so "CVE-2020-11023" and "CVE-2020-11022" on the same

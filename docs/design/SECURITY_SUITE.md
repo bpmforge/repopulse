@@ -184,6 +184,14 @@ sanitizers are per sink. **Limit, stated plainly:** the engine follows a value t
 function. A flow that crosses a call into another function, a field or a framework injection
 is missed, not misreported — real interprocedural dataflow is the next step, not claimed here.
 
+**Dependency fix paths (W18-36).** `scanners/dependency/fixpath/` reads the lockfile graphs in the snapshot (npm,
+pnpm, yarn v1, poetry, uv, Cargo; go.mod is flat) and `adviseFix` names, for a transitive CVE, the direct
+dependency to bump and a pin that is correct by construction (`overrides`, `pnpm.overrides`, `resolutions`,
+`override-dependencies`, `cargo update --precise`); for a direct one, the lowest fixed version; for Go,
+`go get module@fixed`. It says plainly when no fixed version exists or no graph can be read. A lockfile records
+only what is installed, so the *release* of the direct dependency that picks up the fix is not guessed. Advice
+only (D9a).
+
 ### 3.4 `owasp_web` / `owasp_llm` — inputs: diff + targeted contents — FR-SEC-7
 
 LLM checklist scanners: OWASP Web Top-10 (2021) and OWASP LLM Top-10 (2025) checklists as

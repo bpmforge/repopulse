@@ -9372,8 +9372,10 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
-      "notes": []
+      "status": "done",
+      "notes": [
+        "Lockfile-only: the route from a direct dependency to the vulnerable package is exact (npm, pnpm, yarn v1, poetry, uv, Cargo; Go is flat and advised with go get). Which release of the direct dependency picks up the fix needs registry metadata the sandbox cannot reach, so the advice names the dependency and gives a pin that is correct by construction, and says so. A host-side metadata lookup would close that gap."
+      ]
     },
     {
       "id": "W18-37",

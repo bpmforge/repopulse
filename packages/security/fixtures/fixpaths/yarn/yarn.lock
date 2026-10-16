@@ -1,0 +1,18 @@
+# yarn lockfile v1
+
+
+debug@2.6.9:
+  version "2.6.9"
+  dependencies:
+    ms "2.0.0"
+
+express@^4.17.1:
+  version "4.17.1"
+  dependencies:
+    debug "2.6.9"
+
+minimist@1.2.0:
+  version "1.2.0"
+
+ms@2.0.0:
+  version "2.0.0"

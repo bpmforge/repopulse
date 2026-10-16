@@ -75,3 +75,4 @@ export * from './catalogue.js';
 export * from './patches/index.js';
 export * from './excerpt.js';
 export * from './external/index.js';
+export * from './scanners/dependency/fixpath/index.js';
