@@ -1,0 +1,9 @@
+[tool.poetry]
+name = "eco-poetry"
+version = "0.1.0"
+description = ""
+authors = ["Eco <eco@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+django = "2.2.0"

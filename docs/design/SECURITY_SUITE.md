@@ -222,8 +222,8 @@ hard-coded `SymmetricKey`, interpolated `evaluateJavaScript`, trust-all
 logging packs. All are shadow candidates with trigger and clean fixtures under
 `fixtures/swift/`. Engine limits (interpolation and comments are not structure)
 are in each pack header. `Package.resolved` and `Podfile.lock` fixtures are in
-`fixtures/ecosystems/swift` for the W18-47 matrix; syft's directory scan is
-expected to catalogue them, which has not been run.
+`fixtures/ecosystems/swiftpm` and `cocoapods`; they are rows of the W18-47
+matrix (`docs/ECOSYSTEMS.md`), which records whether syft and grype read them.
 
 **Kotlin (W18-42).** Its own `bpm-baseline.kotlin.v1.yaml` (WebView file access and
 JavaScript bridge, accept-all `TrustManager`), `bpm-baseline.kotlin-android.v1.yaml`
@@ -231,7 +231,7 @@ JavaScript bridge, accept-all `TrustManager`), `bpm-baseline.kotlin-android.v1.y
 permission, generic matcher), and Kotlin anti-slop (`!!`, `GlobalScope`,
 `runBlocking`) and logging packs, all shadow candidates with fixtures under
 `fixtures/kotlin/`. `!!` is a text match because the parser drops the operator.
-A `gradle.lockfile` fixture is in `fixtures/ecosystems/kotlin` for the W18-47
+A `gradle.lockfile` fixture is in `fixtures/ecosystems/gradle` for the W18-47
 matrix; `build.gradle(.kts)` is not read.
 
 **Injection for C#, Kotlin and Rust (W18-43).** `bpm-baseline.injection.dotnet-kotlin-rust.v1.yaml`
@@ -494,3 +494,11 @@ upload SARIF instead.
 
 Note: §7 excludes *running* CodeQL ourselves for licensing reasons. Ingesting results a team
 produced under its own entitlement is a different act and is what this section does.
+
+**Ecosystem matrix (W18-47).** `fixtures/ecosystems/<id>` holds one pinned,
+known-vulnerable lockfile per ecosystem (17 rows, including Conan and vcpkg).
+`pnpm --filter @repopulse/security ecosystems` runs syft and grype over each in
+the scan image and writes `docs/ecosystems.json` and `docs/ECOSYSTEMS.md`, so a
+row reads Supported, Read-but-unmatched, or Unsupported from a measurement, never
+from the tools' documentation. Until that has been run, every row says "Not yet
+run". A test holds the committed doc equal to its rendering.
