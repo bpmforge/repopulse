@@ -1,6 +1,12 @@
 import { eq } from 'drizzle-orm';
 import { security, type Database, safeErrorText } from '@repopulse/shared';
-import { DEFAULT_BUDGET, getScanner, runScanner, type ScanTrigger, type ScannerContext } from '@repopulse/security';
+import {
+  DEFAULT_BUDGET,
+  getScanner,
+  runScanner,
+  type ScanTrigger,
+  type ScannerContext,
+} from '@repopulse/security';
 import type { Job } from 'bullmq';
 
 // security.scan processor (W8-01, NFR-15).
@@ -92,7 +98,7 @@ const NOTHING_SCANNED: Record<string, string> = {
   code_scanning_not_supported:
     'This forge has no code-scanning alerts RepoPulse can read yet (GitLab and Gitea are not supported), so nothing was imported.',
   no_code_scanning_permission:
-    'The GitHub App may not read code-scanning alerts, so none were imported — an org owner grants "Code scanning alerts: Read" in the App settings.',
+    'The token or GitHub App RepoPulse uses may not read code-scanning alerts, so none were imported — grant it "Code scanning alerts: Read-only" (security_events: read), or ignore this if you do not use GitHub code scanning.',
   code_scanning_not_enabled:
     'Code scanning is not set up on this repository on GitHub, so there were no alerts to import.',
   source_cap_reached:
@@ -261,7 +267,8 @@ export function scanProcessor(deps: ScanProcessorDeps) {
       // asking for that work, not for a different kind of it.
       //
       // Still a lookup rather than a branch on the key, so FR-SEC-1 holds.
-      const runner = deps.historyRunners?.[data.scannerKey] ?? deps.weeklyRunners?.[data.scannerKey];
+      const runner =
+        deps.historyRunners?.[data.scannerKey] ?? deps.weeklyRunners?.[data.scannerKey];
       if (!runner) {
         // NOT a silent return (W16-20).
         //
