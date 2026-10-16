@@ -217,3 +217,27 @@ export function repoContextFor(
   const text = kept.join('\n');
   return { text, tokens: estimateTokens(text), functions };
 }
+
+/**
+ * Callers and callees for a batch of judged candidates (the anti-slop.v2
+ * prompt). A candidate is an excerpt, not a diff, so each file's excerpts are
+ * laid out as the added lines of one section: every function declared in an
+ * excerpt then gets its callers listed. `promptTokens` is what the batch's
+ * own prompt already costs.
+ */
+export function repoContextForCandidates(
+  graph: ImportGraphSnapshot | null,
+  candidates: readonly { file: string; excerpt: { text: string } }[],
+  promptTokens: number,
+  maxTokens = REPO_CONTEXT_MAX_TOKENS,
+): RepoContext {
+  const byFile = new Map<string, string[]>();
+  for (const c of candidates) {
+    const lines = byFile.get(c.file) ?? [];
+    for (const line of c.excerpt.text.split('\n')) lines.push(`+${line}`);
+    byFile.set(c.file, lines);
+  }
+  const paths = [...byFile.keys()];
+  const text = paths.map((path) => `--- ${path}\n${byFile.get(path)!.join('\n')}`).join('\n');
+  return repoContextFor(graph, { text, paths, promptTokens }, maxTokens);
+}

@@ -3,17 +3,25 @@ import path from 'node:path';
 import { and, eq, inArray } from 'drizzle-orm';
 import { read, security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
-import { persistFindings, writeImportGraph, type IncomingFinding } from '@repopulse/insights';
+import {
+  persistFindings,
+  writeImportGraph,
+  type ImportGraphSnapshot,
+  type IncomingFinding,
+} from '@repopulse/insights';
 import {
   validateFindings,
   FindingParseError,
   mayBeSurfacedLoudly,
   needsVerification,
   verdictToStatus,
+  estimateTokens,
+  PROMPT_BUDGET_TOKENS,
   type AnalysisGateway,
   type DiffFile,
 } from '@repopulse/analysis';
 import { loadChecklist } from '../owasp/checklist.js';
+import { REPO_CONTEXT_MAX_TOKENS, repoContextForCandidates } from '../context/repo-context.js';
 import {
   batchCandidates,
   buildCandidatePrompt,
@@ -838,11 +846,29 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
     const selection = deps.gateway
       ? selectCandidates(findings, sources, diffPaths ? { diffPaths } : {})
       : { candidates: [], capped: 0 };
-    const batches = batchCandidates(checklist, selection.candidates);
+    // The same import graph the reprice reads, handed to the judge: a flagged
+    // function that nothing imports is a different finding from one six files
+    // call. The context is reserved out of the batch budget, not added to it.
+    const graph: ImportGraphSnapshot | null = deps.sources?.length
+      ? {
+          version: 1,
+          commitSha: deps.commitSha,
+          complete: deps.sourcesComplete === true,
+          extensions: RESOLVE_EXTENSIONS,
+          ...buildImportGraph(deps.sources),
+        }
+      : null;
+    const batches = batchCandidates(
+      checklist,
+      selection.candidates,
+      graph ? PROMPT_BUDGET_TOKENS - REPO_CONTEXT_MAX_TOKENS : PROMPT_BUDGET_TOKENS,
+    );
     let judgment = 0;
 
     for (const batch of batches) {
-      const result = await deps.gateway!.complete(buildCandidatePrompt(checklist, batch), {
+      const bare = buildCandidatePrompt(checklist, batch);
+      const context = repoContextForCandidates(graph, batch, estimateTokens(bare)).text;
+      const result = await deps.gateway!.complete(buildCandidatePrompt(checklist, batch, context), {
         tier: 'T2',
         maxTokens: 45_000,
         expectJson: true,
