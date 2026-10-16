@@ -208,6 +208,16 @@ Dockerfile line; a file naming an image that failed to pull is never declared
 reviewed, so an outage cannot close findings. Upgrade suggestions come from
 scanning up to two newer same-variant tags.
 
+**Swift (W18-41).** `bpm-baseline.swift.v1.yaml` (force-unwrapped URLs, MD5/SHA-1,
+hard-coded `SymmetricKey`, interpolated `evaluateJavaScript`, trust-all
+`URLSession` challenge handlers), `bpm-baseline.swift-plist.v1.yaml` (ATS
+`NSAllowsArbitraryLoads`, generic matcher over `*.plist`), and Swift anti-slop and
+logging packs. All are shadow candidates with trigger and clean fixtures under
+`fixtures/swift/`. Engine limits (interpolation and comments are not structure)
+are in each pack header. `Package.resolved` and `Podfile.lock` fixtures are in
+`fixtures/ecosystems/swift` for the W18-47 matrix; syft's directory scan is
+expected to catalogue them, which has not been run.
+
 ### 3.4 `owasp_web` / `owasp_llm` — inputs: diff + targeted contents — FR-SEC-7
 
 LLM checklist scanners: OWASP Web Top-10 (2021) and OWASP LLM Top-10 (2025) checklists as

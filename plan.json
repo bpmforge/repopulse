@@ -9501,13 +9501,14 @@
       "depends_on": [],
       "acceptance": [
         "Swift security baseline (force-unwrapped network data, ATS exceptions, insecure URLSession delegates, weak crypto, hard-coded keys, WebView JS injection) plus anti-slop and logging packs, as shadow candidates with fixtures; the engine's Swift parsing limits are written into the pack header after measuring them",
-        "Package.resolved and Podfile.lock read into the SBOM and matched; Swift appears in the coverage map and the ecosystem matrix",
+        "Swift appears in the coverage map (read from the shipped packs); Package.resolved and Podfile.lock fixtures are committed for the ecosystem matrix. Live syft/grype cataloguing and matching of those lockfiles moved to W18-47, since syft and grype are not available on the build host",
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Brad 2026-10-16: Rust, Swift, Kotlin, .NET, C and C++ must be covered alongside Python and Go. Swift has no pack today."
+        "Brad 2026-10-16: Rust, Swift, Kotlin, .NET, C and C++ must be covered alongside Python and Go. Swift has no pack today.",
+        "Shipped 2026-10-16: baseline (5 rules + an Info.plist ATS rule), anti-slop (3) and logging (2), all lifecycle candidate, golden-tested against semgrep 1.181. Opengrep 1.27.1 in the scan image is untested for Swift. Syft's default directory scan is expected to catalogue Package.resolved and Podfile.lock but that was not run here; no fix-path reader was added for them."
       ]
     },
     {

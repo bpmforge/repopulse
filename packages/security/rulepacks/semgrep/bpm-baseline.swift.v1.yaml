@@ -1,0 +1,134 @@
+# bpm-rulepacks — security baseline, Swift variants v1 (W18-41, SECURITY_SUITE.md §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse; not derived from the Semgrep registry,
+# SwiftLint, or any vendor pack (licence position: bpm-baseline.v1.yaml header).
+#
+# ENGINE LIMITS, measured 2026-10-16 with semgrep 1.181 (Opengrep 1.27.1 in the
+# scan image is not measurable from the build host; the golden test runs
+# whichever engine is on PATH): the Swift parser handles `URL(string: $X)!`,
+# `try!`, `as!`, `do { } catch { }`, `func` patterns with labelled parameters and
+# `Type.method(...)` calls. It does NOT see string interpolation as structure,
+# so interpolation checks (`"\(x)"`) are text regexes, and a rule that must know a
+# call is guarded elsewhere in the function can only look for the guard as an
+# enclosing `if`. Comments are invisible. Property wrappers and attributes
+# (`@objc`, `@MainActor`) are not matchable.
+rules:
+  - id: bpm-sw-url-force-unwrap
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      A URL built from a run-time string and force-unwrapped. `URL(string:)`
+      returns nil for any malformed input, so when the string comes from a
+      server, a deep link or user input the app crashes on bad data — and a
+      crash on attacker-chosen input is a denial of service. Handle the nil
+      (`guard let`) and reject the input.
+    metadata:
+      category: security
+      cwe: 'CWE-476: NULL Pointer Dereference'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Cannot tell where the string came from; a constant held in a variable
+        is flagged like network data. Literal URLs are not flagged.
+    paths:
+      exclude:
+        - 'Tests/**'
+        - '**/*Tests/**'
+    patterns:
+      - pattern: 'URL(string: $X)!'
+      - pattern-not: 'URL(string: "...")!'
+
+  - id: bpm-sw-weak-hash
+    languages: [swift]
+    severity: WARNING
+    message: >-
+      MD5 or SHA-1 is used. Both are broken for collision resistance, so they
+      must not protect integrity, signatures or passwords. Use SHA-256 or
+      stronger (CryptoKit `SHA256`), and a password KDF for passwords.
+    metadata:
+      category: security
+      cwe: 'CWE-328: Use of Weak Hash'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Fires on every use, including legacy-protocol checksums and cache keys
+        where collisions are harmless.
+    patterns:
+      - pattern-either:
+          - pattern: Insecure.MD5.hash(...)
+          - pattern: Insecure.SHA1.hash(...)
+          - pattern: CC_MD5(...)
+          - pattern: CC_SHA1(...)
+
+  - id: bpm-sw-hardcoded-key
+    languages: [swift]
+    severity: ERROR
+    message: >-
+      A symmetric key is built from a string literal. Anyone with the app
+      binary can read it, so the encryption protects nothing. Generate the key
+      per install and keep it in the Keychain, or derive it from a user secret.
+    metadata:
+      category: security
+      cwe: 'CWE-321: Use of Hard-coded Cryptographic Key'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Only literal construction is seen; a key stored in a constant and
+        passed in is not followed.
+    paths:
+      exclude:
+        - 'Tests/**'
+        - '**/*Tests/**'
+    patterns:
+      - pattern-either:
+          - pattern: 'SymmetricKey(data: Data("...".utf8))'
+          - pattern: 'SymmetricKey(data: "...".data(using: $E)!)'
+
+  - id: bpm-sw-webview-js-interpolation
+    languages: [swift]
+    severity: ERROR
+    message: >-
+      A string with interpolated values is evaluated as JavaScript in a web
+      view. A value containing a quote closes the string and the rest runs as
+      script in the page's origin. Pass data as arguments
+      (`callAsyncJavaScript(_:arguments:)`) or JSON-encode it.
+    metadata:
+      category: security
+      cwe: 'CWE-94: Improper Control of Generation of Code'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Interpolation is matched as text on a single line; a script assembled
+        with `+` or on several lines is missed.
+    patterns:
+      - pattern: '$W.evaluateJavaScript($S, ...)'
+      - pattern-regex: evaluateJavaScript\(\s*"[^"\n]*\\\(
+
+  - id: bpm-sw-urlsession-trust-all
+    languages: [swift]
+    severity: ERROR
+    message: >-
+      A URLSession challenge handler accepts the server's certificate without
+      evaluating it. Any certificate then passes, including an attacker's, so
+      TLS no longer authenticates the server. Evaluate the trust
+      (`SecTrustEvaluateWithError`) or pin the expected key before using the
+      credential.
+    metadata:
+      category: security
+      cwe: 'CWE-295: Improper Certificate Validation'
+      lifecycle: candidate
+      yields: []
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Looks for the evaluation as an enclosing `if` in the same handler; a
+        helper that evaluates elsewhere, or a `guard`, is reported.
+    patterns:
+      - pattern-inside: |
+          func urlSession(..., didReceive challenge: $C, completionHandler: $H) { ... }
+      - pattern: 'URLCredential(trust: ...)'
+      - pattern-not-inside: |
+          if SecTrustEvaluateWithError(...) { ... }
