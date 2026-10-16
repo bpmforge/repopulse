@@ -9265,6 +9265,222 @@
       "notes": [
         "DONE 2026-10-15 on claude/repopulse-code-context (stacked on W18-31 / PR #74). Migration 0038_finding_context (journal idx 32): renumber at merge, other W18 PRs claim 0032/0033/0035-0037. Retention runs from persistFindings (no scheduler owns retention sweeps yet). Excerpts wired into logging, perf, anti-slop pack, code-health and semgrep (full and diff-scoped) scanners; owasp, dependency, secrets and LLM findings have none. SC-29a added to SECURITY_CONTROLS."
       ]
+    },
+    {
+      "id": "W18-33",
+      "title": "Taint-mode injection rules (SQLi, XSS, command injection, path traversal, SSRF, deserialization, open redirect) for JS/TS, Python, Java and Go, with CWE and OWASP tags",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Source, sanitizer and sink catalogues for express/fastify, flask/django, spring and net/http, as Opengrep taint rules",
+        "Every rule carries a CWE and OWASP Top 10 tag; the coverage map (W18-22) shows coverage by CWE",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "Gap analysis: /mnt/project-files/repopulse/snyk-gap-analysis.md. Today only 3 packs use taint mode."
+      ]
+    },
+    {
+      "id": "W18-34",
+      "title": "Container image scan: base-image and OS-package CVEs for images named in Dockerfiles, compose and Kubernetes manifests",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Image references extracted from the snapshot; images pulled by a host-side job (like the vuln-DB sync) into scratch and scanned with grype, never in the network-less sandbox; nothing persisted but findings",
+        "Base-image upgrade suggestion when a newer tag of the same image clears findings",
+        "Needs Brad's decision on egress and registry credentials before work starts; full gate green"
+      ],
+      "points": 8,
+      "status": "blocked",
+      "notes": [
+        "BLOCKED ON DECISION: registry pulls need egress and, for private images, credentials."
+      ]
+    },
+    {
+      "id": "W18-35",
+      "title": "Promote the IaC adapters: surface checkov findings, add Helm and Kustomize rendering, measure precision",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-26"
+      ],
+      "acceptance": [
+        "checkov, actionlint, hadolint and shellcheck rules measured on the benchmark (W18-17) and promoted by the existing shadow rule where the floor holds",
+        "Helm charts and Kustomize overlays rendered offline before scanning; the `iac` scanner capability flips from backlog to supported",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Cheapest gap: the adapters exist (W18-26), only promotion and rendering are missing."
+      ]
+    },
+    {
+      "id": "W18-36",
+      "title": "Dependency fix paths: smallest upgrade that clears a vulnerability, including through transitive dependencies",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "For a vulnerable transitive package, name the direct dependency to bump and the version that pulls in a fixed release, from the lockfile graph; say so plainly when no such upgrade exists",
+        "Covers npm/pnpm/yarn, pip/poetry/uv, Go modules and Cargo lockfiles with fixture trees; findings stay read-only advice (D9a)",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": []
+    },
+    {
+      "id": "W18-37",
+      "title": "SCA coverage: OpenSSF malicious-package advisories, symbol reachability beyond Go, and a tested ecosystem matrix",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "OpenSSF malicious-packages data synced nightly alongside the CVE data and matched against the SBOM; a hit is severity 5",
+        "Call-site reachability for JS/TS and Python by generated Opengrep rules from OSV affected symbols, with 'imported' kept for what it cannot prove",
+        "Docs list the lockfile ecosystems actually tested (npm, pnpm, yarn, pip, poetry, uv, go, cargo, maven, gradle, nuget, composer, bundler) with a fixture per row"
+      ],
+      "points": 8,
+      "status": "todo",
+      "notes": [
+        "V3 symbol reachability exists for Go only today (validation/reachability.ts)."
+      ]
+    },
+    {
+      "id": "W18-38",
+      "title": "Secrets: grow the provider pack to the top 100 credential formats with keyword and entropy checks",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "At least 100 provider rules in secrets.v1.yaml, each with a trigger fixture and a clean fixture; format verifiers where the format has a checksum or prefix",
+        "Precision measured on the benchmark; live verification stays off (no outbound calls with someone else's credential)",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "15 rules today."
+      ]
+    },
+    {
+      "id": "W18-39",
+      "title": "License policy: copyleft categories, SPDX expressions and an attribution report",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Policy categories (permissive, weak copyleft, strong copyleft, network copyleft, unknown) with a workspace-tunable default; SPDX expressions such as MIT OR Apache-2.0 resolved to the most permissive choice",
+        "Attribution/NOTICE export from the SBOM; findings stay posture-only, never a gate (N-3)"
+      ],
+      "points": 3,
+      "status": "todo",
+      "notes": [
+        "Today: AGPL and SSPL plus unknown are flagged (registers/license.ts)."
+      ]
+    },
+    {
+      "id": "W18-40",
+      "title": "Published accuracy on public SAST benchmarks (OWASP Benchmark, Juliet) next to our own",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-17"
+      ],
+      "acceptance": [
+        "Harness runs the Java OWASP Benchmark and a Juliet subset against our packs and reports true and false positive rates per CWE, with the method written down",
+        "Numbers appear in the product's coverage and accuracy view (W18-22) with the date and version, including where we score badly"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Measure after W18-33 so the numbers describe the taint rules."
+      ]
     }
   ]
 }
