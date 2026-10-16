@@ -1,5 +1,181 @@
 {
   "schema": 1,
-  "meta": null,
-  "results": []
+  "meta": {
+    "syft": "1.51.0",
+    "grype": "0.117.0",
+    "date": "2026-10-16",
+    "image": "localhost/repopulse/scan:cpp"
+  },
+  "results": [
+    {
+      "id": "npm",
+      "status": "matched",
+      "packages": 2,
+      "pinnedFound": 1,
+      "vulnerabilities": 6,
+      "purlTypes": [
+        "npm"
+      ]
+    },
+    {
+      "id": "pnpm",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 6,
+      "purlTypes": [
+        "npm"
+      ]
+    },
+    {
+      "id": "yarn",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 6,
+      "purlTypes": [
+        "npm"
+      ]
+    },
+    {
+      "id": "pip",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 43,
+      "purlTypes": [
+        "pypi"
+      ]
+    },
+    {
+      "id": "poetry",
+      "status": "matched",
+      "packages": 2,
+      "pinnedFound": 1,
+      "vulnerabilities": 43,
+      "purlTypes": [
+        "pypi"
+      ]
+    },
+    {
+      "id": "uv",
+      "status": "matched",
+      "packages": 2,
+      "pinnedFound": 1,
+      "vulnerabilities": 43,
+      "purlTypes": [
+        "pypi"
+      ]
+    },
+    {
+      "id": "go",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 5,
+      "purlTypes": [
+        "golang"
+      ]
+    },
+    {
+      "id": "cargo",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 1,
+      "purlTypes": [
+        "cargo"
+      ]
+    },
+    {
+      "id": "maven",
+      "status": "matched",
+      "packages": 2,
+      "pinnedFound": 1,
+      "vulnerabilities": 7,
+      "purlTypes": [
+        "maven"
+      ]
+    },
+    {
+      "id": "gradle",
+      "status": "matched",
+      "packages": 2,
+      "pinnedFound": 1,
+      "vulnerabilities": 59,
+      "purlTypes": [
+        "maven"
+      ]
+    },
+    {
+      "id": "nuget",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 1,
+      "purlTypes": [
+        "nuget"
+      ]
+    },
+    {
+      "id": "composer",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 14,
+      "purlTypes": [
+        "composer"
+      ]
+    },
+    {
+      "id": "bundler",
+      "status": "matched",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 34,
+      "purlTypes": [
+        "gem"
+      ]
+    },
+    {
+      "id": "swiftpm",
+      "status": "catalogued",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 0,
+      "purlTypes": [
+        "swift"
+      ]
+    },
+    {
+      "id": "cocoapods",
+      "status": "catalogued",
+      "packages": 1,
+      "pinnedFound": 1,
+      "vulnerabilities": 0,
+      "purlTypes": [
+        "cocoapods"
+      ]
+    },
+    {
+      "id": "conan",
+      "status": "matched",
+      "packages": 2,
+      "pinnedFound": 2,
+      "vulnerabilities": 49,
+      "purlTypes": [
+        "conan"
+      ]
+    },
+    {
+      "id": "vcpkg",
+      "status": "unsupported",
+      "packages": 1,
+      "pinnedFound": 0,
+      "vulnerabilities": 0,
+      "purlTypes": [
+        "vcpkg"
+      ]
+    }
+  ]
 }
