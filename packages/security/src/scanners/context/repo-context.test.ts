@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { chunkDiff, estimateTokens, PROMPT_BUDGET_TOKENS } from '@repopulse/analysis';
 import type { ImportGraphSnapshot } from '@repopulse/insights';
 import { buildChecklistPrompt } from '../owasp/checklist.js';
-import { declaredFunctions, repoContextFor, REPO_CONTEXT_MAX_TOKENS } from './repo-context.js';
+import {
+  declaredFunctions,
+  repoContextFor,
+  repoContextForCandidates,
+  REPO_CONTEXT_MAX_TOKENS,
+} from './repo-context.js';
 
 // Repo-wide context for Tier-2 chunks (W18-25).
 
@@ -174,5 +179,28 @@ describe('the checklist prompt', () => {
     const before = estimateTokens(buildChecklistPrompt(checklist, chunk.text));
     const after = estimateTokens(buildChecklistPrompt(checklist, chunk.text, ctx.text));
     expect(after - before).toBeLessThanOrEqual(ctx.tokens + 60);
+  });
+});
+
+describe('repoContextForCandidates', () => {
+  const excerpt = (text: string) => ({ file: 'src/billing.ts', excerpt: { text } });
+
+  it('lists the callers of a function declared in an excerpt', () => {
+    const { text } = repoContextForCandidates(
+      graph,
+      [excerpt('export function chargeCustomer(id: string) {\n  return pay(roundCents(id));\n}')],
+      100,
+    );
+    expect(text).toContain('chargeCustomer: called from src/api/invoices.ts, src/jobs/close.ts');
+    expect(text).toContain('uses: roundCents (src/money.ts)');
+  });
+
+  it('is empty without a graph, for a file outside it, or with no room', () => {
+    const c = [excerpt('function chargeCustomer() {}')];
+    expect(repoContextForCandidates(null, c, 100).text).toBe('');
+    expect(
+      repoContextForCandidates(graph, [{ file: 'src/other.ts', excerpt: c[0]!.excerpt }], 100).text,
+    ).toBe('');
+    expect(repoContextForCandidates(graph, c, PROMPT_BUDGET_TOKENS).text).toBe('');
   });
 });
