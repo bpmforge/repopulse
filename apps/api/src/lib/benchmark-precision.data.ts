@@ -25,10 +25,10 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-cmd-java": {
-      "tp": 47,
+      "tp": 50,
       "fp": 19,
       "fn": 0,
-      "precision": 0.712,
+      "precision": 0.725,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
@@ -36,7 +36,7 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-redirect-java": {
-      "tp": 15,
+      "tp": 14,
       "fp": 0,
       "fn": 0,
       "precision": 1,
@@ -46,10 +46,10 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-sql-java": {
-      "tp": 122,
+      "tp": 127,
       "fp": 89,
       "fn": 0,
-      "precision": 0.578,
+      "precision": 0.588,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
@@ -57,10 +57,10 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-xss-java": {
-      "tp": 134,
+      "tp": 135,
       "fp": 62,
       "fn": 0,
-      "precision": 0.684,
+      "precision": 0.685,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
@@ -69,9 +69,9 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
     },
     "bpm-java-command-concat": {
       "tp": 55,
-      "fp": 153,
+      "fp": 159,
       "fn": 0,
-      "precision": 0.264,
+      "precision": 0.257,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
@@ -79,10 +79,10 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-java-sql-string-concat": {
-      "tp": 195,
-      "fp": 332,
+      "tp": 212,
+      "fp": 370,
       "fn": 0,
-      "precision": 0.37,
+      "precision": 0.364,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
@@ -308,43 +308,43 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
     {
       "suite": "juliet-java",
       "cwe": 78,
-      "tp": 56,
-      "fp": 120,
-      "fn": 38,
-      "tn": 58,
-      "tpr": 0.596,
-      "fpr": 0.674,
-      "youden": -0.078
+      "tp": 59,
+      "fp": 126,
+      "fn": 34,
+      "tn": 56,
+      "tpr": 0.634,
+      "fpr": 0.692,
+      "youden": -0.058
     },
     {
       "suite": "juliet-java",
       "cwe": 79,
-      "tp": 28,
+      "tp": 29,
       "fp": 0,
-      "fn": 254,
-      "tn": 546,
-      "tpr": 0.099,
+      "fn": 260,
+      "tn": 549,
+      "tpr": 0.1,
       "fpr": 0,
-      "youden": 0.099
+      "youden": 0.1
     },
     {
       "suite": "juliet-java",
       "cwe": 89,
-      "tp": 52,
-      "fp": 126,
-      "fn": 49,
-      "tn": 264,
-      "tpr": 0.515,
-      "fpr": 0.323,
-      "youden": 0.192
+      "tp": 74,
+      "fp": 164,
+      "fn": 30,
+      "tn": 228,
+      "tpr": 0.712,
+      "fpr": 0.418,
+      "youden": 0.294
     },
     {
       "suite": "juliet-java",
       "cwe": 90,
       "tp": 0,
       "fp": 0,
-      "fn": 94,
-      "tn": 178,
+      "fn": 93,
+      "tn": 182,
       "tpr": 0,
       "fpr": 0,
       "youden": 0
@@ -354,8 +354,8 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "cwe": 259,
       "tp": 0,
       "fp": 0,
-      "fn": 93,
-      "tn": 178,
+      "fn": 95,
+      "tn": 186,
       "tpr": 0,
       "fpr": 0,
       "youden": 0
@@ -385,21 +385,21 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
     {
       "suite": "juliet-java",
       "cwe": 601,
-      "tp": 15,
+      "tp": 14,
       "fp": 0,
-      "fn": 80,
-      "tn": 181,
-      "tpr": 0.158,
+      "fn": 83,
+      "tn": 184,
+      "tpr": 0.144,
       "fpr": 0,
-      "youden": 0.158
+      "youden": 0.144
     },
     {
       "suite": "juliet-java",
       "cwe": 643,
       "tp": 0,
       "fp": 0,
-      "fn": 90,
-      "tn": 360,
+      "fn": 92,
+      "tn": 368,
       "tpr": 0,
       "fpr": 0,
       "youden": 0
@@ -538,6 +538,6 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
   ],
   "measured": {
     "date": "2026-10-16",
-    "commit": "a7d15eadba0b90a56197c2753bbb0b7c4cfeb72f"
+    "commit": "7271e53967260dcd558da9e4dfc7267270f2c0ba"
   }
 };

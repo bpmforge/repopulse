@@ -151,6 +151,15 @@ export function julietLabels(
   );
 }
 
+/**
+ * A Juliet test case, as opposed to the build scaffolding shipped alongside
+ * it: each CWE directory also holds `antbuild/testcases/<CWE>/Main.java` and
+ * `ServletMain.java`, ant-template copies that carry no weakness and no label.
+ */
+export function isTestcasePath(rel: string): boolean {
+  return !rel.split('/').includes('antbuild');
+}
+
 function listJava(dir: string): string[] {
   const out: string[] = [];
   const walk = (current: string): void => {
@@ -192,7 +201,9 @@ function main(pin: boolean): void {
 
     let chosen: { rel: string; cwe: number }[];
     if (pin) {
-      const all = listJava(root).map((f) => path.relative(root, f).split(path.sep).join('/'));
+      const all = listJava(root)
+        .map((f) => path.relative(root, f).split(path.sep).join('/'))
+        .filter(isTestcasePath);
       chosen = spec.cwes.flatMap(({ dir, cwe }) =>
         stride(
           all.filter((rel) => new RegExp(`^CWE${dir}_[^/]+/`).test(rel)),
