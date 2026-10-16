@@ -9377,7 +9377,7 @@
     },
     {
       "id": "W18-37",
-      "title": "SCA coverage: OpenSSF malicious-package advisories, symbol reachability beyond Go, and a tested ecosystem matrix",
+      "title": "SCA coverage: OpenSSF malicious-package advisories matched against the SBOM",
       "phase": 18,
       "module": "security",
       "stories": [
@@ -9393,13 +9393,12 @@
       "depends_on": [],
       "acceptance": [
         "OpenSSF malicious-packages data synced nightly alongside the CVE data and matched against the SBOM; a hit is severity 5",
-        "Call-site reachability for JS/TS and Python by generated Opengrep rules from OSV affected symbols, with 'imported' kept for what it cannot prove",
-        "Docs list the lockfile ecosystems actually tested (npm, pnpm, yarn, pip, poetry, uv, go, cargo, maven, gradle, nuget, composer, bundler, SwiftPM, CocoaPods, Conan, vcpkg) with a fixture per row; an ecosystem syft or grype cannot read is listed as unsupported, not omitted"
+        "A missing or unreadable index is reported on the run, never read as none found"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "V3 symbol reachability exists for Go only today (validation/reachability.ts)."
+        "Built from osv.dev MAL-* advisories (npm, PyPI, crates.io, RubyGems, NuGet, Go, Maven); the real npm dump yields ~222k advisories in ~15s. Reachability beyond Go and the tested ecosystem matrix were split out to W18-46 and W18-47."
       ]
     },
     {
@@ -9621,6 +9620,58 @@
       "status": "todo",
       "notes": [
         "Split from W18-35. Rendering needs scan-image tool changes verified on the Mac."
+      ]
+    },
+    {
+      "id": "W18-46",
+      "title": "Symbol reachability beyond Go: JS/TS and Python call-site proof from OSV affected symbols",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Call-site reachability for JS/TS and Python by generated Opengrep rules from OSV affected symbols, with 'imported' kept for what it cannot prove",
+        "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Split from W18-37. V3 symbol reachability exists for Go only today (validation/reachability.ts)."
+      ]
+    },
+    {
+      "id": "W18-47",
+      "title": "Tested ecosystem matrix: a fixture per lockfile ecosystem, unsupported ones listed",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Docs list the lockfile ecosystems actually tested (npm, pnpm, yarn, pip, poetry, uv, go, cargo, maven, gradle, nuget, composer, bundler, SwiftPM, CocoaPods, Conan, vcpkg) with a fixture per row; an ecosystem syft or grype cannot read is listed as unsupported, not omitted",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Split from W18-37. Brad 2026-10-16 asked for SwiftPM, CocoaPods, Conan and vcpkg alongside the rest."
       ]
     }
   ]

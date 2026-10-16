@@ -198,6 +198,45 @@ else
   log "  the dependency scanner reports NOTHING without it — that is silence, not a clean bill"
 fi
 
+# ---- 3. OpenSSF malicious-packages (W18-37) ---------------------------------
+# A package that IS the attack has no CVE, so the grype database cannot know it.
+# OSV republishes the OpenSSF feed as MAL-* advisories; the build script (run in
+# the scan image, which is the one step here with network) keeps only those and
+# writes a compact index the dependency scanner matches the SBOM against (tens of MB
+# for npm alone, built in seconds). SCAN_SYNC_MALICIOUS=0 turns it off.
+if [ "${SCAN_SYNC_MALICIOUS:-1}" != "0" ]; then
+  runtime=""
+  for candidate in podman docker; do
+    if command -v "$candidate" >/dev/null 2>&1; then runtime="$candidate"; break; fi
+  done
+  mal_dir="$DEST/malicious"
+  if [ -z "$runtime" ]; then
+    log "ERROR: no podman or docker on PATH — the malicious-package index is built in $SCAN_IMAGE"
+    FAILED=1
+  else
+    mal_stage="$DEST/malicious.stage"
+    rm -rf "$mal_stage"
+    mkdir -p "$mal_stage"
+    if "$runtime" run --rm --user 0:0 \
+         -v "$mal_stage:/out:rw" \
+         -v "$SCRIPT_DIR/build-malicious-index.py:/build.py:ro" \
+         "$SCAN_IMAGE" python3 /build.py /out; then
+      rm -rf "$mal_dir.old"
+      [ -e "$mal_dir" ] && mv "$mal_dir" "$mal_dir.old"
+      mv "$mal_stage" "$mal_dir"
+      rm -rf "$mal_dir.old"
+      log "malicious-package index synced: $(du -sh "$mal_dir" | awk '{print $1}') at $mal_dir"
+    else
+      log "ERROR: building the malicious-package index failed. This host needs outbound"
+      log "       HTTPS to osv-vulnerabilities.storage.googleapis.com. Keeping any previous index."
+      rm -rf "$mal_stage"
+      FAILED=1
+    fi
+  fi
+else
+  log "malicious-package sync: skipped (SCAN_SYNC_MALICIOUS=0)"
+fi
+
 # OSV and CISA KEV need no sync of their own, which is worth stating so nobody
 # adds one: grype's database already carries both. The copy synced above was
 # measured at 1,671 KEV entries and 362,257 EPSS scores, and the D12 risk model
