@@ -11,12 +11,43 @@
       "tool": "semgrep",
       "version": "1.181.0",
       "packs": [
+        "rulepacks/code-health/anti-slop.c-cpp.v1.yaml",
+        "rulepacks/code-health/anti-slop.csharp.v1.yaml",
+        "rulepacks/code-health/anti-slop.go.v1.yaml",
+        "rulepacks/code-health/anti-slop.java.v1.yaml",
+        "rulepacks/code-health/anti-slop.php.v1.yaml",
+        "rulepacks/code-health/anti-slop.python.v1.yaml",
+        "rulepacks/code-health/anti-slop.ruby.v1.yaml",
+        "rulepacks/code-health/anti-slop.rust.v1.yaml",
         "rulepacks/code-health/anti-slop.v1.yaml",
+        "rulepacks/code-health/logging.c-cpp.v1.yaml",
+        "rulepacks/code-health/logging.csharp.v1.yaml",
+        "rulepacks/code-health/logging.go.v1.yaml",
+        "rulepacks/code-health/logging.java.v1.yaml",
+        "rulepacks/code-health/logging.php.v1.yaml",
+        "rulepacks/code-health/logging.python.v1.yaml",
+        "rulepacks/code-health/logging.ruby.v1.yaml",
+        "rulepacks/code-health/logging.rust.v1.yaml",
         "rulepacks/code-health/logging.v1.yaml",
+        "rulepacks/code-health/perf/perf.go.v1.yaml",
+        "rulepacks/code-health/perf/perf.java.v1.yaml",
+        "rulepacks/code-health/perf/perf.python.v1.yaml",
+        "rulepacks/code-health/perf/perf.rust.v1.yaml",
         "rulepacks/code-health/perf/perf.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.c-cpp.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.csharp.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.go.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.injection.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.java.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.llm-output.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.php.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.python.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.ruby.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.rust.v1.yaml",
+        "rulepacks/semgrep/bpm-baseline.safety.v1.yaml",
         "rulepacks/semgrep/bpm-baseline.v1.yaml"
       ],
-      "rules": 26,
+      "rules": 254,
       "parseErrors": [
         "juice-shop/codefixes/loginAdminChallenge_1.ts",
         "juice-shop/codefixes/loginAdminChallenge_2.ts",
@@ -64,21 +95,21 @@
         "commit": "0a3113b7054a56a072e694ab65a2f8cd7405aeb7",
         "licence": "GPL-2.0 (not vendored; fetched at prep time into a gitignored cache)"
       },
-      "status": "scored",
+      "status": "not-prepared",
       "trees": 1,
-      "labels": 60
+      "labels": 0
     },
     {
       "id": "rule-fixtures",
       "title": "Rule fixtures (triggering and clean)",
       "source": {
         "kind": "in-repo",
-        "path": "packages/security/fixtures/{code-health,perf,semgrep}",
+        "path": "packages/security/fixtures/{code-health,perf,semgrep,injection}",
         "licence": "Proprietary (RepoPulse)"
       },
       "status": "scored",
-      "trees": 6,
-      "labels": 29
+      "trees": 8,
+      "labels": 128
     },
     {
       "id": "sampleco",
@@ -96,15 +127,15 @@
     }
   ],
   "totals": {
-    "tp": 61,
+    "tp": 160,
     "fp": 2,
-    "fn": 44,
-    "tn": 35,
+    "fn": 14,
+    "tn": 5,
     "duplicate": 1,
     "ignored": 0,
     "skipped": 11,
-    "precision": 0.968,
-    "recall": 0.581
+    "precision": 0.988,
+    "recall": 0.92
   },
   "byDimension": [
     {
@@ -138,21 +169,21 @@
     {
       "dimension": "logging",
       "score": {
-        "tp": 9,
+        "tp": 18,
         "fp": 2,
         "fn": 0,
         "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
-        "precision": 0.818,
+        "precision": 0.9,
         "recall": 1
       }
     },
     {
       "dimension": "performance",
       "score": {
-        "tp": 13,
+        "tp": 24,
         "fp": 0,
         "fn": 1,
         "tn": 0,
@@ -160,21 +191,21 @@
         "ignored": 0,
         "skipped": 0,
         "precision": 1,
-        "recall": 0.929
+        "recall": 0.96
       }
     },
     {
       "dimension": "sast",
       "score": {
-        "tp": 21,
+        "tp": 85,
         "fp": 0,
-        "fn": 35,
-        "tn": 35,
+        "fn": 5,
+        "tn": 5,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 8,
         "precision": 1,
-        "recall": 0.375
+        "recall": 0.944
       }
     },
     {
@@ -194,7 +225,7 @@
     {
       "dimension": "slop",
       "score": {
-        "tp": 15,
+        "tp": 30,
         "fp": 0,
         "fn": 8,
         "tn": 0,
@@ -202,7 +233,7 @@
         "ignored": 0,
         "skipped": 0,
         "precision": 1,
-        "recall": 0.652
+        "recall": 0.789
       }
     }
   ],
@@ -256,7 +287,359 @@
       }
     },
     {
+      "rule": "bpm-c-alloc-unchecked",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-alloca-variable-size",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-command-built-string",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-format-string-variable",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-gets",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-memcpy-sizeof-pointer",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-rand-for-secret",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-realloc-self-assign",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-scanf-unbounded-string",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-sprintf-unbounded",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-strncpy-unterminated",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-c-unbounded-string-copy",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-bare-except-py",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-catch-all-fallback-cpp",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-cs-catch-continue-in-loop",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-cs-empty-catch",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-cs-prose-padding",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-cs-silent-fallback",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-cs-step-narration",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-cs-stub-as-feature",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-cs-what-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-ch-emoji-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-emoji-comment-py",
       "engine": "yaml",
       "dimension": "slop",
       "score": {
@@ -288,6 +671,390 @@
       }
     },
     {
+      "rule": "bpm-ch-empty-catch-cpp",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-empty-except-py",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-go-discarded-error",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-go-panic-in-library",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-go-stub-as-feature",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-go-swallowed-error",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-go-what-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-java-empty-catch",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-java-silent-fallback-return",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-java-stub-as-feature",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-java-try-catch-in-loop",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-jvm-prose-padding",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-jvm-step-narration",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-jvm-what-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-kt-empty-catch",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-kt-run-catching-swallow",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-kt-silent-fallback",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-kt-todo-stub",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-php-empty-catch",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-php-prose-padding",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-php-silent-fallback",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-php-step-narration",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-php-stub-as-feature",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-php-what-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-ch-prose-padding",
       "engine": "yaml",
       "dimension": "slop",
@@ -301,6 +1068,230 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-prose-padding-py",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-rb-empty-rescue",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rb-prose-padding",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rb-rescue-nil-modifier",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rb-silent-fallback",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rb-step-narration",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rb-stub-as-feature",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rb-what-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rs-discarded-write",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rs-panic-in-lib",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rs-stub-as-feature",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rs-swallowed-err",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rs-unwrap-in-lib",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-rs-what-comment",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -320,7 +1311,39 @@
       }
     },
     {
+      "rule": "bpm-ch-silent-fallback-return-py",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
       "rule": "bpm-ch-step-narration",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-step-narration-py",
       "engine": "yaml",
       "dimension": "slop",
       "score": {
@@ -352,7 +1375,55 @@
       }
     },
     {
+      "rule": "bpm-ch-stub-as-feature-py",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 5,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-stub-fake-success-c",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-ch-try-catch-in-loop",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-ch-try-except-in-loop-py",
       "engine": "yaml",
       "dimension": "slop",
       "score": {
@@ -384,11 +1455,875 @@
       }
     },
     {
-      "rule": "bpm-js-child-process-concat",
+      "rule": "bpm-ch-what-comment-c",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-ch-what-comment-py",
+      "engine": "yaml",
+      "dimension": "slop",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-cs-cert-validation-disabled",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-insecure-random-token",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-json-type-name-handling",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-jwt-unsigned-accepted",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-shell-command-built",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-sql-string-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-unsafe-deserializer",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-weak-hash-password",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-cs-xml-dtd-processing",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-go-http-server-no-timeout",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-go-math-rand-secret",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-go-shell-exec-dynamic",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-go-sql-string-build",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-go-tls-insecure-skip-verify",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-go-weak-hash-credential",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-inj-cmd-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-cmd-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-cmd-js",
       "engine": "yaml",
       "dimension": "sast",
       "score": {
         "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-cmd-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-deserialize-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-deserialize-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-deserialize-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-dom-xss-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-path-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-path-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-path-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-path-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-redirect-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-redirect-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-redirect-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-redirect-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-sql-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-sql-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-sql-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-sql-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-ssrf-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-ssrf-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-ssrf-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-ssrf-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-xss-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-xss-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-xss-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-inj-xss-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-java-command-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-java-hostname-verification-disabled",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-java-insecure-random-token",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-java-jwt-unverified",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-java-sql-string-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-java-trust-all-certificates",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-java-unsafe-deserialization",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-java-weak-hash-secret",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-java-xxe-parser",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-js-child-process-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 3,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -452,7 +2387,7 @@
       "engine": "yaml",
       "dimension": "sast",
       "score": {
-        "tp": 11,
+        "tp": 13,
         "fp": 0,
         "fn": 0,
         "tn": 2,
@@ -467,6 +2402,214 @@
       "rule": "bpm-js-weak-hash",
       "engine": "yaml",
       "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-kt-hostname-verification-disabled",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-kt-insecure-random-token",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-kt-sql-string-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-kt-trust-all-certificates",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-kt-weak-hash-secret",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-llm-output-exec",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-llm-output-exec-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-llm-output-injection",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-llm-output-injection-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-llm-output-jinja-safe",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-llm-output-json-unvalidated",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-llm-output-json-unvalidated-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-and-reraise-py",
+      "engine": "yaml",
+      "dimension": "logging",
       "score": {
         "tp": 2,
         "fp": 0,
@@ -496,6 +2639,22 @@
       }
     },
     {
+      "rule": "bpm-log-c-debug-print",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-log-console-in-prod",
       "engine": "yaml",
       "dimension": "logging",
@@ -509,6 +2668,118 @@
         "skipped": 0,
         "precision": 0.667,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-cs-and-rethrow",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-cs-console-in-web",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-cs-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-go-injection",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-go-log-and-return",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-go-print-in-prod",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-go-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -528,11 +2799,347 @@
       }
     },
     {
+      "rule": "bpm-log-injection-py",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-java-and-rethrow",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-java-injection",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-java-print-stack-trace",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-java-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-java-stdout-in-prod",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-kt-and-rethrow",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-kt-print-stack-trace",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-kt-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-kt-stdout-in-prod",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-php-and-rethrow",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-php-debug-dump",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-php-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-print-in-prod-py",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-rb-and-reraise",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-rb-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-rb-stdout-in-app",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-rs-dbg-macro",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-rs-print-in-lib",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-log-rs-secret-field",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-log-secret-field",
       "engine": "yaml",
       "dimension": "logging",
       "score": {
         "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-log-secret-field-py",
+      "engine": "yaml",
+      "dimension": "logging",
+      "score": {
+        "tp": 3,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -560,6 +3167,150 @@
       }
     },
     {
+      "rule": "bpm-perf-await-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-blocking-call-in-async-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-go-db-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-go-defer-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-go-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-go-string-concat-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-java-db-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-java-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-java-string-concat-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-json-deep-clone",
       "engine": "yaml",
       "dimension": "performance",
@@ -573,6 +3324,70 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-json-deep-clone-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-kt-db-call-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-kt-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-kt-string-concat-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -596,7 +3411,7 @@
       "engine": "yaml",
       "dimension": "performance",
       "score": {
-        "tp": 1,
+        "tp": 4,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -624,11 +3439,91 @@
       }
     },
     {
+      "rule": "bpm-perf-regex-compile-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-rs-clone-loop-collection",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-rs-collect-then-iterate",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-perf-rs-regex-compile-in-loop",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
       "rule": "bpm-perf-string-concat-in-loop",
       "engine": "yaml",
       "dimension": "performance",
       "score": {
         "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-perf-string-concat-in-loop-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 2,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -656,6 +3551,22 @@
       }
     },
     {
+      "rule": "bpm-perf-unbounded-gather-py",
+      "engine": "yaml",
+      "dimension": "performance",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
       "rule": "bpm-perf-unbounded-promise-all",
       "engine": "yaml",
       "dimension": "performance",
@@ -669,6 +3580,774 @@
         "skipped": 0,
         "precision": 1,
         "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-php-code-from-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-command-from-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-extract-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-insecure-random-token",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-secret-loose-compare",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-sql-from-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-tls-verify-disabled",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-unserialize-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-weak-hash-password",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-php-xml-entity-expansion",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-py-eval-dynamic",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-py-jwt-verify-disabled",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-py-random-token",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-py-sql-string-build",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-py-subprocess-shell-concat",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-py-weak-hash",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-rb-code-from-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-deserialize-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-file-from-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-html-safe-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-insecure-random-token",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-open-redirect",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-permit-all-params",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-shell-interpolation",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-sql-from-request",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-tls-verify-none",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rb-weak-hash-password",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rs-predictable-rng-secret",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rs-shell-command-format",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rs-tls-verification-disabled",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rs-truncating-len-cast",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rs-unsafe-without-safety-comment",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-rs-weak-hash-password",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-cors-credentials-any-origin-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-cors-credentials-any-origin-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-cors-credentials-any-origin-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-cors-credentials-any-origin-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-csrf-disabled-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-csrf-disabled-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-csrf-disabled-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-shell-dynamic-command-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-sec-shell-dynamic-command-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-shell-dynamic-command-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-shell-dynamic-command-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "bpm-sec-tls-verify-disabled-go",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-tls-verify-disabled-java",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-tls-verify-disabled-js",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
+      }
+    },
+    {
+      "rule": "bpm-sec-tls-verify-disabled-py",
+      "engine": "yaml",
+      "dimension": "sast",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": null
       }
     },
     {
@@ -978,19 +4657,19 @@
       "score": {
         "tp": 0,
         "fp": 0,
-        "fn": 30,
-        "tn": 30,
+        "fn": 0,
+        "tn": 0,
         "duplicate": 0,
         "ignored": 0,
         "skipped": 0,
         "precision": null,
-        "recall": 0
+        "recall": null
       }
     },
     {
       "suite": "rule-fixtures",
       "score": {
-        "tp": 29,
+        "tp": 128,
         "fp": 0,
         "fn": 0,
         "tn": 0,
@@ -1498,606 +5177,6 @@
       "labelId": "routes-search-sqli"
     },
     {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00001.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00001",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00002.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00002",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00003.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00003",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00005.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00005",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00006.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00006",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00007.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00007",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00008.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00008",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00009.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00009",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00010.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00010",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00011.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00011",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00015.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00015",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00017.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00017",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00018.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00018",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00019.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00019",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00020.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00020",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00022.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00022",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00023.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00023",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00024.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00024",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00025.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00025",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00026.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00026",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00028.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00028",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00029.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00029",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00035.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00035",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00040.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00040",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00042.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00042",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00046.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00046",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00050.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00050",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00051.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00051",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00052.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00052",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00054.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00054",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00058.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00058",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00059.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00059",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00063.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00063",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00064.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00064",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00066.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00066",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00067.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00067",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00068.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00068",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00069.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00069",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00070.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00070",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00071.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00071",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00072.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00072",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00075.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00075",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00077.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00077",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00078.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00078",
-      "kind": "fn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00090.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00090",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00093.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00093",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00094.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00094",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00095.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00095",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00096.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00096",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00104.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00104",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00105.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00105",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00107.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00107",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00110.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00110",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00121.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00121",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00122.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00122",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00131.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00131",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00132.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00132",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00134.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00134",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00158.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00158",
-      "kind": "tn"
-    },
-    {
-      "suite": "owasp-benchmark",
-      "tree": "testcode",
-      "file": "BenchmarkTest00171.java",
-      "line": null,
-      "ruleId": null,
-      "dimension": "sast",
-      "labelId": "BenchmarkTest00171",
-      "kind": "tn"
-    },
-    {
       "suite": "rule-fixtures",
       "tree": "code-health/triggering",
       "file": "logging.js",
@@ -2146,6 +5225,96 @@
       "dimension": "logging",
       "kind": "tp",
       "labelId": "ch-log-rethrow"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 11,
+      "ruleId": "bpm-log-print-in-prod-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-print-in-prod-py-11"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 13,
+      "ruleId": "bpm-log-injection-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-injection-py-13"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 14,
+      "ruleId": "bpm-log-injection-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-injection-py-14"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 20,
+      "ruleId": "bpm-log-secret-field-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-secret-field-py-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 21,
+      "ruleId": "bpm-log-secret-field-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-secret-field-py-21"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 22,
+      "ruleId": "bpm-log-injection-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-injection-py-22"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 22,
+      "ruleId": "bpm-log-secret-field-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-secret-field-py-22"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 27,
+      "ruleId": "bpm-log-and-reraise-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-and-reraise-py-27"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "logging.py",
+      "line": 35,
+      "ruleId": "bpm-log-and-reraise-py",
+      "dimension": "logging",
+      "kind": "tp",
+      "labelId": "py-log-and-reraise-py-35"
     },
     {
       "suite": "rule-fixtures",
@@ -2249,6 +5418,666 @@
     },
     {
       "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 7,
+      "ruleId": "bpm-ch-empty-except-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-empty-except-py-7"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 15,
+      "ruleId": "bpm-ch-empty-except-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-empty-except-py-15"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 22,
+      "ruleId": "bpm-ch-bare-except-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-bare-except-py-22"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 31,
+      "ruleId": "bpm-ch-try-except-in-loop-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-try-except-in-loop-py-31"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 39,
+      "ruleId": "bpm-ch-silent-fallback-return-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-silent-fallback-return-py-39"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 46,
+      "ruleId": "bpm-ch-silent-fallback-return-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-silent-fallback-return-py-46"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 52,
+      "ruleId": "bpm-ch-stub-as-feature-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-stub-as-feature-py-52"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 56,
+      "ruleId": "bpm-ch-stub-as-feature-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-stub-as-feature-py-56"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 63,
+      "ruleId": "bpm-ch-stub-as-feature-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-stub-as-feature-py-63"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 67,
+      "ruleId": "bpm-ch-stub-as-feature-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-stub-as-feature-py-67"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 70,
+      "ruleId": "bpm-ch-stub-as-feature-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-stub-as-feature-py-70"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 76,
+      "ruleId": "bpm-ch-what-comment-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-what-comment-py-76"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 78,
+      "ruleId": "bpm-ch-step-narration-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-step-narration-py-78"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 81,
+      "ruleId": "bpm-ch-emoji-comment-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-emoji-comment-py-81"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "code-health/triggering",
+      "file": "slop.py",
+      "line": 82,
+      "ruleId": "bpm-ch-prose-padding-py",
+      "dimension": "slop",
+      "kind": "tp",
+      "labelId": "py-ch-prose-padding-py-82"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 18,
+      "ruleId": "bpm-inj-sql-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-py-app-18"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 18,
+      "ruleId": "bpm-py-sql-string-build",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-py-sql-string-build-app-18"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 20,
+      "ruleId": "bpm-inj-sql-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-py-app-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 20,
+      "ruleId": "bpm-py-sql-string-build",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-py-sql-string-build-app-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 28,
+      "ruleId": "bpm-inj-cmd-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-cmd-py-app-28"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 28,
+      "ruleId": "bpm-py-subprocess-shell-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-py-subprocess-shell-concat-app-28"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 30,
+      "ruleId": "bpm-inj-cmd-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-cmd-py-app-30"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 30,
+      "ruleId": "bpm-py-subprocess-shell-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-py-subprocess-shell-concat-app-30"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 30,
+      "ruleId": "bpm-sec-shell-dynamic-command-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-sec-shell-dynamic-command-py-app-30"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 38,
+      "ruleId": "bpm-inj-path-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-path-py-app-38"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 44,
+      "ruleId": "bpm-inj-path-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-path-py-app-44"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 51,
+      "ruleId": "bpm-inj-xss-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-xss-py-app-51"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 58,
+      "ruleId": "bpm-inj-ssrf-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-ssrf-py-app-58"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 64,
+      "ruleId": "bpm-inj-redirect-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-redirect-py-app-64"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 70,
+      "ruleId": "bpm-inj-deserialize-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-deserialize-py-app-70"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "line": 72,
+      "ruleId": "bpm-inj-deserialize-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-deserialize-py-app-72"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 17,
+      "ruleId": "bpm-inj-sql-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-go-go-main-17"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 19,
+      "ruleId": "bpm-go-sql-string-build",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-go-sql-string-build-go-main-19"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 19,
+      "ruleId": "bpm-inj-sql-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-go-go-main-19"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 25,
+      "ruleId": "bpm-go-shell-exec-dynamic",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-go-shell-exec-dynamic-go-main-25"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 25,
+      "ruleId": "bpm-inj-cmd-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-cmd-go-go-main-25"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 25,
+      "ruleId": "bpm-sec-shell-dynamic-command-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-sec-shell-dynamic-command-go-go-main-25"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 31,
+      "ruleId": "bpm-inj-path-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-path-go-go-main-31"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 40,
+      "ruleId": "bpm-inj-xss-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-xss-go-go-main-40"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 46,
+      "ruleId": "bpm-inj-ssrf-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-ssrf-go-go-main-46"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 52,
+      "ruleId": "bpm-inj-redirect-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-redirect-go-go-main-52"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "line": 58,
+      "ruleId": "bpm-inj-deserialize-go",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-deserialize-go-go-main-58"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 20,
+      "ruleId": "bpm-inj-sql-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-java-java-UserController-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 20,
+      "ruleId": "bpm-java-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-java-sql-string-concat-java-UserController-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 26,
+      "ruleId": "bpm-inj-sql-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-java-java-UserController-26"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 26,
+      "ruleId": "bpm-java-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-java-sql-string-concat-java-UserController-26"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 33,
+      "ruleId": "bpm-inj-cmd-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-cmd-java-java-UserController-33"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 33,
+      "ruleId": "bpm-java-command-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-java-command-concat-java-UserController-33"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 39,
+      "ruleId": "bpm-inj-path-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-path-java-java-UserController-39"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 45,
+      "ruleId": "bpm-inj-xss-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-xss-java-java-UserController-45"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 51,
+      "ruleId": "bpm-inj-ssrf-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-ssrf-java-java-UserController-51"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 57,
+      "ruleId": "bpm-inj-redirect-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-redirect-java-java-UserController-57"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 62,
+      "ruleId": "bpm-inj-deserialize-java",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-deserialize-java-java-UserController-62"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "line": 62,
+      "ruleId": "bpm-java-unsafe-deserialization",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-java-unsafe-deserialization-java-UserController-62"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 13,
+      "ruleId": "bpm-inj-sql-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-js-server-13"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 13,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-js-sql-string-concat-server-13"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 20,
+      "ruleId": "bpm-inj-sql-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-sql-js-server-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 20,
+      "ruleId": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-js-sql-string-concat-server-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 27,
+      "ruleId": "bpm-inj-cmd-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-cmd-js-server-27"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 27,
+      "ruleId": "bpm-js-child-process-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-also-js-child-process-concat-server-27"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 33,
+      "ruleId": "bpm-inj-path-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-path-js-server-33"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 38,
+      "ruleId": "bpm-inj-path-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-path-js-server-38"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 44,
+      "ruleId": "bpm-inj-xss-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-xss-js-server-44"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 50,
+      "ruleId": "bpm-inj-ssrf-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-ssrf-js-server-50"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 56,
+      "ruleId": "bpm-inj-redirect-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-redirect-js-server-56"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "line": 61,
+      "ruleId": "bpm-inj-dom-xss-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-inj-dom-xss-js-server-61"
+    },
+    {
+      "suite": "rule-fixtures",
       "tree": "perf/triggering",
       "file": "app.js",
       "line": 6,
@@ -2331,11 +6160,121 @@
       "suite": "rule-fixtures",
       "tree": "perf/triggering",
       "file": "app.py",
-      "line": 3,
+      "line": 4,
       "ruleId": "bpm-perf-orm-call-in-loop-py",
       "dimension": "performance",
       "kind": "tp",
       "labelId": "perf-orm-py"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.py",
+      "line": 9,
+      "ruleId": "bpm-perf-orm-call-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-orm-call-in-loop-py-9"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.py",
+      "line": 14,
+      "ruleId": "bpm-perf-orm-call-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-orm-call-in-loop-py-14"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "app.py",
+      "line": 16,
+      "ruleId": "bpm-perf-orm-call-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-orm-call-in-loop-py-16"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 12,
+      "ruleId": "bpm-perf-blocking-call-in-async-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-blocking-call-in-async-py-12"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 13,
+      "ruleId": "bpm-perf-blocking-call-in-async-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-blocking-call-in-async-py-13"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 20,
+      "ruleId": "bpm-perf-await-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-await-in-loop-py-20"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 25,
+      "ruleId": "bpm-perf-json-deep-clone-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-json-deep-clone-py-25"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 31,
+      "ruleId": "bpm-perf-regex-compile-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-regex-compile-in-loop-py-31"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 39,
+      "ruleId": "bpm-perf-string-concat-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-string-concat-in-loop-py-39"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 47,
+      "ruleId": "bpm-perf-string-concat-in-loop-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-string-concat-in-loop-py-47"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "perf/triggering",
+      "file": "async_app.py",
+      "line": 52,
+      "ruleId": "bpm-perf-unbounded-gather-py",
+      "dimension": "performance",
+      "kind": "tp",
+      "labelId": "py-perf-unbounded-gather-py-52"
     },
     {
       "suite": "rule-fixtures",
@@ -2352,10 +6291,30 @@
       "tree": "semgrep/vulnerable",
       "file": "app.js",
       "line": 8,
+      "ruleId": "bpm-inj-cmd-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-cmd-js-vulnerable"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 8,
       "ruleId": "bpm-js-child-process-concat",
       "dimension": "sast",
       "kind": "tp",
       "labelId": "sast-exec"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "line": 9,
+      "ruleId": "bpm-inj-sql-js",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "inj-sql-js-vulnerable"
     },
     {
       "suite": "rule-fixtures",
@@ -2396,6 +6355,116 @@
       "dimension": "sast",
       "kind": "tp",
       "labelId": "sast-jwt"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 13,
+      "ruleId": "bpm-py-eval-dynamic",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-eval-dynamic-13"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 17,
+      "ruleId": "bpm-py-eval-dynamic",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-eval-dynamic-17"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 21,
+      "ruleId": "bpm-py-subprocess-shell-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-subprocess-shell-concat-21"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 21,
+      "ruleId": "bpm-sec-shell-dynamic-command-py",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-sec-shell-dynamic-command-py-21"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 22,
+      "ruleId": "bpm-py-subprocess-shell-concat",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-subprocess-shell-concat-22"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 26,
+      "ruleId": "bpm-py-sql-string-build",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-sql-string-build-26"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 32,
+      "ruleId": "bpm-py-sql-string-build",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-sql-string-build-32"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 37,
+      "ruleId": "bpm-py-weak-hash",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-weak-hash-37"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 41,
+      "ruleId": "bpm-py-random-token",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-random-token-41"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 42,
+      "ruleId": "bpm-py-random-token",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-random-token-42"
+    },
+    {
+      "suite": "rule-fixtures",
+      "tree": "semgrep/vulnerable",
+      "file": "app.py",
+      "line": 47,
+      "ruleId": "bpm-py-jwt-verify-disabled",
+      "dimension": "sast",
+      "kind": "tp",
+      "labelId": "py-py-jwt-verify-disabled-47"
     },
     {
       "suite": "sampleco",

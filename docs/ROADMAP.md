@@ -358,7 +358,7 @@ performance, documentation, final acceptance (30–34).
 
 ## W18 — Code security and quality platform (D16)
 
-Added 2026-10-15. Tickets W18-01–W18-40 in `plan.json` (W18-33–40: deterministic-coverage gaps against Snyk, see the gap analysis in the shared project folder). Executes **D16**: Repo Pulse
+Added 2026-10-15. Tickets W18-01–W18-44 in `plan.json` (W18-33–44: deterministic-coverage gaps against Snyk, see the gap analysis in the shared project folder). Executes **D16**: Repo Pulse
 is a self-hosted code security and quality platform for teams shipping AI-written
 code, with delivery metrics as context. The wave closes the gaps a SAST buyer
 checks first (language coverage, PR-time results, fix suggestions, IaC, proof of

@@ -112,6 +112,19 @@ describe('opengrep output parsing', () => {
     expect(parsed.toolErrors[0]).toContain('Invalid YAML');
   });
 
+  it('reports one finding for a match the engine repeats, and keeps distinct ranges', () => {
+    // Opengrep 1.27.1 repeats a taint match once per sink alternative that
+    // fires on the same range; semgrep merges them.
+    const elsewhere = { ...result, start: { line: 7, col: 20 }, end: { line: 7, col: 30 } };
+    const parsed = parseOpengrepOutput({
+      stdout: output([result, { ...result }, { ...result }, elsewhere]),
+      knownRuleIds: ['bpm-js-eval-dynamic'],
+      rootDir: '/scan',
+    });
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.findings).toHaveLength(2);
+  });
+
   it('rejects output that is not opengrep JSON', () => {
     expect(parseOpengrepOutput({ stdout: '', knownRuleIds: [] }).ok).toBe(false);
     expect(parseOpengrepOutput({ stdout: 'not json', knownRuleIds: [] }).ok).toBe(false);
@@ -165,6 +178,8 @@ describeIfScanImage('opengrep, actually run in the sandbox (FR-SEC-6)', () => {
     expect(result.toolErrors).toEqual([]);
     const ids = [...new Set(result.findings.map((f) => f.ruleId))].sort();
     expect(ids).toEqual([
+      'bpm-inj-cmd-js',
+      'bpm-inj-sql-js',
       'bpm-js-child-process-concat',
       'bpm-js-eval-dynamic',
       'bpm-js-jwt-verify-disabled',

@@ -1,0 +1,2278 @@
+# bpm-rulepacks — injection dataflow: request data reaching a dangerous call
+# (W18-33, mechanical-checks plan, Snyk-gap analysis 2026-10-16).
+#
+# PROVENANCE: written for RepoPulse. Nothing here is copied, adapted or derived
+# from the Semgrep registry (DESIGN_REVIEW.md G-18); every rule says so in its
+# metadata.
+#
+# WHAT IS BEING CAUGHT. The injection family — SQL, OS command, path traversal,
+# cross-site scripting, server-side request forgery, open redirect and unsafe
+# deserialization — is a flow, not a call: `db.query(sql)` is fine, and so is
+# `req.query.id`, and the bug is the first fed by the second. So every rule
+# here is TAINT mode: a SOURCE (HTTP request data), SANITIZERS (conversions and
+# escapes that clean it) and a SINK (where it becomes code, a query, markup, a
+# path or a URL). Each rule carries a CWE and an OWASP Top 10 (2021) tag so the
+# coverage map can say what is covered by weakness class.
+#
+# COVERAGE (rule id -> weakness):   js   py   java  go
+#   sql           CWE-89            x    x    x     x
+#   cmd           CWE-78            x    x    x     x
+#   path          CWE-22            x    x    x     x
+#   xss           CWE-79            x    x    x     x    (+ dom-xss in the browser, js)
+#   ssrf          CWE-918           x    x    x     x
+#   redirect      CWE-601           x    x    x     x
+#   deserialize   CWE-502                x    x     x    (js has no common sink)
+#
+# SOURCES name the request object (req/request/ctx, r/c, HttpServletRequest and
+# Spring's @RequestParam/@PathVariable/@RequestBody/@RequestHeader), not every
+# variable that happens to be called `input`. SANITIZERS are per sink: a number
+# conversion cleans every rule, `html.escape` cleans only markup, `basename`
+# only a path. An escape for a different sink is not a sanitizer.
+#
+# LIMITS, stated plainly. The engine follows a value through one function —
+# assignments, string building, destructuring. It does not follow it through a
+# call to another function, a class field, a queue or a framework's dependency
+# injection. A bug that crosses those is missed, not reported wrong. That is
+# the reason these ship as candidates and why interprocedural dataflow stays on
+# the roadmap rather than being claimed here.
+#
+# EVERY RULE IS A CANDIDATE (`metadata.lifecycle: candidate`, §8.2): it runs in
+# shadow and its findings stay out of scores until an admin promotes it on
+# evidence. Test files are excluded.
+#
+# THE ENGINE IS OPENGREP in production (semgrep-compatible format). Validated at
+# authoring time with semgrep 1.181.0 against fixtures/injection/ (W18-33 ticket
+# note). Engine behaviour that shaped the patterns:
+#   - a pattern containing `: ` (an object literal, a string argument) must be
+#     quoted, or the YAML parser reads it as a mapping;
+#   - a `metavariable-regex` inside a `patterns:` block applies to the WHOLE
+#     block, so a sink that needs a receiver check lives in its own block;
+#   - an annotation or constructor is matched as written: `new java.net.URL(x)`
+#     does not match `new URL($X)`, so the fixtures import what they use.
+rules:
+  # ===== JavaScript / TypeScript ============================================
+  - id: bpm-inj-sql-js
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query as text. A value spliced into the query
+      string is an injection the day it holds a quote. Bind it as a parameter
+      (`db.query('... WHERE id = $1', [id])`), or use the query builder's
+      bindings.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through assignments,
+        template strings and concatenation. A value stored in a field or
+        returned from another module is not followed.
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # HTTP request data (express, fastify, koa, node:http).
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.query
+              - pattern: $REQ.body
+              - pattern: $REQ.params
+              - pattern: $REQ.headers
+              - pattern: $REQ.cookies
+              - pattern: $REQ.url
+              - pattern: $REQ.originalUrl
+              - pattern: $REQ.path
+              - pattern: $REQ.hostname
+              - pattern: $REQ.get(...)
+              - pattern: $REQ.header(...)
+              - pattern: $REQ.param(...)
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(req|request|ctx\.request|ctx)$
+    pattern-sanitizers:
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: $A.isInteger(...)
+      - pattern: $A.isUUID(...)
+      - pattern: $A.isInt(...)
+      - pattern: $A.isNumeric(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.query($Q, ...)
+              - pattern: $DB.execute($Q, ...)
+              - pattern: $DB.raw($Q, ...)
+              - pattern: $DB.$queryRawUnsafe($Q, ...)
+              - pattern: $DB.$executeRawUnsafe($Q, ...)
+              - pattern: $DB.unsafe($Q, ...)
+              - pattern: $DB.all($Q, ...)
+              - pattern: $DB.get($Q, ...)
+              - pattern: $DB.run($Q, ...)
+              - pattern: $DB.exec($Q, ...)
+          - metavariable-regex:
+              metavariable: $DB
+              regex: (?i)(db|pool|client|conn|connection|knex|sequelize|prisma|database|sql|pg|mysql|sqlite|trx|tx|transaction)\w*$
+          - focus-metavariable: $Q
+
+  - id: bpm-inj-cmd-js
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Request data reaches a shell command. A `;`, `|` or `$(...)` in that
+      value runs as a second command on the server. Pass the program and its
+      arguments separately with execFile or spawn (no shell), and allowlist the
+      values.
+    metadata:
+      category: security
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp: 'A03:2021 Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # HTTP request data (express, fastify, koa, node:http).
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.query
+              - pattern: $REQ.body
+              - pattern: $REQ.params
+              - pattern: $REQ.headers
+              - pattern: $REQ.cookies
+              - pattern: $REQ.url
+              - pattern: $REQ.originalUrl
+              - pattern: $REQ.path
+              - pattern: $REQ.hostname
+              - pattern: $REQ.get(...)
+              - pattern: $REQ.header(...)
+              - pattern: $REQ.param(...)
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(req|request|ctx\.request|ctx)$
+    pattern-sanitizers:
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: $A.isInteger(...)
+      - pattern: $A.isUUID(...)
+      - pattern: $A.isInt(...)
+      - pattern: $A.isNumeric(...)
+      - pattern: shellescape(...)
+      - pattern: shellQuote.quote(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec($X, ...)
+              - pattern: execSync($X, ...)
+              - pattern: execAsync($X, ...)
+              - pattern: execPromise($X, ...)
+              - pattern: execaCommand($X, ...)
+              - pattern: execaCommandSync($X, ...)
+              - pattern: require('child_process').$CPF($X, ...)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern: $CP.$CPF($X, ...)
+          - metavariable-regex:
+              metavariable: $CP
+              regex: (?i)^(child_?process|cp)$
+          - metavariable-regex:
+              metavariable: $CPF
+              regex: ^(exec|execSync)$
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-either:
+              - pattern: 'spawn($CMD, ..., {..., shell: true, ...})'
+              - pattern: 'spawnSync($CMD, ..., {..., shell: true, ...})'
+              - pattern: '$CP.spawn($CMD, ..., {..., shell: true, ...})'
+              - pattern: '$CP.spawnSync($CMD, ..., {..., shell: true, ...})'
+          - focus-metavariable: $CMD
+
+  - id: bpm-inj-path-js
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Request data reaches a file path. `../` in that value reads or writes
+      files outside the folder you meant. Reduce it to a file name with
+      path.basename, or resolve it and check the result still starts with the
+      allowed directory.
+    metadata:
+      category: security
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # HTTP request data (express, fastify, koa, node:http).
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.query
+              - pattern: $REQ.body
+              - pattern: $REQ.params
+              - pattern: $REQ.headers
+              - pattern: $REQ.cookies
+              - pattern: $REQ.url
+              - pattern: $REQ.originalUrl
+              - pattern: $REQ.path
+              - pattern: $REQ.hostname
+              - pattern: $REQ.get(...)
+              - pattern: $REQ.header(...)
+              - pattern: $REQ.param(...)
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(req|request|ctx\.request|ctx)$
+    pattern-sanitizers:
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: $A.isInteger(...)
+      - pattern: $A.isUUID(...)
+      - pattern: $A.isInt(...)
+      - pattern: $A.isNumeric(...)
+      - pattern: path.basename(...)
+      - pattern: $P.basename(...)
+      - pattern: sanitize(...)
+      - pattern: sanitizeFilename(...)
+      - pattern: secureJoin(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fs.readFile($X, ...)
+              - pattern: fs.readFileSync($X, ...)
+              - pattern: fs.createReadStream($X, ...)
+              - pattern: fs.writeFile($X, ...)
+              - pattern: fs.writeFileSync($X, ...)
+              - pattern: fs.createWriteStream($X, ...)
+              - pattern: fs.unlink($X, ...)
+              - pattern: fs.unlinkSync($X, ...)
+              - pattern: fs.rm($X, ...)
+              - pattern: fs.rmSync($X, ...)
+              - pattern: fs.readdir($X, ...)
+              - pattern: fs.readdirSync($X, ...)
+              - pattern: fs.promises.readFile($X, ...)
+              - pattern: fs.promises.writeFile($X, ...)
+              - pattern: $RES.sendFile($X, ...)
+              - pattern: $RES.download($X, ...)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-xss-js
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Request data is written into an HTML response unescaped. A `<script>` in
+      that value runs in every visitor's browser. Escape it for HTML, render it
+      through a template engine that escapes by default, or send JSON.
+    metadata:
+      category: security
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      owasp: 'A03:2021 Injection'
+      yields: ['xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # HTTP request data (express, fastify, koa, node:http).
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.query
+              - pattern: $REQ.body
+              - pattern: $REQ.params
+              - pattern: $REQ.headers
+              - pattern: $REQ.cookies
+              - pattern: $REQ.url
+              - pattern: $REQ.originalUrl
+              - pattern: $REQ.path
+              - pattern: $REQ.hostname
+              - pattern: $REQ.get(...)
+              - pattern: $REQ.header(...)
+              - pattern: $REQ.param(...)
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(req|request|ctx\.request|ctx)$
+    pattern-sanitizers:
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: $A.isInteger(...)
+      - pattern: $A.isUUID(...)
+      - pattern: $A.isInt(...)
+      - pattern: $A.isNumeric(...)
+      - pattern: escapeHtml(...)
+      - pattern: escape(...)
+      - pattern: he.escape(...)
+      - pattern: DOMPurify.sanitize(...)
+      - pattern: sanitizeHtml(...)
+      - pattern: xss(...)
+      - pattern: encodeURIComponent(...)
+      - pattern: JSON.stringify(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $RES.send($X)
+              - pattern: $RES.write($X)
+              - pattern: $RES.end($X)
+          - metavariable-regex:
+              metavariable: $RES
+              regex: ^(res|reply|response)$
+          - focus-metavariable: $X
+
+  - id: bpm-inj-dom-xss-js
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Text from the page address or window reaches an HTML sink in the
+      browser. A crafted link runs script as the signed-in user. Set
+      `textContent`, or sanitize with DOMPurify before using innerHTML.
+    metadata:
+      category: security
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      owasp: 'A03:2021 Injection'
+      yields: ['xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      - pattern: location.hash
+      - pattern: location.search
+      - pattern: location.href
+      - pattern: window.location.hash
+      - pattern: window.location.search
+      - pattern: window.location.href
+      - pattern: document.location.hash
+      - pattern: document.location.search
+      - pattern: document.URL
+      - pattern: document.referrer
+      - pattern: window.name
+      - pattern: new URLSearchParams(...).get(...)
+      - pattern: $SP.get(...)
+    pattern-sanitizers:
+      - pattern: DOMPurify.sanitize(...)
+      - pattern: sanitizeHtml(...)
+      - pattern: escapeHtml(...)
+      - pattern: encodeURIComponent(...)
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $EL.innerHTML = $X
+              - pattern: $EL.outerHTML = $X
+              - pattern: document.write($X)
+              - pattern: document.writeln($X)
+              - pattern: $EL.insertAdjacentHTML($POS, $X)
+              - pattern: '<$T dangerouslySetInnerHTML={{__html: $X}} />'
+          - focus-metavariable: $X
+
+  - id: bpm-inj-ssrf-js
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Request data decides which URL the server fetches. A caller can point it
+      at the cloud metadata service or an internal host. Allowlist the hosts,
+      or take only a path or id from the request and build the URL yourself.
+    metadata:
+      category: security
+      cwe: 'CWE-918: Server-Side Request Forgery (SSRF)'
+      owasp: 'A10:2021 Server-Side Request Forgery'
+      yields: ['ssrf']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # HTTP request data (express, fastify, koa, node:http).
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.query
+              - pattern: $REQ.body
+              - pattern: $REQ.params
+              - pattern: $REQ.headers
+              - pattern: $REQ.cookies
+              - pattern: $REQ.url
+              - pattern: $REQ.originalUrl
+              - pattern: $REQ.path
+              - pattern: $REQ.hostname
+              - pattern: $REQ.get(...)
+              - pattern: $REQ.header(...)
+              - pattern: $REQ.param(...)
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(req|request|ctx\.request|ctx)$
+    pattern-sanitizers:
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: $A.isInteger(...)
+      - pattern: $A.isUUID(...)
+      - pattern: $A.isInt(...)
+      - pattern: $A.isNumeric(...)
+      - pattern: isAllowedUrl(...)
+      - pattern: isAllowedHost(...)
+      - pattern: assertAllowedUrl(...)
+      - pattern: validateUrl(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fetch($X, ...)
+              - pattern: axios($X, ...)
+              - pattern: axios.get($X, ...)
+              - pattern: axios.post($X, ...)
+              - pattern: axios.put($X, ...)
+              - pattern: axios.delete($X, ...)
+              - pattern: 'axios.request({..., url: $X, ...})'
+              - pattern: got($X, ...)
+              - pattern: got.get($X, ...)
+              - pattern: got.post($X, ...)
+              - pattern: request($X, ...)
+              - pattern: request.get($X, ...)
+              - pattern: http.get($X, ...)
+              - pattern: https.get($X, ...)
+              - pattern: http.request($X, ...)
+              - pattern: https.request($X, ...)
+              - pattern: needle($M, $X, ...)
+              - pattern: superagent.get($X)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-redirect-js
+    mode: taint
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Request data decides where the user is redirected. A phishing link on
+      your domain can send visitors anywhere. Redirect only to a path that
+      starts with a single `/`, or to an allowlisted host.
+    metadata:
+      category: security
+      cwe: "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*.test.*'
+        - '*.spec.*'
+        - '**/__tests__/**'
+        - '**/__mocks__/**'
+        - '**/test/**'
+        - '**/tests/**'
+    pattern-sources:
+      # HTTP request data (express, fastify, koa, node:http).
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.query
+              - pattern: $REQ.body
+              - pattern: $REQ.params
+              - pattern: $REQ.headers
+              - pattern: $REQ.cookies
+              - pattern: $REQ.url
+              - pattern: $REQ.originalUrl
+              - pattern: $REQ.path
+              - pattern: $REQ.hostname
+              - pattern: $REQ.get(...)
+              - pattern: $REQ.header(...)
+              - pattern: $REQ.param(...)
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(req|request|ctx\.request|ctx)$
+    pattern-sanitizers:
+      # Conversions that leave no text behind.
+      - pattern: Number(...)
+      - pattern: parseInt(...)
+      - pattern: parseFloat(...)
+      - pattern: Boolean(...)
+      - pattern: $A.isInteger(...)
+      - pattern: $A.isUUID(...)
+      - pattern: $A.isInt(...)
+      - pattern: $A.isNumeric(...)
+      - pattern: isSafeRedirect(...)
+      - pattern: isAllowedRedirect(...)
+      - pattern: safeRedirect(...)
+      - pattern: encodeURIComponent(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $RES.redirect($X)
+              - pattern: $RES.redirect($CODE, $X)
+              - pattern: $RES.location($X)
+              - pattern: "$RES.setHeader('Location', $X)"
+              - pattern: "$RES.header('Location', $X)"
+          - metavariable-regex:
+              metavariable: $RES
+              regex: ^(res|reply|response|ctx)$
+          - focus-metavariable: $X
+
+  # ===== Python ===============================================================
+  - id: bpm-inj-sql-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query as text. A value formatted into the
+      query string is an injection the day it holds a quote. Pass it as a bound
+      parameter (`cursor.execute("... WHERE id = %s", (id,))`), or use the ORM's
+      filters.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function. A value stored on self or
+        returned from another module is not followed, and a FastAPI path or
+        query parameter is not a source here.
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/tests/**'
+        - '**/test/**'
+    pattern-sources:
+      # HTTP request data (flask, django, fastapi/starlette, bottle).
+      - pattern: flask.request.args
+      - pattern: flask.request.form
+      - pattern: flask.request.values
+      - pattern: flask.request.json
+      - pattern: flask.request.data
+      - pattern: flask.request.cookies
+      - pattern: flask.request.headers
+      - pattern: flask.request.view_args
+      - pattern: flask.request.get_json(...)
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.values
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.headers
+      - pattern: request.get_json(...)
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.COOKIES
+      - pattern: request.META
+      - pattern: request.body
+      - pattern: request.query_params
+      - pattern: request.path_params
+      - pattern: request.query
+      - pattern: request.forms
+      - pattern: await request.json()
+      - pattern: await request.body()
+      - pattern: await request.form()
+    pattern-sanitizers:
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: uuid.UUID(...)
+      - pattern: UUID(...)
+      - pattern: Decimal(...)
+      - pattern: len(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $CUR.execute($Q, ...)
+              - pattern: $CUR.executemany($Q, ...)
+              - pattern: $CUR.executescript($Q)
+              - pattern: $CUR.mogrify($Q, ...)
+              - pattern: $MODEL.objects.raw($Q, ...)
+              - pattern: $MODEL.objects.extra(..., where=[$Q], ...)
+              - pattern: $SESSION.execute(sqlalchemy.text($Q), ...)
+              - pattern: $SESSION.execute(text($Q), ...)
+              - pattern: sqlalchemy.text($Q)
+              - pattern: $CONN.exec_driver_sql($Q, ...)
+          - focus-metavariable: $Q
+
+  - id: bpm-inj-cmd-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request data reaches a shell command. A `;`, `|` or `$(...)` in that
+      value runs as a second command on the server. Pass the program and its
+      arguments as a list without shell=True, and allowlist the values.
+    metadata:
+      category: security
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp: 'A03:2021 Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/tests/**'
+        - '**/test/**'
+    pattern-sources:
+      # HTTP request data (flask, django, fastapi/starlette, bottle).
+      - pattern: flask.request.args
+      - pattern: flask.request.form
+      - pattern: flask.request.values
+      - pattern: flask.request.json
+      - pattern: flask.request.data
+      - pattern: flask.request.cookies
+      - pattern: flask.request.headers
+      - pattern: flask.request.view_args
+      - pattern: flask.request.get_json(...)
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.values
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.headers
+      - pattern: request.get_json(...)
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.COOKIES
+      - pattern: request.META
+      - pattern: request.body
+      - pattern: request.query_params
+      - pattern: request.path_params
+      - pattern: request.query
+      - pattern: request.forms
+      - pattern: await request.json()
+      - pattern: await request.body()
+      - pattern: await request.form()
+    pattern-sanitizers:
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: uuid.UUID(...)
+      - pattern: UUID(...)
+      - pattern: Decimal(...)
+      - pattern: len(...)
+      - pattern: shlex.quote(...)
+      - pattern: quote(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.system($X)
+              - pattern: os.popen($X, ...)
+              - pattern: subprocess.getoutput($X)
+              - pattern: subprocess.getstatusoutput($X)
+              - pattern: asyncio.create_subprocess_shell($X, ...)
+              - pattern: os.execl($X, ...)
+              - pattern: os.execv($X, ...)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-either:
+              - pattern: subprocess.run($X, ..., shell=True, ...)
+              - pattern: subprocess.call($X, ..., shell=True, ...)
+              - pattern: subprocess.check_call($X, ..., shell=True, ...)
+              - pattern: subprocess.check_output($X, ..., shell=True, ...)
+              - pattern: subprocess.Popen($X, ..., shell=True, ...)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-path-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request data reaches a file path. `../` in that value reads or writes
+      files outside the folder you meant. Use werkzeug's secure_filename or
+      os.path.basename, or resolve the path and check it stays inside the
+      allowed directory.
+    metadata:
+      category: security
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/tests/**'
+        - '**/test/**'
+    pattern-sources:
+      # HTTP request data (flask, django, fastapi/starlette, bottle).
+      - pattern: flask.request.args
+      - pattern: flask.request.form
+      - pattern: flask.request.values
+      - pattern: flask.request.json
+      - pattern: flask.request.data
+      - pattern: flask.request.cookies
+      - pattern: flask.request.headers
+      - pattern: flask.request.view_args
+      - pattern: flask.request.get_json(...)
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.values
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.headers
+      - pattern: request.get_json(...)
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.COOKIES
+      - pattern: request.META
+      - pattern: request.body
+      - pattern: request.query_params
+      - pattern: request.path_params
+      - pattern: request.query
+      - pattern: request.forms
+      - pattern: await request.json()
+      - pattern: await request.body()
+      - pattern: await request.form()
+    pattern-sanitizers:
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: uuid.UUID(...)
+      - pattern: UUID(...)
+      - pattern: Decimal(...)
+      - pattern: len(...)
+      - pattern: secure_filename(...)
+      - pattern: werkzeug.utils.secure_filename(...)
+      - pattern: os.path.basename(...)
+      - pattern: basename(...)
+      - pattern: pathlib.Path(...).name
+      - pattern: safe_join(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: open($X, ...)
+              - pattern: io.open($X, ...)
+              - pattern: pathlib.Path($X)
+              - pattern: Path($X)
+              - pattern: os.remove($X)
+              - pattern: os.unlink($X)
+              - pattern: os.listdir($X)
+              - pattern: shutil.rmtree($X, ...)
+              - pattern: shutil.copy($X, ...)
+              - pattern: flask.send_file($X, ...)
+              - pattern: send_file($X, ...)
+              - pattern: FileResponse($X, ...)
+              - pattern: flask.send_from_directory($D, $X, ...)
+              - pattern: send_from_directory($D, $X, ...)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-xss-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request data is written into an HTML response unescaped. A `<script>` in
+      that value runs in every visitor's browser. Render it through a template
+      that escapes (Jinja autoescape, Django templates), or escape it with
+      markupsafe.escape.
+    metadata:
+      category: security
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      owasp: 'A03:2021 Injection'
+      yields: ['xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/tests/**'
+        - '**/test/**'
+    pattern-sources:
+      # HTTP request data (flask, django, fastapi/starlette, bottle).
+      - pattern: flask.request.args
+      - pattern: flask.request.form
+      - pattern: flask.request.values
+      - pattern: flask.request.json
+      - pattern: flask.request.data
+      - pattern: flask.request.cookies
+      - pattern: flask.request.headers
+      - pattern: flask.request.view_args
+      - pattern: flask.request.get_json(...)
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.values
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.headers
+      - pattern: request.get_json(...)
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.COOKIES
+      - pattern: request.META
+      - pattern: request.body
+      - pattern: request.query_params
+      - pattern: request.path_params
+      - pattern: request.query
+      - pattern: request.forms
+      - pattern: await request.json()
+      - pattern: await request.body()
+      - pattern: await request.form()
+    pattern-sanitizers:
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: uuid.UUID(...)
+      - pattern: UUID(...)
+      - pattern: Decimal(...)
+      - pattern: len(...)
+      - pattern: html.escape(...)
+      - pattern: markupsafe.escape(...)
+      - pattern: escape(...)
+      - pattern: bleach.clean(...)
+      - pattern: django.utils.html.escape(...)
+      - pattern: json.dumps(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: flask.make_response($X, ...)
+              - pattern: make_response($X, ...)
+              - pattern: HttpResponse($X, ...)
+              - pattern: django.http.HttpResponse($X, ...)
+              - pattern: HTMLResponse($X, ...)
+              - pattern: flask.Markup($X)
+              - pattern: Markup($X)
+              - pattern: markupsafe.Markup($X)
+              - pattern: mark_safe($X)
+              - pattern: django.utils.safestring.mark_safe($X)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-either:
+              - pattern: flask.render_template_string($X, ...)
+              - pattern: render_template_string($X, ...)
+              - pattern: jinja2.Template($X)
+              - pattern: Template($X)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-ssrf-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request data decides which URL the server fetches. A caller can point it
+      at the cloud metadata service or an internal host. Allowlist the hosts,
+      or take only a path or id from the request and build the URL yourself.
+    metadata:
+      category: security
+      cwe: 'CWE-918: Server-Side Request Forgery (SSRF)'
+      owasp: 'A10:2021 Server-Side Request Forgery'
+      yields: ['ssrf']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/tests/**'
+        - '**/test/**'
+    pattern-sources:
+      # HTTP request data (flask, django, fastapi/starlette, bottle).
+      - pattern: flask.request.args
+      - pattern: flask.request.form
+      - pattern: flask.request.values
+      - pattern: flask.request.json
+      - pattern: flask.request.data
+      - pattern: flask.request.cookies
+      - pattern: flask.request.headers
+      - pattern: flask.request.view_args
+      - pattern: flask.request.get_json(...)
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.values
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.headers
+      - pattern: request.get_json(...)
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.COOKIES
+      - pattern: request.META
+      - pattern: request.body
+      - pattern: request.query_params
+      - pattern: request.path_params
+      - pattern: request.query
+      - pattern: request.forms
+      - pattern: await request.json()
+      - pattern: await request.body()
+      - pattern: await request.form()
+    pattern-sanitizers:
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: uuid.UUID(...)
+      - pattern: UUID(...)
+      - pattern: Decimal(...)
+      - pattern: len(...)
+      - pattern: is_allowed_url(...)
+      - pattern: is_allowed_host(...)
+      - pattern: validate_url(...)
+      - pattern: assert_allowed_url(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: requests.get($X, ...)
+              - pattern: requests.post($X, ...)
+              - pattern: requests.put($X, ...)
+              - pattern: requests.delete($X, ...)
+              - pattern: requests.head($X, ...)
+              - pattern: requests.request($M, $X, ...)
+              - pattern: httpx.get($X, ...)
+              - pattern: httpx.post($X, ...)
+              - pattern: urllib.request.urlopen($X, ...)
+              - pattern: urllib.request.Request($X, ...)
+              - pattern: urlopen($X, ...)
+              - pattern: aiohttp.ClientSession().get($X, ...)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-either:
+              - pattern: $SESSION.get($X, ...)
+              - pattern: $SESSION.post($X, ...)
+          - metavariable-regex:
+              metavariable: $SESSION
+              regex: ^(session|http|http_client|client|s)$
+          - focus-metavariable: $X
+
+  - id: bpm-inj-redirect-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request data decides where the user is redirected. A phishing link on
+      your domain can send visitors anywhere. Redirect only to a relative path,
+      or check the target with url_has_allowed_host_and_scheme first.
+    metadata:
+      category: security
+      cwe: "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/tests/**'
+        - '**/test/**'
+    pattern-sources:
+      # HTTP request data (flask, django, fastapi/starlette, bottle).
+      - pattern: flask.request.args
+      - pattern: flask.request.form
+      - pattern: flask.request.values
+      - pattern: flask.request.json
+      - pattern: flask.request.data
+      - pattern: flask.request.cookies
+      - pattern: flask.request.headers
+      - pattern: flask.request.view_args
+      - pattern: flask.request.get_json(...)
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.values
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.headers
+      - pattern: request.get_json(...)
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.COOKIES
+      - pattern: request.META
+      - pattern: request.body
+      - pattern: request.query_params
+      - pattern: request.path_params
+      - pattern: request.query
+      - pattern: request.forms
+      - pattern: await request.json()
+      - pattern: await request.body()
+      - pattern: await request.form()
+    pattern-sanitizers:
+      - pattern: int(...)
+      - pattern: float(...)
+      - pattern: bool(...)
+      - pattern: uuid.UUID(...)
+      - pattern: UUID(...)
+      - pattern: Decimal(...)
+      - pattern: len(...)
+      - pattern: url_for(...)
+      - pattern: flask.url_for(...)
+      - pattern: reverse(...)
+      - pattern: url_has_allowed_host_and_scheme(...)
+      - pattern: is_safe_url(...)
+      - pattern: is_safe_redirect(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: flask.redirect($X, ...)
+              - pattern: redirect($X, ...)
+              - pattern: HttpResponseRedirect($X, ...)
+              - pattern: django.http.HttpResponseRedirect($X, ...)
+              - pattern: RedirectResponse($X, ...)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-deserialize-py
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request data is deserialized with a format that runs code while loading.
+      Whoever sends the bytes controls the server. Use JSON, or yaml.safe_load,
+      and never unpickle data a client can write.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      owasp: 'A08:2021 Software and Data Integrity Failures'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - 'test_*.py'
+        - '*_test.py'
+        - 'conftest.py'
+        - '**/tests/**'
+        - '**/test/**'
+    pattern-sources:
+      # HTTP request data (flask, django, fastapi/starlette, bottle).
+      - pattern: flask.request.args
+      - pattern: flask.request.form
+      - pattern: flask.request.values
+      - pattern: flask.request.json
+      - pattern: flask.request.data
+      - pattern: flask.request.cookies
+      - pattern: flask.request.headers
+      - pattern: flask.request.view_args
+      - pattern: flask.request.get_json(...)
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.values
+      - pattern: request.json
+      - pattern: request.data
+      - pattern: request.cookies
+      - pattern: request.headers
+      - pattern: request.get_json(...)
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.COOKIES
+      - pattern: request.META
+      - pattern: request.body
+      - pattern: request.query_params
+      - pattern: request.path_params
+      - pattern: request.query
+      - pattern: request.forms
+      - pattern: await request.json()
+      - pattern: await request.body()
+      - pattern: await request.form()
+    pattern-sanitizers:
+      - pattern: json.loads(...)
+      - pattern: yaml.safe_load(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: pickle.loads($X, ...)
+              - pattern: pickle.load($X, ...)
+              - pattern: cPickle.loads($X, ...)
+              - pattern: marshal.loads($X)
+              - pattern: dill.loads($X, ...)
+              - pattern: yaml.load($X)
+              - pattern: yaml.load($X, Loader=yaml.Loader)
+              - pattern: yaml.load($X, Loader=yaml.UnsafeLoader)
+              - pattern: yaml.load($X, Loader=yaml.FullLoader)
+              - pattern: yaml.unsafe_load($X)
+              - pattern: jsonpickle.decode($X, ...)
+          - focus-metavariable: $X
+
+  # ===== Java =================================================================
+  - id: bpm-inj-sql-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query as text. A value concatenated into the
+      query string is an injection the day it holds a quote. Use a
+      PreparedStatement with `?` placeholders, or named parameters.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one method and through string concatenation
+        and StringBuilder. A value passed to another method or stored in a
+        field is not followed.
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $STMT.executeQuery($Q)
+              - pattern: $STMT.executeUpdate($Q, ...)
+              - pattern: $STMT.execute($Q, ...)
+              - pattern: $STMT.executeLargeUpdate($Q, ...)
+              - pattern: $STMT.addBatch($Q)
+              - pattern: $CONN.prepareStatement($Q, ...)
+              - pattern: $CONN.prepareCall($Q, ...)
+              - pattern: $JDBC.query($Q, ...)
+              - pattern: $JDBC.queryForObject($Q, ...)
+              - pattern: $JDBC.queryForList($Q, ...)
+              - pattern: $JDBC.update($Q, ...)
+              - pattern: $JDBC.execute($Q)
+              - pattern: $EM.createQuery($Q, ...)
+              - pattern: $EM.createNativeQuery($Q, ...)
+              - pattern: $SESSION.createQuery($Q, ...)
+              - pattern: $SESSION.createSQLQuery($Q)
+          - focus-metavariable: $Q
+
+  - id: bpm-inj-cmd-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data reaches an operating-system command. A `;`, `|` or `&&` in
+      that value can run a second command on the server. Pass the program and
+      each argument as separate list items without a shell, and allowlist the
+      values.
+    metadata:
+      category: security
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp: 'A03:2021 Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $RT.exec($X, ...)
+              - pattern: new ProcessBuilder($X, ...)
+              - pattern: new ProcessBuilder(..., $X)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-path-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data reaches a file path. `../` in that value reads or writes
+      files outside the folder you meant. Reduce it to a file name with
+      Paths.get(name).getFileName(), or normalize the path and check it still
+      starts with the allowed directory.
+    metadata:
+      category: security
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+      - pattern: FilenameUtils.getName(...)
+      - pattern: $P.getFileName()
+      - pattern: StringUtils.cleanPath(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: new File($X)
+              - pattern: new File($PARENT, $X)
+              - pattern: new FileInputStream($X)
+              - pattern: new FileOutputStream($X, ...)
+              - pattern: new FileReader($X)
+              - pattern: new FileWriter($X, ...)
+              - pattern: Paths.get($X, ...)
+              - pattern: Path.of($X, ...)
+              - pattern: Files.readAllBytes($X)
+              - pattern: Files.readString($X, ...)
+              - pattern: new ClassPathResource($X)
+              - pattern: new FileSystemResource($X)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-xss-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data is written into an HTML response unescaped. A `<script>` in
+      that value runs in every visitor's browser. Escape it with
+      HtmlUtils.htmlEscape or the OWASP Java Encoder, or render it through a
+      template engine that escapes by default.
+    metadata:
+      category: security
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      owasp: 'A03:2021 Injection'
+      yields: ['xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+      - pattern: HtmlUtils.htmlEscape(...)
+      - pattern: StringEscapeUtils.escapeHtml4(...)
+      - pattern: Encode.forHtml(...)
+      - pattern: Encode.forHtmlContent(...)
+      - pattern: Encode.forJavaScript(...)
+      - pattern: ESAPI.encoder().encodeForHTML(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $W.println($X)
+              - pattern: $W.print($X)
+              - pattern: $W.write($X)
+              - pattern: $W.append($X)
+              - pattern: $W.printf($FMT, ..., $X, ...)
+          - metavariable-regex:
+              metavariable: $W
+              regex: (?i)^(out|writer|printWriter|response\.getWriter\(\)|resp\.getWriter\(\)|res\.getWriter\(\))$
+          - focus-metavariable: $X
+
+  - id: bpm-inj-ssrf-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data decides which URL the server fetches. A caller can point it
+      at the cloud metadata service or an internal host. Allowlist the hosts,
+      or take only a path or id from the request and build the URL yourself.
+    metadata:
+      category: security
+      cwe: 'CWE-918: Server-Side Request Forgery (SSRF)'
+      owasp: 'A10:2021 Server-Side Request Forgery'
+      yields: ['ssrf']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+      - pattern: isAllowedUrl(...)
+      - pattern: isAllowedHost(...)
+      - pattern: validateUrl(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: new URL($X)
+              - pattern: new URL($X, ...)
+              - pattern: new URI($X)
+              - pattern: URI.create($X)
+              - pattern: $REST.getForObject($X, ...)
+              - pattern: $REST.getForEntity($X, ...)
+              - pattern: $REST.postForObject($X, ...)
+              - pattern: $REST.exchange($X, ...)
+              - pattern: $CLIENT.get($X)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-redirect-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data decides where the user is redirected. A phishing link on
+      your domain can send visitors anywhere. Redirect only to a relative path
+      you build, or to an allowlisted host.
+    metadata:
+      category: security
+      cwe: "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+      - pattern: isSafeRedirect(...)
+      - pattern: isAllowedRedirect(...)
+      - pattern: URLEncoder.encode(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $RESP.sendRedirect($X)
+              - pattern: new RedirectView($X, ...)
+              - pattern: new ModelAndView("redirect:" + $X)
+              - pattern: $RESP.setHeader("Location", $X)
+              - pattern: ResponseEntity.status(...).location(URI.create($X))
+          - focus-metavariable: $X
+
+  - id: bpm-inj-deserialize-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data is read through Java object deserialization. Whoever sends
+      the bytes can run code through any class on the classpath that does
+      something on load. Use JSON or protobuf, or an ObjectInputFilter that
+      allowlists the classes.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      owasp: 'A08:2021 Software and Data Integrity Failures'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getInputStream()
+              - pattern: $REQ.getReader()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: new ObjectInputStream($X)
+              - pattern: new XMLDecoder($X)
+              - pattern: $XS.fromXML($X)
+          - focus-metavariable: $X
+
+  # ===== Go ===================================================================
+  - id: bpm-inj-sql-go
+    mode: taint
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query as text. A value formatted into the
+      query string is an injection the day it holds a quote. Pass it as an
+      argument (`db.Query("... WHERE id = $1", id)`), never through
+      fmt.Sprintf or concatenation.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through fmt.Sprintf and
+        concatenation. A value passed to another function or stored in a
+        struct field is not followed.
+    paths:
+      exclude:
+        - '*_test.go'
+        - '**/testdata/**'
+    pattern-sources:
+      # net/http, gin, echo, chi request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $R.URL.Query().Get(...)
+              - pattern: $R.URL.Query()
+              - pattern: $R.URL.RawQuery
+              - pattern: $R.URL.Path
+              - pattern: $R.FormValue(...)
+              - pattern: $R.PostFormValue(...)
+              - pattern: $R.Form
+              - pattern: $R.PostForm
+              - pattern: $R.Header.Get(...)
+              - pattern: $R.Cookie(...)
+              - pattern: $R.PathValue(...)
+              - pattern: chi.URLParam($R, ...)
+              - pattern: mux.Vars($R)
+          - metavariable-regex:
+              metavariable: $R
+              regex: ^(r|req|request|httpRequest)$
+      - patterns:
+          - pattern-either:
+              - pattern: $C.Query(...)
+              - pattern: $C.DefaultQuery(...)
+              - pattern: $C.Param(...)
+              - pattern: $C.PostForm(...)
+              - pattern: $C.GetHeader(...)
+              - pattern: $C.QueryParam(...)
+              - pattern: $C.FormValue(...)
+              - pattern: $C.Cookie(...)
+              - pattern: $C.Request.URL.Query().Get(...)
+              - pattern: $C.Params.ByName(...)
+          - metavariable-regex:
+              metavariable: $C
+              regex: ^(c|ctx|context)$
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: strconv.ParseUint(...)
+      - pattern: strconv.ParseFloat(...)
+      - pattern: strconv.ParseBool(...)
+      - pattern: uuid.Parse(...)
+      - pattern: uuid.MustParse(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.Query($Q, ...)
+              - pattern: $DB.QueryRow($Q, ...)
+              - pattern: $DB.QueryContext($CTX, $Q, ...)
+              - pattern: $DB.QueryRowContext($CTX, $Q, ...)
+              - pattern: $DB.Exec($Q, ...)
+              - pattern: $DB.ExecContext($CTX, $Q, ...)
+              - pattern: $DB.Prepare($Q)
+              - pattern: $DB.PrepareContext($CTX, $Q)
+              - pattern: $DB.Raw($Q, ...)
+              - pattern: $DB.Select($DEST, $Q, ...)
+              - pattern: $DB.Get($DEST, $Q, ...)
+          - metavariable-regex:
+              metavariable: $DB
+              regex: (?i)(db|tx|conn|pool|sqlx|gorm|database|stmt)\w*$
+          - focus-metavariable: $Q
+
+  - id: bpm-inj-cmd-go
+    mode: taint
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Request data reaches an operating-system command. When the command is a
+      shell (`sh -c`), a `;`, `|` or `&&` in that value runs a second command
+      on the server. Pass the program and each argument separately and
+      allowlist the values.
+    metadata:
+      category: security
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp: 'A03:2021 Injection'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+        - '**/testdata/**'
+    pattern-sources:
+      # net/http, gin, echo, chi request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $R.URL.Query().Get(...)
+              - pattern: $R.URL.Query()
+              - pattern: $R.URL.RawQuery
+              - pattern: $R.URL.Path
+              - pattern: $R.FormValue(...)
+              - pattern: $R.PostFormValue(...)
+              - pattern: $R.Form
+              - pattern: $R.PostForm
+              - pattern: $R.Header.Get(...)
+              - pattern: $R.Cookie(...)
+              - pattern: $R.PathValue(...)
+              - pattern: chi.URLParam($R, ...)
+              - pattern: mux.Vars($R)
+          - metavariable-regex:
+              metavariable: $R
+              regex: ^(r|req|request|httpRequest)$
+      - patterns:
+          - pattern-either:
+              - pattern: $C.Query(...)
+              - pattern: $C.DefaultQuery(...)
+              - pattern: $C.Param(...)
+              - pattern: $C.PostForm(...)
+              - pattern: $C.GetHeader(...)
+              - pattern: $C.QueryParam(...)
+              - pattern: $C.FormValue(...)
+              - pattern: $C.Cookie(...)
+              - pattern: $C.Request.URL.Query().Get(...)
+              - pattern: $C.Params.ByName(...)
+          - metavariable-regex:
+              metavariable: $C
+              regex: ^(c|ctx|context)$
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: strconv.ParseUint(...)
+      - pattern: strconv.ParseFloat(...)
+      - pattern: strconv.ParseBool(...)
+      - pattern: uuid.Parse(...)
+      - pattern: uuid.MustParse(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec.Command($X, ...)
+              - pattern: exec.CommandContext($CTX, $X, ...)
+              - pattern: exec.Command("sh", "-c", $X)
+              - pattern: exec.Command("bash", "-c", $X)
+              - pattern: exec.CommandContext($CTX, "sh", "-c", $X)
+              - pattern: exec.CommandContext($CTX, "bash", "-c", $X)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-path-go
+    mode: taint
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Request data reaches a file path. `../` in that value reads or writes
+      files outside the folder you meant. Reduce it to a file name with
+      filepath.Base, or clean the path and check it still starts with the
+      allowed directory.
+    metadata:
+      category: security
+      cwe: "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+        - '**/testdata/**'
+    pattern-sources:
+      # net/http, gin, echo, chi request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $R.URL.Query().Get(...)
+              - pattern: $R.URL.Query()
+              - pattern: $R.URL.RawQuery
+              - pattern: $R.URL.Path
+              - pattern: $R.FormValue(...)
+              - pattern: $R.PostFormValue(...)
+              - pattern: $R.Form
+              - pattern: $R.PostForm
+              - pattern: $R.Header.Get(...)
+              - pattern: $R.Cookie(...)
+              - pattern: $R.PathValue(...)
+              - pattern: chi.URLParam($R, ...)
+              - pattern: mux.Vars($R)
+          - metavariable-regex:
+              metavariable: $R
+              regex: ^(r|req|request|httpRequest)$
+      - patterns:
+          - pattern-either:
+              - pattern: $C.Query(...)
+              - pattern: $C.DefaultQuery(...)
+              - pattern: $C.Param(...)
+              - pattern: $C.PostForm(...)
+              - pattern: $C.GetHeader(...)
+              - pattern: $C.QueryParam(...)
+              - pattern: $C.FormValue(...)
+              - pattern: $C.Cookie(...)
+              - pattern: $C.Request.URL.Query().Get(...)
+              - pattern: $C.Params.ByName(...)
+          - metavariable-regex:
+              metavariable: $C
+              regex: ^(c|ctx|context)$
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: strconv.ParseUint(...)
+      - pattern: strconv.ParseFloat(...)
+      - pattern: strconv.ParseBool(...)
+      - pattern: uuid.Parse(...)
+      - pattern: uuid.MustParse(...)
+      - pattern: filepath.Base(...)
+      - pattern: path.Base(...)
+      - pattern: securejoin.SecureJoin(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($X)
+              - pattern: os.OpenFile($X, ...)
+              - pattern: os.ReadFile($X)
+              - pattern: os.WriteFile($X, ...)
+              - pattern: os.Create($X)
+              - pattern: os.Remove($X)
+              - pattern: os.RemoveAll($X)
+              - pattern: ioutil.ReadFile($X)
+              - pattern: ioutil.WriteFile($X, ...)
+              - pattern: http.ServeFile($W, $R, $X)
+              - pattern: $C.File($X)
+              - pattern: $C.FileAttachment($X, ...)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-xss-go
+    mode: taint
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Request data is written into an HTML response unescaped. A `<script>` in
+      that value runs in every visitor's browser. Escape it with
+      html.EscapeString, or render it through html/template, which escapes by
+      context.
+    metadata:
+      category: security
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      owasp: 'A03:2021 Injection'
+      yields: ['xss']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+        - '**/testdata/**'
+    pattern-sources:
+      # net/http, gin, echo, chi request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $R.URL.Query().Get(...)
+              - pattern: $R.URL.Query()
+              - pattern: $R.URL.RawQuery
+              - pattern: $R.URL.Path
+              - pattern: $R.FormValue(...)
+              - pattern: $R.PostFormValue(...)
+              - pattern: $R.Form
+              - pattern: $R.PostForm
+              - pattern: $R.Header.Get(...)
+              - pattern: $R.Cookie(...)
+              - pattern: $R.PathValue(...)
+              - pattern: chi.URLParam($R, ...)
+              - pattern: mux.Vars($R)
+          - metavariable-regex:
+              metavariable: $R
+              regex: ^(r|req|request|httpRequest)$
+      - patterns:
+          - pattern-either:
+              - pattern: $C.Query(...)
+              - pattern: $C.DefaultQuery(...)
+              - pattern: $C.Param(...)
+              - pattern: $C.PostForm(...)
+              - pattern: $C.GetHeader(...)
+              - pattern: $C.QueryParam(...)
+              - pattern: $C.FormValue(...)
+              - pattern: $C.Cookie(...)
+              - pattern: $C.Request.URL.Query().Get(...)
+              - pattern: $C.Params.ByName(...)
+          - metavariable-regex:
+              metavariable: $C
+              regex: ^(c|ctx|context)$
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: strconv.ParseUint(...)
+      - pattern: strconv.ParseFloat(...)
+      - pattern: strconv.ParseBool(...)
+      - pattern: uuid.Parse(...)
+      - pattern: uuid.MustParse(...)
+      - pattern: html.EscapeString(...)
+      - pattern: template.HTMLEscapeString(...)
+      - pattern: template.JSEscapeString(...)
+      - pattern: url.QueryEscape(...)
+      - pattern: bluemonday.UGCPolicy().Sanitize(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fmt.Fprintf($W, ..., $X, ...)
+              - pattern: fmt.Fprint($W, $X, ...)
+              - pattern: fmt.Fprintln($W, $X, ...)
+              - pattern: io.WriteString($W, $X)
+              - pattern: $W.Write([]byte($X))
+              - pattern: $C.String($CODE, ..., $X, ...)
+              - pattern: $C.HTML($CODE, $X, ...)
+              - pattern: template.HTML($X)
+          - metavariable-regex:
+              metavariable: $W
+              regex: ^(w|rw|res|resp|writer|response|c|ctx)$
+          - focus-metavariable: $X
+
+  - id: bpm-inj-ssrf-go
+    mode: taint
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Request data decides which URL the server fetches. A caller can point it
+      at the cloud metadata service or an internal host. Allowlist the hosts,
+      or take only a path or id from the request and build the URL yourself.
+    metadata:
+      category: security
+      cwe: 'CWE-918: Server-Side Request Forgery (SSRF)'
+      owasp: 'A10:2021 Server-Side Request Forgery'
+      yields: ['ssrf']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+        - '**/testdata/**'
+    pattern-sources:
+      # net/http, gin, echo, chi request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $R.URL.Query().Get(...)
+              - pattern: $R.URL.Query()
+              - pattern: $R.URL.RawQuery
+              - pattern: $R.URL.Path
+              - pattern: $R.FormValue(...)
+              - pattern: $R.PostFormValue(...)
+              - pattern: $R.Form
+              - pattern: $R.PostForm
+              - pattern: $R.Header.Get(...)
+              - pattern: $R.Cookie(...)
+              - pattern: $R.PathValue(...)
+              - pattern: chi.URLParam($R, ...)
+              - pattern: mux.Vars($R)
+          - metavariable-regex:
+              metavariable: $R
+              regex: ^(r|req|request|httpRequest)$
+      - patterns:
+          - pattern-either:
+              - pattern: $C.Query(...)
+              - pattern: $C.DefaultQuery(...)
+              - pattern: $C.Param(...)
+              - pattern: $C.PostForm(...)
+              - pattern: $C.GetHeader(...)
+              - pattern: $C.QueryParam(...)
+              - pattern: $C.FormValue(...)
+              - pattern: $C.Cookie(...)
+              - pattern: $C.Request.URL.Query().Get(...)
+              - pattern: $C.Params.ByName(...)
+          - metavariable-regex:
+              metavariable: $C
+              regex: ^(c|ctx|context)$
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: strconv.ParseUint(...)
+      - pattern: strconv.ParseFloat(...)
+      - pattern: strconv.ParseBool(...)
+      - pattern: uuid.Parse(...)
+      - pattern: uuid.MustParse(...)
+      - pattern: isAllowedURL(...)
+      - pattern: isAllowedHost(...)
+      - pattern: validateURL(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: http.Get($X)
+              - pattern: http.Post($X, ...)
+              - pattern: http.Head($X)
+              - pattern: http.NewRequest($M, $X, ...)
+              - pattern: http.NewRequestWithContext($CTX, $M, $X, ...)
+              - pattern: resty.New().R().Get($X)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-either:
+              - pattern: $CLIENT.Get($X)
+              - pattern: $CLIENT.Post($X, ...)
+          - metavariable-regex:
+              metavariable: $CLIENT
+              regex: (?i)^(client|httpClient|hc|http\.DefaultClient|\w*client)$
+          - focus-metavariable: $X
+
+  - id: bpm-inj-redirect-go
+    mode: taint
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Request data decides where the user is redirected. A phishing link on
+      your domain can send visitors anywhere. Redirect only to a relative path
+      you build, or to an allowlisted host.
+    metadata:
+      category: security
+      cwe: "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+        - '**/testdata/**'
+    pattern-sources:
+      # net/http, gin, echo, chi request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $R.URL.Query().Get(...)
+              - pattern: $R.URL.Query()
+              - pattern: $R.URL.RawQuery
+              - pattern: $R.URL.Path
+              - pattern: $R.FormValue(...)
+              - pattern: $R.PostFormValue(...)
+              - pattern: $R.Form
+              - pattern: $R.PostForm
+              - pattern: $R.Header.Get(...)
+              - pattern: $R.Cookie(...)
+              - pattern: $R.PathValue(...)
+              - pattern: chi.URLParam($R, ...)
+              - pattern: mux.Vars($R)
+          - metavariable-regex:
+              metavariable: $R
+              regex: ^(r|req|request|httpRequest)$
+      - patterns:
+          - pattern-either:
+              - pattern: $C.Query(...)
+              - pattern: $C.DefaultQuery(...)
+              - pattern: $C.Param(...)
+              - pattern: $C.PostForm(...)
+              - pattern: $C.GetHeader(...)
+              - pattern: $C.QueryParam(...)
+              - pattern: $C.FormValue(...)
+              - pattern: $C.Cookie(...)
+              - pattern: $C.Request.URL.Query().Get(...)
+              - pattern: $C.Params.ByName(...)
+          - metavariable-regex:
+              metavariable: $C
+              regex: ^(c|ctx|context)$
+    pattern-sanitizers:
+      - pattern: strconv.Atoi(...)
+      - pattern: strconv.ParseInt(...)
+      - pattern: strconv.ParseUint(...)
+      - pattern: strconv.ParseFloat(...)
+      - pattern: strconv.ParseBool(...)
+      - pattern: uuid.Parse(...)
+      - pattern: uuid.MustParse(...)
+      - pattern: isSafeRedirect(...)
+      - pattern: isAllowedRedirect(...)
+      - pattern: url.QueryEscape(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: http.Redirect($W, $R, $X, ...)
+              - pattern: $C.Redirect($CODE, $X)
+          - focus-metavariable: $X
+
+  - id: bpm-inj-deserialize-go
+    mode: taint
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Request data is decoded with a format that can construct arbitrary types
+      or run code while loading. Decode into a concrete struct with
+      encoding/json, and use yaml.v3 with a typed target, not an interface{}
+      holding user-chosen types.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      owasp: 'A08:2021 Software and Data Integrity Failures'
+      yields: ['rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+    paths:
+      exclude:
+        - '*_test.go'
+        - '**/testdata/**'
+    pattern-sources:
+      - pattern: $R.Body
+    pattern-sinks:
+      - patterns:
+          - pattern: gob.NewDecoder($X)
+          - focus-metavariable: $X
