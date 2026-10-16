@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { blankLiterals, julietLabels, methodRanges, stride } from './prepare-juliet.js';
+import {
+  blankLiterals,
+  isTestcasePath,
+  julietLabels,
+  methodRanges,
+  stride,
+} from './prepare-juliet.js';
 
 // The Juliet label derivation (W18-40): labels come from the code's own naming,
 // so the derivation is what decides every number the suite publishes.
@@ -95,5 +101,25 @@ describe('stride sampling', () => {
       10,
     );
     expect(picked).toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
+  });
+});
+
+describe('test case selection', () => {
+  it('keeps the test cases and drops the ant build scaffolding next to them', () => {
+    expect(
+      isTestcasePath('CWE89_SQL_Injection/s01/CWE89_SQL_Injection__Property_executeQuery_01.java'),
+    ).toBe(true);
+    expect(
+      isTestcasePath(
+        'CWE259_Hard_Coded_Password/antbuild/testcases/CWE259_Hard_Coded_Password/Main.java',
+      ),
+    ).toBe(false);
+    expect(
+      isTestcasePath(
+        'CWE327_Use_Broken_Crypto/antbuild/testcases/CWE327_Use_Broken_Crypto/ServletMain.java',
+      ),
+    ).toBe(false);
+    // Only a path SEGMENT named antbuild counts, not a name that contains it.
+    expect(isTestcasePath('CWE89_SQL_Injection/s01/Antbuilder_01.java')).toBe(true);
   });
 });
