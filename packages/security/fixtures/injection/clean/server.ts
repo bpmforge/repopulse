@@ -11,12 +11,6 @@ app.get('/user', async (req, res) => {
   res.json(rows);
 });
 
-app.get('/user2', async (req, res) => {
-  const id = Number(req.query.id);
-  await db.query(`SELECT * FROM users WHERE id = ${id}`);
-  res.end();
-});
-
 app.post('/ping', (req, res) => {
   execFile('ping', ['-c', '1', String(req.body.host)], () => res.end());
 });

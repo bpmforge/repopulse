@@ -4,7 +4,7 @@
   "description": "The trigger/clean fixture pairs the YAML packs are developed against, read in place from packages/security/fixtures. Every triggering defect is labelled, including the ones a fixture carries incidentally for another family; any finding on a clean tree is a false positive. These fixtures were written alongside the rules, so this suite is a regression floor, not an accuracy estimate.",
   "source": {
     "kind": "in-repo",
-    "path": "packages/security/fixtures/{code-health,perf,semgrep}",
+    "path": "packages/security/fixtures/{code-health,perf,semgrep,injection}",
     "licence": "Proprietary (RepoPulse)"
   },
   "unlabelled": "fp",
@@ -32,6 +32,14 @@
     {
       "id": "semgrep/vulnerable",
       "path": "../../semgrep/vulnerable"
+    },
+    {
+      "id": "injection/clean",
+      "path": "../../injection/clean"
+    },
+    {
+      "id": "injection/triggering",
+      "path": "../../injection/triggering"
     }
   ],
   "labels": [
@@ -784,6 +792,536 @@
       "dimension": "sast",
       "expect": "finding",
       "note": "Python-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-cmd-go-go-main-25",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [25, 25],
+      "rule": "bpm-inj-cmd-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-cmd-java-java-UserController-33",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [33, 33],
+      "rule": "bpm-inj-cmd-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-cmd-js-server-27",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [27, 27],
+      "rule": "bpm-inj-cmd-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-cmd-py-app-28",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [28, 28],
+      "rule": "bpm-inj-cmd-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-cmd-py-app-30",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [30, 30],
+      "rule": "bpm-inj-cmd-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-deserialize-go-go-main-58",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [58, 58],
+      "rule": "bpm-inj-deserialize-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-deserialize-java-java-UserController-62",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [62, 62],
+      "rule": "bpm-inj-deserialize-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-deserialize-py-app-70",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [70, 70],
+      "rule": "bpm-inj-deserialize-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-deserialize-py-app-72",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [72, 72],
+      "rule": "bpm-inj-deserialize-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-dom-xss-js-server-61",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [61, 61],
+      "rule": "bpm-inj-dom-xss-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-go-go-main-31",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [31, 31],
+      "rule": "bpm-inj-path-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-java-java-UserController-39",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [39, 39],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-js-server-33",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [33, 33],
+      "rule": "bpm-inj-path-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-js-server-38",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [38, 38],
+      "rule": "bpm-inj-path-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-py-app-38",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [38, 38],
+      "rule": "bpm-inj-path-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-py-app-44",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [44, 44],
+      "rule": "bpm-inj-path-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-redirect-go-go-main-52",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [52, 52],
+      "rule": "bpm-inj-redirect-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-redirect-java-java-UserController-57",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [57, 57],
+      "rule": "bpm-inj-redirect-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-redirect-js-server-56",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [56, 56],
+      "rule": "bpm-inj-redirect-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-redirect-py-app-64",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [64, 64],
+      "rule": "bpm-inj-redirect-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-go-go-main-17",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [17, 17],
+      "rule": "bpm-inj-sql-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-go-go-main-19",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [19, 19],
+      "rule": "bpm-inj-sql-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-java-java-UserController-20",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [20, 20],
+      "rule": "bpm-inj-sql-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-java-java-UserController-26",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [26, 26],
+      "rule": "bpm-inj-sql-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-js-server-13",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [13, 13],
+      "rule": "bpm-inj-sql-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-js-server-20",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [20, 20],
+      "rule": "bpm-inj-sql-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-py-app-18",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [18, 18],
+      "rule": "bpm-inj-sql-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-py-app-20",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [20, 20],
+      "rule": "bpm-inj-sql-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-ssrf-go-go-main-46",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [46, 46],
+      "rule": "bpm-inj-ssrf-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-ssrf-java-java-UserController-51",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [51, 51],
+      "rule": "bpm-inj-ssrf-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-ssrf-js-server-50",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [50, 50],
+      "rule": "bpm-inj-ssrf-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-ssrf-py-app-58",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [58, 58],
+      "rule": "bpm-inj-ssrf-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-xss-go-go-main-40",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [40, 40],
+      "rule": "bpm-inj-xss-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-xss-java-java-UserController-45",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [45, 45],
+      "rule": "bpm-inj-xss-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-xss-js-server-44",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [44, 44],
+      "rule": "bpm-inj-xss-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-xss-py-app-51",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [51, 51],
+      "rule": "bpm-inj-xss-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-also-go-shell-exec-dynamic-go-main-25",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [25, 25],
+      "rule": "bpm-go-shell-exec-dynamic",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-go-sql-string-build-go-main-19",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [19, 19],
+      "rule": "bpm-go-sql-string-build",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-java-command-concat-java-UserController-33",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [33, 33],
+      "rule": "bpm-java-command-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-java-sql-string-concat-java-UserController-20",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [20, 20],
+      "rule": "bpm-java-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-java-sql-string-concat-java-UserController-26",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [26, 26],
+      "rule": "bpm-java-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-java-unsafe-deserialization-java-UserController-62",
+      "tree": "injection/triggering",
+      "file": "java/UserController.java",
+      "lines": [62, 62],
+      "rule": "bpm-java-unsafe-deserialization",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-js-child-process-concat-server-27",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [27, 27],
+      "rule": "bpm-js-child-process-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-js-sql-string-concat-server-13",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [13, 13],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-js-sql-string-concat-server-20",
+      "tree": "injection/triggering",
+      "file": "server.ts",
+      "lines": [20, 20],
+      "rule": "bpm-js-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-py-sql-string-build-app-18",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [18, 18],
+      "rule": "bpm-py-sql-string-build",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-py-sql-string-build-app-20",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [20, 20],
+      "rule": "bpm-py-sql-string-build",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-py-subprocess-shell-concat-app-28",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [28, 28],
+      "rule": "bpm-py-subprocess-shell-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-py-subprocess-shell-concat-app-30",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [30, 30],
+      "rule": "bpm-py-subprocess-shell-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-sec-shell-dynamic-command-go-go-main-25",
+      "tree": "injection/triggering",
+      "file": "go/main.go",
+      "lines": [25, 25],
+      "rule": "bpm-sec-shell-dynamic-command-go",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-sec-shell-dynamic-command-py-app-30",
+      "tree": "injection/triggering",
+      "file": "app.py",
+      "lines": [30, 30],
+      "rule": "bpm-sec-shell-dynamic-command-py",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-cmd-js-vulnerable",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [8, 8],
+      "rule": "bpm-inj-cmd-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Request data reaches exec."
+    },
+    {
+      "id": "inj-sql-js-vulnerable",
+      "tree": "semgrep/vulnerable",
+      "file": "app.js",
+      "lines": [9, 9],
+      "rule": "bpm-inj-sql-js",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Request data reaches a SQL template."
     }
   ]
 }

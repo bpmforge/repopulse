@@ -15,7 +15,10 @@ import (
 
 func user(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	db.Query("SELECT * FROM users WHERE id = $1", r.URL.Query().Get("id"))
-	n, _ := strconv.Atoi(r.URL.Query().Get("n"))
+	n, err := strconv.Atoi(r.URL.Query().Get("n"))
+	if err != nil {
+		return
+	}
 	db.Query(fmt.Sprintf("SELECT * FROM users WHERE n = %d", n))
 }
 
@@ -25,7 +28,10 @@ func ping(w http.ResponseWriter, r *http.Request) {
 
 func file(w http.ResponseWriter, r *http.Request) {
 	name := filepath.Base(r.URL.Query().Get("file"))
-	data, _ := os.ReadFile(filepath.Join("/srv/uploads", name))
+	data, err := os.ReadFile(filepath.Join("/srv/uploads", name))
+	if err != nil {
+		return
+	}
 	w.Write(data)
 }
 

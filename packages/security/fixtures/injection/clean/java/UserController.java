@@ -14,8 +14,6 @@ public class UserController {
     PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
     ps.setString(1, request.getParameter("id"));
     ps.executeQuery();
-    int id = Integer.parseInt(request.getParameter("n"));
-    conn.createStatement().executeQuery("SELECT * FROM users WHERE n = " + id);
   }
 
   public void ping(HttpServletRequest request) throws IOException {

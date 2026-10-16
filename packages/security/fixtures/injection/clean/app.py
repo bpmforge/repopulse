@@ -15,8 +15,6 @@ app = Flask(__name__)
 @app.get("/user")
 def user(cursor):
     cursor.execute("SELECT * FROM users WHERE id = %s", (request.args.get("id"),))
-    uid = int(request.args["id"])
-    cursor.execute(f"SELECT * FROM users WHERE id = {uid}")
     return "ok"
 
 

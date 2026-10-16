@@ -28,7 +28,10 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func file(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("file")
 	// ruleid: bpm-inj-path-go
-	data, _ := os.ReadFile("/srv/uploads/" + name)
+	data, err := os.ReadFile("/srv/uploads/" + name)
+	if err != nil {
+		return
+	}
 	w.Write(data)
 }
 
