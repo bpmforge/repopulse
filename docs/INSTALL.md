@@ -378,6 +378,14 @@ deploy/scan-db-sync.sh
 > start if there is not enough, rather than filling the disk your database is
 > on at three in the morning.
 
+The same script also builds an index of **known-malicious packages** from the
+OpenSSF malicious-packages feed (republished as `MAL-*` advisories by osv.dev),
+so a package that *is* the attack — which has no CVE, and so is invisible to the
+vulnerability database — is reported at severity 5. That step needs outbound
+HTTPS to `osv-vulnerabilities.storage.googleapis.com` and about 100 MB of disk;
+`SCAN_SYNC_MALICIOUS=0` turns it off. If the index is missing the dependency
+scan says so on its run instead of reporting none found.
+
 The database is downloaded from Anchore by *your* install rather than shipped
 inside our image, because it aggregates 26 upstream feeds (NVD, GitHub
 Advisories, CISA KEV, EPSS, and the distributions) that are each licensed on

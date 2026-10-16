@@ -9,6 +9,7 @@ import {
   validateVulnerabilities,
   type ValidationFunnel,
 } from '../../validation/index.js';
+import { loadMaliciousIndex, matchMalicious, maliciousFinding, packagesFromSbom } from './malicious.js';
 import { adviseFix, readFixGraphs } from './fixpath/index.js';
 import { runDependencyTools, vulnDbDir } from './tools.js';
 import {
@@ -105,6 +106,9 @@ export interface DependencyRunResult {
   validation: ValidationFunnel | null;
   /** Why V3 proved nothing, when it proved nothing. Never silent. */
   reachabilityNote: string | null;
+  /** Malicious-package hits (W18-37), and why the check did not run when it did not. */
+  maliciousFound: number;
+  maliciousNote: string | null;
   findingsCreated: number;
   findingsTotal: number;
   /** Findings whose effective_risk this run wrote (V4). */
@@ -127,6 +131,8 @@ const emptyFunnel = {
   kevFloored: 0,
   validation: null,
   reachabilityNote: null,
+  maliciousFound: 0,
+  maliciousNote: null,
   findingsCreated: 0,
   findingsTotal: 0,
   findingsPriced: 0,
@@ -242,6 +248,16 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           }),
         );
 
+        // W18-37: OpenSSF malicious packages. A hit is its own finding at
+        // severity 5; a missing index is a stated note on the run, never a
+        // silent "none found".
+        const malicious = loadMaliciousIndex();
+        const maliciousHits = malicious.ok
+          ? matchMalicious(packagesFromSbom(tools.document), malicious.index).map(maliciousFinding)
+          : [];
+        mapped.priced.push(...maliciousHits);
+        mapped.findings.push(...maliciousHits.map((h) => h.finding));
+
         const persisted = await persistFindings(deps.db, {
           workspaceId: deps.workspaceId,
           repoId: deps.repoId,
@@ -273,6 +289,8 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           ...funnelNumbers(tools.matchFunnel, mapped.funnel),
           validation: validation.funnel,
           reachabilityNote: reachability.reason,
+          maliciousFound: maliciousHits.length,
+          maliciousNote: malicious.ok ? null : malicious.reason,
           findingsCreated: persisted.created,
           findingsTotal: mapped.findings.length,
           findingsPriced,
