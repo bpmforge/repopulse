@@ -234,6 +234,14 @@ permission, generic matcher), and Kotlin anti-slop (`!!`, `GlobalScope`,
 A `gradle.lockfile` fixture is in `fixtures/ecosystems/kotlin` for the W18-47
 matrix; `build.gradle(.kts)` is not read.
 
+**Injection for C#, Kotlin and Rust (W18-43).** `bpm-baseline.injection.dotnet-kotlin-rust.v1.yaml`
+extends the W18-33 pack with 19 taint rules: C# (ASP.NET sources, seven classes
+including `BinaryFormatter`), Kotlin (Spring and Ktor, six classes) and Rust
+(actix/axum extractors, six classes). Kotlin XSS is not claimed and Rust has no
+common unsafe deserialization sink. Fixtures announce each finding with
+`// ruleid:` on the line before, and the golden test requires the engine to
+report exactly those lines and nothing on the clean tree.
+
 ### 3.4 `owasp_web` / `owasp_llm` — inputs: diff + targeted contents — FR-SEC-7
 
 LLM checklist scanners: OWASP Web Top-10 (2021) and OWASP LLM Top-10 (2025) checklists as

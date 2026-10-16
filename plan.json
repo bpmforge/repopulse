@@ -9563,9 +9563,10 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 8,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Extends W18-33, which covers JS/TS, Python, Java and Go."
+        "Extends W18-33, which covers JS/TS, Python, Java and Go.",
+        "Shipped 2026-10-16 as bpm-baseline.injection.dotnet-kotlin-rust.v1.yaml (19 candidate taint rules: C# 7, Kotlin 6, Rust 6). Kotlin XSS is not claimed (undecidable in one function) and Rust has no common unsafe deserialization sink. Golden-tested on semgrep 1.181 with exact-line announcements; Opengrep in the scan image is untested for these languages."
       ]
     },
     {

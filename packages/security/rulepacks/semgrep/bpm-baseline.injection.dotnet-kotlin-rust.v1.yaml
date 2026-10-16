@@ -1,0 +1,1660 @@
+# bpm-rulepacks — injection dataflow for C#, Kotlin and Rust (W18-43), extending
+# bpm-baseline.injection.v1.yaml (W18-33). Same method, same limits: TAINT mode,
+# a SOURCE (request data), per-sink SANITIZERS and a SINK, one function deep.
+#
+# PROVENANCE: written for RepoPulse; not derived from the Semgrep registry.
+#
+# COVERAGE (rule id -> weakness):   cs   kt   rs
+#   sql           CWE-89            x    x    x
+#   cmd           CWE-78            x    x    x
+#   path          CWE-22            x    x    x
+#   xss           CWE-79            x         x
+#   ssrf          CWE-918           x    x    x
+#   redirect      CWE-601           x    x    x
+#   deserialize   CWE-502           x    x         (Rust has no common unsafe sink;
+#                                                    serde is memory- and type-safe)
+# Kotlin XSS is left out: Spring `@ResponseBody` strings and Ktor `respondText`
+# are not distinguishable from a JSON body without the content type, which the
+# single-function engine cannot see. Rust unsafe FFI is excluded by design.
+#
+# SOURCES. C#: `Request.Query/Form/Headers/Cookies[...]`, and `[FromQuery]`,
+# `[FromRoute]`, `[FromBody]`, `[FromHeader]` string parameters. Kotlin: Spring
+# `@RequestParam`/`@PathVariable`/`@RequestBody`/`@RequestHeader` parameters and
+# Ktor `call.parameters[...]`/`call.request.queryParameters[...]`. Rust: actix
+# `req.query_string()`/`req.match_info()`, and web::Query/web::Path/axum
+# Query/Path/Form extractors destructured in the handler signature. Typed
+# non-string parameters (int, Guid) are not sources: they cannot carry text.
+#
+# ENGINE LIMITS measured with semgrep 1.181 (the scan image's Opengrep is not
+# measurable from the build host): the C# and Kotlin parsers match annotated
+# parameters; the Rust parser matches `fn` patterns with typed parameters and
+# `format!` macros. A value passed to another function, stored in a field or
+# built by a helper is not followed; that is why every rule is a candidate.
+rules:
+  # ===== C# (ASP.NET) =====================================================
+  - id: bpm-inj-sql-cs
+    mode: taint
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query as text. A value concatenated or
+      interpolated into the query is an injection the day it holds a quote. Use
+      SqlParameter placeholders, or FromSqlInterpolated/ExecuteSqlInterpolated,
+      which parameterise for you.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one method and through string interpolation and
+        concatenation. A value passed to another method, field or stored
+        procedure parameter is not followed.
+    paths:
+      exclude:
+        - '**/*Tests.cs'
+        - '**/*Test.cs'
+        - '**/Tests/**'
+        - '**/*.Tests/**'
+    pattern-sources:
+      - pattern: 'Request.Query[...]'
+      - pattern: 'Request.Form[...]'
+      - pattern: 'Request.Headers[...]'
+      - pattern: 'Request.Cookies[...]'
+      - pattern: 'Request.QueryString[...]'
+      - pattern: 'Request.Params[...]'
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromQuery] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromRoute] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromBody] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromHeader] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromForm] string $X, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: 'int.Parse(...)'
+      - pattern: 'long.Parse(...)'
+      - pattern: 'Guid.Parse(...)'
+      - pattern: 'Convert.ToInt32(...)'
+      - pattern: 'Convert.ToInt64(...)'
+      - pattern: 'int.TryParse(...)'
+      - pattern: 'bool.Parse(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'new SqlCommand($Q, ...)'
+              - pattern: 'new SqlDataAdapter($Q, ...)'
+              - pattern: 'new MySqlCommand($Q, ...)'
+              - pattern: 'new NpgsqlCommand($Q, ...)'
+              - pattern: 'new OracleCommand($Q, ...)'
+              - pattern: 'new SQLiteCommand($Q, ...)'
+              - pattern: '$DB.Database.ExecuteSqlRaw($Q, ...)'
+              - pattern: '$DB.Database.ExecuteSqlRawAsync($Q, ...)'
+              - pattern: '$SET.FromSqlRaw($Q, ...)'
+              - pattern: '$CONN.Query($Q, ...)'
+              - pattern: '$CONN.QueryAsync($Q, ...)'
+              - pattern: '$CONN.Execute($Q, ...)'
+              - pattern: '$CONN.ExecuteAsync($Q, ...)'
+          - focus-metavariable: $Q
+
+  - id: bpm-inj-cmd-cs
+    mode: taint
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      Request data reaches a process start. A value that becomes the program or
+      its argument string lets a caller run what they choose, or append
+      arguments the program interprets. Run a fixed program with an argument
+      list, validate against an allowlist, and never go through a shell.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['command-injection', 'rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one method and through string interpolation and
+        concatenation. A value passed to another method, field or stored
+        procedure parameter is not followed.
+    paths:
+      exclude:
+        - '**/*Tests.cs'
+        - '**/*Test.cs'
+        - '**/Tests/**'
+        - '**/*.Tests/**'
+    pattern-sources:
+      - pattern: 'Request.Query[...]'
+      - pattern: 'Request.Form[...]'
+      - pattern: 'Request.Headers[...]'
+      - pattern: 'Request.Cookies[...]'
+      - pattern: 'Request.QueryString[...]'
+      - pattern: 'Request.Params[...]'
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromQuery] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromRoute] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromBody] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromHeader] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromForm] string $X, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: 'int.Parse(...)'
+      - pattern: 'long.Parse(...)'
+      - pattern: 'Guid.Parse(...)'
+      - pattern: 'Convert.ToInt32(...)'
+      - pattern: 'Convert.ToInt64(...)'
+      - pattern: 'int.TryParse(...)'
+      - pattern: 'bool.Parse(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'Process.Start($C, ...)'
+              - pattern: 'Process.Start(new ProcessStartInfo { FileName = $C, ... })'
+              - pattern: 'Process.Start(new ProcessStartInfo { Arguments = $C, ... })'
+              - pattern: 'new ProcessStartInfo($C, ...)'
+          - focus-metavariable: $C
+      - patterns:
+          - pattern-either:
+              - pattern: 'Process.Start($P, $C)'
+              - pattern: 'Process.Start($P, $C, ...)'
+              - pattern: 'new ProcessStartInfo($P, $C)'
+          - focus-metavariable: $C
+
+  - id: bpm-inj-path-cs
+    mode: taint
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      Request data reaches a file path. A value containing `../` or an absolute
+      path reads or writes outside the directory you meant. Reduce it with
+      Path.GetFileName, or resolve it and check it stays under the base
+      directory.
+    metadata:
+      category: security
+      cwe: 'CWE-22: Path Traversal'
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'file-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one method and through string interpolation and
+        concatenation. A value passed to another method, field or stored
+        procedure parameter is not followed.
+    paths:
+      exclude:
+        - '**/*Tests.cs'
+        - '**/*Test.cs'
+        - '**/Tests/**'
+        - '**/*.Tests/**'
+    pattern-sources:
+      - pattern: 'Request.Query[...]'
+      - pattern: 'Request.Form[...]'
+      - pattern: 'Request.Headers[...]'
+      - pattern: 'Request.Cookies[...]'
+      - pattern: 'Request.QueryString[...]'
+      - pattern: 'Request.Params[...]'
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromQuery] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromRoute] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromBody] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromHeader] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromForm] string $X, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: 'int.Parse(...)'
+      - pattern: 'long.Parse(...)'
+      - pattern: 'Guid.Parse(...)'
+      - pattern: 'Convert.ToInt32(...)'
+      - pattern: 'Convert.ToInt64(...)'
+      - pattern: 'int.TryParse(...)'
+      - pattern: 'bool.Parse(...)'
+      - pattern: 'Path.GetFileName(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'File.ReadAllText($P, ...)'
+              - pattern: 'File.ReadAllBytes($P)'
+              - pattern: 'File.ReadAllLines($P, ...)'
+              - pattern: 'File.OpenRead($P)'
+              - pattern: 'File.WriteAllText($P, ...)'
+              - pattern: 'File.WriteAllBytes($P, ...)'
+              - pattern: 'File.Delete($P)'
+              - pattern: 'File.Open($P, ...)'
+              - pattern: 'System.IO.File.ReadAllText($P, ...)'
+              - pattern: 'System.IO.File.ReadAllBytes($P)'
+              - pattern: 'System.IO.File.OpenRead($P)'
+              - pattern: 'System.IO.File.WriteAllText($P, ...)'
+              - pattern: 'System.IO.File.Delete($P)'
+              - pattern: 'new FileStream($P, ...)'
+              - pattern: 'new StreamReader($P, ...)'
+              - pattern: 'PhysicalFile($P, ...)'
+              - pattern: 'Directory.Delete($P, ...)'
+          - focus-metavariable: $P
+
+  - id: bpm-inj-xss-cs
+    mode: taint
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      Request data is written into an HTML response unescaped. A value with
+      markup runs as script in the visitor's browser. Encode it with
+      HtmlEncoder.Default.Encode, or render through a Razor view, which encodes
+      by default.
+    metadata:
+      category: security
+      cwe: 'CWE-79: Cross-site Scripting'
+      owasp: 'A03:2021 Injection'
+      yields: ['xss', 'session-hijack']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one method and through string interpolation and
+        concatenation. A value passed to another method, field or stored
+        procedure parameter is not followed.
+    paths:
+      exclude:
+        - '**/*Tests.cs'
+        - '**/*Test.cs'
+        - '**/Tests/**'
+        - '**/*.Tests/**'
+    pattern-sources:
+      - pattern: 'Request.Query[...]'
+      - pattern: 'Request.Form[...]'
+      - pattern: 'Request.Headers[...]'
+      - pattern: 'Request.Cookies[...]'
+      - pattern: 'Request.QueryString[...]'
+      - pattern: 'Request.Params[...]'
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromQuery] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromRoute] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromBody] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromHeader] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromForm] string $X, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: 'int.Parse(...)'
+      - pattern: 'long.Parse(...)'
+      - pattern: 'Guid.Parse(...)'
+      - pattern: 'Convert.ToInt32(...)'
+      - pattern: 'Convert.ToInt64(...)'
+      - pattern: 'int.TryParse(...)'
+      - pattern: 'bool.Parse(...)'
+      - pattern: 'HtmlEncoder.Default.Encode(...)'
+      - pattern: 'WebUtility.HtmlEncode(...)'
+      - pattern: 'HttpUtility.HtmlEncode(...)'
+      - pattern: 'Html.Encode(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'Response.Write($H)'
+              - pattern: 'Response.WriteAsync($H)'
+              - pattern: 'Content($H, "text/html")'
+              - pattern: 'Content($H, "text/html", ...)'
+              - pattern: 'new HtmlString($H)'
+              - pattern: 'Html.Raw($H)'
+          - focus-metavariable: $H
+
+  - id: bpm-inj-ssrf-cs
+    mode: taint
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      Request data chooses the URL the server fetches. A caller can point it at
+      internal services or the cloud metadata address. Resolve the host and
+      check it against an allowlist before the request, and refuse private
+      ranges.
+    metadata:
+      category: security
+      cwe: 'CWE-918: Server-Side Request Forgery'
+      owasp: 'A10:2021 Server-Side Request Forgery'
+      yields: ['ssrf', 'internal-network']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one method and through string interpolation and
+        concatenation. A value passed to another method, field or stored
+        procedure parameter is not followed.
+    paths:
+      exclude:
+        - '**/*Tests.cs'
+        - '**/*Test.cs'
+        - '**/Tests/**'
+        - '**/*.Tests/**'
+    pattern-sources:
+      - pattern: 'Request.Query[...]'
+      - pattern: 'Request.Form[...]'
+      - pattern: 'Request.Headers[...]'
+      - pattern: 'Request.Cookies[...]'
+      - pattern: 'Request.QueryString[...]'
+      - pattern: 'Request.Params[...]'
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromQuery] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromRoute] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromBody] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromHeader] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromForm] string $X, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: 'int.Parse(...)'
+      - pattern: 'long.Parse(...)'
+      - pattern: 'Guid.Parse(...)'
+      - pattern: 'Convert.ToInt32(...)'
+      - pattern: 'Convert.ToInt64(...)'
+      - pattern: 'int.TryParse(...)'
+      - pattern: 'bool.Parse(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'new HttpRequestMessage($M, $U)'
+              - pattern: 'WebRequest.Create($U)'
+              - pattern: 'new Uri($U)'
+          - focus-metavariable: $U
+      - patterns:
+          - pattern-either:
+              - pattern: '$C.GetAsync($U, ...)'
+              - pattern: '$C.GetStringAsync($U, ...)'
+              - pattern: '$C.GetByteArrayAsync($U)'
+              - pattern: '$C.GetStreamAsync($U)'
+              - pattern: '$C.PostAsync($U, ...)'
+              - pattern: '$C.PutAsync($U, ...)'
+              - pattern: '$C.DeleteAsync($U, ...)'
+              - pattern: '$C.DownloadString($U)'
+              - pattern: '$C.DownloadStringAsync($U)'
+              - pattern: '$C.DownloadData($U)'
+          - metavariable-regex:
+              metavariable: $C
+              regex: (?i)^(\w*client\w*|c|hc|wc|http|agent|session|rest_?template|webclient)$
+          - focus-metavariable: $U
+
+  - id: bpm-inj-redirect-cs
+    mode: taint
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      Request data chooses where the response redirects. An attacker links to
+      your site and sends the visitor on to theirs. Use LocalRedirect, or check
+      Url.IsLocalUrl, or map a key to a fixed destination.
+    metadata:
+      category: security
+      cwe: 'CWE-601: Open Redirect'
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect', 'phishing']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one method and through string interpolation and
+        concatenation. A value passed to another method, field or stored
+        procedure parameter is not followed.
+    paths:
+      exclude:
+        - '**/*Tests.cs'
+        - '**/*Test.cs'
+        - '**/Tests/**'
+        - '**/*.Tests/**'
+    pattern-sources:
+      - pattern: 'Request.Query[...]'
+      - pattern: 'Request.Form[...]'
+      - pattern: 'Request.Headers[...]'
+      - pattern: 'Request.Cookies[...]'
+      - pattern: 'Request.QueryString[...]'
+      - pattern: 'Request.Params[...]'
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromQuery] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromRoute] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromBody] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromHeader] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromForm] string $X, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: 'int.Parse(...)'
+      - pattern: 'long.Parse(...)'
+      - pattern: 'Guid.Parse(...)'
+      - pattern: 'Convert.ToInt32(...)'
+      - pattern: 'Convert.ToInt64(...)'
+      - pattern: 'int.TryParse(...)'
+      - pattern: 'bool.Parse(...)'
+      - pattern: 'Url.IsLocalUrl(...)'
+      - pattern: 'LocalRedirect(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'Redirect($U)'
+              - pattern: 'RedirectPermanent($U)'
+              - pattern: 'Response.Redirect($U)'
+              - pattern: 'Response.Redirect($U, ...)'
+              - pattern: 'new RedirectResult($U)'
+              - pattern: 'new RedirectResult($U, ...)'
+          - focus-metavariable: $U
+
+  - id: bpm-inj-deserialize-cs
+    mode: taint
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      A formatter that instantiates types named in the data deserializes request
+      data. BinaryFormatter, NetDataContractSerializer, SoapFormatter,
+      LosFormatter and ObjectStateFormatter can be driven to run code, and
+      Microsoft has deprecated them for that reason. Use System.Text.Json or a
+      contract-based serializer.
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      owasp: 'A08:2021 Software and Data Integrity Failures'
+      yields: ['rce', 'deserialization']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reports the unsafe formatter wherever it is fed request data, or a
+        stream built from it. The formatters are dangerous on any untrusted
+        input; a read from a trusted file is not reported.
+    paths:
+      exclude:
+        - '**/*Tests.cs'
+        - '**/*Test.cs'
+        - '**/Tests/**'
+        - '**/*.Tests/**'
+    pattern-sources:
+      - pattern: 'Request.Query[...]'
+      - pattern: 'Request.Form[...]'
+      - pattern: 'Request.Headers[...]'
+      - pattern: 'Request.Cookies[...]'
+      - pattern: 'Request.QueryString[...]'
+      - pattern: 'Request.Params[...]'
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromQuery] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromRoute] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromBody] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromHeader] string $X, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $M(..., [FromForm] string $X, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: 'int.Parse(...)'
+      - pattern: 'long.Parse(...)'
+      - pattern: 'Guid.Parse(...)'
+      - pattern: 'Convert.ToInt32(...)'
+      - pattern: 'Convert.ToInt64(...)'
+      - pattern: 'int.TryParse(...)'
+      - pattern: 'bool.Parse(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: '$F.Deserialize($S, ...)'
+          - metavariable-regex:
+              metavariable: $F
+              regex: (?i)^(formatter|binaryFormatter|bf|netDataContractSerializer|soapFormatter|losFormatter|objectStateFormatter)$
+          - focus-metavariable: $S
+
+  # ===== Kotlin (Spring, Ktor) =============================================
+  - id: bpm-inj-sql-kt
+    mode: taint
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query as text. A value built into the query
+      string is an injection the day it holds a quote. Use bound parameters: `?`
+      placeholders with JdbcTemplate, `:name` with NamedParameterJdbcTemplate,
+      or a PreparedStatement.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through string templates and
+        concatenation. A value passed to another function, a field or a
+        repository method is not followed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - '**/*Test.kt'
+        - '**/*Tests.kt'
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - pattern: 'call.parameters[...]'
+      - pattern: 'call.request.queryParameters[...]'
+      - pattern: 'call.request.headers[...]'
+      - pattern: 'call.receiveText()'
+      - pattern: 'call.receiveParameters()'
+    pattern-sanitizers:
+      - pattern: '$X.toInt()'
+      - pattern: '$X.toLong()'
+      - pattern: '$X.toIntOrNull()'
+      - pattern: '$X.toLongOrNull()'
+      - pattern: 'UUID.fromString(...)'
+      - pattern: '$X.toBoolean()'
+      - pattern: 'Integer.parseInt(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: '$S.executeQuery($Q)'
+              - pattern: '$S.executeUpdate($Q, ...)'
+              - pattern: '$S.execute($Q, ...)'
+              - pattern: '$C.prepareStatement($Q, ...)'
+              - pattern: '$J.query($Q, ...)'
+              - pattern: '$J.queryForObject($Q, ...)'
+              - pattern: '$J.queryForList($Q, ...)'
+              - pattern: '$J.update($Q, ...)'
+              - pattern: '$J.execute($Q)'
+              - pattern: '$EM.createNativeQuery($Q, ...)'
+              - pattern: '$EM.createQuery($Q, ...)'
+          - focus-metavariable: $Q
+
+  - id: bpm-inj-cmd-kt
+    mode: taint
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      Request data reaches a process start. A value that becomes the command
+      lets a caller run what they choose. Run a fixed program with an argument
+      list, validate against an allowlist, and never go through a shell.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['command-injection', 'rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through string templates and
+        concatenation. A value passed to another function, a field or a
+        repository method is not followed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - '**/*Test.kt'
+        - '**/*Tests.kt'
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - pattern: 'call.parameters[...]'
+      - pattern: 'call.request.queryParameters[...]'
+      - pattern: 'call.request.headers[...]'
+      - pattern: 'call.receiveText()'
+      - pattern: 'call.receiveParameters()'
+    pattern-sanitizers:
+      - pattern: '$X.toInt()'
+      - pattern: '$X.toLong()'
+      - pattern: '$X.toIntOrNull()'
+      - pattern: '$X.toLongOrNull()'
+      - pattern: 'UUID.fromString(...)'
+      - pattern: '$X.toBoolean()'
+      - pattern: 'Integer.parseInt(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'Runtime.getRuntime().exec($C, ...)'
+              - pattern: 'ProcessBuilder($C, ...)'
+              - pattern: 'ProcessBuilder(listOf($C, ...))'
+              - pattern: 'ProcessBuilder(listOf("sh", "-c", $C))'
+              - pattern: 'ProcessBuilder("sh", "-c", $C)'
+              - pattern: 'ProcessBuilder("bash", "-c", $C)'
+          - focus-metavariable: $C
+
+  - id: bpm-inj-path-kt
+    mode: taint
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      Request data reaches a file path. A value containing `../` or an absolute
+      path reads or writes outside the directory you meant. Reduce it to a file
+      name, or resolve it and check it stays under the base directory.
+    metadata:
+      category: security
+      cwe: 'CWE-22: Path Traversal'
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'file-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through string templates and
+        concatenation. A value passed to another function, a field or a
+        repository method is not followed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - '**/*Test.kt'
+        - '**/*Tests.kt'
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - pattern: 'call.parameters[...]'
+      - pattern: 'call.request.queryParameters[...]'
+      - pattern: 'call.request.headers[...]'
+      - pattern: 'call.receiveText()'
+      - pattern: 'call.receiveParameters()'
+    pattern-sanitizers:
+      - pattern: '$X.toInt()'
+      - pattern: '$X.toLong()'
+      - pattern: '$X.toIntOrNull()'
+      - pattern: '$X.toLongOrNull()'
+      - pattern: 'UUID.fromString(...)'
+      - pattern: '$X.toBoolean()'
+      - pattern: 'Integer.parseInt(...)'
+      - pattern: 'File($X).name'
+      - pattern: 'Paths.get($X).fileName'
+      - pattern: 'FilenameUtils.getName(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'File($P)'
+              - pattern: 'File($B, $P)'
+              - pattern: 'FileInputStream($P)'
+              - pattern: 'FileReader($P)'
+              - pattern: 'Paths.get($P, ...)'
+              - pattern: 'Path.of($P, ...)'
+              - pattern: 'Files.readAllBytes(Path.of($P))'
+              - pattern: 'Files.readString(Path.of($P))'
+              - pattern: 'Files.newInputStream(Path.of($P))'
+              - pattern: 'Files.delete(Path.of($P))'
+              - pattern: 'FileSystemResource($P)'
+          - focus-metavariable: $P
+
+  - id: bpm-inj-ssrf-kt
+    mode: taint
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      Request data chooses the URL the server fetches. A caller can point it at
+      internal services or the cloud metadata address. Resolve the host and
+      check it against an allowlist before the request, and refuse private
+      ranges.
+    metadata:
+      category: security
+      cwe: 'CWE-918: Server-Side Request Forgery'
+      owasp: 'A10:2021 Server-Side Request Forgery'
+      yields: ['ssrf', 'internal-network']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through string templates and
+        concatenation. A value passed to another function, a field or a
+        repository method is not followed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - '**/*Test.kt'
+        - '**/*Tests.kt'
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - pattern: 'call.parameters[...]'
+      - pattern: 'call.request.queryParameters[...]'
+      - pattern: 'call.request.headers[...]'
+      - pattern: 'call.receiveText()'
+      - pattern: 'call.receiveParameters()'
+    pattern-sanitizers:
+      - pattern: '$X.toInt()'
+      - pattern: '$X.toLong()'
+      - pattern: '$X.toIntOrNull()'
+      - pattern: '$X.toLongOrNull()'
+      - pattern: 'UUID.fromString(...)'
+      - pattern: '$X.toBoolean()'
+      - pattern: 'Integer.parseInt(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'URL($U)'
+              - pattern: 'URI($U)'
+              - pattern: 'URI.create($U)'
+              - pattern: '$R.getForObject($U, ...)'
+              - pattern: '$R.getForEntity($U, ...)'
+              - pattern: '$R.postForObject($U, ...)'
+              - pattern: '$R.exchange($U, ...)'
+              - pattern: 'Request.Builder().url($U)'
+              - pattern: 'HttpRequest.newBuilder(URI.create($U))'
+          - focus-metavariable: $U
+      - patterns:
+          - pattern-either:
+              - pattern: '$C.get($U)'
+              - pattern: '$C.post($U)'
+              - pattern: '$C.get($U) { ... }'
+              - pattern: '$C.post($U) { ... }'
+              - pattern: '$C.request($U)'
+              - pattern: '$C.request($U) { ... }'
+          - metavariable-regex:
+              metavariable: $C
+              regex: (?i)^(\w*client\w*|c|hc|wc|http|agent|session|rest_?template|webclient)$
+          - focus-metavariable: $U
+
+  - id: bpm-inj-redirect-kt
+    mode: taint
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      Request data chooses where the response redirects. An attacker links to
+      your site and sends the visitor on to theirs. Map a key to a fixed
+      destination, or check the target is a relative path on your own site.
+    metadata:
+      category: security
+      cwe: 'CWE-601: Open Redirect'
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect', 'phishing']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through string templates and
+        concatenation. A value passed to another function, a field or a
+        repository method is not followed.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - '**/*Test.kt'
+        - '**/*Tests.kt'
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - pattern: 'call.parameters[...]'
+      - pattern: 'call.request.queryParameters[...]'
+      - pattern: 'call.request.headers[...]'
+      - pattern: 'call.receiveText()'
+      - pattern: 'call.receiveParameters()'
+    pattern-sanitizers:
+      - pattern: '$X.toInt()'
+      - pattern: '$X.toLong()'
+      - pattern: '$X.toIntOrNull()'
+      - pattern: '$X.toLongOrNull()'
+      - pattern: 'UUID.fromString(...)'
+      - pattern: '$X.toBoolean()'
+      - pattern: 'Integer.parseInt(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'call.respondRedirect($U)'
+              - pattern: 'call.respondRedirect($U, ...)'
+              - pattern: 'RedirectView($U)'
+              - pattern: 'RedirectView($U, ...)'
+              - pattern: 'ResponseEntity.status(...).location(URI.create($U))'
+              - pattern: 'ResponseEntity.status(...).header("Location", $U)'
+              - pattern: 'response.sendRedirect($U)'
+              - pattern: '"redirect:" + $U'
+              - pattern: '"redirect:$U"'
+          - focus-metavariable: $U
+
+  - id: bpm-inj-deserialize-kt
+    mode: taint
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      Java serialization reads types named in the data, so deserializing request
+      data can be driven to run code. Do not use ObjectInputStream for untrusted
+      input; use a data-only format (kotlinx.serialization, Jackson without
+      default typing).
+    metadata:
+      category: security
+      cwe: 'CWE-502: Deserialization of Untrusted Data'
+      owasp: 'A08:2021 Software and Data Integrity Failures'
+      yields: ['rce', 'deserialization']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reports the stream wherever it is built from request data. Streams read
+        from files the app wrote itself are not reported.
+    paths:
+      exclude:
+        - '**/test/**'
+        - '**/androidTest/**'
+        - '**/*Test.kt'
+        - '**/*Tests.kt'
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestParam(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @PathVariable(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestBody(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fun $M(..., @RequestHeader(...) $X: String, ...) { ... }
+          - focus-metavariable: $X
+      - pattern: 'call.parameters[...]'
+      - pattern: 'call.request.queryParameters[...]'
+      - pattern: 'call.request.headers[...]'
+      - pattern: 'call.receiveText()'
+      - pattern: 'call.receiveParameters()'
+    pattern-sanitizers:
+      - pattern: '$X.toInt()'
+      - pattern: '$X.toLong()'
+      - pattern: '$X.toIntOrNull()'
+      - pattern: '$X.toLongOrNull()'
+      - pattern: 'UUID.fromString(...)'
+      - pattern: '$X.toBoolean()'
+      - pattern: 'Integer.parseInt(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'ObjectInputStream($S)'
+              - pattern: 'ObjectInputStream($S).readObject()'
+              - pattern: 'XMLDecoder($S)'
+              - pattern: 'Yaml().load($S)'
+              - pattern: 'ByteArrayInputStream($S)'
+          - focus-metavariable: $S
+
+  # ===== Rust (actix-web, axum, rocket) ====================================
+  - id: bpm-inj-sql-rs
+    mode: taint
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Request data reaches a SQL query as text. A value formatted into the query
+      string is an injection the day it holds a quote. Use bind parameters:
+      `sqlx::query("... $1").bind(x)`, diesel's typed DSL, or rusqlite's
+      `params!`.
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['sql-injection', 'data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through format! and string
+        building. A value passed to another function, a struct field or a query
+        builder method is not followed.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - '**/tests.rs'
+        - '**/test.rs'
+    pattern-sources:
+      - pattern: '$REQ.query_string()'
+      - pattern: '$REQ.match_info().get(...)'
+      - pattern: '$REQ.match_info().query(...)'
+      - pattern: '$REQ.headers().get(...)'
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Query($X): web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Path($X): web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Query($X): Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Path($X): Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Form($X): Form<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: '$X.parse::<i32>()'
+      - pattern: '$X.parse::<i64>()'
+      - pattern: '$X.parse::<u32>()'
+      - pattern: '$X.parse::<u64>()'
+      - pattern: '$X.parse::<usize>()'
+      - pattern: '$X.parse::<uuid::Uuid>()'
+      - pattern: 'Uuid::parse_str(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'sqlx::query($Q)'
+              - pattern: 'sqlx::query_as($Q)'
+              - pattern: 'sqlx::query_scalar($Q)'
+              - pattern: 'sqlx::query::<$D>($Q)'
+              - pattern: '$C.execute($Q)'
+              - pattern: '$C.execute($Q, ...)'
+              - pattern: '$C.prepare($Q)'
+              - pattern: '$C.query($Q, ...)'
+              - pattern: '$C.query_one($Q, ...)'
+              - pattern: '$C.query_row($Q, ...)'
+              - pattern: 'diesel::sql_query($Q)'
+              - pattern: '$C.batch_execute($Q)'
+          - focus-metavariable: $Q
+
+  - id: bpm-inj-cmd-rs
+    mode: taint
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Request data reaches a process start. A value that becomes the program, or
+      the text handed to a shell, lets a caller run what they choose. Run a
+      fixed program with `.arg()` per argument, validate against an allowlist,
+      and do not use `sh -c`.
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+      owasp: 'A03:2021 Injection'
+      yields: ['command-injection', 'rce']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through format! and string
+        building. A value passed to another function, a struct field or a query
+        builder method is not followed.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - '**/tests.rs'
+        - '**/test.rs'
+    pattern-sources:
+      - pattern: '$REQ.query_string()'
+      - pattern: '$REQ.match_info().get(...)'
+      - pattern: '$REQ.match_info().query(...)'
+      - pattern: '$REQ.headers().get(...)'
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Query($X): web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Path($X): web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Query($X): Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Path($X): Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Form($X): Form<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: '$X.parse::<i32>()'
+      - pattern: '$X.parse::<i64>()'
+      - pattern: '$X.parse::<u32>()'
+      - pattern: '$X.parse::<u64>()'
+      - pattern: '$X.parse::<usize>()'
+      - pattern: '$X.parse::<uuid::Uuid>()'
+      - pattern: 'Uuid::parse_str(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'Command::new($C)'
+              - pattern: 'std::process::Command::new($C)'
+              - pattern: 'Command::new("sh").arg("-c").arg($C)'
+              - pattern: 'Command::new("bash").arg("-c").arg($C)'
+              - pattern: 'Command::new("cmd").arg("/C").arg($C)'
+          - focus-metavariable: $C
+
+  - id: bpm-inj-path-rs
+    mode: taint
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Request data reaches a file path. A value containing `../` or an absolute
+      path reads or writes outside the directory you meant (and `PathBuf::join`
+      with an absolute path replaces the base entirely). Reduce it to a file
+      name, or canonicalize and check it stays under the base directory.
+    metadata:
+      category: security
+      cwe: 'CWE-22: Path Traversal'
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['path-traversal', 'file-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through format! and string
+        building. A value passed to another function, a struct field or a query
+        builder method is not followed.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - '**/tests.rs'
+        - '**/test.rs'
+    pattern-sources:
+      - pattern: '$REQ.query_string()'
+      - pattern: '$REQ.match_info().get(...)'
+      - pattern: '$REQ.match_info().query(...)'
+      - pattern: '$REQ.headers().get(...)'
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Query($X): web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Path($X): web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Query($X): Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Path($X): Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Form($X): Form<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: '$X.parse::<i32>()'
+      - pattern: '$X.parse::<i64>()'
+      - pattern: '$X.parse::<u32>()'
+      - pattern: '$X.parse::<u64>()'
+      - pattern: '$X.parse::<usize>()'
+      - pattern: '$X.parse::<uuid::Uuid>()'
+      - pattern: 'Uuid::parse_str(...)'
+      - pattern: 'Path::new($X).file_name()'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'std::fs::read_to_string($P)'
+              - pattern: 'std::fs::read($P)'
+              - pattern: 'std::fs::write($P, ...)'
+              - pattern: 'std::fs::remove_file($P)'
+              - pattern: 'std::fs::File::open($P)'
+              - pattern: 'std::fs::File::create($P)'
+              - pattern: 'std::fs::remove_dir_all($P)'
+              - pattern: 'fs::read_to_string($P)'
+              - pattern: 'fs::read($P)'
+              - pattern: 'fs::write($P, ...)'
+              - pattern: 'fs::remove_file($P)'
+              - pattern: 'File::open($P)'
+              - pattern: 'File::create($P)'
+              - pattern: 'tokio::fs::read($P)'
+              - pattern: 'tokio::fs::read_to_string($P)'
+              - pattern: 'tokio::fs::File::open($P)'
+              - pattern: 'NamedFile::open($P)'
+              - pattern: 'NamedFile::open_async($P)'
+          - focus-metavariable: $P
+
+  - id: bpm-inj-xss-rs
+    mode: taint
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Request data is written into an HTML response unescaped. A value with
+      markup runs as script in the visitor's browser. Escape it (askama and maud
+      escape by default), or return it as plain text.
+    metadata:
+      category: security
+      cwe: 'CWE-79: Cross-site Scripting'
+      owasp: 'A03:2021 Injection'
+      yields: ['xss', 'session-hijack']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through format! and string
+        building. A value passed to another function, a struct field or a query
+        builder method is not followed.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - '**/tests.rs'
+        - '**/test.rs'
+    pattern-sources:
+      - pattern: '$REQ.query_string()'
+      - pattern: '$REQ.match_info().get(...)'
+      - pattern: '$REQ.match_info().query(...)'
+      - pattern: '$REQ.headers().get(...)'
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Query($X): web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Path($X): web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Query($X): Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Path($X): Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Form($X): Form<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: '$X.parse::<i32>()'
+      - pattern: '$X.parse::<i64>()'
+      - pattern: '$X.parse::<u32>()'
+      - pattern: '$X.parse::<u64>()'
+      - pattern: '$X.parse::<usize>()'
+      - pattern: '$X.parse::<uuid::Uuid>()'
+      - pattern: 'Uuid::parse_str(...)'
+      - pattern: 'html_escape::encode_text(...)'
+      - pattern: 'askama_escape::escape(...)'
+      - pattern: 'ammonia::clean(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'HttpResponse::Ok().content_type("text/html").body($H)'
+              - pattern: 'HttpResponse::Ok().content_type("text/html; charset=utf-8").body($H)'
+              - pattern: 'Html($H)'
+              - pattern: 'axum::response::Html($H)'
+              - pattern: 'RawHtml($H)'
+              - pattern: 'PreEscaped($H)'
+              - pattern: 'maud::PreEscaped($H)'
+          - focus-metavariable: $H
+
+  - id: bpm-inj-ssrf-rs
+    mode: taint
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Request data chooses the URL the server fetches. A caller can point it at
+      internal services or the cloud metadata address. Resolve the host and
+      check it against an allowlist before the request, and refuse private
+      ranges.
+    metadata:
+      category: security
+      cwe: 'CWE-918: Server-Side Request Forgery'
+      owasp: 'A10:2021 Server-Side Request Forgery'
+      yields: ['ssrf', 'internal-network']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through format! and string
+        building. A value passed to another function, a struct field or a query
+        builder method is not followed.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - '**/tests.rs'
+        - '**/test.rs'
+    pattern-sources:
+      - pattern: '$REQ.query_string()'
+      - pattern: '$REQ.match_info().get(...)'
+      - pattern: '$REQ.match_info().query(...)'
+      - pattern: '$REQ.headers().get(...)'
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Query($X): web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Path($X): web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Query($X): Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Path($X): Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Form($X): Form<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: '$X.parse::<i32>()'
+      - pattern: '$X.parse::<i64>()'
+      - pattern: '$X.parse::<u32>()'
+      - pattern: '$X.parse::<u64>()'
+      - pattern: '$X.parse::<usize>()'
+      - pattern: '$X.parse::<uuid::Uuid>()'
+      - pattern: 'Uuid::parse_str(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'reqwest::get($U)'
+              - pattern: 'reqwest::Client::new().get($U)'
+              - pattern: 'ureq::get($U)'
+              - pattern: 'ureq::post($U)'
+              - pattern: 'isahc::get($U)'
+              - pattern: 'surf::get($U)'
+              - pattern: 'hyper::Uri::from_str($U)'
+              - pattern: 'Url::parse($U)'
+          - focus-metavariable: $U
+      - patterns:
+          - pattern-either:
+              - pattern: '$C.get($U)'
+              - pattern: '$C.post($U)'
+              - pattern: '$C.put($U)'
+              - pattern: '$C.delete($U)'
+              - pattern: '$C.head($U)'
+          - metavariable-regex:
+              metavariable: $C
+              regex: (?i)^(\w*client\w*|c|hc|wc|http|agent|session|rest_?template|webclient)$
+          - focus-metavariable: $U
+
+  - id: bpm-inj-redirect-rs
+    mode: taint
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Request data chooses where the response redirects. An attacker links to
+      your site and sends the visitor on to theirs. Map a key to a fixed
+      destination, or check the target is a relative path on your own site.
+    metadata:
+      category: security
+      cwe: 'CWE-601: Open Redirect'
+      owasp: 'A01:2021 Broken Access Control'
+      yields: ['open-redirect', 'phishing']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one function and through format! and string
+        building. A value passed to another function, a struct field or a query
+        builder method is not followed.
+    paths:
+      exclude:
+        - 'tests/**'
+        - 'benches/**'
+        - 'examples/**'
+        - '**/tests.rs'
+        - '**/test.rs'
+    pattern-sources:
+      - pattern: '$REQ.query_string()'
+      - pattern: '$REQ.match_info().get(...)'
+      - pattern: '$REQ.match_info().query(...)'
+      - pattern: '$REQ.headers().get(...)'
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Query($X): web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., web::Path($X): web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Query($X): Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Path($X): Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., Form($X): Form<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Query<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Path<String>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: web::Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              fn $F(..., $X: Json<$T>, ...) { ... }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: '$X.parse::<i32>()'
+      - pattern: '$X.parse::<i64>()'
+      - pattern: '$X.parse::<u32>()'
+      - pattern: '$X.parse::<u64>()'
+      - pattern: '$X.parse::<usize>()'
+      - pattern: '$X.parse::<uuid::Uuid>()'
+      - pattern: 'Uuid::parse_str(...)'
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: 'HttpResponse::Found().append_header(("Location", $U)).finish()'
+              - pattern: 'HttpResponse::Found().insert_header(("Location", $U)).finish()'
+              - pattern: 'HttpResponse::SeeOther().insert_header(("Location", $U)).finish()'
+              - pattern: 'Redirect::to($U)'
+              - pattern: 'Redirect::temporary($U)'
+              - pattern: 'Redirect::permanent($U)'
+              - pattern: 'axum::response::Redirect::to($U)'
+          - focus-metavariable: $U
+
