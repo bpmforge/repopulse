@@ -9623,9 +9623,9 @@
         "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "in_progress",
+      "status": "done",
       "notes": [
-        "iacrender adapter landed: renders every Chart.yaml (not vendored subcharts) with helm template and every kustomization with kustomize build into the sandbox tmpfs, then runs checkov's kubernetes framework on the allowlist; findings point at Chart.yaml/kustomization.yaml line 1; a chart or overlay that cannot render offline is reported as tool.iacrender.render-failed, never as clean. Tested on real charts with helm 3.16.4, kustomize 5.5.0, checkov 3.3.29. In progress until helm and kustomize are in Containerfile.scan (vendor-checksum pinned, built on the Mac) and the fixtures pass in the image.",
+        "iacrender adapter landed: renders every Chart.yaml (not vendored subcharts) with helm template and every kustomization with kustomize build into the sandbox tmpfs, then runs checkov's kubernetes framework on the allowlist; findings point at Chart.yaml/kustomization.yaml line 1; a chart or overlay that cannot render offline is reported as tool.iacrender.render-failed, never as clean. Tested on real charts with helm 3.16.4, kustomize 5.5.0, checkov 3.3.29. helm 3.16.4 and kustomize 5.5.0 are in Containerfile.scan, pinned by the publishers' own sha256 files; run for real in the built scan image the fixtures give exactly the 8 expected findings on triggering and none on clean (checkov 24 passed, 0 failed).",
         "The second original criterion (measure checkov, actionlint, hadolint and shellcheck on the benchmark and promote them through the shadow rule) moved to W18-48.",
         "Split from W18-35. Rendering needs scan-image tool changes verified on the Mac."
       ]
