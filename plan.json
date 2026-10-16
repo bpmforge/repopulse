@@ -9340,14 +9340,14 @@
         "W18-26"
       ],
       "acceptance": [
-        "checkov, actionlint, hadolint and shellcheck rules measured on the benchmark (W18-17) and promoted by the existing shadow rule where the floor holds",
-        "Helm charts and Kustomize overlays rendered offline before scanning; the `iac` scanner capability flips from backlog to supported",
+        "The `iac` capability reports from the code-health scan (not 'not implemented') and the IaC dimension is selectable in findings",
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Cheapest gap: the adapters exist (W18-26), only promotion and rendering are missing."
+        "Cheapest gap: the adapters exist (W18-26), only promotion and rendering are missing.",
+        "Landed part: the `iac` capability is derived from the code_health_tools run instead of reading 'not implemented', and the `iac` dimension is no longer 'awaiting producer'. Helm/Kustomize rendering and evidence-based promotion split out to W18-45."
       ]
     },
     {
@@ -9592,6 +9592,35 @@
       "status": "todo",
       "notes": [
         "Brad 2026-10-16. Today C/C++ has 12 pattern rules plus cppcheck (W18-15)."
+      ]
+    },
+    {
+      "id": "W18-45",
+      "title": "IaC rendering and promotion: Helm and Kustomize offline, measure checkov precision",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-35"
+      ],
+      "acceptance": [
+        "Helm charts and Kustomize overlays are rendered offline before scanning, with trigger and clean fixtures",
+        "checkov, actionlint, hadolint and shellcheck rules measured on the benchmark (W18-17) and promoted through the shadow rule where the floor holds",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "todo",
+      "notes": [
+        "Split from W18-35. Rendering needs scan-image tool changes verified on the Mac."
       ]
     }
   ]

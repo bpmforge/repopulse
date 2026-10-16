@@ -89,7 +89,6 @@ export const FRESHNESS_HOURS = 24;
 export const UNSUPPORTED_CAPABILITIES: Record<string, string> = {
   test_coverage:
     'Coverage ingestion is not implemented in this release, so no coverage evidence exists for any repository.',
-  iac: 'Infrastructure-as-code scanning is not implemented in this release.',
 };
 
 /** Map a stored run status onto a capability state. */
@@ -275,6 +274,25 @@ export async function repoCapabilities(
               : 'A scan is in progress.',
     });
   }
+
+  // IaC checks (checkov, actionlint, hadolint, shellcheck) run inside the
+  // code_health_tools scan, so this row is derived from that scanner's latest
+  // run rather than from a scanner key of its own. The checks start as shadow
+  // candidates: their findings stay out of scores until promoted on evidence.
+  const codeHealth = capabilities.find((c) => c.id === 'code_health_tools');
+  capabilities.push({
+    id: 'iac',
+    label: 'Infrastructure as code',
+    kind: 'scanner',
+    state: codeHealth?.state ?? 'not_configured',
+    lastSuccessAt: codeHealth?.lastSuccessAt ?? null,
+    latestRunId: codeHealth?.latestRunId ?? null,
+    lastSuccessRef: codeHealth?.lastSuccessRef ?? null,
+    stale: codeHealth?.stale ?? false,
+    detail: codeHealth
+      ? 'Dockerfile, GitHub Actions, shell and Terraform/Kubernetes checks run with the code-health scan. They are shadow candidates: findings are listed but kept out of scores until promoted on evidence.'
+      : 'IaC checks run with the code-health scan, which has not run for this repository yet.',
+  });
 
   // The reserved-but-unshipped ones, always, whether or not anything ran.
   for (const [id, detail] of Object.entries(UNSUPPORTED_CAPABILITIES)) {

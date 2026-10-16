@@ -29,9 +29,6 @@ export const ALL_DIMENSIONS = FINDING_DIMENSIONS;
  * nothing.
  */
 export const DIMENSIONS_AWAITING_PRODUCER: Record<string, string> = {
-  // SECURITY_SUITE.md §7 lists the IaC Checker as a backlog scanner and
-  // reserves this dimension for it. Reserved, not forgotten.
-  iac: 'No IaC scanner yet — the dimension is reserved for one (SECURITY_SUITE §7).',
   // FR-ANALYSIS-4 makes this a v1.x Tier-2 checklist dimension, and FR-REG-6
   // parks coverage ingestion outright. `test_gap` is the register dimension
   // that ships today and is a different question.

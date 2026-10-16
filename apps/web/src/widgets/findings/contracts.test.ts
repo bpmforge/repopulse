@@ -81,7 +81,7 @@ describe('dimensions awaiting a producer', () => {
 
   it('names the ones still without a producer, and each says why', () => {
     // `slop` left this list in W9-16, when anti_slop started emitting it.
-    expect(Object.keys(DIMENSIONS_AWAITING_PRODUCER).sort()).toEqual(['iac', 'test_coverage']);
+    expect(Object.keys(DIMENSIONS_AWAITING_PRODUCER).sort()).toEqual(['test_coverage']);
     for (const [dimension, reason] of Object.entries(DIMENSIONS_AWAITING_PRODUCER)) {
       // A reason that does not point at the ticket, spec or scanner responsible
       // is a shrug in a tooltip.
