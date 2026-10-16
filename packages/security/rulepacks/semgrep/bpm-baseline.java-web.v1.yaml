@@ -1,0 +1,413 @@
+# bpm-rulepacks — baseline, Java web weaknesses v1 (W18-49, SECURITY_SUITE.md
+# §3.3, FR-SEC-6).
+#
+# OUR OWN RULES, written for RepoPulse in the semgrep rule format the Opengrep
+# engine reads. Nothing here is copied, adapted or derived from the Semgrep
+# registry, whose licence bars it for service use, nor from any benchmark: each
+# rule names the JDK / servlet API that is the weakness and is correct on
+# ordinary Java.
+#
+# The three taint rules take the same request sources as the injection pack
+# (bpm-baseline.injection.v1.yaml) and share its limit: a value is followed
+# inside one file, through assignments, concatenation, and helpers defined in
+# that file (the scanner runs Opengrep with --taint-intrafile).
+#
+# Every rule ships as a shadow-mode candidate (`metadata.lifecycle: candidate`).
+rules:
+  - id: bpm-java-cookie-insecure
+    languages: [java]
+    severity: WARNING
+    message: >-
+      A cookie explicitly marked not Secure. Browsers will send it over plain
+      HTTP, where anyone on the network can read it, and for a session or
+      authentication cookie that is the session. Set Secure (and HttpOnly), or
+      leave the decision to the container's session-cookie configuration.
+    metadata:
+      category: security
+      cwe: "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"
+      owasp: 'A05:2021 Security Misconfiguration'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Reports only an explicit `setSecure(false)`. A cookie on which Secure
+        is never set at all is not reported; neither is whether the cookie is
+        a sensitive one, so a deliberate false for local development is flagged.
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-either:
+      - pattern: (Cookie $C).setSecure(false)
+      - pattern: (javax.servlet.http.Cookie $C).setSecure(false)
+      - pattern: (jakarta.servlet.http.Cookie $C).setSecure(false)
+
+  - id: bpm-inj-ldap-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data reaches an LDAP search filter as text. A value spliced into
+      the filter can add or widen clauses ("*)(uid=*"). Pass it as a filter
+      argument (the {0} placeholders of search(name, filterExpr, filterArgs,
+      controls)), or escape it with Rdn.escapeValue / LdapEncoder.filterEncode.
+    metadata:
+      category: security
+      cwe: 'CWE-90: Improper Neutralization of Special Elements used in an LDAP Query'
+      owasp: 'A03:2021 Injection'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one file. The filter is judged by its text, so
+        a value placed in the filterArgs array is correctly not reported.
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+      - pattern: Rdn.escapeValue(...)
+      - pattern: LdapEncoder.filterEncode(...)
+      - pattern: LdapEncoder.nameEncode(...)
+      - pattern: $E.encodeForLDAP(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $CTX.search($BASE, $FILTER, ...)
+              - pattern: $LDAP.search($BASE, $FILTER, ...)
+          - focus-metavariable: $FILTER
+
+
+  - id: bpm-inj-xpath-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data reaches an XPath expression as text. A value spliced into the
+      expression can change which nodes it selects ("' or '1'='1"). Bind it
+      with an XPathVariableResolver ($name in the expression), or restrict it to
+      a known set of values.
+    metadata:
+      category: security
+      cwe: 'CWE-643: Improper Neutralization of Data within XPath Expressions'
+      owasp: 'A03:2021 Injection'
+      yields: ['data-read']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one file. The XPath object is recognised by its
+        declared type, so an expression evaluated through an untyped `var` is
+        not seen.
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: (XPath $XP).evaluate($EXPR, ...)
+              - pattern: (XPath $XP).compile($EXPR)
+              - pattern: (javax.xml.xpath.XPath $XP).evaluate($EXPR, ...)
+              - pattern: (javax.xml.xpath.XPath $XP).compile($EXPR)
+          - focus-metavariable: $EXPR
+
+
+  - id: bpm-inj-trust-java
+    mode: taint
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Request data is stored in the HTTP session as an attribute name or value.
+      Code that later reads the session assumes what it holds was checked; a
+      request value placed there crosses from untrusted to trusted without being
+      validated. Validate it (a type, a length, an allow-list) before it is
+      stored.
+    metadata:
+      category: security
+      cwe: 'CWE-501: Trust Boundary Violation'
+      owasp: 'A04:2021 Insecure Design'
+      yields: ['auth-bypass']
+      lifecycle: candidate
+      provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Follows the value inside one file. Reports the store, not whether the
+        value is later used in a trusting way, so a validated value stored
+        after a custom check the rule cannot see is reported.
+    paths:
+      exclude:
+        - '*Test.java'
+        - '*Tests.java'
+        - '**/src/test/**'
+    pattern-sources:
+      # Servlet request data.
+      - patterns:
+          - pattern-either:
+              - pattern: $REQ.getParameter(...)
+              - pattern: $REQ.getParameterValues(...)
+              - pattern: $REQ.getParameterMap()
+              - pattern: $REQ.getHeader(...)
+              - pattern: $REQ.getQueryString()
+              - pattern: $REQ.getRequestURI()
+              - pattern: $REQ.getPathInfo()
+              - pattern: $REQ.getCookies()
+              - pattern: $REQ.getHeaders(...)
+              - pattern: $REQ.getHeaderNames()
+              - pattern: $REQ.getParameterNames()
+              - pattern: $REQ.getRequestURL()
+              - pattern: $REQ.getServletPath()
+              - pattern: $REQ.getParts()
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: (?i)^(req|request|httpRequest|servletRequest|httpServletRequest)$
+      # The same calls on a request whose variable has any other name: the
+      # declared type is what makes it request data, not the spelling.
+      - pattern-either:
+          - pattern: (HttpServletRequest $R).getParameter(...)
+          - pattern: (HttpServletRequest $R).getParameterValues(...)
+          - pattern: (HttpServletRequest $R).getParameterMap()
+          - pattern: (HttpServletRequest $R).getParameterNames()
+          - pattern: (HttpServletRequest $R).getHeader(...)
+          - pattern: (HttpServletRequest $R).getHeaders(...)
+          - pattern: (HttpServletRequest $R).getHeaderNames()
+          - pattern: (HttpServletRequest $R).getQueryString()
+          - pattern: (HttpServletRequest $R).getRequestURI()
+          - pattern: (HttpServletRequest $R).getRequestURL()
+          - pattern: (HttpServletRequest $R).getPathInfo()
+          - pattern: (HttpServletRequest $R).getServletPath()
+          - pattern: (HttpServletRequest $R).getCookies()
+          - pattern: (HttpServletRequest $R).getParts()
+      # Spring MVC bound parameters.
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestParam(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @PathVariable(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestBody $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-inside: |
+              $RET $METHOD(..., @RequestHeader(...) $TYPE $X, ...) {
+                ...
+              }
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: Integer.parseInt(...)
+      - pattern: Integer.valueOf(...)
+      - pattern: Long.parseLong(...)
+      - pattern: Long.valueOf(...)
+      - pattern: Double.parseDouble(...)
+      - pattern: Boolean.parseBoolean(...)
+      - pattern: UUID.fromString(...)
+    pattern-sinks:
+      # The session is either the getSession() call itself or a variable
+      # declared as an HttpSession; the value and the attribute NAME are both
+      # places a request value should not reach unchecked.
+      - patterns:
+          - pattern-either:
+              - pattern: $R.getSession(...).setAttribute($K, $V)
+              - pattern: $R.getSession(...).putValue($K, $V)
+              - pattern: (HttpSession $S).setAttribute($K, $V)
+              - pattern: (HttpSession $S).putValue($K, $V)
+              - pattern: (javax.servlet.http.HttpSession $S).setAttribute($K, $V)
+              - pattern: (javax.servlet.http.HttpSession $S).putValue($K, $V)
+          - focus-metavariable: $V
+      - patterns:
+          - pattern-either:
+              - pattern: $R.getSession(...).setAttribute($K, $V)
+              - pattern: $R.getSession(...).putValue($K, $V)
+              - pattern: (HttpSession $S).setAttribute($K, $V)
+              - pattern: (HttpSession $S).putValue($K, $V)
+              - pattern: (javax.servlet.http.HttpSession $S).setAttribute($K, $V)
+              - pattern: (javax.servlet.http.HttpSession $S).putValue($K, $V)
+          - focus-metavariable: $K
