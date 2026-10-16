@@ -467,11 +467,23 @@ describeIfLiveInfra('VEX routes (W8-14, FR-SEC-14)', () => {
     expect(res.json()['vulnerabilities']).toBeUndefined();
   });
 
+  it('exports a NOTICE-style attribution grouped by license', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/repos/${repoId}/attribution`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/markdown/);
+    expect(res.body).toContain('third-party notices');
+  });
+
   it('every VEX endpoint needs a session', async () => {
     for (const url of [
       `/api/v1/repos/${repoId}/vex`,
       `/api/v1/repos/${repoId}/vex.json`,
       `/api/v1/repos/${repoId}/sbom`,
+      `/api/v1/repos/${repoId}/attribution`,
     ]) {
       const res = await app.inject({ method: 'GET', url });
       expect(res.statusCode).toBe(401);

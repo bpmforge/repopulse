@@ -137,6 +137,13 @@ leave the container as JSON on stdout; the host validates against the schema bef
   Unverified matches: severity by rule, `UNVERIFIED`-equivalent status `open`.
 - Yields for chaining: `yields: ['credential:{kind}']`.
 
+**License policy (W18-39).** `registers/spdx.ts` resolves SPDX expressions (`OR` takes the side that obliges
+least, `AND` the strictest, `WITH` linking exceptions downgrade GPL to weak copyleft) into five categories:
+permissive, weak, strong and network copyleft, unknown. The license register flags network and strong copyleft
+in prod scope by default; `licensePolicy.flagCategories` tunes it per workspace and the old `allow`/`flag` id lists
+still work. Text that is not a recognised expression is `unknown`, never permissive. `GET /repos/:id/attribution`
+exports a NOTICE-style inventory. Findings are posture only and gate nothing (N-3).
+
 ### 3.2 `dependency` — inputs: manifests — FR-SEC-5
 
 No snapshot needed: manifest + lockfile paths (`package.json`, `pnpm-lock.yaml`,

@@ -14,6 +14,8 @@ import {
   validateAgainstSchema,
   type VexStatementRecord,
   type VexStatus,
+  attributionReport,
+  resolveScopes,
 } from '@repopulse/security';
 import { sendProblem } from '../../lib/problem.js';
 
@@ -414,6 +416,51 @@ export default async function vexRoutes(
       .header('content-disposition', `attachment; filename="${repo.name}-openvex.json"`)
       .send(document);
   });
+
+  /**
+   * GET /repos/:repoId/attribution — a NOTICE-style inventory of what ships
+   * (W18-39), grouped by license, built from the stored SBOM. Posture only.
+   */
+  app.get<{ Params: { repoId: string }; Querystring: { dev?: string } }>(
+    '/repos/:repoId/attribution',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const repoId = Number(request.params.repoId);
+      if (!Number.isInteger(repoId)) return fail(request, reply, 400, 'Invalid repo id');
+
+      const [repo] = await db
+        .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
+        .from(core.repos)
+        .where(and(eq(core.repos.id, repoId), eq(core.repos.workspaceId, workspaceId)))
+        .limit(1);
+      if (!repo) return fail(request, reply, 404, 'Repo not found');
+
+      const [sbom] = await db
+        .select({ document: security.sboms.document })
+        .from(security.sboms)
+        .where(and(eq(security.sboms.workspaceId, workspaceId), eq(security.sboms.repoId, repoId)))
+        .orderBy(desc(security.sboms.createdAt))
+        .limit(1);
+      if (!sbom) {
+        return fail(
+          request,
+          reply,
+          404,
+          'No SBOM stored for this repo',
+          'The dependency scanner has not produced one yet.',
+        );
+      }
+      const text = attributionReport(resolveScopes(sbom.document as Record<string, unknown>), {
+        title: `${repo.org}/${repo.name}`,
+        includeDev: request.query.dev === '1',
+      });
+      return reply
+        .header('content-type', 'text/markdown; charset=utf-8')
+        .header('content-disposition', `attachment; filename="${repo.name}-NOTICE.md"`)
+        .send(text);
+    },
+  );
 
   /** GET /repos/:repoId/sbom — the stored CycloneDX SBOM, optionally with VEX. */
   app.get<{ Params: { repoId: string }; Querystring: { vex?: string; sha?: string } }>(

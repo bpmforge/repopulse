@@ -84,3 +84,5 @@ export * from './scanners/image/scan.js';
 export * from './scanners/image/findings.js';
 export * from './scanners/image/run.js';
 export * from './scanners/dependency/malicious.js';
+export * from './registers/spdx.js';
+export * from './registers/attribution.js';
