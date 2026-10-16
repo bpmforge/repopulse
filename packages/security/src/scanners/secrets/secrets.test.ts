@@ -89,7 +89,7 @@ describe('the rulepack loader fails closed', () => {
     expect(parsed.rules[0]?.['keywords']).toEqual(['abc']);
     // And the shipped pack really carries every rule the file declares.
     const declared = loadRulepack().rules.length;
-    expect(declared).toBe(15);
+    expect(declared).toBe(125);
   });
 
   it('keeps a regex verbatim through quoting', () => {

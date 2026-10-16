@@ -137,6 +137,12 @@ leave the container as JSON on stdout; the host validates against the schema bef
   Unverified matches: severity by rule, `UNVERIFIED`-equivalent status `open`.
 - Yields for chaining: `yields: ['credential:{kind}']`.
 
+**Provider formats (W18-38).** The secrets pack carries 125 rules: the original 15 plus 110 provider formats
+(cloud, CI, observability, payments, messaging, AI, package registries and connection URLs). The new ones are
+`lifecycle: candidate` in `secrets.v1.yaml`: they run and their findings are stored experimental, out of scores
+and gates until an admin promotes a rule on measured precision. `formats.test.ts` assembles a trigger and a
+clean sample per rule at run time and checks no other rule claims the same token; live verification stays off.
+
 ### 3.2 `dependency` — inputs: manifests — FR-SEC-5
 
 No snapshot needed: manifest + lockfile paths (`package.json`, `pnpm-lock.yaml`,
