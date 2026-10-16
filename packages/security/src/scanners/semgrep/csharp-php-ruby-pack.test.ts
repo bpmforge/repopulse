@@ -237,7 +237,12 @@ async function scanAll(): Promise<{ hits: string[]; errors: string[] }> {
       ...LANGUAGES.map((l) => path.join(FIXTURES, l.name)),
       path.join(FIXTURES, 'code-health'),
     ],
-    { maxBuffer: 64 * 1024 * 1024 },
+    // PYTHONUTF8: the packs' messages contain non-ASCII, and the engine's Python
+    // layer dies silently (exit 2, empty stdout) under a bare C locale.
+    {
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, PYTHONUTF8: '1', LC_ALL: 'en_US.UTF-8' },
+    },
   );
   const parsed = parseOpengrepOutput({
     stdout,

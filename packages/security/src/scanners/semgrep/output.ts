@@ -119,7 +119,25 @@ export function parseOpengrepOutput(args: ParseArgs): ParseResult {
   }
 
   const root = args.rootDir?.replace(/\/$/, '') ?? '';
-  const findings = parsed.data.results.map((result) => {
+  // One match is one finding. Opengrep 1.27.1 reports a taint match once per
+  // sink alternative that fires on the same range (measured on the W18-33
+  // injection pack: the same range and trace three times), where semgrep
+  // 1.181 merges them. Identical rule, file and range is the same match.
+  const seen = new Set<string>();
+  const unique = parsed.data.results.filter((result) => {
+    const key = [
+      result.check_id,
+      result.path,
+      result.start.line,
+      result.start.col ?? '',
+      result.end.line,
+      result.end.col ?? '',
+    ].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const findings = unique.map((result) => {
     const metadata = result.extra.metadata as { yields?: unknown; cwe?: unknown };
     const ruleId = bareRuleId(result.check_id, args.knownRuleIds);
     return {
