@@ -5,6 +5,7 @@ import { dependencyHealthFindings, type ReleaseFactsRow } from './dependency-hea
 import { eolFindings, type EolCycleRow } from './eol.js';
 import { EOL_ATTRIBUTION } from '../sync/eol.js';
 import { licenseFindings, DEFAULT_LICENSE_POLICY, type LicensePolicy } from './license.js';
+import { LICENSE_CATEGORIES, type LicenseCategory } from './spdx.js';
 import { readDeclaredRuntimes } from './manifests.js';
 import { resolveScopes } from './sbom.js';
 
@@ -55,6 +56,9 @@ export function policyFrom(settings: Record<string, unknown> | null): LicensePol
       typeof record.flagUnknown === 'boolean'
         ? record.flagUnknown
         : DEFAULT_LICENSE_POLICY.flagUnknown,
+    flagCategories: Array.isArray(record.flagCategories)
+      ? record.flagCategories.filter((c): c is LicenseCategory => LICENSE_CATEGORIES.includes(c))
+      : DEFAULT_LICENSE_POLICY.flagCategories,
   };
 }
 

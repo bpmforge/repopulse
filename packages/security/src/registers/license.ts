@@ -1,4 +1,5 @@
 import type { ResolvedComponent } from './sbom.js';
+import { resolveLicense, type LicenseCategory } from './spdx.js';
 
 // License posture register (W10-02, FR-REG-4).
 //
@@ -14,6 +15,11 @@ export interface LicensePolicy {
   flag: string[];
   /** Flag components whose license the SBOM does not state. */
   flagUnknown: boolean;
+  /**
+   * License categories that produce a finding in prod scope (W18-39). An
+   * expression is resolved first (`MIT OR GPL-3.0` is MIT), then categorised.
+   */
+  flagCategories: LicenseCategory[];
 }
 
 // AGPL and SSPL by default because both carry network-use obligations that a
@@ -23,6 +29,10 @@ export const DEFAULT_LICENSE_POLICY: LicensePolicy = {
   allow: [],
   flag: ['AGPL-1.0', 'AGPL-3.0', 'AGPL-3.0-only', 'AGPL-3.0-or-later', 'SSPL-1.0'],
   flagUnknown: true,
+  // Network copyleft (AGPL, SSPL, OSL) and strong copyleft (GPL) bind a product
+  // that ships or serves the code; weak copyleft (LGPL, MPL, EPL) is the usual
+  // "fine if you link it" case and is left to the team to opt into.
+  flagCategories: ['network-copyleft', 'strong-copyleft'],
 };
 
 export interface LicenseFinding {
@@ -30,6 +40,7 @@ export interface LicenseFinding {
   ecosystem: string;
   license: string | null;
   scope: 'prod-direct' | 'prod-transitive';
+  category: LicenseCategory;
   severity: number;
   title: string;
   evidence: string;
@@ -73,6 +84,7 @@ export function licenseFindings(
         ecosystem: component.ecosystem,
         license: null,
         scope: component.scope,
+        category: 'unknown',
         severity: 2,
         title: `Undeclared license: ${component.name}`,
         evidence: `${where} ships in production scope and the SBOM states no license.`,
@@ -83,21 +95,44 @@ export function licenseFindings(
       continue;
     }
 
-    // An allowed id anywhere in the expression settles it: `MIT OR AGPL-3.0`
-    // means the user may choose MIT, and flagging that is a false positive.
-    if (ids.some((id) => matches(policy.allow, id))) continue;
+    const resolved = resolveLicense(component.license);
+    // An allowed id that settles the choice ends it: `MIT OR AGPL-3.0` with MIT
+    // allowed is MIT, and flagging it would be a false positive.
+    if (resolved.ids.length > 0 && resolved.ids.every((id) => matches(policy.allow, id))) continue;
 
-    const flagged = ids.filter((id) => matches(policy.flag, id));
-    if (flagged.length === 0) continue;
+    if (resolved.category === 'unknown') {
+      // An expression we cannot read is not permissive; it is reported as
+      // unreadable, with the text as written, under the unknown-license rule.
+      if (!policy.flagUnknown) continue;
+      findings.push({
+        package: component.name,
+        ecosystem: component.ecosystem,
+        license: component.license,
+        scope: component.scope,
+        category: 'unknown',
+        severity: 2,
+        title: `Unrecognised license: ${component.name}`,
+        evidence: `${where} is ${component.scope} and its license "${component.license}" is not a recognised SPDX id or expression.`,
+        recommendation:
+          'Read the upstream license text. An unrecognised license may be proprietary or custom; treat it as not permissive until you have.',
+        ruleId: 'license.unknown',
+      });
+      continue;
+    }
+
+    const flaggedIds = resolved.ids.filter((id) => matches(policy.flag, id));
+    const flaggedByCategory = policy.flagCategories.includes(resolved.category);
+    if (flaggedIds.length === 0 && !flaggedByCategory) continue;
 
     findings.push({
       package: component.name,
       ecosystem: component.ecosystem,
       license: component.license,
       scope: component.scope,
+      category: resolved.category,
       severity: component.scope === 'prod-direct' ? 3 : 2,
-      title: `${flagged.join(', ')} in production scope: ${component.name}`,
-      evidence: `${where} is ${component.scope} and licensed ${component.license}.`,
+      title: `${(flaggedIds.length > 0 ? flaggedIds : resolved.ids).join(', ')} (${resolved.category}) in production scope: ${component.name}`,
+      evidence: `${where} is ${component.scope} and licensed ${component.license}; resolved as ${resolved.category}.`,
       recommendation:
         'Confirm the obligation is acceptable for how this is shipped, or replace the dependency. RepoPulse reports this; it does not block anything.',
       ruleId: 'license.policy',
