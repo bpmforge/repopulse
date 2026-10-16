@@ -144,6 +144,12 @@ in prod scope by default; `licensePolicy.flagCategories` tunes it per workspace 
 still work. Text that is not a recognised expression is `unknown`, never permissive. `GET /repos/:id/attribution`
 exports a NOTICE-style inventory. Findings are posture only and gate nothing (N-3).
 
+**Provider formats (W18-38).** The secrets pack carries 125 rules: the original 15 plus 110 provider formats
+(cloud, CI, observability, payments, messaging, AI, package registries and connection URLs). The new ones are
+`lifecycle: candidate` in `secrets.v1.yaml`: they run and their findings are stored experimental, out of scores
+and gates until an admin promotes a rule on measured precision. `formats.test.ts` assembles a trigger and a
+clean sample per rule at run time and checks no other rule claims the same token; live verification stays off.
+
 ### 3.2 `dependency` — inputs: manifests — FR-SEC-5
 
 No snapshot needed: manifest + lockfile paths (`package.json`, `pnpm-lock.yaml`,

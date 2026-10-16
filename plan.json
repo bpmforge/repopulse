@@ -9425,9 +9425,9 @@
         "Every new rule ships as a shadow-mode candidate with trigger AND clean fixtures; full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "15 rules today."
+        "Pack is 125 rules: the original 15 plus 110 provider formats, all `lifecycle: candidate` (findings stored experimental, out of scores). Patterns come from each provider's public token-format documentation; samples are assembled at run time so no whole token is committed. Format verifiers with checksums (beyond prefix and length) and live verification are not done; benchmark precision for the new rules accrues from triage once enabled."
       ]
     },
     {
