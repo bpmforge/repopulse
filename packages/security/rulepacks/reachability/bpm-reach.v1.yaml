@@ -1,0 +1,862 @@
+# bpm-rulepacks — symbol reachability for npm and PyPI (W18-46).
+#
+# GENERATED from src/validation/symbols.ts by `pnpm --filter @repopulse/security
+# reach:generate`; do not edit by hand. A test holds this file equal to its
+# rendering.
+#
+# Each rule matches a CALL to a function an advisory names as vulnerable. These
+# rules are evidence only: a match upgrades a dependency finding to
+# symbol_reachable; no match changes nothing, and nothing here ever dismisses
+# a finding. They produce no findings of their own.
+#
+# PROVENANCE: written for RepoPulse from advisory text; not derived from the
+# Semgrep registry.
+rules:
+  - id: bpm-reach-npm-lodash-defaultsdeep
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.defaultsDeep, a function named by CVE-2019-10744, GHSA-jf85-cpcp-j695, CVE-2018-16487, GHSA-4xc9-xhrj-v574, CVE-2018-3721, GHSA-fvqr-27wr-82fm"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "defaultsDeep"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").defaultsDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.defaultsDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.defaultsDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.defaultsDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              const { defaultsDeep } = require("lodash");
+              ...
+          - pattern: "defaultsDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import { defaultsDeep } from "lodash";
+              ...
+          - pattern: "defaultsDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import { defaultsDeep as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { defaultsDeep: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/defaultsDeep\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/defaultsDeep");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/defaultsDeep";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-lodash-merge
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.merge, a function named by CVE-2018-16487, GHSA-4xc9-xhrj-v574, CVE-2018-3721, GHSA-fvqr-27wr-82fm"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "merge"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").merge(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.merge(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.merge(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.merge(...)"
+      - patterns:
+          - pattern-inside: |
+              const { merge } = require("lodash");
+              ...
+          - pattern: "merge(...)"
+      - patterns:
+          - pattern-inside: |
+              import { merge } from "lodash";
+              ...
+          - pattern: "merge(...)"
+      - patterns:
+          - pattern-inside: |
+              import { merge as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { merge: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/merge\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/merge");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/merge";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-lodash-mergewith
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.mergeWith, a function named by CVE-2018-16487, GHSA-4xc9-xhrj-v574, CVE-2018-3721, GHSA-fvqr-27wr-82fm"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "mergeWith"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").mergeWith(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.mergeWith(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.mergeWith(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.mergeWith(...)"
+      - patterns:
+          - pattern-inside: |
+              const { mergeWith } = require("lodash");
+              ...
+          - pattern: "mergeWith(...)"
+      - patterns:
+          - pattern-inside: |
+              import { mergeWith } from "lodash";
+              ...
+          - pattern: "mergeWith(...)"
+      - patterns:
+          - pattern-inside: |
+              import { mergeWith as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { mergeWith: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/mergeWith\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/mergeWith");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/mergeWith";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-lodash-template
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.template, a function named by CVE-2021-23337, GHSA-35jh-r3h4-6jhm"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "template"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").template(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.template(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.template(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.template(...)"
+      - patterns:
+          - pattern-inside: |
+              const { template } = require("lodash");
+              ...
+          - pattern: "template(...)"
+      - patterns:
+          - pattern-inside: |
+              import { template } from "lodash";
+              ...
+          - pattern: "template(...)"
+      - patterns:
+          - pattern-inside: |
+              import { template as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { template: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/template\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/template");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/template";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-lodash-tonumber
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.toNumber, a function named by CVE-2020-28500, GHSA-29mw-wpgm-hmr9"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "toNumber"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").toNumber(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.toNumber(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.toNumber(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.toNumber(...)"
+      - patterns:
+          - pattern-inside: |
+              const { toNumber } = require("lodash");
+              ...
+          - pattern: "toNumber(...)"
+      - patterns:
+          - pattern-inside: |
+              import { toNumber } from "lodash";
+              ...
+          - pattern: "toNumber(...)"
+      - patterns:
+          - pattern-inside: |
+              import { toNumber as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { toNumber: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/toNumber\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/toNumber");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/toNumber";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-lodash-trim
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.trim, a function named by CVE-2020-28500, GHSA-29mw-wpgm-hmr9"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "trim"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").trim(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.trim(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.trim(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.trim(...)"
+      - patterns:
+          - pattern-inside: |
+              const { trim } = require("lodash");
+              ...
+          - pattern: "trim(...)"
+      - patterns:
+          - pattern-inside: |
+              import { trim } from "lodash";
+              ...
+          - pattern: "trim(...)"
+      - patterns:
+          - pattern-inside: |
+              import { trim as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { trim: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/trim\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/trim");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/trim";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-lodash-trimend
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.trimEnd, a function named by CVE-2020-28500, GHSA-29mw-wpgm-hmr9"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "trimEnd"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").trimEnd(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.trimEnd(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.trimEnd(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.trimEnd(...)"
+      - patterns:
+          - pattern-inside: |
+              const { trimEnd } = require("lodash");
+              ...
+          - pattern: "trimEnd(...)"
+      - patterns:
+          - pattern-inside: |
+              import { trimEnd } from "lodash";
+              ...
+          - pattern: "trimEnd(...)"
+      - patterns:
+          - pattern-inside: |
+              import { trimEnd as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { trimEnd: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/trimEnd\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/trimEnd");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/trimEnd";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-lodash-zipobjectdeep
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to lodash.zipObjectDeep, a function named by CVE-2020-8203, GHSA-p6mc-m468-83gw"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "lodash"
+      symbol: "zipObjectDeep"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"lodash\").zipObjectDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("lodash");
+              ...
+          - pattern: "$X.zipObjectDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "lodash";
+              ...
+          - pattern: "$X.zipObjectDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "lodash";
+              ...
+          - pattern: "$X.zipObjectDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              const { zipObjectDeep } = require("lodash");
+              ...
+          - pattern: "zipObjectDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import { zipObjectDeep } from "lodash";
+              ...
+          - pattern: "zipObjectDeep(...)"
+      - patterns:
+          - pattern-inside: |
+              import { zipObjectDeep as $A } from "lodash";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { zipObjectDeep: $A } = require("lodash");
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern: "require(\"lodash/zipObjectDeep\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("lodash/zipObjectDeep");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "lodash/zipObjectDeep";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-underscore-template
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to underscore.template, a function named by CVE-2021-23358, GHSA-cf4h-3jhx-xvhq"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "underscore"
+      symbol: "template"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"underscore\").template(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("underscore");
+              ...
+          - pattern: "$X.template(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "underscore";
+              ...
+          - pattern: "$X.template(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "underscore";
+              ...
+          - pattern: "$X.template(...)"
+      - patterns:
+          - pattern-inside: |
+              const { template } = require("underscore");
+              ...
+          - pattern: "template(...)"
+      - patterns:
+          - pattern-inside: |
+              import { template } from "underscore";
+              ...
+          - pattern: "template(...)"
+      - patterns:
+          - pattern-inside: |
+              import { template as $A } from "underscore";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { template: $A } = require("underscore");
+              ...
+          - pattern: "$A(...)"
+  - id: bpm-reach-npm-minimist-default
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to minimist.default, a function named by CVE-2020-7598, GHSA-vh95-rmgr-6w4m, CVE-2021-44906, GHSA-xvch-5gv4-984h"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "minimist"
+      symbol: "default"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"minimist\")(...)"
+      - patterns:
+          - pattern-inside: |
+              $F = require("minimist");
+              ...
+          - pattern: "$F(...)"
+      - patterns:
+          - pattern-inside: |
+              import $F from "minimist";
+              ...
+          - pattern: "$F(...)"
+  - id: bpm-reach-npm-node-serialize-unserialize
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to node-serialize.unserialize, a function named by CVE-2017-5941, GHSA-q4v7-4rhw-9hqm"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "node-serialize"
+      symbol: "unserialize"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"node-serialize\").unserialize(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("node-serialize");
+              ...
+          - pattern: "$X.unserialize(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "node-serialize";
+              ...
+          - pattern: "$X.unserialize(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "node-serialize";
+              ...
+          - pattern: "$X.unserialize(...)"
+      - patterns:
+          - pattern-inside: |
+              const { unserialize } = require("node-serialize");
+              ...
+          - pattern: "unserialize(...)"
+      - patterns:
+          - pattern-inside: |
+              import { unserialize } from "node-serialize";
+              ...
+          - pattern: "unserialize(...)"
+      - patterns:
+          - pattern-inside: |
+              import { unserialize as $A } from "node-serialize";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { unserialize: $A } = require("node-serialize");
+              ...
+          - pattern: "$A(...)"
+  - id: bpm-reach-npm-ejs-render
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to ejs.render, a function named by CVE-2022-29078, GHSA-phwq-j96m-2c2q"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "ejs"
+      symbol: "render"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"ejs\").render(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("ejs");
+              ...
+          - pattern: "$X.render(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "ejs";
+              ...
+          - pattern: "$X.render(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "ejs";
+              ...
+          - pattern: "$X.render(...)"
+      - patterns:
+          - pattern-inside: |
+              const { render } = require("ejs");
+              ...
+          - pattern: "render(...)"
+      - patterns:
+          - pattern-inside: |
+              import { render } from "ejs";
+              ...
+          - pattern: "render(...)"
+      - patterns:
+          - pattern-inside: |
+              import { render as $A } from "ejs";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { render: $A } = require("ejs");
+              ...
+          - pattern: "$A(...)"
+  - id: bpm-reach-npm-ejs-renderfile
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to ejs.renderFile, a function named by CVE-2022-29078, GHSA-phwq-j96m-2c2q"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "ejs"
+      symbol: "renderFile"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"ejs\").renderFile(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("ejs");
+              ...
+          - pattern: "$X.renderFile(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "ejs";
+              ...
+          - pattern: "$X.renderFile(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "ejs";
+              ...
+          - pattern: "$X.renderFile(...)"
+      - patterns:
+          - pattern-inside: |
+              const { renderFile } = require("ejs");
+              ...
+          - pattern: "renderFile(...)"
+      - patterns:
+          - pattern-inside: |
+              import { renderFile } from "ejs";
+              ...
+          - pattern: "renderFile(...)"
+      - patterns:
+          - pattern-inside: |
+              import { renderFile as $A } from "ejs";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { renderFile: $A } = require("ejs");
+              ...
+          - pattern: "$A(...)"
+  - id: bpm-reach-npm-jsonwebtoken-sign
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to jsonwebtoken.sign, a function named by CVE-2022-23539, GHSA-8cf7-32gw-wr33"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "jsonwebtoken"
+      symbol: "sign"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"jsonwebtoken\").sign(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("jsonwebtoken");
+              ...
+          - pattern: "$X.sign(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "jsonwebtoken";
+              ...
+          - pattern: "$X.sign(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "jsonwebtoken";
+              ...
+          - pattern: "$X.sign(...)"
+      - patterns:
+          - pattern-inside: |
+              const { sign } = require("jsonwebtoken");
+              ...
+          - pattern: "sign(...)"
+      - patterns:
+          - pattern-inside: |
+              import { sign } from "jsonwebtoken";
+              ...
+          - pattern: "sign(...)"
+      - patterns:
+          - pattern-inside: |
+              import { sign as $A } from "jsonwebtoken";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { sign: $A } = require("jsonwebtoken");
+              ...
+          - pattern: "$A(...)"
+  - id: bpm-reach-npm-jsonwebtoken-verify
+    languages: [javascript, typescript]
+    severity: INFO
+    message: "Call to jsonwebtoken.verify, a function named by CVE-2022-23529, GHSA-27h2-hvpr-p74q, CVE-2022-23539, GHSA-8cf7-32gw-wr33, CVE-2022-23540, GHSA-qwph-4952-7xr6, CVE-2022-23541, GHSA-hjrf-2m68-5959"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "jsonwebtoken"
+      symbol: "verify"
+    pattern-either:
+      - patterns:
+          - pattern: "require(\"jsonwebtoken\").verify(...)"
+      - patterns:
+          - pattern-inside: |
+              $X = require("jsonwebtoken");
+              ...
+          - pattern: "$X.verify(...)"
+      - patterns:
+          - pattern-inside: |
+              import $X from "jsonwebtoken";
+              ...
+          - pattern: "$X.verify(...)"
+      - patterns:
+          - pattern-inside: |
+              import * as $X from "jsonwebtoken";
+              ...
+          - pattern: "$X.verify(...)"
+      - patterns:
+          - pattern-inside: |
+              const { verify } = require("jsonwebtoken");
+              ...
+          - pattern: "verify(...)"
+      - patterns:
+          - pattern-inside: |
+              import { verify } from "jsonwebtoken";
+              ...
+          - pattern: "verify(...)"
+      - patterns:
+          - pattern-inside: |
+              import { verify as $A } from "jsonwebtoken";
+              ...
+          - pattern: "$A(...)"
+      - patterns:
+          - pattern-inside: |
+              const { verify: $A } = require("jsonwebtoken");
+              ...
+          - pattern: "$A(...)"
+  - id: bpm-reach-pypi-pyyaml-full-load
+    languages: [python]
+    severity: INFO
+    message: "Call to yaml.full_load, a function named by CVE-2020-1747, GHSA-6757-jp84-gxfx, CVE-2020-14343, GHSA-8q59-q68h-6hv4"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "PyYAML"
+      symbol: "full_load"
+    pattern-either:
+      - patterns:
+          - pattern: "yaml.full_load(...)"
+          - pattern-not: "yaml.full_load(..., Loader=yaml.SafeLoader)"
+          - pattern-not: "yaml.full_load(..., Loader=yaml.CSafeLoader)"
+          - pattern-not: "yaml.full_load(..., Loader=yaml.BaseLoader)"
+          - pattern-not: "yaml.full_load(..., yaml.SafeLoader)"
+          - pattern-not: "yaml.full_load(..., yaml.CSafeLoader)"
+          - pattern-not: "yaml.full_load(..., yaml.BaseLoader)"
+  - id: bpm-reach-pypi-pyyaml-full-load-all
+    languages: [python]
+    severity: INFO
+    message: "Call to yaml.full_load_all, a function named by CVE-2020-1747, GHSA-6757-jp84-gxfx, CVE-2020-14343, GHSA-8q59-q68h-6hv4"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "PyYAML"
+      symbol: "full_load_all"
+    pattern-either:
+      - patterns:
+          - pattern: "yaml.full_load_all(...)"
+          - pattern-not: "yaml.full_load_all(..., Loader=yaml.SafeLoader)"
+          - pattern-not: "yaml.full_load_all(..., Loader=yaml.CSafeLoader)"
+          - pattern-not: "yaml.full_load_all(..., Loader=yaml.BaseLoader)"
+          - pattern-not: "yaml.full_load_all(..., yaml.SafeLoader)"
+          - pattern-not: "yaml.full_load_all(..., yaml.CSafeLoader)"
+          - pattern-not: "yaml.full_load_all(..., yaml.BaseLoader)"
+  - id: bpm-reach-pypi-pyyaml-load
+    languages: [python]
+    severity: INFO
+    message: "Call to yaml.load, a function named by CVE-2017-18342, GHSA-rprw-h62v-c2w7, CVE-2020-1747, GHSA-6757-jp84-gxfx, CVE-2020-14343, GHSA-8q59-q68h-6hv4"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "PyYAML"
+      symbol: "load"
+    pattern-either:
+      - patterns:
+          - pattern: "yaml.load(...)"
+          - pattern-not: "yaml.load(..., Loader=yaml.SafeLoader)"
+          - pattern-not: "yaml.load(..., Loader=yaml.CSafeLoader)"
+          - pattern-not: "yaml.load(..., Loader=yaml.BaseLoader)"
+          - pattern-not: "yaml.load(..., yaml.SafeLoader)"
+          - pattern-not: "yaml.load(..., yaml.CSafeLoader)"
+          - pattern-not: "yaml.load(..., yaml.BaseLoader)"
+  - id: bpm-reach-pypi-pyyaml-load-all
+    languages: [python]
+    severity: INFO
+    message: "Call to yaml.load_all, a function named by CVE-2017-18342, GHSA-rprw-h62v-c2w7, CVE-2020-1747, GHSA-6757-jp84-gxfx, CVE-2020-14343, GHSA-8q59-q68h-6hv4"
+    metadata:
+      lifecycle: candidate
+      provenance: written for RepoPulse from advisory text
+      package: "PyYAML"
+      symbol: "load_all"
+    pattern-either:
+      - patterns:
+          - pattern: "yaml.load_all(...)"
+          - pattern-not: "yaml.load_all(..., Loader=yaml.SafeLoader)"
+          - pattern-not: "yaml.load_all(..., Loader=yaml.CSafeLoader)"
+          - pattern-not: "yaml.load_all(..., Loader=yaml.BaseLoader)"
+          - pattern-not: "yaml.load_all(..., yaml.SafeLoader)"
+          - pattern-not: "yaml.load_all(..., yaml.CSafeLoader)"
+          - pattern-not: "yaml.load_all(..., yaml.BaseLoader)"

@@ -6,6 +6,7 @@ import { snapshotForScan } from '../../snapshot/index.js';
 import {
   goReachability,
   goVulnDbDir,
+  symbolReachability,
   validateVulnerabilities,
   type ValidationFunnel,
 } from '../../validation/index.js';
@@ -226,10 +227,20 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
           budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
         });
 
+        // W18-46: call sites of catalogued vulnerable functions in JS/TS and
+        // Python. Costs nothing unless a catalogued package is in this scan.
+        const symbols = await symbolReachability({
+          targetDir: snapshot.dir,
+          matches: tools.matches,
+          image: deps.image ?? DEFAULT_IMAGE,
+          budget: { wallClockMs: deps.wallClockMs ?? DEFAULT_WALL_CLOCK_MS },
+        });
+
         const validation = validateVulnerabilities({
           matches: tools.matches,
           snapshotDir: snapshot.dir,
           goReachability: reachability,
+          symbolReachability: symbols,
           // grype's OWN count, so `raw → deduped` is the whole narrowing rather
           // than the part of it that happened after the reader had already
           // merged the (purl, CVE) duplicates.
@@ -279,6 +290,7 @@ export async function runDependencyScan(deps: DependencyRunDeps): Promise<Depend
         await closeRun(deps.db, runId, 'succeeded', mapped.findings.length, null, {
           ...tools.toolVersions,
           ...(reachability.toolVersion ? { govulncheck: reachability.toolVersion } : {}),
+          ...(symbols.toolVersion ? { opengrep: symbols.toolVersion } : {}),
         });
 
         return {
