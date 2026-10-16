@@ -243,6 +243,18 @@ describe('matches -> findings', () => {
     expect(maven.vulnerabilities[0]!.proposals).toEqual([]);
   });
 
+  it('uses the lockfile fix path for the stored advice when one is supplied (W18-36)', () => {
+    const withAdvice = dependencyFindings(validated.vulnerabilities, sbom, (v) => ({
+      kind: 'transitive',
+      text: `Bump parent so ${v.packageName} moves.`,
+      chain: [],
+    }));
+    expect(withAdvice.findings.every((f) => f.suggestedFix === `Bump parent so jquery moves.`)).toBe(true);
+    expect(withAdvice.findings[0]!.rationale).toContain('Bump parent so jquery moves.');
+    // Without advice the original wording stands, so a caller that passes none is unchanged.
+    expect(findings[0]!.suggestedFix).toMatch(/^Upgrade to /);
+  });
+
   it('reads the manifest paths out of the SBOM, not out of the matches', () => {
     // A repository with zero vulnerabilities still has to report which files
     // it read, or persistFindings has nothing to sweep and the last CVE a repo
