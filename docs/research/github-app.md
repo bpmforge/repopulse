@@ -97,7 +97,9 @@ would just mean GitHub failing every webhook delivery against a dead host.
    product decision). It lets the nightly `code_scanning_pull` import GitHub
    code-scanning alerts as findings. An installation that has not yet re-approved the
    new permission answers 403, and the pull records `no_code_scanning_permission` and
-   imports nothing. Read-only — never grant write.
+   imports nothing. Read-only — never grant write. Optional for self-hosters: there is no
+   shared RepoPulse App, so this is a setup step on *your* App or token
+   (docs/INSTALL.md), not something the maintainers do.
 4. **Subscribe to webhook events**: Pull request, Push, Check run/suite, Issues, Deployment.
 5. Create, then note/generate: **App ID**, **Client ID** + **Client secret**,
    **private key** (.pem).

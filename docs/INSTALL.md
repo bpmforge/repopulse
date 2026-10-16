@@ -238,6 +238,17 @@ repository still backfills and goes live; it just gets no live updates.
 > [read:issue]"*) instead of looking like a repository with no issues; fix the
 > token and the next sync clears it.
 
+> **Optional on GitHub — code-scanning alerts.** To import the alerts GitHub
+> code scanning already holds for a repository, the credential RepoPulse uses
+> needs read access to them: a classic token's `repo` scope already includes it;
+> a fine-grained token needs **Code scanning alerts: Read-only**; a GitHub App
+> you registered yourself needs the same repository permission
+> (`security_events: read`). It is read-only — never grant write. Without it
+> nothing breaks: SARIF upload still works, and the nightly code-scanning pull
+> is skipped with the reason shown in the scan result ("the token or GitHub App
+> may not read code-scanning alerts") instead of importing zero alerts quietly.
+> Grant it later and the next nightly pull picks it up.
+
 A self-hosted forge over plain `http://` is rejected unless it is a loopback
 address and `FORGE_ALLOW_INSECURE_LOOPBACK` is set — a development escape
 hatch, not a deployment option.
