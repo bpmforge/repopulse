@@ -30,6 +30,8 @@ export const SCAN_TOOLS: readonly ScanTool[] = [
   { tool: 'shellcheck', usedBy: ['code_health_tools'] },
   { tool: 'hadolint', usedBy: ['code_health_tools'] },
   { tool: 'checkov', usedBy: ['code_health_tools'] },
+  { tool: 'helm', usedBy: ['code_health_tools'] },
+  { tool: 'kustomize', usedBy: ['code_health_tools'] },
   { tool: 'depcruise', usedBy: ['architecture_register'] },
   { tool: 'grimp', usedBy: ['architecture_register'] },
   { tool: 'syft', usedBy: ['dependency_cve', 'supply_chain_register'] },
@@ -73,11 +75,6 @@ export const UNSUPPORTED_TOOLS: readonly UnsupportedTool[] = [
     tool: 'trivy config, KICS',
     reason:
       'Not installed. Infrastructure-as-code is read by one tool, run inside code_health_tools on an allowlist of checks, and its findings are shadow candidates until promoted — a second IaC engine would double-report the same misconfigurations.',
-  },
-  {
-    tool: 'helm / kustomize rendering',
-    reason:
-      'Not installed. Helm charts and kustomize overlays are templates; checking them means rendering them, which needs those binaries and, for charts with dependencies, the network. Plain Kubernetes manifests are checked; charts are not.',
   },
   {
     tool: 'Secret scanners (gitleaks, trufflehog)',
