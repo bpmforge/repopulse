@@ -1264,26 +1264,6 @@
       "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
     },
     {
-      "id": "inj-also-java-sql-string-concat-java-UserController-20",
-      "tree": "injection/triggering",
-      "file": "java/UserController.java",
-      "lines": [20, 20],
-      "rule": "bpm-java-sql-string-concat",
-      "dimension": "sast",
-      "expect": "finding",
-      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
-    },
-    {
-      "id": "inj-also-java-sql-string-concat-java-RequestForms-69",
-      "tree": "injection/triggering",
-      "file": "java/RequestForms.java",
-      "lines": [69, 69],
-      "rule": "bpm-java-sql-string-concat",
-      "dimension": "sast",
-      "expect": "finding",
-      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
-    },
-    {
       "id": "inj-also-java-sql-string-concat-java-UserController-26",
       "tree": "injection/triggering",
       "file": "java/UserController.java",

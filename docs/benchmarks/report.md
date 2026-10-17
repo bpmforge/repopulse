@@ -16,14 +16,14 @@ changes | authored | Proprietary (RepoPulse); written for this benchmark | 38 | 
 juice-shop | vendored https://github.com/juice-shop/juice-shop e39a3bdb8c61 | MIT (Bjoern Kimminich and the OWASP Juice Shop contributors; LICENSE alongside) | 2 | 24 | scored
 juliet-java | fetched https://samate.nist.gov/SARD/test-suites/111 | Public domain (US government work); fetched at prep time into a gitignored cache | 1 | 3141 | scored
 owasp-benchmark | fetched https://github.com/OWASP-Benchmark/BenchmarkJava 0a3113b7054a | GPL-2.0 (not vendored; fetched at prep time into a gitignored cache) | 1 | 2740 | scored
-rule-fixtures | in-repo | Proprietary (RepoPulse) | 8 | 137 | scored
+rule-fixtures | in-repo | Proprietary (RepoPulse) | 8 | 135 | scored
 sampleco | vendored https://github.com/bpmforge/slop-scorecard f3ed52573aeb | MIT (bpmforge; LICENSE alongside) | 1 | 15 | scored
 
 ## Totals
 
 Scope | TP | FP | FN | Dup | Precision | Recall
 ---|--:|--:|--:|--:|--:|--:
-all | 1647 | 736 | 899 | 397 | 69.1% | 64.7%
+all | 1584 | 487 | 960 | 197 | 76.5% | 62.3%
 
 ## By dimension
 
@@ -33,7 +33,7 @@ code_health | 0 | 0 | 0 | 0 | — | —
 dependency | 0 | 0 | 0 | 0 | — | —
 logging | 18 | 2 | 0 | 0 | 90.0% | 100.0%
 performance | 24 | 0 | 1 | 1 | 100.0% | 96.0%
-sast | 1572 | 734 | 890 | 396 | 68.2% | 63.9%
+sast | 1509 | 485 | 951 | 196 | 75.7% | 61.3%
 secrets | 3 | 0 | 0 | 0 | 100.0% | 100.0%
 slop | 30 | 0 | 8 | 0 | 100.0% | 78.9%
 
@@ -43,14 +43,14 @@ Suite | TP | FP | FN | Dup | Precision | Recall
 ---|--:|--:|--:|--:|--:|--:
 changes | 21 | 1 | 2 | 0 | 95.5% | 91.3%
 juice-shop | 7 | 0 | 4 | 0 | 100.0% | 63.6%
-juliet-java | 293 | 290 | 655 | 62 | 50.3% | 30.9%
-owasp-benchmark | 1185 | 444 | 230 | 334 | 72.7% | 83.7%
-rule-fixtures | 137 | 0 | 0 | 1 | 100.0% | 100.0%
+juliet-java | 288 | 247 | 660 | 47 | 53.8% | 30.4%
+owasp-benchmark | 1129 | 238 | 286 | 149 | 82.6% | 79.8%
+rule-fixtures | 135 | 0 | 0 | 1 | 100.0% | 100.0%
 sampleco | 4 | 1 | 8 | 0 | 80.0% | 33.3%
 
 ## Public benchmarks, by CWE
 
-Measured 2026-10-16 at d1b201cf4a1a with opengrep 1.27.1.
+Measured 2026-10-16 at bf83839ec185 with opengrep 1.27.1.
 
 TPR is the share of real vulnerabilities found; FPR is the share of safe look-alikes flagged; Youden is TPR − FPR (0 = a coin flip, 1 = perfect, negative = worse than guessing). A CWE we have no rule for shows a TPR of 0%, and stays in the table.
 
@@ -58,7 +58,7 @@ Suite | CWE | TP | FN | FP | TN | TPR | FPR | Youden
 ---|--:|--:|--:|--:|--:|--:|--:|--:
 juliet-java | 78 | 59 | 34 | 126 | 56 | 63.4% | 69.2% | -0.058
 juliet-java | 79 | 34 | 255 | 0 | 549 | 11.8% | 0.0% | 0.118
-juliet-java | 89 | 74 | 30 | 164 | 228 | 71.2% | 41.8% | 0.294
+juliet-java | 89 | 69 | 35 | 121 | 271 | 66.3% | 30.9% | 0.354
 juliet-java | 90 | 13 | 80 | 0 | 182 | 14.0% | 0.0% | 0.140
 juliet-java | 259 | 0 | 95 | 0 | 186 | 0.0% | 0.0% | 0.000
 juliet-java | 327 | 34 | 0 | 0 | 60 | 100.0% | 0.0% | 1.000
@@ -68,7 +68,7 @@ juliet-java | 643 | 12 | 80 | 0 | 368 | 13.0% | 0.0% | 0.130
 owasp-benchmark | 22 | 118 | 15 | 44 | 91 | 88.7% | 32.6% | 0.561
 owasp-benchmark | 78 | 64 | 62 | 50 | 83 | 50.8% | 37.6% | 0.132
 owasp-benchmark | 79 | 149 | 97 | 60 | 149 | 60.6% | 28.7% | 0.319
-owasp-benchmark | 89 | 271 | 1 | 260 | 17 | 99.6% | 93.9% | 0.057
+owasp-benchmark | 89 | 215 | 57 | 54 | 178 | 79.0% | 23.3% | 0.557
 owasp-benchmark | 90 | 24 | 3 | 7 | 25 | 88.9% | 21.9% | 0.670
 owasp-benchmark | 327 | 130 | 0 | 0 | 116 | 100.0% | 0.0% | 1.000
 owasp-benchmark | 328 | 89 | 40 | 0 | 107 | 69.0% | 0.0% | 0.690
@@ -225,7 +225,7 @@ bpm-inj-redirect-py | yaml | sast | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-inj-redirect-rs | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-inj-sql-cs | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-inj-sql-go | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
-bpm-inj-sql-java | yaml | sast | 177 | 54 | 0 | 56 | 76.6% | 100.0%
+bpm-inj-sql-java | yaml | sast | 233 | 54 | 0 | 0 | 81.2% | 100.0%
 bpm-inj-sql-js | yaml | sast | 3 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-inj-sql-kt | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-inj-sql-py | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
@@ -250,7 +250,7 @@ bpm-java-cookie-insecure | yaml | sast | 36 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-java-hostname-verification-disabled | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-java-insecure-random-token | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-java-jwt-unverified | yaml | sast | 0 | 0 | 0 | 0 | — | —
-bpm-java-sql-string-concat | yaml | sast | 174 | 370 | 0 | 144 | 32.0% | 100.0%
+bpm-java-sql-string-concat | yaml | sast | 55 | 121 | 0 | 0 | 31.3% | 100.0%
 bpm-java-trust-all-certificates | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-java-unsafe-deserialization | yaml | sast | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-java-weak-cipher | yaml | sast | 164 | 0 | 0 | 131 | 100.0% | 100.0%
@@ -520,7 +520,7 @@ vault-service-token | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 vercel-token | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 
-## Missed (false negatives) (899)
+## Missed (false negatives) (960)
 
 - `changes/perf-await-in-loop/after/src/team.js:4` bpm-perf-orm-call-in-loop — label perf-await-in-loop-orm
 - `changes/slop-low-logic-density/after/src/retry.ts` slop.low_logic_density — label slop-low-logic-density
@@ -1085,14 +1085,19 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__Environment_executeQuery_51a.java:25` (sast, no rule) — label CWE89_SQL_Injection__Environment_executeQuery_51a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__Environment_execute_51a.java:25` (sast, no rule) — label CWE89_SQL_Injection__Environment_execute_51a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__File_prepareStatement_73a.java:34` (sast, no rule) — label CWE89_SQL_Injection__File_prepareStatement_73a.java#bad
+- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeBatch_61a.java:29` (sast, no rule) — label CWE89_SQL_Injection__getCookies_Servlet_executeBatch_61a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeQuery_73a.java:27` (sast, no rule) — label CWE89_SQL_Injection__getCookies_Servlet_executeQuery_73a.java#bad
+- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_61a.java:29` (sast, no rule) — label CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_61a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_execute_52a.java:26` (sast, no rule) — label CWE89_SQL_Injection__getCookies_Servlet_execute_52a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_execute_73a.java:27` (sast, no rule) — label CWE89_SQL_Injection__getCookies_Servlet_execute_73a.java#bad
+- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_61a.java:29` (sast, no rule) — label CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_61a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeBatch_52a.java:26` (sast, no rule) — label CWE89_SQL_Injection__getParameter_Servlet_executeBatch_52a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeBatch_73a.java:27` (sast, no rule) — label CWE89_SQL_Injection__getParameter_Servlet_executeBatch_73a.java#bad
+- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeQuery_61a.java:29` (sast, no rule) — label CWE89_SQL_Injection__getParameter_Servlet_executeQuery_61a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeBatch_51a.java:32` (sast, no rule) — label CWE89_SQL_Injection__PropertiesFile_executeBatch_51a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeUpdate_51a.java:32` (sast, no rule) — label CWE89_SQL_Injection__PropertiesFile_executeUpdate_51a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_73a.java:28` (sast, no rule) — label CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_73a.java#bad
+- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_execute_61a.java:29` (sast, no rule) — label CWE89_SQL_Injection__getQueryString_Servlet_execute_61a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_52a.java:27` (sast, no rule) — label CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_52a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_73a.java:28` (sast, no rule) — label CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_73a.java#bad
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__listen_tcp_executeQuery_52a.java:33` (sast, no rule) — label CWE89_SQL_Injection__listen_tcp_executeQuery_52a.java#bad
@@ -1189,15 +1194,20 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00013.java` (sast, no rule) — label BenchmarkTest00013
 - `owasp-benchmark/testcode/BenchmarkTest00014.java` (sast, no rule) — label BenchmarkTest00014
 - `owasp-benchmark/testcode/BenchmarkTest00015.java` (sast, no rule) — label BenchmarkTest00015
+- `owasp-benchmark/testcode/BenchmarkTest00026.java` (sast, no rule) — label BenchmarkTest00026
 - `owasp-benchmark/testcode/BenchmarkTest00029.java` (sast, no rule) — label BenchmarkTest00029
 - `owasp-benchmark/testcode/BenchmarkTest00030.java` (sast, no rule) — label BenchmarkTest00030
+- `owasp-benchmark/testcode/BenchmarkTest00033.java` (sast, no rule) — label BenchmarkTest00033
 - `owasp-benchmark/testcode/BenchmarkTest00036.java` (sast, no rule) — label BenchmarkTest00036
+- `owasp-benchmark/testcode/BenchmarkTest00039.java` (sast, no rule) — label BenchmarkTest00039
 - `owasp-benchmark/testcode/BenchmarkTest00040.java` (sast, no rule) — label BenchmarkTest00040
 - `owasp-benchmark/testcode/BenchmarkTest00041.java` (sast, no rule) — label BenchmarkTest00041
+- `owasp-benchmark/testcode/BenchmarkTest00043.java` (sast, no rule) — label BenchmarkTest00043
 - `owasp-benchmark/testcode/BenchmarkTest00047.java` (sast, no rule) — label BenchmarkTest00047
 - `owasp-benchmark/testcode/BenchmarkTest00074.java` (sast, no rule) — label BenchmarkTest00074
 - `owasp-benchmark/testcode/BenchmarkTest00091.java` (sast, no rule) — label BenchmarkTest00091
 - `owasp-benchmark/testcode/BenchmarkTest00092.java` (sast, no rule) — label BenchmarkTest00092
+- `owasp-benchmark/testcode/BenchmarkTest00102.java` (sast, no rule) — label BenchmarkTest00102
 - `owasp-benchmark/testcode/BenchmarkTest00143.java` (sast, no rule) — label BenchmarkTest00143
 - `owasp-benchmark/testcode/BenchmarkTest00144.java` (sast, no rule) — label BenchmarkTest00144
 - `owasp-benchmark/testcode/BenchmarkTest00145.java` (sast, no rule) — label BenchmarkTest00145
@@ -1206,6 +1216,7 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00172.java` (sast, no rule) — label BenchmarkTest00172
 - `owasp-benchmark/testcode/BenchmarkTest00173.java` (sast, no rule) — label BenchmarkTest00173
 - `owasp-benchmark/testcode/BenchmarkTest00174.java` (sast, no rule) — label BenchmarkTest00174
+- `owasp-benchmark/testcode/BenchmarkTest00194.java` (sast, no rule) — label BenchmarkTest00194
 - `owasp-benchmark/testcode/BenchmarkTest00226.java` (sast, no rule) — label BenchmarkTest00226
 - `owasp-benchmark/testcode/BenchmarkTest00227.java` (sast, no rule) — label BenchmarkTest00227
 - `owasp-benchmark/testcode/BenchmarkTest00273.java` (sast, no rule) — label BenchmarkTest00273
@@ -1215,12 +1226,15 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00293.java` (sast, no rule) — label BenchmarkTest00293
 - `owasp-benchmark/testcode/BenchmarkTest00306.java` (sast, no rule) — label BenchmarkTest00306
 - `owasp-benchmark/testcode/BenchmarkTest00311.java` (sast, no rule) — label BenchmarkTest00311
+- `owasp-benchmark/testcode/BenchmarkTest00339.java` (sast, no rule) — label BenchmarkTest00339
+- `owasp-benchmark/testcode/BenchmarkTest00341.java` (sast, no rule) — label BenchmarkTest00341
 - `owasp-benchmark/testcode/BenchmarkTest00374.java` (sast, no rule) — label BenchmarkTest00374
 - `owasp-benchmark/testcode/BenchmarkTest00375.java` (sast, no rule) — label BenchmarkTest00375
 - `owasp-benchmark/testcode/BenchmarkTest00376.java` (sast, no rule) — label BenchmarkTest00376
 - `owasp-benchmark/testcode/BenchmarkTest00378.java` (sast, no rule) — label BenchmarkTest00378
 - `owasp-benchmark/testcode/BenchmarkTest00392.java` (sast, no rule) — label BenchmarkTest00392
 - `owasp-benchmark/testcode/BenchmarkTest00395.java` (sast, no rule) — label BenchmarkTest00395
+- `owasp-benchmark/testcode/BenchmarkTest00434.java` (sast, no rule) — label BenchmarkTest00434
 - `owasp-benchmark/testcode/BenchmarkTest00467.java` (sast, no rule) — label BenchmarkTest00467
 - `owasp-benchmark/testcode/BenchmarkTest00473.java` (sast, no rule) — label BenchmarkTest00473
 - `owasp-benchmark/testcode/BenchmarkTest00480.java` (sast, no rule) — label BenchmarkTest00480
@@ -1234,6 +1248,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00557.java` (sast, no rule) — label BenchmarkTest00557
 - `owasp-benchmark/testcode/BenchmarkTest00573.java` (sast, no rule) — label BenchmarkTest00573
 - `owasp-benchmark/testcode/BenchmarkTest00574.java` (sast, no rule) — label BenchmarkTest00574
+- `owasp-benchmark/testcode/BenchmarkTest00598.java` (sast, no rule) — label BenchmarkTest00598
+- `owasp-benchmark/testcode/BenchmarkTest00600.java` (sast, no rule) — label BenchmarkTest00600
 - `owasp-benchmark/testcode/BenchmarkTest00619.java` (sast, no rule) — label BenchmarkTest00619
 - `owasp-benchmark/testcode/BenchmarkTest00623.java` (sast, no rule) — label BenchmarkTest00623
 - `owasp-benchmark/testcode/BenchmarkTest00624.java` (sast, no rule) — label BenchmarkTest00624
@@ -1250,9 +1266,16 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00668.java` (sast, no rule) — label BenchmarkTest00668
 - `owasp-benchmark/testcode/BenchmarkTest00670.java` (sast, no rule) — label BenchmarkTest00670
 - `owasp-benchmark/testcode/BenchmarkTest00671.java` (sast, no rule) — label BenchmarkTest00671
+- `owasp-benchmark/testcode/BenchmarkTest00673.java` (sast, no rule) — label BenchmarkTest00673
+- `owasp-benchmark/testcode/BenchmarkTest00677.java` (sast, no rule) — label BenchmarkTest00677
+- `owasp-benchmark/testcode/BenchmarkTest00678.java` (sast, no rule) — label BenchmarkTest00678
+- `owasp-benchmark/testcode/BenchmarkTest00679.java` (sast, no rule) — label BenchmarkTest00679
+- `owasp-benchmark/testcode/BenchmarkTest00681.java` (sast, no rule) — label BenchmarkTest00681
 - `owasp-benchmark/testcode/BenchmarkTest00710.java` (sast, no rule) — label BenchmarkTest00710
 - `owasp-benchmark/testcode/BenchmarkTest00711.java` (sast, no rule) — label BenchmarkTest00711
 - `owasp-benchmark/testcode/BenchmarkTest00740.java` (sast, no rule) — label BenchmarkTest00740
+- `owasp-benchmark/testcode/BenchmarkTest00768.java` (sast, no rule) — label BenchmarkTest00768
+- `owasp-benchmark/testcode/BenchmarkTest00769.java` (sast, no rule) — label BenchmarkTest00769
 - `owasp-benchmark/testcode/BenchmarkTest00796.java` (sast, no rule) — label BenchmarkTest00796
 - `owasp-benchmark/testcode/BenchmarkTest00797.java` (sast, no rule) — label BenchmarkTest00797
 - `owasp-benchmark/testcode/BenchmarkTest00800.java` (sast, no rule) — label BenchmarkTest00800
@@ -1262,9 +1285,17 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00816.java` (sast, no rule) — label BenchmarkTest00816
 - `owasp-benchmark/testcode/BenchmarkTest00823.java` (sast, no rule) — label BenchmarkTest00823
 - `owasp-benchmark/testcode/BenchmarkTest00825.java` (sast, no rule) — label BenchmarkTest00825
+- `owasp-benchmark/testcode/BenchmarkTest00840.java` (sast, no rule) — label BenchmarkTest00840
+- `owasp-benchmark/testcode/BenchmarkTest00841.java` (sast, no rule) — label BenchmarkTest00841
+- `owasp-benchmark/testcode/BenchmarkTest00845.java` (sast, no rule) — label BenchmarkTest00845
+- `owasp-benchmark/testcode/BenchmarkTest00846.java` (sast, no rule) — label BenchmarkTest00846
 - `owasp-benchmark/testcode/BenchmarkTest00875.java` (sast, no rule) — label BenchmarkTest00875
 - `owasp-benchmark/testcode/BenchmarkTest00876.java` (sast, no rule) — label BenchmarkTest00876
 - `owasp-benchmark/testcode/BenchmarkTest00983.java` (sast, no rule) — label BenchmarkTest00983
+- `owasp-benchmark/testcode/BenchmarkTest01005.java` (sast, no rule) — label BenchmarkTest01005
+- `owasp-benchmark/testcode/BenchmarkTest01007.java` (sast, no rule) — label BenchmarkTest01007
+- `owasp-benchmark/testcode/BenchmarkTest01008.java` (sast, no rule) — label BenchmarkTest01008
+- `owasp-benchmark/testcode/BenchmarkTest01009.java` (sast, no rule) — label BenchmarkTest01009
 - `owasp-benchmark/testcode/BenchmarkTest01041.java` (sast, no rule) — label BenchmarkTest01041
 - `owasp-benchmark/testcode/BenchmarkTest01042.java` (sast, no rule) — label BenchmarkTest01042
 - `owasp-benchmark/testcode/BenchmarkTest01043.java` (sast, no rule) — label BenchmarkTest01043
@@ -1281,6 +1312,7 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01190.java` (sast, no rule) — label BenchmarkTest01190
 - `owasp-benchmark/testcode/BenchmarkTest01191.java` (sast, no rule) — label BenchmarkTest01191
 - `owasp-benchmark/testcode/BenchmarkTest01192.java` (sast, no rule) — label BenchmarkTest01192
+- `owasp-benchmark/testcode/BenchmarkTest01214.java` (sast, no rule) — label BenchmarkTest01214
 - `owasp-benchmark/testcode/BenchmarkTest01248.java` (sast, no rule) — label BenchmarkTest01248
 - `owasp-benchmark/testcode/BenchmarkTest01253.java` (sast, no rule) — label BenchmarkTest01253
 - `owasp-benchmark/testcode/BenchmarkTest01266.java` (sast, no rule) — label BenchmarkTest01266
@@ -1298,6 +1330,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01417.java` (sast, no rule) — label BenchmarkTest01417
 - `owasp-benchmark/testcode/BenchmarkTest01418.java` (sast, no rule) — label BenchmarkTest01418
 - `owasp-benchmark/testcode/BenchmarkTest01442.java` (sast, no rule) — label BenchmarkTest01442
+- `owasp-benchmark/testcode/BenchmarkTest01470.java` (sast, no rule) — label BenchmarkTest01470
+- `owasp-benchmark/testcode/BenchmarkTest01471.java` (sast, no rule) — label BenchmarkTest01471
 - `owasp-benchmark/testcode/BenchmarkTest01490.java` (sast, no rule) — label BenchmarkTest01490
 - `owasp-benchmark/testcode/BenchmarkTest01494.java` (sast, no rule) — label BenchmarkTest01494
 - `owasp-benchmark/testcode/BenchmarkTest01495.java` (sast, no rule) — label BenchmarkTest01495
@@ -1323,6 +1357,12 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01549.java` (sast, no rule) — label BenchmarkTest01549
 - `owasp-benchmark/testcode/BenchmarkTest01550.java` (sast, no rule) — label BenchmarkTest01550
 - `owasp-benchmark/testcode/BenchmarkTest01551.java` (sast, no rule) — label BenchmarkTest01551
+- `owasp-benchmark/testcode/BenchmarkTest01552.java` (sast, no rule) — label BenchmarkTest01552
+- `owasp-benchmark/testcode/BenchmarkTest01554.java` (sast, no rule) — label BenchmarkTest01554
+- `owasp-benchmark/testcode/BenchmarkTest01557.java` (sast, no rule) — label BenchmarkTest01557
+- `owasp-benchmark/testcode/BenchmarkTest01558.java` (sast, no rule) — label BenchmarkTest01558
+- `owasp-benchmark/testcode/BenchmarkTest01559.java` (sast, no rule) — label BenchmarkTest01559
+- `owasp-benchmark/testcode/BenchmarkTest01560.java` (sast, no rule) — label BenchmarkTest01560
 - `owasp-benchmark/testcode/BenchmarkTest01561.java` (sast, no rule) — label BenchmarkTest01561
 - `owasp-benchmark/testcode/BenchmarkTest01579.java` (sast, no rule) — label BenchmarkTest01579
 - `owasp-benchmark/testcode/BenchmarkTest01580.java` (sast, no rule) — label BenchmarkTest01580
@@ -1331,16 +1371,22 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01590.java` (sast, no rule) — label BenchmarkTest01590
 - `owasp-benchmark/testcode/BenchmarkTest01596.java` (sast, no rule) — label BenchmarkTest01596
 - `owasp-benchmark/testcode/BenchmarkTest01597.java` (sast, no rule) — label BenchmarkTest01597
+- `owasp-benchmark/testcode/BenchmarkTest01624.java` (sast, no rule) — label BenchmarkTest01624
 - `owasp-benchmark/testcode/BenchmarkTest01654.java` (sast, no rule) — label BenchmarkTest01654
 - `owasp-benchmark/testcode/BenchmarkTest01657.java` (sast, no rule) — label BenchmarkTest01657
 - `owasp-benchmark/testcode/BenchmarkTest01658.java` (sast, no rule) — label BenchmarkTest01658
 - `owasp-benchmark/testcode/BenchmarkTest01690.java` (sast, no rule) — label BenchmarkTest01690
 - `owasp-benchmark/testcode/BenchmarkTest01691.java` (sast, no rule) — label BenchmarkTest01691
+- `owasp-benchmark/testcode/BenchmarkTest01726.java` (sast, no rule) — label BenchmarkTest01726
+- `owasp-benchmark/testcode/BenchmarkTest01727.java` (sast, no rule) — label BenchmarkTest01727
 - `owasp-benchmark/testcode/BenchmarkTest01765.java` (sast, no rule) — label BenchmarkTest01765
 - `owasp-benchmark/testcode/BenchmarkTest01766.java` (sast, no rule) — label BenchmarkTest01766
+- `owasp-benchmark/testcode/BenchmarkTest01881.java` (sast, no rule) — label BenchmarkTest01881
+- `owasp-benchmark/testcode/BenchmarkTest01883.java` (sast, no rule) — label BenchmarkTest01883
 - `owasp-benchmark/testcode/BenchmarkTest01922.java` (sast, no rule) — label BenchmarkTest01922
 - `owasp-benchmark/testcode/BenchmarkTest01923.java` (sast, no rule) — label BenchmarkTest01923
 - `owasp-benchmark/testcode/BenchmarkTest01928.java` (sast, no rule) — label BenchmarkTest01928
+- `owasp-benchmark/testcode/BenchmarkTest01963.java` (sast, no rule) — label BenchmarkTest01963
 - `owasp-benchmark/testcode/BenchmarkTest01996.java` (sast, no rule) — label BenchmarkTest01996
 - `owasp-benchmark/testcode/BenchmarkTest01997.java` (sast, no rule) — label BenchmarkTest01997
 - `owasp-benchmark/testcode/BenchmarkTest02054.java` (sast, no rule) — label BenchmarkTest02054
@@ -1351,6 +1397,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02136.java` (sast, no rule) — label BenchmarkTest02136
 - `owasp-benchmark/testcode/BenchmarkTest02137.java` (sast, no rule) — label BenchmarkTest02137
 - `owasp-benchmark/testcode/BenchmarkTest02155.java` (sast, no rule) — label BenchmarkTest02155
+- `owasp-benchmark/testcode/BenchmarkTest02181.java` (sast, no rule) — label BenchmarkTest02181
+- `owasp-benchmark/testcode/BenchmarkTest02182.java` (sast, no rule) — label BenchmarkTest02182
 - `owasp-benchmark/testcode/BenchmarkTest02219.java` (sast, no rule) — label BenchmarkTest02219
 - `owasp-benchmark/testcode/BenchmarkTest02221.java` (sast, no rule) — label BenchmarkTest02221
 - `owasp-benchmark/testcode/BenchmarkTest02223.java` (sast, no rule) — label BenchmarkTest02223
@@ -1358,6 +1406,9 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02225.java` (sast, no rule) — label BenchmarkTest02225
 - `owasp-benchmark/testcode/BenchmarkTest02232.java` (sast, no rule) — label BenchmarkTest02232
 - `owasp-benchmark/testcode/BenchmarkTest02234.java` (sast, no rule) — label BenchmarkTest02234
+- `owasp-benchmark/testcode/BenchmarkTest02272.java` (sast, no rule) — label BenchmarkTest02272
+- `owasp-benchmark/testcode/BenchmarkTest02273.java` (sast, no rule) — label BenchmarkTest02273
+- `owasp-benchmark/testcode/BenchmarkTest02281.java` (sast, no rule) — label BenchmarkTest02281
 - `owasp-benchmark/testcode/BenchmarkTest02314.java` (sast, no rule) — label BenchmarkTest02314
 - `owasp-benchmark/testcode/BenchmarkTest02315.java` (sast, no rule) — label BenchmarkTest02315
 - `owasp-benchmark/testcode/BenchmarkTest02316.java` (sast, no rule) — label BenchmarkTest02316
@@ -1367,6 +1418,7 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02333.java` (sast, no rule) — label BenchmarkTest02333
 - `owasp-benchmark/testcode/BenchmarkTest02334.java` (sast, no rule) — label BenchmarkTest02334
 - `owasp-benchmark/testcode/BenchmarkTest02344.java` (sast, no rule) — label BenchmarkTest02344
+- `owasp-benchmark/testcode/BenchmarkTest02362.java` (sast, no rule) — label BenchmarkTest02362
 - `owasp-benchmark/testcode/BenchmarkTest02377.java` (sast, no rule) — label BenchmarkTest02377
 - `owasp-benchmark/testcode/BenchmarkTest02378.java` (sast, no rule) — label BenchmarkTest02378
 - `owasp-benchmark/testcode/BenchmarkTest02383.java` (sast, no rule) — label BenchmarkTest02383
@@ -1395,6 +1447,10 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02446.java` (sast, no rule) — label BenchmarkTest02446
 - `owasp-benchmark/testcode/BenchmarkTest02448.java` (sast, no rule) — label BenchmarkTest02448
 - `owasp-benchmark/testcode/BenchmarkTest02449.java` (sast, no rule) — label BenchmarkTest02449
+- `owasp-benchmark/testcode/BenchmarkTest02451.java` (sast, no rule) — label BenchmarkTest02451
+- `owasp-benchmark/testcode/BenchmarkTest02453.java` (sast, no rule) — label BenchmarkTest02453
+- `owasp-benchmark/testcode/BenchmarkTest02454.java` (sast, no rule) — label BenchmarkTest02454
+- `owasp-benchmark/testcode/BenchmarkTest02455.java` (sast, no rule) — label BenchmarkTest02455
 - `owasp-benchmark/testcode/BenchmarkTest02478.java` (sast, no rule) — label BenchmarkTest02478
 - `owasp-benchmark/testcode/BenchmarkTest02489.java` (sast, no rule) — label BenchmarkTest02489
 - `owasp-benchmark/testcode/BenchmarkTest02493.java` (sast, no rule) — label BenchmarkTest02493
@@ -1405,6 +1461,7 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02515.java` (sast, no rule) — label BenchmarkTest02515
 - `owasp-benchmark/testcode/BenchmarkTest02516.java` (sast, no rule) — label BenchmarkTest02516
 - `owasp-benchmark/testcode/BenchmarkTest02517.java` (sast, no rule) — label BenchmarkTest02517
+- `owasp-benchmark/testcode/BenchmarkTest02537.java` (sast, no rule) — label BenchmarkTest02537
 - `owasp-benchmark/testcode/BenchmarkTest02577.java` (sast, no rule) — label BenchmarkTest02577
 - `owasp-benchmark/testcode/BenchmarkTest02578.java` (sast, no rule) — label BenchmarkTest02578
 - `owasp-benchmark/testcode/BenchmarkTest02579.java` (sast, no rule) — label BenchmarkTest02579
@@ -1412,6 +1469,10 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02600.java` (sast, no rule) — label BenchmarkTest02600
 - `owasp-benchmark/testcode/BenchmarkTest02612.java` (sast, no rule) — label BenchmarkTest02612
 - `owasp-benchmark/testcode/BenchmarkTest02613.java` (sast, no rule) — label BenchmarkTest02613
+- `owasp-benchmark/testcode/BenchmarkTest02638.java` (sast, no rule) — label BenchmarkTest02638
+- `owasp-benchmark/testcode/BenchmarkTest02644.java` (sast, no rule) — label BenchmarkTest02644
+- `owasp-benchmark/testcode/BenchmarkTest02645.java` (sast, no rule) — label BenchmarkTest02645
+- `owasp-benchmark/testcode/BenchmarkTest02646.java` (sast, no rule) — label BenchmarkTest02646
 - `owasp-benchmark/testcode/BenchmarkTest02677.java` (sast, no rule) — label BenchmarkTest02677
 - `sampleco/app/src/routes/adminRoutes.js:4` (slop, no rule) — label D5a
 - `sampleco/app/src/routes/adminRoutes.js:16` (sast, no rule) — label D9
@@ -1422,7 +1483,7 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `sampleco/app/src/utils/format.js:2` (slop, no rule) — label D4
 - `sampleco/app/src/utils/validate.js:3` (slop, no rule) — label D8
 
-## False positives (736)
+## False positives (487)
 
 - `changes/logging-secret-field/before/src/login.js:5` bpm-log-injection
 - `juliet-java/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__Environment_05.java:97` bpm-java-command-concat — label CWE78_OS_Command_Injection__Environment_05.java#goodG2B1
@@ -1617,25 +1678,6 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__File_prepareStatement_02.java:188` bpm-java-sql-string-concat — label CWE89_SQL_Injection__File_prepareStatement_02.java#goodG2B1
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__File_prepareStatement_02.java:256` bpm-java-sql-string-concat — label CWE89_SQL_Injection__File_prepareStatement_02.java#goodG2B2
 - `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__File_prepareStatement_51b.java:96` bpm-java-sql-string-concat — label CWE89_SQL_Injection__File_prepareStatement_51b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeBatch_14.java:147` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeBatch_14.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeBatch_14.java:224` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeBatch_14.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeBatch_61a.java:116` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeBatch_61a.java#goodG2B
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeQuery_02.java:139` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeQuery_02.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeQuery_02.java:213` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeQuery_02.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeQuery_51b.java:105` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeQuery_51b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_14.java:125` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_14.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_14.java:186` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_14.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_61a.java:99` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_61a.java#goodG2B
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_execute_02.java:132` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_execute_02.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_execute_02.java:200` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_execute_02.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_15.java:140` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_15.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_15.java:216` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_15.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_61a.java:104` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_61a.java#goodG2B
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeBatch_03.java:139` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeBatch_03.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeBatch_03.java:216` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeBatch_03.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeQuery_15.java:140` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeQuery_15.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeQuery_15.java:222` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeQuery_15.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeQuery_61a.java:113` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeQuery_61a.java#goodG2B
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeBatch_01.java:161` bpm-java-sql-string-concat — label CWE89_SQL_Injection__PropertiesFile_executeBatch_01.java#goodG2B
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeBatch_72b.java:111` bpm-java-sql-string-concat — label CWE89_SQL_Injection__PropertiesFile_executeBatch_72b.java#goodG2BSink
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeQuery_13.java:166` bpm-java-sql-string-concat — label CWE89_SQL_Injection__PropertiesFile_executeQuery_13.java#goodG2B1
@@ -1643,30 +1685,6 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeQuery_54e.java:105` bpm-java-sql-string-concat — label CWE89_SQL_Injection__PropertiesFile_executeQuery_54e.java#goodG2BSink
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeUpdate_01.java:144` bpm-java-sql-string-concat — label CWE89_SQL_Injection__PropertiesFile_executeUpdate_01.java#goodG2B
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__PropertiesFile_executeUpdate_72b.java:94` bpm-java-sql-string-concat — label CWE89_SQL_Injection__PropertiesFile_executeUpdate_72b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_13.java:117` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_13.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_13.java:178` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_13.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_54e.java:91` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_54e.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_execute_01.java:113` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_execute_01.java#goodG2B
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_execute_51b.java:98` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_execute_51b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_execute_72b.java:101` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_execute_72b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_14.java:123` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_14.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_14.java:191` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_14.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_54e.java:96` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_54e.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_02.java:152` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_02.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_02.java:229` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_02.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_51b.java:108` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_51b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_72b.java:111` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_72b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_14.java:144` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_14.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_14.java:218` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_14.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_54e.java:105` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_54e.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_02.java:130` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_02.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_02.java:191` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_02.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_51b.java:91` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_51b.java#goodG2BSink
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_execute_14.java:137` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_execute_14.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_execute_14.java:205` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_execute_14.java#goodG2B2
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_execute_61a.java:106` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_execute_61a.java#goodG2B
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_02.java:136` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_02.java#goodG2B1
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_02.java:204` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_02.java#goodG2B2
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__listen_tcp_executeBatch_14.java:218` bpm-java-sql-string-concat — label CWE89_SQL_Injection__listen_tcp_executeBatch_14.java#goodG2B1
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__listen_tcp_executeBatch_14.java:295` bpm-java-sql-string-concat — label CWE89_SQL_Injection__listen_tcp_executeBatch_14.java#goodG2B2
 - `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__listen_tcp_executeBatch_61a.java:116` bpm-java-sql-string-concat — label CWE89_SQL_Injection__listen_tcp_executeBatch_61a.java#goodG2B
@@ -1719,12 +1737,6 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00093.java:88` bpm-inj-cmd-java — label BenchmarkTest00093
 - `owasp-benchmark/testcode/BenchmarkTest00093.java:88` bpm-java-command-concat — label BenchmarkTest00093
 - `owasp-benchmark/testcode/BenchmarkTest00099.java:79` bpm-inj-trust-java — label BenchmarkTest00099
-- `owasp-benchmark/testcode/BenchmarkTest00104.java:76` bpm-java-sql-string-concat — label BenchmarkTest00104
-- `owasp-benchmark/testcode/BenchmarkTest00105.java:78` bpm-java-sql-string-concat — label BenchmarkTest00105
-- `owasp-benchmark/testcode/BenchmarkTest00107.java:94` bpm-java-sql-string-concat — label BenchmarkTest00107
-- `owasp-benchmark/testcode/BenchmarkTest00110.java:94` bpm-java-sql-string-concat — label BenchmarkTest00110
-- `owasp-benchmark/testcode/BenchmarkTest00113.java:79` bpm-java-sql-string-concat — label BenchmarkTest00113
-- `owasp-benchmark/testcode/BenchmarkTest00114.java:78` bpm-java-sql-string-concat — label BenchmarkTest00114
 - `owasp-benchmark/testcode/BenchmarkTest00131.java:72` bpm-inj-path-java — label BenchmarkTest00131
 - `owasp-benchmark/testcode/BenchmarkTest00132.java:77` bpm-inj-path-java — label BenchmarkTest00132
 - `owasp-benchmark/testcode/BenchmarkTest00134.java:75` bpm-inj-path-java — label BenchmarkTest00134
@@ -1733,14 +1745,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00177.java:69` bpm-java-command-concat — label BenchmarkTest00177
 - `owasp-benchmark/testcode/BenchmarkTest00190.java:70` bpm-inj-sql-java — label BenchmarkTest00190
 - `owasp-benchmark/testcode/BenchmarkTest00191.java:79` bpm-inj-sql-java — label BenchmarkTest00191
-- `owasp-benchmark/testcode/BenchmarkTest00197.java:66` bpm-java-sql-string-concat — label BenchmarkTest00197
 - `owasp-benchmark/testcode/BenchmarkTest00197.java:67` bpm-inj-sql-java — label BenchmarkTest00197
-- `owasp-benchmark/testcode/BenchmarkTest00200.java:66` bpm-java-sql-string-concat — label BenchmarkTest00200
-- `owasp-benchmark/testcode/BenchmarkTest00201.java:77` bpm-java-sql-string-concat — label BenchmarkTest00201
-- `owasp-benchmark/testcode/BenchmarkTest00202.java:79` bpm-java-sql-string-concat — label BenchmarkTest00202
 - `owasp-benchmark/testcode/BenchmarkTest00205.java:68` bpm-inj-sql-java — label BenchmarkTest00205
-- `owasp-benchmark/testcode/BenchmarkTest00205.java:68` bpm-java-sql-string-concat — label BenchmarkTest00205
-- `owasp-benchmark/testcode/BenchmarkTest00206.java:79` bpm-java-sql-string-concat — label BenchmarkTest00206
 - `owasp-benchmark/testcode/BenchmarkTest00250.java:83` bpm-inj-trust-java — label BenchmarkTest00250
 - `owasp-benchmark/testcode/BenchmarkTest00252.java:74` bpm-inj-trust-java — label BenchmarkTest00252
 - `owasp-benchmark/testcode/BenchmarkTest00253.java:83` bpm-inj-trust-java — label BenchmarkTest00253
@@ -1757,36 +1763,17 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00308.java:70` bpm-java-command-concat — label BenchmarkTest00308
 - `owasp-benchmark/testcode/BenchmarkTest00310.java:85` bpm-inj-cmd-java — label BenchmarkTest00310
 - `owasp-benchmark/testcode/BenchmarkTest00310.java:85` bpm-java-command-concat — label BenchmarkTest00310
-- `owasp-benchmark/testcode/BenchmarkTest00331.java:66` bpm-java-sql-string-concat — label BenchmarkTest00331
-- `owasp-benchmark/testcode/BenchmarkTest00332.java:81` bpm-java-sql-string-concat — label BenchmarkTest00332
-- `owasp-benchmark/testcode/BenchmarkTest00333.java:65` bpm-java-sql-string-concat — label BenchmarkTest00333
-- `owasp-benchmark/testcode/BenchmarkTest00334.java:82` bpm-java-sql-string-concat — label BenchmarkTest00334
-- `owasp-benchmark/testcode/BenchmarkTest00336.java:65` bpm-java-sql-string-concat — label BenchmarkTest00336
-- `owasp-benchmark/testcode/BenchmarkTest00338.java:64` bpm-java-sql-string-concat — label BenchmarkTest00338
-- `owasp-benchmark/testcode/BenchmarkTest00340.java:77` bpm-java-sql-string-concat — label BenchmarkTest00340
-- `owasp-benchmark/testcode/BenchmarkTest00343.java:65` bpm-java-sql-string-concat — label BenchmarkTest00343
-- `owasp-benchmark/testcode/BenchmarkTest00344.java:65` bpm-java-sql-string-concat — label BenchmarkTest00344
 - `owasp-benchmark/testcode/BenchmarkTest00361.java:72` bpm-inj-path-java — label BenchmarkTest00361
 - `owasp-benchmark/testcode/BenchmarkTest00364.java:64` bpm-inj-path-java — label BenchmarkTest00364
 - `owasp-benchmark/testcode/BenchmarkTest00366.java:71` bpm-inj-path-java — label BenchmarkTest00366
 - `owasp-benchmark/testcode/BenchmarkTest00381.java:50` bpm-inj-xss-java — label BenchmarkTest00381
 - `owasp-benchmark/testcode/BenchmarkTest00389.java:49` bpm-inj-xss-java — label BenchmarkTest00389
 - `owasp-benchmark/testcode/BenchmarkTest00391.java:49` bpm-inj-xss-java — label BenchmarkTest00391
-- `owasp-benchmark/testcode/BenchmarkTest00430.java:59` bpm-java-sql-string-concat — label BenchmarkTest00430
 - `owasp-benchmark/testcode/BenchmarkTest00432.java:62` bpm-inj-sql-java — label BenchmarkTest00432
-- `owasp-benchmark/testcode/BenchmarkTest00432.java:62` bpm-java-sql-string-concat — label BenchmarkTest00432
-- `owasp-benchmark/testcode/BenchmarkTest00436.java:58` bpm-java-sql-string-concat — label BenchmarkTest00436
-- `owasp-benchmark/testcode/BenchmarkTest00437.java:58` bpm-java-sql-string-concat — label BenchmarkTest00437
-- `owasp-benchmark/testcode/BenchmarkTest00440.java:59` bpm-java-sql-string-concat — label BenchmarkTest00440
 - `owasp-benchmark/testcode/BenchmarkTest00458.java:77` bpm-inj-path-java — label BenchmarkTest00458
 - `owasp-benchmark/testcode/BenchmarkTest00471.java:54` bpm-inj-xss-java — label BenchmarkTest00471
 - `owasp-benchmark/testcode/BenchmarkTest00474.java:53` bpm-inj-xss-java — label BenchmarkTest00474
 - `owasp-benchmark/testcode/BenchmarkTest00494.java:83` bpm-inj-cmd-java — label BenchmarkTest00494
-- `owasp-benchmark/testcode/BenchmarkTest00511.java:61` bpm-java-sql-string-concat — label BenchmarkTest00511
-- `owasp-benchmark/testcode/BenchmarkTest00513.java:63` bpm-java-sql-string-concat — label BenchmarkTest00513
-- `owasp-benchmark/testcode/BenchmarkTest00514.java:62` bpm-java-sql-string-concat — label BenchmarkTest00514
-- `owasp-benchmark/testcode/BenchmarkTest00517.java:62` bpm-java-sql-string-concat — label BenchmarkTest00517
-- `owasp-benchmark/testcode/BenchmarkTest00519.java:63` bpm-java-sql-string-concat — label BenchmarkTest00519
 - `owasp-benchmark/testcode/BenchmarkTest00530.java:94` bpm-inj-ldap-java — label BenchmarkTest00530
 - `owasp-benchmark/testcode/BenchmarkTest00544.java:73` bpm-inj-xss-java — label BenchmarkTest00544
 - `owasp-benchmark/testcode/BenchmarkTest00546.java:73` bpm-inj-xss-java — label BenchmarkTest00546
@@ -1796,20 +1783,10 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00558.java:84` bpm-inj-cmd-java — label BenchmarkTest00558
 - `owasp-benchmark/testcode/BenchmarkTest00572.java:77` bpm-java-command-concat — label BenchmarkTest00572
 - `owasp-benchmark/testcode/BenchmarkTest00589.java:79` bpm-inj-sql-java — label BenchmarkTest00589
-- `owasp-benchmark/testcode/BenchmarkTest00592.java:89` bpm-java-sql-string-concat — label BenchmarkTest00592
-- `owasp-benchmark/testcode/BenchmarkTest00599.java:86` bpm-java-sql-string-concat — label BenchmarkTest00599
-- `owasp-benchmark/testcode/BenchmarkTest00601.java:72` bpm-java-sql-string-concat — label BenchmarkTest00601
 - `owasp-benchmark/testcode/BenchmarkTest00602.java:77` bpm-inj-sql-java — label BenchmarkTest00602
-- `owasp-benchmark/testcode/BenchmarkTest00602.java:77` bpm-java-sql-string-concat — label BenchmarkTest00602
-- `owasp-benchmark/testcode/BenchmarkTest00605.java:72` bpm-java-sql-string-concat — label BenchmarkTest00605
 - `owasp-benchmark/testcode/BenchmarkTest00657.java:65` bpm-java-command-concat — label BenchmarkTest00657
 - `owasp-benchmark/testcode/BenchmarkTest00658.java:64` bpm-java-command-concat — label BenchmarkTest00658
 - `owasp-benchmark/testcode/BenchmarkTest00659.java:80` bpm-java-command-concat — label BenchmarkTest00659
-- `owasp-benchmark/testcode/BenchmarkTest00674.java:77` bpm-java-sql-string-concat — label BenchmarkTest00674
-- `owasp-benchmark/testcode/BenchmarkTest00675.java:61` bpm-java-sql-string-concat — label BenchmarkTest00675
-- `owasp-benchmark/testcode/BenchmarkTest00676.java:61` bpm-java-sql-string-concat — label BenchmarkTest00676
-- `owasp-benchmark/testcode/BenchmarkTest00680.java:61` bpm-java-sql-string-concat — label BenchmarkTest00680
-- `owasp-benchmark/testcode/BenchmarkTest00682.java:74` bpm-java-sql-string-concat — label BenchmarkTest00682
 - `owasp-benchmark/testcode/BenchmarkTest00699.java:69` bpm-inj-path-java — label BenchmarkTest00699
 - `owasp-benchmark/testcode/BenchmarkTest00716.java:52` bpm-inj-xss-java — label BenchmarkTest00716
 - `owasp-benchmark/testcode/BenchmarkTest00718.java:52` bpm-inj-xss-java — label BenchmarkTest00718
@@ -1819,46 +1796,19 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00742.java:67` bpm-java-command-concat — label BenchmarkTest00742
 - `owasp-benchmark/testcode/BenchmarkTest00758.java:61` bpm-inj-trust-java — label BenchmarkTest00758
 - `owasp-benchmark/testcode/BenchmarkTest00763.java:75` bpm-inj-sql-java — label BenchmarkTest00763
-- `owasp-benchmark/testcode/BenchmarkTest00763.java:75` bpm-java-sql-string-concat — label BenchmarkTest00763
-- `owasp-benchmark/testcode/BenchmarkTest00766.java:60` bpm-java-sql-string-concat — label BenchmarkTest00766
 - `owasp-benchmark/testcode/BenchmarkTest00772.java:74` bpm-inj-sql-java — label BenchmarkTest00772
-- `owasp-benchmark/testcode/BenchmarkTest00772.java:74` bpm-java-sql-string-concat — label BenchmarkTest00772
 - `owasp-benchmark/testcode/BenchmarkTest00773.java:65` bpm-inj-sql-java — label BenchmarkTest00773
-- `owasp-benchmark/testcode/BenchmarkTest00773.java:65` bpm-java-sql-string-concat — label BenchmarkTest00773
 - `owasp-benchmark/testcode/BenchmarkTest00774.java:74` bpm-inj-sql-java — label BenchmarkTest00774
-- `owasp-benchmark/testcode/BenchmarkTest00774.java:74` bpm-java-sql-string-concat — label BenchmarkTest00774
 - `owasp-benchmark/testcode/BenchmarkTest00784.java:96` bpm-inj-path-java — label BenchmarkTest00784
 - `owasp-benchmark/testcode/BenchmarkTest00826.java:88` bpm-java-command-concat — label BenchmarkTest00826
 - `owasp-benchmark/testcode/BenchmarkTest00835.java:83` bpm-inj-trust-java — label BenchmarkTest00835
-- `owasp-benchmark/testcode/BenchmarkTest00838.java:97` bpm-java-sql-string-concat — label BenchmarkTest00838
 - `owasp-benchmark/testcode/BenchmarkTest00838.java:98` bpm-inj-sql-java — label BenchmarkTest00838
-- `owasp-benchmark/testcode/BenchmarkTest00844.java:86` bpm-java-sql-string-concat — label BenchmarkTest00844
 - `owasp-benchmark/testcode/BenchmarkTest00844.java:87` bpm-inj-sql-java — label BenchmarkTest00844
-- `owasp-benchmark/testcode/BenchmarkTest00851.java:82` bpm-java-sql-string-concat — label BenchmarkTest00851
 - `owasp-benchmark/testcode/BenchmarkTest00910.java:65` bpm-java-command-concat — label BenchmarkTest00910
-- `owasp-benchmark/testcode/BenchmarkTest00925.java:56` bpm-java-sql-string-concat — label BenchmarkTest00925
-- `owasp-benchmark/testcode/BenchmarkTest00926.java:64` bpm-java-sql-string-concat — label BenchmarkTest00926
-- `owasp-benchmark/testcode/BenchmarkTest00927.java:65` bpm-java-sql-string-concat — label BenchmarkTest00927
-- `owasp-benchmark/testcode/BenchmarkTest00928.java:60` bpm-java-sql-string-concat — label BenchmarkTest00928
-- `owasp-benchmark/testcode/BenchmarkTest00929.java:74` bpm-java-sql-string-concat — label BenchmarkTest00929
-- `owasp-benchmark/testcode/BenchmarkTest00930.java:59` bpm-java-sql-string-concat — label BenchmarkTest00930
-- `owasp-benchmark/testcode/BenchmarkTest00931.java:62` bpm-java-sql-string-concat — label BenchmarkTest00931
-- `owasp-benchmark/testcode/BenchmarkTest00932.java:71` bpm-java-sql-string-concat — label BenchmarkTest00932
-- `owasp-benchmark/testcode/BenchmarkTest00933.java:55` bpm-java-sql-string-concat — label BenchmarkTest00933
-- `owasp-benchmark/testcode/BenchmarkTest00934.java:73` bpm-java-sql-string-concat — label BenchmarkTest00934
-- `owasp-benchmark/testcode/BenchmarkTest00935.java:72` bpm-java-sql-string-concat — label BenchmarkTest00935
-- `owasp-benchmark/testcode/BenchmarkTest00936.java:57` bpm-java-sql-string-concat — label BenchmarkTest00936
-- `owasp-benchmark/testcode/BenchmarkTest00937.java:73` bpm-java-sql-string-concat — label BenchmarkTest00937
-- `owasp-benchmark/testcode/BenchmarkTest00938.java:61` bpm-java-sql-string-concat — label BenchmarkTest00938
-- `owasp-benchmark/testcode/BenchmarkTest00939.java:73` bpm-java-sql-string-concat — label BenchmarkTest00939
-- `owasp-benchmark/testcode/BenchmarkTest00940.java:64` bpm-java-sql-string-concat — label BenchmarkTest00940
 - `owasp-benchmark/testcode/BenchmarkTest00957.java:72` bpm-inj-path-java — label BenchmarkTest00957
 - `owasp-benchmark/testcode/BenchmarkTest00992.java:69` bpm-inj-trust-java — label BenchmarkTest00992
 - `owasp-benchmark/testcode/BenchmarkTest00993.java:69` bpm-inj-trust-java — label BenchmarkTest00993
-- `owasp-benchmark/testcode/BenchmarkTest01001.java:73` bpm-java-sql-string-concat — label BenchmarkTest01001
-- `owasp-benchmark/testcode/BenchmarkTest01010.java:71` bpm-java-sql-string-concat — label BenchmarkTest01010
 - `owasp-benchmark/testcode/BenchmarkTest01012.java:73` bpm-inj-sql-java — label BenchmarkTest01012
-- `owasp-benchmark/testcode/BenchmarkTest01012.java:73` bpm-java-sql-string-concat — label BenchmarkTest01012
 - `owasp-benchmark/testcode/BenchmarkTest01014.java:83` bpm-inj-xpath-java — label BenchmarkTest01014
 - `owasp-benchmark/testcode/BenchmarkTest01028.java:70` bpm-inj-path-java — label BenchmarkTest01028
 - `owasp-benchmark/testcode/BenchmarkTest01030.java:73` bpm-inj-path-java — label BenchmarkTest01030
@@ -1867,15 +1817,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01068.java:64` bpm-java-command-concat — label BenchmarkTest01068
 - `owasp-benchmark/testcode/BenchmarkTest01080.java:54` bpm-inj-trust-java — label BenchmarkTest01080
 - `owasp-benchmark/testcode/BenchmarkTest01085.java:56` bpm-inj-sql-java — label BenchmarkTest01085
-- `owasp-benchmark/testcode/BenchmarkTest01085.java:56` bpm-java-sql-string-concat — label BenchmarkTest01085
-- `owasp-benchmark/testcode/BenchmarkTest01086.java:56` bpm-java-sql-string-concat — label BenchmarkTest01086
-- `owasp-benchmark/testcode/BenchmarkTest01089.java:57` bpm-java-sql-string-concat — label BenchmarkTest01089
-- `owasp-benchmark/testcode/BenchmarkTest01092.java:58` bpm-java-sql-string-concat — label BenchmarkTest01092
-- `owasp-benchmark/testcode/BenchmarkTest01095.java:58` bpm-java-sql-string-concat — label BenchmarkTest01095
 - `owasp-benchmark/testcode/BenchmarkTest01096.java:58` bpm-inj-sql-java — label BenchmarkTest01096
-- `owasp-benchmark/testcode/BenchmarkTest01096.java:58` bpm-java-sql-string-concat — label BenchmarkTest01096
 - `owasp-benchmark/testcode/BenchmarkTest01098.java:58` bpm-inj-sql-java — label BenchmarkTest01098
-- `owasp-benchmark/testcode/BenchmarkTest01098.java:58` bpm-java-sql-string-concat — label BenchmarkTest01098
 - `owasp-benchmark/testcode/BenchmarkTest01110.java:80` bpm-inj-path-java — label BenchmarkTest01110
 - `owasp-benchmark/testcode/BenchmarkTest01144.java:64` bpm-inj-trust-java — label BenchmarkTest01144
 - `owasp-benchmark/testcode/BenchmarkTest01146.java:64` bpm-inj-trust-java — label BenchmarkTest01146
@@ -1887,16 +1830,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01182.java:67` bpm-inj-cmd-java — label BenchmarkTest01182
 - `owasp-benchmark/testcode/BenchmarkTest01188.java:56` bpm-inj-xss-java — label BenchmarkTest01188
 - `owasp-benchmark/testcode/BenchmarkTest01212.java:61` bpm-inj-sql-java — label BenchmarkTest01212
-- `owasp-benchmark/testcode/BenchmarkTest01212.java:61` bpm-java-sql-string-concat — label BenchmarkTest01212
-- `owasp-benchmark/testcode/BenchmarkTest01213.java:61` bpm-java-sql-string-concat — label BenchmarkTest01213
-- `owasp-benchmark/testcode/BenchmarkTest01215.java:60` bpm-java-sql-string-concat — label BenchmarkTest01215
 - `owasp-benchmark/testcode/BenchmarkTest01215.java:61` bpm-inj-sql-java — label BenchmarkTest01215
 - `owasp-benchmark/testcode/BenchmarkTest01216.java:60` bpm-inj-sql-java — label BenchmarkTest01216
-- `owasp-benchmark/testcode/BenchmarkTest01216.java:60` bpm-java-sql-string-concat — label BenchmarkTest01216
-- `owasp-benchmark/testcode/BenchmarkTest01217.java:60` bpm-java-sql-string-concat — label BenchmarkTest01217
-- `owasp-benchmark/testcode/BenchmarkTest01218.java:60` bpm-java-sql-string-concat — label BenchmarkTest01218
-- `owasp-benchmark/testcode/BenchmarkTest01219.java:60` bpm-java-sql-string-concat — label BenchmarkTest01219
-- `owasp-benchmark/testcode/BenchmarkTest01220.java:60` bpm-java-sql-string-concat — label BenchmarkTest01220
 - `owasp-benchmark/testcode/BenchmarkTest01233.java:50` bpm-inj-path-java — label BenchmarkTest01233
 - `owasp-benchmark/testcode/BenchmarkTest01239.java:60` bpm-inj-path-java — label BenchmarkTest01239
 - `owasp-benchmark/testcode/BenchmarkTest01240.java:54` bpm-inj-path-java — label BenchmarkTest01240
@@ -1907,13 +1842,7 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01289.java:58` bpm-java-command-concat — label BenchmarkTest01289
 - `owasp-benchmark/testcode/BenchmarkTest01300.java:49` bpm-inj-trust-java — label BenchmarkTest01300
 - `owasp-benchmark/testcode/BenchmarkTest01303.java:54` bpm-inj-sql-java — label BenchmarkTest01303
-- `owasp-benchmark/testcode/BenchmarkTest01303.java:54` bpm-java-sql-string-concat — label BenchmarkTest01303
-- `owasp-benchmark/testcode/BenchmarkTest01305.java:54` bpm-java-sql-string-concat — label BenchmarkTest01305
-- `owasp-benchmark/testcode/BenchmarkTest01307.java:54` bpm-java-sql-string-concat — label BenchmarkTest01307
-- `owasp-benchmark/testcode/BenchmarkTest01309.java:52` bpm-java-sql-string-concat — label BenchmarkTest01309
 - `owasp-benchmark/testcode/BenchmarkTest01310.java:53` bpm-inj-sql-java — label BenchmarkTest01310
-- `owasp-benchmark/testcode/BenchmarkTest01310.java:53` bpm-java-sql-string-concat — label BenchmarkTest01310
-- `owasp-benchmark/testcode/BenchmarkTest01315.java:53` bpm-java-sql-string-concat — label BenchmarkTest01315
 - `owasp-benchmark/testcode/BenchmarkTest01331.java:58` bpm-inj-path-java — label BenchmarkTest01331
 - `owasp-benchmark/testcode/BenchmarkTest01338.java:53` bpm-inj-xss-java — label BenchmarkTest01338
 - `owasp-benchmark/testcode/BenchmarkTest01339.java:53` bpm-inj-xss-java — label BenchmarkTest01339
@@ -1925,31 +1854,18 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01365.java:63` bpm-java-command-concat — label BenchmarkTest01365
 - `owasp-benchmark/testcode/BenchmarkTest01377.java:53` bpm-inj-trust-java — label BenchmarkTest01377
 - `owasp-benchmark/testcode/BenchmarkTest01385.java:58` bpm-inj-sql-java — label BenchmarkTest01385
-- `owasp-benchmark/testcode/BenchmarkTest01385.java:58` bpm-java-sql-string-concat — label BenchmarkTest01385
-- `owasp-benchmark/testcode/BenchmarkTest01386.java:58` bpm-java-sql-string-concat — label BenchmarkTest01386
 - `owasp-benchmark/testcode/BenchmarkTest01386.java:59` bpm-inj-sql-java — label BenchmarkTest01386
-- `owasp-benchmark/testcode/BenchmarkTest01387.java:58` bpm-java-sql-string-concat — label BenchmarkTest01387
 - `owasp-benchmark/testcode/BenchmarkTest01389.java:56` bpm-inj-sql-java — label BenchmarkTest01389
-- `owasp-benchmark/testcode/BenchmarkTest01389.java:56` bpm-java-sql-string-concat — label BenchmarkTest01389
-- `owasp-benchmark/testcode/BenchmarkTest01392.java:57` bpm-java-sql-string-concat — label BenchmarkTest01392
-- `owasp-benchmark/testcode/BenchmarkTest01393.java:57` bpm-java-sql-string-concat — label BenchmarkTest01393
 - `owasp-benchmark/testcode/BenchmarkTest01406.java:67` bpm-inj-path-java — label BenchmarkTest01406
 - `owasp-benchmark/testcode/BenchmarkTest01420.java:63` bpm-inj-xss-java — label BenchmarkTest01420
 - `owasp-benchmark/testcode/BenchmarkTest01425.java:63` bpm-inj-xss-java — label BenchmarkTest01425
 - `owasp-benchmark/testcode/BenchmarkTest01440.java:71` bpm-java-command-concat — label BenchmarkTest01440
 - `owasp-benchmark/testcode/BenchmarkTest01443.java:72` bpm-java-command-concat — label BenchmarkTest01443
 - `owasp-benchmark/testcode/BenchmarkTest01459.java:67` bpm-inj-sql-java — label BenchmarkTest01459
-- `owasp-benchmark/testcode/BenchmarkTest01467.java:66` bpm-java-sql-string-concat — label BenchmarkTest01467
-- `owasp-benchmark/testcode/BenchmarkTest01468.java:66` bpm-java-sql-string-concat — label BenchmarkTest01468
-- `owasp-benchmark/testcode/BenchmarkTest01469.java:66` bpm-java-sql-string-concat — label BenchmarkTest01469
-- `owasp-benchmark/testcode/BenchmarkTest01472.java:67` bpm-java-sql-string-concat — label BenchmarkTest01472
 - `owasp-benchmark/testcode/BenchmarkTest01526.java:59` bpm-java-command-concat — label BenchmarkTest01526
 - `owasp-benchmark/testcode/BenchmarkTest01527.java:59` bpm-java-command-concat — label BenchmarkTest01527
 - `owasp-benchmark/testcode/BenchmarkTest01528.java:59` bpm-java-command-concat — label BenchmarkTest01528
 - `owasp-benchmark/testcode/BenchmarkTest01532.java:61` bpm-java-command-concat — label BenchmarkTest01532
-- `owasp-benchmark/testcode/BenchmarkTest01553.java:53` bpm-java-sql-string-concat — label BenchmarkTest01553
-- `owasp-benchmark/testcode/BenchmarkTest01555.java:55` bpm-java-sql-string-concat — label BenchmarkTest01555
-- `owasp-benchmark/testcode/BenchmarkTest01556.java:55` bpm-java-sql-string-concat — label BenchmarkTest01556
 - `owasp-benchmark/testcode/BenchmarkTest01573.java:55` bpm-inj-path-java — label BenchmarkTest01573
 - `owasp-benchmark/testcode/BenchmarkTest01586.java:51` bpm-inj-xss-java — label BenchmarkTest01586
 - `owasp-benchmark/testcode/BenchmarkTest01595.java:51` bpm-inj-xss-java — label BenchmarkTest01595
@@ -1957,8 +1873,6 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01607.java:71` bpm-inj-cmd-java — label BenchmarkTest01607
 - `owasp-benchmark/testcode/BenchmarkTest01622.java:57` bpm-inj-sql-java — label BenchmarkTest01622
 - `owasp-benchmark/testcode/BenchmarkTest01628.java:55` bpm-inj-sql-java — label BenchmarkTest01628
-- `owasp-benchmark/testcode/BenchmarkTest01628.java:55` bpm-java-sql-string-concat — label BenchmarkTest01628
-- `owasp-benchmark/testcode/BenchmarkTest01629.java:55` bpm-java-sql-string-concat — label BenchmarkTest01629
 - `owasp-benchmark/testcode/BenchmarkTest01632.java:67` bpm-inj-xpath-java — label BenchmarkTest01632
 - `owasp-benchmark/testcode/BenchmarkTest01659.java:73` bpm-inj-xss-java — label BenchmarkTest01659
 - `owasp-benchmark/testcode/BenchmarkTest01661.java:74` bpm-inj-xss-java — label BenchmarkTest01661
@@ -1968,60 +1882,25 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01688.java:82` bpm-java-command-concat — label BenchmarkTest01688
 - `owasp-benchmark/testcode/BenchmarkTest01692.java:83` bpm-java-command-concat — label BenchmarkTest01692
 - `owasp-benchmark/testcode/BenchmarkTest01693.java:83` bpm-java-command-concat — label BenchmarkTest01693
-- `owasp-benchmark/testcode/BenchmarkTest01717.java:78` bpm-java-sql-string-concat — label BenchmarkTest01717
 - `owasp-benchmark/testcode/BenchmarkTest01717.java:79` bpm-inj-sql-java — label BenchmarkTest01717
 - `owasp-benchmark/testcode/BenchmarkTest01719.java:78` bpm-inj-sql-java — label BenchmarkTest01719
-- `owasp-benchmark/testcode/BenchmarkTest01719.java:78` bpm-java-sql-string-concat — label BenchmarkTest01719
-- `owasp-benchmark/testcode/BenchmarkTest01722.java:75` bpm-java-sql-string-concat — label BenchmarkTest01722
 - `owasp-benchmark/testcode/BenchmarkTest01729.java:77` bpm-inj-sql-java — label BenchmarkTest01729
-- `owasp-benchmark/testcode/BenchmarkTest01729.java:77` bpm-java-sql-string-concat — label BenchmarkTest01729
-- `owasp-benchmark/testcode/BenchmarkTest01732.java:77` bpm-java-sql-string-concat — label BenchmarkTest01732
 - `owasp-benchmark/testcode/BenchmarkTest01791.java:58` bpm-java-command-concat — label BenchmarkTest01791
-- `owasp-benchmark/testcode/BenchmarkTest01804.java:54` bpm-java-sql-string-concat — label BenchmarkTest01804
-- `owasp-benchmark/testcode/BenchmarkTest01805.java:55` bpm-java-sql-string-concat — label BenchmarkTest01805
-- `owasp-benchmark/testcode/BenchmarkTest01806.java:52` bpm-java-sql-string-concat — label BenchmarkTest01806
-- `owasp-benchmark/testcode/BenchmarkTest01807.java:52` bpm-java-sql-string-concat — label BenchmarkTest01807
-- `owasp-benchmark/testcode/BenchmarkTest01808.java:55` bpm-java-sql-string-concat — label BenchmarkTest01808
-- `owasp-benchmark/testcode/BenchmarkTest01809.java:53` bpm-java-sql-string-concat — label BenchmarkTest01809
-- `owasp-benchmark/testcode/BenchmarkTest01810.java:53` bpm-java-sql-string-concat — label BenchmarkTest01810
-- `owasp-benchmark/testcode/BenchmarkTest01811.java:53` bpm-java-sql-string-concat — label BenchmarkTest01811
-- `owasp-benchmark/testcode/BenchmarkTest01812.java:53` bpm-java-sql-string-concat — label BenchmarkTest01812
-- `owasp-benchmark/testcode/BenchmarkTest01813.java:53` bpm-java-sql-string-concat — label BenchmarkTest01813
-- `owasp-benchmark/testcode/BenchmarkTest01814.java:52` bpm-java-sql-string-concat — label BenchmarkTest01814
-- `owasp-benchmark/testcode/BenchmarkTest01815.java:54` bpm-java-sql-string-concat — label BenchmarkTest01815
-- `owasp-benchmark/testcode/BenchmarkTest01816.java:54` bpm-java-sql-string-concat — label BenchmarkTest01816
-- `owasp-benchmark/testcode/BenchmarkTest01817.java:54` bpm-java-sql-string-concat — label BenchmarkTest01817
-- `owasp-benchmark/testcode/BenchmarkTest01818.java:54` bpm-java-sql-string-concat — label BenchmarkTest01818
-- `owasp-benchmark/testcode/BenchmarkTest01819.java:54` bpm-java-sql-string-concat — label BenchmarkTest01819
-- `owasp-benchmark/testcode/BenchmarkTest01820.java:54` bpm-java-sql-string-concat — label BenchmarkTest01820
 - `owasp-benchmark/testcode/BenchmarkTest01834.java:69` bpm-inj-path-java — label BenchmarkTest01834
 - `owasp-benchmark/testcode/BenchmarkTest01838.java:73` bpm-inj-path-java — label BenchmarkTest01838
 - `owasp-benchmark/testcode/BenchmarkTest01865.java:78` bpm-inj-cmd-java — label BenchmarkTest01865
 - `owasp-benchmark/testcode/BenchmarkTest01865.java:78` bpm-java-command-concat — label BenchmarkTest01865
 - `owasp-benchmark/testcode/BenchmarkTest01873.java:69` bpm-inj-trust-java — label BenchmarkTest01873
 - `owasp-benchmark/testcode/BenchmarkTest01877.java:76` bpm-inj-sql-java — label BenchmarkTest01877
-- `owasp-benchmark/testcode/BenchmarkTest01878.java:74` bpm-java-sql-string-concat — label BenchmarkTest01878
-- `owasp-benchmark/testcode/BenchmarkTest01879.java:74` bpm-java-sql-string-concat — label BenchmarkTest01879
 - `owasp-benchmark/testcode/BenchmarkTest01879.java:75` bpm-inj-sql-java — label BenchmarkTest01879
-- `owasp-benchmark/testcode/BenchmarkTest01880.java:74` bpm-java-sql-string-concat — label BenchmarkTest01880
-- `owasp-benchmark/testcode/BenchmarkTest01884.java:71` bpm-java-sql-string-concat — label BenchmarkTest01884
 - `owasp-benchmark/testcode/BenchmarkTest01885.java:73` bpm-inj-sql-java — label BenchmarkTest01885
-- `owasp-benchmark/testcode/BenchmarkTest01885.java:73` bpm-java-sql-string-concat — label BenchmarkTest01885
-- `owasp-benchmark/testcode/BenchmarkTest01886.java:73` bpm-java-sql-string-concat — label BenchmarkTest01886
 - `owasp-benchmark/testcode/BenchmarkTest01917.java:54` bpm-inj-xss-java — label BenchmarkTest01917
 - `owasp-benchmark/testcode/BenchmarkTest01937.java:62` bpm-inj-cmd-java — label BenchmarkTest01937
 - `owasp-benchmark/testcode/BenchmarkTest01937.java:62` bpm-java-command-concat — label BenchmarkTest01937
 - `owasp-benchmark/testcode/BenchmarkTest01943.java:64` bpm-java-command-concat — label BenchmarkTest01943
 - `owasp-benchmark/testcode/BenchmarkTest01957.java:54` bpm-inj-trust-java — label BenchmarkTest01957
-- `owasp-benchmark/testcode/BenchmarkTest01961.java:59` bpm-java-sql-string-concat — label BenchmarkTest01961
-- `owasp-benchmark/testcode/BenchmarkTest01965.java:58` bpm-java-sql-string-concat — label BenchmarkTest01965
-- `owasp-benchmark/testcode/BenchmarkTest01966.java:57` bpm-java-sql-string-concat — label BenchmarkTest01966
-- `owasp-benchmark/testcode/BenchmarkTest01967.java:57` bpm-java-sql-string-concat — label BenchmarkTest01967
 - `owasp-benchmark/testcode/BenchmarkTest01967.java:58` bpm-inj-sql-java — label BenchmarkTest01967
-- `owasp-benchmark/testcode/BenchmarkTest01968.java:56` bpm-java-sql-string-concat — label BenchmarkTest01968
-- `owasp-benchmark/testcode/BenchmarkTest01969.java:58` bpm-java-sql-string-concat — label BenchmarkTest01969
 - `owasp-benchmark/testcode/BenchmarkTest01973.java:58` bpm-inj-sql-java — label BenchmarkTest01973
-- `owasp-benchmark/testcode/BenchmarkTest01973.java:58` bpm-java-sql-string-concat — label BenchmarkTest01973
 - `owasp-benchmark/testcode/BenchmarkTest01990.java:69` bpm-inj-path-java — label BenchmarkTest01990
 - `owasp-benchmark/testcode/BenchmarkTest02026.java:57` bpm-inj-path-java — label BenchmarkTest02026
 - `owasp-benchmark/testcode/BenchmarkTest02028.java:56` bpm-inj-path-java — label BenchmarkTest02028
@@ -2033,13 +1912,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02069.java:65` bpm-java-command-concat — label BenchmarkTest02069
 - `owasp-benchmark/testcode/BenchmarkTest02085.java:56` bpm-inj-trust-java — label BenchmarkTest02085
 - `owasp-benchmark/testcode/BenchmarkTest02086.java:56` bpm-inj-trust-java — label BenchmarkTest02086
-- `owasp-benchmark/testcode/BenchmarkTest02089.java:61` bpm-java-sql-string-concat — label BenchmarkTest02089
 - `owasp-benchmark/testcode/BenchmarkTest02093.java:60` bpm-inj-sql-java — label BenchmarkTest02093
-- `owasp-benchmark/testcode/BenchmarkTest02093.java:60` bpm-java-sql-string-concat — label BenchmarkTest02093
-- `owasp-benchmark/testcode/BenchmarkTest02095.java:60` bpm-java-sql-string-concat — label BenchmarkTest02095
-- `owasp-benchmark/testcode/BenchmarkTest02097.java:60` bpm-java-sql-string-concat — label BenchmarkTest02097
 - `owasp-benchmark/testcode/BenchmarkTest02098.java:60` bpm-inj-sql-java — label BenchmarkTest02098
-- `owasp-benchmark/testcode/BenchmarkTest02098.java:60` bpm-java-sql-string-concat — label BenchmarkTest02098
 - `owasp-benchmark/testcode/BenchmarkTest02104.java:59` bpm-inj-ldap-java — label BenchmarkTest02104
 - `owasp-benchmark/testcode/BenchmarkTest02110.java:54` bpm-inj-path-java — label BenchmarkTest02110
 - `owasp-benchmark/testcode/BenchmarkTest02111.java:60` bpm-inj-path-java — label BenchmarkTest02111
@@ -2048,19 +1922,9 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02125.java:49` bpm-inj-xss-java — label BenchmarkTest02125
 - `owasp-benchmark/testcode/BenchmarkTest02166.java:49` bpm-inj-trust-java — label BenchmarkTest02166
 - `owasp-benchmark/testcode/BenchmarkTest02168.java:49` bpm-inj-trust-java — label BenchmarkTest02168
-- `owasp-benchmark/testcode/BenchmarkTest02172.java:54` bpm-java-sql-string-concat — label BenchmarkTest02172
-- `owasp-benchmark/testcode/BenchmarkTest02173.java:54` bpm-java-sql-string-concat — label BenchmarkTest02173
 - `owasp-benchmark/testcode/BenchmarkTest02173.java:55` bpm-inj-sql-java — label BenchmarkTest02173
-- `owasp-benchmark/testcode/BenchmarkTest02174.java:51` bpm-java-sql-string-concat — label BenchmarkTest02174
 - `owasp-benchmark/testcode/BenchmarkTest02175.java:51` bpm-inj-sql-java — label BenchmarkTest02175
-- `owasp-benchmark/testcode/BenchmarkTest02175.java:51` bpm-java-sql-string-concat — label BenchmarkTest02175
-- `owasp-benchmark/testcode/BenchmarkTest02176.java:51` bpm-java-sql-string-concat — label BenchmarkTest02176
-- `owasp-benchmark/testcode/BenchmarkTest02180.java:53` bpm-java-sql-string-concat — label BenchmarkTest02180
-- `owasp-benchmark/testcode/BenchmarkTest02183.java:52` bpm-java-sql-string-concat — label BenchmarkTest02183
-- `owasp-benchmark/testcode/BenchmarkTest02184.java:51` bpm-java-sql-string-concat — label BenchmarkTest02184
 - `owasp-benchmark/testcode/BenchmarkTest02185.java:53` bpm-inj-sql-java — label BenchmarkTest02185
-- `owasp-benchmark/testcode/BenchmarkTest02185.java:53` bpm-java-sql-string-concat — label BenchmarkTest02185
-- `owasp-benchmark/testcode/BenchmarkTest02188.java:53` bpm-java-sql-string-concat — label BenchmarkTest02188
 - `owasp-benchmark/testcode/BenchmarkTest02201.java:57` bpm-inj-path-java — label BenchmarkTest02201
 - `owasp-benchmark/testcode/BenchmarkTest02204.java:64` bpm-inj-path-java — label BenchmarkTest02204
 - `owasp-benchmark/testcode/BenchmarkTest02207.java:56` bpm-inj-path-java — label BenchmarkTest02207
@@ -2071,38 +1935,17 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02265.java:59` bpm-inj-sql-java — label BenchmarkTest02265
 - `owasp-benchmark/testcode/BenchmarkTest02266.java:59` bpm-inj-sql-java — label BenchmarkTest02266
 - `owasp-benchmark/testcode/BenchmarkTest02267.java:57` bpm-inj-sql-java — label BenchmarkTest02267
-- `owasp-benchmark/testcode/BenchmarkTest02267.java:57` bpm-java-sql-string-concat — label BenchmarkTest02267
-- `owasp-benchmark/testcode/BenchmarkTest02268.java:58` bpm-java-sql-string-concat — label BenchmarkTest02268
-- `owasp-benchmark/testcode/BenchmarkTest02271.java:58` bpm-java-sql-string-concat — label BenchmarkTest02271
-- `owasp-benchmark/testcode/BenchmarkTest02274.java:55` bpm-java-sql-string-concat — label BenchmarkTest02274
 - `owasp-benchmark/testcode/BenchmarkTest02274.java:56` bpm-inj-sql-java — label BenchmarkTest02274
-- `owasp-benchmark/testcode/BenchmarkTest02276.java:58` bpm-java-sql-string-concat — label BenchmarkTest02276
-- `owasp-benchmark/testcode/BenchmarkTest02278.java:57` bpm-java-sql-string-concat — label BenchmarkTest02278
-- `owasp-benchmark/testcode/BenchmarkTest02279.java:57` bpm-java-sql-string-concat — label BenchmarkTest02279
-- `owasp-benchmark/testcode/BenchmarkTest02280.java:57` bpm-java-sql-string-concat — label BenchmarkTest02280
 - `owasp-benchmark/testcode/BenchmarkTest02280.java:58` bpm-inj-sql-java — label BenchmarkTest02280
-- `owasp-benchmark/testcode/BenchmarkTest02282.java:55` bpm-java-sql-string-concat — label BenchmarkTest02282
 - `owasp-benchmark/testcode/BenchmarkTest02283.java:57` bpm-inj-sql-java — label BenchmarkTest02283
-- `owasp-benchmark/testcode/BenchmarkTest02283.java:57` bpm-java-sql-string-concat — label BenchmarkTest02283
-- `owasp-benchmark/testcode/BenchmarkTest02285.java:57` bpm-java-sql-string-concat — label BenchmarkTest02285
 - `owasp-benchmark/testcode/BenchmarkTest02301.java:62` bpm-inj-path-java — label BenchmarkTest02301
 - `owasp-benchmark/testcode/BenchmarkTest02318.java:63` bpm-inj-xss-java — label BenchmarkTest02318
 - `owasp-benchmark/testcode/BenchmarkTest02320.java:64` bpm-inj-xss-java — label BenchmarkTest02320
 - `owasp-benchmark/testcode/BenchmarkTest02331.java:63` bpm-inj-xss-java — label BenchmarkTest02331
 - `owasp-benchmark/testcode/BenchmarkTest02340.java:85` bpm-inj-cmd-java — label BenchmarkTest02340
-- `owasp-benchmark/testcode/BenchmarkTest02353.java:68` bpm-java-sql-string-concat — label BenchmarkTest02353
-- `owasp-benchmark/testcode/BenchmarkTest02361.java:66` bpm-java-sql-string-concat — label BenchmarkTest02361
-- `owasp-benchmark/testcode/BenchmarkTest02363.java:65` bpm-java-sql-string-concat — label BenchmarkTest02363
 - `owasp-benchmark/testcode/BenchmarkTest02365.java:67` bpm-inj-sql-java — label BenchmarkTest02365
-- `owasp-benchmark/testcode/BenchmarkTest02365.java:67` bpm-java-sql-string-concat — label BenchmarkTest02365
-- `owasp-benchmark/testcode/BenchmarkTest02366.java:67` bpm-java-sql-string-concat — label BenchmarkTest02366
-- `owasp-benchmark/testcode/BenchmarkTest02367.java:67` bpm-java-sql-string-concat — label BenchmarkTest02367
-- `owasp-benchmark/testcode/BenchmarkTest02368.java:67` bpm-java-sql-string-concat — label BenchmarkTest02368
 - `owasp-benchmark/testcode/BenchmarkTest02370.java:79` bpm-inj-xpath-java — label BenchmarkTest02370
 - `owasp-benchmark/testcode/BenchmarkTest02428.java:59` bpm-java-command-concat — label BenchmarkTest02428
-- `owasp-benchmark/testcode/BenchmarkTest02450.java:56` bpm-java-sql-string-concat — label BenchmarkTest02450
-- `owasp-benchmark/testcode/BenchmarkTest02452.java:54` bpm-java-sql-string-concat — label BenchmarkTest02452
-- `owasp-benchmark/testcode/BenchmarkTest02456.java:55` bpm-java-sql-string-concat — label BenchmarkTest02456
 - `owasp-benchmark/testcode/BenchmarkTest02462.java:52` bpm-inj-path-java — label BenchmarkTest02462
 - `owasp-benchmark/testcode/BenchmarkTest02464.java:50` bpm-inj-path-java — label BenchmarkTest02464
 - `owasp-benchmark/testcode/BenchmarkTest02468.java:62` bpm-inj-path-java — label BenchmarkTest02468
@@ -2112,15 +1955,8 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02488.java:52` bpm-inj-xss-java — label BenchmarkTest02488
 - `owasp-benchmark/testcode/BenchmarkTest02492.java:51` bpm-inj-xss-java — label BenchmarkTest02492
 - `owasp-benchmark/testcode/BenchmarkTest02523.java:51` bpm-inj-trust-java — label BenchmarkTest02523
-- `owasp-benchmark/testcode/BenchmarkTest02536.java:53` bpm-java-sql-string-concat — label BenchmarkTest02536
-- `owasp-benchmark/testcode/BenchmarkTest02538.java:54` bpm-java-sql-string-concat — label BenchmarkTest02538
-- `owasp-benchmark/testcode/BenchmarkTest02539.java:53` bpm-java-sql-string-concat — label BenchmarkTest02539
-- `owasp-benchmark/testcode/BenchmarkTest02540.java:53` bpm-java-sql-string-concat — label BenchmarkTest02540
-- `owasp-benchmark/testcode/BenchmarkTest02541.java:55` bpm-java-sql-string-concat — label BenchmarkTest02541
 - `owasp-benchmark/testcode/BenchmarkTest02544.java:55` bpm-inj-sql-java — label BenchmarkTest02544
-- `owasp-benchmark/testcode/BenchmarkTest02544.java:55` bpm-java-sql-string-concat — label BenchmarkTest02544
 - `owasp-benchmark/testcode/BenchmarkTest02546.java:55` bpm-inj-sql-java — label BenchmarkTest02546
-- `owasp-benchmark/testcode/BenchmarkTest02546.java:55` bpm-java-sql-string-concat — label BenchmarkTest02546
 - `owasp-benchmark/testcode/BenchmarkTest02557.java:72` bpm-inj-path-java — label BenchmarkTest02557
 - `owasp-benchmark/testcode/BenchmarkTest02566.java:84` bpm-inj-path-java — label BenchmarkTest02566
 - `owasp-benchmark/testcode/BenchmarkTest02568.java:78` bpm-inj-path-java — label BenchmarkTest02568
@@ -2132,36 +1968,12 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02609.java:73` bpm-inj-xss-java — label BenchmarkTest02609
 - `owasp-benchmark/testcode/BenchmarkTest02610.java:95` bpm-inj-cmd-java — label BenchmarkTest02610
 - `owasp-benchmark/testcode/BenchmarkTest02629.java:79` bpm-inj-sql-java — label BenchmarkTest02629
-- `owasp-benchmark/testcode/BenchmarkTest02631.java:77` bpm-java-sql-string-concat — label BenchmarkTest02631
-- `owasp-benchmark/testcode/BenchmarkTest02633.java:78` bpm-java-sql-string-concat — label BenchmarkTest02633
-- `owasp-benchmark/testcode/BenchmarkTest02634.java:78` bpm-java-sql-string-concat — label BenchmarkTest02634
 - `owasp-benchmark/testcode/BenchmarkTest02634.java:79` bpm-inj-sql-java — label BenchmarkTest02634
 - `owasp-benchmark/testcode/BenchmarkTest02636.java:78` bpm-inj-sql-java — label BenchmarkTest02636
-- `owasp-benchmark/testcode/BenchmarkTest02636.java:78` bpm-java-sql-string-concat — label BenchmarkTest02636
-- `owasp-benchmark/testcode/BenchmarkTest02637.java:78` bpm-java-sql-string-concat — label BenchmarkTest02637
-- `owasp-benchmark/testcode/BenchmarkTest02639.java:75` bpm-java-sql-string-concat — label BenchmarkTest02639
 - `owasp-benchmark/testcode/BenchmarkTest02640.java:75` bpm-inj-sql-java — label BenchmarkTest02640
-- `owasp-benchmark/testcode/BenchmarkTest02640.java:75` bpm-java-sql-string-concat — label BenchmarkTest02640
-- `owasp-benchmark/testcode/BenchmarkTest02648.java:77` bpm-java-sql-string-concat — label BenchmarkTest02648
-- `owasp-benchmark/testcode/BenchmarkTest02652.java:77` bpm-java-sql-string-concat — label BenchmarkTest02652
-- `owasp-benchmark/testcode/BenchmarkTest02657.java:77` bpm-java-sql-string-concat — label BenchmarkTest02657
-- `owasp-benchmark/testcode/BenchmarkTest02727.java:55` bpm-java-sql-string-concat — label BenchmarkTest02727
-- `owasp-benchmark/testcode/BenchmarkTest02728.java:55` bpm-java-sql-string-concat — label BenchmarkTest02728
-- `owasp-benchmark/testcode/BenchmarkTest02729.java:55` bpm-java-sql-string-concat — label BenchmarkTest02729
-- `owasp-benchmark/testcode/BenchmarkTest02730.java:55` bpm-java-sql-string-concat — label BenchmarkTest02730
-- `owasp-benchmark/testcode/BenchmarkTest02731.java:52` bpm-java-sql-string-concat — label BenchmarkTest02731
-- `owasp-benchmark/testcode/BenchmarkTest02732.java:52` bpm-java-sql-string-concat — label BenchmarkTest02732
-- `owasp-benchmark/testcode/BenchmarkTest02733.java:53` bpm-java-sql-string-concat — label BenchmarkTest02733
-- `owasp-benchmark/testcode/BenchmarkTest02734.java:54` bpm-java-sql-string-concat — label BenchmarkTest02734
-- `owasp-benchmark/testcode/BenchmarkTest02735.java:54` bpm-java-sql-string-concat — label BenchmarkTest02735
-- `owasp-benchmark/testcode/BenchmarkTest02736.java:53` bpm-java-sql-string-concat — label BenchmarkTest02736
-- `owasp-benchmark/testcode/BenchmarkTest02737.java:52` bpm-java-sql-string-concat — label BenchmarkTest02737
-- `owasp-benchmark/testcode/BenchmarkTest02738.java:54` bpm-java-sql-string-concat — label BenchmarkTest02738
-- `owasp-benchmark/testcode/BenchmarkTest02739.java:54` bpm-java-sql-string-concat — label BenchmarkTest02739
-- `owasp-benchmark/testcode/BenchmarkTest02740.java:54` bpm-java-sql-string-concat — label BenchmarkTest02740
 - `sampleco/app/src/index.js:12` bpm-log-console-in-prod
 
-## Duplicates (397)
+## Duplicates (197)
 
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__3DES_01.java:43` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__3DES_01.java#bad
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__3DES_02.java:39` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__3DES_02.java#bad
@@ -2210,46 +2022,14 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `juliet-java/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__getQueryString_Servlet_12.java:68` bpm-java-command-concat — label CWE78_OS_Command_Injection__getQueryString_Servlet_12.java#bad
 - `juliet-java/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__getQueryString_Servlet_17.java:61` bpm-java-command-concat — label CWE78_OS_Command_Injection__getQueryString_Servlet_17.java#bad
 - `juliet-java/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__getQueryString_Servlet_31.java:68` bpm-java-command-concat — label CWE78_OS_Command_Injection__getQueryString_Servlet_31.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeBatch_14.java:68` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeBatch_14.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeQuery_02.java:63` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeQuery_02.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_14.java:62` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_executeUpdate_14.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_execute_02.java:62` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_execute_02.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_15.java:64` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getCookies_Servlet_prepareStatement_15.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeBatch_03.java:60` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeBatch_03.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s02/CWE89_SQL_Injection__getParameter_Servlet_executeQuery_15.java:58` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeQuery_15.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_13.java:54` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_executeUpdate_13.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_execute_01.java:46` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_execute_01.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_14.java:53` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getParameter_Servlet_prepareStatement_14.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_02.java:73` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeBatch_02.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_14.java:68` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeQuery_14.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_02.java:67` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_executeUpdate_02.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_execute_14.java:67` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_execute_14.java#bad
-- `juliet-java/testcases/CWE89_SQL_Injection/s03/CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_02.java:66` bpm-java-sql-string-concat — label CWE89_SQL_Injection__getQueryString_Servlet_prepareStatement_02.java#bad
 - `owasp-benchmark/testcode/BenchmarkTest00005.java:66` bpm-java-weak-cipher — label BenchmarkTest00005
 - `owasp-benchmark/testcode/BenchmarkTest00017.java:63` bpm-java-command-concat — label BenchmarkTest00017
-- `owasp-benchmark/testcode/BenchmarkTest00018.java:59` bpm-java-sql-string-concat — label BenchmarkTest00018
 - `owasp-benchmark/testcode/BenchmarkTest00020.java:61` bpm-java-weak-cipher — label BenchmarkTest00020
-- `owasp-benchmark/testcode/BenchmarkTest00024.java:54` bpm-inj-sql-java — label BenchmarkTest00024
-- `owasp-benchmark/testcode/BenchmarkTest00025.java:53` bpm-inj-sql-java — label BenchmarkTest00025
-- `owasp-benchmark/testcode/BenchmarkTest00027.java:52` bpm-java-sql-string-concat — label BenchmarkTest00027
-- `owasp-benchmark/testcode/BenchmarkTest00032.java:54` bpm-java-sql-string-concat — label BenchmarkTest00032
-- `owasp-benchmark/testcode/BenchmarkTest00034.java:56` bpm-java-sql-string-concat — label BenchmarkTest00034
-- `owasp-benchmark/testcode/BenchmarkTest00037.java:68` bpm-inj-sql-java — label BenchmarkTest00037
-- `owasp-benchmark/testcode/BenchmarkTest00038.java:65` bpm-inj-sql-java — label BenchmarkTest00038
 - `owasp-benchmark/testcode/BenchmarkTest00050.java:62` bpm-java-weak-cipher — label BenchmarkTest00050
 - `owasp-benchmark/testcode/BenchmarkTest00053.java:89` bpm-java-weak-cipher — label BenchmarkTest00053
 - `owasp-benchmark/testcode/BenchmarkTest00055.java:82` bpm-java-weak-cipher — label BenchmarkTest00055
 - `owasp-benchmark/testcode/BenchmarkTest00056.java:92` bpm-java-weak-cipher — label BenchmarkTest00056
 - `owasp-benchmark/testcode/BenchmarkTest00057.java:87` bpm-java-weak-cipher — label BenchmarkTest00057
-- `owasp-benchmark/testcode/BenchmarkTest00100.java:80` bpm-inj-sql-java — label BenchmarkTest00100
-- `owasp-benchmark/testcode/BenchmarkTest00101.java:84` bpm-java-sql-string-concat — label BenchmarkTest00101
-- `owasp-benchmark/testcode/BenchmarkTest00103.java:78` bpm-inj-sql-java — label BenchmarkTest00103
-- `owasp-benchmark/testcode/BenchmarkTest00106.java:83` bpm-java-sql-string-concat — label BenchmarkTest00106
-- `owasp-benchmark/testcode/BenchmarkTest00108.java:92` bpm-java-sql-string-concat — label BenchmarkTest00108
-- `owasp-benchmark/testcode/BenchmarkTest00109.java:80` bpm-java-sql-string-concat — label BenchmarkTest00109
-- `owasp-benchmark/testcode/BenchmarkTest00111.java:83` bpm-java-sql-string-concat — label BenchmarkTest00111
-- `owasp-benchmark/testcode/BenchmarkTest00112.java:75` bpm-java-sql-string-concat — label BenchmarkTest00112
-- `owasp-benchmark/testcode/BenchmarkTest00115.java:78` bpm-java-sql-string-concat — label BenchmarkTest00115
 - `owasp-benchmark/testcode/BenchmarkTest00119.java:89` bpm-java-weak-cipher — label BenchmarkTest00119
 - `owasp-benchmark/testcode/BenchmarkTest00120.java:73` bpm-java-weak-cipher — label BenchmarkTest00120
 - `owasp-benchmark/testcode/BenchmarkTest00123.java:67` bpm-java-weak-cipher — label BenchmarkTest00123
@@ -2257,14 +2037,6 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00125.java:67` bpm-java-weak-cipher — label BenchmarkTest00125
 - `owasp-benchmark/testcode/BenchmarkTest00141.java:66` bpm-java-weak-hash — label BenchmarkTest00141
 - `owasp-benchmark/testcode/BenchmarkTest00176.java:64` bpm-java-command-concat — label BenchmarkTest00176
-- `owasp-benchmark/testcode/BenchmarkTest00192.java:77` bpm-java-sql-string-concat — label BenchmarkTest00192
-- `owasp-benchmark/testcode/BenchmarkTest00193.java:64` bpm-java-sql-string-concat — label BenchmarkTest00193
-- `owasp-benchmark/testcode/BenchmarkTest00195.java:61` bpm-java-sql-string-concat — label BenchmarkTest00195
-- `owasp-benchmark/testcode/BenchmarkTest00196.java:61` bpm-java-sql-string-concat — label BenchmarkTest00196
-- `owasp-benchmark/testcode/BenchmarkTest00198.java:62` bpm-inj-sql-java — label BenchmarkTest00198
-- `owasp-benchmark/testcode/BenchmarkTest00199.java:65` bpm-inj-sql-java — label BenchmarkTest00199
-- `owasp-benchmark/testcode/BenchmarkTest00203.java:63` bpm-java-sql-string-concat — label BenchmarkTest00203
-- `owasp-benchmark/testcode/BenchmarkTest00204.java:60` bpm-java-sql-string-concat — label BenchmarkTest00204
 - `owasp-benchmark/testcode/BenchmarkTest00208.java:82` bpm-java-weak-cipher — label BenchmarkTest00208
 - `owasp-benchmark/testcode/BenchmarkTest00210.java:80` bpm-java-weak-cipher — label BenchmarkTest00210
 - `owasp-benchmark/testcode/BenchmarkTest00223.java:76` bpm-java-weak-hash — label BenchmarkTest00223
@@ -2275,42 +2047,18 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00266.java:68` bpm-java-weak-hash — label BenchmarkTest00266
 - `owasp-benchmark/testcode/BenchmarkTest00267.java:64` bpm-java-weak-hash — label BenchmarkTest00267
 - `owasp-benchmark/testcode/BenchmarkTest00302.java:69` bpm-java-command-concat — label BenchmarkTest00302
-- `owasp-benchmark/testcode/BenchmarkTest00335.java:66` bpm-java-sql-string-concat — label BenchmarkTest00335
-- `owasp-benchmark/testcode/BenchmarkTest00337.java:70` bpm-inj-sql-java — label BenchmarkTest00337
-- `owasp-benchmark/testcode/BenchmarkTest00342.java:70` bpm-java-sql-string-concat — label BenchmarkTest00342
 - `owasp-benchmark/testcode/BenchmarkTest00346.java:55` bpm-java-weak-hash — label BenchmarkTest00346
-- `owasp-benchmark/testcode/BenchmarkTest00428.java:63` bpm-java-sql-string-concat — label BenchmarkTest00428
-- `owasp-benchmark/testcode/BenchmarkTest00429.java:60` bpm-inj-sql-java — label BenchmarkTest00429
-- `owasp-benchmark/testcode/BenchmarkTest00431.java:57` bpm-inj-sql-java — label BenchmarkTest00431
-- `owasp-benchmark/testcode/BenchmarkTest00433.java:57` bpm-java-sql-string-concat — label BenchmarkTest00433
-- `owasp-benchmark/testcode/BenchmarkTest00435.java:58` bpm-java-sql-string-concat — label BenchmarkTest00435
-- `owasp-benchmark/testcode/BenchmarkTest00438.java:58` bpm-java-sql-string-concat — label BenchmarkTest00438
-- `owasp-benchmark/testcode/BenchmarkTest00439.java:53` bpm-java-sql-string-concat — label BenchmarkTest00439
-- `owasp-benchmark/testcode/BenchmarkTest00441.java:55` bpm-java-sql-string-concat — label BenchmarkTest00441
 - `owasp-benchmark/testcode/BenchmarkTest00445.java:86` bpm-java-weak-cipher — label BenchmarkTest00445
 - `owasp-benchmark/testcode/BenchmarkTest00446.java:71` bpm-java-weak-cipher — label BenchmarkTest00446
 - `owasp-benchmark/testcode/BenchmarkTest00462.java:70` bpm-java-weak-hash — label BenchmarkTest00462
 - `owasp-benchmark/testcode/BenchmarkTest00499.java:62` bpm-java-command-concat — label BenchmarkTest00499
 - `owasp-benchmark/testcode/BenchmarkTest00500.java:68` bpm-java-command-concat — label BenchmarkTest00500
-- `owasp-benchmark/testcode/BenchmarkTest00512.java:57` bpm-java-sql-string-concat — label BenchmarkTest00512
-- `owasp-benchmark/testcode/BenchmarkTest00515.java:67` bpm-java-sql-string-concat — label BenchmarkTest00515
-- `owasp-benchmark/testcode/BenchmarkTest00516.java:76` bpm-java-sql-string-concat — label BenchmarkTest00516
-- `owasp-benchmark/testcode/BenchmarkTest00518.java:59` bpm-java-sql-string-concat — label BenchmarkTest00518
 - `owasp-benchmark/testcode/BenchmarkTest00521.java:83` bpm-java-weak-cipher — label BenchmarkTest00521
 - `owasp-benchmark/testcode/BenchmarkTest00522.java:81` bpm-java-weak-cipher — label BenchmarkTest00522
 - `owasp-benchmark/testcode/BenchmarkTest00531.java:75` bpm-java-weak-hash — label BenchmarkTest00531
 - `owasp-benchmark/testcode/BenchmarkTest00567.java:78` bpm-java-command-concat — label BenchmarkTest00567
 - `owasp-benchmark/testcode/BenchmarkTest00575.java:83` bpm-java-command-concat — label BenchmarkTest00575
 - `owasp-benchmark/testcode/BenchmarkTest00576.java:75` bpm-java-command-concat — label BenchmarkTest00576
-- `owasp-benchmark/testcode/BenchmarkTest00591.java:70` bpm-java-sql-string-concat — label BenchmarkTest00591
-- `owasp-benchmark/testcode/BenchmarkTest00593.java:88` bpm-inj-sql-java — label BenchmarkTest00593
-- `owasp-benchmark/testcode/BenchmarkTest00594.java:73` bpm-java-sql-string-concat — label BenchmarkTest00594
-- `owasp-benchmark/testcode/BenchmarkTest00595.java:73` bpm-java-sql-string-concat — label BenchmarkTest00595
-- `owasp-benchmark/testcode/BenchmarkTest00596.java:76` bpm-java-sql-string-concat — label BenchmarkTest00596
-- `owasp-benchmark/testcode/BenchmarkTest00597.java:68` bpm-java-sql-string-concat — label BenchmarkTest00597
-- `owasp-benchmark/testcode/BenchmarkTest00603.java:69` bpm-java-sql-string-concat — label BenchmarkTest00603
-- `owasp-benchmark/testcode/BenchmarkTest00604.java:74` bpm-java-sql-string-concat — label BenchmarkTest00604
-- `owasp-benchmark/testcode/BenchmarkTest00606.java:72` bpm-java-sql-string-concat — label BenchmarkTest00606
 - `owasp-benchmark/testcode/BenchmarkTest00608.java:76` bpm-java-weak-cipher — label BenchmarkTest00608
 - `owasp-benchmark/testcode/BenchmarkTest00609.java:68` bpm-java-weak-cipher — label BenchmarkTest00609
 - `owasp-benchmark/testcode/BenchmarkTest00610.java:87` bpm-java-weak-cipher — label BenchmarkTest00610
@@ -2326,45 +2074,19 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest00693.java:67` bpm-java-weak-cipher — label BenchmarkTest00693
 - `owasp-benchmark/testcode/BenchmarkTest00703.java:68` bpm-java-weak-hash — label BenchmarkTest00703
 - `owasp-benchmark/testcode/BenchmarkTest00704.java:61` bpm-java-weak-hash — label BenchmarkTest00704
-- `owasp-benchmark/testcode/BenchmarkTest00764.java:56` bpm-inj-sql-java — label BenchmarkTest00764
-- `owasp-benchmark/testcode/BenchmarkTest00765.java:58` bpm-inj-sql-java — label BenchmarkTest00765
-- `owasp-benchmark/testcode/BenchmarkTest00767.java:75` bpm-inj-sql-java — label BenchmarkTest00767
-- `owasp-benchmark/testcode/BenchmarkTest00770.java:65` bpm-java-sql-string-concat — label BenchmarkTest00770
-- `owasp-benchmark/testcode/BenchmarkTest00771.java:60` bpm-java-sql-string-concat — label BenchmarkTest00771
 - `owasp-benchmark/testcode/BenchmarkTest00779.java:86` bpm-java-weak-cipher — label BenchmarkTest00779
 - `owasp-benchmark/testcode/BenchmarkTest00781.java:86` bpm-java-weak-cipher — label BenchmarkTest00781
-- `owasp-benchmark/testcode/BenchmarkTest00839.java:83` bpm-java-sql-string-concat — label BenchmarkTest00839
-- `owasp-benchmark/testcode/BenchmarkTest00842.java:89` bpm-inj-sql-java — label BenchmarkTest00842
-- `owasp-benchmark/testcode/BenchmarkTest00843.java:83` bpm-inj-sql-java — label BenchmarkTest00843
-- `owasp-benchmark/testcode/BenchmarkTest00847.java:87` bpm-java-sql-string-concat — label BenchmarkTest00847
-- `owasp-benchmark/testcode/BenchmarkTest00848.java:77` bpm-java-sql-string-concat — label BenchmarkTest00848
-- `owasp-benchmark/testcode/BenchmarkTest00849.java:87` bpm-java-sql-string-concat — label BenchmarkTest00849
-- `owasp-benchmark/testcode/BenchmarkTest00850.java:87` bpm-java-sql-string-concat — label BenchmarkTest00850
 - `owasp-benchmark/testcode/BenchmarkTest00853.java:66` bpm-java-weak-cipher — label BenchmarkTest00853
 - `owasp-benchmark/testcode/BenchmarkTest00855.java:73` bpm-java-weak-cipher — label BenchmarkTest00855
 - `owasp-benchmark/testcode/BenchmarkTest00856.java:83` bpm-java-weak-cipher — label BenchmarkTest00856
 - `owasp-benchmark/testcode/BenchmarkTest00857.java:82` bpm-java-weak-cipher — label BenchmarkTest00857
 - `owasp-benchmark/testcode/BenchmarkTest00868.java:77` bpm-java-weak-hash — label BenchmarkTest00868
 - `owasp-benchmark/testcode/BenchmarkTest00869.java:76` bpm-java-weak-hash — label BenchmarkTest00869
-- `owasp-benchmark/testcode/BenchmarkTest01002.java:74` bpm-java-sql-string-concat — label BenchmarkTest01002
-- `owasp-benchmark/testcode/BenchmarkTest01003.java:74` bpm-java-sql-string-concat — label BenchmarkTest01003
-- `owasp-benchmark/testcode/BenchmarkTest01004.java:74` bpm-java-sql-string-concat — label BenchmarkTest01004
-- `owasp-benchmark/testcode/BenchmarkTest01006.java:74` bpm-inj-sql-java — label BenchmarkTest01006
-- `owasp-benchmark/testcode/BenchmarkTest01011.java:73` bpm-java-sql-string-concat — label BenchmarkTest01011
 - `owasp-benchmark/testcode/BenchmarkTest01015.java:69` bpm-java-weak-cipher — label BenchmarkTest01015
 - `owasp-benchmark/testcode/BenchmarkTest01016.java:67` bpm-java-weak-cipher — label BenchmarkTest01016
 - `owasp-benchmark/testcode/BenchmarkTest01017.java:67` bpm-java-weak-cipher — label BenchmarkTest01017
 - `owasp-benchmark/testcode/BenchmarkTest01018.java:67` bpm-java-weak-cipher — label BenchmarkTest01018
 - `owasp-benchmark/testcode/BenchmarkTest01064.java:62` bpm-java-command-concat — label BenchmarkTest01064
-- `owasp-benchmark/testcode/BenchmarkTest01083.java:60` bpm-inj-sql-java — label BenchmarkTest01083
-- `owasp-benchmark/testcode/BenchmarkTest01084.java:59` bpm-java-sql-string-concat — label BenchmarkTest01084
-- `owasp-benchmark/testcode/BenchmarkTest01087.java:60` bpm-inj-sql-java — label BenchmarkTest01087
-- `owasp-benchmark/testcode/BenchmarkTest01088.java:59` bpm-inj-sql-java — label BenchmarkTest01088
-- `owasp-benchmark/testcode/BenchmarkTest01090.java:58` bpm-java-sql-string-concat — label BenchmarkTest01090
-- `owasp-benchmark/testcode/BenchmarkTest01091.java:58` bpm-java-sql-string-concat — label BenchmarkTest01091
-- `owasp-benchmark/testcode/BenchmarkTest01093.java:58` bpm-java-sql-string-concat — label BenchmarkTest01093
-- `owasp-benchmark/testcode/BenchmarkTest01094.java:58` bpm-java-sql-string-concat — label BenchmarkTest01094
-- `owasp-benchmark/testcode/BenchmarkTest01097.java:58` bpm-java-sql-string-concat — label BenchmarkTest01097
 - `owasp-benchmark/testcode/BenchmarkTest01099.java:79` bpm-java-weak-cipher — label BenchmarkTest01099
 - `owasp-benchmark/testcode/BenchmarkTest01102.java:77` bpm-java-weak-cipher — label BenchmarkTest01102
 - `owasp-benchmark/testcode/BenchmarkTest01103.java:77` bpm-java-weak-cipher — label BenchmarkTest01103
@@ -2372,48 +2094,18 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01149.java:69` bpm-java-weak-cipher — label BenchmarkTest01149
 - `owasp-benchmark/testcode/BenchmarkTest01150.java:69` bpm-java-weak-cipher — label BenchmarkTest01150
 - `owasp-benchmark/testcode/BenchmarkTest01194.java:65` bpm-java-command-concat — label BenchmarkTest01194
-- `owasp-benchmark/testcode/BenchmarkTest01209.java:61` bpm-java-sql-string-concat — label BenchmarkTest01209
-- `owasp-benchmark/testcode/BenchmarkTest01210.java:62` bpm-inj-sql-java — label BenchmarkTest01210
-- `owasp-benchmark/testcode/BenchmarkTest01211.java:62` bpm-inj-sql-java — label BenchmarkTest01211
-- `owasp-benchmark/testcode/BenchmarkTest01221.java:60` bpm-java-sql-string-concat — label BenchmarkTest01221
-- `owasp-benchmark/testcode/BenchmarkTest01222.java:60` bpm-java-sql-string-concat — label BenchmarkTest01222
 - `owasp-benchmark/testcode/BenchmarkTest01228.java:62` bpm-java-weak-cipher — label BenchmarkTest01228
 - `owasp-benchmark/testcode/BenchmarkTest01229.java:62` bpm-java-weak-cipher — label BenchmarkTest01229
 - `owasp-benchmark/testcode/BenchmarkTest01244.java:56` bpm-java-weak-hash — label BenchmarkTest01244
 - `owasp-benchmark/testcode/BenchmarkTest01285.java:57` bpm-java-command-concat — label BenchmarkTest01285
-- `owasp-benchmark/testcode/BenchmarkTest01304.java:55` bpm-inj-sql-java — label BenchmarkTest01304
-- `owasp-benchmark/testcode/BenchmarkTest01306.java:54` bpm-java-sql-string-concat — label BenchmarkTest01306
-- `owasp-benchmark/testcode/BenchmarkTest01308.java:54` bpm-inj-sql-java — label BenchmarkTest01308
-- `owasp-benchmark/testcode/BenchmarkTest01311.java:53` bpm-java-sql-string-concat — label BenchmarkTest01311
-- `owasp-benchmark/testcode/BenchmarkTest01312.java:53` bpm-java-sql-string-concat — label BenchmarkTest01312
-- `owasp-benchmark/testcode/BenchmarkTest01313.java:53` bpm-java-sql-string-concat — label BenchmarkTest01313
-- `owasp-benchmark/testcode/BenchmarkTest01314.java:53` bpm-java-sql-string-concat — label BenchmarkTest01314
 - `owasp-benchmark/testcode/BenchmarkTest01317.java:68` bpm-java-weak-cipher — label BenchmarkTest01317
 - `owasp-benchmark/testcode/BenchmarkTest01318.java:68` bpm-java-weak-cipher — label BenchmarkTest01318
 - `owasp-benchmark/testcode/BenchmarkTest01320.java:66` bpm-java-weak-cipher — label BenchmarkTest01320
 - `owasp-benchmark/testcode/BenchmarkTest01322.java:66` bpm-java-weak-cipher — label BenchmarkTest01322
 - `owasp-benchmark/testcode/BenchmarkTest01323.java:66` bpm-java-weak-cipher — label BenchmarkTest01323
 - `owasp-benchmark/testcode/BenchmarkTest01360.java:61` bpm-java-command-concat — label BenchmarkTest01360
-- `owasp-benchmark/testcode/BenchmarkTest01381.java:58` bpm-java-sql-string-concat — label BenchmarkTest01381
-- `owasp-benchmark/testcode/BenchmarkTest01382.java:58` bpm-java-sql-string-concat — label BenchmarkTest01382
-- `owasp-benchmark/testcode/BenchmarkTest01383.java:59` bpm-inj-sql-java — label BenchmarkTest01383
-- `owasp-benchmark/testcode/BenchmarkTest01384.java:58` bpm-java-sql-string-concat — label BenchmarkTest01384
-- `owasp-benchmark/testcode/BenchmarkTest01388.java:59` bpm-inj-sql-java — label BenchmarkTest01388
-- `owasp-benchmark/testcode/BenchmarkTest01390.java:58` bpm-inj-sql-java — label BenchmarkTest01390
-- `owasp-benchmark/testcode/BenchmarkTest01391.java:57` bpm-java-sql-string-concat — label BenchmarkTest01391
-- `owasp-benchmark/testcode/BenchmarkTest01394.java:57` bpm-java-sql-string-concat — label BenchmarkTest01394
-- `owasp-benchmark/testcode/BenchmarkTest01395.java:57` bpm-java-sql-string-concat — label BenchmarkTest01395
-- `owasp-benchmark/testcode/BenchmarkTest01396.java:57` bpm-java-sql-string-concat — label BenchmarkTest01396
 - `owasp-benchmark/testcode/BenchmarkTest01398.java:76` bpm-java-weak-cipher — label BenchmarkTest01398
 - `owasp-benchmark/testcode/BenchmarkTest01446.java:73` bpm-java-command-concat — label BenchmarkTest01446
-- `owasp-benchmark/testcode/BenchmarkTest01464.java:69` bpm-inj-sql-java — label BenchmarkTest01464
-- `owasp-benchmark/testcode/BenchmarkTest01465.java:65` bpm-java-sql-string-concat — label BenchmarkTest01465
-- `owasp-benchmark/testcode/BenchmarkTest01466.java:66` bpm-inj-sql-java — label BenchmarkTest01466
-- `owasp-benchmark/testcode/BenchmarkTest01473.java:67` bpm-java-sql-string-concat — label BenchmarkTest01473
-- `owasp-benchmark/testcode/BenchmarkTest01474.java:67` bpm-java-sql-string-concat — label BenchmarkTest01474
-- `owasp-benchmark/testcode/BenchmarkTest01475.java:67` bpm-java-sql-string-concat — label BenchmarkTest01475
-- `owasp-benchmark/testcode/BenchmarkTest01476.java:67` bpm-java-sql-string-concat — label BenchmarkTest01476
-- `owasp-benchmark/testcode/BenchmarkTest01477.java:67` bpm-java-sql-string-concat — label BenchmarkTest01477
 - `owasp-benchmark/testcode/BenchmarkTest01480.java:66` bpm-java-weak-cipher — label BenchmarkTest01480
 - `owasp-benchmark/testcode/BenchmarkTest01483.java:64` bpm-java-weak-cipher — label BenchmarkTest01483
 - `owasp-benchmark/testcode/BenchmarkTest01484.java:64` bpm-java-weak-cipher — label BenchmarkTest01484
@@ -2422,28 +2114,11 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01565.java:64` bpm-java-weak-cipher — label BenchmarkTest01565
 - `owasp-benchmark/testcode/BenchmarkTest01609.java:61` bpm-java-command-concat — label BenchmarkTest01609
 - `owasp-benchmark/testcode/BenchmarkTest01610.java:61` bpm-java-command-concat — label BenchmarkTest01610
-- `owasp-benchmark/testcode/BenchmarkTest01625.java:56` bpm-inj-sql-java — label BenchmarkTest01625
-- `owasp-benchmark/testcode/BenchmarkTest01626.java:55` bpm-java-sql-string-concat — label BenchmarkTest01626
-- `owasp-benchmark/testcode/BenchmarkTest01627.java:55` bpm-java-sql-string-concat — label BenchmarkTest01627
-- `owasp-benchmark/testcode/BenchmarkTest01630.java:55` bpm-java-sql-string-concat — label BenchmarkTest01630
-- `owasp-benchmark/testcode/BenchmarkTest01631.java:55` bpm-java-sql-string-concat — label BenchmarkTest01631
 - `owasp-benchmark/testcode/BenchmarkTest01634.java:88` bpm-java-weak-cipher — label BenchmarkTest01634
 - `owasp-benchmark/testcode/BenchmarkTest01637.java:86` bpm-java-weak-cipher — label BenchmarkTest01637
 - `owasp-benchmark/testcode/BenchmarkTest01638.java:86` bpm-java-weak-cipher — label BenchmarkTest01638
 - `owasp-benchmark/testcode/BenchmarkTest01639.java:86` bpm-java-weak-cipher — label BenchmarkTest01639
 - `owasp-benchmark/testcode/BenchmarkTest01689.java:82` bpm-java-command-concat — label BenchmarkTest01689
-- `owasp-benchmark/testcode/BenchmarkTest01715.java:79` bpm-inj-sql-java — label BenchmarkTest01715
-- `owasp-benchmark/testcode/BenchmarkTest01716.java:79` bpm-inj-sql-java — label BenchmarkTest01716
-- `owasp-benchmark/testcode/BenchmarkTest01718.java:79` bpm-inj-sql-java — label BenchmarkTest01718
-- `owasp-benchmark/testcode/BenchmarkTest01720.java:75` bpm-java-sql-string-concat — label BenchmarkTest01720
-- `owasp-benchmark/testcode/BenchmarkTest01721.java:76` bpm-inj-sql-java — label BenchmarkTest01721
-- `owasp-benchmark/testcode/BenchmarkTest01723.java:79` bpm-inj-sql-java — label BenchmarkTest01723
-- `owasp-benchmark/testcode/BenchmarkTest01724.java:76` bpm-java-sql-string-concat — label BenchmarkTest01724
-- `owasp-benchmark/testcode/BenchmarkTest01725.java:77` bpm-inj-sql-java — label BenchmarkTest01725
-- `owasp-benchmark/testcode/BenchmarkTest01728.java:77` bpm-java-sql-string-concat — label BenchmarkTest01728
-- `owasp-benchmark/testcode/BenchmarkTest01730.java:77` bpm-java-sql-string-concat — label BenchmarkTest01730
-- `owasp-benchmark/testcode/BenchmarkTest01731.java:77` bpm-java-sql-string-concat — label BenchmarkTest01731
-- `owasp-benchmark/testcode/BenchmarkTest01733.java:77` bpm-java-sql-string-concat — label BenchmarkTest01733
 - `owasp-benchmark/testcode/BenchmarkTest01757.java:57` bpm-java-weak-hash — label BenchmarkTest01757
 - `owasp-benchmark/testcode/BenchmarkTest01822.java:84` bpm-java-weak-cipher — label BenchmarkTest01822
 - `owasp-benchmark/testcode/BenchmarkTest01823.java:84` bpm-java-weak-cipher — label BenchmarkTest01823
@@ -2451,12 +2126,6 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01845.java:76` bpm-java-weak-hash — label BenchmarkTest01845
 - `owasp-benchmark/testcode/BenchmarkTest01846.java:76` bpm-java-weak-hash — label BenchmarkTest01846
 - `owasp-benchmark/testcode/BenchmarkTest01864.java:78` bpm-java-command-concat — label BenchmarkTest01864
-- `owasp-benchmark/testcode/BenchmarkTest01882.java:72` bpm-inj-sql-java — label BenchmarkTest01882
-- `owasp-benchmark/testcode/BenchmarkTest01887.java:73` bpm-java-sql-string-concat — label BenchmarkTest01887
-- `owasp-benchmark/testcode/BenchmarkTest01888.java:73` bpm-java-sql-string-concat — label BenchmarkTest01888
-- `owasp-benchmark/testcode/BenchmarkTest01889.java:73` bpm-java-sql-string-concat — label BenchmarkTest01889
-- `owasp-benchmark/testcode/BenchmarkTest01890.java:73` bpm-java-sql-string-concat — label BenchmarkTest01890
-- `owasp-benchmark/testcode/BenchmarkTest01891.java:73` bpm-java-sql-string-concat — label BenchmarkTest01891
 - `owasp-benchmark/testcode/BenchmarkTest01895.java:67` bpm-java-weak-cipher — label BenchmarkTest01895
 - `owasp-benchmark/testcode/BenchmarkTest01897.java:67` bpm-java-weak-cipher — label BenchmarkTest01897
 - `owasp-benchmark/testcode/BenchmarkTest01898.java:67` bpm-java-weak-cipher — label BenchmarkTest01898
@@ -2465,49 +2134,22 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest01940.java:63` bpm-java-command-concat — label BenchmarkTest01940
 - `owasp-benchmark/testcode/BenchmarkTest01942.java:64` bpm-java-command-concat — label BenchmarkTest01942
 - `owasp-benchmark/testcode/BenchmarkTest01944.java:64` bpm-java-command-concat — label BenchmarkTest01944
-- `owasp-benchmark/testcode/BenchmarkTest01962.java:59` bpm-java-sql-string-concat — label BenchmarkTest01962
-- `owasp-benchmark/testcode/BenchmarkTest01964.java:57` bpm-inj-sql-java — label BenchmarkTest01964
-- `owasp-benchmark/testcode/BenchmarkTest01970.java:58` bpm-java-sql-string-concat — label BenchmarkTest01970
-- `owasp-benchmark/testcode/BenchmarkTest01971.java:58` bpm-java-sql-string-concat — label BenchmarkTest01971
-- `owasp-benchmark/testcode/BenchmarkTest01972.java:58` bpm-java-sql-string-concat — label BenchmarkTest01972
 - `owasp-benchmark/testcode/BenchmarkTest01978.java:77` bpm-java-weak-cipher — label BenchmarkTest01978
 - `owasp-benchmark/testcode/BenchmarkTest02017.java:71` bpm-java-weak-cipher — label BenchmarkTest02017
 - `owasp-benchmark/testcode/BenchmarkTest02018.java:71` bpm-java-weak-cipher — label BenchmarkTest02018
 - `owasp-benchmark/testcode/BenchmarkTest02019.java:71` bpm-java-weak-cipher — label BenchmarkTest02019
 - `owasp-benchmark/testcode/BenchmarkTest02020.java:69` bpm-java-weak-cipher — label BenchmarkTest02020
-- `owasp-benchmark/testcode/BenchmarkTest02087.java:61` bpm-java-sql-string-concat — label BenchmarkTest02087
-- `owasp-benchmark/testcode/BenchmarkTest02088.java:62` bpm-inj-sql-java — label BenchmarkTest02088
-- `owasp-benchmark/testcode/BenchmarkTest02090.java:58` bpm-java-sql-string-concat — label BenchmarkTest02090
-- `owasp-benchmark/testcode/BenchmarkTest02091.java:59` bpm-inj-sql-java — label BenchmarkTest02091
-- `owasp-benchmark/testcode/BenchmarkTest02092.java:60` bpm-java-sql-string-concat — label BenchmarkTest02092
-- `owasp-benchmark/testcode/BenchmarkTest02094.java:60` bpm-java-sql-string-concat — label BenchmarkTest02094
-- `owasp-benchmark/testcode/BenchmarkTest02096.java:60` bpm-java-sql-string-concat — label BenchmarkTest02096
-- `owasp-benchmark/testcode/BenchmarkTest02099.java:60` bpm-java-sql-string-concat — label BenchmarkTest02099
 - `owasp-benchmark/testcode/BenchmarkTest02101.java:62` bpm-java-weak-cipher — label BenchmarkTest02101
 - `owasp-benchmark/testcode/BenchmarkTest02118.java:56` bpm-java-weak-hash — label BenchmarkTest02118
 - `owasp-benchmark/testcode/BenchmarkTest02146.java:57` bpm-java-command-concat — label BenchmarkTest02146
 - `owasp-benchmark/testcode/BenchmarkTest02147.java:57` bpm-java-command-concat — label BenchmarkTest02147
 - `owasp-benchmark/testcode/BenchmarkTest02154.java:59` bpm-java-command-concat — label BenchmarkTest02154
-- `owasp-benchmark/testcode/BenchmarkTest02171.java:55` bpm-inj-sql-java — label BenchmarkTest02171
-- `owasp-benchmark/testcode/BenchmarkTest02177.java:52` bpm-inj-sql-java — label BenchmarkTest02177
-- `owasp-benchmark/testcode/BenchmarkTest02178.java:52` bpm-java-sql-string-concat — label BenchmarkTest02178
-- `owasp-benchmark/testcode/BenchmarkTest02179.java:54` bpm-inj-sql-java — label BenchmarkTest02179
-- `owasp-benchmark/testcode/BenchmarkTest02186.java:53` bpm-java-sql-string-concat — label BenchmarkTest02186
-- `owasp-benchmark/testcode/BenchmarkTest02187.java:53` bpm-java-sql-string-concat — label BenchmarkTest02187
 - `owasp-benchmark/testcode/BenchmarkTest02192.java:66` bpm-java-weak-cipher — label BenchmarkTest02192
 - `owasp-benchmark/testcode/BenchmarkTest02193.java:66` bpm-java-weak-cipher — label BenchmarkTest02193
 - `owasp-benchmark/testcode/BenchmarkTest02194.java:66` bpm-java-weak-cipher — label BenchmarkTest02194
 - `owasp-benchmark/testcode/BenchmarkTest02195.java:66` bpm-java-weak-cipher — label BenchmarkTest02195
 - `owasp-benchmark/testcode/BenchmarkTest02249.java:61` bpm-java-command-concat — label BenchmarkTest02249
 - `owasp-benchmark/testcode/BenchmarkTest02250.java:61` bpm-java-command-concat — label BenchmarkTest02250
-- `owasp-benchmark/testcode/BenchmarkTest02269.java:59` bpm-inj-sql-java — label BenchmarkTest02269
-- `owasp-benchmark/testcode/BenchmarkTest02270.java:59` bpm-inj-sql-java — label BenchmarkTest02270
-- `owasp-benchmark/testcode/BenchmarkTest02275.java:59` bpm-inj-sql-java — label BenchmarkTest02275
-- `owasp-benchmark/testcode/BenchmarkTest02277.java:56` bpm-java-sql-string-concat — label BenchmarkTest02277
-- `owasp-benchmark/testcode/BenchmarkTest02284.java:57` bpm-java-sql-string-concat — label BenchmarkTest02284
-- `owasp-benchmark/testcode/BenchmarkTest02286.java:57` bpm-java-sql-string-concat — label BenchmarkTest02286
-- `owasp-benchmark/testcode/BenchmarkTest02287.java:57` bpm-java-sql-string-concat — label BenchmarkTest02287
-- `owasp-benchmark/testcode/BenchmarkTest02288.java:57` bpm-java-sql-string-concat — label BenchmarkTest02288
 - `owasp-benchmark/testcode/BenchmarkTest02290.java:76` bpm-java-weak-cipher — label BenchmarkTest02290
 - `owasp-benchmark/testcode/BenchmarkTest02291.java:76` bpm-java-weak-cipher — label BenchmarkTest02291
 - `owasp-benchmark/testcode/BenchmarkTest02292.java:76` bpm-java-weak-cipher — label BenchmarkTest02292
@@ -2517,43 +2159,13 @@ xai-api-key | fast-lane | secrets | 0 | 0 | 0 | 0 | — | —
 - `owasp-benchmark/testcode/BenchmarkTest02307.java:70` bpm-java-weak-hash — label BenchmarkTest02307
 - `owasp-benchmark/testcode/BenchmarkTest02342.java:72` bpm-java-command-concat — label BenchmarkTest02342
 - `owasp-benchmark/testcode/BenchmarkTest02343.java:73` bpm-java-command-concat — label BenchmarkTest02343
-- `owasp-benchmark/testcode/BenchmarkTest02354.java:68` bpm-java-sql-string-concat — label BenchmarkTest02354
-- `owasp-benchmark/testcode/BenchmarkTest02355.java:68` bpm-java-sql-string-concat — label BenchmarkTest02355
-- `owasp-benchmark/testcode/BenchmarkTest02356.java:65` bpm-java-sql-string-concat — label BenchmarkTest02356
-- `owasp-benchmark/testcode/BenchmarkTest02357.java:66` bpm-inj-sql-java — label BenchmarkTest02357
-- `owasp-benchmark/testcode/BenchmarkTest02358.java:66` bpm-java-sql-string-concat — label BenchmarkTest02358
-- `owasp-benchmark/testcode/BenchmarkTest02359.java:68` bpm-inj-sql-java — label BenchmarkTest02359
-- `owasp-benchmark/testcode/BenchmarkTest02360.java:68` bpm-inj-sql-java — label BenchmarkTest02360
-- `owasp-benchmark/testcode/BenchmarkTest02364.java:67` bpm-java-sql-string-concat — label BenchmarkTest02364
-- `owasp-benchmark/testcode/BenchmarkTest02369.java:67` bpm-java-sql-string-concat — label BenchmarkTest02369
 - `owasp-benchmark/testcode/BenchmarkTest02373.java:64` bpm-java-weak-cipher — label BenchmarkTest02373
 - `owasp-benchmark/testcode/BenchmarkTest02374.java:64` bpm-java-weak-cipher — label BenchmarkTest02374
 - `owasp-benchmark/testcode/BenchmarkTest02385.java:58` bpm-java-weak-hash — label BenchmarkTest02385
 - `owasp-benchmark/testcode/BenchmarkTest02458.java:66` bpm-java-weak-cipher — label BenchmarkTest02458
-- `owasp-benchmark/testcode/BenchmarkTest02531.java:56` bpm-java-sql-string-concat — label BenchmarkTest02531
-- `owasp-benchmark/testcode/BenchmarkTest02532.java:57` bpm-inj-sql-java — label BenchmarkTest02532
-- `owasp-benchmark/testcode/BenchmarkTest02533.java:57` bpm-inj-sql-java — label BenchmarkTest02533
-- `owasp-benchmark/testcode/BenchmarkTest02534.java:57` bpm-inj-sql-java — label BenchmarkTest02534
-- `owasp-benchmark/testcode/BenchmarkTest02535.java:57` bpm-inj-sql-java — label BenchmarkTest02535
-- `owasp-benchmark/testcode/BenchmarkTest02542.java:55` bpm-java-sql-string-concat — label BenchmarkTest02542
-- `owasp-benchmark/testcode/BenchmarkTest02543.java:55` bpm-java-sql-string-concat — label BenchmarkTest02543
-- `owasp-benchmark/testcode/BenchmarkTest02545.java:55` bpm-java-sql-string-concat — label BenchmarkTest02545
 - `owasp-benchmark/testcode/BenchmarkTest02548.java:86` bpm-java-weak-cipher — label BenchmarkTest02548
 - `owasp-benchmark/testcode/BenchmarkTest02549.java:86` bpm-java-weak-cipher — label BenchmarkTest02549
 - `owasp-benchmark/testcode/BenchmarkTest02550.java:86` bpm-java-weak-cipher — label BenchmarkTest02550
-- `owasp-benchmark/testcode/BenchmarkTest02632.java:77` bpm-java-sql-string-concat — label BenchmarkTest02632
-- `owasp-benchmark/testcode/BenchmarkTest02635.java:79` bpm-inj-sql-java — label BenchmarkTest02635
-- `owasp-benchmark/testcode/BenchmarkTest02641.java:76` bpm-inj-sql-java — label BenchmarkTest02641
-- `owasp-benchmark/testcode/BenchmarkTest02642.java:76` bpm-java-sql-string-concat — label BenchmarkTest02642
-- `owasp-benchmark/testcode/BenchmarkTest02643.java:76` bpm-java-sql-string-concat — label BenchmarkTest02643
-- `owasp-benchmark/testcode/BenchmarkTest02647.java:77` bpm-java-sql-string-concat — label BenchmarkTest02647
-- `owasp-benchmark/testcode/BenchmarkTest02649.java:77` bpm-java-sql-string-concat — label BenchmarkTest02649
-- `owasp-benchmark/testcode/BenchmarkTest02650.java:77` bpm-java-sql-string-concat — label BenchmarkTest02650
-- `owasp-benchmark/testcode/BenchmarkTest02651.java:77` bpm-java-sql-string-concat — label BenchmarkTest02651
-- `owasp-benchmark/testcode/BenchmarkTest02653.java:77` bpm-java-sql-string-concat — label BenchmarkTest02653
-- `owasp-benchmark/testcode/BenchmarkTest02654.java:77` bpm-java-sql-string-concat — label BenchmarkTest02654
-- `owasp-benchmark/testcode/BenchmarkTest02655.java:77` bpm-java-sql-string-concat — label BenchmarkTest02655
-- `owasp-benchmark/testcode/BenchmarkTest02656.java:77` bpm-java-sql-string-concat — label BenchmarkTest02656
 - `owasp-benchmark/testcode/BenchmarkTest02658.java:65` bpm-java-weak-cipher — label BenchmarkTest02658
 - `owasp-benchmark/testcode/BenchmarkTest02660.java:63` bpm-java-weak-cipher — label BenchmarkTest02660
 - `owasp-benchmark/testcode/BenchmarkTest02661.java:63` bpm-java-weak-cipher — label BenchmarkTest02661
