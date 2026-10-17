@@ -209,7 +209,7 @@ reduction on the public benchmarks. `bpm-java-sql-string-concat` no longer runs 
 request handler, where `bpm-inj-sql-java` reports the site once with data flow; the rule records the
 cost (second-order injection in a handler is no longer reported). A bare `Cipher.getInstance("AES")`
 (ECB by default in the JCA) is deliberately not reported: public benchmarks count it as safe, and the
-rule is left for a separate measured candidate. Measured results: BENCHMARKS.md. (W18-50: the Juliet sample now includes path traversal and weak PRNG, and `bpm-java-insecure-random-token` matches `Math.random()`.)
+rule is left for a separate measured candidate. Measured results: BENCHMARKS.md. (W18-50: the Juliet sample now includes path traversal and weak PRNG, and `bpm-java-insecure-random-token` matches `Math.random()`.) (W18-53: `bpm-kt-insecure-random-token` has the same fix, plus `Random.Default`, `kotlin.random.Random`, `java.util.Random()` and the collection/range `.random()` forms.)
 
 **Dependency fix paths (W18-36).** `scanners/dependency/fixpath/` reads the lockfile graphs in the snapshot (npm,
 pnpm, yarn v1, poetry, uv, Cargo; go.mod is flat) and `adviseFix` names, for a transitive CVE, the direct

@@ -28,6 +28,7 @@ Assumption to confirm: "AT test" is read as the bpm-opencode-experts specialist-
 | W19-04 | Evidence-fed triage | The specialist receives the mechanical finding, reachability tier, a bounded code slice and rule provenance, and returns a verdict (real / likely false positive / needs human) with a citation and optional verified patch; it can propose a VEX justification but never suppresses on its own |
 | W19-05 | Model eval harness and published table | Run the specialists over labelled fixtures (OWASP/Juliet slices, slop and performance fixtures) per model; publish a per-model table in the admin UI and docs; not-yet-run shown as such |
 | W19-06 | Mechanical upgrade track | Versioned rulepack update channel, advisory data refresh schedule, nightly benchmark regression gate, and a loop where clusters of AI-judged false positives become human-reviewed rule-tweak proposals |
+| W19-08 | Claude Max plan option | Opt-in Claude Code CLI backend the customer installs and signs in to themselves, off by default, behind an accept-responsibility switch with an audit row (Brad, 2026-10-17); depends on W19-01 |
 | W19-07 | Settings experience | Admin → Models wizard: pick local, proxy or hosted, test, assign roles, see the eval table and what leaves the container |
 
 ## Recommendation and order
@@ -40,9 +41,10 @@ W19-01 and W19-02 first (they unlock customers connecting anything), then W19-04
 - Hosted subscription plans: Brad asked for a Max plan option. The supported route today is an Anthropic API key. I have not verified that Anthropic's terms allow a product to use a consumer subscription login, so I will not build that unverified. The proposal is an opt-in "Claude Code CLI backend" that the customer installs and signs in to themselves inside their own container, after a terms check; it is a separate ticket, not part of W19-01.
 - AI never auto-suppresses or auto-merges: verdicts and patches are suggestions for a human (D9a and the VEX rule stay).
 
-## Open for Brad (one question)
+## Decided by Brad (2026-10-17)
 
-Should the Max-plan option wait for a terms check (recommended), or be built now behind a "you accept responsibility" switch?
+- The specialist agents are the attest experts (`~/Code/attest`, v3.13 lineage); W19-03 is rebased on the attest roster once docs/design/ATTEST_EXPERTS.md is written.
+- The Max-plan option is built now, as W19-08, behind an accept-responsibility switch (off by default, audited). The project has not verified the consumer plans' terms; the switch makes the responsibility explicit and API keys stay the supported route.
 
 ## W19-01 as built (2026-10-17)
 
