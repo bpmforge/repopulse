@@ -205,6 +205,86 @@ then says that no public benchmark has been run. `--date` and `--commit` are rec
 the report so a published number says when it was taken; omitting them keeps a rerun
 byte-identical.
 
+## Tool adapters: checkov, actionlint, hadolint, shellcheck (W18-48)
+
+These four run only inside the scan image, as `code_health_tools` adapters, so the benchmark reaches
+them the way the product does: through `runCodeHealthTools` over a tree, in the sandbox, reading the
+adapter findings. The `iac-adapters` suite is our own and is read by this lane alone (the YAML packs and
+the fast lane never see it). Without a scan image the lane does not run and its labels are reported
+**skipped**, not missed: `pnpm --filter @repopulse/security bench` finds `localhost/repopulse/scan:*`
+in podman, or takes `--adapters-image <ref>` or `SCAN_IMAGE`; `--no-adapters` turns it off. It fails
+loudly rather than publish a run in which a tool crashed or timed out.
+
+**How the answer key was made.** Each fixture defect is written from the rule's documented definition
+and marked `# expect: <rule>` on the line above (or trailing on it); `suite.json` is generated from
+those markers and a test keeps them in step. A tool finding with no label is scored a false positive,
+but only after being read: where the code really did have the defect (an "all ports" security group
+also opens 22 and 3389; `public-read-write` includes read) the finding was added as a label, marked as
+such. A `clean` tree of near-misses (port 443 open to the world, `EXPOSE 2200`, `privileged: false`,
+quoted and `||`-guarded shell, expressions routed through `env`) must stay silent. A `real` tree holds
+this repository's own Dockerfile, `Containerfile.scan` and shell scripts as they were on the day, with
+every adapter finding read and judged: a true instance is a finding label, a false positive a `none`
+label. Checks whose output the adapters drop on purpose (shellcheck info/style, SC2154; hadolint
+info; the checkov checks not on the allowlist) are not labelled, because a miss there is the design.
+
+**Results (2026-10-17, scan image, checkov 3.3.29, actionlint 1.7.12, hadolint 2.15.1, shellcheck 0.11.0).**
+117 labelled defects (96 written fixtures, 21 on this repository's files) and 6 judged false positives,
+over 87 distinct tool rules: 115 true positives, 7 false positives (6 judged on real files, 1 on the
+fixtures), 2 misses (precision 94.3%, recall 98.3%).
+
+| Tool | Tree | Rules | TP | FP | FN | Precision | Recall |
+|---|---|--:|--:|--:|--:|--:|--:|
+| checkov | fixtures | 38 | 48 | 0 | 1 | 100% | 98.0% |
+| actionlint | fixtures | 15 | 14 | 0 | 1 | 100% | 93.3% |
+| hadolint | fixtures | 20 | 20 | 0 | 0 | 100% | 100% |
+| shellcheck | fixtures | 13 | 12 | 1 | 0 | 92.3% | 100% |
+| hadolint | this repository's files | 5 | 17 | 6 | 0 | 73.9% | 100% |
+| shellcheck | this repository's files | 4 | 4 | 0 | 0 | 100% | 100% |
+
+(checkov and actionlint found nothing in this repository's real files; its workflows and manifests are
+clean.) Per-rule rows, with sample sizes, are in [`benchmarks/report.md`](benchmarks/report.md) under
+*Tool adapters*.
+
+**What went wrong, and why it matters.**
+
+- **hadolint `DL3013` (pin pip versions): 2 false positives on real code.** `pip install --no-deps "$wheel"`
+  of a sha256-verified wheel is pinned; hadolint cannot see that through the variable. The fixtures had
+  an unpinned install and scored it 100%, so the real files found what the synthetic ones could not.
+- **hadolint `DL3025` (use JSON form for CMD): 4 false positives on real code.** It fires on
+  `HEALTHCHECK ... CMD <shell form>`, which needs the shell for `|| exit 1`; the rule is about the
+  container's CMD and ENTRYPOINT. Judged a false positive by the rule's own description.
+- **shellcheck `SC1010`: 1 false positive.** `echo done` is flagged because `done` looks like a keyword;
+  the line is correct.
+- **actionlint `workflow-call`: missed.** A call to a local reusable workflow without its required input
+  is reported by actionlint only when it finds a `.git` directory to anchor `./.github/workflows/...`
+  against, which a tarball snapshot never has (measured both ways). In the product this check is silent.
+- **checkov `CKV_DOCKER_11` (duplicate stage alias): missed.** checkov passes a Dockerfile that repeats
+  `AS build`; hadolint's `DL3024` catches it, which is consistent with the dedupe map keeping hadolint's.
+  The other three dedupe pairs measure equal (both sides found the defect), so no map entry drops the
+  better rule.
+- **actionlint's `action` (input check) only runs for actions it has metadata for**, keyed by major tag:
+  a workflow pinned `actions/checkout@v4.1.7` (the form hardening guides recommend) got no input check
+  while `@v4` did. Not scored, because the fixtures use `@v4` for that case; recorded here because it is a
+  gap in what the adapter can see.
+- **Cost on very large trees.** checkov reads the whole snapshot. On an infrastructure-only copy of a
+  large repository (about 9,000 YAML and shell files) the scan did not finish inside a 15-minute budget.
+  The benchmark trees are small; this is not measured further.
+
+**No rule is promoted, and why.** Promotion out of shadow is an admin action in the rule registry on at
+least 20 findings, 30 days and under 20% false positives from the workspace's own triage
+(`rules/lifecycle.ts`, `PROMOTION_GATE`; the API refuses it otherwise). A labelled corpus can supply the
+sample and a precision, never the 30 days or a workspace's dispositions, and here no rule reaches 20 labelled
+findings (the most is `DL3018` with 10 and `DL4006` with 8, both from this repository's own files; 69
+rules have exactly one; the report shows the shortfall per rule). So all 87 measured rules
+stay `candidate`, their numbers shown next to the gate. Writing `active` rows into a registry, or
+shipping them as defaults, to put a number to work would bypass the gate; that is a decision, not a side
+effect of a benchmark. What the shadow runs on real workspaces will produce is the missing half.
+
+**Not yet run.** checkov's allowlist has 60 checks and 38 have a labelled case; the other 22 are listed in
+the report as *not yet run*, which is not the same as zero. hadolint, shellcheck and actionlint have no
+fixed list (every code the tool can raise at error or warning level), so everything outside the table is
+not yet run.
+
 ## Corpus
 
 | Suite | What | Source and pin | Licence | Labels |
