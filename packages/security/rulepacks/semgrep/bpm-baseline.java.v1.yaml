@@ -34,6 +34,12 @@ rules:
       yields: ['sql-injection', 'data-read']
       lifecycle: candidate
       provenance: written for RepoPulse; not derived from any registry pack
+      limitation: >-
+        Does not run inside a method that takes a servlet request (W18-49):
+        bpm-inj-sql-java covers those with data flow. Second-order injection in
+        a handler (SQL built from a value read back from storage) is therefore
+        not reported there, and the pattern is still blind to where the
+        concatenated value came from everywhere else.
     patterns:
       - pattern-either:
           - pattern: $DB.$EXEC($SQL, ...)
@@ -69,6 +75,16 @@ rules:
       - metavariable-regex:
           metavariable: $SQL
           regex: (?s).*(\+|,)\s*\(?\s*(?![A-Z][A-Z0-9_]*\b)[A-Za-z_]
+      # Not inside a servlet request handler. There bpm-inj-sql-java follows the
+      # request value into the query, says whether it got there, and reports the
+      # site once; this pattern rule would report the same line again whatever
+      # the value is (W18-49). The cost is stated: a handler that builds SQL from
+      # something that did NOT come from the request in that method (a value read
+      # back from the database, the second-order case) is no longer reported.
+      - pattern-not-inside: |
+          $RET $METHOD(..., HttpServletRequest $REQ, ...) {
+            ...
+          }
 
   - id: bpm-kt-sql-string-concat
     languages: [kotlin]

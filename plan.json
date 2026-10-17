@@ -9711,6 +9711,37 @@
       "notes": [
         "Split from W18-45. The benchmark harness scores the fast lane and the YAML packs today; the adapters run only inside the scan image, so labelled runs need the Mac."
       ]
+    },
+    {
+      "id": "W18-49",
+      "title": "Java benchmark gaps: new rules for 22, 327, 328, 330 and fewer SQL false positives",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Java rules exist for path traversal (CWE-22), weak cipher (CWE-327), weak hash (CWE-328) and weak random (CWE-330), each ours (provenance line), a shadow candidate, with trigger and clean fixtures that carry ruleid markers and golden tests; no benchmark code or class names are copied",
+        "The CWE-89 false positives are reduced by something real (intrafile taint, and the pattern rule deferring to the taint rule inside request handlers) and the trade-off is measured and recorded in docs/BENCHMARKS.md",
+        "The public benchmark is re-run on opengrep 1.27.1 on a quiet machine with two identical reports, docs/benchmarks and the precision bundle regenerated, and docs/BENCHMARKS.md states before and after per CWE",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "Measured 2026-10-16 with opengrep 1.27.1 (OWASP, TPR/FPR; before then after): CWE 22 0%/0% to 88.7%/32.6%; 327 0%/0% to 100%/0%; 328 0%/0% to 69.0%/0%; 330 0%/0% to 100%/0%; 89 97.4%/96.1% to 79.0%/23.3%. Juliet 327 and 328 0% to 100% with 0% FPR; Juliet 89 71.2%/41.8% to 66.3%/30.9%. Overall precision 52.6% to 76.5%, recall 28.9% to 62.3%.",
+        "Also added (cheap, same sources): cookie without Secure CWE-614, LDAP CWE-90, XPath CWE-643, trust boundary CWE-501 (46.5% FPR on OWASP, weak). Not shipped: an implicit-ECB rule for a bare Cipher.getInstance(\"AES\") because Juliet counts it as safe and it would take Juliet 327's FPR from 0% to 100%.",
+        "Opengrep is run with --taint-intrafile (scanner and benchmark runner), its own commit. bpm-java-sql-string-concat no longer fires inside a servlet request handler, losing second-order injection recall there (recorded on the rule). The existing bpm-java-insecure-random-token has the same unbound-$NEXT structure that stops Math.random() matching; left alone, a follow-up.",
+        "The benchmark is load-sensitive: under a saturated machine the engine times out per file and silently drops findings, so two identical runs gave different reports. Numbers are from a quiet machine with two byte-identical runs.",
+        "Follow-ups: add Juliet CWE23/36 and CWE338 directories to the sample; decide on an implicit-ECB rule; the rules only read servlet request sources."
+      ]
     }
   ]
 }

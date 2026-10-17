@@ -25,18 +25,39 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-cmd-java": {
-      "tp": 50,
-      "fp": 19,
+      "tp": 77,
+      "fp": 17,
       "fn": 0,
-      "precision": 0.725,
+      "precision": 0.819,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
       ],
       "engine": "yaml"
     },
+    "bpm-inj-ldap-java": {
+      "tp": 37,
+      "fp": 7,
+      "fn": 0,
+      "precision": 0.841,
+      "suites": [
+        "juliet-java",
+        "owasp-benchmark"
+      ],
+      "engine": "yaml"
+    },
+    "bpm-inj-path-java": {
+      "tp": 118,
+      "fp": 44,
+      "fn": 0,
+      "precision": 0.728,
+      "suites": [
+        "owasp-benchmark"
+      ],
+      "engine": "yaml"
+    },
     "bpm-inj-redirect-java": {
-      "tp": 14,
+      "tp": 16,
       "fp": 0,
       "fn": 0,
       "precision": 1,
@@ -46,10 +67,31 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-sql-java": {
-      "tp": 127,
-      "fp": 89,
+      "tp": 230,
+      "fp": 54,
       "fn": 0,
-      "precision": 0.588,
+      "precision": 0.81,
+      "suites": [
+        "juliet-java",
+        "owasp-benchmark"
+      ],
+      "engine": "yaml"
+    },
+    "bpm-inj-trust-java": {
+      "tp": 72,
+      "fp": 20,
+      "fn": 0,
+      "precision": 0.783,
+      "suites": [
+        "owasp-benchmark"
+      ],
+      "engine": "yaml"
+    },
+    "bpm-inj-xpath-java": {
+      "tp": 26,
+      "fp": 3,
+      "fn": 0,
+      "precision": 0.897,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
@@ -57,10 +99,10 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-xss-java": {
-      "tp": 135,
-      "fp": 62,
+      "tp": 183,
+      "fp": 60,
       "fn": 0,
-      "precision": 0.685,
+      "precision": 0.753,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
@@ -68,23 +110,64 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-java-command-concat": {
-      "tp": 55,
+      "tp": 46,
       "fp": 159,
       "fn": 0,
-      "precision": 0.257,
+      "precision": 0.224,
       "suites": [
         "juliet-java",
         "owasp-benchmark"
       ],
       "engine": "yaml"
     },
-    "bpm-java-sql-string-concat": {
-      "tp": 212,
-      "fp": 370,
+    "bpm-java-cookie-insecure": {
+      "tp": 36,
+      "fp": 0,
       "fn": 0,
-      "precision": 0.364,
+      "precision": 1,
+      "suites": [
+        "owasp-benchmark"
+      ],
+      "engine": "yaml"
+    },
+    "bpm-java-sql-string-concat": {
+      "tp": 54,
+      "fp": 121,
+      "fn": 0,
+      "precision": 0.309,
+      "suites": [
+        "juliet-java"
+      ],
+      "engine": "yaml"
+    },
+    "bpm-java-weak-cipher": {
+      "tp": 164,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
       "suites": [
         "juliet-java",
+        "owasp-benchmark"
+      ],
+      "engine": "yaml"
+    },
+    "bpm-java-weak-hash": {
+      "tp": 140,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "juliet-java",
+        "owasp-benchmark"
+      ],
+      "engine": "yaml"
+    },
+    "bpm-java-weak-random": {
+      "tp": 218,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
         "owasp-benchmark"
       ],
       "engine": "yaml"
@@ -319,35 +402,35 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
     {
       "suite": "juliet-java",
       "cwe": 79,
-      "tp": 29,
+      "tp": 34,
       "fp": 0,
-      "fn": 260,
+      "fn": 255,
       "tn": 549,
-      "tpr": 0.1,
+      "tpr": 0.118,
       "fpr": 0,
-      "youden": 0.1
+      "youden": 0.118
     },
     {
       "suite": "juliet-java",
       "cwe": 89,
-      "tp": 74,
-      "fp": 164,
-      "fn": 30,
-      "tn": 228,
-      "tpr": 0.712,
-      "fpr": 0.418,
-      "youden": 0.294
+      "tp": 69,
+      "fp": 121,
+      "fn": 35,
+      "tn": 271,
+      "tpr": 0.663,
+      "fpr": 0.309,
+      "youden": 0.354
     },
     {
       "suite": "juliet-java",
       "cwe": 90,
-      "tp": 0,
+      "tp": 13,
       "fp": 0,
-      "fn": 93,
+      "fn": 80,
       "tn": 182,
-      "tpr": 0,
+      "tpr": 0.14,
       "fpr": 0,
-      "youden": 0
+      "youden": 0.14
     },
     {
       "suite": "juliet-java",
@@ -363,167 +446,167 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
     {
       "suite": "juliet-java",
       "cwe": 327,
-      "tp": 0,
+      "tp": 34,
       "fp": 0,
-      "fn": 34,
+      "fn": 0,
       "tn": 60,
-      "tpr": 0,
+      "tpr": 1,
       "fpr": 0,
-      "youden": 0
+      "youden": 1
     },
     {
       "suite": "juliet-java",
       "cwe": 328,
-      "tp": 0,
+      "tp": 51,
       "fp": 0,
-      "fn": 51,
+      "fn": 0,
       "tn": 90,
-      "tpr": 0,
+      "tpr": 1,
       "fpr": 0,
-      "youden": 0
+      "youden": 1
     },
     {
       "suite": "juliet-java",
       "cwe": 601,
-      "tp": 14,
+      "tp": 16,
       "fp": 0,
-      "fn": 83,
+      "fn": 81,
       "tn": 184,
-      "tpr": 0.144,
+      "tpr": 0.165,
       "fpr": 0,
-      "youden": 0.144
+      "youden": 0.165
     },
     {
       "suite": "juliet-java",
       "cwe": 643,
-      "tp": 0,
+      "tp": 12,
       "fp": 0,
-      "fn": 92,
+      "fn": 80,
       "tn": 368,
-      "tpr": 0,
+      "tpr": 0.13,
       "fpr": 0,
-      "youden": 0
+      "youden": 0.13
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 22,
-      "tp": 0,
-      "fp": 0,
-      "fn": 133,
-      "tn": 135,
-      "tpr": 0,
-      "fpr": 0,
-      "youden": 0
+      "tp": 118,
+      "fp": 44,
+      "fn": 15,
+      "tn": 91,
+      "tpr": 0.887,
+      "fpr": 0.326,
+      "youden": 0.561
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 78,
-      "tp": 46,
-      "fp": 52,
-      "fn": 80,
+      "tp": 64,
+      "fp": 50,
+      "fn": 62,
       "tn": 83,
-      "tpr": 0.365,
-      "fpr": 0.385,
-      "youden": -0.02
+      "tpr": 0.508,
+      "fpr": 0.376,
+      "youden": 0.132
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 79,
-      "tp": 106,
-      "fp": 62,
-      "fn": 140,
-      "tn": 147,
-      "tpr": 0.431,
-      "fpr": 0.297,
-      "youden": 0.134
+      "tp": 149,
+      "fp": 60,
+      "fn": 97,
+      "tn": 149,
+      "tpr": 0.606,
+      "fpr": 0.287,
+      "youden": 0.319
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 89,
-      "tp": 265,
-      "fp": 295,
-      "fn": 7,
-      "tn": 12,
-      "tpr": 0.974,
-      "fpr": 0.961,
-      "youden": 0.013
+      "tp": 215,
+      "fp": 54,
+      "fn": 57,
+      "tn": 178,
+      "tpr": 0.79,
+      "fpr": 0.233,
+      "youden": 0.557
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 90,
-      "tp": 0,
-      "fp": 0,
-      "fn": 27,
-      "tn": 32,
-      "tpr": 0,
-      "fpr": 0,
-      "youden": 0
+      "tp": 24,
+      "fp": 7,
+      "fn": 3,
+      "tn": 25,
+      "tpr": 0.889,
+      "fpr": 0.219,
+      "youden": 0.67
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 327,
-      "tp": 0,
+      "tp": 130,
       "fp": 0,
-      "fn": 130,
+      "fn": 0,
       "tn": 116,
-      "tpr": 0,
+      "tpr": 1,
       "fpr": 0,
-      "youden": 0
+      "youden": 1
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 328,
-      "tp": 0,
+      "tp": 89,
       "fp": 0,
-      "fn": 129,
+      "fn": 40,
       "tn": 107,
-      "tpr": 0,
+      "tpr": 0.69,
       "fpr": 0,
-      "youden": 0
+      "youden": 0.69
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 330,
-      "tp": 0,
+      "tp": 218,
       "fp": 0,
-      "fn": 218,
+      "fn": 0,
       "tn": 275,
-      "tpr": 0,
+      "tpr": 1,
       "fpr": 0,
-      "youden": 0
+      "youden": 1
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 501,
-      "tp": 0,
-      "fp": 0,
-      "fn": 83,
-      "tn": 43,
-      "tpr": 0,
-      "fpr": 0,
-      "youden": 0
+      "tp": 72,
+      "fp": 20,
+      "fn": 11,
+      "tn": 23,
+      "tpr": 0.867,
+      "fpr": 0.465,
+      "youden": 0.402
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 614,
-      "tp": 0,
+      "tp": 36,
       "fp": 0,
-      "fn": 36,
+      "fn": 0,
       "tn": 31,
-      "tpr": 0,
+      "tpr": 1,
       "fpr": 0,
-      "youden": 0
+      "youden": 1
     },
     {
       "suite": "owasp-benchmark",
       "cwe": 643,
-      "tp": 0,
-      "fp": 0,
-      "fn": 15,
-      "tn": 20,
-      "tpr": 0,
-      "fpr": 0,
-      "youden": 0
+      "tp": 14,
+      "fp": 3,
+      "fn": 1,
+      "tn": 17,
+      "tpr": 0.933,
+      "fpr": 0.15,
+      "youden": 0.783
     }
   ],
   "publicSuites": [
@@ -538,6 +621,6 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
   ],
   "measured": {
     "date": "2026-10-16",
-    "commit": "7271e53967260dcd558da9e4dfc7267270f2c0ba"
+    "commit": "bf83839ec1857d9d689727f23673c15f0a19fbc3"
   }
 };

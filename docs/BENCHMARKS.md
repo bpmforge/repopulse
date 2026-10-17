@@ -94,12 +94,82 @@ benchmarks, by CWE*.
 | `juliet-java` | NIST Juliet Java v1.3: a stride sample of up to 150 files for each of thirteen weakness directories (22, 78, 80/81/83, 89, 90, 259, 327, 328, 330, 601, 643) | public domain, fetched and hash-pinned |
 
 **First measured run (2026-10-16, opengrep 1.27.1, commit a7d15ea).** 2,740 OWASP cases and
-3,095 Juliet labels. Across both suites precision is 52.6% and recall 28.9%. Where we are
-bad is stated, not hidden: nothing reports CWE 22, 90, 259, 327, 328, 330, 501, 614 or 643
-(TPR 0%), and the SQL-injection rule flags almost every safe OWASP look-alike (CWE 89: TPR
-97.4%, FPR 96.1%, Youden 0.013). Commands to reproduce are below. Five `antbuild/` template
-files in the Juliet download are not test cases and fail to parse; excluding them is a
-known follow-up.
+3,095 Juliet labels. Across both suites precision was 52.6% and recall 28.9%. Where we were
+bad is stated, not hidden: nothing reported CWE 22, 90, 259, 327, 328, 330, 501, 614 or 643
+(TPR 0%), and the SQL-injection rules flagged almost every safe OWASP look-alike (CWE 89: TPR
+97.4%, FPR 96.1%, Youden 0.013). Commands to reproduce are below.
+
+**After W18-49 (2026-10-16, opengrep 1.27.1, commit bf83839).** Across both suites precision is
+76.5% and recall 62.3% (1,584 TP, 487 FP, 960 FN; the Juliet sample is 3,141 labels after the
+`antbuild/` scaffolding was excluded, so the counts are not directly comparable to the first
+run's). What changed, in order of effect:
+
+1. **Opengrep now runs with `--taint-intrafile`** (scanner and benchmark runner alike), so a value
+   passed through a helper method defined in the same file is followed instead of assumed
+   tainted. This is the largest false-positive reduction: with the rules otherwise unchanged,
+   path traversal's FPR on OWASP went 65% to 33%.
+2. **New Java rules** for weak hash (CWE-328), weak cipher (CWE-327), weak random inside a
+   request handler (CWE-330), cookie without Secure (CWE-614), LDAP (CWE-90), XPath (CWE-643)
+   and session trust boundary (CWE-501), plus broader servlet sources and fully qualified file
+   sinks on the existing injection rules. All are shadow candidates written for ordinary Java.
+3. **`bpm-java-sql-string-concat` no longer runs inside a servlet request handler**, where
+   `bpm-inj-sql-java` reports the site once with data flow. **Cost, stated plainly:** a handler
+   that builds SQL from a value that did not come from the request in that method (a value
+   read back from the database, the second-order case) is no longer reported by this rule. The
+   rule's own metadata records it.
+
+Rows that moved (TP/FN/FP/TN; TPR / FPR / Youden), before = first run's tables, after = this run:
+
+| Suite | CWE | Before | TPR / FPR / Youden | After | TPR / FPR / Youden |
+|---|--:|---|---|---|---|
+| juliet-java | 79 | 29/260/0/549 | 10.0% / 0.0% / 0.100 | 34/255/0/549 | 11.8% / 0.0% / 0.118 |
+| juliet-java | 89 | 74/30/164/228 | 71.2% / 41.8% / 0.294 | 69/35/121/271 | 66.3% / 30.9% / 0.354 |
+| juliet-java | 90 | 0/93/0/182 | 0.0% / 0.0% / 0.000 | 13/80/0/182 | 14.0% / 0.0% / 0.140 |
+| juliet-java | 327 | 0/34/0/60 | 0.0% / 0.0% / 0.000 | 34/0/0/60 | 100.0% / 0.0% / 1.000 |
+| juliet-java | 328 | 0/51/0/90 | 0.0% / 0.0% / 0.000 | 51/0/0/90 | 100.0% / 0.0% / 1.000 |
+| juliet-java | 601 | 14/83/0/184 | 14.4% / 0.0% / 0.144 | 16/81/0/184 | 16.5% / 0.0% / 0.165 |
+| juliet-java | 643 | 0/92/0/368 | 0.0% / 0.0% / 0.000 | 12/80/0/368 | 13.0% / 0.0% / 0.130 |
+| owasp-benchmark | 22 | 0/133/0/135 | 0.0% / 0.0% / 0.000 | 118/15/44/91 | 88.7% / 32.6% / 0.561 |
+| owasp-benchmark | 78 | 46/80/52/83 | 36.5% / 38.5% / -0.020 | 64/62/50/83 | 50.8% / 37.6% / 0.132 |
+| owasp-benchmark | 79 | 106/140/62/147 | 43.1% / 29.7% / 0.134 | 149/97/60/149 | 60.6% / 28.7% / 0.319 |
+| owasp-benchmark | 89 | 265/7/295/12 | 97.4% / 96.1% / 0.013 | 215/57/54/178 | 79.0% / 23.3% / 0.557 |
+| owasp-benchmark | 90 | 0/27/0/32 | 0.0% / 0.0% / 0.000 | 24/3/7/25 | 88.9% / 21.9% / 0.670 |
+| owasp-benchmark | 327 | 0/130/0/116 | 0.0% / 0.0% / 0.000 | 130/0/0/116 | 100.0% / 0.0% / 1.000 |
+| owasp-benchmark | 328 | 0/129/0/107 | 0.0% / 0.0% / 0.000 | 89/40/0/107 | 69.0% / 0.0% / 0.690 |
+| owasp-benchmark | 330 | 0/218/0/275 | 0.0% / 0.0% / 0.000 | 218/0/0/275 | 100.0% / 0.0% / 1.000 |
+| owasp-benchmark | 501 | 0/83/0/43 | 0.0% / 0.0% / 0.000 | 72/11/20/23 | 86.7% / 46.5% / 0.402 |
+| owasp-benchmark | 614 | 0/36/0/31 | 0.0% / 0.0% / 0.000 | 36/0/0/31 | 100.0% / 0.0% / 1.000 |
+| owasp-benchmark | 643 | 0/15/0/20 | 0.0% / 0.0% / 0.000 | 14/1/3/17 | 93.3% / 15.0% / 0.783 |
+
+How to read the strong rows honestly:
+
+- **327, 330 and 614 at 100% / 0%** reflect how narrow those benchmark categories are (DES against
+  AES, `Random` against `SecureRandom`, `setSecure(false)` against `true`), not a general
+  guarantee. The weak-random rule only fires inside a servlet request handler, because a random
+  value in a handler is more likely to be a token than jitter is; elsewhere it is silent.
+- **328 at 69% on OWASP** is the ceiling for a literal-only rule: the remaining 40 cases take the
+  algorithm name from a configuration property with a safe default, so flagging them would be
+  guessing. Juliet's 328 and 327 are 100% / 0%.
+- **CWE 501 (trust boundary) has a 46.5% FPR** on OWASP: the rule reports the store, and cannot
+  see the validation OWASP's safe variants hide behind helper calls it cannot resolve. Weak
+  evidence of value; it stays a candidate.
+- **A bare `Cipher.getInstance("AES")`** (ECB by default in the JCA) is not reported. Juliet
+  counts it as safe, so a rule for it would take Juliet 327's FPR from 0% to 100% while being
+  right about real code; it is left as a separate candidate to measure.
+- **Juliet has no CWE 22 or 330 rows**: the configured directories do not exist in the Java
+  archive (Juliet names path traversal CWE23/CWE36 and weak random CWE338), so the Juliet side of
+  those two is unmeasured; adding the directories is a follow-up. Juliet's CWE 90 and 643 TPR is low
+  (14% and 13%) because most of their cases start from `Environment`, `PropertiesFile`, `database`,
+  `listen_tcp` or `File` sources, not a servlet request, which these rules do not read.
+- **What still scores badly:** CWE 89 on Juliet (TPR 66%, FPR 31%) and CWE 78 (Youden 0.13 on
+  OWASP, negative on Juliet). The remaining OWASP false positives are values made constant by
+  `switch` on a literal or a constant ternary condition, which needs path-sensitive evaluation
+  the OSS engine does not do.
+- **The run is load-sensitive.** Opengrep gives up on a file after a per-rule timeout, and on a
+  saturated machine that silently drops findings (observed: two runs on identical input gave
+  different reports). The numbers above are from a quiet machine, with two consecutive runs
+  byte-identical and no engine error beyond the eight juice-shop snippets the parser rejects.
+  Re-measure the same way.
 
 **Method.** A case is one label with a CWE. A real vulnerability that a rule with that CWE
 reports is a true positive; one nothing reports is a false negative. A safe look-alike

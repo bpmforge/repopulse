@@ -202,6 +202,9 @@ export function runYamlPacks(tool: YamlTool, trees: readonly Tree[], packs: Yaml
       '--json',
       '--quiet',
       ...(tool.name === 'semgrep' ? ['--metrics=off', '--disable-version-check'] : []),
+      // The same engine setting the scanner passes, so the numbers describe the
+      // product. Opengrep only: semgrep's OSS engine has no such flag.
+      ...(tool.name === 'opengrep' ? ['--taint-intrafile'] : []),
       ...packs.files.flatMap((f) => ['--config', f]),
       scratch,
     ];
