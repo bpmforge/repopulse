@@ -1,0 +1,6 @@
+FROM debian:12.5
+WORKDIR /srv
+# expect: tool.hadolint.DL3003
+RUN cd /srv/app && make
+RUN useradd -m app
+USER app

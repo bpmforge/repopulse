@@ -1,0 +1,9 @@
+name: syntax
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # expect: tool.actionlint.syntax-check
+    unknown-key: true
+    steps:
+      - uses: actions/checkout@v4.1.7

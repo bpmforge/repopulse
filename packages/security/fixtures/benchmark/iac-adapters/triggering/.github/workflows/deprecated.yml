@@ -1,0 +1,9 @@
+name: deprecated
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7
+      # expect: tool.actionlint.deprecated-commands
+      - run: echo "::set-output name=sha::${GITHUB_SHA}"

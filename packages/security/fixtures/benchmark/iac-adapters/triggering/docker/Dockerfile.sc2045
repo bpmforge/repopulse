@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.hadolint.SC2045
+RUN for f in $(ls /srv); do echo "$f"; done
+RUN useradd -m app
+USER app

@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+# expect: tool.checkov.CKV_K8S_39
+kind: Deployment
+metadata:
+  name: sysadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sysadmin
+  template:
+    metadata:
+      labels:
+        app: sysadmin
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/app:1.4.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["SYS_ADMIN"]

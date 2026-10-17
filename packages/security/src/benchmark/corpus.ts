@@ -103,6 +103,15 @@ export const suiteSchema = z
     description: z.string().min(1),
     source: sourceSchema,
     unlabelled: z.enum(['fp', 'ignore']),
+    /**
+     * Which engines read the suite's trees. `static` (the default): the
+     * in-process fast lane and the YAML rulepacks. `adapters`: the tool
+     * adapters (checkov, actionlint, hadolint, shellcheck), run through the
+     * code-health scanner in the scan image — they exist nowhere else, so a
+     * suite for them is read by nothing else, and nothing else's findings
+     * on it would be scored.
+     */
+    lane: z.enum(['static', 'adapters']).default('static'),
     trees: z.array(z.object({ id: z.string().min(1), path: z.string().min(1) }).strict()).min(1),
     labels: z.array(labelSchema),
     fetch: fetchSchema.optional(),
@@ -191,12 +200,16 @@ export function loadCorpus(root: string = CORPUS_DIR): Suite[] {
     .map((name) => loadSuite(path.join(root, name)));
 }
 
-/** Files under a tree, relative and sorted. Dot-directories are not corpus. */
-export function treeFiles(dir: string): string[] {
+/**
+ * Files under a tree, relative and sorted. Dot-directories are not corpus,
+ * except for the adapters lane: a workflow has to live under `.github/` to be
+ * a workflow at all, and `includeDot` is how that lane asks for it.
+ */
+export function treeFiles(dir: string, includeDot = false): string[] {
   const out: string[] = [];
   const walk = (current: string, rel: string): void => {
     for (const entry of readdirSync(current).sort()) {
-      if (entry.startsWith('.')) continue;
+      if (!includeDot && entry.startsWith('.')) continue;
       const full = path.join(current, entry);
       const relPath = rel ? `${rel}/${entry}` : entry;
       if (statSync(full).isDirectory()) walk(full, relPath);

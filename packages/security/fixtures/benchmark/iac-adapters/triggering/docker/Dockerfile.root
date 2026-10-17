@@ -1,0 +1,5 @@
+FROM debian:12.5
+RUN useradd -m app
+USER app
+# expect: tool.hadolint.DL3002 tool.checkov.CKV_DOCKER_8
+USER root

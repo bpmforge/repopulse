@@ -6,6 +6,7 @@ import {
   runFastLane,
   runYamlPacks,
   yamlPacks,
+  type AdapterRun,
   type YamlTool,
 } from './engines.js';
 import { matchFindings, type BenchFinding } from './match.js';
@@ -19,6 +20,14 @@ export interface BenchmarkOptions {
   yamlBin?: string;
   /** Recorded in the report so a published number says when it was taken. */
   measured?: { date: string | null; commit: string | null };
+  /**
+   * The tool adapters' findings, already run (they need the scan image, so the
+   * caller runs them: engines.ts runAdapterLane). Absent = the lane did not run
+   * and its labels are skipped, not missed.
+   */
+  adapters?: AdapterRun;
+  /** Why the adapter lane did not run, for the report. */
+  adaptersReason?: string;
 }
 
 /**
@@ -29,7 +38,8 @@ export interface BenchmarkOptions {
 export function validateLabels(suites: readonly Suite[]): void {
   for (const suite of suites) {
     if (!suite.prepared) continue;
-    const files = new Map(suite.trees.map((t) => [t.id, new Set(treeFiles(t.dir))]));
+    const dot = suite.manifest.lane === 'adapters';
+    const files = new Map(suite.trees.map((t) => [t.id, new Set(treeFiles(t.dir, dot))]));
     for (const l of suite.labels) {
       if (!files.get(l.tree)?.has(l.file)) {
         throw new Error(
@@ -44,7 +54,11 @@ export function runBenchmark(opts: BenchmarkOptions = {}): BenchmarkReport {
   const suites = loadCorpus(opts.corpusDir ?? CORPUS_DIR);
   validateLabels(suites);
   const scored = suites.filter((s) => s.prepared);
-  const trees = scored.flatMap((s) => s.trees);
+  // A suite is read by one lane. The adapters' fixtures are read by the adapters
+  // alone: the YAML packs and the fast lane would report on them too, and every
+  // such finding would score as an unlabelled false positive of a rule the suite
+  // was never written for.
+  const trees = scored.filter((s) => s.manifest.lane !== 'adapters').flatMap((s) => s.trees);
 
   const fast = fastLaneRules();
   const rules: RuleInfo[] = [...fast].map(([rule, dimension]) => ({
@@ -79,7 +93,33 @@ export function runBenchmark(opts: BenchmarkOptions = {}): BenchmarkReport {
     };
   }
 
-  const known = new Set([...fast.keys(), ...yamlPacks().rules.keys()]);
+  // The adapter lane's rules: the ones its labels name and the ones it raised.
+  // Their universe is the tools' own, not a file this repository owns, so a
+  // rule is "known" because a label or a finding says it exists; a label that
+  // names something else is a typo and refused.
+  const adapterRuleDims = new Map<string, string>();
+  for (const suite of scored.filter((x) => x.manifest.lane === 'adapters')) {
+    for (const l of suite.labels) {
+      for (const r of [l.rule, ...(l.accept ?? [])]) {
+        if (r === undefined) continue;
+        if (!r.startsWith('tool.')) {
+          throw new Error(`${suite.manifest.id}: label ${l.id} names ${r}, not a tool.* rule`);
+        }
+        if (!adapterRuleDims.has(r)) adapterRuleDims.set(r, l.dimension);
+      }
+    }
+  }
+  if (opts.adapters) {
+    for (const f of opts.adapters.findings) {
+      if (!adapterRuleDims.has(f.ruleId)) adapterRuleDims.set(f.ruleId, f.dimension);
+    }
+    findings.push(...opts.adapters.findings);
+    for (const [rule, dimension] of adapterRuleDims) {
+      rules.push({ rule, engine: 'adapter', dimension });
+    }
+  }
+
+  const known = new Set([...fast.keys(), ...yamlPacks().rules.keys(), ...adapterRuleDims.keys()]);
   for (const suite of suites) {
     for (const l of suite.labels) {
       for (const r of [l.rule, ...(l.accept ?? [])]) {
@@ -103,7 +143,13 @@ export function runBenchmark(opts: BenchmarkOptions = {}): BenchmarkReport {
   });
 
   return buildReport({
-    engines: { fastLane: { rules: fast.size }, yaml },
+    engines: {
+      fastLane: { rules: fast.size },
+      yaml,
+      adapters: opts.adapters
+        ? { status: 'ran', tools: opts.adapters.tools, trees: opts.adapters.trees }
+        : { status: 'unavailable', reason: opts.adaptersReason ?? 'not requested' },
+    },
     corpus: suites.map((s) => ({
       id: s.manifest.id,
       title: s.manifest.title,

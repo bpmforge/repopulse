@@ -1,0 +1,6 @@
+FROM debian:12.5 AS build
+RUN echo build
+# expect: tool.hadolint.DL3024 tool.checkov.CKV_DOCKER_11
+FROM debian:12.5 AS build
+RUN useradd -m app
+USER app

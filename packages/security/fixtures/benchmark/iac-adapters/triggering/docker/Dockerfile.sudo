@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.hadolint.DL3004
+RUN sudo apt-get update
+RUN useradd -m app
+USER app

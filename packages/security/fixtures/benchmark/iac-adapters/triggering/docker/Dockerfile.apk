@@ -1,0 +1,5 @@
+FROM alpine:3.20.0
+# expect: tool.hadolint.DL3018
+RUN apk add --no-cache curl
+RUN adduser -D app
+USER app

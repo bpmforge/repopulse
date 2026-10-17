@@ -1,0 +1,10 @@
+name: action
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # expect: tool.actionlint.action
+          no-such-input: true

@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.checkov.CKV_DOCKER_1
+EXPOSE 22
+RUN useradd -m app
+USER app

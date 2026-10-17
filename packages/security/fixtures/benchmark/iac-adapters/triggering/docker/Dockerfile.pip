@@ -1,0 +1,5 @@
+FROM python:3.12.3-slim
+# expect: tool.hadolint.DL3013
+RUN pip install --no-cache-dir requests
+RUN useradd -m app
+USER app

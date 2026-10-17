@@ -1,0 +1,13 @@
+name: shell2
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7
+      # expect: tool.actionlint.shellcheck.SC2115
+      - run: |
+          dir="${BUILD_DIR}"
+          rm -rf "$dir/"
+        env:
+          BUILD_DIR: build

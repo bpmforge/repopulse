@@ -1,0 +1,9 @@
+FROM debian:12.5
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl=7.88.1-10+deb12u5 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /srv
+ADD release.tar.gz /srv/
+RUN useradd --no-log-init -m app
+USER app
+CMD ["/srv/run"]

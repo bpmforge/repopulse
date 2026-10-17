@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+# expect: tool.checkov.CKV_K8S_16
+kind: Deployment
+metadata:
+  name: privileged
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: privileged
+  template:
+    metadata:
+      labels:
+        app: privileged
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/app:1.4.2
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: false

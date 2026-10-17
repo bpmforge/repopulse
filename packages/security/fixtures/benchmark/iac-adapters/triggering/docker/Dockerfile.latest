@@ -1,0 +1,4 @@
+# expect: tool.hadolint.DL3007 tool.checkov.CKV_DOCKER_7
+FROM alpine:latest
+RUN adduser -D app
+USER app

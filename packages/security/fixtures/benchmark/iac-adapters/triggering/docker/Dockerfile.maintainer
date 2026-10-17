@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.hadolint.DL4000
+MAINTAINER someone@example.com
+RUN useradd -m app
+USER app

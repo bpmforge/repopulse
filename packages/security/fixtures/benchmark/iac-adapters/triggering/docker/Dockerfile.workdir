@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.hadolint.DL3000 tool.checkov.CKV_DOCKER_10
+WORKDIR app
+RUN useradd -m app
+USER app

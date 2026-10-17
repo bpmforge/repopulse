@@ -1,0 +1,3 @@
+# expect: tool.checkov.CKV_DOCKER_3
+FROM debian:12.5
+RUN echo hello

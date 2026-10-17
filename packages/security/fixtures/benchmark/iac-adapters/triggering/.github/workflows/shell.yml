@@ -1,0 +1,11 @@
+name: shell
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7
+      # expect: tool.actionlint.shellcheck.SC2155
+      - run: |
+          export BUILD_DIR=$(pwd)/build
+          make -C "$BUILD_DIR"
