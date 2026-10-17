@@ -197,6 +197,20 @@ sanitizers are per sink. **Limit, stated plainly:** the engine follows a value t
 function. A flow that crosses a call into another function, a field or a framework injection
 is missed, not misreported — real interprocedural dataflow is the next step, not claimed here.
 
+**Java benchmark gaps (W18-49).** Two shadow-mode packs of our own, written for ordinary Java and not for
+a benchmark: `bpm-baseline.java-crypto.v1.yaml` (weak hash CWE-328, weak cipher CWE-327, and weak
+random CWE-330 inside a servlet request handler) and `bpm-baseline.java-web.v1.yaml` (cookie without
+Secure CWE-614, plus taint rules for LDAP filters CWE-90, XPath CWE-643 and session trust boundary
+CWE-501). The Java injection rules gain the other servlet sources (`getHeaders`, `getHeaderNames`, a
+request variable of any name by its declared type) and the fully qualified `java.io` / `java.nio.file`
+sinks. The scanner now runs Opengrep with `--taint-intrafile`, so a value passed through a helper defined
+in the same file is followed instead of assumed tainted; that is the largest single false-positive
+reduction on the public benchmarks. `bpm-java-sql-string-concat` no longer runs inside a servlet
+request handler, where `bpm-inj-sql-java` reports the site once with data flow; the rule records the
+cost (second-order injection in a handler is no longer reported). A bare `Cipher.getInstance("AES")`
+(ECB by default in the JCA) is deliberately not reported: public benchmarks count it as safe, and the
+rule is left for a separate measured candidate. Measured results: BENCHMARKS.md.
+
 **Dependency fix paths (W18-36).** `scanners/dependency/fixpath/` reads the lockfile graphs in the snapshot (npm,
 pnpm, yarn v1, poetry, uv, Cargo; go.mod is flat) and `adviseFix` names, for a transitive CVE, the direct
 dependency to bump and a pin that is correct by construction (`overrides`, `pnpm.overrides`, `resolutions`,
