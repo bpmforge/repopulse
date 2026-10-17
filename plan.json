@@ -9893,6 +9893,198 @@
         "RECOMMENDATION: A now; B if iOS/CocoaPods customers appear or AFNetworking-class coverage is wanted. Not C (a standing network dependency and schema coupling for about 29 pods out of 103,421), and never D. If B is chosen, hiredis-style ties (two verified vendors) should be skipped or both emitted, and entries should record the pod version range the repository verification covers.",
         "Constraints respected: no cloning (podspec JSON is fetched as plain files), no wildcard vendor, nothing at scan time. Whether a developer-run script reading the public Specs sits inside the 'budgeted client only' rule (which governs forge calls) is part of the decision."
       ]
+    },
+    {
+          "id": "W19-01",
+          "title": "Provider breadth and capability probe: native Gemini and Vertex, local-server presets, model capability probe",
+          "phase": 19,
+          "module": "analysis",
+          "stories": [],
+          "write_scope": [
+                "packages/analysis/**",
+                "packages/shared/**",
+                "apps/api/**",
+                "apps/web/**",
+                "docs/**",
+                "plan.json"
+          ],
+          "depends_on": [],
+          "acceptance": [
+                "Gemini (native and via its OpenAI-compatible endpoint) and Vertex AI connect through the provider registry with a Test connection; presets exist for LM Studio, Ollama, MLX servers, Unsloth, vLLM and LiteLLM and are verified against the real server where one can be run",
+                "A capability probe records context window, JSON-mode, streaming and tool-use support on the connection and the admin UI shows it; an unsupported capability fails at configuration time with a sentence, not inside a scheduled pass",
+                "Credentials stay encrypted at rest, nothing secret is logged, full gate green"
+          ],
+          "points": 5,
+          "status": "todo",
+          "notes": [
+                "See docs/design/AI_LAYER.md (2026-10-17).",
+                "Finishes the useful half of W16-09. Subscription logins (Max plan and similar) are a separate, terms-checked ticket, not this one."
+          ]
+    },
+    {
+          "id": "W19-02",
+          "title": "Per-role model routing and policy settings",
+          "phase": 19,
+          "module": "analysis",
+          "stories": [],
+          "write_scope": [
+                "packages/analysis/**",
+                "packages/shared/**",
+                "apps/api/**",
+                "apps/web/**",
+                "docs/**",
+                "plan.json"
+          ],
+          "depends_on": [
+                "W19-01"
+          ],
+          "acceptance": [
+                "A workspace maps each role (security, performance, code health, best practices, AI slop, triage, patch) to a provider and model with an ordered fallback chain, and the gateway honours it",
+                "A local-only switch refuses any role that would leave the container; Tier-3 opt-in, the egress audit row and the monthly budget behave exactly as before and tests prove it",
+                "Settings are workspace-scoped, tenancy tests stay green, full gate green"
+          ],
+          "points": 5,
+          "status": "todo",
+          "notes": [
+                "See docs/design/AI_LAYER.md (2026-10-17)."
+          ]
+    },
+    {
+          "id": "W19-03",
+          "title": "Specialist roster, repo-wide mode and conditional waves (add best practices and AI slop)",
+          "phase": 19,
+          "module": "analysis",
+          "stories": [],
+          "write_scope": [
+                "packages/analysis/**",
+                "packages/insights/**",
+                "apps/api/**",
+                "docs/**",
+                "plan.json"
+          ],
+          "depends_on": [
+                "W19-02"
+          ],
+          "acceptance": [
+                "best_practices and ai_slop join code_health, security, performance and test_coverage as versioned checklist assets with the same finding schema",
+                "Every specialist can run on a file or module as well as a diff, and a conditional-wave planner runs only the specialists a change is relevant to",
+                "Golden fixtures per specialist, with chunking bounded to the model's probed context window, full gate green"
+          ],
+          "points": 8,
+          "status": "todo",
+          "notes": [
+                "See docs/design/AI_LAYER.md (2026-10-17)."
+          ]
+    },
+    {
+          "id": "W19-04",
+          "title": "Evidence-fed AI triage: mechanical findings plus reachability plus code slice give a verdict, citation and verified patch",
+          "phase": 19,
+          "module": "analysis",
+          "stories": [],
+          "write_scope": [
+                "packages/analysis/**",
+                "packages/security/**",
+                "apps/api/**",
+                "apps/web/**",
+                "docs/**",
+                "plan.json"
+          ],
+          "depends_on": [
+                "W19-02"
+          ],
+          "acceptance": [
+                "For a mechanical finding the specialist receives the rule provenance, reachability tier and a bounded code slice and returns real / likely false positive / needs human with a citation to lines it was given; uncited verdicts are rejected",
+                "A proposed patch is re-scanned to prove it removes the finding (existing verified-patch path); a VEX justification can be proposed but nothing is suppressed, merged or written to a repository by the AI",
+                "Verdict agreement against the labelled benchmark fixtures is measured and published per model; full gate green"
+          ],
+          "points": 8,
+          "status": "todo",
+          "notes": [
+                "See docs/design/AI_LAYER.md (2026-10-17).",
+                "Builds on W18-19 verified patches and the validation funnel; D9a and the VEX human-approval rule stay."
+          ]
+    },
+    {
+          "id": "W19-05",
+          "title": "Model eval harness and published per-model quality table",
+          "phase": 19,
+          "module": "analysis",
+          "stories": [],
+          "write_scope": [
+                "packages/analysis/**",
+                "packages/security/**",
+                "apps/web/**",
+                "docs/**",
+                "plan.json"
+          ],
+          "depends_on": [
+                "W19-03",
+                "W19-04"
+          ],
+          "acceptance": [
+                "A harness runs each specialist over labelled fixtures (OWASP/Juliet slices plus slop, performance and health fixtures) for a chosen provider and model and writes precision and recall per role",
+                "The admin UI and docs show the table per model, with 'not yet run' for anything unmeasured and the engine and date of each run",
+                "Results are deterministic where the provider allows it and the run reports provider errors loudly instead of scoring them; full gate green"
+          ],
+          "points": 5,
+          "status": "todo",
+          "notes": [
+                "See docs/design/AI_LAYER.md (2026-10-17)."
+          ]
+    },
+    {
+          "id": "W19-06",
+          "title": "Mechanical upgrade track: rulepack update channel, advisory refresh, nightly regression gate, AI-assisted rule proposals",
+          "phase": 19,
+          "module": "security",
+          "stories": [],
+          "write_scope": [
+                "packages/security/**",
+                "apps/api/**",
+                "docs/**",
+                "scripts/**",
+                "plan.json"
+          ],
+          "depends_on": [],
+          "acceptance": [
+                "Rulepacks and advisory data update from a versioned, verifiable bundle on a schedule the customer controls, with a rollback and an offline path",
+                "A scheduled benchmark run compares to the last committed report and fails on a regression in any measured row, with the load-sensitivity caveat handled (quiet-machine pair or flagged)",
+                "Clusters of AI-judged false positives produce human-reviewed rule-tweak proposals; nothing changes a rule without a person approving it; full gate green"
+          ],
+          "points": 8,
+          "status": "todo",
+          "notes": [
+                "See docs/design/AI_LAYER.md (2026-10-17).",
+                "The standing track Brad asked for: mechanical checks keep getting stronger after Snyk parity."
+          ]
+    },
+    {
+          "id": "W19-07",
+          "title": "Settings experience: Models wizard for local, proxy or hosted",
+          "phase": 19,
+          "module": "web",
+          "stories": [],
+          "write_scope": [
+                "apps/web/**",
+                "apps/api/**",
+                "docs/**",
+                "plan.json"
+          ],
+          "depends_on": [
+                "W19-02",
+                "W19-05"
+          ],
+          "acceptance": [
+                "Admin → Models walks a customer through choosing local, proxy or hosted, testing, assigning roles and seeing the per-model table, and states plainly what leaves the container for each role",
+                "Self-contained install docs cover the same path with LM Studio and a hosted key as worked examples, each verified end to end",
+                "Accessibility and e2e coverage match the existing admin pages; full gate green"
+          ],
+          "points": 5,
+          "status": "todo",
+          "notes": [
+                "See docs/design/AI_LAYER.md (2026-10-17)."
+          ]
     }
   ]
 }
