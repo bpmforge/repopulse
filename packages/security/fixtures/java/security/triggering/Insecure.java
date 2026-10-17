@@ -9,6 +9,8 @@ import java.security.cert.X509Certificate;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
+import org.apache.commons.lang3.RandomStringUtils;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.X509TrustManager;
@@ -57,6 +59,33 @@ public class Insecure {
     public String generateResetCode() {
         // ruleid: bpm-java-insecure-random-token
         return String.valueOf(new Random().nextInt(999999));
+    }
+
+    // The other generators the rule names. The method names here say nothing
+    // about secrets, so it is the NAME OF THE VARIABLE that makes each one a hit.
+    public String refreshNonce() {
+        // ruleid: bpm-java-insecure-random-token
+        double nonce = Math.random();
+        return Double.toString(nonce);
+    }
+
+    public int refreshCsrf() {
+        // ruleid: bpm-java-insecure-random-token
+        int csrfToken = ThreadLocalRandom.current().nextInt();
+        return csrfToken;
+    }
+
+    public String refreshKey() {
+        // ruleid: bpm-java-insecure-random-token
+        String apiKey = RandomStringUtils.randomAlphanumeric(32);
+        return apiKey;
+    }
+
+    // Here it is the METHOD name (a generator of session ids), and Math.random()
+    // is written fully qualified.
+    public String generateSessionId() {
+        // ruleid: bpm-java-insecure-random-token
+        return Long.toString((long) (java.lang.Math.random() * 1e12));
     }
 
     static class TrustEverything implements X509TrustManager {

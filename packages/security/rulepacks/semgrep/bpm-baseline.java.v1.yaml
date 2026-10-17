@@ -194,16 +194,23 @@ rules:
       provenance: written for RepoPulse; not derived from any registry pack
     patterns:
       - pattern-either:
-          - pattern: new Random(...).$NEXT(...)
-          - pattern: (java.util.Random $R).$NEXT(...)
-          - pattern: (Random $R).$NEXT(...)
-          - pattern: ThreadLocalRandom.current().$NEXT(...)
+          # The method-name filter belongs to the forms that BIND a method name.
+          # `Math.random()` binds none, and a metavariable-regex on an unbound
+          # metavariable fails the whole match, which is how this alternative
+          # never matched anything while it sat in the list above the filter.
+          - patterns:
+              - pattern-either:
+                  - pattern: new Random(...).$NEXT(...)
+                  - pattern: (java.util.Random $R).$NEXT(...)
+                  - pattern: (Random $R).$NEXT(...)
+                  - pattern: ThreadLocalRandom.current().$NEXT(...)
+                  - pattern: RandomStringUtils.$NEXT(...)
+                  - pattern: RandomUtils.$NEXT(...)
+              - metavariable-regex:
+                  metavariable: $NEXT
+                  regex: ^(next\w*|ints|longs|random\w*|doubles)$
           - pattern: Math.random()
-          - pattern: RandomStringUtils.$NEXT(...)
-          - pattern: RandomUtils.$NEXT(...)
-      - metavariable-regex:
-          metavariable: $NEXT
-          regex: ^(next\w*|ints|longs|random\w*|doubles)$
+          - pattern: java.lang.Math.random()
       # The secret-shaped context: either the value lands in a secret-named
       # variable, or the enclosing method generates one. `key` alone is not
       # here — `cacheKey` and `shardKey` are ordinary names. The name must be
