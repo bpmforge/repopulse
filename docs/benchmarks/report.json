@@ -70,6 +70,16 @@
         "juice-shop/codefixes/loginBenderChallenge_4.ts",
         "juice-shop/codefixes/loginJimChallenge_3.ts"
       ]
+    },
+    "adapters": {
+      "status": "ran",
+      "tools": {
+        "checkov": "3.3.29",
+        "actionlint": "1.7.12",
+        "hadolint": "2.15.1",
+        "shellcheck": "0.11.0"
+      },
+      "trees": 3
     }
   },
   "corpus": [
@@ -83,6 +93,18 @@
       "status": "scored",
       "trees": 38,
       "labels": 23
+    },
+    {
+      "id": "iac-adapters",
+      "title": "Tool adapters: checkov, actionlint, hadolint, shellcheck",
+      "source": {
+        "kind": "in-repo",
+        "path": "packages/security/fixtures/benchmark/iac-adapters",
+        "licence": "Proprietary (RepoPulse)"
+      },
+      "status": "scored",
+      "trees": 3,
+      "labels": 123
     },
     {
       "id": "juice-shop",
@@ -151,15 +173,15 @@
     }
   ],
   "totals": {
-    "tp": 1584,
-    "fp": 487,
-    "fn": 960,
+    "tp": 1699,
+    "fp": 494,
+    "fn": 962,
     "tn": 3046,
     "duplicate": 197,
     "ignored": 2330,
     "skipped": 11,
-    "precision": 0.765,
-    "recall": 0.623
+    "precision": 0.775,
+    "recall": 0.638
   },
   "byDimension": [
     {
@@ -177,6 +199,20 @@
       }
     },
     {
+      "dimension": "correctness",
+      "score": {
+        "tp": 65,
+        "fp": 7,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.903,
+        "recall": 0.985
+      }
+    },
+    {
       "dimension": "dependency",
       "score": {
         "tp": 0,
@@ -188,6 +224,20 @@
         "skipped": 2,
         "precision": null,
         "recall": null
+      }
+    },
+    {
+      "dimension": "iac",
+      "score": {
+        "tp": 50,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 0.98
       }
     },
     {
@@ -7127,6 +7177,1398 @@
       }
     },
     {
+      "rule": "tool.actionlint.action",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.credentials",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.deprecated-commands",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.events",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.expression",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.glob",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.id",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.if-cond",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.job-needs",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.permissions",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.shellcheck.SC2115",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.shellcheck.SC2155",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.syntax-check",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.untrusted-input",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.actionlint.workflow-call",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": 0
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_103",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_107",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_16",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_17",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_2",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_20",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_24",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_25",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_260",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_277",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_287",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_3",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_41",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_57",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AWS_63",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AZURE_10",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_AZURE_9",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_DOCKER_1",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_DOCKER_10",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_DOCKER_11",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": null,
+        "recall": 0
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_DOCKER_3",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_DOCKER_7",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_DOCKER_8",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_GCP_2",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_GCP_3",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_14",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_155",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_156",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_157",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_158",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_16",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_17",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_18",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_19",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_20",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_27",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_39",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.checkov.CKV_K8S_49",
+      "engine": "adapter",
+      "dimension": "iac",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3000",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3002",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3003",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3004",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3006",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3007",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3008",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3013",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 2,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.333,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3016",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3018",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 10,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3020",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3024",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3025",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.2,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3027",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3030",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3032",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL3033",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL4000",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.DL4006",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.hadolint.SC2045",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC1010",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0,
+        "recall": null
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2010",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2034",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2045",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2068",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2069",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2115",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2124",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2128",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2145",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2148",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2155",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC2164",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
+      "rule": "tool.shellcheck.SC3010",
+      "engine": "adapter",
+      "dimension": "correctness",
+      "score": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 1,
+        "recall": 1
+      }
+    },
+    {
       "rule": "twilio-api-key",
       "engine": "fast-lane",
       "dimension": "secrets",
@@ -7252,6 +8694,20 @@
         "skipped": 0,
         "precision": 0.955,
         "recall": 0.913
+      }
+    },
+    {
+      "suite": "iac-adapters",
+      "score": {
+        "tp": 115,
+        "fp": 7,
+        "fn": 2,
+        "tn": 0,
+        "duplicate": 0,
+        "ignored": 0,
+        "skipped": 0,
+        "precision": 0.943,
+        "recall": 0.983
       }
     },
     {
@@ -7549,7 +9005,7 @@
   ],
   "measured": {
     "date": "2026-10-16",
-    "commit": "bf83839ec1857d9d689727f23673c15f0a19fbc3"
+    "commit": "4eb5c06a7666f1cecb293f83125f1819eb61bb08"
   },
   "outcomes": [
     {
@@ -7815,6 +9271,1370 @@
       "cwe": null,
       "kind": "tp",
       "labelId": "slop-unused-export"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 180,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-180"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 180,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl4006-180"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 197,
+      "ruleId": "tool.hadolint.DL3013",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3013-197"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 197,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-197"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 197,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl4006-197"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 221,
+      "ruleId": "tool.hadolint.DL3003",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3003-221"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 221,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-221"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 231,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-231"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 231,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl4006-231"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 265,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-265"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 265,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl4006-265"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 290,
+      "ruleId": "tool.hadolint.DL3013",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3013-290"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 290,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-290"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 290,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl4006-290"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 400,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-400"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 400,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl4006-400"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 429,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl3018-429"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "line": 429,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-containerfile-scan-hadolint-dl4006-429"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Dockerfile",
+      "line": 118,
+      "ruleId": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": "ia-real-dockerfile-hadolint-dl3025-118"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Dockerfile",
+      "line": 156,
+      "ruleId": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": "ia-real-dockerfile-hadolint-dl3025-156"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Dockerfile",
+      "line": 179,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-dockerfile-hadolint-dl3018-179"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Dockerfile",
+      "line": 185,
+      "ruleId": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": "ia-real-dockerfile-hadolint-dl3025-185"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "Dockerfile",
+      "line": 224,
+      "ruleId": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": "ia-real-dockerfile-hadolint-dl3025-224"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "deploy/up.sh",
+      "line": 201,
+      "ruleId": "tool.shellcheck.SC2010",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-deploy-up-sh-shellcheck-sc2010-201"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "scripts/ci-local.sh",
+      "line": 33,
+      "ruleId": "tool.shellcheck.SC2164",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-scripts-ci-local-sh-shellcheck-sc2164-33"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "scripts/ci-local.sh",
+      "line": 55,
+      "ruleId": "tool.shellcheck.SC2155",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-scripts-ci-local-sh-shellcheck-sc2155-55"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "real",
+      "file": "scripts/validate-compose.sh",
+      "line": 65,
+      "ruleId": "tool.shellcheck.SC2034",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-real-scripts-validate-compose-sh-shellcheck-sc2034-65"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/action.yml",
+      "line": 10,
+      "ruleId": "tool.actionlint.action",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-action-yml-actionlint-action-10"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/caller.yml",
+      "line": 6,
+      "ruleId": "tool.actionlint.workflow-call",
+      "dimension": "correctness",
+      "labelId": "ia-github-workflows-caller-yml-actionlint-workflow-call-6",
+      "cwe": null,
+      "kind": "fn"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/creds.yml",
+      "line": 11,
+      "ruleId": "tool.actionlint.credentials",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-creds-yml-actionlint-credentials-11"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/deprecated.yml",
+      "line": 9,
+      "ruleId": "tool.actionlint.deprecated-commands",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-deprecated-yml-actionlint-deprecated-commands-9"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/events.yml",
+      "line": 3,
+      "ruleId": "tool.actionlint.events",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-events-yml-actionlint-events-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/expr.yml",
+      "line": 9,
+      "ruleId": "tool.actionlint.expression",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-expr-yml-actionlint-expression-9"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/glob.yml",
+      "line": 6,
+      "ruleId": "tool.actionlint.glob",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-glob-yml-actionlint-glob-6"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/idkey.yml",
+      "line": 9,
+      "ruleId": "tool.actionlint.id",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-idkey-yml-actionlint-id-9"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/ifcond.yml",
+      "line": 9,
+      "ruleId": "tool.actionlint.if-cond",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-ifcond-yml-actionlint-if-cond-9"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/needs.yml",
+      "line": 4,
+      "ruleId": "tool.actionlint.job-needs",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-needs-yml-actionlint-job-needs-7"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/perms.yml",
+      "line": 5,
+      "ruleId": "tool.actionlint.permissions",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-perms-yml-actionlint-permissions-5"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/shell.yml",
+      "line": 9,
+      "ruleId": "tool.actionlint.shellcheck.SC2155",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-shell-yml-actionlint-shellcheck-sc2155-9"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/shell2.yml",
+      "line": 9,
+      "ruleId": "tool.actionlint.shellcheck.SC2115",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-shell2-yml-actionlint-shellcheck-sc2115-9"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/syntax.yml",
+      "line": 7,
+      "ruleId": "tool.actionlint.syntax-check",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-syntax-yml-actionlint-syntax-check-7"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": ".github/workflows/untrusted.yml",
+      "line": 9,
+      "ruleId": "tool.actionlint.untrusted-input",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-github-workflows-untrusted-yml-actionlint-untrusted-input-9"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 4,
+      "ruleId": "tool.checkov.CKV_AWS_24",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-24-4"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 14,
+      "ruleId": "tool.checkov.CKV_AWS_25",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-25-14"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 24,
+      "ruleId": "tool.checkov.CKV_AWS_16",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-16-24"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 24,
+      "ruleId": "tool.checkov.CKV_AWS_17",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-17-24"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 33,
+      "ruleId": "tool.checkov.CKV_AWS_20",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-20-33"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 38,
+      "ruleId": "tool.checkov.CKV_AWS_107",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-107-38"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 38,
+      "ruleId": "tool.checkov.CKV_AWS_63",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-63-38"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "line": 50,
+      "ruleId": "tool.checkov.CKV_AWS_3",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-cloudformation-template-yaml-checkov-ckv-aws-3-50"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.add",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3020",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-add-hadolint-dl3020-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.alias",
+      "line": 4,
+      "ruleId": "tool.checkov.CKV_DOCKER_11",
+      "dimension": "iac",
+      "labelId": "ia-docker-dockerfile-alias-checkov-ckv-docker-11-4",
+      "cwe": null,
+      "kind": "fn"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.alias",
+      "line": 4,
+      "ruleId": "tool.hadolint.DL3024",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-alias-hadolint-dl3024-4"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.apk",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-apk-hadolint-dl3018-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.aptget",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3027",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-aptget-hadolint-dl3027-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.aptpin",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3008",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-aptpin-hadolint-dl3008-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.cd",
+      "line": 4,
+      "ruleId": "tool.hadolint.DL3003",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-cd-hadolint-dl3003-4"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.cmd",
+      "line": 5,
+      "ruleId": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-cmd-hadolint-dl3025-5"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.latest",
+      "line": 2,
+      "ruleId": "tool.checkov.CKV_DOCKER_7",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-latest-checkov-ckv-docker-7-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.latest",
+      "line": 2,
+      "ruleId": "tool.hadolint.DL3007",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-latest-hadolint-dl3007-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.maintainer",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL4000",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-maintainer-hadolint-dl4000-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.nouser",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_DOCKER_3",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-nouser-checkov-ckv-docker-3-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.npm",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3016",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-npm-hadolint-dl3016-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.pip",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3013",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-pip-hadolint-dl3013-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.pipe",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-pipe-hadolint-dl4006-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.root",
+      "line": 5,
+      "ruleId": "tool.checkov.CKV_DOCKER_8",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-root-checkov-ckv-docker-8-5"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.root",
+      "line": 5,
+      "ruleId": "tool.hadolint.DL3002",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-root-hadolint-dl3002-5"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.sc2045",
+      "line": 3,
+      "ruleId": "tool.hadolint.SC2045",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-sc2045-hadolint-sc2045-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.ssh",
+      "line": 3,
+      "ruleId": "tool.checkov.CKV_DOCKER_1",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-ssh-checkov-ckv-docker-1-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.sudo",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3004",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-sudo-hadolint-dl3004-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.untagged",
+      "line": 2,
+      "ruleId": "tool.checkov.CKV_DOCKER_7",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-untagged-checkov-ckv-docker-7-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.untagged",
+      "line": 2,
+      "ruleId": "tool.hadolint.DL3006",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-untagged-hadolint-dl3006-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.workdir",
+      "line": 3,
+      "ruleId": "tool.checkov.CKV_DOCKER_10",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-workdir-checkov-ckv-docker-10-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.workdir",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3000",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-workdir-hadolint-dl3000-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.yum",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3030",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-yum-hadolint-dl3030-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.yum",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3032",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-yum-hadolint-dl3032-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.yum",
+      "line": 3,
+      "ruleId": "tool.hadolint.DL3033",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-docker-dockerfile-yum-hadolint-dl3033-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/dockersock.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_27",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-dockersock-yaml-checkov-ckv-k8s-27-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/escalate.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_20",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-escalate-yaml-checkov-ckv-k8s-20-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/hostipc.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_18",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-hostipc-yaml-checkov-ckv-k8s-18-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/hostnet.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_19",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-hostnet-yaml-checkov-ckv-k8s-19-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/hostpid.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_17",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-hostpid-yaml-checkov-ckv-k8s-17-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/latest.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_14",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-latest-yaml-checkov-ckv-k8s-14-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/privileged.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_16",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-privileged-yaml-checkov-ckv-k8s-16-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_155",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-rbac-yaml-checkov-ckv-k8s-155-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_156",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-rbac-yaml-checkov-ckv-k8s-156-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_157",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-rbac-yaml-checkov-ckv-k8s-157-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_158",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-rbac-yaml-checkov-ckv-k8s-158-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_49",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-rbac-yaml-checkov-ckv-k8s-49-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "k8s/sysadmin.yaml",
+      "line": 1,
+      "ruleId": "tool.checkov.CKV_K8S_39",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-k8s-sysadmin-yaml-checkov-ckv-k8s-39-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2034.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2034",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2034-sh-shellcheck-sc2034-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2039.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC3010",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2039-sh-shellcheck-sc3010-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2045.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2045",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2045-sh-shellcheck-sc2045-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2068.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2068",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2068-sh-shellcheck-sc2068-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2069.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2069",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2069-sh-shellcheck-sc2069-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2115.sh",
+      "line": 4,
+      "ruleId": "tool.shellcheck.SC2115",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2115-sh-shellcheck-sc2115-4"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2124.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2124",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2124-sh-shellcheck-sc2124-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2128.sh",
+      "line": 4,
+      "ruleId": "tool.shellcheck.SC2128",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2128-sh-shellcheck-sc2128-4"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2145.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2145",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2145-sh-shellcheck-sc2145-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2148.sh",
+      "line": 1,
+      "ruleId": "tool.shellcheck.SC2148",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2148-sh-shellcheck-sc2148-1"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2155.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2155",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2155-sh-shellcheck-sc2155-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2164.sh",
+      "line": 3,
+      "ruleId": "tool.shellcheck.SC2164",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-shell-sc2164-sh-shellcheck-sc2164-3"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "shell/sc2164.sh",
+      "line": 4,
+      "ruleId": "tool.shellcheck.SC1010",
+      "dimension": "correctness",
+      "cwe": null,
+      "kind": "fp",
+      "labelId": null
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 2,
+      "ruleId": "tool.checkov.CKV_AWS_24",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-24-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 13,
+      "ruleId": "tool.checkov.CKV_AWS_25",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-25-13"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 24,
+      "ruleId": "tool.checkov.CKV_AWS_24",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-24-24"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 24,
+      "ruleId": "tool.checkov.CKV_AWS_25",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-25-24"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 24,
+      "ruleId": "tool.checkov.CKV_AWS_260",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-260-24"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 24,
+      "ruleId": "tool.checkov.CKV_AWS_277",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-277-24"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 35,
+      "ruleId": "tool.checkov.CKV_AWS_16",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-16-35"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 35,
+      "ruleId": "tool.checkov.CKV_AWS_17",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-17-35"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 45,
+      "ruleId": "tool.checkov.CKV_AWS_20",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-20-45"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 51,
+      "ruleId": "tool.checkov.CKV_AWS_20",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-20-51"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 51,
+      "ruleId": "tool.checkov.CKV_AWS_57",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-57-51"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 57,
+      "ruleId": "tool.checkov.CKV_AWS_287",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-287-57"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 57,
+      "ruleId": "tool.checkov.CKV_AWS_63",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-63-57"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 70,
+      "ruleId": "tool.checkov.CKV_AWS_41",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-41-70"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 77,
+      "ruleId": "tool.checkov.CKV_AWS_3",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-3-77"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 84,
+      "ruleId": "tool.checkov.CKV_AWS_103",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-103-84"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "line": 84,
+      "ruleId": "tool.checkov.CKV_AWS_2",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-aws-tf-checkov-ckv-aws-2-84"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/azure.tf",
+      "line": 2,
+      "ruleId": "tool.checkov.CKV_AZURE_10",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-azure-tf-checkov-ckv-azure-10-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/azure.tf",
+      "line": 17,
+      "ruleId": "tool.checkov.CKV_AZURE_9",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-azure-tf-checkov-ckv-azure-9-17"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/gcp.tf",
+      "line": 2,
+      "ruleId": "tool.checkov.CKV_GCP_2",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-gcp-tf-checkov-ckv-gcp-2-2"
+    },
+    {
+      "suite": "iac-adapters",
+      "tree": "triggering",
+      "file": "terraform/gcp.tf",
+      "line": 13,
+      "ruleId": "tool.checkov.CKV_GCP_3",
+      "dimension": "iac",
+      "cwe": null,
+      "kind": "tp",
+      "labelId": "ia-terraform-gcp-tf-checkov-ckv-gcp-3-13"
     },
     {
       "suite": "juice-shop",
