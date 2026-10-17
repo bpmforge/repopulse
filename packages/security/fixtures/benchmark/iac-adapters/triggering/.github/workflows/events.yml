@@ -1,0 +1,8 @@
+name: events
+# expect: tool.actionlint.events
+on: pushes
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7

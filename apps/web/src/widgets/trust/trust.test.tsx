@@ -131,6 +131,17 @@ describe('precision text', () => {
   });
 });
 
+describe('benchmarkText for a tool adapter', () => {
+  it('says the rule is a third-party tool run in the scan image, not the YAML engine', () => {
+    const t = benchmarkText(
+      { tp: 2, fp: 0, fn: 0, precision: 1, suites: ['iac-adapters'], engine: 'adapter' },
+      SOURCE,
+    );
+    expect(t.basis).toBe('2 of 2 raised were real · W18-17 benchmark, tool run in the scan image');
+    expect(t.small).toBe(true);
+  });
+});
+
 describe('RulePrecisionTable', () => {
   it('shows both sources side by side with lifecycle, and "not measured yet" where empty', async () => {
     bodies['/rules/precision'] = REPORT;

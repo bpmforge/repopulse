@@ -14,9 +14,10 @@ import { runBenchmark } from './run.js';
 const suites = loadCorpus();
 
 describe('benchmark corpus', () => {
-  it('has the four committed suites and the two fetched public ones', () => {
+  it('has the five committed suites and the two fetched public ones', () => {
     expect(suites.map((s) => s.manifest.id)).toEqual([
       'changes',
+      'iac-adapters',
       'juice-shop',
       'juliet-java',
       'owasp-benchmark',
@@ -46,6 +47,10 @@ describe('benchmark corpus', () => {
           const lines = readFileSync(file, 'utf8').split('\n').length;
           expect(l.lines[1], `${s.manifest.id}/${l.id}`).toBeLessThanOrEqual(lines);
         }
+        // The adapters lane's rules are the tools' own (`tool.checkov.CKV_AWS_24`),
+        // not ids this repository owns; run.ts refuses anything that is not a
+        // tool.* id, and adapters-lane.test.ts holds the labels to their markers.
+        if (s.manifest.lane === 'adapters') continue;
         for (const r of [l.rule, ...(l.accept ?? [])].filter((x) => x !== undefined)) {
           expect(known.has(r), `${s.manifest.id}/${l.id}: ${r}`).toBe(true);
         }

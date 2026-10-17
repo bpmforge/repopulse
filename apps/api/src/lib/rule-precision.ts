@@ -56,9 +56,10 @@ export interface BenchmarkRuleScore {
   suites: string[];
   /**
    * Which engine produced the rule's findings: 'yaml' rules ran under the
-   * report's semgrep version, 'fast-lane' rules in-process. null if unrecorded.
+   * report's semgrep version, 'fast-lane' rules in-process, 'adapter' rules
+   * (checkov, actionlint, hadolint, shellcheck) in the scan image. null if unrecorded.
    */
-  engine: 'yaml' | 'fast-lane' | null;
+  engine: 'yaml' | 'fast-lane' | 'adapter' | null;
 }
 
 export interface BenchmarkSummary {
@@ -105,7 +106,7 @@ export function summariseBenchmark(report: BenchmarkReportInput): BenchmarkSumma
       fn: 0,
       precision: null,
       suites: [],
-      engine: engine === 'yaml' || engine === 'fast-lane' ? engine : null,
+      engine: engine === 'yaml' || engine === 'fast-lane' || engine === 'adapter' ? engine : null,
     });
     score[outcome.kind] += 1;
     if (!score.suites.includes(outcome.suite)) score.suites.push(outcome.suite);

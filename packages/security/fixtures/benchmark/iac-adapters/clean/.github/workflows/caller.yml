@@ -1,0 +1,7 @@
+name: caller
+on: push
+jobs:
+  call:
+    uses: ./.github/workflows/release.yml
+    with:
+      version: "1.2.3"

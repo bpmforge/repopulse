@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+# expect: tool.checkov.CKV_K8S_27
+kind: Deployment
+metadata:
+  name: dockersock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dockersock
+  template:
+    metadata:
+      labels:
+        app: dockersock
+    spec:
+      volumes:
+        - name: sock
+          hostPath:
+            path: /var/run/docker.sock
+      containers:
+        - name: app
+          image: registry.example.com/app:1.4.2
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: sock
+              mountPath: /var/run/docker.sock

@@ -1,0 +1,13 @@
+name: creds
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container:
+      image: registry.example.com/build:1.0
+      credentials:
+        username: ci
+        # expect: tool.actionlint.credentials
+        password: hunter2
+    steps:
+      - uses: actions/checkout@v4.1.7

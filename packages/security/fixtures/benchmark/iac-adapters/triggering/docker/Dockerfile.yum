@@ -1,0 +1,5 @@
+FROM centos:7.9.2009
+# expect: tool.hadolint.DL3030 tool.hadolint.DL3032 tool.hadolint.DL3033
+RUN yum install httpd
+RUN useradd app
+USER app

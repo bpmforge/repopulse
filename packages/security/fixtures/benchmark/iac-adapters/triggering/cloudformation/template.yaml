@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  # expect: tool.checkov.CKV_AWS_24
+  SshOpen:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ssh from anywhere
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+  # expect: tool.checkov.CKV_AWS_25
+  RdpOpen:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: rdp from anywhere
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+  # expect: tool.checkov.CKV_AWS_17 tool.checkov.CKV_AWS_16
+  PublicDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      AllocatedStorage: "20"
+      PubliclyAccessible: true
+      StorageEncrypted: false
+  # expect: tool.checkov.CKV_AWS_20
+  PublicBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+  # expect: tool.checkov.CKV_AWS_63 tool.checkov.CKV_AWS_107
+  WildcardPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: wildcard
+      Roles: [ci]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "*"
+            Resource: "arn:aws:s3:::example"
+  # expect: tool.checkov.CKV_AWS_3
+  UnencryptedVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: us-east-1a
+      Size: 8
+      Encrypted: false

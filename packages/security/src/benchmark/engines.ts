@@ -9,6 +9,7 @@ import {
   PHANTOM_SYMBOL_RULE_ID,
   phantomRefs,
 } from '../scanners/anti-slop/phantom-refs.js';
+import { runCodeHealthTools } from '../scanners/code-health/tools.js';
 import { scanPatch } from '../scanners/secrets/detect.js';
 import { loadRulepack } from '../scanners/secrets/rulepack.js';
 import { parseOpengrepOutput } from '../scanners/semgrep/output.js';
@@ -257,4 +258,82 @@ export function runYamlPacks(tool: YamlTool, trees: readonly Tree[], packs: Yaml
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
+}
+
+// ---- The tool adapters (W18-48) ---------------------------------------------
+//
+// checkov, actionlint, hadolint and shellcheck run only inside the scan image,
+// so the benchmark reaches them the way the product does: through
+// runCodeHealthTools over the tree, in the sandbox, and reads
+// `adapterFindings`. What is scored is each tool's own rule, raw — before the
+// cross-tool dedupe that decides which of two tools' reports of one defect is
+// stored — because per-rule precision is a statement about the rule.
+
+/** The adapters this lane scores; others in the registry (ruff, Biome, cppcheck) have their own suites. */
+export const ADAPTER_TOOLS = ['checkov', 'actionlint', 'hadolint', 'shellcheck'] as const;
+
+export interface AdapterRun {
+  findings: BenchFinding[];
+  /** Tool key -> the version its adapter was written against. */
+  tools: Record<string, string>;
+  /** Trees that were run, for the report's denominator. */
+  trees: number;
+}
+
+export interface AdapterLaneOptions {
+  /** A scan image reference (`localhost/repopulse/scan:dev`). */
+  image: string;
+  runtime?: string;
+}
+
+const toolOf = (ruleId: string): string => ruleId.split('.')[1] ?? '';
+
+/**
+ * Runs the adapters over the given trees in the scan image.
+ *
+ * A tree that fails to scan, or an adapter that errors, throws: a benchmark
+ * that published numbers from a run where a tool crashed would score its
+ * silence as precision.
+ */
+export async function runAdapterLane(
+  trees: readonly Tree[],
+  opts: AdapterLaneOptions,
+): Promise<AdapterRun> {
+  const findings: BenchFinding[] = [];
+  const tools: Record<string, string> = {};
+  for (const tree of trees) {
+    const result = await runCodeHealthTools({
+      targetDir: tree.dir,
+      image: opts.image,
+      ...(opts.runtime ? { runtime: opts.runtime } : {}),
+      budget: { wallClockMs: 300_000, forgeCalls: 0, llmTokens: 0, memoryMb: 2048 },
+    });
+    if (result.status !== 'succeeded') {
+      throw new Error(
+        `adapter lane: ${tree.suite}/${tree.id} did not scan (${result.error ?? result.status})`,
+      );
+    }
+    if (result.adapterErrors.length > 0) {
+      const what = result.adapterErrors.map((e) => `${e.adapter}: ${e.reason}`).join('; ');
+      throw new Error(`adapter lane: ${tree.suite}/${tree.id}: ${what}`);
+    }
+    for (const key of ADAPTER_TOOLS) {
+      const version = result.toolVersions[key];
+      if (version !== undefined) tools[key] = version;
+    }
+    for (const f of result.adapterFindings) {
+      if (!(ADAPTER_TOOLS as readonly string[]).includes(toolOf(f.ruleId))) continue;
+      findings.push({
+        suite: tree.suite,
+        tree: tree.id,
+        file: f.file,
+        lineStart: f.lineStart,
+        lineEnd: f.lineEnd,
+        ruleId: f.ruleId,
+        dimension: f.dimension,
+        cwe: null,
+      });
+    }
+  }
+  return { findings, tools, trees: trees.length };
 }

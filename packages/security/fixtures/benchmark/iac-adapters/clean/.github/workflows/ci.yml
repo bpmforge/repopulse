@@ -1,0 +1,31 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 1
+      - name: Build
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          cd build || exit 1
+          printf '%s\n' "$TITLE"
+          make
+      - name: Output
+        run: echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - if: github.ref == 'refs/heads/main'
+        run: echo main
+  test:
+    needs: [build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7
+      - run: make test

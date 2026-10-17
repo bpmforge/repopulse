@@ -1,0 +1,1258 @@
+{
+  "id": "iac-adapters",
+  "title": "Tool adapters: checkov, actionlint, hadolint, shellcheck",
+  "description": "Our own labelled fixtures for the four tool adapters, run through the code-health scanner in the scan image. Each defect is written to carry one rule (the `# expect:` marker above its line); a tool finding with no label is scored a false positive after being read, and the clean tree must stay silent. The `real` tree is this repository's own Dockerfile, Containerfile.scan and shell scripts as of the measurement, with every adapter finding read and judged (a true instance is a finding label, a false positive a none label). Scored per tool rule, raw, before the cross-tool dedupe.",
+  "source": {
+    "kind": "in-repo",
+    "path": "packages/security/fixtures/benchmark/iac-adapters",
+    "licence": "Proprietary (RepoPulse)"
+  },
+  "unlabelled": "fp",
+  "lane": "adapters",
+  "trees": [
+    {
+      "id": "clean",
+      "path": "clean"
+    },
+    {
+      "id": "real",
+      "path": "real"
+    },
+    {
+      "id": "triggering",
+      "path": "triggering"
+    }
+  ],
+  "labels": [
+    {
+      "id": "ia-github-workflows-action-yml-actionlint-action-10",
+      "tree": "triggering",
+      "file": ".github/workflows/action.yml",
+      "lines": [10, 10],
+      "rule": "tool.actionlint.action",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-caller-yml-actionlint-workflow-call-6",
+      "tree": "triggering",
+      "file": ".github/workflows/caller.yml",
+      "lines": [6, 6],
+      "rule": "tool.actionlint.workflow-call",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-creds-yml-actionlint-credentials-11",
+      "tree": "triggering",
+      "file": ".github/workflows/creds.yml",
+      "lines": [11, 11],
+      "rule": "tool.actionlint.credentials",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-deprecated-yml-actionlint-deprecated-commands-9",
+      "tree": "triggering",
+      "file": ".github/workflows/deprecated.yml",
+      "lines": [9, 9],
+      "rule": "tool.actionlint.deprecated-commands",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-events-yml-actionlint-events-3",
+      "tree": "triggering",
+      "file": ".github/workflows/events.yml",
+      "lines": [3, 3],
+      "rule": "tool.actionlint.events",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-expr-yml-actionlint-expression-9",
+      "tree": "triggering",
+      "file": ".github/workflows/expr.yml",
+      "lines": [9, 9],
+      "rule": "tool.actionlint.expression",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-glob-yml-actionlint-glob-6",
+      "tree": "triggering",
+      "file": ".github/workflows/glob.yml",
+      "lines": [6, 6],
+      "rule": "tool.actionlint.glob",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-idkey-yml-actionlint-id-9",
+      "tree": "triggering",
+      "file": ".github/workflows/idkey.yml",
+      "lines": [9, 9],
+      "rule": "tool.actionlint.id",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-ifcond-yml-actionlint-if-cond-9",
+      "tree": "triggering",
+      "file": ".github/workflows/ifcond.yml",
+      "lines": [9, 9],
+      "rule": "tool.actionlint.if-cond",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-needs-yml-actionlint-job-needs-7",
+      "tree": "triggering",
+      "file": ".github/workflows/needs.yml",
+      "lines": [4, 7],
+      "rule": "tool.actionlint.job-needs",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-perms-yml-actionlint-permissions-5",
+      "tree": "triggering",
+      "file": ".github/workflows/perms.yml",
+      "lines": [5, 5],
+      "rule": "tool.actionlint.permissions",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-shell-yml-actionlint-shellcheck-sc2155-9",
+      "tree": "triggering",
+      "file": ".github/workflows/shell.yml",
+      "lines": [9, 9],
+      "rule": "tool.actionlint.shellcheck.SC2155",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-shell2-yml-actionlint-shellcheck-sc2115-9",
+      "tree": "triggering",
+      "file": ".github/workflows/shell2.yml",
+      "lines": [9, 9],
+      "rule": "tool.actionlint.shellcheck.SC2115",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-syntax-yml-actionlint-syntax-check-7",
+      "tree": "triggering",
+      "file": ".github/workflows/syntax.yml",
+      "lines": [7, 7],
+      "rule": "tool.actionlint.syntax-check",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-github-workflows-untrusted-yml-actionlint-untrusted-input-9",
+      "tree": "triggering",
+      "file": ".github/workflows/untrusted.yml",
+      "lines": [9, 9],
+      "rule": "tool.actionlint.untrusted-input",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-24-4",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [4, 4],
+      "rule": "tool.checkov.CKV_AWS_24",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-25-14",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [14, 14],
+      "rule": "tool.checkov.CKV_AWS_25",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-17-24",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [24, 24],
+      "rule": "tool.checkov.CKV_AWS_17",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-16-24",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [24, 24],
+      "rule": "tool.checkov.CKV_AWS_16",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-20-33",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [33, 33],
+      "rule": "tool.checkov.CKV_AWS_20",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-63-38",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [38, 38],
+      "rule": "tool.checkov.CKV_AWS_63",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-107-38",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [38, 38],
+      "rule": "tool.checkov.CKV_AWS_107",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-cloudformation-template-yaml-checkov-ckv-aws-3-50",
+      "tree": "triggering",
+      "file": "cloudformation/template.yaml",
+      "lines": [50, 50],
+      "rule": "tool.checkov.CKV_AWS_3",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-add-hadolint-dl3020-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.add",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3020",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-alias-hadolint-dl3024-4",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.alias",
+      "lines": [4, 4],
+      "rule": "tool.hadolint.DL3024",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-alias-checkov-ckv-docker-11-4",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.alias",
+      "lines": [4, 4],
+      "rule": "tool.checkov.CKV_DOCKER_11",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-apk-hadolint-dl3018-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.apk",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-aptget-hadolint-dl3027-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.aptget",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3027",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-aptpin-hadolint-dl3008-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.aptpin",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3008",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-cd-hadolint-dl3003-4",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.cd",
+      "lines": [4, 4],
+      "rule": "tool.hadolint.DL3003",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-cmd-hadolint-dl3025-5",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.cmd",
+      "lines": [5, 5],
+      "rule": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-latest-hadolint-dl3007-2",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.latest",
+      "lines": [2, 2],
+      "rule": "tool.hadolint.DL3007",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-latest-checkov-ckv-docker-7-2",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.latest",
+      "lines": [2, 2],
+      "rule": "tool.checkov.CKV_DOCKER_7",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-maintainer-hadolint-dl4000-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.maintainer",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL4000",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-nouser-checkov-ckv-docker-3-2",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.nouser",
+      "lines": [2, 2],
+      "rule": "tool.checkov.CKV_DOCKER_3",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-npm-hadolint-dl3016-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.npm",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3016",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-pip-hadolint-dl3013-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.pip",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3013",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-pipe-hadolint-dl4006-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.pipe",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-root-hadolint-dl3002-5",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.root",
+      "lines": [5, 5],
+      "rule": "tool.hadolint.DL3002",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-root-checkov-ckv-docker-8-5",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.root",
+      "lines": [5, 5],
+      "rule": "tool.checkov.CKV_DOCKER_8",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-sc2045-hadolint-sc2045-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.sc2045",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.SC2045",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-ssh-checkov-ckv-docker-1-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.ssh",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_DOCKER_1",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-sudo-hadolint-dl3004-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.sudo",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3004",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-untagged-hadolint-dl3006-2",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.untagged",
+      "lines": [2, 2],
+      "rule": "tool.hadolint.DL3006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-untagged-checkov-ckv-docker-7-2",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.untagged",
+      "lines": [2, 2],
+      "rule": "tool.checkov.CKV_DOCKER_7",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-workdir-hadolint-dl3000-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.workdir",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3000",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-workdir-checkov-ckv-docker-10-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.workdir",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_DOCKER_10",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-yum-hadolint-dl3030-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.yum",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3030",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-docker-dockerfile-yum-hadolint-dl3032-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.yum",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3032",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-docker-dockerfile-yum-hadolint-dl3033-3",
+      "tree": "triggering",
+      "file": "docker/Dockerfile.yum",
+      "lines": [3, 3],
+      "rule": "tool.hadolint.DL3033",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-k8s-dockersock-yaml-checkov-ckv-k8s-27-3",
+      "tree": "triggering",
+      "file": "k8s/dockersock.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_27",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-escalate-yaml-checkov-ckv-k8s-20-3",
+      "tree": "triggering",
+      "file": "k8s/escalate.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_20",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-hostipc-yaml-checkov-ckv-k8s-18-3",
+      "tree": "triggering",
+      "file": "k8s/hostipc.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_18",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-hostnet-yaml-checkov-ckv-k8s-19-3",
+      "tree": "triggering",
+      "file": "k8s/hostnet.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_19",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-hostpid-yaml-checkov-ckv-k8s-17-3",
+      "tree": "triggering",
+      "file": "k8s/hostpid.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_17",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-latest-yaml-checkov-ckv-k8s-14-3",
+      "tree": "triggering",
+      "file": "k8s/latest.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_14",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-privileged-yaml-checkov-ckv-k8s-16-3",
+      "tree": "triggering",
+      "file": "k8s/privileged.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_16",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-rbac-yaml-checkov-ckv-k8s-49-3",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_49",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-k8s-rbac-yaml-checkov-ckv-k8s-155-3",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_155",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-k8s-rbac-yaml-checkov-ckv-k8s-156-3",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_156",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-k8s-rbac-yaml-checkov-ckv-k8s-157-3",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_157",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-k8s-rbac-yaml-checkov-ckv-k8s-158-3",
+      "tree": "triggering",
+      "file": "k8s/rbac.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_158",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-k8s-sysadmin-yaml-checkov-ckv-k8s-39-3",
+      "tree": "triggering",
+      "file": "k8s/sysadmin.yaml",
+      "lines": [3, 3],
+      "rule": "tool.checkov.CKV_K8S_39",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2034-sh-shellcheck-sc2034-3",
+      "tree": "triggering",
+      "file": "shell/sc2034.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2034",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2039-sh-shellcheck-sc3010-3",
+      "tree": "triggering",
+      "file": "shell/sc2039.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC3010",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2045-sh-shellcheck-sc2045-3",
+      "tree": "triggering",
+      "file": "shell/sc2045.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2045",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2068-sh-shellcheck-sc2068-3",
+      "tree": "triggering",
+      "file": "shell/sc2068.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2068",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2069-sh-shellcheck-sc2069-3",
+      "tree": "triggering",
+      "file": "shell/sc2069.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2069",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2115-sh-shellcheck-sc2115-4",
+      "tree": "triggering",
+      "file": "shell/sc2115.sh",
+      "lines": [4, 4],
+      "rule": "tool.shellcheck.SC2115",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2124-sh-shellcheck-sc2124-3",
+      "tree": "triggering",
+      "file": "shell/sc2124.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2124",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2128-sh-shellcheck-sc2128-4",
+      "tree": "triggering",
+      "file": "shell/sc2128.sh",
+      "lines": [4, 4],
+      "rule": "tool.shellcheck.SC2128",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2145-sh-shellcheck-sc2145-3",
+      "tree": "triggering",
+      "file": "shell/sc2145.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2145",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2148-sh-shellcheck-sc2148-1",
+      "tree": "triggering",
+      "file": "shell/sc2148.sh",
+      "lines": [1, 1],
+      "rule": "tool.shellcheck.SC2148",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2155-sh-shellcheck-sc2155-3",
+      "tree": "triggering",
+      "file": "shell/sc2155.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2155",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-shell-sc2164-sh-shellcheck-sc2164-3",
+      "tree": "triggering",
+      "file": "shell/sc2164.sh",
+      "lines": [3, 3],
+      "rule": "tool.shellcheck.SC2164",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-24-2",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [2, 2],
+      "rule": "tool.checkov.CKV_AWS_24",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-25-13",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [13, 13],
+      "rule": "tool.checkov.CKV_AWS_25",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-277-24",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [24, 24],
+      "rule": "tool.checkov.CKV_AWS_277",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-260-24",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [24, 24],
+      "rule": "tool.checkov.CKV_AWS_260",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-24-24",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [24, 24],
+      "rule": "tool.checkov.CKV_AWS_24",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-25-24",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [24, 24],
+      "rule": "tool.checkov.CKV_AWS_25",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-17-35",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [35, 35],
+      "rule": "tool.checkov.CKV_AWS_17",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-16-35",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [35, 35],
+      "rule": "tool.checkov.CKV_AWS_16",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-20-45",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [45, 45],
+      "rule": "tool.checkov.CKV_AWS_20",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-57-51",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [51, 51],
+      "rule": "tool.checkov.CKV_AWS_57",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-20-51",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [51, 51],
+      "rule": "tool.checkov.CKV_AWS_20",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-63-57",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [57, 57],
+      "rule": "tool.checkov.CKV_AWS_63",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-287-57",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [57, 57],
+      "rule": "tool.checkov.CKV_AWS_287",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-41-70",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [70, 70],
+      "rule": "tool.checkov.CKV_AWS_41",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-3-77",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [77, 77],
+      "rule": "tool.checkov.CKV_AWS_3",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-2-84",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [84, 84],
+      "rule": "tool.checkov.CKV_AWS_2",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-aws-tf-checkov-ckv-aws-103-84",
+      "tree": "triggering",
+      "file": "terraform/aws.tf",
+      "lines": [84, 84],
+      "rule": "tool.checkov.CKV_AWS_103",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "A real defect the tool reported beyond the one this fixture was written for; kept after reading the rule's definition."
+    },
+    {
+      "id": "ia-terraform-azure-tf-checkov-ckv-azure-10-2",
+      "tree": "triggering",
+      "file": "terraform/azure.tf",
+      "lines": [2, 2],
+      "rule": "tool.checkov.CKV_AZURE_10",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-azure-tf-checkov-ckv-azure-9-17",
+      "tree": "triggering",
+      "file": "terraform/azure.tf",
+      "lines": [17, 17],
+      "rule": "tool.checkov.CKV_AZURE_9",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-gcp-tf-checkov-ckv-gcp-2-2",
+      "tree": "triggering",
+      "file": "terraform/gcp.tf",
+      "lines": [2, 2],
+      "rule": "tool.checkov.CKV_GCP_2",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-terraform-gcp-tf-checkov-ckv-gcp-3-13",
+      "tree": "triggering",
+      "file": "terraform/gcp.tf",
+      "lines": [13, 13],
+      "rule": "tool.checkov.CKV_GCP_3",
+      "dimension": "iac",
+      "expect": "finding",
+      "note": "Designed defect: the fixture is written to carry it (see the expect marker above the line)."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-180",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [180, 180],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl4006-180",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [180, 180],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3013-197",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [197, 197],
+      "rule": "tool.hadolint.DL3013",
+      "dimension": "correctness",
+      "expect": "none",
+      "note": "False positive, judged by reading the code: pip install --no-deps of a sha256-verified wheel: the version is pinned, hadolint cannot see it through \"$pyg\"."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-197",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [197, 197],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl4006-197",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [197, 197],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3003-221",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [221, 221],
+      "rule": "tool.hadolint.DL3003",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-221",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [221, 221],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-231",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [231, 231],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl4006-231",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [231, 231],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-265",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [265, 265],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl4006-265",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [265, 265],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3013-290",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [290, 290],
+      "rule": "tool.hadolint.DL3013",
+      "dimension": "correctness",
+      "expect": "none",
+      "note": "False positive, judged by reading the code: pip install --no-deps of a sha256-verified wheel: the version is pinned, hadolint cannot see it through \"$pyg\"."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-290",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [290, 290],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl4006-290",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [290, 290],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-400",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [400, 400],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl4006-400",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [400, 400],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl3018-429",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [429, 429],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-containerfile-scan-hadolint-dl4006-429",
+      "tree": "real",
+      "file": "Containerfile.scan",
+      "lines": [429, 429],
+      "rule": "tool.hadolint.DL4006",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-dockerfile-hadolint-dl3025-118",
+      "tree": "real",
+      "file": "Dockerfile",
+      "lines": [118, 118],
+      "rule": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "expect": "none",
+      "note": "False positive, judged by reading the code: HEALTHCHECK CMD in shell form (needed for `|| exit 1`); DL3025 is about CMD and ENTRYPOINT, not the health probe."
+    },
+    {
+      "id": "ia-real-dockerfile-hadolint-dl3025-156",
+      "tree": "real",
+      "file": "Dockerfile",
+      "lines": [156, 156],
+      "rule": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "expect": "none",
+      "note": "False positive, judged by reading the code: HEALTHCHECK CMD in shell form (needed for `|| exit 1`); DL3025 is about CMD and ENTRYPOINT, not the health probe."
+    },
+    {
+      "id": "ia-real-dockerfile-hadolint-dl3018-179",
+      "tree": "real",
+      "file": "Dockerfile",
+      "lines": [179, 179],
+      "rule": "tool.hadolint.DL3018",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-dockerfile-hadolint-dl3025-185",
+      "tree": "real",
+      "file": "Dockerfile",
+      "lines": [185, 185],
+      "rule": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "expect": "none",
+      "note": "False positive, judged by reading the code: HEALTHCHECK CMD in shell form (needed for `|| exit 1`); DL3025 is about CMD and ENTRYPOINT, not the health probe."
+    },
+    {
+      "id": "ia-real-dockerfile-hadolint-dl3025-224",
+      "tree": "real",
+      "file": "Dockerfile",
+      "lines": [224, 224],
+      "rule": "tool.hadolint.DL3025",
+      "dimension": "correctness",
+      "expect": "none",
+      "note": "False positive, judged by reading the code: HEALTHCHECK CMD in shell form (needed for `|| exit 1`); DL3025 is about CMD and ENTRYPOINT, not the health probe."
+    },
+    {
+      "id": "ia-real-deploy-up-sh-shellcheck-sc2010-201",
+      "tree": "real",
+      "file": "deploy/up.sh",
+      "lines": [201, 201],
+      "rule": "tool.shellcheck.SC2010",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-scripts-ci-local-sh-shellcheck-sc2164-33",
+      "tree": "real",
+      "file": "scripts/ci-local.sh",
+      "lines": [33, 33],
+      "rule": "tool.shellcheck.SC2164",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-scripts-ci-local-sh-shellcheck-sc2155-55",
+      "tree": "real",
+      "file": "scripts/ci-local.sh",
+      "lines": [55, 55],
+      "rule": "tool.shellcheck.SC2155",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    },
+    {
+      "id": "ia-real-scripts-validate-compose-sh-shellcheck-sc2034-65",
+      "tree": "real",
+      "file": "scripts/validate-compose.sh",
+      "lines": [65, 65],
+      "rule": "tool.shellcheck.SC2034",
+      "dimension": "correctness",
+      "expect": "finding",
+      "note": "True instance of the rule on this repository's own file, judged by reading the code."
+    }
+  ]
+}

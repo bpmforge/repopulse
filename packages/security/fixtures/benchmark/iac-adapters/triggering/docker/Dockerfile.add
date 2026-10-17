@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.hadolint.DL3020
+ADD config.ini /etc/app/config.ini
+RUN useradd -m app
+USER app

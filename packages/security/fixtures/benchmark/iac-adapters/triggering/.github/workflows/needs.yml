@@ -1,0 +1,9 @@
+name: needs
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # expect: tool.actionlint.job-needs
+    needs: [missing-job]
+    steps:
+      - uses: actions/checkout@v4.1.7

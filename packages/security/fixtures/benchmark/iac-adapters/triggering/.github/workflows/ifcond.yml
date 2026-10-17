@@ -1,0 +1,10 @@
+name: ifcond
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7
+      # expect: tool.actionlint.if-cond
+      - if: ${{ github.ref }} == 'refs/heads/main'
+        run: echo main

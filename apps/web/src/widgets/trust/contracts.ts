@@ -10,8 +10,11 @@ export interface BenchmarkRuleScore {
   /** null when the rule raised nothing on the corpus: 0/0 is not a precision. */
   precision: number | null;
   suites: string[];
-  /** 'yaml' ran under the report's semgrep version; 'fast-lane' in-process. */
-  engine: 'yaml' | 'fast-lane' | null;
+  /**
+   * 'yaml' ran under the report's semgrep version; 'fast-lane' in-process;
+   * 'adapter' is a third-party tool run in the scan image.
+   */
+  engine: 'yaml' | 'fast-lane' | 'adapter' | null;
 }
 
 export interface RulePrecision {
@@ -166,9 +169,11 @@ export function benchmarkText(
   const engine =
     b?.engine === 'fast-lane'
       ? ', in-process'
-      : b?.engine === 'yaml' && source.engine
-        ? `, ${source.engine}`
-        : '';
+      : b?.engine === 'adapter'
+        ? ', tool run in the scan image'
+        : b?.engine === 'yaml' && source.engine
+          ? `, ${source.engine}`
+          : '';
   const where = `${source.ticket} benchmark${engine}`;
   if (b === null) {
     return {

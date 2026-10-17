@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+# expect: tool.checkov.CKV_K8S_49 tool.checkov.CKV_K8S_155 tool.checkov.CKV_K8S_156 tool.checkov.CKV_K8S_157 tool.checkov.CKV_K8S_158
+kind: ClusterRole
+metadata:
+  name: wildcard
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]

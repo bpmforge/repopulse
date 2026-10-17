@@ -1,5 +1,7 @@
 import type { Outcome, Score } from './match.js';
 import { score, scoreBy } from './match.js';
+import { CHECKOV_CHECKS } from '../scanners/code-health/adapters/checkov.js';
+import { PROMOTION_GATE } from '../rules/lifecycle.js';
 
 // The benchmark report (W18-17): one JSON document and its markdown rendering.
 //
@@ -25,7 +27,7 @@ export interface SuiteSummary {
 
 export interface RuleInfo {
   rule: string;
-  engine: 'fast-lane' | 'yaml';
+  engine: 'fast-lane' | 'yaml' | 'adapter';
   dimension: string;
 }
 
@@ -40,6 +42,10 @@ export interface EngineSummary {
         rules: number;
         parseErrors: string[];
       }
+    | { status: 'unavailable'; reason: string };
+  /** The tool adapters (checkov, actionlint, hadolint, shellcheck), run in the scan image. */
+  adapters?:
+    | { status: 'ran'; tools: Record<string, string>; trees: number }
     | { status: 'unavailable'; reason: string };
 }
 
@@ -191,6 +197,19 @@ export function renderMarkdown(r: BenchmarkReport): string {
       `- YAML packs: not run (${r.engines.yaml.reason}); their labels are skipped, not missed`,
     );
   }
+  if (r.engines.adapters?.status === 'ran') {
+    const tools = Object.entries(r.engines.adapters.tools)
+      .map(([k, v]) => `${k} ${v}`)
+      .sort()
+      .join(', ');
+    out.push(
+      `- Tool adapters (scan image, through the code-health scanner): ${tools}; ${r.engines.adapters.trees} trees`,
+    );
+  } else if (r.engines.adapters) {
+    out.push(
+      `- Tool adapters: not run (${r.engines.adapters.reason}); their labels are skipped, not missed`,
+    );
+  }
   out.push('', '## Corpus', '');
   out.push('Suite | Source | Licence | Trees | Labels | Status', '---|---|---|--:|--:|---');
   for (const c of r.corpus) {
@@ -241,6 +260,7 @@ export function renderMarkdown(r: BenchmarkReport): string {
   for (const rule of r.byRule) {
     out.push(`${rule.rule} | ${rule.engine} | ${rule.dimension} | ${scoreCells(rule.score)}`);
   }
+  out.push(...renderAdapterEvidence(r));
   const listed = (kind: Outcome['kind'], title: string) => {
     const rows = r.outcomes.filter((o) => o.kind === kind);
     out.push('', `## ${title} (${rows.length})`, '');
@@ -260,4 +280,68 @@ export function renderMarkdown(r: BenchmarkReport): string {
   listed('skipped', 'Skipped labels');
   out.push('');
   return out.join('\n');
+}
+
+// ---- Tool adapters: evidence against the promotion gate (W18-48) -------------
+
+/**
+ * The benchmark's half of the promotion gate for one rule (rules/lifecycle.ts
+ * PROMOTION_GATE): enough labelled findings, and a false-positive rate under
+ * the limit. The other half, 30 days in a workspace and that workspace's
+ * own triage, is field evidence a labelled corpus cannot supply, so no row can
+ * read "eligible" from here: the most it can say is that the benchmark half is in.
+ */
+export function adapterGate(s: Score): { met: boolean; text: string } {
+  const findings = s.tp + s.fp;
+  const gaps: string[] = [];
+  if (findings < PROMOTION_GATE.minFindings) {
+    gaps.push(`${findings}/${PROMOTION_GATE.minFindings} findings`);
+  }
+  if (findings > 0 && s.fp / findings > PROMOTION_GATE.maxFpRate) {
+    gaps.push(
+      `${((s.fp / findings) * 100).toFixed(0)}% false positives (limit ${PROMOTION_GATE.maxFpRate * 100}%)`,
+    );
+  }
+  return gaps.length === 0
+    ? { met: true, text: 'benchmark half met' }
+    : { met: false, text: gaps.join('; ') };
+}
+
+function renderAdapterEvidence(r: BenchmarkReport): string[] {
+  const rows = r.byRule.filter((x) => x.engine === 'adapter');
+  if (rows.length === 0) return [];
+  const out: string[] = ['', '## Tool adapters: precision and the promotion gate', ''];
+  out.push(
+    "Each row is one tool rule, scored raw (before the cross-tool dedupe that decides which of two tools' " +
+      'reports of one defect is stored), on our own labelled fixtures. Promotion out of shadow is an admin ' +
+      `action in the rule registry on at least ${PROMOTION_GATE.minFindings} findings, ` +
+      `${PROMOTION_GATE.minDays} days and under ${PROMOTION_GATE.maxFpRate * 100}% false positives from the ` +
+      "workspace's own triage. A benchmark can supply the first and last in kind and never the days or the " +
+      'triage, so **no rule below is promoted**; the last column is how far the benchmark half of the evidence ' +
+      'gets. Sample sizes are small (a rule has the one to three cases written for it), so a precision of 100% ' +
+      'here means "no false positive in those cases", not "precise".',
+    '',
+  );
+  out.push(`Rule | ${SCORE_HEAD} | Benchmark half of the gate`, `---|${SCORE_RULE}|---`);
+  for (const x of rows) {
+    out.push(`${x.rule} | ${scoreCells(x.score)} | ${adapterGate(x.score).text}`);
+  }
+  const measured = new Set(
+    rows.filter((x) => x.score.tp + x.score.fp + x.score.fn > 0).map((x) => x.rule),
+  );
+  const checkov = Object.keys(CHECKOV_CHECKS).map((id) => `tool.checkov.${id}`);
+  const unrun = checkov.filter((id) => !measured.has(id)).sort();
+  out.push('', '### Not yet run', '');
+  out.push(
+    `checkov runs ${checkov.length} allowlisted checks; ${checkov.length - unrun.length} have a labelled ` +
+      'case here. The rest have none, so their precision and recall are **not yet run**, not zero:',
+    '',
+  );
+  out.push(unrun.length > 0 ? unrun.map((id) => `\`${id}\``).join(', ') : 'None.');
+  out.push(
+    '',
+    'hadolint, shellcheck and actionlint have no fixed allowlist (their universe is every code the tool can ' +
+      'raise at error or warning level), so every rule not in the table above is **not yet run**.',
+  );
+  return out;
 }

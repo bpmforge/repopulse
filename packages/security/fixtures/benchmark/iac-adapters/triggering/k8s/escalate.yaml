@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+# expect: tool.checkov.CKV_K8S_20
+kind: Deployment
+metadata:
+  name: escalate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: escalate
+  template:
+    metadata:
+      labels:
+        app: escalate
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/app:1.4.2
+          securityContext:
+            allowPrivilegeEscalation: true

@@ -1,0 +1,5 @@
+FROM node:20.12.2-slim
+# expect: tool.hadolint.DL3016
+RUN npm install -g typescript
+RUN useradd -m app
+USER app

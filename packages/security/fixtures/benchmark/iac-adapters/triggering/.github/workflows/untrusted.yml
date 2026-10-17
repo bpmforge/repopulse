@@ -1,0 +1,9 @@
+name: untrusted
+on: pull_request
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7
+      # expect: tool.actionlint.untrusted-input
+      - run: echo "${{ github.event.pull_request.title }}"

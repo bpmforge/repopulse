@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+# expect: tool.checkov.CKV_K8S_19
+kind: Deployment
+metadata:
+  name: hostnet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hostnet
+  template:
+    metadata:
+      labels:
+        app: hostnet
+    spec:
+      hostNetwork: true
+      containers:
+        - name: app
+          image: registry.example.com/app:1.4.2
+          securityContext:
+            allowPrivilegeEscalation: false

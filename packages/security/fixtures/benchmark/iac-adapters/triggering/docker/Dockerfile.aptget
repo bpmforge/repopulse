@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.hadolint.DL3027
+RUN apt update
+RUN useradd -m app
+USER app

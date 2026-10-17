@@ -1,0 +1,5 @@
+FROM debian:12.5
+# expect: tool.hadolint.DL4006
+RUN wget -qO- https://example.com/install.sh | sh
+RUN useradd -m app
+USER app

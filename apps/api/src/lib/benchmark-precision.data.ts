@@ -385,6 +385,876 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
         "sampleco"
       ],
       "engine": "fast-lane"
+    },
+    "tool.actionlint.action": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.credentials": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.deprecated-commands": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.events": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.expression": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.glob": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.id": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.if-cond": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.job-needs": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.permissions": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.shellcheck.SC2115": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.shellcheck.SC2155": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.syntax-check": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.untrusted-input": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.actionlint.workflow-call": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_103": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_107": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_16": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_17": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_2": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_20": {
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_24": {
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_25": {
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_260": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_277": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_287": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_3": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_41": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_57": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AWS_63": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AZURE_10": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_AZURE_9": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_DOCKER_1": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_DOCKER_10": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_DOCKER_11": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_DOCKER_3": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_DOCKER_7": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_DOCKER_8": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_GCP_2": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_GCP_3": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_14": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_155": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_156": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_157": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_158": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_16": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_17": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_18": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_19": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_20": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_27": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_39": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.checkov.CKV_K8S_49": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3000": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3002": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3003": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3004": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3006": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3007": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3008": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3013": {
+      "tp": 1,
+      "fp": 2,
+      "fn": 0,
+      "precision": 0.333,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3016": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3018": {
+      "tp": 10,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3020": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3024": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3025": {
+      "tp": 1,
+      "fp": 4,
+      "fn": 0,
+      "precision": 0.2,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3027": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3030": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3032": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL3033": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL4000": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.DL4006": {
+      "tp": 8,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.hadolint.SC2045": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC1010": {
+      "tp": 0,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2010": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2034": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2045": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2068": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2069": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2115": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2124": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2128": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2145": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2148": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2155": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC2164": {
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
+    },
+    "tool.shellcheck.SC3010": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "suites": [
+        "iac-adapters"
+      ],
+      "engine": "adapter"
     }
   },
   "cwes": [
@@ -621,6 +1491,6 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
   ],
   "measured": {
     "date": "2026-10-16",
-    "commit": "bf83839ec1857d9d689727f23673c15f0a19fbc3"
+    "commit": "4eb5c06a7666f1cecb293f83125f1819eb61bb08"
   }
 };

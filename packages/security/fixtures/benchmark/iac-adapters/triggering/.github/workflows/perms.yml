@@ -1,0 +1,10 @@
+name: perms
+on: push
+permissions:
+  # expect: tool.actionlint.permissions
+  contents: wirte
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.1.7

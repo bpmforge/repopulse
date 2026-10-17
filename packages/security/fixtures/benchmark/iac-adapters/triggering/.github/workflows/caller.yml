@@ -1,0 +1,6 @@
+name: caller
+on: push
+jobs:
+  call:
+    # expect: tool.actionlint.workflow-call
+    uses: ./.github/workflows/reusable.yml
