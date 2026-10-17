@@ -47,7 +47,9 @@ describe('classify', () => {
 
 describe('the fixture inventory', () => {
   it('has a directory per ecosystem and no directory without one', () => {
-    const dirs = readdirSync(FIXTURES).filter((d) => !d.startsWith('.')).sort();
+    const dirs = readdirSync(FIXTURES)
+      .filter((d) => !d.startsWith('.'))
+      .sort();
     expect(dirs).toEqual(ECOSYSTEMS.map((e) => e.id).sort());
   });
 
@@ -61,7 +63,6 @@ describe('the fixture inventory', () => {
 
   it('pins the package each spec says it pins, in a fixture file', () => {
     for (const spec of ECOSYSTEMS) {
-      if (spec.id === 'vcpkg') continue;
       const name = spec.packageName.split('/').pop()!.toLowerCase();
       const text = spec.files
         .map((f) => readFileSync(path.join(FIXTURES, spec.id, f), 'utf8'))
@@ -92,6 +93,14 @@ describe('the committed matrix', () => {
     expect(md).toContain('has not been run yet');
     for (const spec of ECOSYSTEMS) expect(md).toContain(spec.label);
     expect(md).not.toContain('Supported: read and matched');
+  });
+
+  it('explains every row that is not a clean match', () => {
+    const bySpec = new Map(ECOSYSTEMS.map((e) => [e.id, e]));
+    for (const r of file.results) {
+      if (r.status === 'matched') continue;
+      expect(bySpec.get(r.id)?.why, `${r.id} is ${r.status} with no stated cause`).toBeTruthy();
+    }
   });
 
   it('keeps docs/ECOSYSTEMS.md equal to its rendering', () => {

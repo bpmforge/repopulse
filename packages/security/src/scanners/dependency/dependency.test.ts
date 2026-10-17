@@ -161,9 +161,7 @@ describe('matches -> findings', () => {
     expect(finding.yields?.['usage']).toBe('imported');
     expect(finding.yields?.['epss']).toBeTypeOf('number');
     expect(finding.yields?.['dep_scope']).toEqual({ kind: 'prod-direct', depth: 1 });
-    expect(
-      findings.every((f) => f.yields?.['reachability'] !== 'symbol_reachable'),
-    ).toBe(true);
+    expect(findings.every((f) => f.yields?.['reachability'] !== 'symbol_reachable')).toBe(true);
   });
 
   it('scopes EVERY component prod-direct today, transitive ones included', () => {
@@ -187,13 +185,11 @@ describe('matches -> findings', () => {
     expect(scopes.find((c) => c.name === 'ms')).toMatchObject({ scope: 'prod-direct', depth: 1 });
   });
 
-  it('reports the syncable component count next to the document\'s own', () => {
+  it("reports the syncable component count next to the document's own", () => {
     // The document counts the root project and a file entry per manifest, so
     // its count reads as far too many for one dependency. Both numbers are
     // reported; neither is silently substituted for the other.
-    expect(funnel.syncableComponents).toBeLessThan(
-      (sbom['components'] as unknown[]).length,
-    );
+    expect(funnel.syncableComponents).toBeLessThan((sbom['components'] as unknown[]).length);
     expect(funnel.syncableComponents).toBeGreaterThan(0);
   });
 
@@ -249,7 +245,9 @@ describe('matches -> findings', () => {
       text: `Bump parent so ${v.packageName} moves.`,
       chain: [],
     }));
-    expect(withAdvice.findings.every((f) => f.suggestedFix === `Bump parent so jquery moves.`)).toBe(true);
+    expect(
+      withAdvice.findings.every((f) => f.suggestedFix === `Bump parent so jquery moves.`),
+    ).toBe(true);
     expect(withAdvice.findings[0]!.rationale).toContain('Bump parent so jquery moves.');
     // Without advice the original wording stands, so a caller that passes none is unchanged.
     expect(findings[0]!.suggestedFix).toMatch(/^Upgrade to /);
@@ -335,7 +333,7 @@ describe('a tool that failed says WHY, not just that it did (W16-37)', () => {
       vulnDb: dbDir,
       budget: { wallClockMs: 30_000 },
       spawnFn: twoStream(
-        'SYFT_EXIT=0\n===SBOM===\n{}\n===GRYPE===\nGRYPE_EXIT=1\n',
+        'SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\n{}\n===GRYPE===\nGRYPE_EXIT=1\n',
         '[0000] INFO some progress\n[0000] ERROR failed to load vulnerability db: built 1 week ago\n',
       ),
     });
@@ -347,6 +345,30 @@ describe('a tool that failed says WHY, not just that it did (W16-37)', () => {
     expect(result.error).toMatch(/failed to load vulnerability db/);
   });
 
+  it("normalises between syft and grype: grype reads the copy, the caller gets syft's own document", async () => {
+    await runDependencyTools({
+      targetDir: FIXTURES,
+      image: 'localhost/repopulse/scan:test',
+      vulnDb: dbDir,
+      budget: { wallClockMs: 30_000 },
+      spawnFn: twoStream(
+        'SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\n{}\n===GRYPE===\nGRYPE_EXIT=0\n',
+        '',
+      ),
+    });
+    const command = seenArgv.join(' ');
+    const syft = command.indexOf('syft scan');
+    const normalise = command.indexOf('sbom-normalise.mjs');
+    const grype = command.indexOf('grype sbom:');
+    expect(syft).toBeGreaterThanOrEqual(0);
+    expect(normalise).toBeGreaterThan(syft);
+    expect(grype).toBeGreaterThan(normalise);
+    // grype reads the normalised copy, never syft's file; the document handed
+    // back (cat'd under the SBOM marker) is syft's.
+    expect(command).toMatch(/grype sbom:\/tmp\/sbom\.grype\.json/);
+    expect(command).toMatch(/cat \/tmp\/sbom\.json/);
+  });
+
   it('asks neither tool to be QUIET, because -q silences a fatal error too', async () => {
     // Verified by hand against the real image: with `-q`, grype wrote zero
     // bytes to stderr and exited 1. Without it, the whole reason. A flag that
@@ -356,7 +378,10 @@ describe('a tool that failed says WHY, not just that it did (W16-37)', () => {
       image: 'localhost/repopulse/scan:test',
       vulnDb: dbDir,
       budget: { wallClockMs: 30_000 },
-      spawnFn: twoStream('SYFT_EXIT=0\n===SBOM===\n{}\n===GRYPE===\nGRYPE_EXIT=0\n', ''),
+      spawnFn: twoStream(
+        'SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\n{}\n===GRYPE===\nGRYPE_EXIT=0\n',
+        '',
+      ),
     });
 
     const command = seenArgv.join(' ');
@@ -387,32 +412,52 @@ describe('a tool that did not run fails the scan', () => {
     // THE BUG THIS SHAPE EXISTS TO PREVENT. Piped, a dead syft hands grype an
     // empty stdin and grype reports zero matches with status 0 — a repository
     // that comes back clean because the SBOM step crashed.
-    return run('SYFT_EXIT=1\n===SBOM===\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n').then(
-      (result) => {
-        expect(result.status).toBe('failed');
-        expect(result.error).toMatch(/syft exited 1/);
-        expect(result.matches).toEqual([]);
-      },
+    return run(
+      'SYFT_EXIT=1\nNORMALISE_EXIT=0\n===SBOM===\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n',
+    ).then((result) => {
+      expect(result.status).toBe('failed');
+      expect(result.error).toMatch(/syft exited 1/);
+      expect(result.matches).toEqual([]);
+    });
+  });
+
+  it('fails when the SBOM normaliser exits non-zero, rather than running grype on the original', async () => {
+    // The normaliser is what lets grype find a Swift package at all (W18-51).
+    // If it died and the scan carried on with the un-normalised document, a
+    // repository with a vulnerable Swift dependency would come back clean.
+    const result = await run(
+      'SYFT_EXIT=0\nNORMALISE_EXIT=2\n===SBOM===\n{}\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n',
     );
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(/SBOM normaliser exited 2/);
+    expect(result.matches).toEqual([]);
+  });
+
+  it('fails when the normaliser never reports, as it does for an image without it', async () => {
+    const result = await run(
+      'SYFT_EXIT=0\n===SBOM===\n{}\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n',
+    );
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(/normaliser did not report an exit code/);
   });
 
   it('fails when grype exits non-zero', async () => {
     const result = await run(
-      `SYFT_EXIT=0\n===SBOM===\n${JSON.stringify(sbom)}\n===GRYPE===\nGRYPE_EXIT=2\n`,
+      `SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\n${JSON.stringify(sbom)}\n===GRYPE===\nGRYPE_EXIT=2\n`,
     );
     expect(result.status).toBe('failed');
     expect(result.error).toMatch(/grype exited 2/);
   });
 
   it('fails on truncated output rather than reporting what arrived', async () => {
-    const result = await run('SYFT_EXIT=0\n===SBOM===\n{"components":[]}\n');
+    const result = await run('SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\n{"components":[]}\n');
     expect(result.status).toBe('failed');
     expect(result.error).toMatch(/exit code/);
   });
 
   it('fails when the SBOM is not JSON', async () => {
     const result = await run(
-      'SYFT_EXIT=0\n===SBOM===\nnot json\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n',
+      'SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\nnot json\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n',
     );
     expect(result.status).toBe('failed');
     expect(result.error).toMatch(/SBOM was not JSON/);
@@ -420,7 +465,7 @@ describe('a tool that did not run fails the scan', () => {
 
   it('succeeds, with the funnel filled in, when both tools ran', async () => {
     const result = await run(
-      `SYFT_EXIT=0\n===SBOM===\n${JSON.stringify(sbom)}\n===GRYPE===\n${grypeJson}\nGRYPE_EXIT=0\n`,
+      `SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\n${JSON.stringify(sbom)}\n===GRYPE===\n${grypeJson}\nGRYPE_EXIT=0\n`,
     );
     expect(result.status, result.error ?? '').toBe('succeeded');
     expect(result.componentCount).toBe(5);
@@ -439,7 +484,7 @@ describe('a tool that did not run fails the scan', () => {
       vulnDb: path.join(tmpdir(), 'w8-06-no-db-here'),
       budget: { wallClockMs: 30_000 },
       spawnFn: fakeContainer(
-        'SYFT_EXIT=0\n===SBOM===\n{}\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n',
+        'SYFT_EXIT=0\nNORMALISE_EXIT=0\n===SBOM===\n{}\n===GRYPE===\n{"matches":[]}\nGRYPE_EXIT=0\n',
       ),
     });
     expect(result.status).toBe('failed');

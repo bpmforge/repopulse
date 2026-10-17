@@ -24,6 +24,13 @@ export const VULN_DB_MOUNT_PATH = '/vuln-db';
 
 /** SBOM path inside the container — the profile's tmpfs, so no new mount. */
 const SBOM_PATH = '/tmp/sbom.json';
+/**
+ * The copy of the SBOM grype reads (W18-51). syft's own document stays at
+ * SBOM_PATH and is what the caller gets back; only grype's input is changed,
+ * by the normaliser baked into the scan image.
+ */
+const GRYPE_SBOM_PATH = '/tmp/sbom.grype.json';
+const NORMALISER_PATH = '/opt/scan-tools/sbom-normalise.mjs';
 
 const SBOM_MARKER = '===SBOM===';
 const GRYPE_MARKER = '===GRYPE===';
@@ -224,10 +231,14 @@ export async function runDependencyTools(
       [
         `syft scan dir:${SCAN_MOUNT_PATH} -o cyclonedx-json=${SBOM_PATH}`,
         `echo "SYFT_EXIT=$?"`,
+        // Its exit is echoed and checked like the other two: a normaliser that
+        // died must fail the scan, not hand grype the un-normalised document.
+        `node ${NORMALISER_PATH} ${SBOM_PATH} ${GRYPE_SBOM_PATH}`,
+        `echo "NORMALISE_EXIT=$?"`,
         `echo '${SBOM_MARKER}'`,
         `cat ${SBOM_PATH} 2>/dev/null`,
         `echo '${GRYPE_MARKER}'`,
-        `grype sbom:${SBOM_PATH} -o json`,
+        `grype sbom:${GRYPE_SBOM_PATH} -o json`,
         `echo "GRYPE_EXIT=$?"`,
       ].join('; '),
     ],
@@ -241,6 +252,7 @@ export async function runDependencyTools(
   const [sbomText = '', grypeText = ''] = splitOnce(rest, GRYPE_MARKER);
 
   const syftExit = readExitCode(head, 'SYFT_EXIT');
+  const normaliseExit = readExitCode(head, 'NORMALISE_EXIT');
   const grypeExit = readExitCode(grypeText, 'GRYPE_EXIT');
 
   /**
@@ -270,6 +282,12 @@ export async function runDependencyTools(
   // output or a killed container, which is a failed run and not an empty one.
   if (syftExit === null) return failure('syft did not report an exit code', toolVersions);
   if (syftExit !== 0) return failure(`syft exited ${syftExit}${detail()}`, toolVersions);
+  if (normaliseExit === null) {
+    return failure('the SBOM normaliser did not report an exit code', toolVersions);
+  }
+  if (normaliseExit !== 0) {
+    return failure(`the SBOM normaliser exited ${normaliseExit}${detail()}`, toolVersions);
+  }
   if (grypeExit === null) return failure('grype did not report an exit code', toolVersions);
   if (grypeExit !== 0) return failure(`grype exited ${grypeExit}${detail()}`, toolVersions);
 

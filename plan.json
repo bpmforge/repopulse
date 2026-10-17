@@ -9774,6 +9774,64 @@
         "The old suite config named CWE22_ and CWE330_ directories that the Java archive does not have (Juliet's are CWE23/CWE36 and CWE338). The insecure-random fix moves no benchmark number: that rule reports CWE-338 and the CWE 330 rows count only CWE 330.",
         "Follow-ups: bpm-kt-insecure-random-token has the same structure for its ($C).random() alternative and was not touched; reading non-servlet sources (System.getenv, Properties, console, sockets) in the path rules would lift Juliet 22 but is a recall-for-precision decision for the product, not a benchmark fix."
       ]
+    },
+    {
+      "id": "W18-51",
+      "title": "Swift and CocoaPods dependency vulnerability coverage: find why grype matched nothing, fix what is fixable",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "Containerfile.scan",
+        "deploy/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "The cause of the SwiftPM and CocoaPods non-matches is established on the real syft and grype against the real vulnerability database, and each is either fixed or published with its cause",
+        "A fix keeps the SBOM returned to the caller as syft wrote it, fails the scan if it cannot run, and is covered by unit tests and a run of the real pipeline; the ecosystem matrix is re-measured and shows the before and after",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test) with the engine on the real image"
+      ],
+      "points": 5,
+      "status": "done",
+      "notes": [
+        "Measured 2026-10-17 with syft 1.51.0 and grype 0.117.0 (database schema v6.1.10, built 2026-10-17). SwiftPM: not missing data. The database holds active advisories for github.com/apple/swift-nio (GHSA-cq87-8r7h-962v CVE-2026-28970, GHSA-r3rc-9hpw-54v9 CVE-2026-43671, GHSA-rj37-6j9x-74q6 CVE-2026-28980, ranges up to 2.99.0, plus CVE-2022-3215 whose ranges skip 2.40.0). syft names the package swift-nio; the database indexes github.com/apple/swift-nio; grype looks up the name it is handed. Same package: 0 matches as catalogued (syft-json and CycloneDX), 3 once the name was the purl path. Fixed by deploy/scan-tools/sbom-normalise.mjs, run between syft and grype on a copy of the SBOM. Matrix: SwiftPM catalogued to matched (3 advisories); the other 16 rows are unchanged.",
+        "CocoaPods: also not missing data. CVE-2015-3996 (AFNetworking <= 2.5.2) is in the database as an NVD record under CPE vendor afnetworking_project; syft generates vendor AFNetworking; grype needs vendor and product to agree. A CPE with the real or a wildcard vendor matches it. The wildcard is unsound: of 103,421 CocoaPods names, 1,152 collide with an NVD product name and 771 of those only under unrelated vendors (nimble gives Apache NimBLE's 15 advisories, toast Roxio's, sentry 33 from other vendors); the name_project pattern covers 217 but includes plain words that are other ecosystems' projects. Not built; the row stays unmatched with this cause published in docs/ECOSYSTEMS.md. A sound join needs the pod's source repository from its podspec.",
+        "Follow-ups: the podspec-repository join for CocoaPods (confirm an NVD candidate by its reference URLs naming the pod's repository); the same name normalisation is not applied to grype runs over container images (image scans), where Swift packages are rare."
+      ]
+    },
+    {
+      "id": "W18-52",
+      "title": "vcpkg manifest reader gap: investigated, not built",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-51"
+      ],
+      "acceptance": [
+        "It is established on the real syft whether vcpkg manifests are read and what is read from them, and the ecosystem matrix states the cause",
+        "A reader is built only if it is small and sound; otherwise the gap is published with why it was not"
+      ],
+      "points": 1,
+      "status": "done",
+      "notes": [
+        "syft 1.51.0 has a vcpkg-manifest-cataloger, so the row was not 'syft cannot read vcpkg'. Measured: it reads only the manifest's own name and version (one package, the project itself), never its dependencies, with or without an exact overrides pin or a version>= bound. The fixture now carries an exact override so the claim is tested against the one form that does name a version.",
+        "Not built: a vcpkg dependency has no resolved version unless overridden (vcpkg resolves it from the registry baseline commit at install time, which needs the network), and a reader for overrides would also have to guess each C/C++ library's NVD vendor for grype's CPE join, the same unsound step as CocoaPods. Small and sound was the bar and this is neither. The cause is published against the vcpkg row in docs/ECOSYSTEMS.md.",
+        "Follow-up if wanted: read overrides into the SBOM with a reviewed vendor map for the handful of libraries it would matter for."
+      ]
     }
   ]
 }

@@ -355,6 +355,12 @@ RUN set -eux; \
 COPY deploy/scan-tools/grimp_graph.py /opt/scan-tools/grimp_graph.py
 RUN chmod 0444 /opt/scan-tools/grimp_graph.py
 
+# The SBOM normaliser the dependency scanner runs between syft and grype
+# (W18-51): it gives a Swift package the namespaced name grype's database
+# indexes, on a copy. Also baked in read-only, for the same reason.
+COPY deploy/scan-tools/sbom-normalise.mjs /opt/scan-tools/sbom-normalise.mjs
+RUN chmod 0444 /opt/scan-tools/sbom-normalise.mjs
+
 # OUR Biome config, baked in read-only.
 #
 # Biome refuses to run with --config-path pointing at a directory that has no

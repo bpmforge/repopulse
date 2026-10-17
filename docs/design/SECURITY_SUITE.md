@@ -517,6 +517,20 @@ row reads Supported, Read-but-unmatched, or Unsupported from a measurement, neve
 from the tools' documentation. Until that has been run, every row says "Not yet
 run". A test holds the committed doc equal to its rendering.
 
+**Swift, CocoaPods and vcpkg (W18-51, W18-52).** Measured on the real tools, not assumed.
+*SwiftPM* was read by syft and matched by nothing, though the database holds active swift-nio
+advisories for the pinned version: syft names the package `swift-nio`, the database indexes
+`github.com/apple/swift-nio`, and grype looks up the name it is given. The dependency scanner now
+runs `deploy/scan-tools/sbom-normalise.mjs` between syft and grype, which writes a COPY of the SBOM
+with a namespaced Swift package named by its purl path; the SBOM returned to the caller stays
+syft's own, and a normaliser failure fails the scan. The SwiftPM row is now Supported (3
+advisories). *CocoaPods* has the advisory too (an NVD record under the CPE vendor
+`afnetworking_project`) but no key joins it to syft's `AFNetworking`; a wildcard vendor matches it
+and also matches unrelated products by name alone (measured against the 103,421-pod index), so no
+join is applied and the row stays unmatched with its cause published. *vcpkg*: syft reads the
+manifest's own name and version, never its dependencies, even with an exact `overrides` pin; not
+built (W18-52).
+
 **Helm and Kustomize (W18-45).** The `iacrender` adapter renders every Helm chart
 (`helm template`, the chart's own default values, vendored subcharts through
 their parent) and every kustomize overlay (`kustomize build`, default load
