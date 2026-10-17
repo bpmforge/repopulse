@@ -20,26 +20,163 @@ export interface EcosystemSpec {
   packageName: string;
   /** What the fixture pins, in words: the known-vulnerable version grype should match. */
   pinned: string;
+  /**
+   * A MEASURED reason, for a row that is not a clean match: what was run, what
+   * it showed, and why the row is not (or no longer) in the state a reader would
+   * assume. Required by a test for every row the committed matrix does not mark
+   * `matched`, so a non-match cannot land without its cause.
+   */
+  why?: string;
 }
 
 export const ECOSYSTEMS: readonly EcosystemSpec[] = [
-  { id: 'npm', label: 'npm', files: ['package-lock.json'], purlType: 'npm', packageName: 'lodash', pinned: 'lodash 4.17.15' },
-  { id: 'pnpm', label: 'pnpm', files: ['pnpm-lock.yaml'], purlType: 'npm', packageName: 'lodash', pinned: 'lodash 4.17.15' },
-  { id: 'yarn', label: 'Yarn (v1)', files: ['yarn.lock'], purlType: 'npm', packageName: 'lodash', pinned: 'lodash 4.17.15' },
-  { id: 'pip', label: 'pip', files: ['requirements.txt'], purlType: 'pypi', packageName: 'django', pinned: 'django 2.2.0' },
-  { id: 'poetry', label: 'Poetry', files: ['poetry.lock'], purlType: 'pypi', packageName: 'django', pinned: 'django 2.2.0' },
-  { id: 'uv', label: 'uv', files: ['uv.lock'], purlType: 'pypi', packageName: 'django', pinned: 'django 2.2.0' },
-  { id: 'go', label: 'Go modules', files: ['go.mod', 'go.sum'], purlType: 'golang', packageName: 'golang.org/x/text', pinned: 'golang.org/x/text v0.3.0' },
-  { id: 'cargo', label: 'Cargo', files: ['Cargo.lock'], purlType: 'cargo', packageName: 'time', pinned: 'time 0.1.43' },
-  { id: 'maven', label: 'Maven', files: ['pom.xml'], purlType: 'maven', packageName: 'log4j-core', pinned: 'log4j-core 2.14.1' },
-  { id: 'gradle', label: 'Gradle', files: ['gradle.lockfile'], purlType: 'maven', packageName: 'jackson-databind', pinned: 'jackson-databind 2.9.8' },
-  { id: 'nuget', label: 'NuGet', files: ['packages.lock.json'], purlType: 'nuget', packageName: 'newtonsoft.json', pinned: 'Newtonsoft.Json 9.0.1' },
-  { id: 'composer', label: 'Composer', files: ['composer.lock'], purlType: 'composer', packageName: 'guzzle', pinned: 'guzzlehttp/guzzle 6.5.4' },
-  { id: 'bundler', label: 'Bundler', files: ['Gemfile.lock'], purlType: 'gem', packageName: 'rack', pinned: 'rack 2.0.8' },
-  { id: 'swiftpm', label: 'Swift Package Manager', files: ['Package.resolved'], purlType: 'swift', packageName: 'swift-nio', pinned: 'swift-nio 2.40.0' },
-  { id: 'cocoapods', label: 'CocoaPods', files: ['Podfile.lock'], purlType: 'cocoapods', packageName: 'afnetworking', pinned: 'AFNetworking 2.5.0' },
-  { id: 'conan', label: 'Conan', files: ['conan.lock', 'conanfile.txt'], purlType: 'conan', packageName: 'openssl', pinned: 'openssl 1.1.1k' },
-  { id: 'vcpkg', label: 'vcpkg', files: ['vcpkg.json'], purlType: 'generic', packageName: 'openssl', pinned: 'openssl (unpinned manifest)' },
+  {
+    id: 'npm',
+    label: 'npm',
+    files: ['package-lock.json'],
+    purlType: 'npm',
+    packageName: 'lodash',
+    pinned: 'lodash 4.17.15',
+  },
+  {
+    id: 'pnpm',
+    label: 'pnpm',
+    files: ['pnpm-lock.yaml'],
+    purlType: 'npm',
+    packageName: 'lodash',
+    pinned: 'lodash 4.17.15',
+  },
+  {
+    id: 'yarn',
+    label: 'Yarn (v1)',
+    files: ['yarn.lock'],
+    purlType: 'npm',
+    packageName: 'lodash',
+    pinned: 'lodash 4.17.15',
+  },
+  {
+    id: 'pip',
+    label: 'pip',
+    files: ['requirements.txt'],
+    purlType: 'pypi',
+    packageName: 'django',
+    pinned: 'django 2.2.0',
+  },
+  {
+    id: 'poetry',
+    label: 'Poetry',
+    files: ['poetry.lock'],
+    purlType: 'pypi',
+    packageName: 'django',
+    pinned: 'django 2.2.0',
+  },
+  {
+    id: 'uv',
+    label: 'uv',
+    files: ['uv.lock'],
+    purlType: 'pypi',
+    packageName: 'django',
+    pinned: 'django 2.2.0',
+  },
+  {
+    id: 'go',
+    label: 'Go modules',
+    files: ['go.mod', 'go.sum'],
+    purlType: 'golang',
+    packageName: 'golang.org/x/text',
+    pinned: 'golang.org/x/text v0.3.0',
+  },
+  {
+    id: 'cargo',
+    label: 'Cargo',
+    files: ['Cargo.lock'],
+    purlType: 'cargo',
+    packageName: 'time',
+    pinned: 'time 0.1.43',
+  },
+  {
+    id: 'maven',
+    label: 'Maven',
+    files: ['pom.xml'],
+    purlType: 'maven',
+    packageName: 'log4j-core',
+    pinned: 'log4j-core 2.14.1',
+  },
+  {
+    id: 'gradle',
+    label: 'Gradle',
+    files: ['gradle.lockfile'],
+    purlType: 'maven',
+    packageName: 'jackson-databind',
+    pinned: 'jackson-databind 2.9.8',
+  },
+  {
+    id: 'nuget',
+    label: 'NuGet',
+    files: ['packages.lock.json'],
+    purlType: 'nuget',
+    packageName: 'newtonsoft.json',
+    pinned: 'Newtonsoft.Json 9.0.1',
+  },
+  {
+    id: 'composer',
+    label: 'Composer',
+    files: ['composer.lock'],
+    purlType: 'composer',
+    packageName: 'guzzle',
+    pinned: 'guzzlehttp/guzzle 6.5.4',
+  },
+  {
+    id: 'bundler',
+    label: 'Bundler',
+    files: ['Gemfile.lock'],
+    purlType: 'gem',
+    packageName: 'rack',
+    pinned: 'rack 2.0.8',
+  },
+  {
+    id: 'swiftpm',
+    label: 'Swift Package Manager',
+    files: ['Package.resolved'],
+    purlType: 'swift',
+    packageName: 'swift-nio',
+    pinned: 'swift-nio 2.40.0',
+    why:
+      'Matched since W18-51. Before it, grype matched nothing although the database holds three active swift-nio advisories whose ranges include 2.40.0: ' +
+      'syft catalogues the package as `swift-nio` and keeps the repository path only in the purl (`pkg:swift/github.com/apple/swift-nio@2.40.0`), while grype looks a package up by the name it is given and the database indexes it as `github.com/apple/swift-nio`. ' +
+      "Measured on the real tools: the same package matched nothing as catalogued and three advisories once its name was the purl path. The scanner now gives grype a copy of the SBOM in which a namespaced Swift package is named by its purl path (`deploy/scan-tools/sbom-normalise.mjs`); the SBOM it returns is syft's own.",
+  },
+  {
+    id: 'cocoapods',
+    label: 'CocoaPods',
+    files: ['Podfile.lock'],
+    purlType: 'cocoapods',
+    packageName: 'afnetworking',
+    pinned: 'AFNetworking 2.5.0',
+    why:
+      'The database DOES hold an advisory for this exact version (CVE-2015-3996, AFNetworking <= 2.5.2), so this is not missing data. It is an NVD record keyed by the CPE vendor `afnetworking_project`; syft generates the vendor `AFNetworking`; grype joins on vendor and product, so nothing matches. ' +
+      "A CPE with the real vendor, or with a wildcard vendor, does match it (measured). The wildcard is not safe: it matches on the product name alone. On the 103,421-pod CocoaPods index, 1,152 NVD products share a pod's name and 771 of those exist only under unrelated vendors (the `nimble` pod would collect Apache NimBLE's 15 advisories, `toast` Roxio Toast's, `sentry` 33 from other vendors, `stripe` and `paypal` WordPress and e-commerce plugin advisories). " +
+      "The NVD's `<name>_project` vendor pattern covers 217 of them but includes plain words (`async`, `cache`, `console`, `date`, `diff`) that are other ecosystems' projects. So no join is applied and the row stays unmatched. A sound join needs the pod's source repository (its podspec), which a Podfile.lock does not carry.",
+  },
+  {
+    id: 'conan',
+    label: 'Conan',
+    files: ['conan.lock', 'conanfile.txt'],
+    purlType: 'conan',
+    packageName: 'openssl',
+    pinned: 'openssl 1.1.1k',
+  },
+  {
+    id: 'vcpkg',
+    label: 'vcpkg',
+    files: ['vcpkg.json'],
+    purlType: 'vcpkg',
+    packageName: 'openssl',
+    pinned: 'openssl 1.1.1k (an exact override)',
+    why:
+      "syft has a vcpkg-manifest-cataloger, but it reads the manifest's OWN name and version only (measured: one package, the project itself), never its dependencies, with or without an exact `overrides` pin. " +
+      "A vcpkg manifest's dependencies carry no resolved version unless overridden (vcpkg resolves them from its registry baseline at install time), so there is nothing to match offline apart from `overrides`. A reader for those would also have to guess each C/C++ library's NVD vendor, the same join problem as CocoaPods. Investigated in W18-52 and not built.",
+  },
 ];
 
 /**
@@ -119,7 +256,7 @@ export function classify(
 
 const LABEL: Record<EcosystemStatus, string> = {
   matched: 'Supported: read and matched',
-  catalogued: 'Read, no match in the database',
+  catalogued: 'Read, not matched',
   unsupported: 'Unsupported: not read',
   untested: 'Not yet run',
 };
@@ -156,10 +293,19 @@ export function renderEcosystems(file: MatrixFile): string {
     );
   }
   out.push('');
+  const noted = ECOSYSTEMS.filter((spec) => spec.why !== undefined);
+  if (noted.length > 0) {
+    out.push('Notes on individual rows:', '');
+    for (const spec of noted) {
+      const status = byId.get(spec.id)?.status ?? 'untested';
+      out.push(`- **${spec.label}** (${LABEL[status]}): ${spec.why}`);
+    }
+    out.push('');
+  }
   out.push('How to read a row:', '');
   out.push(
     '- **Supported** means syft read the pinned package from the lockfile *and* grype reported a vulnerability for it. Both halves matter: a lockfile that is read but never matched finds nothing.',
-    '- **Read, no match in the database** means syft read it and grype matched nothing. Either the database holds no advisory for that package version, or grype does not match this ecosystem. A row here is not safe to rely on until a known-vulnerable package matches.',
+    '- **Read, not matched** means syft read it and grype matched nothing. That is never proof the package is safe: the cause is stated under the table for each such row (the database holds no advisory for that version, or it does and no key joins it to the package). A row here is not safe to rely on until a known-vulnerable package matches.',
     '- **Unsupported** means syft reported no such package from the fixture. Dependencies in that ecosystem are invisible to the scanner, and the coverage map should say so.',
     '- A repository can still hold a lockfile the fixture does not exercise (a newer lockfile version, a monorepo layout). The fixture proves the format is read, not every variant of it.',
     '',

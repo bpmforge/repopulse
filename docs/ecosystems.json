@@ -3,7 +3,7 @@
   "meta": {
     "syft": "1.51.0",
     "grype": "0.117.0",
-    "date": "2026-10-16",
+    "date": "2026-10-17",
     "image": "localhost/repopulse/scan:cpp"
   },
   "results": [
@@ -139,10 +139,10 @@
     },
     {
       "id": "swiftpm",
-      "status": "catalogued",
+      "status": "matched",
       "packages": 1,
       "pinnedFound": 1,
-      "vulnerabilities": 0,
+      "vulnerabilities": 3,
       "purlTypes": [
         "swift"
       ]
