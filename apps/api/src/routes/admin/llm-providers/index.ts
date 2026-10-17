@@ -3,12 +3,18 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, isConstraintViolation, type Database } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import {
+  PROVIDER_PRESETS,
   PROVIDER_REGISTRY,
   ProviderConfigError,
   HostPolicyError,
+  capabilityProblems,
+  chatCompletionsUrl,
+  probeCapabilities,
   requestHeadersFor,
-  resolveProvider,
+  resolveProviderAsync,
+  type Capabilities,
   type LlmProviderKind,
+  type T2Host,
 } from '@repopulse/analysis';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
@@ -47,6 +53,8 @@ interface ProviderBody {
   headers?: unknown;
   allow_public_host?: unknown;
   enabled?: unknown;
+  /** Run the capability probe and store the result (W19-01). */
+  probe?: unknown;
 }
 
 function fail(
@@ -123,6 +131,7 @@ export default async function llmProviderRoutes(
         unsupported_reason: s.unsupportedReason ?? null,
         examples: s.examples ?? [],
       })),
+      presets: PROVIDER_PRESETS,
     });
   });
 
@@ -141,6 +150,8 @@ export default async function llmProviderRoutes(
         headers: core.llmProviders.headers,
         allowPublicHost: core.llmProviders.allowPublicHost,
         enabled: core.llmProviders.enabled,
+        capabilities: core.llmProviders.capabilities,
+        probedAt: core.llmProviders.probedAt,
         createdAt: core.llmProviders.createdAt,
       })
       .from(core.llmProviders)
@@ -159,6 +170,8 @@ export default async function llmProviderRoutes(
         headers: r.headers ?? null,
         allow_public_host: r.allowPublicHost,
         enabled: r.enabled,
+        capabilities: r.capabilities ?? null,
+        probed_at: r.probedAt,
         created_at: r.createdAt,
       })),
     });
@@ -210,8 +223,9 @@ export default async function llmProviderRoutes(
     // Resolve BEFORE writing: a row that cannot produce a callable host is a row
     // whose failure would surface on some future scheduled pass instead of on
     // the screen of the person who just created it.
+    let resolved: T2Host;
     try {
-      resolveProvider({
+      resolved = await resolveProviderAsync({
         id: 0,
         name,
         kind,
@@ -226,6 +240,23 @@ export default async function llmProviderRoutes(
         return fail(request, reply, 400, 'This provider cannot be used', err.message);
       }
       throw err;
+    }
+
+    // Capability probe (W19-01): refuse a model that cannot run a pass HERE,
+    // with a sentence, rather than inside a scheduled one.
+    let probed: Capabilities | null = null;
+    if (body.probe === true) {
+      probed = await probeCapabilities(resolved, { fetchImpl });
+      const problems = capabilityProblems(probed);
+      if (problems.length > 0) {
+        return fail(
+          request,
+          reply,
+          422,
+          'This model cannot run an analysis pass',
+          problems.join(' '),
+        );
+      }
     }
 
     const enc = apiKey ? credentials.encryptCredential(apiKey, tokenKey) : null;
@@ -251,6 +282,12 @@ export default async function llmProviderRoutes(
           ...(headers ? { headers } : {}),
           allowPublicHost: body.allow_public_host === true,
           enabled: body.enabled !== false,
+          ...(probed
+            ? {
+                capabilities: probed as unknown as Record<string, unknown>,
+                probedAt: new Date(probed.probedAt),
+              }
+            : {}),
           createdBy: userId,
         })
         .returning({ id: core.llmProviders.id });
@@ -280,7 +317,7 @@ export default async function llmProviderRoutes(
       },
     });
 
-    return reply.code(201).send({ id: created?.id ?? null });
+    return reply.code(201).send({ id: created?.id ?? null, capabilities: probed });
   });
 
   app.delete('/admin/llm-providers/:id', { preHandler: requireAdmin }, async (request, reply) => {
@@ -371,9 +408,9 @@ export default async function llmProviderRoutes(
     }
     if (headers === 'invalid') return fail(request, reply, 400, 'Invalid headers');
 
-    let host;
+    let host: T2Host;
     try {
-      host = resolveProvider({
+      host = await resolveProviderAsync({
         id: 0,
         name,
         kind,
@@ -390,10 +427,9 @@ export default async function llmProviderRoutes(
       throw err;
     }
 
-    const origin = host.baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
     const started = Date.now();
     try {
-      const res = await fetchImpl(`${origin}/v1/chat/completions`, {
+      const res = await fetchImpl(chatCompletionsUrl(host), {
         method: 'POST',
         headers: requestHeadersFor(host.auth),
         body: JSON.stringify({
@@ -424,8 +460,27 @@ export default async function llmProviderRoutes(
         choices?: { message?: { content?: string } }[];
         model?: string;
       };
+      let capabilities: Capabilities | null = null;
+      if (body.probe === true) {
+        capabilities = await probeCapabilities(host, { fetchImpl });
+        if (typeof body.id === 'number') {
+          await db
+            .update(core.llmProviders)
+            .set({
+              capabilities: capabilities as unknown as Record<string, unknown>,
+              probedAt: new Date(capabilities.probedAt),
+            })
+            .where(
+              and(
+                eq(core.llmProviders.id, body.id),
+                eq(core.llmProviders.workspaceId, workspaceId),
+              ),
+            );
+        }
+      }
       return reply.send({
         ok: true,
+        ...(capabilities ? { capabilities, problems: capabilityProblems(capabilities) } : {}),
         latency_ms: Date.now() - started,
         // What the endpoint says it ran, which is not always what was asked for
         // — a gateway may silently route elsewhere, and the operator should see

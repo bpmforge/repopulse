@@ -1,5 +1,6 @@
 import { validateHostUrl, type HostAuth } from '../config/hosts.js';
 import type { T2Host } from '../t2/client.js';
+import { mintAccessToken, ServiceAccountError, type TokenDeps } from './vertex-auth.js';
 
 // Provider registry (W16-06, D-LLM-1).
 //
@@ -301,4 +302,35 @@ function isRemote(raw: string): boolean {
   } catch {
     return true;
   }
+}
+
+/**
+ * `resolveProvider` for callers that can await (W19-01).
+ *
+ * Vertex stores a service-account key, not a bearer token, so the host cannot
+ * be built until Google has exchanged one for the other. Every other kind goes
+ * straight through to the synchronous resolver.
+ */
+export async function resolveProviderAsync(
+  config: ProviderConfig,
+  deps: TokenDeps = {},
+): Promise<T2Host> {
+  if (config.kind !== 'vertex') return resolveProvider(config);
+  if (!config.apiKey) {
+    throw new ProviderConfigError(
+      config.name,
+      'Vertex needs a Google service-account key (the JSON file) as its credential',
+    );
+  }
+  let token: string;
+  try {
+    token = await mintAccessToken(config.apiKey, deps);
+  } catch (err) {
+    if (err instanceof ServiceAccountError) throw new ProviderConfigError(config.name, err.message);
+    throw new ProviderConfigError(
+      config.name,
+      `could not reach Google to authenticate: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return resolveProvider({ ...config, apiKey: token });
 }

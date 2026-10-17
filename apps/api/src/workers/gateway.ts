@@ -1,7 +1,7 @@
 import {
   createAnalysisGateway,
   createEgressAuditor,
-  resolveProvider,
+  resolveProviderAsync,
   type AnalysisGateway,
   type EgressAuditRow,
   type LlmProviderKind,
@@ -131,7 +131,7 @@ export async function hostsFromProviders(
           : undefined;
 
       hosts.push(
-        resolveProvider({
+        await resolveProviderAsync({
           id: row.id,
           name: row.name,
           kind: row.kind as LlmProviderKind,

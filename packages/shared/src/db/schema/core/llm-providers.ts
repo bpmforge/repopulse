@@ -48,6 +48,7 @@ import { bytea } from './custom-types.js';
 export const LLM_PROVIDER_KINDS = [
   'openai_compatible',
   'anthropic',
+  'gemini',
   'vertex',
   'bedrock',
   'copilot',
@@ -111,6 +112,14 @@ export const llmProviders = pgTable(
      * exception is a stored decision with an author rather than a config flag.
      */
     allowPublicHost: boolean('allow_public_host').notNull().default(false),
+    /**
+     * Result of the capability probe (W19-01): context window, streaming,
+     * JSON mode, tool use, and the sentences explaining non-obvious results.
+     * NULL until probed. Holds no secret — it is what the model said about
+     * itself — so it is returned to the admin UI as stored.
+     */
+    capabilities: jsonb('capabilities').$type<Record<string, unknown>>(),
+    probedAt: timestamp('probed_at', { withTimezone: true }),
     enabled: boolean('enabled').notNull().default(true),
     // SET NULL (W16-59): a configured model outlives whoever added it.
     createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, {
