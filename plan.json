@@ -9832,6 +9832,67 @@
         "Not built: a vcpkg dependency has no resolved version unless overridden (vcpkg resolves it from the registry baseline commit at install time, which needs the network), and a reader for overrides would also have to guess each C/C++ library's NVD vendor for grype's CPE join, the same unsound step as CocoaPods. Small and sound was the bar and this is neither. The cause is published against the vcpkg row in docs/ECOSYSTEMS.md.",
         "Follow-up if wanted: read overrides into the SBOM with a reviewed vendor map for the handful of libraries it would matter for."
       ]
+    },
+    {
+      "id": "W18-53",
+      "title": "Kotlin insecure-random rule: the same unbound-name-filter bug as the Java rule, and the forms it missed",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "bpm-kt-insecure-random-token matches the collection and range .random() forms and Math.random() (a metavariable-regex on an unbound name had made them unmatchable), and the Random.Default, kotlin.random.Random and java.util.Random() forms it was missing",
+        "Fixtures cover each form in a variable-name and a function-name context plus near-misses (jitter, shard choice, a SecureRandom-backed .random(rng)), and the golden test passes in the real image",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test) with the engine on the real image"
+      ],
+      "points": 2,
+      "status": "done",
+      "notes": [
+        "Probed with an 11-form file before the fix: the old rule fired on 4 (Random.nextLong, Random(42).nextInt, ThreadLocalRandom.current().nextInt, Random.nextBytes) and missed Random.Default.nextInt, kotlin.random.Random.nextInt, java.util.Random().nextInt, chars.random(), (1..9).random(), Math.random() and java.lang.Math.random(). After the fix all 11 fire, once each. On the committed fixtures the old rule fires on 1 of 8 announced lines and the fixed one on all 8; the near-misses stay silent.",
+        "The .random(rng) overload is deliberately not matched: it takes the Random to draw from, which is how a SecureRandom is supplied (fixture: alphabet.random(SecureRandom().asKotlinRandom())). Same CWE-338, so it moves no public-benchmark row; the Kotlin pack is not in the benchmark corpus."
+      ]
+    },
+    {
+      "id": "W18-54",
+      "title": "CocoaPods dependency matching: join an NVD candidate to a pod by its source repository (DECISION NEEDED)",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "deploy/**",
+        "Containerfile.scan",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [
+        "W18-51"
+      ],
+      "acceptance": [
+        "Decision recorded by the owner on which option below to build, or to leave CocoaPods unmatched",
+        "If an option is built: the AFNetworking 2.5.0 fixture matches CVE-2015-3996 on the real pipeline, every alias is justified by evidence (the CVE's references name the pod's source repository), no wildcard or name-derived vendor is used, and the ecosystem matrix is re-measured",
+        "Full gate green (pnpm lint && pnpm typecheck && pnpm test) with the engine on the real image"
+      ],
+      "points": 5,
+      "status": "blocked",
+      "notes": [
+        "STATUS: investigated and measured, not built, because it needs a decision (a new external data source and a maintained table for a small number of pods). Question asked: can the pod's source repository be resolved soundly within the repo's rules (no cloning, no wildcard vendor)? Answer: yes, but the benefit is small and the data path is the decision.",
+        "What is available. A trunk pod's Podfile.lock carries only name, version and a spec checksum, no repository (EXTERNAL SOURCES appears only for :git pods). The repository is in the pod's podspec (source.git, homepage), which is public in the CocoaPods Specs (served by cdn.cocoapods.org, and as plain files on raw.githubusercontent.com). The database holds every NVD candidate's reference URLs, and for CVE-2015-3996 they include github.com/AFNetworking/AFNetworking/issues/2619: the pod's own repository. So the join key is real: accept an NVD (vendor, product) candidate for a pod only if one of that vendor+product's CVEs references the pod's own source repository, then give grype that vendor in the pod's CPE.",
+        "Measured 2026-10-17 (grype database schema v6.1.10, CocoaPods index of 103,421 pods, seeded sample of 200 of the 1,152 pods whose name equals an NVD product): podspec found for 200, a github/gitlab/bitbucket repository for 193; repo-verified join for 5 (2.5%, Wilson 95% CI 1.1% to 5.7%, so about 29 of 1,152, range 12 to 66): hiredis (redis/redislabs, two vendors for one project), gRPC (vendor grpc, 26 of its 27 CVEs reference grpc/grpc; elixir-grpc correctly excluded), mozjpeg (mozilla), yajl (yajl_project), spdlog (gabime). All 5 are correct, and three use a vendor no name rule could guess.",
+        "What the alternatives would have done on the same 200: a wildcard vendor attaches 1,434 (pod, CVE) pairs and 98% are to a pod whose repository the CVE does not reference; a name or name_project vendor rule fires on 69 pods, only 2 of which are repo-verified (3%), and 94% of its 435 pairs are unverified (e.g. the Gutenberg iOS pod would collect the WordPress Gutenberg editor's CVEs, the Tor pod the Tor Project's). The repository check rejects every one of those.",
+        "OPTIONS. (A) Leave CocoaPods unmatched, cause published (current state, docs/ECOSYSTEMS.md). No cost. CocoaPods dependencies stay invisible to CVE matching, including AFNetworking. (B) A reviewed table of repo-verified aliases committed to the repo (about 30 entries: pod name, NVD vendor and product, the repository and the CVE that proves it), generated by a maintainer script that reads the Specs and the database, applied by the existing in-image normaliser by setting the pod component's CPE. No network at scan time or sync time; the script is a developer tool run when the database is refreshed. Sound by construction; covers only pods in the table; about a day of work; stale until re-run. (C) The same verification run by the host sync (deploy/scan-db-sync.sh) on every database refresh and shipped as a synced artifact beside the grype database. Always current, but adds the CocoaPods Specs as a recurring external fetch (about 2,300 requests) and a dependency on the database's internal schema or a slow per-pod CLI run, for roughly 29 pods. (D) Wildcard or name-derived vendors: rejected on the numbers above.",
+        "RECOMMENDATION: A now; B if iOS/CocoaPods customers appear or AFNetworking-class coverage is wanted. Not C (a standing network dependency and schema coupling for about 29 pods out of 103,421), and never D. If B is chosen, hiredis-style ties (two verified vendors) should be skipped or both emitted, and entries should record the pod version range the repository verification covers.",
+        "Constraints respected: no cloning (podspec JSON is fetched as plain files), no wildcard vendor, nothing at scan time. Whether a developer-run script reading the public Specs sits inside the 'budgeted client only' rule (which governs forge calls) is part of the decision."
+      ]
     }
   ]
 }
