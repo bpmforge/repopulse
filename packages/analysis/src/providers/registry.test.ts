@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  PROVIDER_PRESETS,
   PROVIDER_REGISTRY,
   ProviderConfigError,
   SUPPORTED_KINDS,
@@ -106,8 +107,8 @@ describe('a human-authored provider row is the opt-out', () => {
 
 describe('configuration errors surface at configuration time', () => {
   it('names the auth mechanism an unsupported kind needs', () => {
-    // Bedrock left this list in W16-09 — it is supported now.
-    for (const kind of ['vertex', 'copilot', 'openai_subscription'] as const) {
+    // Bedrock left this list in W16-09, Vertex in W19-01 — both are supported now.
+    for (const kind of ['copilot', 'openai_subscription'] as const) {
       expect(() => resolveProvider(config({ kind, baseUrl: null }))).toThrow(ProviderConfigError);
       expect(PROVIDER_REGISTRY[kind].unsupportedReason).toBeTruthy();
     }
@@ -124,7 +125,69 @@ describe('configuration errors surface at configuration time', () => {
     // an OpenAI-compatible Chat Completions API on bedrock-runtime that takes
     // an Amazon Bedrock API key as a bearer token, so the entry that called it
     // a SigV4-only cloud credential was simply out of date.
-    expect([...SUPPORTED_KINDS].sort()).toEqual(['anthropic', 'bedrock', 'openai_compatible']);
+    // Gemini and Vertex joined in W19-01.
+    expect([...SUPPORTED_KINDS].sort()).toEqual([
+      'anthropic',
+      'bedrock',
+      'gemini',
+      'openai_compatible',
+      'vertex',
+    ]);
+  });
+
+  it('Gemini rides its OpenAI-compatible endpoint with a fixed chat URL (W19-01)', () => {
+    const host = resolveProvider(
+      config({
+        kind: 'gemini',
+        baseUrl: null,
+        model: 'gemini-2.5-flash',
+        apiKey: 'k',
+        allowPublicHost: true,
+      }),
+    );
+    expect(host.chatUrl).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    );
+  });
+
+  it('Gemini is still subject to the SC-24 host policy without the per-row opt-in', () => {
+    expect(() =>
+      resolveProvider(config({ kind: 'gemini', baseUrl: null, model: 'm', apiKey: 'k' })),
+    ).toThrow();
+  });
+
+  it('Vertex takes the project/region URL the person gives and appends the chat path', () => {
+    const base =
+      'https://us-central1-aiplatform.googleapis.com/v1/projects/p/locations/us-central1/endpoints/openapi/';
+    const host = resolveProvider(
+      config({
+        kind: 'vertex',
+        baseUrl: base,
+        model: 'google/gemini-2.5-flash',
+        apiKey: 'tok',
+        allowPublicHost: true,
+      }),
+    );
+    expect(host.chatUrl).toBe(`${base.replace(/\/$/, '')}/chat/completions`);
+    expect(() => resolveProvider(config({ kind: 'vertex', baseUrl: null, model: 'm' }))).toThrow(
+      /no base URL/,
+    );
+  });
+
+  it('ships a preset for every local server the product names, all on the one adapter', () => {
+    expect(PROVIDER_PRESETS.map((p) => p.id)).toEqual([
+      'lmstudio',
+      'ollama',
+      'mlx',
+      'unsloth',
+      'vllm',
+      'litellm',
+    ]);
+    for (const p of PROVIDER_PRESETS) {
+      expect(p.kind).toBe('openai_compatible');
+      const host = resolveProvider(config({ baseUrl: p.baseUrl, model: 'm' }));
+      expect(host.chatUrl).toBeUndefined();
+    }
   });
 
   it('one adapter covers local and hosted alike', () => {

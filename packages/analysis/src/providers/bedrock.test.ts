@@ -85,10 +85,10 @@ describe('Amazon Bedrock is an OpenAI-compatible endpoint with a key (W16-09)', 
         url: String(url),
         headers: init?.headers as Record<string, string>,
       });
-      return new Response(
-        JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const host = bedrockHost();
