@@ -403,7 +403,7 @@ Future bpm-opencode-experts capabilities land as tickets against §1's interface
 
 | key | displayName | inputs | triggers | requiredTools | status |
 |---|---|---|---|---|---|
-| `iac` | IaC Checker | snapshot | schedule, manual | checkov, KICS, trivy-config | partly shipped — **checkov, actionlint and hadolint run as `code_health_tools` adapters (W18-26)** writing `iac`-dimension findings as shadow candidates; the `iac` capability reports from that run (W18-35). Helm/Kustomize rendering and promotion on evidence follow in W18-45 (CODE_HEALTH_SUITE.md §10) |
+| `iac` | IaC Checker | snapshot | schedule, manual | checkov, KICS, trivy-config | partly shipped — **checkov, actionlint and hadolint run as `code_health_tools` adapters (W18-26)** writing `iac`-dimension findings as shadow candidates; the `iac` capability reports from that run (W18-35). Helm/Kustomize rendering shipped in W18-45; the four adapters were measured on labelled fixtures and this repository's own files in W18-48 (docs/BENCHMARKS.md): none is promoted, all stay shadow candidates until a workspace's own triage meets the promotion gate |
 | `cloud_security` | Cloud Security Checker (AWS/GCP anti-patterns) | snapshot | schedule, manual | checkov, semgrep cloud packs | backlog |
 | `anti_slop` | Anti-Slop Auditor (30 AI-slop rules) | diff + snapshot | pr_synced, schedule | semgrep custom pack + heuristics | **promoted → W9 (D11, FR-CH-3; docs/design/CODE_HEALTH_SUITE.md)** — with siblings `code_health_tools` (lizard/jscpd) and `logging_hygiene` |
 | `container_image` | Container Image Scan (Dockerfiles + built images) | snapshot | schedule, manual | trivy, grype | backlog |

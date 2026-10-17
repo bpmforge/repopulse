@@ -389,6 +389,15 @@ lifecycle and are unchanged. Follow-up: when the YAML `lifecycle` field lands
 (`rules/shadow.ts`, java-pack branch), adapter rules should read their shipped default
 from there instead of assuming `candidate`.
 
+**Measured, not promoted (W18-48).** checkov, actionlint, hadolint and shellcheck are scored per rule by the
+benchmark's adapters lane (docs/BENCHMARKS.md, "Tool adapters"): on our labelled fixtures and this
+repository's own files, 115 true positives, 7 false positives, 2 misses over 87 rules. The false positives
+are on real code (hadolint DL3013 and DL3025), which the synthetic fixtures had scored 100%. No rule has
+the 20 labelled findings, let alone the 30 days and workspace triage the promotion gate (§8.2) needs, so
+every adapter rule stays a shadow candidate with its numbers shown. Two product gaps surfaced: actionlint
+cannot resolve a local reusable workflow in a `.git`-less snapshot (the `workflow-call` check is silent),
+and checkov's cost on a very large tree is unbounded by anything but the budget.
+
 **How each W18-26 tool is held to the admission filter** (all verified by running the
 tool, output recorded under `fixtures/adapters/recorded/`):
 

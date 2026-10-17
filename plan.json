@@ -9707,9 +9707,12 @@
         "Full gate green (pnpm lint && pnpm typecheck && pnpm test)"
       ],
       "points": 5,
-      "status": "todo",
+      "status": "done",
       "notes": [
-        "Split from W18-45. The benchmark harness scores the fast lane and the YAML packs today; the adapters run only inside the scan image, so labelled runs need the Mac."
+        "Split from W18-45. The benchmark harness scores the fast lane and the YAML packs today; the adapters run only inside the scan image, so labelled runs need the Mac.",
+        "Built the benchmark's adapters lane (engines.ts runAdapterLane through runCodeHealthTools in the scan image; suites carry a lane field; run.ts, report.ts and cli.ts) and the iac-adapters suite: 96 written defects with expect markers, a clean near-miss tree, and a real tree of this repository's own Dockerfile, Containerfile.scan and shell scripts with every finding read and judged. Measured 2026-10-17 on a quiet machine, two byte-identical runs: 115 TP, 7 FP, 2 FN over 87 rules (precision 94.3%, recall 98.3%); every other suite's numbers unchanged. Tools: checkov 3.3.29, actionlint 1.7.12, hadolint 2.15.1, shellcheck 0.11.0.",
+        "No rule is promoted: promotion is an admin action in the rule registry on 20 findings, 30 days and under 20% false positives from the workspace's own triage (the API refuses otherwise), and a labelled corpus cannot supply the days or the triage; no rule has more than 10 labelled findings. All 87 stay candidates with their numbers beside the gate; the 22 allowlisted checkov checks without a case are published as not yet run. A shipped-default promotion mechanism for adapter rules would bypass that gate and was not built.",
+        "Findings: hadolint DL3013 (2) and DL3025 (4) are false positives on real files; shellcheck SC1010 fires on `echo done`; actionlint workflow-call is silent without a .git directory (measured both ways); checkov CKV_DOCKER_11 passes a repeated stage alias that hadolint DL3024 catches; actionlint's input check needs a major-tag action version. Follow-ups: give actionlint a project root in the adapter; a field promotion pass once shadow findings exist in a workspace; cases for the 22 not-yet-run checkov checks and more real files."
       ]
     },
     {
