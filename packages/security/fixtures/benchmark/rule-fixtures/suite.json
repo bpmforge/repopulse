@@ -804,6 +804,86 @@
       "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
     },
     {
+      "id": "inj-inj-path-java-java-RequestForms-20",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [20, 20],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-java-java-RequestForms-27",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [27, 27],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-java-java-RequestForms-34",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [34, 34],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-java-java-RequestForms-43",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [43, 43],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-java-java-RequestForms-50",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [50, 50],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-java-java-RequestForms-57",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [57, 57],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-path-java-java-RequestForms-63",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [63, 63],
+      "rule": "bpm-inj-path-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
+      "id": "inj-inj-sql-java-java-RequestForms-69",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [69, 69],
+      "rule": "bpm-inj-sql-java",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Injection-pack fixture defect: the line the rule's trigger fixture is written to carry."
+    },
+    {
       "id": "inj-inj-cmd-java-java-UserController-33",
       "tree": "injection/triggering",
       "file": "java/UserController.java",
@@ -1188,6 +1268,16 @@
       "tree": "injection/triggering",
       "file": "java/UserController.java",
       "lines": [20, 20],
+      "rule": "bpm-java-sql-string-concat",
+      "dimension": "sast",
+      "expect": "finding",
+      "note": "Carried incidentally: the same defect trips this baseline rule as well as the injection rule announced on the line."
+    },
+    {
+      "id": "inj-also-java-sql-string-concat-java-RequestForms-69",
+      "tree": "injection/triggering",
+      "file": "java/RequestForms.java",
+      "lines": [69, 69],
       "rule": "bpm-java-sql-string-concat",
       "dimension": "sast",
       "expect": "finding",
