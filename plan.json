@@ -9854,7 +9854,7 @@
                 "Credentials stay encrypted at rest, nothing secret is logged, full gate green"
           ],
           "points": 5,
-          "status": "todo",
+          "status": "in_progress",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17).",
                 "Finishes the useful half of W16-09. Subscription logins (Max plan and similar) are a separate, terms-checked ticket, not this one."
