@@ -9,6 +9,7 @@
     "notes": "Committed here: the archive URL, its SHA-256, the selected file paths and their SHA-256 digests only."
   },
   "unlabelled": "ignore",
+  "lane": "static",
   "trees": [
     {
       "id": "testcases",
@@ -23,7 +24,11 @@
     "language": "java",
     "cwes": [
       {
-        "dir": 22,
+        "dir": 23,
+        "cwe": 22
+      },
+      {
+        "dir": 36,
         "cwe": 22
       },
       {
@@ -63,7 +68,7 @@
         "cwe": 328
       },
       {
-        "dir": 330,
+        "dir": 338,
         "cwe": 330
       },
       {
@@ -77,6 +82,1206 @@
     ],
     "perCwe": 150,
     "files": [
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_01.java",
+        "sha256": "c1e620cf61de32cc5ec97ee765a8fe215fff84d99d9ddd9b315735562bdc12c0"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_05.java",
+        "sha256": "b35d0e23b570735090d90aa4868a342c31d69144b121834fd3ee8538d2388ff2"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_10.java",
+        "sha256": "caa91e9a388d057a35c07785010a2f22695c03f783b6b3b0d75cc727b3fbb56a"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_15.java",
+        "sha256": "5187d02b38f70503ab5ed14444902acfbe7809183e2735984e7054ac22ecfe8c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_22b.java",
+        "sha256": "dc998de37d304e9f0e4b3c59ef3c7537f1b3d885a7524a09350e243596144728"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_51a.java",
+        "sha256": "a70e7265036642496b43ef9280996e9376abdbcf624c2eda13fe3ef04800735c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_52c.java",
+        "sha256": "f95937ff6e4fb1c0dccea79b7b656eff7bc7d6e0f146401eec0472de9f8437e2"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_54a.java",
+        "sha256": "7642840676fe33187e7cf359d3ce3d389226571d5393a92a8bd5d2374bfe1a86"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_61a.java",
+        "sha256": "c4b2b8a8c540bac4f0490fb848416837f4e10e9193e11bff016ea561918971c5"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_67b.java",
+        "sha256": "183d312b3d595f5a4da2147e07be6fe5878b0d49c6e7bc9b80a0efc258365fe5"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_72a.java",
+        "sha256": "430fa82e0dd6a2b041d3d91efdc25d2feb6c6fe88a4228d0b1e380e5261c7baf"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_74a.java",
+        "sha256": "cb51e452dcf0a716d298966569e51ce02abaaa2c526c9770cdde33ffc6f0ad3c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_81_base.java",
+        "sha256": "500128596f68c10cc7a5a8691db10d27c1330f0c9d905273b24158d4f860d744"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_03.java",
+        "sha256": "caf58c8290a464ec9dd1d0f69ee1c2aa76f761fe6c07854eb251b768ce73bd9a"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_08.java",
+        "sha256": "3bfe9121d742a3912dce87b59953fbb47ad25996e932886c67b8c6dd824aa8ff"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_13.java",
+        "sha256": "5200fdc76d0da79d3e62bb71c5d8ac149f54bdbf3bbb5dad45204d4cd923de5d"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_21.java",
+        "sha256": "9f58f303ea9996e7921090f620d091af6d760b7318db46c36c35334fda0401ea"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_41.java",
+        "sha256": "134ac4a5c76a6480d636b1551e7ef3ca9b40fa921dac66d6c66811afd200e777"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_52a.java",
+        "sha256": "142a2402f8a54ed8ea2177f52b05829c2fc5a09b18a2f11ffd24a3739b072dc9"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_53c.java",
+        "sha256": "6ef056715a03d221e178e4da23d2508357bb730d28354112f5c6c7c158e89b72"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_54d.java",
+        "sha256": "a832d6bb27fa7a9d1ec1a482d104493f2a44f6762a7331ac89b0dfbdd2b708b5"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_66b.java",
+        "sha256": "2dee265e552b82b5f71c7b39f829e610198ac1e6559994ab60eb1eeeba5fa3b0"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_68b.java",
+        "sha256": "44ecd62fa9af5607c1fa05c6f768ba2bb41f5981d3a4fffb0d88b75563d6dde8"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_73a.java",
+        "sha256": "53d7b32f38be9b0eca916fdae23ee0224b94aaefbfe975c16c6b42533a3326a7"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_75b.java",
+        "sha256": "b9e41c9a3b6748f94ffa45cb0ce2c53cbbe9ed33454614610ac6ee5ad29fe01e"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_01.java",
+        "sha256": "ac87afc8362c4314dbeaa4bca1bc1c7047a59f7c4915fd2416c31f42d3ff059e"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_06.java",
+        "sha256": "47678995301df4f59f693241549e3b67e7ca8a5fb6ba780a3730839404bc7013"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_10.java",
+        "sha256": "8c50911623181458548de487c1cb8deb9e6305bb2da5f64fffba25bbfd4ad2da"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_15.java",
+        "sha256": "14cd20b1098ba12c665faae585058683f779629fc53ef3640830aa69c4aefd5b"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_22b.java",
+        "sha256": "fcacf6c2c9238ceb5d845cab670d48e70cfccf60faf4aa6ac519f24559f2294f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_51a.java",
+        "sha256": "7f6be018ebec808a4a4d0d18cad4f5011c0a9bdd75cfb65aad357b6f1e870178"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_53a.java",
+        "sha256": "ede8789449a83e97dcd535849257dc93da6b395f2023b1e14b4a62ed876ae871"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_54b.java",
+        "sha256": "66e76caf82db40e099677e4542d52286c4713de1a8f466f9dc6d88df0481f861"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_61a.java",
+        "sha256": "24fdab37eb574433063d8047d2729d2fbb5aefc4cbd405e13614caf108d45a0f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_67b.java",
+        "sha256": "ee6d1be1e29384363b10a7010db380908d44e740628dec40c3472166f048bb31"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_72a.java",
+        "sha256": "3d9389f79533ab91306b2f5dd3b5d82c5af825dda9c6359259caf87482e98635"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_74b.java",
+        "sha256": "6c51258e9c8216c9683a1c7a474b82440bf2671fb011e7d65175db6dff0a61b8"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_81_goodG2B.java",
+        "sha256": "b9dd1f8426d58221c697746d48d0d10a8e879b4d461de50d16e58c7478147551"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_03.java",
+        "sha256": "e0a24cb828c8cc239dcecaa6a389422f4c5ae2de1d5ac9f209c4213ec86be2cd"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_08.java",
+        "sha256": "27c3c23952d4508e6e0cc7efba4c9a06c8bcfdee78c803d72896fa5e6b724289"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_13.java",
+        "sha256": "3295d839802d103da1cda6f6877bbf60896ec3bec5e352c2468612eebcf5d31d"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_21.java",
+        "sha256": "b2fb339da16edea828249a6eb8eefc9b7a175360a19a10e3d7bee4368df44e79"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_42.java",
+        "sha256": "4585a5894ccb74f8e82a69147ccbb86a717960627e99a51b95a4db6abab991b2"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_52a.java",
+        "sha256": "d812b2b754a946adb2eb99d3d119e5f8a165591202b0f906d92677b88f8361d6"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_53c.java",
+        "sha256": "2b4711ec4be0e51f427d785d5b96c601d76afb593525d4b11a5549f9f2ec698f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_54d.java",
+        "sha256": "04bd3e6ee60c396a39c38bf6ce19ebec16f743d0e3b0998894e51ffc37bb3991"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_66b.java",
+        "sha256": "4c03bba1488b8069180189787735c934cfe455283113d3ec63cf465026f864e7"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_71a.java",
+        "sha256": "59a221d906db1b3d6e55d209df331fad822849759055083757e5dea44076f249"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_73b.java",
+        "sha256": "350282ec97dbc150363728318ab2994c10a9f92ecec08871e21806d93ae97060"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_75b.java",
+        "sha256": "b1d9eac38d47f48ad2461c4c2af87bd1cfbe33870c2cede63ac804545602127f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_01.java",
+        "sha256": "766adaed269c0592d9402721a48301fc348de2cf2d09c1b785e90b52e9fbd683"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_06.java",
+        "sha256": "b2a0f6d4111dba42dc589ee283ee2fbda40ec58836e0c981161b6684f4e74875"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_11.java",
+        "sha256": "729764a2eae301580e624b9218852fc35d721960e92a3e4869a8568218cab2c2"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_16.java",
+        "sha256": "8c8553992524b3d46b52082edfb489257086c8a7b9628480208b13237d5c445f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_22b.java",
+        "sha256": "c75c69ac6ac1b5e1910ae854e63eaa72102507667fc9df4b9b617283c2b81936"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_51a.java",
+        "sha256": "4b013ce0dd2c5dcc2f541350977d0260285247e1ba6595474689502ffad7c375"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_53a.java",
+        "sha256": "e36f91a632802bc981b37757c7a0a60004fda9b07fb173b56f88cc41b48ba193"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_54b.java",
+        "sha256": "ac83e4f4fc726d873c62005ebae8495d0cc14ce3b2a277e459b3a1fb8f25828b"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_61b.java",
+        "sha256": "308e668073a75a7a0821b400d8dd2b54e996137ea759127149ffef53304968e5"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_67b.java",
+        "sha256": "caa45a7941f9cf7e69c7da34708c672de9edc161120d27a8e68e7d0587c143ba"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_72a.java",
+        "sha256": "c6f354432d12dde6c5c0d6405c3cf62ed64c17840ebec0267747fa588c34f54c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_74b.java",
+        "sha256": "e9d3faad365449af2e9055230d3b496a05cba7069da723102a7a5fe4cd85227a"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_81_goodG2B.java",
+        "sha256": "ef904cbd2d59058973bd710d5f663bd2ec16339b1677ffa0a63f9916e979e96c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_04.java",
+        "sha256": "1968c511602ee67159fc68e86869ee2e996876be01a3412d6134cbe0c2e78809"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_09.java",
+        "sha256": "5387b735dc36cf1b0a3b33c480e5ec71fd234e128da7c6d8a69edb9b60ed2e32"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_13.java",
+        "sha256": "85cfe743d6b23e87dc456d75def9a427230b2b0419ae20744e2a1c65499eb3d9"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_21.java",
+        "sha256": "50d6040b84b89da1368cf6211d3e9124625316f9d44f228d46bd8262ebf325ea"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_42.java",
+        "sha256": "a282e878aba01273d6502fbeefe0e0bb7ebe9a563666250d935151f2df7ae160"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_52b.java",
+        "sha256": "3cacbf54e5147ff91ed8ce7124aa88c9195d315c15c6c859f045a27560735348"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_53d.java",
+        "sha256": "3f7714616d25e1af3d2a3f8481167e991e1f51cfc80720d7282a4d7e73828a07"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_54d.java",
+        "sha256": "582bb9358b37e0ef64fbd3e11d9e5ecd99f158e3afc740411f9238b1799ef6c5"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_66b.java",
+        "sha256": "4a02b8f204f6b989eed476355f4cdd43a9e8200ee7a66b77bcbdb32d880611ce"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_71a.java",
+        "sha256": "01d3ad0fd8f88d3e53537c72c98565ddcf124bd47367f1f64b42c72973acf429"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_73b.java",
+        "sha256": "f131c4daff0e2c551e02349d362d278e54677ced3e5be33c2454fd66037e7221"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_81_bad.java",
+        "sha256": "662f3f27b96a2dcc1c776da0aec6e8a95d548f410abf4f125d292f97205027a9"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_02.java",
+        "sha256": "2358ca633a8a16635f3bff26ecdff6988548b959c2c821f4d352edb82319d6e5"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_06.java",
+        "sha256": "c8a5a1cfddbbfa8d6119c47aec5d47feeec362559ee59cc651e1ea202da38a5c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_11.java",
+        "sha256": "6f6e793c54db551446c754773c07c38aa449aeb21ba68680e86e1782e03c8db3"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_16.java",
+        "sha256": "85e23d8d9c9840b7ba041781403610eb26515ac446c59d506a4ed23285b09c97"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_31.java",
+        "sha256": "0249ab4e75fbeb1ed46a342aafdc26ae9417c1a70c395d0dd562d669d29c0398"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_51b.java",
+        "sha256": "a3a27873b729cf4590b727917ceb40a1175ed5b9c9cbec610eec98e5790e4f3c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_53a.java",
+        "sha256": "3ca6ed4762055dc0d862838b25f7bbd2b7430b9cb1d63eefc4cade146e11e5b1"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_54b.java",
+        "sha256": "3c8b9bf25832d7edf0ebde56a975ead1019bb79d7d290449a77876e57235788e"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_61b.java",
+        "sha256": "2e059df1618167b4d23cb549bf6b246bb556313d6e0a9776ce7a6b6fb32e8d92"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_68a.java",
+        "sha256": "07252b04f33f6ecfff9ff7dd9042679cd5eeff408a1ee63600aa95a832b67158"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_72b.java",
+        "sha256": "02c7226cb27b682054b8ab6f75cb917048fadce56b17bae91d90d3b3983daf9e"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_74b.java",
+        "sha256": "ec5b3d4087fe51341fb1b6244298f146d0fb18bd3e5096cc2d228ee319502e04"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_81_goodG2B.java",
+        "sha256": "916dd5130933163eecf0830d1b3414899987e7446b5254c6625a27cb5aceacbc"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_04.java",
+        "sha256": "0db9af453135e9d697f7b6d1f78fc1227bb0f9099a6109fbf3ac613bd7d34451"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_09.java",
+        "sha256": "b13aaac8134781c99e83d2a5fde314781dc3f909903521822551e688c1799d3a"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_14.java",
+        "sha256": "d81ecef439c255ae75b2c81ba84365af92c4862e1f647995d39fab181a39f30a"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_22a.java",
+        "sha256": "6f3ba1a427f2ba40f1a25599cc79d587ca52486391123784e48812e10b690e25"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_42.java",
+        "sha256": "6cb8d694c38b4c3523141082d4fd5a0b1a5284f91a7393767d1c50e678acf508"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_52b.java",
+        "sha256": "646aac21170c9c39d681640a1ac116661a315bf0be1d2698bb9228f68b89e9d0"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_53d.java",
+        "sha256": "ccc10198f08114b039bd6409fe1a14a5f6ae75c0b433e245ffa57554dfe19102"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_54e.java",
+        "sha256": "431868e93afc77f8af7818355b700bb6570ddaff5cf003b53207248abcae96bb"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_67a.java",
+        "sha256": "4e104450c7745c09eac57673e6de575f98968fcc4501e93281c2a3dc6ae9358c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_71a.java",
+        "sha256": "3317540e80883e98cc62d3647270478c406feb1fad7e8388b15618c556095651"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_73b.java",
+        "sha256": "118210d9415d5deda34b6b40a9f978a73f0dddb8a8856bf31c15104f7bdbedaf"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_81_bad.java",
+        "sha256": "77a63d106e47e3aa21e25183d440bd884bc25227de676572040427f52537458e"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_02.java",
+        "sha256": "d85ec6aa0dd9b935ffe32216e90137365bd047758e1b0d033d70c19db566a901"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_07.java",
+        "sha256": "beb03af2deac64a3151c5e989d89e211032f07232b56a6cbde6aaae86d1a70ba"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_11.java",
+        "sha256": "47e157253f8916ece9e4417ec4a84b14ee4ac253746cfd0bd5e6c9fd202e516f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_16.java",
+        "sha256": "54e28aab1124b7f788a7312897abd3f0d636bb0a95a7a4b363a5a136fa30919c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_31.java",
+        "sha256": "b3e4ca6bf379e1d3bbd82d5964ee431900cdee2ab8789c6f71af833e6355d4b0"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_51b.java",
+        "sha256": "63ce03fa2d85cfe64711d97d2e4208a969f62beee8c30e89ab57d767f758ce6e"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_53b.java",
+        "sha256": "0990c8bcdbe13f2460a52a5c80f4ab8ed4610fe60bbb6466efb146d8dfe11886"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_54c.java",
+        "sha256": "c510dd5b93ea48c1350f1f489a1062ccb412fe4cf9b21a93a1a1fed67bf5d978"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_61b.java",
+        "sha256": "9b73ff4b846cf3cc1999f94323805f0982711ea8944da51c57c70dd058ce1d31"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_68a.java",
+        "sha256": "f4fd557fc8dd212cef5c1d2ca7154c18c81f2178726b590977254a4c1a0cd15a"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_72b.java",
+        "sha256": "9a7d66fb4498e9ddd285e38745b6ff28ad48c6d4490fc64bd78a130ca5c62d76"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_75a.java",
+        "sha256": "cbeb798602657f2deedd1e21901284c75a74b3203a59494093bff480079b2912"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_81a.java",
+        "sha256": "a6b708f7349cb06228a54293041b050c85be693b15fb24fc4dd3c196770f6c67"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_04.java",
+        "sha256": "4edae60ae50143ddc6b1623347bddad141fabc405c3d05f35d712839f2331767"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_09.java",
+        "sha256": "e00007fb0b884d35b486c4b9f8dcba551348088d88c36dac1ea579047825cf16"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_14.java",
+        "sha256": "09f965082b1b7cf01b3c11add88beb606f0f63f68556ddb7f1f3b8669a3a04aa"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_22a.java",
+        "sha256": "7fae8187675c40bf712d148b4b32735c238977b007bab6e1fb06a1e5531abb62"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_45.java",
+        "sha256": "31fc25bfb7f8c60bd28a809c04548818898995cda825a9370b3331647da597aa"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_52b.java",
+        "sha256": "bbb500f8fcc16faca3f1932ef6621b0b73d9b4b8892dc1c016e4502adc1d3f29"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_53d.java",
+        "sha256": "61f2ae46331581e59ccc027a674379eed90b9dc13260bf0997809a079cb2829f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_54e.java",
+        "sha256": "b1d0669044a5cca2324f6e647958e3b124e64f4b7fc490e203ecc2f1a21be045"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_67a.java",
+        "sha256": "37aa9dc948cf8d51ad6a4d283a0e5b8c0a05cbb5586266d4a0c8c513c43912fc"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_71b.java",
+        "sha256": "27f21b241d21f05c6dede320000e54d33f2e23c5c650c98b5e1b66d2670ea64f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_74a.java",
+        "sha256": "8f9b4321830e6ed914015256c05b5a55d52b54387d8b0138653f505cdfcea521"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_81_bad.java",
+        "sha256": "0338add3b6f6d9ac7ed3db15814d37b6d0beeb4e2e90793977d83c79e536a88c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_02.java",
+        "sha256": "16bf99ff49f309f9028c4aa86e612129896ae99d014c60ca7020637020b74739"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_07.java",
+        "sha256": "2f87a4fc70445e335fe7c0361abaade7bc984943e74aaa2c1016a890144f1025"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_12.java",
+        "sha256": "d90564c4d085da89ebe0a9626b7bddd5701e57e7829efc79886515a6c0e91631"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_17.java",
+        "sha256": "ca2b5d53e92a1458a3f9f3ed781116bc7c472aeb1405818c784bc17c6b261482"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_31.java",
+        "sha256": "2f6d62307da148b67f9b699c36b2d699aadbaf943414feb09de6d754a8c20cd5"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_51b.java",
+        "sha256": "8efe250b8bd91209e14e6d13cbe000bba7b813ac24840209c01c1fd81c8c02f4"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_53b.java",
+        "sha256": "47cb3abac87aae5a780180fb8501ba1bb35741b3c860d805d8a928c4edb4059c"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_54c.java",
+        "sha256": "6ef0ea18c480a9a3c3edabeab3512a5d4b8f09616ab1f5ae1200e330d8687e0f"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_66a.java",
+        "sha256": "f88519f9967f1b4576820b7ffe39ae84159d439b2fc07fb2199356cc4e4f3268"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_68a.java",
+        "sha256": "ced96ff0f7a7b55f56d1ad3fbfcaa35cc9a866e6eac1e47e39a215fe5b4787bf"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_72b.java",
+        "sha256": "1203f2e7ecfb45d4d2501a6af261b5e968a25c031bf05a57d1b257297d1c0e89"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_75a.java",
+        "sha256": "74df0e9e670d71742e8d71b8dc05fb854cc8b11b623e346584c5f6229d71eab2"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_81a.java",
+        "sha256": "8c5ee6d97b006e011372773f98fb56a33510e722953333844d0c57f196c55163"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_05.java",
+        "sha256": "80c1e07c530db6c11c112c48519badaef44c884d88f5315f424566a7a1004a04"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_10.java",
+        "sha256": "4e0e6de28c388992878ed617cec5c56c25c12ca10435169e174c20bd318cfdaa"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_14.java",
+        "sha256": "2d75d9f1169f52725f2038fd5a2dd49dbdeb482075ae0eb1c3dd9d60648a7a46"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_22a.java",
+        "sha256": "a95681b6d67790cad53b6410386fe6eed7c5a96e0a5d1397bd34a5826d58c27e"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_45.java",
+        "sha256": "b424f30abe2d10c32c078ac5d1ee8f7dbe3373091c8fd1243e4c312a7ccca8ac"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_52c.java",
+        "sha256": "668b7387e0a89dff0e4ea47e9785fd5d940d4c2aa0dea775ef8dc1a681bdcaa1"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_54a.java",
+        "sha256": "c2985425d3f46408332b05de22d00823f2a7878e0590f3b5726cb17fdedf2806"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_54e.java",
+        "sha256": "7169caa4ef6792d272fdc2b1124d1dfdf82c004da957d82948f091477ed56b23"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_67a.java",
+        "sha256": "be7c0a6f2397c724062739a8c06228f0c331c1508f65733723b269bd4e349240"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_71b.java",
+        "sha256": "3e0a47662e52ddb61222340eb683d1d5c24cec05dd1ce2f6fc2d91ae5a96eedc"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_74a.java",
+        "sha256": "7cc4e073c581f34910a3c5ec465a358bf8a6d2ec6076017459d445a1b021f526"
+      },
+      {
+        "path": "CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_81_base.java",
+        "sha256": "ad128a1c08db0380ca4fc9cf04ce6fbc826af0a97c921f1d4a84527892cb07bb"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_01.java",
+        "sha256": "4f94f92b762d2e9f1ec99f5c6c9211d244fb2b56f555ac73110ccdd11461028f"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_05.java",
+        "sha256": "e243273b9afcea95b275644765b07dd6f1a5e4be1799446198481fc58bb65dc8"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_10.java",
+        "sha256": "f2100edb2180c0b4bafe9f4db8b1d3795bd532fb5eeb893dba798ce8c1d908e6"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_15.java",
+        "sha256": "b0e9bf2a1988dcb8979756065a80ebb63674859e57a45d3e2d1e021e9b7f7f41"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_22b.java",
+        "sha256": "48774199c8dff8d93536640022623d2e2afb6afcc776b4c2799933c758b5fa59"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_51a.java",
+        "sha256": "6f790c4791bc793a4b575e3604f492e29b30e1cea2002e47f23318198f05b51f"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_52c.java",
+        "sha256": "bbfc054d3162c833aa463cb8b9a952d313e07cb8dcbc23ca58cdf273c9bf68b1"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_54a.java",
+        "sha256": "83f44c8e33ca4dc718d57007e097d960fa091fbaf7099979fa1a100a992a48f1"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_61a.java",
+        "sha256": "de66a32aa77a926c89a741e717a00bf725e32ed42b9f5a119f7977d1ea2bc70e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_67b.java",
+        "sha256": "3ac79cc3b59e905491ad679a9471aa03f3c83f6d841885589298c119aa8ab72c"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_72a.java",
+        "sha256": "90866a45a258eae7f647fa47c8d548a67cdbe3f6a28127925774fad782da252b"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_74a.java",
+        "sha256": "94c1cae2a06b0eaf4ac29adb01010950bf3eba45c7d4740418a7d2a31fbf32e8"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_81_base.java",
+        "sha256": "6dc31b48245fa0c947125aaf6fdee5be8776c2cf01c9cc2452e255f06ebb12e0"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_03.java",
+        "sha256": "82242e0c4d2fd1cd85ba9ed598c5e0c906a583560cf60002a8dbfc12b53fb166"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_08.java",
+        "sha256": "e9454f2912eb74b7bb3251d5f6c1445ea32a5b1dced3946fe68c54eccbb08486"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_13.java",
+        "sha256": "8715b33bda35c21e5febe68895b3e02fe1e8cf3fff60fc2d9eb4cedafcd99633"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_21.java",
+        "sha256": "e463a10efe3e0113c27a0775c1a07a0e266615d3def9397724c71f177cfc2c53"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_41.java",
+        "sha256": "1522734d48165d35299c5d1336e16095809b8a8245e594966b7f0658bda3e26e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_52a.java",
+        "sha256": "abdf2fa22c85de83b7c161d1eaafab7701824901494491357fc5be6835b0c247"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_53c.java",
+        "sha256": "ff129f8342bc5c737c2c0107de0756c0054804be42cac5e7653c1ecb8cdb80cd"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_54d.java",
+        "sha256": "7f6783b0cfd3c769d92927cc50e9982b55c3137128790832ff54a1a8f9189928"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_66b.java",
+        "sha256": "cee798288a3dfe1c650353714aeca81b6969be10b21b8b573dccd840cdf076f8"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_68b.java",
+        "sha256": "3d11133dd9b0ca7e6e7bc47ed8b051c82875d2ec7627de347ef80cf557fb237d"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_73a.java",
+        "sha256": "a80f520952f92e158f8b6cafb7f149004e4791f87f9e40537965cf5ea60fa598"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_75b.java",
+        "sha256": "14c2b1a4197924e19586ae7a427934f385fb3ffda12879bda334fc7ccb0b1de4"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_01.java",
+        "sha256": "c1338a54a3b49f1514a6b3835dd5b046c420c574ce5e49fa924a88a671da3f9b"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_06.java",
+        "sha256": "b9b48190b906b52d76406c8eeff8ed55336a1955b93709e0c2b73b724340f359"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_10.java",
+        "sha256": "1955c0266d5b81f764b094b21f523715714912d2fd2e29ef05d9f9a690f55729"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_15.java",
+        "sha256": "b319accc26bf6c931e0f4e18b00bd95dadd7f0d4bae918b05e4e9c28cb071e15"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_22b.java",
+        "sha256": "8e12f9763f61935174337680a0c2860df8d7ac380fff852f76bb4e51e934c83d"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_51a.java",
+        "sha256": "08fcaf11771fb64f2445e0f6b40fbbc32c7ff347df471298bc772aa9a277a400"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_53a.java",
+        "sha256": "73f090420dfd2ebd1ee105fb5e46726f82df01b3010cd08a4250a479cb142b14"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_54b.java",
+        "sha256": "7801484b0a9e292bfe8453b0f43b49b7b88940f872b4d21ec4dad0214e6d95bc"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_61a.java",
+        "sha256": "a6b72ae4bee444df9ba3fcc842045fdbd4caa6fd18bb00016c5373e59f4f8d11"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_67b.java",
+        "sha256": "6fa159c0b1f8c3dfad3cf5ac2939d1d3ed9709cee43b98f5a8dc4b148c9b63a5"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_72a.java",
+        "sha256": "fca0c13d901f84d3e53bad17b629d6ea0835fba3d721348b81c54cce5cf0dda4"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_74b.java",
+        "sha256": "7adccfab62786caa037e31ee0f31301a6b80e5d79992ea59307faeb9cb5f0e41"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_81_goodG2B.java",
+        "sha256": "74456cca08b5ba90dcd433453ca076cdd2bb5b9f56d083f4f4154d8c560ea341"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_03.java",
+        "sha256": "7c92eef9baeed4101a6a2a3c38e5caecfb9fea02f1ec810e8522436a9de9db9a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_08.java",
+        "sha256": "348102972f18e82c46c156bc8a3ba3ef1a6b339cf0b6a0d09e86b0064ba5b7a7"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_13.java",
+        "sha256": "7e910b50bf87b4b21f88295a4acc85a3506485e43dcfe0fc062c3887ac21de30"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_21.java",
+        "sha256": "2144ed199077ce3be789e190878783ab62cdc29a645f414f5e7ae7d45ef029b4"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_42.java",
+        "sha256": "230a0d10b31ec75d908f2648935b06f9a466aa3fbcd44a86286de57d82ba0ea3"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_52a.java",
+        "sha256": "0c6d4d56ab75d0860ceebf73d66673d311750a3fcbd7d06d176f4c6883cb9288"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_53c.java",
+        "sha256": "2b3b9aa84775f612be36f90ace614742d538f83cb9fcfc3857d2603526af03d0"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_54d.java",
+        "sha256": "0ad3c12485360d5827f2af02d2968d3052ae2b025b0ad7d862c902b57aec9a06"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_66b.java",
+        "sha256": "563c35140cd128f5b6d6829b06caad597d9d0ce716c2ea760ab51c91dc4da1d8"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_71a.java",
+        "sha256": "98711d2c5d3fb97c556628914adf40f5d037bc7fa14825d3945534f0c0305e51"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_73b.java",
+        "sha256": "268f26b53c36c6a917fa7be130251238107041032f29c2a445c17f3f96b346f7"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_75b.java",
+        "sha256": "31e0cd7e13be558247502770ad588af959e0d8247d1512ea8c859655ec697049"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_01.java",
+        "sha256": "c538b1daae9142f28d3c102234afa8e56576a87bc533a24f836cab5a35a0d2eb"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_06.java",
+        "sha256": "ced83a5e88fa0c6ae89fa88bfb4f5437e60275d07c4c65312b1fa96a3d3a90b6"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_11.java",
+        "sha256": "5a9680edb95416439a94c109c8d8b907e8c712ed22577888ee2dab09068ae27e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_16.java",
+        "sha256": "73c3fe70bec9fea0fd102e178fd2cdad7f737fdcf71f8b0c6a8bc885742b49f0"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_22b.java",
+        "sha256": "7c30794bd56cc6fb61098b3a0de959805a332ccede594d43de38c88d96fe178d"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_51a.java",
+        "sha256": "32ffd76096e800ddecdbf2d385e5e38da47030f624067b09480a2ba3b9f7b8b5"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_53a.java",
+        "sha256": "4352f784c5f99bb3bf34517a775d8e1d7d89202705d601eda40e503db7c922e1"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_54b.java",
+        "sha256": "e4cc9b7d3907556f87fb53552926f51fe15ebe2cf707b6168591fe00437415bf"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_61b.java",
+        "sha256": "b20d4c3fb6af4ae1d2abbf37d89b5d74e6e42cada34e9e42d4b24d951fd6b3df"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_67b.java",
+        "sha256": "136b703ab9bf6cfefbf4b01da0ed6fa7ec0dbe23aca224443a8aa527c3fbad0d"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_72a.java",
+        "sha256": "e338661cbc49b1fdafdbfa1aaba57ce0416a7cf7f16d3bb84359c728e317a00e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_74b.java",
+        "sha256": "9614f810d6fe32f35be72a97367ef995db5c350e33bf4db3c512e3ebf92d117a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_81_goodG2B.java",
+        "sha256": "c503748d8bacff89b8abb77faa72b5097bd9d78acac7b8c45aace949fe347a85"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_04.java",
+        "sha256": "b504ea39d4b45748695e1b950b0eab3e82f8ea52f69d993b26df6dc55840f860"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_09.java",
+        "sha256": "84c9b39f6697e99e57780c630b4e77f462d4cccbc3ac75b6220a6e9c7ec31ed3"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_13.java",
+        "sha256": "4caa2797cf02efd9ea07d35739439fdfb0ec7992db31ab2e0f1f7ac539e595c0"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_21.java",
+        "sha256": "8eb912d68985c7c201852c130ebf7a3558bffa0e5b4a70fe00435eee5ca1043c"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_42.java",
+        "sha256": "7f99e3cd86870cd1dd841e0b56d2927c3ff8cf066fbc0fdf4ae0d1ffb4466c8e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_52b.java",
+        "sha256": "9bbb2dacd17678f3ad485933cfc43a1aed9a9a960ec5121937e4896224535a26"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_53d.java",
+        "sha256": "a795d5165861825daf329659180e42984e011e3da73aeeb430c14cad7e1783de"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_54d.java",
+        "sha256": "c10cd04bc9c1a1cd01dcec8a134a60dcb282c6a682cb31db223f20fb16519ad7"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_66b.java",
+        "sha256": "105d10f43e942ca7a3fc9062ddce122f58ac7a82317f49986ca6f1ae12581106"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_71a.java",
+        "sha256": "d34cfba837e7f9a0577460702c09dee7343dcf3811ad8e1af4b77e425df0d822"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_73b.java",
+        "sha256": "d2c3085e45d01147922ba99fc8e37397071bca9304d3c0b9f9243a48badeb428"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_81_bad.java",
+        "sha256": "7753c252f36da82f3b7e63451f7c322c895ec74708c080d3b5be58dd2364236a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_02.java",
+        "sha256": "9573db43436b1e26a199359cff9fe63281b9f1eb6b41856f88f552af99c21c24"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_06.java",
+        "sha256": "4bab1313d0580f5f0c4101889b57c091436c5d02bcbfd3135b698749e044553a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_11.java",
+        "sha256": "6452f0eb5114e836ec4555c03aaf497fa2daa0c45d1900bf54309aeec6fcd26a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_16.java",
+        "sha256": "228738ccfbdb7053b4cce9719faf0e2d10bbc287f8f67fc046da1d04fd49b294"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_31.java",
+        "sha256": "21c126ca2bfa15323a25bd96232cdbe414f674f72d317462e568f7450e8ece50"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_51b.java",
+        "sha256": "eaece9c0c4ae6e4c5204f745b20925377bdfdc4569d4e5b770a0716d260bd491"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_53a.java",
+        "sha256": "7afd4463545dd8aedb4500d56b2221c2d0c5bc1449a307246b8ba0ad9e0a4ffb"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_54b.java",
+        "sha256": "7caa54ff679f997a157cc348ee3c86fe8c427c0c16d2b9bbb35119d468bdea98"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_61b.java",
+        "sha256": "aa48ef181d6eb70a1032f208f5e31c36e80cbba78abb94e13f5298cd8852406c"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_68a.java",
+        "sha256": "3c26112f35ed18223f2f539d67681b76f5f5274e8fdf60bf5c9c49b639dd403d"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_72b.java",
+        "sha256": "d6ccc50267e9a22fa35f9df674171dfd446374f8ec32d30dce7db998434d5fcf"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_74b.java",
+        "sha256": "d128147b65276783f11a5f784d9bc28b5923d599a9ceb7066f4cb16e5d683f2f"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_81_goodG2B.java",
+        "sha256": "a1a86d1a2a5e7cfa73e0878f84fb0fbef1b83dce2df2e3b425f8cb26db0a5532"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_04.java",
+        "sha256": "f086be256421ad2829d40222ea866feeb540a36f49e38da361eea6c0b0790098"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_09.java",
+        "sha256": "0c2a4eb7a7fe86f1faec3e0083b61a4200010d83dc736f020c74c5714554794b"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_14.java",
+        "sha256": "3855fc90ec4cc76b0a588a930f0717eb3b4d9b99118cac291e550fef35645be9"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_22a.java",
+        "sha256": "d70e357ca327c496007d5ac8b09352f1e3f3ecaa2dd4d2f3f2bb47f50d9032f6"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_42.java",
+        "sha256": "dc8599e52369ff538fd31275b08ba689ebf13c44796b387b39cdc523ce6da42d"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_52b.java",
+        "sha256": "738661710a087ef21f18114ae1405fe47d0d4b9706258ea3a8fb00535521ae6e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_53d.java",
+        "sha256": "e154f7763aacaf51989f1a5407598553ca00935df87c5a33d02fd8e5477eee33"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_54e.java",
+        "sha256": "84d75ea93bc8f125d6582317386c7eb5cadc6e61bc1014c81314f1691838b194"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_67a.java",
+        "sha256": "4c2e748a7fa4e72ef342d090636b4620d2e93c1bf13d12383afb39f8185eb0bb"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_71a.java",
+        "sha256": "a369846541d3355c4bfc6f84feb1d5e05052bf843ef68cde48439a569fcb1242"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_73b.java",
+        "sha256": "4dd17f3c362b82e37f91a3181dfd3bb00949c21c8fed16ecee64d2bdf974521c"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_81_bad.java",
+        "sha256": "c1acae556132bc6174ee807a2a3d5ce6118bdf3b9d5eea8bd80ad8b544bb7904"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_02.java",
+        "sha256": "f908e49bca6809630ee3c092faf2be8278c6ef2b1d1dca2c80a9911dc235b989"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_07.java",
+        "sha256": "c37e5317a0ba4df85e7ac971988cd44488e4abb4bd9de7469c24785409bc25c2"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_11.java",
+        "sha256": "71f53b673a5519c79bd8d0ade0bef7b019ff08f00ece4b2ba2eb0999c864ed22"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_16.java",
+        "sha256": "6778966e62ce6963a40cc6aa7a2717eaf03fe013c0b026fd49d36ae2196dd399"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_31.java",
+        "sha256": "b87f66499b91a448fc71a23d62f316cffc62f9e4203753a537b125a5e2c50a83"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_51b.java",
+        "sha256": "86b8d5e4ec3382f01f47483de214a00f423adc8034724056941b04b30b8cc9df"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_53b.java",
+        "sha256": "61b43bc40696a2f9908d8588ad3ebcaac5f09f547bffabcae22cb740119c832f"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_54c.java",
+        "sha256": "2f49a44d0e6da688594673035d5ce9805890ba01cf169dfda864128417d38cd2"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_61b.java",
+        "sha256": "8aa34ed679a8b263ded45096e8add55736dba15e97c79717a9da6808c1aa17e1"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_68a.java",
+        "sha256": "0569a8630425bb88833499bce69d725c8c563d67d1ebceacaf87f562f529c39e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_72b.java",
+        "sha256": "d63368a16e9479a94901dbea295a2e9456df28f5c4e3f12482ed962067a987f9"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_75a.java",
+        "sha256": "675a214822acb368f70d13b5296ba71880a12ae3d257f0bac3ed94db3c5dbd54"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_81a.java",
+        "sha256": "1c8907f5efb92569d6eef260b98013ecf3ac260a42e8d27e9b0f72d8c62c81dc"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_04.java",
+        "sha256": "709b45291e452187572c6cc1fdd85ed47371de83ea24527551faf0430157e499"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_09.java",
+        "sha256": "76311518eccdfb4f0a162789144640756b2b09e7e132fe9b25f1d44e08db8121"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_14.java",
+        "sha256": "0817d2d64247dcfa7781913f8882f256a226f703332f5c3354b42a3902005f50"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_22a.java",
+        "sha256": "12ece4c3d6f6cfb00a813c9d1494be7fca0c49f80cf668c7d03b391e3c7f9c6c"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_45.java",
+        "sha256": "aa4a025ab802c363d3f6b1196e4daf76c753d9ae0b5d12ee3aa0146ad5ddb896"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_52b.java",
+        "sha256": "34227ad651af819f32ca2922f9ccbf55c6d2abb353414af2c25d6694272dee34"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_53d.java",
+        "sha256": "972eaade9eeb7ee7cf81996c2da572210b44898c093e938b0a98484f7a7ba822"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_54e.java",
+        "sha256": "d1ebd0ba300380cf998424721b1528cbd893a8268b9195776bfbe92fa320e9d7"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_67a.java",
+        "sha256": "777085b4c4a47c7413b5a23c47f11f99fabfadccaed3fea0e1cc46a0cb2fad26"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_71b.java",
+        "sha256": "73b29abdac9cc9e1e96e943dfcb7c3a3a30213965ce3378c5bcf1de648354acb"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_74a.java",
+        "sha256": "0a8f441e708120af29c7ad510596ac967043806b2b54c61326bad82d8ea2df7a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_81_bad.java",
+        "sha256": "24c343ef314c692ce33b1d19fe49e073db29d63a97f5f7d1a53e48f27f32dd97"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_02.java",
+        "sha256": "3e02fdf207e6cef3007474362c317ac41c99e14007800a12f9abe37ad760b69a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_07.java",
+        "sha256": "a11488329c1b2c2b925d0464a34e925219551615b4159a1ba58df0d6cbc186fe"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_12.java",
+        "sha256": "543fe366f0c7bee9b0c0f489a3d4ce9917714405f20e32fe4de55a964e281fab"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_17.java",
+        "sha256": "bfbab03ba4ec473d82e0e04897b4353211d78cd05c6ab8335e75e0aa72c36e93"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_31.java",
+        "sha256": "becbad468aa48462a03981dc12f482f0f061ead684342c4bb34ae56bc2a15393"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_51b.java",
+        "sha256": "2164cf8b0f91b3de21b58653a79750e9a5426a04da3370971259f53a3c76af66"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_53b.java",
+        "sha256": "e6e576f7a5f94d1a6b7bf75a73670b69068175feeb124cbbbf86012826416050"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_54c.java",
+        "sha256": "a1470a5d9f2a196d50e7cccf3994c31b1e63357c11d579c13fff5c1176ba140f"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_66a.java",
+        "sha256": "55cd3d0d54ee8f074a351f2dd72d25f0e2c518a624980afe9705e09dec338272"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_68a.java",
+        "sha256": "6b3c186778d96e95d347474f9502fbbcfc133f3a7b67d8a869bc9b360d94e241"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_72b.java",
+        "sha256": "2bb971e1b2f6d75733940ebb1239e1a412d046dd5562b63454f5099c4b06e898"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_75a.java",
+        "sha256": "b4e6de80f339925655268890e675f4f3fc2fd84ee49bcd89aecd3558d339432c"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_81a.java",
+        "sha256": "5bc6d43a5d6bc4d0b5e8111f4bb42f2c954e581a5972d8a5675c86aa3991097c"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_05.java",
+        "sha256": "396b2e2dac44e1eed884fc95a06b29a6d929842e01a876b4ddc464291dee4694"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_10.java",
+        "sha256": "12c82c9afddfdcdf06979d3a33b8d1343507ddfc1e4834ddb572cd0ac1679cd8"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_14.java",
+        "sha256": "2b907a9dc79adf8abd985e6fc8e0ba5a3d8a049acabd825879b3e51133a0e955"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_22a.java",
+        "sha256": "878a72262ed614fb6813e25721ac2c6d43adcbcd3363dd07177a24b8c59865a2"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_45.java",
+        "sha256": "620ba50ffc12e7a4055f6e84e04f2efbe5ab5ea16ffabcfeb08f2c8dd52c1b20"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_52c.java",
+        "sha256": "d1655fd9074ae802b2550265a6b54a934f244b129240301694ab00a27daf4dce"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_54a.java",
+        "sha256": "4d2d4f7a2124951534d3035d7a5294f957dac35d6ed1f4c502bb5ddd1415644a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_54e.java",
+        "sha256": "eb84949b37d41d9380ee4c2d7f57f1fcee096d2aba71288e1768342f066822eb"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_67a.java",
+        "sha256": "52c6b2b9ea14444563fcccb31c3e798fb718a66d59eaf8f092f0fb635d9f921a"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_71b.java",
+        "sha256": "f2774b3714cd340bceacdb371d16e02cadfa51f5e8741cd5793efcd6a84a7001"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_74a.java",
+        "sha256": "c04fe9f13033e282c9dff9d613d9e0d2a4fd6a802617f04a39d9d8688597f16e"
+      },
+      {
+        "path": "CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_81_base.java",
+        "sha256": "ce5b22cf408ee508868af729db6b6402147dd351b07607b47aa777a9cd29068b"
+      },
       {
         "path": "CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__Environment_01.java",
         "sha256": "4e7c2a2b7d5b613f10c7517ac9f1a3198cd32f2ce4ef3c81be0f4bca3645ddf6"
@@ -4632,6 +5837,150 @@
       {
         "path": "CWE328_Reversible_One_Way_Hash/ServletMain.java",
         "sha256": "bfe86e059b5db215206c859ee0fb3ed91c78022d90e1ffbbfaca15bb542725e8"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_01.java",
+        "sha256": "4c84d78cdc3ff4abdf5624fee1e3907adf35c21455b045d7c749361e8e9714b3"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_02.java",
+        "sha256": "f5a2c5d7651f35aee4c2bc7bcba66f2ce1c802bc2af9afd3e3d37f64ac0f30d7"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_03.java",
+        "sha256": "3ec5cf9eb7234907d9e6509715298ceee963cb23f2c8f42843a65387824907f0"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_04.java",
+        "sha256": "56a992d4b2472b83442d8a0688bde56caf1141e94c227663c375cecf4641630a"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_05.java",
+        "sha256": "bad9405c7c30c15a97467eddaba19362f935f7007b1feeeeaca218a67af5580b"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_06.java",
+        "sha256": "2ef79bc83dff4ef67b39fd5cea64d093339dff5b73fc5765f86152f0f171c0e7"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_07.java",
+        "sha256": "f655b669e5d3923089cc16f32decb23cec6517b15fc22de479f5421ac487d35d"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_08.java",
+        "sha256": "5ce9eba925086d3c28cae5da3db28f3c21ec234b28c3c46b6081d58c4c1a60b8"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_09.java",
+        "sha256": "8f962ff050f9facc7fadc97690c46015dd2b62b77e4564cc5637ecc000e7a294"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_10.java",
+        "sha256": "86b9f1f5f7c376da47649e9bf9252da2d55ef295fe6396882d4df0f946ec9a1a"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_11.java",
+        "sha256": "6cd4c3232555581d6378524d87c0a5d9742ef3f71ad382e7736e18483bf0fa16"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_12.java",
+        "sha256": "e2fe9c71fc39c1a852373675f434041ef423651b1e3a5ba9af5e637755cd631d"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_13.java",
+        "sha256": "e91c059760206ccfed592d101d3bb0666d4156ce65fac6ce2dedbb2582b94eb5"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_14.java",
+        "sha256": "69413c89c9ba58f2bb84a57de0c01e525a8cf52beb10e8db0381c7b2cb2cdfde"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_15.java",
+        "sha256": "defc67657876a097bbeba9ba0679e998ac19982e0aaa59190dd2334613fa319c"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_16.java",
+        "sha256": "e5200b06cf75a6e82c422043448073a4e810411fef3417499b4b3de3deb3a231"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_17.java",
+        "sha256": "dc87cf900aed11cf6870b3095c2705ecc887a07ae08507766f21e29c30991f73"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_01.java",
+        "sha256": "288c479bd687efd4062ee68c9513704ab81209cfdd40328f70f2e86a8d26d0d2"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_02.java",
+        "sha256": "3246a750c2cbd25dc2c3d04768fc9cb066f5e87da2d0d11375605a33339ff687"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_03.java",
+        "sha256": "0964715cfff559592c90d69166668a01edd39ee7742738be279cbd95931f3c6b"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_04.java",
+        "sha256": "c1b8e1430731bed393947145c4c6ef634443863464c9130e8283102c157d63c8"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_05.java",
+        "sha256": "b230a36bf03dc912b2848f264caefcdbcb1d4eafbed00d2921bcf804782d6337"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_06.java",
+        "sha256": "99889d3289ff93fb673fb665dd5c1ac950f2f5f2d63ee1e5a8dbbe7187a3199e"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_07.java",
+        "sha256": "5ed821c64e741b774767841bda32f919a1673369e60343dac1436e011481b5f0"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_08.java",
+        "sha256": "64fd564b726e22adacce905fc3f4f67f3cbd0cedeea8773124795ae2bb5a49c8"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_09.java",
+        "sha256": "ac09cbcd1b32674e118e33e59b0a840f0c191c49d69df54e2f9d846808651766"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_10.java",
+        "sha256": "b682dcf7d3bab6f8422e1bbb63d0ba9ff988a33d4fd043218ebcececf0194c48"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_11.java",
+        "sha256": "aa34a897bf0de55c7e2b1bd430384e6feb4ebeb1f6fd3f318c9ad85a3e1b3944"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_12.java",
+        "sha256": "3434a794132607951e7cb803643c1f0446cb726434b01cdcd2d71bf56f3546d9"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_13.java",
+        "sha256": "cbf7d72f64a88d0bab2a9c2f744327a5a83d09cda6280355e455ebaf80a2bf1e"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_14.java",
+        "sha256": "61ed411a122e39dc75f7149fa0802ad8401312773440b01b159428f5ad1527bf"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_15.java",
+        "sha256": "23b04b094b396c96d8716faf77876b94948be2799bab9f0f30be06f3945779be"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_16.java",
+        "sha256": "18a15451dced8b90e85d478b9328277ddd31e20f953b1eddb427c565b497a6a3"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_17.java",
+        "sha256": "09ab81ff74cb76f6c28cd9a8a113bd3746e43f8f529661495744f5ffd2d197d4"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/Main.java",
+        "sha256": "7a5c42f3e1ef682714b9f39d58ee7ef1d725a54a6f8bfb9ff8ab52dbfd6a18c5"
+      },
+      {
+        "path": "CWE338_Weak_PRNG/ServletMain.java",
+        "sha256": "a11387f5cf4d35fd3cb52573bc10f9bbe590c4ac894e5d762c65bc3818e4e62c"
       },
       {
         "path": "CWE601_Open_Redirect/CWE601_Open_Redirect__Servlet_File_01.java",
