@@ -9745,6 +9745,35 @@
         "The benchmark is load-sensitive: under a saturated machine the engine times out per file and silently drops findings, so two identical runs gave different reports. Numbers are from a quiet machine with two byte-identical runs.",
         "Follow-ups: add Juliet CWE23/36 and CWE338 directories to the sample; decide on an implicit-ECB rule; the rules only read servlet request sources."
       ]
+    },
+    {
+      "id": "W18-50",
+      "title": "Benchmark follow-ups: Juliet path traversal and weak PRNG rows, and the Math.random() fix",
+      "phase": 18,
+      "module": "security",
+      "stories": [
+        "E13.6"
+      ],
+      "write_scope": [
+        "packages/security/**",
+        "apps/api/**",
+        "docs/**",
+        "plan.json"
+      ],
+      "depends_on": [],
+      "acceptance": [
+        "Juliet Java CWE23/CWE36 (path traversal, reported as CWE 22) and CWE338 (weak PRNG, reported as CWE 330) are in the sample, additively, and their rows are measured and published in docs/BENCHMARKS.md and docs/benchmarks/report.md",
+        "bpm-java-insecure-random-token matches Math.random() (the method-name filter no longer sits above an alternative that binds none), with fixtures and a golden test for each generator form it names and near-miss clean cases",
+        "No benchmark code is committed; the implicit-ECB rule is not added; full gate green (pnpm lint && pnpm typecheck && pnpm test) with the engine on the real image"
+      ],
+      "points": 3,
+      "status": "done",
+      "notes": [
+        "Measured 2026-10-17 on a quiet machine, two byte-identical runs (opengrep 1.27.1): Juliet CWE 22 26/160/0/364 (TP/FN/FP/TN), TPR 14.0%, FPR 0.0%, Youden 0.140; Juliet CWE 330 0/34/0/60, TPR 0%, FPR 0%. Every other suite and CWE row is identical to main; Juliet grows from 3,141 to 3,785 labels and 1,439 to 1,775 files, none removed or re-hashed.",
+        "Why the rows are low, from the data: all 26 CWE 22 true positives start from a servlet request (26 of the 50 such cases); none of the 136 cases that start from Environment, PropertiesFile, Property, database, listen_tcp, connect_tcp, URLConnection, File or console_readLine is found because the path rule reads servlet request data only. Juliet's CWE338 cases are bare Math.random() and java.util.Random calls with no servlet and no secret, so the deliberately narrow bpm-java-weak-random (handler only) and bpm-java-insecure-random-token (secret context only) do not fire. No rule was changed to improve either row.",
+        "The old suite config named CWE22_ and CWE330_ directories that the Java archive does not have (Juliet's are CWE23/CWE36 and CWE338). The insecure-random fix moves no benchmark number: that rule reports CWE-338 and the CWE 330 rows count only CWE 330.",
+        "Follow-ups: bpm-kt-insecure-random-token has the same structure for its ($C).random() alternative and was not touched; reading non-servlet sources (System.getenv, Properties, console, sockets) in the path rules would lift Juliet 22 but is a recall-for-precision decision for the product, not a benchmark fix."
+      ]
     }
   ]
 }
