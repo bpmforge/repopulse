@@ -177,12 +177,81 @@ describe('Admin → Models (W16-07)', () => {
       const call = requests.find((r) => r.url.includes('/test'));
       expect(call).toBeTruthy();
       // By id — the browser has no key to send, so the server decrypts it.
-      expect(JSON.parse(String(call?.init?.body))).toEqual({ id: 7 });
+      expect(JSON.parse(String(call?.init?.body))).toEqual({ id: 7, probe: true });
     });
   });
 
   it('says what an empty state means for analysis', async () => {
     renderScreen();
     expect(await screen.findByText(/analysis will skip and say so/i)).toBeInTheDocument();
+  });
+
+  describe('presets and capabilities (W19-01)', () => {
+    const CAPS = {
+      contextWindow: 262144,
+      streaming: 'yes',
+      jsonMode: 'yes',
+      toolUse: 'unknown',
+      notes: ['JSON mode works through `json_schema`, not `json_object`.'],
+      probedAt: '2026-10-17T00:00:00.000Z',
+    };
+
+    it('a preset fills the provider and URL, leaving the model to the person', async () => {
+      (KINDS as Record<string, unknown>).presets = [
+        {
+          id: 'lmstudio',
+          label: 'LM Studio',
+          kind: 'openai_compatible',
+          baseUrl: 'http://localhost:1234/v1',
+          note: 'Start the local server and load a model.',
+        },
+      ];
+      renderScreen();
+      await userEvent.click(await screen.findByTestId('preset-lmstudio'));
+      expect(screen.getByTestId('provider-base-url')).toHaveValue('http://localhost:1234/v1');
+      expect(screen.getByTestId('provider-name')).toHaveValue('LM Studio');
+      // Never guessed: a preset cannot know which model is loaded.
+      expect(screen.getByTestId('provider-model')).toHaveValue('');
+    });
+
+    it('shows what the probe found next to a saved provider, with unknown kept as unknown', async () => {
+      listBody = {
+        items: [
+          {
+            id: 3,
+            name: 'LM',
+            kind: 'openai_compatible',
+            base_url: 'http://localhost:1234/v1',
+            model: 'm',
+            credential: null,
+            headers: null,
+            allow_public_host: false,
+            enabled: true,
+            capabilities: CAPS,
+            probed_at: CAPS.probedAt,
+          },
+        ],
+      };
+      renderScreen();
+      const cell = await screen.findByTestId('provider-capabilities-3');
+      expect(cell).toHaveTextContent('262144 tokens');
+      expect(cell).toHaveTextContent('Streaming: ✓ yes');
+      expect(cell).toHaveTextContent('Tool use: ? unknown');
+      expect(cell).toHaveTextContent('json_schema');
+    });
+
+    it('shows the capability sentence that blocks a model, in the test result', async () => {
+      testBody = {
+        ok: true,
+        latency_ms: 10,
+        model: 'm',
+        sample: 'ok',
+        capabilities: { ...CAPS, contextWindow: 4096, streaming: 'no' },
+        problems: ['This server does not stream responses, and every analysis call is streamed.'],
+      };
+      renderScreen();
+      await userEvent.click(await screen.findByTestId('provider-test'));
+      expect(await screen.findByTestId('capability-problem')).toHaveTextContent(/does not stream/);
+    });
   });
 });
