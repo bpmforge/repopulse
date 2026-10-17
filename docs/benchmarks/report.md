@@ -16,7 +16,7 @@ Suite | Source | Licence | Trees | Labels | Status
 changes | authored | Proprietary (RepoPulse); written for this benchmark | 38 | 23 | scored
 iac-adapters | in-repo | Proprietary (RepoPulse) | 3 | 123 | scored
 juice-shop | vendored https://github.com/juice-shop/juice-shop e39a3bdb8c61 | MIT (Bjoern Kimminich and the OWASP Juice Shop contributors; LICENSE alongside) | 2 | 24 | scored
-juliet-java | fetched https://samate.nist.gov/SARD/test-suites/111 | Public domain (US government work); fetched at prep time into a gitignored cache | 1 | 3141 | scored
+juliet-java | fetched https://samate.nist.gov/SARD/test-suites/111 | Public domain (US government work); fetched at prep time into a gitignored cache | 1 | 3785 | scored
 owasp-benchmark | fetched https://github.com/OWASP-Benchmark/BenchmarkJava 0a3113b7054a | GPL-2.0 (not vendored; fetched at prep time into a gitignored cache) | 1 | 2740 | scored
 rule-fixtures | in-repo | Proprietary (RepoPulse) | 8 | 135 | scored
 sampleco | vendored https://github.com/bpmforge/slop-scorecard f3ed52573aeb | MIT (bpmforge; LICENSE alongside) | 1 | 15 | scored
@@ -25,7 +25,7 @@ sampleco | vendored https://github.com/bpmforge/slop-scorecard f3ed52573aeb | MI
 
 Scope | TP | FP | FN | Dup | Precision | Recall
 ---|--:|--:|--:|--:|--:|--:
-all | 1699 | 494 | 962 | 197 | 77.5% | 63.8%
+all | 1725 | 494 | 1156 | 223 | 77.7% | 59.9%
 
 ## By dimension
 
@@ -37,7 +37,7 @@ dependency | 0 | 0 | 0 | 0 | — | —
 iac | 50 | 0 | 1 | 0 | 100.0% | 98.0%
 logging | 18 | 2 | 0 | 0 | 90.0% | 100.0%
 performance | 24 | 0 | 1 | 1 | 100.0% | 96.0%
-sast | 1509 | 485 | 951 | 196 | 75.7% | 61.3%
+sast | 1535 | 485 | 1145 | 222 | 76.0% | 57.3%
 secrets | 3 | 0 | 0 | 0 | 100.0% | 100.0%
 slop | 30 | 0 | 8 | 0 | 100.0% | 78.9%
 
@@ -48,19 +48,20 @@ Suite | TP | FP | FN | Dup | Precision | Recall
 changes | 21 | 1 | 2 | 0 | 95.5% | 91.3%
 iac-adapters | 115 | 7 | 2 | 0 | 94.3% | 98.3%
 juice-shop | 7 | 0 | 4 | 0 | 100.0% | 63.6%
-juliet-java | 288 | 247 | 660 | 47 | 53.8% | 30.4%
+juliet-java | 314 | 247 | 854 | 73 | 56.0% | 26.9%
 owasp-benchmark | 1129 | 238 | 286 | 149 | 82.6% | 79.8%
 rule-fixtures | 135 | 0 | 0 | 1 | 100.0% | 100.0%
 sampleco | 4 | 1 | 8 | 0 | 80.0% | 33.3%
 
 ## Public benchmarks, by CWE
 
-Measured 2026-10-16 at 4eb5c06a7666 with opengrep 1.27.1.
+Measured 2026-10-16 at e49421c6ccd6 with opengrep 1.27.1.
 
 TPR is the share of real vulnerabilities found; FPR is the share of safe look-alikes flagged; Youden is TPR − FPR (0 = a coin flip, 1 = perfect, negative = worse than guessing). A CWE we have no rule for shows a TPR of 0%, and stays in the table.
 
 Suite | CWE | TP | FN | FP | TN | TPR | FPR | Youden
 ---|--:|--:|--:|--:|--:|--:|--:|--:
+juliet-java | 22 | 26 | 160 | 0 | 364 | 14.0% | 0.0% | 0.140
 juliet-java | 78 | 59 | 34 | 126 | 56 | 63.4% | 69.2% | -0.058
 juliet-java | 79 | 34 | 255 | 0 | 549 | 11.8% | 0.0% | 0.118
 juliet-java | 89 | 69 | 35 | 121 | 271 | 66.3% | 30.9% | 0.354
@@ -68,6 +69,7 @@ juliet-java | 90 | 13 | 80 | 0 | 182 | 14.0% | 0.0% | 0.140
 juliet-java | 259 | 0 | 95 | 0 | 186 | 0.0% | 0.0% | 0.000
 juliet-java | 327 | 34 | 0 | 0 | 60 | 100.0% | 0.0% | 1.000
 juliet-java | 328 | 51 | 0 | 0 | 90 | 100.0% | 0.0% | 1.000
+juliet-java | 330 | 0 | 34 | 0 | 60 | 0.0% | 0.0% | 0.000
 juliet-java | 601 | 16 | 81 | 0 | 184 | 16.5% | 0.0% | 0.165
 juliet-java | 643 | 12 | 80 | 0 | 368 | 13.0% | 0.0% | 0.130
 owasp-benchmark | 22 | 118 | 15 | 44 | 91 | 88.7% | 32.6% | 0.561
@@ -216,7 +218,7 @@ bpm-inj-dom-xss-js | yaml | sast | 1 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-inj-ldap-java | yaml | sast | 37 | 7 | 0 | 0 | 84.1% | 100.0%
 bpm-inj-path-cs | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-inj-path-go | yaml | sast | 1 | 0 | 0 | 0 | 100.0% | 100.0%
-bpm-inj-path-java | yaml | sast | 126 | 44 | 0 | 0 | 74.1% | 100.0%
+bpm-inj-path-java | yaml | sast | 152 | 44 | 0 | 26 | 77.6% | 100.0%
 bpm-inj-path-js | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
 bpm-inj-path-kt | yaml | sast | 0 | 0 | 0 | 0 | — | —
 bpm-inj-path-py | yaml | sast | 2 | 0 | 0 | 0 | 100.0% | 100.0%
@@ -714,7 +716,7 @@ checkov runs 60 allowlisted checks; 38 have a labelled case here. The rest have 
 
 hadolint, shellcheck and actionlint have no fixed allowlist (their universe is every code the tool can raise at error or warning level), so every rule not in the table above is **not yet run**.
 
-## Missed (false negatives) (962)
+## Missed (false negatives) (1156)
 
 - `changes/perf-await-in-loop/after/src/team.js:4` bpm-perf-orm-call-in-loop — label perf-await-in-loop-orm
 - `changes/slop-low-logic-density/after/src/retry.ts` slop.low_logic_density — label slop-low-logic-density
@@ -724,6 +726,86 @@ hadolint, shellcheck and actionlint have no fixed allowlist (their universe is e
 - `juice-shop/codefixes/noSqlReviewsChallenge_2.ts:4` (sast, no rule) — label nosql-reviews-2
 - `juice-shop/codefixes/redirectChallenge_1.ts:15` (sast, no rule) — label redirect-1
 - `juice-shop/codefixes/redirectChallenge_3.ts:15` (sast, no rule) — label redirect-3
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_01.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_01.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_05.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_05.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_10.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_10.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_15.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_15.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_51a.java:25` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_51a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_54a.java:26` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_54a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_61a.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_61a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_72a.java:27` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_72a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Environment_74a.java:27` (sast, no rule) — label CWE23_Relative_Path_Traversal__Environment_74a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_03.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__File_03.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_08.java:49` (sast, no rule) — label CWE23_Relative_Path_Traversal__File_08.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_13.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__File_13.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_21.java:38` (sast, no rule) — label CWE23_Relative_Path_Traversal__File_21.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_41.java:113` (sast, no rule) — label CWE23_Relative_Path_Traversal__File_41.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_52a.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__File_52a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__File_73a.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__File_73a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_01.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_01.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_06.java:40` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_06.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_10.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_10.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_15.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_15.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_51a.java:32` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_51a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_53a.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_53a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_61a.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_61a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__PropertiesFile_72a.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__PropertiesFile_72a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_03.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__Property_03.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_08.java:42` (sast, no rule) — label CWE23_Relative_Path_Traversal__Property_08.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_13.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__Property_13.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_21.java:31` (sast, no rule) — label CWE23_Relative_Path_Traversal__Property_21.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_42.java:39` (sast, no rule) — label CWE23_Relative_Path_Traversal__Property_42.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_52a.java:26` (sast, no rule) — label CWE23_Relative_Path_Traversal__Property_52a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__Property_71a.java:26` (sast, no rule) — label CWE23_Relative_Path_Traversal__Property_71a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_01.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__URLConnection_01.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_06.java:41` (sast, no rule) — label CWE23_Relative_Path_Traversal__URLConnection_06.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_11.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__URLConnection_11.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_16.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__URLConnection_16.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_51a.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__URLConnection_51a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_53a.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__URLConnection_53a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__URLConnection_72a.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__URLConnection_72a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_04.java:41` (sast, no rule) — label CWE23_Relative_Path_Traversal__connect_tcp_04.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_09.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__connect_tcp_09.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_13.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__connect_tcp_13.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_21.java:37` (sast, no rule) — label CWE23_Relative_Path_Traversal__connect_tcp_21.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_42.java:108` (sast, no rule) — label CWE23_Relative_Path_Traversal__connect_tcp_42.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_71a.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__connect_tcp_71a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__connect_tcp_81_bad.java` (sast, no rule) — label CWE23_Relative_Path_Traversal__connect_tcp_81_bad.java
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_02.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__console_readLine_02.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_06.java:39` (sast, no rule) — label CWE23_Relative_Path_Traversal__console_readLine_06.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_11.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__console_readLine_11.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_16.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__console_readLine_16.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_31.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__console_readLine_31.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_53a.java:32` (sast, no rule) — label CWE23_Relative_Path_Traversal__console_readLine_53a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__console_readLine_68a.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__console_readLine_68a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_04.java:41` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_04.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_09.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_09.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_14.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_14.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_22a.java:32` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_22a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_42.java:106` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_42.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_67a.java:38` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_67a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_71a.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_71a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__database_81_bad.java` (sast, no rule) — label CWE23_Relative_Path_Traversal__database_81_bad.java
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_68a.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__getCookies_Servlet_68a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_75a.java:32` (sast, no rule) — label CWE23_Relative_Path_Traversal__getCookies_Servlet_75a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_81a.java:27` (sast, no rule) — label CWE23_Relative_Path_Traversal__getCookies_Servlet_81a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_22a.java:32` (sast, no rule) — label CWE23_Relative_Path_Traversal__getParameter_Servlet_22a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_45.java:113` (sast, no rule) — label CWE23_Relative_Path_Traversal__getParameter_Servlet_45.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_67a.java:32` (sast, no rule) — label CWE23_Relative_Path_Traversal__getParameter_Servlet_67a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_74a.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__getParameter_Servlet_74a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_81_bad.java` (sast, no rule) — label CWE23_Relative_Path_Traversal__getParameter_Servlet_81_bad.java
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_66a.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_66a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_68a.java:29` (sast, no rule) — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_68a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_75a.java:33` (sast, no rule) — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_75a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_81a.java:28` (sast, no rule) — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_81a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_05.java:42` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_05.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_10.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_10.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_14.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_14.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_22a.java:32` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_22a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_45.java:119` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_45.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_54a.java:34` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_54a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_67a.java:39` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_67a.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__listen_tcp_74a.java:35` (sast, no rule) — label CWE23_Relative_Path_Traversal__listen_tcp_74a.java#bad
 - `juliet-java/testcases/CWE259_Hard_Coded_Password/CWE259_Hard_Coded_Password__driverManager_01.java:28` (sast, no rule) — label CWE259_Hard_Coded_Password__driverManager_01.java#bad
 - `juliet-java/testcases/CWE259_Hard_Coded_Password/CWE259_Hard_Coded_Password__driverManager_02.java:28` (sast, no rule) — label CWE259_Hard_Coded_Password__driverManager_02.java#bad
 - `juliet-java/testcases/CWE259_Hard_Coded_Password/CWE259_Hard_Coded_Password__driverManager_03.java:28` (sast, no rule) — label CWE259_Hard_Coded_Password__driverManager_03.java#bad
@@ -819,6 +901,120 @@ hadolint, shellcheck and actionlint have no fixed allowlist (their universe is e
 - `juliet-java/testcases/CWE259_Hard_Coded_Password/CWE259_Hard_Coded_Password__passwordAuth_74a.java:27` (sast, no rule) — label CWE259_Hard_Coded_Password__passwordAuth_74a.java#bad
 - `juliet-java/testcases/CWE259_Hard_Coded_Password/CWE259_Hard_Coded_Password__passwordAuth_75a.java:30` (sast, no rule) — label CWE259_Hard_Coded_Password__passwordAuth_75a.java#bad
 - `juliet-java/testcases/CWE259_Hard_Coded_Password/CWE259_Hard_Coded_Password__passwordAuth_81a.java:26` (sast, no rule) — label CWE259_Hard_Coded_Password__passwordAuth_81a.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_01.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_01.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_02.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_02.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_03.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_03.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_04.java:31` (sast, no rule) — label CWE338_Weak_PRNG__math_04.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_05.java:31` (sast, no rule) — label CWE338_Weak_PRNG__math_05.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_06.java:30` (sast, no rule) — label CWE338_Weak_PRNG__math_06.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_07.java:30` (sast, no rule) — label CWE338_Weak_PRNG__math_07.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_08.java:38` (sast, no rule) — label CWE338_Weak_PRNG__math_08.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_09.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_09.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_10.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_10.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_11.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_11.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_12.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_12.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_13.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_13.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_14.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_14.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_15.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_15.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_16.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_16.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__math_17.java:24` (sast, no rule) — label CWE338_Weak_PRNG__math_17.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_01.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_01.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_02.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_02.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_03.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_03.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_04.java:33` (sast, no rule) — label CWE338_Weak_PRNG__util_04.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_05.java:33` (sast, no rule) — label CWE338_Weak_PRNG__util_05.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_06.java:32` (sast, no rule) — label CWE338_Weak_PRNG__util_06.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_07.java:32` (sast, no rule) — label CWE338_Weak_PRNG__util_07.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_08.java:40` (sast, no rule) — label CWE338_Weak_PRNG__util_08.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_09.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_09.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_10.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_10.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_11.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_11.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_12.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_12.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_13.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_13.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_14.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_14.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_15.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_15.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_16.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_16.java#bad
+- `juliet-java/testcases/CWE338_Weak_PRNG/CWE338_Weak_PRNG__util_17.java:26` (sast, no rule) — label CWE338_Weak_PRNG__util_17.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_01.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_01.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_05.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_05.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_10.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_10.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_15.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_15.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_51a.java:25` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_51a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_54a.java:26` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_54a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_61a.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_61a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_72a.java:27` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_72a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Environment_74a.java:27` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Environment_74a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_03.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__File_03.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_08.java:49` (sast, no rule) — label CWE36_Absolute_Path_Traversal__File_08.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_13.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__File_13.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_21.java:38` (sast, no rule) — label CWE36_Absolute_Path_Traversal__File_21.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_41.java:101` (sast, no rule) — label CWE36_Absolute_Path_Traversal__File_41.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_52a.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__File_52a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__File_73a.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__File_73a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_01.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_01.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_06.java:40` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_06.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_10.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_10.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_15.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_15.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_51a.java:32` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_51a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_53a.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_53a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_61a.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_61a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__PropertiesFile_72a.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__PropertiesFile_72a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_03.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Property_03.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_08.java:42` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Property_08.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_13.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Property_13.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_21.java:31` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Property_21.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_42.java:39` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Property_42.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_52a.java:26` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Property_52a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__Property_71a.java:26` (sast, no rule) — label CWE36_Absolute_Path_Traversal__Property_71a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_01.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__URLConnection_01.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_06.java:41` (sast, no rule) — label CWE36_Absolute_Path_Traversal__URLConnection_06.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_11.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__URLConnection_11.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_16.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__URLConnection_16.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_51a.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__URLConnection_51a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_53a.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__URLConnection_53a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__URLConnection_72a.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__URLConnection_72a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_04.java:41` (sast, no rule) — label CWE36_Absolute_Path_Traversal__connect_tcp_04.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_09.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__connect_tcp_09.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_13.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__connect_tcp_13.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_21.java:37` (sast, no rule) — label CWE36_Absolute_Path_Traversal__connect_tcp_21.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_42.java:108` (sast, no rule) — label CWE36_Absolute_Path_Traversal__connect_tcp_42.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_71a.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__connect_tcp_71a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__connect_tcp_81_bad.java` (sast, no rule) — label CWE36_Absolute_Path_Traversal__connect_tcp_81_bad.java
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_02.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__console_readLine_02.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_06.java:39` (sast, no rule) — label CWE36_Absolute_Path_Traversal__console_readLine_06.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_11.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__console_readLine_11.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_16.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__console_readLine_16.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_31.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__console_readLine_31.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_53a.java:32` (sast, no rule) — label CWE36_Absolute_Path_Traversal__console_readLine_53a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__console_readLine_68a.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__console_readLine_68a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_04.java:41` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_04.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_09.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_09.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_14.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_14.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_22a.java:32` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_22a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_42.java:106` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_42.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_67a.java:38` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_67a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_71a.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_71a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__database_81_bad.java` (sast, no rule) — label CWE36_Absolute_Path_Traversal__database_81_bad.java
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_68a.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_68a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_75a.java:32` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_75a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_81a.java:27` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_81a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_22a.java:32` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_22a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_45.java:101` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_45.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_67a.java:32` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_67a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_74a.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_74a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_81_bad.java` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_81_bad.java
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_66a.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_66a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_68a.java:29` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_68a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_75a.java:33` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_75a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_81a.java:28` (sast, no rule) — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_81a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_05.java:42` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_05.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_10.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_10.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_14.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_14.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_22a.java:32` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_22a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_45.java:107` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_45.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_54a.java:34` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_54a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_67a.java:39` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_67a.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__listen_tcp_74a.java:35` (sast, no rule) — label CWE36_Absolute_Path_Traversal__listen_tcp_74a.java#bad
 - `juliet-java/testcases/CWE601_Open_Redirect/CWE601_Open_Redirect__Servlet_File_01.java:36` (sast, no rule) — label CWE601_Open_Redirect__Servlet_File_01.java#bad
 - `juliet-java/testcases/CWE601_Open_Redirect/CWE601_Open_Redirect__Servlet_File_04.java:43` (sast, no rule) — label CWE601_Open_Redirect__Servlet_File_04.java#bad
 - `juliet-java/testcases/CWE601_Open_Redirect/CWE601_Open_Redirect__Servlet_File_08.java:50` (sast, no rule) — label CWE601_Open_Redirect__Servlet_File_08.java#bad
@@ -2176,8 +2372,21 @@ hadolint, shellcheck and actionlint have no fixed allowlist (their universe is e
 - `owasp-benchmark/testcode/BenchmarkTest02640.java:75` bpm-inj-sql-java — label BenchmarkTest02640
 - `sampleco/app/src/index.js:12` bpm-log-console-in-prod
 
-## Duplicates (197)
+## Duplicates (223)
 
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_02.java:75` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getCookies_Servlet_02.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_07.java:81` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getCookies_Servlet_07.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_11.java:75` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getCookies_Servlet_11.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_16.java:71` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getCookies_Servlet_16.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getCookies_Servlet_31.java:76` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getCookies_Servlet_31.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_04.java:74` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getParameter_Servlet_04.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_09.java:67` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getParameter_Servlet_09.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getParameter_Servlet_14.java:67` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getParameter_Servlet_14.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_02.java:80` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_02.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_07.java:86` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_07.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_12.java:81` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_12.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_17.java:74` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_17.java#bad
+- `juliet-java/testcases/CWE23_Relative_Path_Traversal/CWE23_Relative_Path_Traversal__getQueryString_Servlet_31.java:81` bpm-inj-path-java — label CWE23_Relative_Path_Traversal__getQueryString_Servlet_31.java#bad
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__3DES_01.java:43` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__3DES_01.java#bad
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__3DES_02.java:39` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__3DES_02.java#bad
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__3DES_03.java:39` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__3DES_03.java#bad
@@ -2212,6 +2421,19 @@ hadolint, shellcheck and actionlint have no fixed allowlist (their universe is e
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__DES_15.java:40` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__DES_15.java#bad
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__DES_16.java:39` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__DES_16.java#bad
 - `juliet-java/testcases/CWE327_Use_Broken_Crypto/CWE327_Use_Broken_Crypto__DES_17.java:39` bpm-java-weak-cipher — label CWE327_Use_Broken_Crypto__DES_17.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_02.java:63` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_02.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_07.java:69` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_07.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_11.java:63` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_11.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_16.java:59` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_16.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getCookies_Servlet_31.java:64` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getCookies_Servlet_31.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_04.java:62` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_04.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_09.java:55` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_09.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getParameter_Servlet_14.java:55` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getParameter_Servlet_14.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_02.java:68` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_02.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_07.java:74` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_07.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_12.java:69` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_12.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_17.java:63` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_17.java#bad
+- `juliet-java/testcases/CWE36_Absolute_Path_Traversal/CWE36_Absolute_Path_Traversal__getQueryString_Servlet_31.java:69` bpm-inj-path-java — label CWE36_Absolute_Path_Traversal__getQueryString_Servlet_31.java#bad
 - `juliet-java/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__getCookies_Servlet_02.java:62` bpm-java-command-concat — label CWE78_OS_Command_Injection__getCookies_Servlet_02.java#bad
 - `juliet-java/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__getCookies_Servlet_07.java:68` bpm-java-command-concat — label CWE78_OS_Command_Injection__getCookies_Servlet_07.java#bad
 - `juliet-java/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__getCookies_Servlet_11.java:62` bpm-java-command-concat — label CWE78_OS_Command_Injection__getCookies_Servlet_11.java#bad

@@ -91,7 +91,7 @@ benchmarks, by CWE*.
 | Suite | What | Licence |
 |---|---|---|
 | `owasp-benchmark` | OWASP Benchmark for Java v1.2: every case of eleven categories (cmdi, crypto, hash, ldapi, pathtraver, securecookie, sqli, trustbound, weakrand, xpathi, xss), with OWASP's own verdict per case | GPL-2.0, fetched and hash-pinned, never committed |
-| `juliet-java` | NIST Juliet Java v1.3: a stride sample of up to 150 files for each of thirteen weakness directories (22, 78, 80/81/83, 89, 90, 259, 327, 328, 330, 601, 643) | public domain, fetched and hash-pinned |
+| `juliet-java` | NIST Juliet Java v1.3: a stride sample of up to 150 files for each of fourteen weakness directories (23 and 36 path traversal, 78, 80/81/83, 89, 90, 259, 327, 328, 338 weak PRNG, 601, 643) | public domain, fetched and hash-pinned |
 
 **First measured run (2026-10-16, opengrep 1.27.1, commit a7d15ea).** 2,740 OWASP cases and
 3,095 Juliet labels. Across both suites precision was 52.6% and recall 28.9%. Where we were
@@ -156,9 +156,9 @@ How to read the strong rows honestly:
 - **A bare `Cipher.getInstance("AES")`** (ECB by default in the JCA) is not reported. Juliet
   counts it as safe, so a rule for it would take Juliet 327's FPR from 0% to 100% while being
   right about real code; it is left as a separate candidate to measure.
-- **Juliet has no CWE 22 or 330 rows**: the configured directories do not exist in the Java
-  archive (Juliet names path traversal CWE23/CWE36 and weak random CWE338), so the Juliet side of
-  those two is unmeasured; adding the directories is a follow-up. Juliet's CWE 90 and 643 TPR is low
+- **At the time of W18-49 Juliet had no CWE 22 or 330 rows**: the configured directories did not
+  exist in the Java archive (Juliet names path traversal CWE23/CWE36 and weak random CWE338). W18-50
+  added them; see the next section. Juliet's CWE 90 and 643 TPR is low
   (14% and 13%) because most of their cases start from `Environment`, `PropertiesFile`, `database`,
   `listen_tcp` or `File` sources, not a servlet request, which these rules do not read.
 - **What still scores badly:** CWE 89 on Juliet (TPR 66%, FPR 31%) and CWE 78 (Youden 0.13 on
@@ -170,6 +170,37 @@ How to read the strong rows honestly:
   different reports). The numbers above are from a quiet machine, with two consecutive runs
   byte-identical and no engine error beyond the eight juice-shop snippets the parser rejects.
   Re-measure the same way.
+
+**Juliet path traversal and weak PRNG (W18-50, 2026-10-17, opengrep 1.27.1, commit e49421c).** The
+sample now includes Juliet's `CWE23_Relative_Path_Traversal` and `CWE36_Absolute_Path_Traversal`
+(reported by our rules as CWE 22) and `CWE338_Weak_PRNG` (CWE 330): 3,785 Juliet labels, the existing
+ones unchanged (the addition is purely additive, so no other row can move, and none did). The old
+configuration named `CWE22_` and `CWE330_` directories that the Java archive does not have.
+
+| Suite | CWE | TP | FN | FP | TN | TPR | FPR | Youden |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| juliet-java | 22 | 26 | 160 | 0 | 364 | 14.0% | 0.0% | 0.140 |
+| juliet-java | 330 | 0 | 34 | 0 | 60 | 0.0% | 0.0% | 0.000 |
+
+Both are low, for reasons that are visible in the data and are not the benchmark's fault:
+
+- **CWE 22 (14%).** All 26 true positives start from a servlet request (`getQueryString_Servlet` 10 of 18,
+  `getCookies_Servlet` 10 of 16, `getParameter_Servlet` 6 of 16: 26 of 50 of those cases). None of the 136 cases that start
+  from `Environment`, `PropertiesFile`, `Property`, `database`, `listen_tcp`, `connect_tcp`,
+  `URLConnection`, `File` or `console_readLine` is found, because the path rule reads servlet request
+  data only. The OWASP Benchmark, where every case is a servlet, scores the same rule at 88.7%.
+- **CWE 330 (0%).** Juliet's weak-PRNG cases are bare `Math.random()` and `java.util.Random` calls written to
+  output, with no servlet and no secret anywhere near them. `bpm-java-weak-random` fires only inside a
+  request handler and `bpm-java-insecure-random-token` only in a secret-shaped context, both on purpose
+  (a random number in a library method is usually jitter or sampling), so neither fires. Reporting every
+  weak-PRNG call would match the benchmark and bury the one that makes a token; that trade was made in W18-49 and
+  this row is its measured price on the one suite that counts every use. No rule was changed to improve it.
+
+`bpm-java-insecure-random-token` itself was also fixed in W18-50: its method-name filter sat above the
+`Math.random()` alternative, which binds no method name, so that form could never match. It now does, with
+fixtures and a golden test for `Math.random()`, `java.lang.Math.random()`, `ThreadLocalRandom` and
+`RandomStringUtils` in secret-shaped contexts and jitter/shard near-misses. It moves no benchmark
+number: it reports CWE-338, and the public suites' CWE 330 rows count only findings that carry CWE 330.
 
 **Method.** A case is one label with a CWE. A real vulnerability that a rule with that CWE
 reports is a true positive; one nothing reports is a false negative. A safe look-alike
