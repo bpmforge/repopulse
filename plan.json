@@ -10085,6 +10085,35 @@
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17)."
           ]
+    },
+    {
+        "id": "W19-08",
+        "title": "Claude Max plan option: opt-in Claude Code CLI backend behind an accept-responsibility switch",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+              "packages/analysis/**",
+              "packages/shared/**",
+              "apps/api/**",
+              "apps/web/**",
+              "docs/**",
+              "deploy/**",
+              "plan.json"
+        ],
+        "depends_on": [
+              "W19-01"
+        ],
+        "acceptance": [
+              "A provider kind runs the customer's own Claude Code CLI, installed and signed in by them inside their container, as a model backend; it is off by default and enabling it requires an admin to read and accept a responsibility statement, which is recorded in an audit row with who and when",
+              "The statement says plainly that the customer is responsible for their plan's terms, that Repo Pulse neither stores nor transmits the login, and that API keys remain the supported route; the UI shows the option as customer-supplied, never as a Repo Pulse feature",
+              "Calls go through the analysis gateway like any provider (chunking, retry, budget, egress audit, local-only switch refuses it), it fails closed with a clear message if the CLI is missing or signed out, and full gate is green"
+        ],
+        "points": 5,
+        "status": "todo",
+        "notes": [
+              "Brad 2026-10-17: build it behind an accept-responsibility switch. Terms of the consumer plans were not verified by the project; the switch exists so the responsibility is explicit and the default is off. See docs/design/AI_LAYER.md."
+        ]
     }
   ]
 }
