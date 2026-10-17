@@ -23,6 +23,7 @@ const manifest = JSON.parse(readFileSync(path.join(SUITE, 'suite.json'), 'utf8')
     rule: string;
     dimension: string;
     expect: string;
+    note?: string;
   }[];
 };
 
@@ -64,18 +65,21 @@ describe('the iac-adapters suite', () => {
     expect(manifest.unlabelled).toBe('fp');
   });
 
-  it('labels only tool rules of the four adapters, on the triggering tree', () => {
+  it('labels only tool rules of the four adapters, on the triggering and real trees', () => {
     for (const l of manifest.labels) {
       expect(l.rule, l.id).toMatch(/^tool\.(checkov|actionlint|hadolint|shellcheck)\./);
-      expect(l.tree, l.id).toBe('triggering');
-      expect(l.expect, l.id).toBe('finding');
+      expect(['triggering', 'real'], l.id).toContain(l.tree);
+      // The triggering tree only carries defects; the real tree also records the
+      // false positives found by reading the code (a `none` label).
+      if (l.tree === 'triggering') expect(l.expect, l.id).toBe('finding');
     }
   });
 
   it('has a label for every expect marker in the fixtures, and a marker for every label', () => {
     const fromMarkers = markers('triggering');
+    const triggering = manifest.labels.filter((l) => l.tree === 'triggering');
     for (const m of fromMarkers) {
-      const hit = manifest.labels.find(
+      const hit = triggering.find(
         (l) =>
           l.file === m.file &&
           l.rule === `tool.${m.rule.replace(/^tool\./, '')}` &&
@@ -84,7 +88,14 @@ describe('the iac-adapters suite', () => {
       );
       expect(hit, `${m.file}:${m.line} ${m.rule} has no label`).toBeDefined();
     }
-    expect(manifest.labels.length).toBe(fromMarkers.length);
+    expect(triggering.length).toBe(fromMarkers.length);
+  });
+
+  it('records a reason for every real-tree label, and judges at least one false positive', () => {
+    const real = manifest.labels.filter((l) => l.tree === 'real');
+    expect(real.length).toBeGreaterThan(0);
+    for (const l of real) expect(l.note, l.id).toBeTruthy();
+    expect(real.some((l) => l.expect === 'none')).toBe(true);
   });
 
   it('keeps the clean tree free of expectations', () => {

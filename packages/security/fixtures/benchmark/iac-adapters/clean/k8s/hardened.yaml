@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hardened
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hardened
+  template:
+    metadata:
+      labels:
+        app: hardened
+    spec:
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      containers:
+        - name: app
+          image: registry.example.com/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]

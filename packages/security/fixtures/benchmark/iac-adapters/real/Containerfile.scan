@@ -1,0 +1,505 @@
+# Scan sandbox image (W8-12, SECURITY_SUITE.md §2.2, NFR-14).
+#
+# This image is the thing a scan tool runs inside. It exists so a third-party
+# binary pointed at a customer's source has: no network, no writable filesystem,
+# no privileges, and nothing of ours to read. The RUNTIME half of that lives in
+# packages/security/sandbox/profile.ts (the podman argv); this file is the other
+# half — what is in the box.
+#
+# RULES THIS IMAGE FOLLOWS
+#   - No package manager at runtime. apk is used at build time and the cache is
+#     removed; a scan container that can install software is a scan container
+#     that can be turned into something else.
+#   - No shell tooling beyond busybox, no curl, no git. C1 says we never clone,
+#     and a container that CANNOT clone is a stronger statement than a policy
+#     that says it must not.
+#   - Runs as uid 65534 (nobody). The profile passes --user as well; both, so
+#     the image is not one flag away from root.
+#
+# WHAT IS AND IS NOT PINNED, HONESTLY
+#   Opengrep publishes sigstore .sig/.cert files but no checksum manifest. The
+#   sha256 below was computed from the downloaded artefact on 2026-08-19 and is
+#   verified on every build — so a SILENT REPLACEMENT of a published binary
+#   fails the build, which is the property we actually want. It is NOT a
+#   vendor-signed checksum, and calling it one would be a lie: verifying the
+#   sigstore signature needs cosign, which is not installed here (recorded in
+#   docs/STATUS.md).
+
+# W18-26: actionlint, shellcheck and hadolint are copied out of their
+# publishers' own images, pinned by MULTI-ARCH INDEX DIGEST.
+#
+# WHY NOT the release-asset + sha256sum pattern ruff and syft use: the GitHub
+# release pages (and their checksum files) were unreachable from the machine
+# this was written on, and a checksum we cannot fetch from its publisher is
+# one we would be inventing. A registry digest is the stronger pin anyway: it
+# is the sha256 of the manifest, which names the sha256 of every layer, so the
+# runtime refuses any byte that differs — content addressing, verified on
+# every pull, no separate checksum step to forget. Each digest below was
+# fetched from registry-1.docker.io over HTTPS on 2026-10-15 and re-derived
+# locally (sha256 of the manifest body == Docker-Content-Digest; every layer
+# blob re-hashed against the manifest) before the binaries were run.
+#   koalaman/shellcheck  — published by ShellCheck's author (scratch image, static binary)
+#   hadolint/hadolint    — published by the hadolint project (scratch image, static binary)
+#   rhysd/actionlint     — published by actionlint's author (static Go binary)
+# All three binaries are statically linked, which is why they run on alpine.
+# TODO(W18-26 follow-up): when a host with github.com access is available,
+# cross-check each binary against the vendor checksum file on its release page
+# (actionlint_<v>_checksums.txt; shellcheck/hadolint publish per-asset
+# .sha256) and record the result here. Not done: the release pages could not
+# be fetched, so no such checksum appears in this file.
+#
+# shellcheck and hadolint are GPL-3.0. They are run as subprocesses and never
+# linked or modified; shipping this image to a customer is DISTRIBUTION of the
+# unmodified binaries, which carries the GPL's source-offer obligation — see
+# docs/work/DESIGN_REVIEW.md §4.
+FROM docker.io/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d AS shellcheck-src
+FROM docker.io/hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d AS hadolint-src
+FROM docker.io/rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 AS actionlint-src
+
+FROM docker.io/library/alpine:3.20
+
+ARG OPENGREP_VERSION=1.27.1
+# W9-02 code-health tools. Both are standalone SOURCE PARSERS — they read files
+# and compute numbers, with no dependency install and no network at scan time,
+# which is the only kind of tool this sandbox can host (§10 admission filter).
+ARG LIZARD_VERSION=1.24.0
+ARG LIZARD_SHA256=a688bc607a891ff4a7836826f25742dc9c1bf648da3075dbd495e199e8848602
+# lizard's ONE real dependency, pinned the same way. Installed explicitly with
+# --no-deps rather than letting pip resolve it: "pip install lizard" would pull
+# whatever satisfies its ranges on the day the image is built, and a scanner
+# whose parser version floats is a scanner whose numbers move on their own.
+ARG PYGMENTS_VERSION=2.21.0
+ARG PYGMENTS_SHA256=2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+# W9-08 tool adapters. Both are single static binaries that parse source and
+# print JSON — the §10 admission filter — so they run under the same
+# --network=none profile as everything else.
+#
+# ruff publishes a VENDOR .sha256 alongside each artefact, which is a stronger
+# pin than the computed ones above: it is the publisher's own claim about the
+# bytes rather than a record of what we happened to download.
+ARG RUFF_VERSION=0.16.3
+ARG RUFF_SHA256_AARCH64=8319ba22f655e6efc086103486d7165bf0de73f71ff1c5f25ba580153ad05feb
+ARG RUFF_SHA256_X86=d67c9b5949981698c48915abf65e0b3406ba9184ad73521cdf20a926bc889c73
+# Biome publishes no checksum file, so these were computed from the downloaded
+# artefacts on 2026-08-19 — same honesty note as opengrep above.
+ARG BIOME_VERSION=2.5.9
+ARG BIOME_SHA256_AARCH64=37c70ee8614af49c0332930e1190ee59c0a5c5518ef19c6c55ac041c5093f313
+ARG BIOME_SHA256_X86=593eed8e3db3220cc1be7380e5a001fbeec75d8fe522af472e985da4b4bafde8
+# W18-15 cppcheck (C/C++ defects, GPL-3.0-or-later).
+#
+# GPL, and admitted anyway, on the same terms as hadolint/shellcheck in
+# CODE_HEALTH_SUITE.md §10: it runs as a SUBPROCESS over source in this
+# sandbox, is never linked into anything of ours, and is never redistributed
+# modified. GPL obligations attach to distribution, not to execution.
+#
+# cppcheck publishes NO prebuilt Linux binary — its release assets are a
+# Windows installer and source archives — so it is BUILT here from the source
+# tarball, inside one RUN whose compiler is removed again before the layer is
+# committed (the .build-cppcheck virtual package below).
+#
+# HOW THE TARBALL IS PINNED, HONESTLY: the project's release host
+# (SourceForge, linked from cppcheck.sourceforge.io) publishes an MD5 per file
+# and no SHA-256. The SHA-256 below was computed from the downloaded artefact on
+# 2026-10-15, and that same download matched the publisher's listed MD5
+# (d1eb0c80d4660eed2c93620a2e0b9de3) — so it is "our record of bytes the
+# publisher vouched for by MD5", not a vendor-signed SHA-256. Both are checked
+# on every build: the SHA-256 is the pin, the MD5 ties it back to the
+# publisher's own listing.
+#
+# The build itself was verified on 2026-10-15 with the plain Makefile (no
+# cmake, no pcre/HAVE_RULES, no Qt) on Ubuntu glibc; it has NOT been verified
+# inside this alpine/musl image, which could not be built in that session.
+ARG CPPCHECK_VERSION=2.22.0
+ARG CPPCHECK_SHA256=d74945deb2d50393430e07596b766f8a779512c7f60dac2a30ea64e059ece57b
+ARG CPPCHECK_MD5=d1eb0c80d4660eed2c93620a2e0b9de3
+# W10-03 architecture-drift adapters.
+#
+# grimp is the Python import-graph engine import-linter is built on. It is
+# admitted here and import-linter is NOT, for a reason worth writing down:
+# import-linter checks CONTRACTS from a config file, which is phase B of this
+# register and a config surface this ticket must not ship. grimp builds the
+# graph and answers questions about it, which is phase A exactly.
+#
+# It parses source rather than importing it — verified against a fixture whose
+# only third-party import is uninstalled, which grimp records as an external
+# module rather than failing. That is what lets it run with --network=none and
+# nothing installed, i.e. pass the §10 admission filter.
+ARG GRIMP_VERSION=3.15
+ARG GRIMP_SHA256_AARCH64=017e493fee9962d50db6f7a8b5d49ad2ae508484a06078d700adbef30f1ff1f0
+ARG GRIMP_SHA256_X86=ba25002e92b1792f13391295a1f805d2e09781b846d92ec1a791ff9ed89298b6
+ARG GRIMP_URL_AARCH64=https://files.pythonhosted.org/packages/d6/02/fabd5ae2b12276530f4bae038ffcf3a556ac2c9b9fa271f83fbeb4036a08/grimp-3.15-cp312-cp312-musllinux_1_2_aarch64.whl
+ARG GRIMP_URL_X86=https://files.pythonhosted.org/packages/33/53/ad27750eb8b4a0c3ecb5ca7d78c7230f0f5e814515ed6f8986be527117ff/grimp-3.15-cp312-cp312-musllinux_1_2_x86_64.whl
+ARG PYGMENTS_URL=https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl
+# W8-06 dependency tools: syft (SBOM) and grype (vulnerability match), both
+# Apache-2.0.
+#
+# These are the first tools here that need DATA as well as a binary, and the
+# data is precisely why grype's database is NOT baked into this image: it
+# aggregates two dozen upstream feeds (nvd, github, kev, epss, debian, rhel,
+# alpine, ...) each carrying its own terms, so we are not entitled to
+# redistribute it. It is fetched host-side by deploy/scan-db-sync.sh and
+# mounted read-only, exactly like the rulepacks.
+#
+# Anchore publishes a VENDOR checksums.txt per release, so these are the same
+# class of pin as ruff above — the publisher's own claim about the bytes,
+# not a record of what we happened to download.
+#
+# There is no musl-specific asset for either tool, and none is needed: the
+# linux_<arch>.tar.gz is a CGO-disabled static Go binary, which is why it runs
+# on alpine at all. That is verified rather than assumed — the stanza ends by
+# running both binaries, so an image that cannot execute them fails the build
+# instead of failing the first scan.
+ARG SYFT_VERSION=1.51.0
+ARG SYFT_SHA256_AARCH64=6c0466811541ea03add5213a60a1562f0851e4c0b0ecfdee1a694a9455285900
+ARG SYFT_SHA256_X86=2a2e837a2c8d59ec9af5472ee22d3b04ee463c4e44476ecf993fd1e5ab6ebc7f
+ARG GRYPE_VERSION=0.117.0
+ARG GRYPE_SHA256_AARCH64=935f628bdf9331ffdd946931ea5fdb50045d3970ba52670cbeb44a88f127291b
+ARG GRYPE_SHA256_X86=38525dab1e06f162ebaa02f94d82d1f807076b011a44180cf2777edf1a7b9c26
+
+# W18-45 helm and kustomize (both Apache-2.0): the code_health_tools IaC adapter
+# renders charts and overlays offline before checkov reads them (iacrender.ts).
+# Both are static Go binaries, so they run on this musl base unchanged.
+#
+# The checksums below are the PUBLISHERS' OWN, copied from
+#   helm      https://get.helm.sh/helm-v3.16.4-linux-<arch>.tar.gz.sha256sum
+#   kustomize checksums.txt on the kubernetes-sigs/kustomize release
+#             kustomize/v5.5.0
+# and re-verified with sha256sum -c at build time.
+ARG HELM_VERSION=3.16.4
+ARG HELM_SHA256_AARCH64=d3f8f15b3d9ec8c8678fbf3280c3e5902efabe5912e2f9fcf29107efbc8ead69
+ARG HELM_SHA256_X86=fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179
+ARG KUSTOMIZE_VERSION=5.5.0
+ARG KUSTOMIZE_SHA256_AARCH64=b4170d1acb8cfacace9f72884bef957ff56efdcd4813b66e7604aabc8b57e93d
+ARG KUSTOMIZE_SHA256_X86=6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77
+
+# musllinux builds, because the base is alpine. Both arches are listed so the
+# image builds on an arm64 laptop and an x86 server from the same file.
+ARG OPENGREP_SHA256_AARCH64=06e7de74ba49e6e619f5109c68a8d235357dff143f18a0a6296a416f47c90924
+ARG OPENGREP_SHA256_X86=ce109a213565634b94ee0094a494ab132b867e8b1e81dd983ed6c63f5f48d7c6
+
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) asset=opengrep_musllinux_aarch64; sha="$OPENGREP_SHA256_AARCH64" ;; \
+      x86_64) asset=opengrep_musllinux_x86; sha="$OPENGREP_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /usr/local/bin/opengrep \
+      "https://github.com/opengrep/opengrep/releases/download/v${OPENGREP_VERSION}/${asset}"; \
+    echo "${sha}  /usr/local/bin/opengrep" | sha256sum -c -; \
+    chmod 0755 /usr/local/bin/opengrep; \
+    apk del .fetch; \
+    rm -rf /var/cache/apk/*
+
+# lizard (complexity, MIT) — the wheel by URL with its PyPI sha256, installed
+# with --no-deps so pip cannot pull anything unpinned behind it.
+RUN set -eux; \
+    apk add --no-cache python3 py3-pip; \
+    apk add --no-cache --virtual .fetch-lizard curl; \
+    pyg="/tmp/pygments-${PYGMENTS_VERSION}-py3-none-any.whl"; \
+    curl -fsSL -o "$pyg" "${PYGMENTS_URL}"; \
+    echo "${PYGMENTS_SHA256}  $pyg" | sha256sum -c -; \
+    pip install --no-cache-dir --break-system-packages --no-deps "$pyg"; \
+    rm "$pyg"; \
+    whl="/tmp/lizard-${LIZARD_VERSION}-py2.py3-none-any.whl"; \
+    curl -fsSL -o "$whl" \
+      "https://files.pythonhosted.org/packages/py2.py3/l/lizard/lizard-${LIZARD_VERSION}-py2.py3-none-any.whl"; \
+    echo "${LIZARD_SHA256}  $whl" | sha256sum -c -; \
+    pip install --no-cache-dir --break-system-packages --no-deps "$whl"; \
+    rm "$whl"; \
+    apk del .fetch-lizard; \
+    lizard --version
+
+# jscpd (duplication, MIT) and dependency-cruiser (import graph, MIT — W10-03,
+# pinned to 17.x because 18.x requires node >=22 and this base ships node 20).
+# `npm ci` from a COMMITTED lockfile, not `npm i`:
+# the lockfile pins every transitive dependency with its integrity hash, and a
+# scanner whose dependency tree floats at image build time is a scanner whose
+# findings are not reproducible.
+COPY deploy/scan-tools/package.json deploy/scan-tools/package-lock.json /opt/scan-tools/
+RUN set -eux; \
+    apk add --no-cache nodejs npm; \
+    cd /opt/scan-tools; \
+    npm ci --omit=dev --ignore-scripts; \
+    ln -s /opt/scan-tools/node_modules/.bin/jscpd /usr/local/bin/jscpd; \
+    ln -s /opt/scan-tools/node_modules/.bin/depcruise /usr/local/bin/depcruise; \
+    jscpd --version; \
+    depcruise --version
+
+# ruff (Python lint, MIT) and Biome (JS/TS lint, MIT/Apache-2.0).
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch-adapters curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) \
+        ruff_asset=ruff-aarch64-unknown-linux-musl.tar.gz; ruff_sha="$RUFF_SHA256_AARCH64"; \
+        biome_asset=biome-linux-arm64-musl; biome_sha="$BIOME_SHA256_AARCH64" ;; \
+      x86_64) \
+        ruff_asset=ruff-x86_64-unknown-linux-musl.tar.gz; ruff_sha="$RUFF_SHA256_X86"; \
+        biome_asset=biome-linux-x64-musl; biome_sha="$BIOME_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/ruff.tar.gz \
+      "https://github.com/astral-sh/ruff/releases/download/${RUFF_VERSION}/${ruff_asset}"; \
+    echo "${ruff_sha}  /tmp/ruff.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/ruff.tar.gz -C /tmp; \
+    mv /tmp/ruff-*/ruff /usr/local/bin/ruff 2>/dev/null || mv /tmp/ruff /usr/local/bin/ruff; \
+    chmod 0755 /usr/local/bin/ruff; \
+    rm -rf /tmp/ruff.tar.gz /tmp/ruff-*; \
+    curl -fsSL -o /usr/local/bin/biome \
+      "https://github.com/biomejs/biome/releases/download/%40biomejs%2Fbiome%40${BIOME_VERSION}/${biome_asset}"; \
+    echo "${biome_sha}  /usr/local/bin/biome" | sha256sum -c -; \
+    chmod 0755 /usr/local/bin/biome; \
+    apk del .fetch-adapters; \
+    ruff --version; \
+    biome --version
+
+# cppcheck, built from the pinned source tarball (see the ARG block above).
+#
+# FILESDIR is compiled in: it is where cppcheck looks for std.cfg (its model of
+# the C and C++ standard libraries, which is what lets it run with no system
+# headers present). Only cfg/ and platforms/ are installed — the python
+# addons are not run by this scanner and are not shipped. libstdc++ stays; the
+# compiler does not.
+RUN set -eux; \
+    apk add --no-cache libstdc++; \
+    apk add --no-cache --virtual .build-cppcheck curl g++ make; \
+    curl -fsSL -o /tmp/cppcheck.tar.gz \
+      "https://downloads.sourceforge.net/project/cppcheck/cppcheck/${CPPCHECK_VERSION%.*}/cppcheck-${CPPCHECK_VERSION}.tar.gz"; \
+    echo "${CPPCHECK_SHA256}  /tmp/cppcheck.tar.gz" | sha256sum -c -; \
+    echo "${CPPCHECK_MD5}  /tmp/cppcheck.tar.gz" | md5sum -c -; \
+    tar -xzf /tmp/cppcheck.tar.gz -C /tmp; \
+    make -C "/tmp/cppcheck-${CPPCHECK_VERSION}" -j"$(nproc)" \
+      CXXFLAGS="-O2 -DNDEBUG" FILESDIR=/usr/share/cppcheck cppcheck; \
+    install -m 0755 "/tmp/cppcheck-${CPPCHECK_VERSION}/cppcheck" /usr/local/bin/cppcheck; \
+    mkdir -p /usr/share/cppcheck; \
+    cp -r "/tmp/cppcheck-${CPPCHECK_VERSION}/cfg" "/tmp/cppcheck-${CPPCHECK_VERSION}/platforms" /usr/share/cppcheck/; \
+    chmod -R a+rX /usr/share/cppcheck; \
+    rm -rf /tmp/cppcheck.tar.gz "/tmp/cppcheck-${CPPCHECK_VERSION}"; \
+    apk del .build-cppcheck; \
+    rm -rf /var/cache/apk/*; \
+    cppcheck --version
+
+# grimp + the driver that turns it into a graph document.
+#
+# The wheel is arch-specific (a Rust extension), so both are pinned. cp312
+# because the base image ships Python 3.12 — a wheel for the wrong minor
+# version installs and then fails to import, which would look like a broken
+# scan rather than a broken build.
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch-grimp curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) grimp_url="$GRIMP_URL_AARCH64"; grimp_sha="$GRIMP_SHA256_AARCH64" ;; \
+      x86_64) grimp_url="$GRIMP_URL_X86"; grimp_sha="$GRIMP_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    whl="/tmp/$(basename "$grimp_url")"; \
+    curl -fsSL -o "$whl" "$grimp_url"; \
+    echo "${grimp_sha}  $whl" | sha256sum -c -; \
+    pip install --no-cache-dir --break-system-packages --no-deps "$whl"; \
+    rm "$whl"; \
+    apk del .fetch-grimp; \
+    python3 -c 'import grimp; print(grimp.__name__)'
+
+# W18-26 IaC / CI / shell adapters.
+#
+# The three static binaries from the digest-pinned stages above, and OUR
+# configs for the two tools that would otherwise read the snapshot's own
+# (hadolint reads .hadolint.yaml from the working directory, which is the
+# snapshot; actionlint reads .github/actionlint.yaml when it finds a .git).
+# Baked in read-only for the same reason the Biome config is: a repository
+# must not decide what our scanner reports. hadolint needs a real file — it
+# rejects /dev/null and prints the complaint on stdout ahead of its JSON.
+# actionlint's empty runner-label list is deliberate: self-hosted labels are
+# org settings we cannot see, so the adapter drops that kind instead.
+COPY --from=shellcheck-src /bin/shellcheck /usr/local/bin/shellcheck
+COPY --from=hadolint-src /bin/hadolint /usr/local/bin/hadolint
+COPY --from=actionlint-src /usr/local/bin/actionlint /usr/local/bin/actionlint
+RUN set -eux; \
+    chmod 0755 /usr/local/bin/shellcheck /usr/local/bin/hadolint /usr/local/bin/actionlint; \
+    mkdir -p /opt/hadolint /opt/actionlint; \
+    printf 'ignored: []\n' > /opt/hadolint/hadolint.yaml; \
+    printf 'self-hosted-runner:\n  labels: []\n' > /opt/actionlint/actionlint.yaml; \
+    chmod 0444 /opt/hadolint/hadolint.yaml /opt/actionlint/actionlint.yaml; \
+    shellcheck --version; \
+    hadolint --version; \
+    actionlint --version
+
+# checkov (IaC, Apache-2.0), in its OWN venv from a hash-pinned closure of all
+# 96 packages (packages/security/sandbox/checkov-requirements.txt, every hash
+# checked against PyPI's JSON API). Its own venv because its dependency tree
+# is large and would otherwise share site-packages with lizard and grimp,
+# where one tool's upgrade could change another's behaviour. --only-binary
+# because building an sdist here would need a compiler and would run the
+# package's own setup code at build time; --no-deps because the file already
+# names everything, so pip resolving anything extra would be a bug. The venv
+# is made --without-pip and filled by the system pip (py3-pip, from the lizard
+# stanza) via --python, so it does not depend on alpine shipping ensurepip.
+# Verified 2026-10-15: this exact install into python:3.12-alpine3.20 (the
+# same python minor as this base) and the adapter's command over the fixtures
+# under `unshare -n` reported exactly the recorded findings.
+COPY packages/security/sandbox/checkov-requirements.txt /opt/scan-tools/checkov-requirements.txt
+RUN set -eux; \
+    python3 -m venv --without-pip /opt/checkov; \
+    pip --python /opt/checkov/bin/python install --no-cache-dir \
+      --require-hashes --only-binary=:all: --no-deps \
+      -r /opt/scan-tools/checkov-requirements.txt; \
+    ln -s /opt/checkov/bin/checkov /usr/local/bin/checkov; \
+    checkov --version
+
+# The driver lives in the IMAGE, read-only, for the same reason the Biome
+# config does: a script read out of the snapshot would let a repository decide
+# what our scanner runs.
+COPY deploy/scan-tools/grimp_graph.py /opt/scan-tools/grimp_graph.py
+RUN chmod 0444 /opt/scan-tools/grimp_graph.py
+
+# OUR Biome config, baked in read-only.
+#
+# Biome refuses to run with --config-path pointing at a directory that has no
+# config, and pointing it at the SNAPSHOT would let a repository decide what our
+# scanner reports — a repo could silence us by committing a setting. So the
+# config is ours, it lives in the image, and it is unwritable at scan time.
+RUN set -eux; \
+    mkdir -p /opt/biome; \
+    printf '%s' '{"linter":{"enabled":true,"rules":{"recommended":false,"correctness":"on","suspicious":"on"}}}' \
+      > /opt/biome/biome.json; \
+    chmod 0444 /opt/biome/biome.json
+
+# PRE-EXTRACT AT BUILD TIME. The opengrep launcher unpacks its core binary into
+# $HOME on first run and then EXECS it — which fails twice under the §2.2
+# profile: the tmpfs is small, and it is mounted noexec. Doing the unpack here
+# means the runtime never needs an exec-able writable directory, so /tmp stays
+# noexec and the snapshot mount stays ro,noexec. Loosening either of those to
+# suit a tool's packaging would be trading the trust boundary for convenience.
+# The tool also writes a log under $HOME/.opengrep, and the whole root
+# filesystem is read-only at runtime — so the PROFILE mounts a small tmpfs over
+# exactly that directory (writablePaths in packages/security/sandbox/profile.ts)
+# and nothing else. A symlink onto /tmp was tried first and fails: the tool
+# mkdirs the path, which errors EEXIST on a dangling symlink. Making $HOME
+# writable would have worked too, and would have let a scan mutate the
+# extracted core between runs.
+#
+# (A comment INSIDE a RUN body is swallowed by the line continuations along
+# with everything after it — which is how the first version of this silently
+# skipped a step and failed only at runtime.)
+ENV OPENGREP_CACHE=/opt/opengrep
+RUN set -eux; \
+    mkdir -p "$OPENGREP_CACHE"; \
+    HOME="$OPENGREP_CACHE" XDG_CACHE_HOME="$OPENGREP_CACHE" opengrep --version; \
+    chmod -R a+rX "$OPENGREP_CACHE"; \
+    find "$OPENGREP_CACHE" -type f -name 'opengrep-core*' -exec chmod a+rx {} +; \
+    rm -rf "$OPENGREP_CACHE/.opengrep"; \
+    mkdir -p "$OPENGREP_CACHE/.opengrep"; \
+    chown -R 65534:65534 "$OPENGREP_CACHE/.opengrep"
+
+# syft + grype. One stanza because they are one pipeline: syft produces the
+# CycloneDX document, grype matches it against the mounted database, and a
+# version skew between them is a bug that only shows up as missing findings.
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch-sbom curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) goarch=arm64; syft_sha="$SYFT_SHA256_AARCH64"; grype_sha="$GRYPE_SHA256_AARCH64" ;; \
+      x86_64) goarch=amd64; syft_sha="$SYFT_SHA256_X86"; grype_sha="$GRYPE_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/syft.tar.gz \
+      "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_${goarch}.tar.gz"; \
+    echo "${syft_sha}  /tmp/syft.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/syft.tar.gz -C /tmp syft; \
+    mv /tmp/syft /usr/local/bin/syft; \
+    curl -fsSL -o /tmp/grype.tar.gz \
+      "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_${goarch}.tar.gz"; \
+    echo "${grype_sha}  /tmp/grype.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/grype.tar.gz -C /tmp grype; \
+    mv /tmp/grype /usr/local/bin/grype; \
+    chmod 0755 /usr/local/bin/syft /usr/local/bin/grype; \
+    rm -f /tmp/syft.tar.gz /tmp/grype.tar.gz; \
+    apk del .fetch-sbom; \
+    rm -rf /var/cache/apk/*; \
+    syft version; \
+    grype version
+
+# helm + kustomize. Fetched here, at build time, because the scan container has
+# no network at run time. Each tarball is checked against the publisher's own
+# checksum before anything is extracted, and the stanza ends by running both
+# binaries so an image that cannot execute them fails the build.
+RUN set -eux; \
+    apk add --no-cache --virtual .fetch-iac curl; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      aarch64|arm64) goarch=arm64; helm_sha="$HELM_SHA256_AARCH64"; kustomize_sha="$KUSTOMIZE_SHA256_AARCH64" ;; \
+      x86_64) goarch=amd64; helm_sha="$HELM_SHA256_X86"; kustomize_sha="$KUSTOMIZE_SHA256_X86" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/helm.tar.gz \
+      "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${goarch}.tar.gz"; \
+    echo "${helm_sha}  /tmp/helm.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/helm.tar.gz -C /tmp "linux-${goarch}/helm"; \
+    mv "/tmp/linux-${goarch}/helm" /usr/local/bin/helm; \
+    curl -fsSL -o /tmp/kustomize.tar.gz \
+      "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_${goarch}.tar.gz"; \
+    echo "${kustomize_sha}  /tmp/kustomize.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/kustomize.tar.gz -C /tmp kustomize; \
+    mv /tmp/kustomize /usr/local/bin/kustomize; \
+    chmod 0755 /usr/local/bin/helm /usr/local/bin/kustomize; \
+    rm -rf /tmp/helm.tar.gz /tmp/kustomize.tar.gz "/tmp/linux-${goarch}"; \
+    apk del .fetch-iac; \
+    rm -rf /var/cache/apk/*; \
+    helm version; \
+    kustomize version
+
+# The mount points the profile uses. Created at build time so the container
+# never needs to mkdir anything on a read-only root. /vuln-db is its own mount
+# rather than a subdirectory of /rules because the two arrive separately: the
+# rulepack mount is a rulepack DIRECTORY chosen per scan (see RULES_MOUNT_PATH
+# in the semgrep scanner), and nesting the database inside it would make one
+# scanner's mount decide whether another scanner has a database.
+RUN mkdir -p /scan /rules /vuln-db && chown -R 65534:65534 /scan /rules /vuln-db
+
+USER 65534:65534
+WORKDIR /scan
+
+# HOME points at the PRE-EXTRACTED, read-only cache above rather than the
+# tmpfs: nothing has to be unpacked at scan time. TMPDIR is the tmpfs, for the
+# ordinary scratch files a scan does write.
+ENV HOME=/opt/opengrep \
+    XDG_CACHE_HOME=/opt/opengrep \
+    TMPDIR=/tmp \
+    OPENGREP_VERSION=${OPENGREP_VERSION}
+
+# syft and grype are configured HERE, in the image, and nowhere else. That is
+# forced rather than chosen: buildSandboxArgs gives the container no environment
+# from the calling process, so an env var set beside the scan would simply not
+# arrive, and adding env-passing to the profile to suit a tool would be trading
+# the trust boundary for convenience.
+#
+# Every setting below turns off something that wants the network, because both
+# tools default to reaching for it and a tool that silently degrades under
+# --network=none is worse than one that fails:
+#   - both check for their own new release on startup (check-for-app-update);
+#   - grype auto-updates its database on every run, which under --network=none
+#     is a guaranteed failure, so the mounted copy is declared the only one;
+#   - syft's disk cache is unnecessary here — an empty SYFT_CACHE_DIR selects
+#     its in-memory cache, so it needs no writable path at all rather than
+#     needing a tmpfs we would then have to justify.
+#
+# GRYPE_DB_CACHE_DIR is a CONTRACT with deploy/scan-db-sync.sh: the host
+# directory it fills is mounted read-only at /vuln-db, and grype finds the
+# database at /vuln-db/<schema>/vulnerability.db. Validation of the database's
+# age and hash is deliberately left ON (grype's defaults): a scan against a
+# database that quietly stopped being refreshed reports "no vulnerabilities"
+# and looks exactly like good news.
+ENV SYFT_CHECK_FOR_APP_UPDATE=false \
+    SYFT_CACHE_DIR="" \
+    GRYPE_CHECK_FOR_APP_UPDATE=false \
+    GRYPE_DB_AUTO_UPDATE=false \
+    GRYPE_DB_CACHE_DIR=/vuln-db \
+    SYFT_VERSION=${SYFT_VERSION} \
+    GRYPE_VERSION=${GRYPE_VERSION}
+
+# No ENTRYPOINT on purpose: the sandbox runner passes the whole command, and an
+# entrypoint here would be a second place that decides what runs.
+CMD ["opengrep", "--version"]

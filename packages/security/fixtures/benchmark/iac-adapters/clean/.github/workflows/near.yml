@@ -1,0 +1,18 @@
+name: near
+on:
+  pull_request:
+    types: [opened, synchronize]
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comment text goes through the environment, not the script
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n' "$BODY" | wc -c
+      - if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: echo "pr to main"

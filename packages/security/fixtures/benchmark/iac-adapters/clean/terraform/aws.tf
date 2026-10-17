@@ -55,3 +55,27 @@ resource "aws_lb_listener" "https" {
     target_group_arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/x/y"
   }
 }
+
+# Port 443 open to the world is a public web service, not remote administration.
+resource "aws_security_group" "https_public" {
+  name = "https-public"
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# A service-scoped wildcard on one bucket is not the "*" action.
+resource "aws_iam_policy" "s3_bucket_admin" {
+  name = "s3-bucket-admin"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:PutObject"]
+      Resource = "arn:aws:s3:::example/*"
+    }]
+  })
+}
