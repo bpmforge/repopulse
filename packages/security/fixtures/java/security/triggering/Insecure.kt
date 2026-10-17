@@ -26,6 +26,51 @@ class Insecure(private val jdbcTemplate: JdbcTemplate) {
         return apiToken.toString(16)
     }
 
+    // The other generators the rule names, in the shapes Kotlin code writes them.
+    // The function names say nothing about secrets, so each hit is the VARIABLE name.
+    fun viaDefault(): Int {
+        // ruleid: bpm-kt-insecure-random-token
+        val csrfToken = Random.Default.nextInt()
+        return csrfToken
+    }
+
+    fun viaQualified(): Long {
+        // ruleid: bpm-kt-insecure-random-token
+        val resetCode = kotlin.random.Random.nextLong()
+        return resetCode
+    }
+
+    fun viaJava(): Int {
+        // ruleid: bpm-kt-insecure-random-token
+        val otpValue = java.util.Random().nextInt(1_000_000)
+        return otpValue
+    }
+
+    fun viaCollection(alphabet: List<Char>): String {
+        // ruleid: bpm-kt-insecure-random-token
+        val apiKey = (1..32).map { alphabet.random() }.joinToString("")
+        return apiKey
+    }
+
+    fun viaRange(): Int {
+        // ruleid: bpm-kt-insecure-random-token
+        val sessionId = (100000..999999).random()
+        return sessionId
+    }
+
+    fun viaMath(): Double {
+        // ruleid: bpm-kt-insecure-random-token
+        val nonce = Math.random()
+        return nonce
+    }
+
+    // Here it is the FUNCTION name (a generator of session ids), and Math.random()
+    // is written fully qualified.
+    fun generateSessionId(): String {
+        // ruleid: bpm-kt-insecure-random-token
+        return java.lang.Math.random().toString()
+    }
+
     val trustAll = object : X509TrustManager {
         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
 

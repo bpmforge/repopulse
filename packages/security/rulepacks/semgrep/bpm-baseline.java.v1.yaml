@@ -249,13 +249,29 @@ rules:
       provenance: written for RepoPulse; not derived from any registry pack
     patterns:
       - pattern-either:
-          - pattern: Random.$NEXT(...)
-          - pattern: Random(...).$NEXT(...)
-          - pattern: ($C).random()
-          - pattern: ThreadLocalRandom.current().$NEXT(...)
-      - metavariable-regex:
-          metavariable: $NEXT
-          regex: ^(next\w*|ints|longs|doubles)$
+          # The method-name filter constrains only the forms that BIND a method
+          # name. `collection.random()` and `Math.random()` bind none, and a
+          # metavariable-regex on an unbound metavariable fails the whole match,
+          # which is how the `.random()` alternative sat in this list matching
+          # nothing at all.
+          - patterns:
+              - pattern-either:
+                  - pattern: Random.$NEXT(...)
+                  - pattern: Random.Default.$NEXT(...)
+                  - pattern: kotlin.random.Random.$NEXT(...)
+                  - pattern: kotlin.random.Random.Default.$NEXT(...)
+                  - pattern: Random(...).$NEXT(...)
+                  - pattern: java.util.Random(...).$NEXT(...)
+                  - pattern: ThreadLocalRandom.current().$NEXT(...)
+              - metavariable-regex:
+                  metavariable: $NEXT
+                  regex: ^(next\w*|ints|longs|doubles)$
+          # Collection, range, array and sequence `.random()` draw from
+          # Random.Default. The overload that takes a Random is not matched: it
+          # is how a caller supplies a SecureRandom.
+          - pattern: $C.random()
+          - pattern: Math.random()
+          - pattern: java.lang.Math.random()
       - pattern-either:
           - patterns:
               - pattern-inside: val $TOKEN = ...
