@@ -12,6 +12,7 @@ import java.security.cert.X509Certificate;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import javax.net.ssl.X509TrustManager;
 import javax.persistence.EntityManager;
 import javax.xml.XMLConstants;
@@ -143,4 +144,20 @@ public class Secure {
     }
 
     private void log(String s) {}
+
+    // Not secrets: jitter, sampling and shard choice are ordinary uses of a
+    // non-cryptographic generator, and nothing here is named like a secret.
+    public double backoffFraction() {
+        double jitterFraction = Math.random();
+        return jitterFraction;
+    }
+
+    public int pickShard(int shards) {
+        int shard = ThreadLocalRandom.current().nextInt(shards);
+        return shard;
+    }
+
+    public long delayMillis() {
+        return (long) (java.lang.Math.random() * 250);
+    }
 }

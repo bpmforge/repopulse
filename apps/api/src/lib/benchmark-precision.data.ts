@@ -47,11 +47,12 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "engine": "yaml"
     },
     "bpm-inj-path-java": {
-      "tp": 118,
+      "tp": 144,
       "fp": 44,
       "fn": 0,
-      "precision": 0.728,
+      "precision": 0.766,
       "suites": [
+        "juliet-java",
         "owasp-benchmark"
       ],
       "engine": "yaml"
@@ -1260,6 +1261,17 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
   "cwes": [
     {
       "suite": "juliet-java",
+      "cwe": 22,
+      "tp": 26,
+      "fp": 0,
+      "fn": 160,
+      "tn": 364,
+      "tpr": 0.14,
+      "fpr": 0,
+      "youden": 0.14
+    },
+    {
+      "suite": "juliet-java",
       "cwe": 78,
       "tp": 59,
       "fp": 126,
@@ -1334,6 +1346,17 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
       "tpr": 1,
       "fpr": 0,
       "youden": 1
+    },
+    {
+      "suite": "juliet-java",
+      "cwe": 330,
+      "tp": 0,
+      "fp": 0,
+      "fn": 34,
+      "tn": 60,
+      "tpr": 0,
+      "fpr": 0,
+      "youden": 0
     },
     {
       "suite": "juliet-java",
@@ -1491,6 +1514,6 @@ export const BENCHMARK_PRECISION: BenchmarkSummary = {
   ],
   "measured": {
     "date": "2026-10-16",
-    "commit": "4eb5c06a7666f1cecb293f83125f1819eb61bb08"
+    "commit": "e49421c6ccd61c52d3db5034859d1f4fa44a1e16"
   }
 };
