@@ -10149,9 +10149,10 @@
           "Local-only, the routing chain, the egress audit and the call cap apply; the pass never uses Tier-3; every query is workspace-filtered with a tenancy test; full gate green"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
-          "Split from the coordinator request of 2026-10-18; the findings UI is W19-10. See docs/design/AI_LAYER.md."
+          "Split from the coordinator request of 2026-10-18; the findings UI is W19-10. See docs/design/AI_LAYER.md.",
+          "Built 2026-10-18: ai.pass queue and worker job, ai_pass_runs / ai_finding_provenance / ai_triage_verdicts (migration 0044), routes to start/list passes, read a finding's AI side and record a person's answer on a suggestion (never on the finding). Bounded, workspace-scoped, local-only and routing honoured. Real LM Studio run recorded in AI_LAYER.md. Not built: diff mode, triage patches, scheduling, dependency-finding triage."
         ]
       },
       {

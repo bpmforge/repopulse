@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { writeFileSync } from 'node:fs';
 import type { Job } from 'bullmq';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { core, createDb, read, security } from '@repopulse/shared';
@@ -117,7 +118,6 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
   let REPO = 0;
   let scanRunId = 0;
   let connectionId = 0;
-  const cleanup = { runs: [] as number[], findings: [] as number[] };
 
   async function clear() {
     for (const w of [WS, OTHER]) {
@@ -710,31 +710,31 @@ describeIfLiveInfra('the AI pass against a real model (opt-in)', () => {
           .select({ dimension: read.findings.dimension, title: read.findings.title })
           .from(read.findings)
           .where(and(eq(read.findings.workspaceId, ws), isNull(read.findings.scannerKey)));
-        console.log(
-          'LIVE RESULT',
-          JSON.stringify(
-            {
-              out,
-              status: row.status,
-              reason: row.reason,
-              calls: row.calls,
-              specialists: (row.specialists as any)?.usage,
-              dropped: (row.specialists as any)?.droppedForBudget,
-              triageFunnel: row.triageFunnel,
-              triageSkipped: row.triageSkipped,
-              verdicts: verdicts.map((v) => ({
-                verdict: v.verdict,
-                confidence: v.confidence,
-                citations: v.citations,
-                rationale: v.rationale.slice(0, 160),
-                model: v.model,
-              })),
-              specialistFindings: found.length,
-            },
-            null,
-            1,
-          ),
+        // vitest's reporter swallows console output here, so the evidence goes to a file.
+        const report = JSON.stringify(
+          {
+            out,
+            status: row.status,
+            reason: row.reason,
+            calls: row.calls,
+            specialists: (row.specialists as { usage?: unknown } | null)?.usage,
+            dropped: (row.specialists as { droppedForBudget?: unknown } | null)?.droppedForBudget,
+            triageFunnel: row.triageFunnel,
+            triageSkipped: row.triageSkipped,
+            verdicts: verdicts.map((v) => ({
+              verdict: v.verdict,
+              confidence: v.confidence,
+              citations: v.citations,
+              rationale: v.rationale.slice(0, 160),
+              model: v.model,
+              route: v.route,
+            })),
+            specialistFindings: found,
+          },
+          null,
+          1,
         );
+        if (process.env.AI_PASS_LIVE_OUT) writeFileSync(process.env.AI_PASS_LIVE_OUT, report);
         expect(out.status).toBe('succeeded');
         expect(
           (
