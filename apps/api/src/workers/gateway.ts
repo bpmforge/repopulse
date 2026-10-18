@@ -11,6 +11,7 @@ import { credentials } from '@repopulse/auth';
 import { core, read, type Database } from '@repopulse/shared';
 import { and, eq } from 'drizzle-orm';
 import { chainsFor, loadStoredRouting } from '../lib/llm-routing.js';
+import { isClaudeCliAccepted } from '../lib/claude-cli-acceptance.js';
 
 // The analysis gateway, built once for the worker (carry-forward from W9-03,
 // W9-04 and W9-07).
@@ -117,6 +118,11 @@ export async function hostsFromProviders(
   const hosts: T2Host[] = [];
   const skipped: { name: string; reason: string }[] = [];
 
+  // Whether the customer-supplied CLI option is on for THIS workspace (W19-08).
+  // Asked once; a revoked acceptance makes every claude_cli row skip with its
+  // reason at the next gateway build.
+  const cliAccepted = await isClaudeCliAccepted(db, workspaceId);
+
   for (const row of rows) {
     try {
       const apiKey =
@@ -140,6 +146,7 @@ export async function hostsFromProviders(
         ...(apiKey ? { apiKey } : {}),
         ...(row.headers ? { headers: row.headers } : {}),
         allowPublicHost: row.allowPublicHost,
+        cliAccepted,
       });
       // Recorded by the capability probe (W19-01); sizes chunks (W19-03).
       const probedWindow = (row.capabilities as { contextWindow?: unknown } | null)?.contextWindow;

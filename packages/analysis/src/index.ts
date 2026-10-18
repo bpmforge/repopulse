@@ -13,3 +13,4 @@ export * from './providers/probe.js';
 export * from './routing/index.js';
 export * from './specialists/index.js';
 export * from './providers/claude-cli.js';
+export * from './providers/claude-cli-statement.js';

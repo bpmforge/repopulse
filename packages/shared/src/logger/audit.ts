@@ -105,6 +105,10 @@ export type AuditEvent =
   | 'llm_provider.created'
   | 'llm_provider.deleted'
   | 'llm_routing.updated'
+  // W19-08. Accepting or revoking the responsibility statement for the
+  // customer-supplied Claude Code CLI: who, when, which version.
+  | 'llm_claude_cli.accepted'
+  | 'llm_claude_cli.revoked'
   // W16-10. A manual run spends CPU on the host and, for a sync, forge budget
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.
