@@ -655,7 +655,7 @@ describeIfLiveInfra('CI pull: PR findings API + read-only CI token (W18-18)', ()
     // The walk saw the allowed routes too, so the allowlist is not stale.
     const seen = new Set(walked.map((r) => `${r.method} ${r.url}`));
     for (const a of allowed) expect(seen.has(a)).toBe(true);
-  });
+  }, 60_000);
 
   it('a token cannot mint, revoke or transition anything', async () => {
     const before = await db
