@@ -135,7 +135,7 @@ describeIfLiveInfra('admin LLM routing (W19-02)', () => {
     expect(res.statusCode).toBe(204);
     const body = (await get()).json();
     const sec = body.roles.find((r: { role: string }) => r.role === 'security');
-    expect(sec.chain).toEqual([
+    expect(sec.chain).toMatchObject([
       { provider_id: cloudId, provider_name: 'Hosted', model: 'big' },
       { provider_id: lanId, provider_name: 'LAN', model: null },
     ]);
@@ -258,5 +258,36 @@ describeIfLiveInfra('admin LLM routing (W19-02)', () => {
     const { hosts } = await hostsFromProviders(db, Buffer.alloc(32, 7), WORKSPACE_ID);
     expect(hosts.find((h) => h.providerId === lanId)?.contextWindow).toBe(32768);
     expect(hosts.find((h) => h.providerId === lan2Id)?.contextWindow).toBeUndefined();
+  });
+
+  it('says, per connection and per chain link, which host it talks to and whether that leaves the network (W19-07)', async () => {
+    await put({
+      local_only: false,
+      roles: { security: [{ provider_id: cloudId }, { provider_id: lanId }] },
+    });
+    const body = (await get()).json();
+    const byName = (n: string) => body.providers.find((p: { name: string }) => p.name === n);
+    expect(byName('LAN')).toMatchObject({ host: '10.0.0.5:1234', leaves_network: false });
+    expect(byName('Hosted')).toMatchObject({ host: 'api.example-llm.com', leaves_network: true });
+    const sec = body.roles.find((r: { role: string }) => r.role === 'security');
+    expect(sec.chain.map((c: { leaves_network: boolean }) => c.leaves_network)).toEqual([
+      true,
+      false,
+    ]);
+    // Never a path, key or header: only a host.
+    expect(JSON.stringify(body)).not.toMatch(/\/v1|api_key|credential/);
+  });
+
+  it('a vendor with a fixed endpoint reports that endpoint, not "unknown"', async () => {
+    await db.insert(core.llmProviders).values({
+      workspaceId: WORKSPACE_ID,
+      name: 'Gem',
+      kind: 'gemini',
+      baseUrl: null,
+      model: 'gemini-2.5-flash',
+      allowPublicHost: true,
+    });
+    const gem = (await get()).json().providers.find((p: { name: string }) => p.name === 'Gem');
+    expect(gem).toMatchObject({ host: 'generativelanguage.googleapis.com', leaves_network: true });
   });
 });
