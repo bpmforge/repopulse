@@ -9945,7 +9945,7 @@
                 "Settings are workspace-scoped, tenancy tests stay green, full gate green"
           ],
           "points": 5,
-          "status": "todo",
+          "status": "in_progress",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17)."
           ]
