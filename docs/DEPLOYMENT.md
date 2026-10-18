@@ -196,6 +196,25 @@ version pin. Both were exercised in the drill, on one image version only, so
 the "upgrade" the drill proved is same-version; a real version step with a
 pending migration was exercised only in the failure direction.
 
+**Upgrade note - host names are no longer "on your network".** A model server
+reached by a *name* (`lmstudio.local`, `models.internal`) used to count as local
+for the egress audit even though the host policy had always required an explicit
+off-network decision for it. Only IP addresses (loopback and private IPv4) count
+now. After upgrading, such a connection is audited like any off-network call,
+shown as *leaving* in Admin → Models, and refused by **Local only**. Nothing is
+rewritten; to find them:
+
+```sql
+select name, base_url, allow_public_host from llm_providers
+ where base_url ~* '^https?://[^/]*[a-z][^/:]*(:[0-9]+)?(/|$)'
+   and base_url !~* '^https?://(localhost|\[::1\])(:[0-9]+)?(/|$)';
+```
+
+(also check `LMSTUDIO_BASE_URLS` in `deploy/.env`, which does not pass through the
+host policy). To keep one on your network, give it its machine's IP address in
+Admin → Models. If RepoPulse runs in a container, `localhost` is the container
+itself - use the host's network address.
+
 Restart the **stack**, not one service: `web` resolves the `api` address once
 at startup, so an `api` restarted alone is unreachable through the published
 port while every status says running. `compose down` then `deploy/up.sh` is

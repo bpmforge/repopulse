@@ -138,14 +138,19 @@ export async function providersFor(db: Database, workspaceId: number) {
 export function describeEndpoint(
   kind: string,
   baseUrl: string | null,
-): { host: string | null; leavesNetwork: boolean } {
+): { host: string | null; leavesNetwork: boolean; hostIsName: boolean } {
   const base = effectiveBaseUrl(kind, baseUrl);
-  if (!base) return { host: null, leavesNetwork: true };
+  if (!base) return { host: null, leavesNetwork: true, hostIsName: false };
   try {
     const host = new URL(base).host;
-    return { host, leavesNetwork: !isLocalHost(host) };
+    const bare = host.replace(/^\[|\](:\d+)?$/g, '').replace(/:\d+$/, '');
+    // A name is anything that is not an IP literal; `localhost` is loopback by
+    // the host policy and is not treated as a name here.
+    const hostIsName =
+      !/^\d{1,3}(\.\d{1,3}){3}$/.test(bare) && !bare.includes(':') && bare !== 'localhost';
+    return { host, leavesNetwork: !isLocalHost(host), hostIsName };
   } catch {
     // An endpoint we cannot read is not one we can promise stays home.
-    return { host: null, leavesNetwork: true };
+    return { host: null, leavesNetwork: true, hostIsName: false };
   }
 }

@@ -24,7 +24,38 @@ function isPrivateIpv4(host: string): boolean {
 }
 
 function isLoopback(host: string): boolean {
-  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  // The whole 127/8 block is loopback, not only 127.0.0.1 (W19: the egress audit
+  // and this policy must agree on what "on this machine" means).
+  return (
+    host === 'localhost' ||
+    host === '::1' ||
+    host === '[::1]' ||
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+  );
+}
+
+/**
+ * ONE definition of "on the operator's own network", shared by this policy, the
+ * egress audit and the local-only switch (Brad, 2026-10-18: IPs only).
+ *
+ * Loopback and private IPv4 - nothing else. A HOST NAME other than the literal
+ * `localhost` is never on-network, however it ends (`*.local`, `*.internal`,
+ * `*.lan`): a name resolves later, elsewhere, and can change between the check
+ * and the call, which is the reason validateHostUrl already refuses names
+ * without an explicit off-network decision. The audit used to trust `.local` and
+ * `.internal` and so disagreed with the policy; it now cannot, because it asks
+ * this function.
+ *
+ * Accepts a `host` or `host:port` as `URL.host` gives it, including bracketed
+ * IPv6 (`[::1]:1234`).
+ */
+export function isOnNetworkHost(hostWithPort: string): boolean {
+  let h = hostWithPort.toLowerCase();
+  const bracketed = /^\[(.*)\](?::\d+)?$/.exec(h);
+  if (bracketed) h = `[${bracketed[1]}]`;
+  else if ((h.match(/:/g) ?? []).length === 1) h = h.replace(/:\d+$/, '');
+  if (isMetadataAddress(h)) return false;
+  return isLoopback(h) || isPrivateIpv4(h);
 }
 
 /**

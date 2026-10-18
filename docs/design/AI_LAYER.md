@@ -112,9 +112,9 @@ and each failure. A routed role whose connections are all disabled or deleted
 refuses by name rather than quietly using the shared pool.
 
 **Local-only.** "Leaves the container" means what the egress audit already means
-by leaving the network (`isLocalHost`: loopback, RFC1918, `*.local`,
-`*.internal`) — one definition, so a call is audited exactly when local-only
-would have refused it. Enforced at save time (422 naming the role and the
+by leaving the network (`isLocalHost`: loopback and private IPv4 only; a host
+*name* leaves, see "Host names" below) — one definition, so a call is audited
+exactly when local-only would have refused it. Enforced at save time (422 naming the role and the
 connection) and again at call time. With it on, roles without a chain use only
 local connections, and Tier-3 is refused with a `denied` audit row. With it off
 (the default) nothing about Tier-3, the opt-in, the audit row or the monthly
@@ -374,12 +374,10 @@ constraint did not allow a `gemini` row with no base URL, so creating Gemini fro
 the admin screen failed in the database. Migration 0042 plus a route test (W19-01
 only tested LAN connections). It is its own commit.
 
-**Also learned:** model hosts must be IP addresses. The host policy accepts
-loopback and private IPv4 only; a host name needs the explicit off-network
-decision, even though the audit's `isLocalHost` treats `*.local`/`*.internal` as
-local. The two definitions disagree on names, so the wizard and the docs say "use
-the IP address", and (inside a container) that `localhost` is the container. The
-disagreement itself is not resolved here.
+**Also learned (resolved 2026-10-18, see "Host names are not on the network"):**
+model hosts must be IP addresses. The host policy accepted loopback and private
+IPv4 only, while the audit's `isLocalHost` trusted `*.local`/`*.internal`. Brad
+chose IPs only; the two now share one definition.
 
 **Verified:** component tests for every step (51 admin widget tests); the Models
 page in the Playwright axe scan in both themes and a wizard walk in the admin
@@ -446,3 +444,43 @@ run). The worker runs as an unprivileged user with the database URL in its
 environment: the CLI runs in that container as the same user. It is started with an
 empty environment and no tools, but it is another program there, and the compose
 file says to think about that before choosing this over an API key.
+
+
+## Host names are not on the network (2026-10-18, Brad: "IPs only")
+
+**The rule.** "On the operator's own network" means loopback (the whole 127/8
+block, `::1`, and the literal `localhost`) and private IPv4 (10/8, 172.16/12,
+192.168/16, and 100.64/10, which the host policy has always treated as private).
+Nothing else. A host **name** other than `localhost` is never on-network, however
+it ends - `*.local`, `*.internal`, `*.lan`. A name resolves later, elsewhere, and
+can change between the check and the call, which is why the host policy already
+refused names without an explicit off-network decision.
+
+**One definition.** `isOnNetworkHost` (`config/hosts.ts`) is the host policy's own
+predicate; the egress audit's `isLocalHost`, local-only, the shared-pool filter,
+the wizard review and `leaves_network` all call it, and a test pins that for a
+table of ambiguous hosts `isLocalHost` is true exactly when the policy accepts the
+URL without an off-network decision. They can no longer drift apart.
+
+**What changed, concretely.**
+- A model reached by `*.local` / `*.internal` (it can only exist with the per-row
+  off-network decision, because the policy required one) is now **audited**
+  (attempt and outcome rows in `egress_audit`), **refused by local-only** (with the
+  reason: "reached by the host name ..., only IP addresses count as on your
+  network"), dropped from the shared pool under local-only, and shown as **leaving**
+  in the wizard review. Previously none of that happened to it.
+- IPv6 loopback was previously treated as remote by the audit (a port-stripping bug
+  turned `::1` into `:`); it is now on-network, as the policy always said.
+- 100.64/10 (CGNAT, e.g. a Tailscale network) is now on-network for the audit,
+  matching the policy. This **reduces** auditing for such hosts - the one change
+  in the less-cautious direction, made because the policy accepts them without an
+  off-network decision and the two must agree.
+- The deprecated `LMSTUDIO_BASE_URLS` environment path does not go through the host
+  policy; an entry there that uses a `.local`/`.internal` name is now audited and
+  counts as leaving too.
+
+**No silent migration.** No stored connection is rewritten. The admin list marks
+each connection reached by a name ("Reached by a host name, so it counts as leaving
+your network... Use the machine's IP address") and `docs/DEPLOYMENT.md` §8 has the
+query to list them. To restore the old behaviour for such a machine, change its
+address to its IP.

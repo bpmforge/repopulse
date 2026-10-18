@@ -12,6 +12,7 @@ import {
   LocalOnlyViolationError,
   defaultPool,
   hostIsLocal,
+  hostOf,
   roleForDimension,
   type RouteRecord,
   type RoutingPolicy,
@@ -297,7 +298,7 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
         // Defence in depth: the chain was valid when it was saved, but a
         // connection can be edited afterwards.
         if (localOnly && !hostIsLocal(link.host)) {
-          throw new LocalOnlyViolationError(role, link.providerName);
+          throw new LocalOnlyViolationError(role, link.providerName, hostOf(link.host));
         }
         if (!t2.hasCapacity(link.host)) {
           saturated = true;

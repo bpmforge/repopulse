@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { isOnNetworkHost } from '../config/hosts.js';
 
 // The egress auditor (W17-11).
 //
@@ -77,26 +78,15 @@ export function contentDigest(payload: string): string {
  *
  * A LAN LM Studio is not egress, and auditing it would bury the rows that
  * matter under thousands that do not. Anything not matching this is treated as
- * off-network — the safe direction to be wrong in.
+ * off-network - the safe direction to be wrong in.
+ *
+ * The rule is the host policy's own (config/hosts.ts isOnNetworkHost): loopback
+ * and private IPv4 only. A host NAME other than `localhost` is off-network, even
+ * `*.local` or `*.internal`; this used to trust those and so disagreed with the
+ * policy that refuses names without an explicit decision.
  */
 export function isLocalHost(host: string): boolean {
-  const h = host.toLowerCase().replace(/:\d+$/, '');
-  if (h === 'localhost' || h === '::1' || h.endsWith('.local') || h.endsWith('.internal')) {
-    return true;
-  }
-
-  // The private-range checks apply ONLY to something that is actually an IPv4
-  // address. A prefix test alone treats `10.evil.com` as private — a public
-  // host that would then have been exempted from auditing altogether, which is
-  // a hole rather than a cosmetic bug. Caught by its own test.
-  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return false;
-
-  // RFC1918 + loopback.
-  if (/^127\./.test(h)) return true;
-  if (/^10\./.test(h)) return true;
-  if (/^192\.168\./.test(h)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
-  return false;
+  return isOnNetworkHost(host);
 }
 
 export interface EgressAuditorDeps {
