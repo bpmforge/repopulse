@@ -10032,7 +10032,7 @@
                 "Results are deterministic where the provider allows it and the run reports provider errors loudly instead of scoring them; full gate green"
           ],
           "points": 5,
-          "status": "todo",
+          "status": "in_progress",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17)."
           ]
