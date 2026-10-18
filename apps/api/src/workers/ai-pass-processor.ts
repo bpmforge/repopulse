@@ -143,13 +143,16 @@ export function aiPassProcessor(deps: AiPassDeps) {
       const window = (id: SpecialistId): number | null =>
         contextWindowForRole(wg.routing, specialistById(id).role as LlmRole, wg.hosts);
 
-      // 1. The planned specialists.
+      // 1. The planned specialists. A third of the call cap (at most what triage can
+      // use) is held back for triage, so a tight cap cannot starve it entirely; any
+      // of it the specialists do not need is still the cap, not extra.
+      const triageReserve = Math.min(TRIAGE_TOP_N * 2, Math.floor(maxCalls / 3));
       const spec = await runSpecialists(
         { kind: 'module', name: `repo-${run.repoId}`, files: loaded.files },
         {
           gateway: wg.gateway,
           contextWindowFor: window,
-          maxCalls,
+          maxCalls: maxCalls - triageReserve,
           prTitle: `Repository pass over ${run.paths.join(', ')}`,
           meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },
         },
