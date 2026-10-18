@@ -88,6 +88,8 @@ export async function runTriage(
       finding.lineStart,
       finding.lineEnd,
       sliceBudget,
+      undefined,
+      candidate.sourceStartLine ?? 1,
     );
     const prompt = buildTriagePrompt({
       finding,
