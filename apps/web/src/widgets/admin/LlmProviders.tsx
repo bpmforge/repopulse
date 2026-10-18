@@ -84,7 +84,7 @@ interface TestResult {
 const TRI_MARK: Record<Tri, string> = { yes: '✓', no: '✗', unknown: '?' };
 
 /** One line per capability, with the words next to the mark so colour is not the only signal. */
-function CapabilityList({ c }: { c: Capabilities }) {
+export function CapabilityList({ c }: { c: Capabilities }) {
   return (
     <div data-testid="capabilities">
       <ul className="flex flex-wrap gap-x-4 gap-y-1">

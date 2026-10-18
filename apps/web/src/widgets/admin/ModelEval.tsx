@@ -74,7 +74,7 @@ export function ModelEval() {
       onRetry={() => void query.refetch()}
       emptyMessage="No model configured and none measured yet."
     >
-      <div className="flex flex-col gap-2" data-testid="model-eval">
+      <div className="flex flex-col gap-2" data-testid="model-eval" id="quality-per-model">
         <p className="text-xs text-fg-muted">
           How each model did on labelled test cases, per role: <strong>P</strong>recision (of what
           it reported, how much was real) and <strong>R</strong>ecall (of the planted defects, how
