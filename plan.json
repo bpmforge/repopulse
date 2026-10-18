@@ -10086,7 +10086,7 @@
                 "Accessibility and e2e coverage match the existing admin pages; full gate green"
           ],
           "points": 5,
-          "status": "todo",
+          "status": "in_progress",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17)."
           ]
