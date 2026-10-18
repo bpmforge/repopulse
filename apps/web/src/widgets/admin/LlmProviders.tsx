@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
@@ -67,6 +67,25 @@ interface KindSpec {
   supported: boolean;
   unsupported_reason: string | null;
   examples: string[];
+  /** W19-08: the customer installs and operates this; never shown as a RepoPulse feature. */
+  customer_supplied?: boolean;
+  requires_acceptance?: boolean;
+}
+
+interface ClaudeCliInfo {
+  statement: {
+    version: string;
+    sha256: string;
+    title: string;
+    points: { heading: string; text: string }[];
+  };
+  accepted: { by: string | null; at: string; version: string; current: boolean } | null;
+  cli: {
+    found: boolean;
+    version: string | null;
+    reportsLoggedIn: boolean | null;
+    reason: string | null;
+  };
 }
 
 interface TestResult {
@@ -122,6 +141,129 @@ export function CapabilityList({ c }: { c: Capabilities }) {
   );
 }
 
+const CLAUDE_CLI = { endpoint: '/admin/llm-providers/claude-cli' } as const;
+
+/**
+ * The customer-supplied Claude Code CLI option (W19-08). Shown as what it is:
+ * something the customer installs and signs in to themselves, off until an
+ * admin has read the statement and accepted it. The statement comes from the
+ * server - the text, its version and its hash - so what is accepted is exactly
+ * what was displayed.
+ */
+function ClaudeCliPanel({ onAcceptedChange }: { onAcceptedChange: (accepted: boolean) => void }) {
+  const info = useApiQuery<ClaudeCliInfo>(CLAUDE_CLI);
+  const queryClient = useQueryClient();
+  const [read, setRead] = useState(false);
+  const accept = useApiMutation<Record<string, unknown>, { id: number }>(
+    { endpoint: '/admin/llm-providers/claude-cli/accept', method: 'POST' },
+    { invalidate: [queryKeyFor(CLAUDE_CLI)] },
+  );
+  const revoke = useApiMutation<Record<string, unknown>, unknown>(
+    { endpoint: '/admin/llm-providers/claude-cli/revoke', method: 'POST' },
+    { invalidate: [queryKeyFor(CLAUDE_CLI)] },
+  );
+  const d = info.data;
+  const on = d?.accepted?.current === true;
+  useEffect(() => {
+    onAcceptedChange(on);
+  }, [on, onAcceptedChange]);
+
+  if (info.isLoading || !d) return <p className="text-xs text-fg-muted">Loading…</p>;
+
+  return (
+    <section
+      aria-labelledby="claude-cli-h"
+      className="flex flex-col gap-2 rounded-sm border border-warn/40 bg-warn/10 p-3 text-xs"
+      data-testid="claude-cli-panel"
+    >
+      <h3 id="claude-cli-h" className="text-sm font-semibold">
+        {d.statement.title}
+      </h3>
+      <p>
+        <strong>Customer-supplied.</strong> This runs a Claude Code CLI that <em>you</em> install
+        and sign in to inside your own container. It is not a RepoPulse feature and it is off until
+        an admin accepts the statement below.
+      </p>
+      <ol className="ml-4 list-decimal" data-testid="claude-cli-statement">
+        {d.statement.points.map((p) => (
+          <li key={p.heading}>
+            <strong>{p.heading}</strong> {p.text}
+          </li>
+        ))}
+      </ol>
+      <p className="text-fg-muted" data-testid="claude-cli-status">
+        {d.cli.found
+          ? `Found ${d.cli.version ?? 'the CLI'} on this server. It ${d.cli.reportsLoggedIn === true ? 'reports being signed in (only Test connection proves it works)' : d.cli.reportsLoggedIn === false ? 'reports being signed out' : 'did not say whether it is signed in'}.`
+          : (d.cli.reason ?? 'The Claude Code CLI was not found on this server.')}
+      </p>
+      {on ? (
+        <div className="flex flex-wrap items-center gap-2" data-testid="claude-cli-accepted">
+          <span>
+            ✓ Accepted by <strong>{d.accepted?.by ?? 'an admin'}</strong> on{' '}
+            {d.accepted ? d.accepted.at.slice(0, 10) : ''} (statement {d.accepted?.version}).
+          </span>
+          <button
+            type="button"
+            data-testid="claude-cli-revoke"
+            disabled={revoke.isPending}
+            onClick={() =>
+              revoke.mutate(
+                {},
+                {
+                  onSuccess: () =>
+                    void queryClient.invalidateQueries({ queryKey: queryKeyFor(CLAUDE_CLI) }),
+                },
+              )
+            }
+            className="underline"
+          >
+            Switch off
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {d.accepted && !d.accepted.current ? (
+            <p role="status" className="font-semibold">
+              The statement has changed since it was accepted. Read it again to continue.
+            </p>
+          ) : null}
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              data-testid="claude-cli-read"
+              checked={read}
+              onChange={(e) => setRead(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              I have read the statement above and I accept responsibility for using my plan this
+              way.
+            </span>
+          </label>
+          <div>
+            <button
+              type="button"
+              data-testid="claude-cli-accept"
+              disabled={!read || accept.isPending}
+              onClick={() =>
+                accept.mutate({
+                  accept: true,
+                  statement_version: d.statement.version,
+                  statement_sha256: d.statement.sha256,
+                })
+              }
+              className="rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-sm text-fg disabled:opacity-50"
+            >
+              {accept.isPending ? 'Recording…' : 'Accept and turn on'}
+            </button>
+          </div>
+          <ErrorNote error={accept.error} testId="claude-cli-error" />
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function LlmProviders() {
   const list = useApiQuery<{ items: ProviderRow[] }>(LIST);
   const kindsQuery = useApiQuery<{ kinds: KindSpec[]; presets?: Preset[] }>(KINDS);
@@ -137,6 +279,8 @@ export function LlmProviders() {
   const [result, setResult] = useState<TestResult | null>(null);
 
   const spec = kinds.find((k) => k.kind === kind);
+  const isCli = kind === 'claude_cli';
+  const [cliAccepted, setCliAccepted] = useState(false);
 
   const create = useApiMutation<Record<string, unknown>, { id: number }>(
     { endpoint: '/admin/llm-providers', method: 'POST' },
@@ -159,10 +303,11 @@ export function LlmProviders() {
     return {
       name,
       kind,
-      base_url: baseUrl || null,
+      base_url: isCli ? null : baseUrl || null,
       model,
-      api_key: apiKey || null,
-      allow_public_host: allowPublic,
+      // The CLI option holds no credential and has a fixed destination.
+      api_key: isCli ? null : apiKey || null,
+      allow_public_host: isCli ? false : allowPublic,
       // Ask the server to check the model can run a pass, and refuse it with a
       // sentence now if it cannot (W19-01).
       probe: true,
@@ -280,6 +425,8 @@ export function LlmProviders() {
             </label>
           ) : null}
 
+          {isCli ? <ClaudeCliPanel onAcceptedChange={setCliAccepted} /> : null}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs text-fg-muted">
               Model
@@ -288,7 +435,7 @@ export function LlmProviders() {
                 required
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="qwen3-coder"
+                placeholder={isCli ? 'sonnet' : 'qwen3-coder'}
                 className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
               />
               {/* The failure this prevents: a blank or guessed model is sent as
@@ -299,46 +446,54 @@ export function LlmProviders() {
               </span>
             </label>
 
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              {kind === 'vertex' ? 'Service-account key (JSON)' : 'API key'}
-              <input
-                data-testid="provider-api-key"
-                type="password"
-                autoComplete="off"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
-              />
-              <span className="text-fg-faint">
-                {kind === 'vertex'
-                  ? 'Paste the whole key file. Encrypted at rest and never shown again; only a short-lived access token is sent to Google.'
-                  : 'Encrypted at rest and never shown again. A model on your own network needs none.'}
-              </span>
-            </label>
+            {isCli ? (
+              <p className="text-xs text-fg-muted" data-testid="claude-cli-no-key">
+                No key or address to enter: the CLI keeps its own login, and nothing is stored here.
+              </p>
+            ) : (
+              <label className="flex flex-col gap-1 text-xs text-fg-muted">
+                {kind === 'vertex' ? 'Service-account key (JSON)' : 'API key'}
+                <input
+                  data-testid="provider-api-key"
+                  type="password"
+                  autoComplete="off"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
+                />
+                <span className="text-fg-faint">
+                  {kind === 'vertex'
+                    ? 'Paste the whole key file. Encrypted at rest and never shown again; only a short-lived access token is sent to Google.'
+                    : 'Encrypted at rest and never shown again. A model on your own network needs none.'}
+                </span>
+              </label>
+            )}
           </div>
 
-          <label className="flex items-start gap-2 text-xs text-fg">
-            <input
-              type="checkbox"
-              data-testid="provider-allow-public"
-              checked={allowPublic}
-              onChange={(e) => setAllowPublic(e.target.checked)}
-              className="mt-0.5"
-            />
-            {/* Deliberately awkward, and deliberately per-provider. Tier 2 sends
+          {isCli ? null : (
+            <label className="flex items-start gap-2 text-xs text-fg">
+              <input
+                type="checkbox"
+                data-testid="provider-allow-public"
+                checked={allowPublic}
+                onChange={(e) => setAllowPublic(e.target.checked)}
+                className="mt-0.5"
+              />
+              {/* Deliberately awkward, and deliberately per-provider. Tier 2 sends
                 DIFFS — the most sensitive thing the warehouse holds — so leaving
                 your network with them is a decision worth making explicitly. */}
-            <span>
-              This endpoint is outside my network. Diffs, pull-request descriptions and file paths
-              will be sent to it.
-            </span>
-          </label>
+              <span>
+                This endpoint is outside my network. Diffs, pull-request descriptions and file paths
+                will be sent to it.
+              </span>
+            </label>
+          )}
 
           <div className="flex items-center gap-2">
             <button
               type="submit"
               data-testid="provider-save"
-              disabled={create.isPending || spec?.supported === false}
+              disabled={create.isPending || spec?.supported === false || (isCli && !cliAccepted)}
               className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
             >
               {create.isPending ? 'Saving…' : 'Add provider'}
@@ -439,8 +594,20 @@ export function LlmProviders() {
                 className="border-t border-border"
                 data-testid={`provider-row-${p.id}`}
               >
-                <td>{p.name}</td>
-                <td className="font-mono text-xs">{p.base_url ?? '—'}</td>
+                <td>
+                  {p.name}
+                  {p.kind === 'claude_cli' ? (
+                    <span
+                      className="block text-xs text-fg-muted"
+                      data-testid={`provider-customer-supplied-${p.id}`}
+                    >
+                      Claude Code CLI · customer-supplied
+                    </span>
+                  ) : null}
+                </td>
+                <td className="font-mono text-xs">
+                  {p.kind === 'claude_cli' ? 'your Claude Code CLI' : (p.base_url ?? '—')}
+                </td>
                 <td className="font-mono text-xs">{p.model}</td>
                 <td className="text-xs" data-testid={`provider-capabilities-${p.id}`}>
                   {p.capabilities ? (
@@ -450,8 +617,12 @@ export function LlmProviders() {
                   )}
                 </td>
                 {/* A fingerprint, never the key. */}
-                <td className="font-mono text-xs">{p.credential ?? 'none'}</td>
-                <td>{p.allow_public_host ? '⚠ yes' : 'no'}</td>
+                <td className="font-mono text-xs">
+                  {p.kind === 'claude_cli'
+                    ? 'the CLI keeps its own login'
+                    : (p.credential ?? 'none')}
+                </td>
+                <td>{p.allow_public_host || p.kind === 'claude_cli' ? '⚠ yes' : 'no'}</td>
                 <td className="text-right">
                   <button
                     type="button"

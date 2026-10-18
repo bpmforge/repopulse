@@ -432,6 +432,46 @@ service-account key, Bedrock) follow the same shape; Vertex takes its whole JSON
 key file in the key field. Subscription logins (a Claude or ChatGPT plan) are
 not an API key and are not part of this path.
 
+### Use your own Claude Code CLI (customer-supplied, optional)
+
+If you have a Claude plan and would rather use its Claude Code CLI than an API
+key, RepoPulse can run **your** CLI as a model. This is a customer-supplied
+option, not a RepoPulse feature: you install the CLI and sign in to it yourself,
+**RepoPulse neither stores nor transmits the login**, and **API keys remain the
+supported route**. The makers of RepoPulse have not verified that your plan's
+terms allow this use; that responsibility is yours, which is why it is **off
+until an admin reads and accepts a statement**, recorded with their name, the
+time and the exact version of the statement.
+
+1. In **Admin → Models**, choose *Claude Code CLI you installed
+   (customer-supplied)*. The full statement is shown. Tick that you have read
+   it and **Accept and turn on**. Anyone with admin rights can **Switch off**
+   again; connections that use it then stop and say why.
+2. Install the CLI where the worker can run it, and sign in. The optional
+   `deploy/compose.claude-cli.yaml` gives the worker a persistent volume for the
+   CLI and its login and sets `CLAUDE_CLI_PATH` (default: `claude` on the
+   worker's `PATH`). Then, once, inside the worker container, install the CLI
+   into that volume and run `claude` to complete the login yourself.
+3. Add the connection (a model name such as `sonnet`; there is no key or address
+   to enter). **Test connection** runs your CLI once. If the CLI is missing, or
+   its login has expired, it says so in those words and nothing is sent.
+
+How it is run: with **no tools** (it cannot run commands or read files), nothing
+saved to disk, the code on standard input (never on the command line), in an empty
+temporary directory, and with an environment that holds none of RepoPulse's
+secrets. It counts as leaving your network: every call is in the egress audit,
+the review table says so, and the **Local only** switch refuses it.
+
+**What was and was not checked.** Checked: the runner against a real `claude`
+binary (version, `auth status`, and a real call, which came back *"Failed to
+authenticate: OAuth session expired and could not be refreshed"* because the
+login on the machine used had expired - that exact message is the signed-out case
+in the tests), and every other path against a faked CLI. **Not checked:** a
+successful answer from a live CLI (the available login had expired and signing
+in is yours to do, not ours), installing the CLI inside the worker image, and
+the compose override. Note that `claude auth status` can report *logged in* while
+the session has expired, so **Test connection** is the only proof.
+
 ### If it does not connect
 
 - *not a private-range LAN address* - you gave a host name. Use the IP address.

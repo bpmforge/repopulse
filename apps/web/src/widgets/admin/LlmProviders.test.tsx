@@ -33,7 +33,37 @@ const KINDS = {
         'Vertex authenticates with a Google service account rather than an API key. Support is W16-09.',
       examples: [],
     },
+    {
+      kind: 'claude_cli',
+      label: 'Claude Code CLI you installed (customer-supplied)',
+      auth_class: 'local_cli',
+      needs_base_url: false,
+      supported: true,
+      unsupported_reason: null,
+      examples: [],
+      customer_supplied: true,
+      requires_acceptance: true,
+    },
   ],
+};
+
+const STATEMENT = {
+  version: 'claude-cli.v1',
+  sha256: 'abc123',
+  title: 'Using your own Claude Code CLI with RepoPulse',
+  points: [
+    {
+      heading: 'This is customer-supplied, not a RepoPulse feature.',
+      text: 'You install it and sign in yourself.',
+    },
+    { heading: 'RepoPulse does not store or transmit your login.', text: 'It stays in the CLI.' },
+    { heading: 'API keys remain the supported route.', text: 'Use the Anthropic provider.' },
+  ],
+};
+let claudeBody: unknown = {
+  statement: STATEMENT,
+  accepted: null,
+  cli: { found: true, version: '2.1.287 (Claude Code)', reportsLoggedIn: true, reason: null },
 };
 
 const requests: { url: string; init: RequestInit | undefined }[] = [];
@@ -46,13 +76,15 @@ function stubFetch() {
     vi.fn((input: unknown, init?: RequestInit) => {
       const url = String(input);
       requests.push({ url, init });
-      const body = url.includes('/kinds')
-        ? KINDS
-        : url.includes('/test')
-          ? testBody
-          : url.includes('/admin/llm-providers')
-            ? listBody
-            : {};
+      const body = url.includes('/claude-cli')
+        ? claudeBody
+        : url.includes('/kinds')
+          ? KINDS
+          : url.includes('/test')
+            ? testBody
+            : url.includes('/admin/llm-providers')
+              ? listBody
+              : {};
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -75,6 +107,11 @@ beforeEach(() => {
   requests.length = 0;
   listBody = { items: [] };
   testBody = { ok: true, latency_ms: 40, model: 'qwen3-coder', sample: 'ok' };
+  claudeBody = {
+    statement: STATEMENT,
+    accepted: null,
+    cli: { found: true, version: '2.1.287 (Claude Code)', reportsLoggedIn: true, reason: null },
+  };
   stubFetch();
 });
 
@@ -252,6 +289,153 @@ describe('Admin → Models (W16-07)', () => {
       renderScreen();
       await userEvent.click(await screen.findByTestId('provider-test'));
       expect(await screen.findByTestId('capability-problem')).toHaveTextContent(/does not stream/);
+    });
+  });
+
+  describe('the customer-supplied Claude Code CLI option (W19-08)', () => {
+    const pick = async () => {
+      renderScreen();
+      await screen.findByRole('option', { name: /customer-supplied/ });
+      await userEvent.selectOptions(screen.getByTestId('provider-kind'), 'claude_cli');
+    };
+
+    it('is labelled customer-supplied in the choice, and shows the whole statement before anything else', async () => {
+      await pick();
+      expect(
+        screen.getByRole('option', { name: /Claude Code CLI you installed \(customer-supplied\)/ }),
+      ).toBeInTheDocument();
+      const panel = await screen.findByTestId('claude-cli-panel');
+      expect(panel).toHaveTextContent('Customer-supplied.');
+      expect(panel).toHaveTextContent('It is not a RepoPulse feature');
+      expect(screen.getByTestId('claude-cli-statement')).toHaveTextContent(
+        /does not store or transmit your login/,
+      );
+      expect(screen.getByTestId('claude-cli-statement')).toHaveTextContent(
+        /API keys remain the supported route/,
+      );
+    });
+
+    it('is OFF: Add provider stays disabled until the statement is accepted, and there is no key or address to enter', async () => {
+      await pick();
+      await screen.findByTestId('claude-cli-panel');
+      expect(screen.getByTestId('provider-save')).toBeDisabled();
+      expect(screen.queryByTestId('provider-api-key')).toBeNull();
+      expect(screen.queryByTestId('provider-base-url')).toBeNull();
+      expect(screen.queryByTestId('provider-allow-public')).toBeNull();
+      expect(screen.getByTestId('claude-cli-no-key')).toHaveTextContent(/keeps its own login/);
+    });
+
+    it('cannot be accepted without ticking that it was read, then posts exactly the version and hash shown', async () => {
+      await pick();
+      const accept = await screen.findByTestId('claude-cli-accept');
+      expect(accept).toBeDisabled();
+      await userEvent.click(screen.getByTestId('claude-cli-read'));
+      expect(accept).toBeEnabled();
+      await userEvent.click(accept);
+      await waitFor(() => {
+        const call = requests.find((r) => r.url.endsWith('/claude-cli/accept'));
+        expect(call).toBeTruthy();
+        expect(JSON.parse(String(call?.init?.body))).toEqual({
+          accept: true,
+          statement_version: 'claude-cli.v1',
+          statement_sha256: 'abc123',
+        });
+      });
+    });
+
+    it('once accepted: shows who and when, enables Add provider, and offers to switch it off', async () => {
+      claudeBody = {
+        statement: STATEMENT,
+        accepted: {
+          by: 'brad',
+          at: '2026-10-18T10:00:00.000Z',
+          version: 'claude-cli.v1',
+          current: true,
+        },
+        cli: { found: true, version: '2.1.287 (Claude Code)', reportsLoggedIn: true, reason: null },
+      };
+      await pick();
+      const done = await screen.findByTestId('claude-cli-accepted');
+      expect(done).toHaveTextContent('Accepted by brad on 2026-10-18');
+      await userEvent.type(screen.getByTestId('provider-name'), 'My Claude');
+      await userEvent.type(screen.getByTestId('provider-model'), 'sonnet');
+      await waitFor(() => expect(screen.getByTestId('provider-save')).toBeEnabled());
+      expect(screen.getByTestId('claude-cli-revoke')).toBeInTheDocument();
+      await userEvent.click(screen.getByTestId('provider-save'));
+      await waitFor(() => {
+        const call = requests.find(
+          (r) => r.init?.method === 'POST' && r.url.endsWith('/admin/llm-providers'),
+        );
+        expect(JSON.parse(String(call?.init?.body))).toMatchObject({
+          kind: 'claude_cli',
+          api_key: null,
+          base_url: null,
+          allow_public_host: false,
+        });
+      });
+    });
+
+    it('treats an acceptance of an OLDER statement as not accepted, and says the wording changed', async () => {
+      claudeBody = {
+        statement: STATEMENT,
+        accepted: {
+          by: 'brad',
+          at: '2026-09-01T00:00:00.000Z',
+          version: 'claude-cli.v0',
+          current: false,
+        },
+        cli: { found: true, version: 'x', reportsLoggedIn: null, reason: null },
+      };
+      await pick();
+      expect(
+        await screen.findByText(/statement has changed since it was accepted/),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('provider-save')).toBeDisabled();
+      expect(screen.queryByTestId('claude-cli-accepted')).toBeNull();
+    });
+
+    it('says plainly when the CLI is not on the server, and that signed-in is only a hint', async () => {
+      claudeBody = {
+        statement: STATEMENT,
+        accepted: null,
+        cli: {
+          found: false,
+          version: null,
+          reportsLoggedIn: null,
+          reason:
+            'The Claude Code CLI ("claude") was not found. It is customer-supplied: install it in this container and sign in.',
+        },
+      };
+      await pick();
+      expect(await screen.findByTestId('claude-cli-status')).toHaveTextContent(
+        /was not found.*customer-supplied/s,
+      );
+    });
+
+    it('marks the saved connection as customer-supplied and as leaving the network, with no key shown', async () => {
+      listBody = {
+        items: [
+          {
+            id: 9,
+            name: 'My Claude',
+            kind: 'claude_cli',
+            base_url: null,
+            model: 'sonnet',
+            credential: null,
+            headers: null,
+            allow_public_host: false,
+            enabled: true,
+            capabilities: null,
+            probed_at: null,
+          },
+        ],
+      };
+      renderScreen();
+      const row = await screen.findByTestId('provider-row-9');
+      expect(row).toHaveTextContent('Claude Code CLI · customer-supplied');
+      expect(row).toHaveTextContent('your Claude Code CLI');
+      expect(row).toHaveTextContent('the CLI keeps its own login');
+      expect(row).toHaveTextContent('⚠ yes');
     });
   });
 });

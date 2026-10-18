@@ -27,6 +27,10 @@ import { ProviderError } from '../t2/client.js';
 // routing chain falls back past it.
 
 export const DEFAULT_BINARY = 'claude';
+
+/** The customer may have installed the CLI outside PATH (CLAUDE_CLI_PATH); otherwise `claude`. */
+export const cliBinary = (deps: { binary?: string } = {}): string =>
+  deps.binary ?? process.env.CLAUDE_CLI_PATH ?? DEFAULT_BINARY;
 export const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 
 /** The only variables the child inherits. Anything not named here does not reach it. */
@@ -180,7 +184,7 @@ export async function runClaudeCli(
   model: string,
   deps: CliDeps = {},
 ): Promise<CliResult> {
-  const bin = deps.binary ?? DEFAULT_BINARY;
+  const bin = cliBinary(deps);
   const started = Date.now();
   const r = await inEmptyDir((dir) => run(bin, cliArgs(model), prompt, dir, deps));
 
@@ -235,7 +239,7 @@ export interface CliStatus {
 
 /** Presence, version and the CLI's own opinion of its login. No model call, no token spend. */
 export async function claudeCliStatus(deps: CliDeps = {}): Promise<CliStatus> {
-  const bin = deps.binary ?? DEFAULT_BINARY;
+  const bin = cliBinary(deps);
   return inEmptyDir(async (dir) => {
     const v = await run(bin, ['--version'], null, dir, { ...deps, timeoutMs: 15_000 });
     if (v.error?.code === 'ENOENT') {

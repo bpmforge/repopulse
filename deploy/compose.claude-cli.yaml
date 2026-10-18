@@ -1,0 +1,40 @@
+# OPTIONAL, CUSTOMER-SUPPLIED: a home for your own Claude Code CLI (W19-08).
+#
+# THIS FILE HAS NEVER BEEN RUN. The CLI is not part of RepoPulse, the worker
+# image does not contain it, and installing it needs network access and a login
+# that only you can do. The runner that calls it was checked against a real
+# `claude` binary and against fakes; this override and the steps in
+# docs/INSTALL.md ("Use your own Claude Code CLI") were not run end to end.
+#
+# What it does: gives the worker ONE persistent volume, so the CLI you install
+# and the login you complete survive a restart, and tells RepoPulse where the CLI
+# is. It changes nothing else: same unprivileged user, no capabilities, same
+# networks. It adds no secret, and RepoPulse never reads what is in the volume.
+#
+#   podman compose -f deploy/compose.yaml -f deploy/compose.claude-cli.yaml up -d
+#
+# Then, once, as the worker's user (see docs/INSTALL.md for the commands):
+#   install the CLI into the volume, run `claude` and complete the login.
+# Then accept the responsibility statement in Admin -> Models. The option stays
+# OFF until you do, whatever this file says.
+#
+# THINK BEFORE YOU DO THIS. The CLI will run in the same container as the
+# worker, which holds your forge credentials and database URL. RepoPulse starts
+# it with no tools, in an empty directory, with an allow-listed environment that
+# contains none of those secrets - but it is still another program in that
+# container, run as the same user. If that is not acceptable, use the Anthropic
+# API-key provider instead, which needs none of this.
+
+services:
+  worker:
+    environment:
+      # Where the CLI's own configuration - including its login - lives. Passed
+      # through to the CLI; RepoPulse never opens it.
+      CLAUDE_CONFIG_DIR: /var/lib/claude-cli/config
+      # Where you installed the CLI (npm install -g --prefix /var/lib/claude-cli/npm ...).
+      CLAUDE_CLI_PATH: /var/lib/claude-cli/npm/bin/claude
+    volumes:
+      - claude-cli:/var/lib/claude-cli
+
+volumes:
+  claude-cli: {}

@@ -21,6 +21,12 @@ const KINDS = {
     { kind: 'anthropic', label: 'Anthropic (Claude API)', needs_base_url: false, supported: true },
     { kind: 'gemini', label: 'Google Gemini (API key)', needs_base_url: false, supported: true },
     { kind: 'copilot', label: 'GitHub Copilot', needs_base_url: false, supported: false },
+    {
+      kind: 'claude_cli',
+      label: 'Claude Code CLI you installed (customer-supplied)',
+      needs_base_url: false,
+      supported: true,
+    },
   ],
   presets: [
     {
@@ -236,6 +242,9 @@ describe('step 2: connect and test', () => {
       'Google Gemini (API key)',
     ]);
     expect(screen.queryByText(/Copilot/)).toBeNull();
+    // The customer-supplied CLI option is deliberately not on the guided path: it
+    // is gated behind an accepted statement and lives in the full form.
+    expect(screen.queryByText(/Claude Code CLI/)).toBeNull();
     await userEvent.selectOptions(screen.getByTestId('wizard-kind'), 'gemini');
     expect(screen.queryByTestId('wizard-base-url')).toBeNull();
     await userEvent.type(screen.getByTestId('wizard-name'), 'Gemini');
