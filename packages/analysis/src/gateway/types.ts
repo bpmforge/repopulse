@@ -5,6 +5,8 @@
 // egress audit all live behind it, so a caller that reached an LLM directly
 // would bypass every one of them at once.
 
+import type { LlmRole, RouteRecord } from '../routing/index.js';
+
 export type Tier = 'T2' | 'T3';
 
 export type Dimension = 'code_health' | 'security' | 'performance' | 'test_coverage';
@@ -15,6 +17,12 @@ export interface CompleteMeta {
   dimension: Dimension;
   checklistVersion: string;
   initiator: string;
+  /**
+   * The role this call serves (W19-02). Optional: a pass that only declares a
+   * `dimension` is routed by it. Passes that are not a dimension — triage,
+   * patch, AI-slop judgement — name their role here.
+   */
+  role?: LlmRole;
 }
 
 export interface CompleteOpts {
@@ -35,6 +43,8 @@ export interface CompleteResult {
   /** null for T2 (it runs on your own LAN and costs nothing per call). */
   costUsd: number | null;
   durationMs: number;
+  /** Which routing link served this call (W19-02). Absent for Tier-3. */
+  route?: RouteRecord;
 }
 
 export interface AnalysisGateway {

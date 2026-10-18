@@ -4,7 +4,13 @@ import { createAnalysisGateway, HostUnavailableError } from './index.js';
 import { TierNotPermittedError, type CompleteOpts } from './types.js';
 import { shouldEnqueue, reviewJobId, analysisStatus } from '../scheduling/index.js';
 
-const meta = { repoId: '42', prNumber: 7, dimension: 'security' as const, checklistVersion: 'v1', initiator: 'test' };
+const meta = {
+  repoId: '42',
+  prNumber: 7,
+  dimension: 'security' as const,
+  checklistVersion: 'v1',
+  initiator: 'test',
+};
 const t3Opts: CompleteOpts = { tier: 'T3', maxTokens: 1000, expectJson: true, meta };
 const t2Opts: CompleteOpts = { ...t3Opts, tier: 'T2' };
 
@@ -27,7 +33,14 @@ describe('tier dispatch (FR-ANALYSIS-1)', () => {
     // W17-11 changed what this test is about. Opt-in alone is no longer enough:
     // Tier-3 leaves the customer's network, so it now also requires that the
     // call can be recorded. The auditor here is what a real deployment supplies.
-    const t3 = vi.fn(async () => ({ text: 'ok', model: 'claude', tokensIn: 1, tokensOut: 1, costUsd: 0.01, durationMs: 5 }));
+    const t3 = vi.fn(async () => ({
+      text: 'ok',
+      model: 'claude',
+      tokensIn: 1,
+      tokensOut: 1,
+      costUsd: 0.01,
+      durationMs: 5,
+    }));
     const rows: unknown[] = [];
     const gateway = createAnalysisGateway({
       hosts: [],
@@ -44,7 +57,14 @@ describe('tier dispatch (FR-ANALYSIS-1)', () => {
   it('REFUSES an opted-in Tier-3 call it cannot audit (W17-11)', async () => {
     // Fail closed. Before W17-11 this call succeeded with no record at all,
     // which is exactly the hole NFR-9 exists to prevent.
-    const t3 = vi.fn(async () => ({ text: 'ok', model: 'claude', tokensIn: 1, tokensOut: 1, costUsd: 0.01, durationMs: 5 }));
+    const t3 = vi.fn(async () => ({
+      text: 'ok',
+      model: 'claude',
+      tokensIn: 1,
+      tokensOut: 1,
+      costUsd: 0.01,
+      durationMs: 5,
+    }));
     const gateway = createAnalysisGateway({ hosts: [], isT3OptedIn: async () => true, t3 });
 
     await expect(gateway.complete('p', t3Opts)).rejects.toThrow(/un-auditable egress/i);
@@ -80,7 +100,9 @@ describe('scheduling (FR-ANALYSIS-8)', () => {
 
   it('keys jobs on the head sha, so a new push IS reviewed again', () => {
     const base = { repoId: 1, prNumber: 2, dimension: 'security' as const };
-    expect(reviewJobId({ ...base, headSha: 'aaa' })).not.toBe(reviewJobId({ ...base, headSha: 'bbb' }));
+    expect(reviewJobId({ ...base, headSha: 'aaa' })).not.toBe(
+      reviewJobId({ ...base, headSha: 'bbb' }),
+    );
     // …while a redelivered webhook for the same commit is deduped.
     expect(reviewJobId({ ...base, headSha: 'aaa' })).toBe(reviewJobId({ ...base, headSha: 'aaa' }));
   });
@@ -88,8 +110,12 @@ describe('scheduling (FR-ANALYSIS-8)', () => {
   it('separates a paused host from a busy one (NFR-7)', () => {
     // An unreachable host needs a human; a saturated one needs patience. One
     // banner for both sends people hunting a fault that is not there.
-    expect(analysisStatus([{ baseUrl: 'h', reachable: false, inFlight: 0 }], 1).state).toBe('paused');
-    expect(analysisStatus([{ baseUrl: 'h', reachable: true, inFlight: 1 }], 1).state).toBe('saturated');
+    expect(analysisStatus([{ baseUrl: 'h', reachable: false, inFlight: 0 }], 1).state).toBe(
+      'paused',
+    );
+    expect(analysisStatus([{ baseUrl: 'h', reachable: true, inFlight: 1 }], 1).state).toBe(
+      'saturated',
+    );
     expect(analysisStatus([{ baseUrl: 'h', reachable: true, inFlight: 0 }], 1).banner).toBeNull();
     expect(analysisStatus([], 1).state).toBe('paused');
   });

@@ -1,9 +1,21 @@
-import { T2Client, T2_DEFAULTS, T2_MAX_TOKENS, type T2Config, type T2Deps, type T2Host } from '../t2/client.js';
 import {
-  contentDigest,
-  isLocalHost,
-  type EgressAuditor,
-} from './egress-auditor.js';
+  T2Client,
+  T2_DEFAULTS,
+  T2_MAX_TOKENS,
+  ProviderError,
+  type T2Config,
+  type T2Deps,
+  type T2Host,
+} from '../t2/client.js';
+import {
+  LocalOnlyViolationError,
+  defaultPool,
+  hostIsLocal,
+  roleForDimension,
+  type RouteRecord,
+  type RoutingPolicy,
+} from '../routing/index.js';
+import { contentDigest, isLocalHost, type EgressAuditor } from './egress-auditor.js';
 import {
   TierNotPermittedError,
   type AnalysisGateway,
@@ -17,6 +29,13 @@ import {
 export interface GatewayDeps extends T2Deps {
   hosts: T2Host[];
   concurrencyCap?: number;
+  /**
+   * Per-role chains and the local-only switch (W19-02). Absent means the
+   * behaviour from before this ticket: every call uses the shared host pool.
+   */
+  routing?: RoutingPolicy;
+  /** Told which link served each call, for logs and provenance. */
+  onRouted?: (route: RouteRecord) => void;
   /** Per-repo Tier-3 opt-in (admin flag). Absent = not opted in. */
   isT3OptedIn?: (repoId: string) => Promise<boolean>;
   /** Tier-3 transport. Absent = Tier-3 unavailable in this deployment. */
@@ -35,9 +54,10 @@ export interface GatewayDeps extends T2Deps {
    * Resolves the numeric ids the audit row needs. The gateway speaks in the
    * string repoId its callers use; the audit table is relational.
    */
-  resolveAuditIds?: (
-    meta: { repoId: string; initiator: string },
-  ) => Promise<{ workspaceId: number; repoId: number; initiatorUserId?: number | null } | null>;
+  resolveAuditIds?: (meta: {
+    repoId: string;
+    initiator: string;
+  }) => Promise<{ workspaceId: number; repoId: number; initiatorUserId?: number | null } | null>;
 }
 
 export class HostUnavailableError extends Error {
@@ -48,9 +68,13 @@ export class HostUnavailableError extends Error {
 }
 
 export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
+  const localOnly = deps.routing?.localOnly ?? false;
+  // Under local-only the shared pool drops anything that would leave the
+  // network; with it off this is deps.hosts unchanged.
+  const pool = defaultPool(deps.hosts, localOnly);
   const config: T2Config = {
     ...T2_DEFAULTS,
-    hosts: deps.hosts,
+    hosts: pool,
     ...(deps.concurrencyCap !== undefined ? { concurrencyCap: deps.concurrencyCap } : {}),
   };
   const t2 = new T2Client(config, deps);
@@ -121,8 +145,67 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
     }
   }
 
+  /** One Tier-2 call to one host, audited when the host is not local. */
+  function callHost(host: T2Host, prompt: string, opts: CompleteOpts): Promise<CompleteResult> {
+    // Tier 2 is audited too when its host is not local: an OpenAI-compatible
+    // provider row is configured exactly like a LAN LM Studio, and a public
+    // one sends the customer's diffs off their network just as surely as
+    // Tier-3 does.
+    return withEgressAudit(
+      host.baseUrl,
+      2,
+      host.modelSlot,
+      prompt,
+      opts.meta,
+      () => t2.complete(prompt, { ...opts, maxTokens: T2_MAX_TOKENS }, host),
+      (r) => ({ tokensSent: r.tokensIn, tokensReceived: r.tokensOut }),
+    );
+  }
+
+  function recordOf(
+    role: RouteRecord['role'],
+    host: T2Host,
+    linkIndex: number,
+    failedLinks: RouteRecord['failedLinks'],
+    providerName?: string,
+  ): RouteRecord {
+    return {
+      role,
+      providerId: host.providerId ?? null,
+      providerName: providerName ?? host.name ?? host.baseUrl,
+      model: host.modelSlot,
+      linkIndex,
+      failedLinks,
+    };
+  }
+
   return {
     async complete(prompt, opts) {
+      if (opts.tier === 'T3' && localOnly) {
+        // Tier-3 always leaves the network. Refused like a missing opt-in, and
+        // recorded the same way, so the audit shows the attempt.
+        const ids = await deps.resolveAuditIds?.(opts.meta);
+        if (deps.egressAuditor && ids) {
+          await deps.egressAuditor.denied(
+            {
+              workspaceId: ids.workspaceId,
+              repoId: ids.repoId,
+              tier: 3,
+              modelId: 'tier3',
+              destinationHost: 'anthropic',
+              contentSha256: contentDigest(prompt),
+              initiatorUserId: ids.initiatorUserId ?? null,
+              initiatorLogin: opts.meta.initiator,
+            },
+            'Local-only is on for this workspace; Tier-3 would leave the network.',
+          );
+        }
+        throw new LocalOnlyViolationError(
+          opts.meta.role ?? roleForDimension(opts.meta.dimension),
+          'Tier-3 (Claude API)',
+        );
+      }
+
       if (opts.tier === 'T3') {
         // Rejected, never downgraded (FR-ANALYSIS-1). A silent fall back to
         // Tier-2 would mean an operator who asked for a deep review got a
@@ -162,22 +245,53 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
         );
       }
 
-      const host = t2.pickHost();
-      // Null means every host is at its cap. Surfaced so the SCHEDULER parks
-      // and retries, rather than an unbounded in-process queue nobody can see.
-      if (!host) throw new HostUnavailableError();
-      // Tier 2 is audited too when its host is not local: an OpenAI-compatible
-      // provider row is configured exactly like a LAN LM Studio, and a public
-      // one sends the customer's diffs off their network just as surely as
-      // Tier-3 does.
-      return withEgressAudit(
-        host.baseUrl,
-        2,
-        host.modelSlot,
-        prompt,
-        opts.meta,
-        () => t2.complete(prompt, { ...opts, maxTokens: T2_MAX_TOKENS }, host),
-        (r) => ({ tokensSent: r.tokensIn, tokensReceived: r.tokensOut }),
+      const role = opts.meta.role ?? roleForDimension(opts.meta.dimension);
+      const chain = role ? deps.routing?.chains[role] : undefined;
+
+      // No chain for this role: the shared pool, exactly as before W19-02.
+      if (!chain || chain.length === 0) {
+        const host = t2.pickHost();
+        // Null means every host is at its cap. Surfaced so the SCHEDULER parks
+        // and retries, rather than an unbounded in-process queue nobody can see.
+        if (!host) throw new HostUnavailableError();
+        const result = await callHost(host, prompt, opts);
+        const route = recordOf(role, host, deps.hosts.indexOf(host), []);
+        deps.onRouted?.(route);
+        return { ...result, route };
+      }
+
+      // A chain. Each link is tried in order; only a PROVIDER error moves on.
+      const failed: RouteRecord['failedLinks'] = [];
+      let saturated = false;
+      for (let i = 0; i < chain.length; i++) {
+        const link = chain[i]!;
+        // Defence in depth: the chain was valid when it was saved, but a
+        // connection can be edited afterwards.
+        if (localOnly && !hostIsLocal(link.host)) {
+          throw new LocalOnlyViolationError(role, link.providerName);
+        }
+        if (!t2.hasCapacity(link.host)) {
+          saturated = true;
+          continue;
+        }
+        try {
+          const result = await callHost(link.host, prompt, opts);
+          const route = recordOf(role, link.host, i, failed, link.providerName);
+          deps.onRouted?.(route);
+          return { ...result, route };
+        } catch (err) {
+          if (!(err instanceof ProviderError)) throw err; // a bad answer is not a reason to switch models
+          failed.push({
+            providerName: link.providerName,
+            model: link.host.modelSlot,
+            error: err.message,
+          });
+        }
+      }
+      if (failed.length === 0 && saturated) throw new HostUnavailableError();
+      throw new Error(
+        `Every connection for role "${role}" failed: ` +
+          failed.map((f) => `${f.providerName} (${f.error})`).join('; '),
       );
     },
 

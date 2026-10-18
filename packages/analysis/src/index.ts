@@ -10,3 +10,4 @@ export * from './escalation/index.js';
 export * from './providers/registry.js';
 export * from './providers/vertex-auth.js';
 export * from './providers/probe.js';
+export * from './routing/index.js';
