@@ -164,6 +164,16 @@ describe.each(fixtures.filter(([, fx]) => fx.specialist !== null))(
         title: fx.planted!.title,
       });
       expect(calls[0]?.opts.meta.role).toBe(id);
+      // The pass record needs to know what each specialist cost and found (W19-09).
+      expect(run.usage[id]).toMatchObject({
+        calls: 1,
+        tokensIn: 1,
+        tokensOut: 1,
+        models: ['scripted'],
+        findings: 1,
+        rejected: 0,
+      });
+      expect(run.findings[0]).toMatchObject({ model: 'scripted', route: null });
       expect(calls[0]?.opts.meta.dimension).toBe(id);
       expect(run.failures).toEqual([]);
     });

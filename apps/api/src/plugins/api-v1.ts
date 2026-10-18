@@ -24,6 +24,7 @@ import reportsRoutes from '../routes/reports/index.js';
 import plansRoutes from '../routes/plans/index.js';
 import findingsRoutes from '../routes/findings/index.js';
 import patchRoutes from '../routes/patches/index.js';
+import aiPassRoutes from '../routes/ai-pass/index.js';
 import intentsRoutes from '../routes/intents/index.js';
 import analysisAdminRoutes from '../routes/admin/analysis/index.js';
 import llmProviderRoutes from '../routes/admin/llm-providers/index.js';
@@ -263,6 +264,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // Verified patches (W18-19, D16): drafted, re-scanned, handed to a person —
   // never written to the forge (D9a).
   await app.register(patchRoutes, { db: opts.db, redisUrl: opts.redisUrl });
+  await app.register(aiPassRoutes, { db: opts.db, redisUrl: opts.redisUrl });
   // Working agreements (W5-08).
   await app.register(agreementsRoutes, { db: opts.db });
   // Improvement plans (W5-06).

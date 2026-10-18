@@ -109,6 +109,9 @@ export type AuditEvent =
   // customer-supplied Claude Code CLI: who, when, which version.
   | 'llm_claude_cli.accepted'
   | 'llm_claude_cli.revoked'
+  // W19-09. An admin started an AI pass, and a person answered an AI suggestion.
+  | 'ai_pass.started'
+  | 'ai_verdict.decided'
   // W16-10. A manual run spends CPU on the host and, for a sync, forge budget
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.

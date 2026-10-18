@@ -97,6 +97,37 @@ describe('sliceAround', () => {
     expect(s.lines[2]).toBe('  return exec(cmd);');
   });
 
+  it('keeps real file line numbers when the source is only a window of the file', () => {
+    // The stored context (W18-32) is a few lines starting mid-file: line 40 onwards.
+    const window = ['const a = 1;', 'danger(userInput);', 'const b = 2;'].join('\n');
+    const s = sliceAround(window, 'a.ts', 41, 41, 5000, 25, 40);
+    expect(s.startLine).toBe(40);
+    expect(s.endLine).toBe(42);
+    expect(s.text).toContain('41| danger(userInput);');
+    expect(s.lines[1]).toBe('danger(userInput);');
+    // A citation is validated against the real numbering.
+    const ok = validateTriageAnswer(
+      {
+        verdict: 'real',
+        confidence: 4,
+        citations: [{ line: 41, quote: 'danger(userInput)' }],
+        rationale: 'r',
+      },
+      s,
+    );
+    expect(ok.ok && ok.answer.citations[0]).toEqual({
+      file: 'a.ts',
+      line: 41,
+      text: 'danger(userInput);',
+    });
+    expect(
+      validateTriageAnswer(
+        { verdict: 'real', confidence: 4, citations: [{ line: 1, quote: 'x' }], rationale: 'r' },
+        s,
+      ),
+    ).toMatchObject({ ok: false, reason: 'citation_not_found' });
+  });
+
   it('shrinks the context to fit a small budget but never drops the finding', () => {
     const long = Array.from({ length: 400 }, (_, i) => `const v${i} = ${i};`);
     long[199] = 'dangerous(userInput);';

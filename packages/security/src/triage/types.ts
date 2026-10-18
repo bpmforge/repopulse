@@ -50,6 +50,11 @@ export interface TriageCandidate {
   reachability: TriageReachability;
   /** The file at the scanned commit. Comes from the snapshot — never fetched live (Law 4). */
   source: string;
+  /**
+   * The file line number of the first line of `source`, when `source` is a
+   * window of the file (the stored context) and not the whole of it. Default 1.
+   */
+  sourceStartLine?: number;
   /** The price the finding was given; the sort key, taken rather than recomputed. */
   effectiveRisk: number;
 }

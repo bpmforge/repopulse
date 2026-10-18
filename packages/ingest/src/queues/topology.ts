@@ -27,6 +27,10 @@ export const QUEUE = {
   // re-scan of one file. Its own lane because a person is waiting on it, and a
   // weekly full scan on security.scan must not sit in front of them.
   patchDraft: 'patches.draft',
+  // W19-09. The AI pass: planned specialists, then evidence-fed triage, over one
+  // repository. Its own lane - a pass is many model calls and a person is
+  // watching its status, and it must not sit behind (or in front of) scans.
+  aiPass: 'ai.pass',
   // NOTE (W6-01): 'analysis.review' is NOT declared here yet, deliberately.
   // The wiring gate requires every declared queue to have a processor, and its
   // KNOWN_INERT list "may only ever shrink" — so declaring the queue a wave
@@ -54,6 +58,7 @@ export const QUEUE_PRIORITY: Record<string, number> = {
   // someone waiting.
   [QUEUE.securityScan]: 5,
   [QUEUE.patchDraft]: 2,
+  [QUEUE.aiPass]: 3,
 };
 
 const MIN = 60_000;
@@ -78,6 +83,9 @@ export const RETRY: Record<string, JobsOptions> = {
   // person asks again; an automatic retry would spend a second model call on
   // the same answer.
   [QUEUE.patchDraft]: { attempts: 1 },
+  // ONE attempt, for the same reason: the job records its own failure on the run
+  // row and a person asks again; a retry would repeat dozens of model calls.
+  [QUEUE.aiPass]: { attempts: 1 },
 };
 
 /** Full default job options for a queue: retry + priority + keep-failed. */

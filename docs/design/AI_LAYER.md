@@ -484,3 +484,79 @@ each connection reached by a name ("Reached by a host name, so it counts as leav
 your network... Use the machine's IP address") and `docs/DEPLOYMENT.md` §8 has the
 query to list them. To restore the old behaviour for such a machine, change its
 address to its IP.
+
+## W19-09 as built (2026-10-18): the AI layer in a real pass
+
+**Why it was split.** The coordinator's request - a scheduled/queued pass, an API route,
+persistence, and a findings UI - is two tickets. **W19-09** (this) is the pass, the
+persistence and the API. **W19-10** is the findings UI, which cannot be designed until
+the suggestion row shape and the read API settled here.
+
+**The pass** (`ai.pass` queue, one attempt; `workers/ai-pass-processor.ts`). Started by
+an admin (`POST /repos/{id}/ai-pass`) over **named paths** - files or directory
+prefixes, at most 50; there is deliberately no "everything". The worker snapshots the
+repository at its head commit (an archive, read only, deleted afterwards - C1a, D9a),
+reads the files in scope, and:
+
+1. runs `runSpecialists` (`planWaves` decides which specialists are relevant) through
+   the workspace's routing chain, with the context window taken from the smallest
+   probed window along each role's chain;
+2. stores what they raise as **ordinary findings** (their own dimension, no scanner or
+   rule, `tier 2`) under one `analysis_runs` row per specialist that raised any, plus
+   `ai_finding_provenance`: the specialist, checklist version, model and the full
+   **route record** of the call (which routing link served it, which failed first).
+   `persistFindings` is called **without `reviewedFiles`**, the only thing that makes it
+   auto-resolve other findings, so a pass cannot close anything;
+3. runs **triage** on open, rule-raised findings in scope that have the stored code
+   context (W18-32) and no earlier suggestion - top ten by effective risk - and stores
+   each as a **suggestion**: verdict, confidence, rationale, citations whose text is
+   *our* copy of the line, the proposed VEX justification, the model and route.
+   Triage uses the stored context, not a forge call, and the stored lines keep their
+   real file numbering (`sliceAround` takes the source's first line number).
+
+**Bounds, all enforced and all recorded.** 40 files / 400 KB / 50 paths per pass;
+30 gateway calls per pass, retries counted, with a third (at most twenty) held back for
+triage so a tight cap cannot starve it; 10 passes per workspace per day; one active
+pass per repository (a partial unique index). A scope over the limit is *refused with a
+sentence naming the limit*, never silently truncated - reviewing "the first forty files"
+would read as a clean pass.
+
+**Every failure lands on the run row, in words** (`reason_code` + `reason`): no model
+configured, no forge connection, no archive support, no head commit, no files matched,
+too large, and **local-only** - a routed role that would leave the network fails the pass
+with the gateway's sentence naming the role and the connection, and nothing is sent.
+A scope with nothing for any specialist and nothing to triage is `skipped:
+nothing_relevant`, not a success.
+
+**The tables** (migration 0044, all workspace-scoped): `ai_pass_runs` (the plan with
+reasons, per-specialist usage, the triage funnel, calls), `ai_finding_provenance`, and
+`ai_triage_verdicts`. The verdict row stores the **human's** answer beside the
+suggestion - `decision` accepted/dismissed, `decided_by`, `decided_at` - and `superseded`
+is reserved for the system. At most one undecided suggestion per finding.
+
+**What can never happen.** Nothing in the pass or the routes changes a finding's
+status, dismisses, resolves, suppresses, merges or writes to a repository. Accepting an
+AI "false positive" stores that on the suggestion; the finding is dismissed only when
+the same person uses the existing `PATCH /findings/{id}`, with a note. Tests assert the
+rule-raised finding is byte-for-byte unchanged after a pass, including after a
+likely-false-positive verdict that carries a VEX proposal. The pass never uses Tier-3;
+non-local providers are audited by the gateway as for any call.
+
+**Verified for real.** 32 DB-backed tests against the actual tables, including tenancy
+(another workspace's pass, finding and suggestion 404). And one run of the whole pass
+against the real LM Studio (qwen/qwen3.8-27b, `AI_PASS_LIVE_MODEL`, 12 minutes) over a
+one-file module with a call cap of 4: it ran security, code health and performance
+(one call each), raised a finding each from security and code health, **dropped
+test_coverage, best_practices and ai_slop for the cap and recorded that**, held one
+call back for triage, and triage returned `real` at confidence 5, citing line 3 with
+*our* copy of that line and the routing link that served it. The rule-raised finding
+was still `open` afterwards. One small module and one run: it shows the wiring works
+on a real model, not how good the answers are (that is the W19-05 table).
+
+**Not built.** *Diff mode* (a pull request's files from the warehouse): the pass reads
+a repository snapshot only. *Verified patches from triage:* the pass supplies no rule
+runners, so a patch a model offers is dropped and recorded as `not_attempted`; verified
+patches remain their own flow (Admin → Verified patches, W18-19). *Scheduling:* the pass
+is started by an admin; no cron starts one. *Dependency findings:* they have a
+reachability tier but no stored code context, so they are not triaged here. V5's
+dependency-CVE proposals were never persisted anywhere; they still are not.

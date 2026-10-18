@@ -37,6 +37,22 @@ export interface SpecialistRunDeps {
 export interface SpecialistFinding extends Finding {
   specialist: SpecialistId;
   checklistVersion: string;
+  /** The routing link that served the call that raised it (W19-09). */
+  route: RouteRecord | null;
+  /** The model that answered. */
+  model: string;
+}
+
+/** What one specialist cost and found, for the pass record (W19-09). */
+export interface SpecialistUsage {
+  calls: number;
+  chunks: number;
+  tokensIn: number;
+  tokensOut: number;
+  /** Models seen, in order of first use. */
+  models: string[];
+  findings: number;
+  rejected: number;
 }
 
 export interface SpecialistRunResult {
@@ -49,6 +65,8 @@ export interface SpecialistRunResult {
   skippedFiles: Map<SpecialistId, SkippedFile[]>;
   /** Specialists dropped for the call budget, so a short run is visible. */
   droppedForBudget: SpecialistId[];
+  /** Per specialist that ran: calls, chunks, tokens, models, findings. */
+  usage: Partial<Record<SpecialistId, SpecialistUsage>>;
   calls: number;
   routes: RouteRecord[];
 }
@@ -100,6 +118,7 @@ export async function runSpecialists(
     failures: [],
     skippedFiles: new Map(),
     droppedForBudget: [],
+    usage: {},
     calls: 0,
     routes: [],
   };
@@ -110,6 +129,15 @@ export async function runSpecialists(
       const budget: ChunkBudget = budgetForContext(deps.contextWindowFor?.(specialist.id) ?? null);
       const { chunks, skipped } = chunkDiff(files, specialist.dimension, budget);
       result.skippedFiles.set(specialist.id, skipped);
+      const usage: SpecialistUsage = {
+        calls: 0,
+        chunks: chunks.length,
+        tokensIn: 0,
+        tokensOut: 0,
+        models: [],
+        findings: 0,
+        rejected: 0,
+      };
 
       // All-or-nothing per specialist: half a specialist's chunks would be a
       // partial review presented as the specialist's verdict.
@@ -145,6 +173,10 @@ export async function runSpecialists(
             meta,
           });
           result.calls += 1;
+          usage.calls += 1;
+          usage.tokensIn += answer.tokensIn;
+          usage.tokensOut += answer.tokensOut;
+          if (!usage.models.includes(answer.model)) usage.models.push(answer.model);
           if (answer.route) result.routes.push(answer.route);
           try {
             const parsed = validateFindings(
@@ -159,10 +191,14 @@ export async function runSpecialists(
                 dimension: specialist.dimension,
                 specialist: specialist.id,
                 checklistVersion: specialist.checklistVersion,
+                route: answer.route ?? null,
+                model: answer.model,
               });
+              usage.findings += 1;
             }
             for (const r of parsed.rejected) {
               result.rejected.push({ specialist: specialist.id, reason: r.reason });
+              usage.rejected += 1;
             }
             lastError = '';
             break;
@@ -178,6 +214,7 @@ export async function runSpecialists(
           result.failures.push({ specialist: specialist.id, paths: chunk.paths, error: lastError });
         }
       }
+      result.usage[specialist.id] = usage;
     }
   }
   return result;

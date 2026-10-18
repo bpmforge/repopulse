@@ -20,6 +20,8 @@ import { reportProcessor } from './report-processor.js';
 import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
+import { aiPassProcessor } from './ai-pass-processor.js';
+import { snapshotSources } from './ai-pass-sources.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { createGatewayResolver, reportGatewayHealth } from './gateway.js';
@@ -881,6 +883,22 @@ async function main(): Promise<void> {
         db,
         gatewayFor: async (workspaceId) => (await gateways.for(workspaceId))?.gateway ?? null,
         forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+      }),
+      // W19-09. The AI pass: the planned specialists, then evidence-fed triage,
+      // through this workspace's routing chain. Reads an archive (D9a), writes
+      // findings and SUGGESTIONS, and cannot change a finding's status.
+      [QUEUE.aiPass]: aiPassProcessor({
+        db,
+        gatewayFor: async (workspaceId) => {
+          const built = await gateways.for(workspaceId);
+          return built
+            ? { gateway: built.gateway, hosts: built.hosts, ...(built.routing ? { routing: built.routing } : {}) }
+            : null;
+        },
+        loadSources: snapshotSources({
+          db,
+          forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+        }),
       }),
     },
     // Structured, so an aggregator can alert on it: this is the callback that

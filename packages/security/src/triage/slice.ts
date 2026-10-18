@@ -40,17 +40,25 @@ export function sliceAround(
   lineEnd: number,
   budgetTokens: number,
   radius: number = DEFAULT_RADIUS,
+  /**
+   * The file line number of the FIRST line of `source`. 1 for a whole file; the
+   * stored context window (W18-32) starts mid-file, and its lines must keep their
+   * real numbers so a citation is a real line of the real file.
+   */
+  firstLineNumber: number = 1,
 ): CodeSlice {
   const all = source.split('\n');
   if (all.at(-1) === '') all.pop();
-  const total = all.length;
-  const first = Math.min(Math.max(1, lineStart), Math.max(1, total));
-  const last = Math.min(Math.max(first, lineEnd), Math.max(1, total));
+  const offset = firstLineNumber - 1;
+  const lowest = firstLineNumber;
+  const highest = offset + all.length;
+  const first = Math.min(Math.max(lowest, lineStart), Math.max(lowest, highest));
+  const last = Math.min(Math.max(first, lineEnd), Math.max(lowest, highest));
 
   for (let r = radius; ; r = Math.floor(r / 2)) {
-    const start = Math.max(1, first - r);
-    const end = Math.min(total, last + r);
-    const lines = all.slice(start - 1, end);
+    const start = Math.max(lowest, first - r);
+    const end = Math.min(highest, last + r);
+    const lines = all.slice(start - 1 - offset, end - offset);
     const text = render(lines, start);
     if (estimateTokens(text) <= budgetTokens) {
       return { file, startLine: start, endLine: end, text, lines, truncated: false };
