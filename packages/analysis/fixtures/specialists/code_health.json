@@ -1,0 +1,15 @@
+{
+  "specialist": "code_health",
+  "kind": "diff",
+  "files": [
+    {
+      "path": "src/lib/load.ts",
+      "patch": "@@ -3,4 +3,8 @@ export function load(path) {\n+  try {\n+    return readConfig(path);\n+  } catch (e) {}\n+  return {};\n }"
+    }
+  ],
+  "planted": {
+    "quote": "} catch (e) {}",
+    "file": "src/lib/load.ts",
+    "title": "bpm-ch-empty-catch: config load swallows its failure"
+  }
+}

@@ -9,7 +9,13 @@ import type { LlmRole, RouteRecord } from '../routing/index.js';
 
 export type Tier = 'T2' | 'T3';
 
-export type Dimension = 'code_health' | 'security' | 'performance' | 'test_coverage';
+export type Dimension =
+  | 'code_health'
+  | 'security'
+  | 'performance'
+  | 'test_coverage'
+  | 'best_practices'
+  | 'ai_slop';
 
 export interface CompleteMeta {
   repoId: string;

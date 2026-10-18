@@ -1,0 +1,20 @@
+{
+  "specialist": "ai_slop",
+  "kind": "module",
+  "name": "billing",
+  "files": [
+    {
+      "path": "src/billing/refunds.ts",
+      "content": "// Step 1: validate the input\n// Step 2: look up the invoice\n// Step 3: issue the refund\nexport function issueRefund(invoiceId: string): void {\n  throw new Error('not implemented');\n}\n"
+    },
+    {
+      "path": "src/billing/index.ts",
+      "content": "import { issueRefund } from './refunds';\n\nexport const billing = { issueRefund };\n"
+    }
+  ],
+  "planted": {
+    "quote": "throw new Error('not implemented');",
+    "file": "src/billing/refunds.ts",
+    "title": "An exported refund function is a stub that callers treat as real"
+  }
+}

@@ -131,17 +131,20 @@ export async function hostsFromProviders(
             )
           : undefined;
 
+      const resolved = await resolveProviderAsync({
+        id: row.id,
+        name: row.name,
+        kind: row.kind as LlmProviderKind,
+        baseUrl: row.baseUrl,
+        model: row.model,
+        ...(apiKey ? { apiKey } : {}),
+        ...(row.headers ? { headers: row.headers } : {}),
+        allowPublicHost: row.allowPublicHost,
+      });
+      // Recorded by the capability probe (W19-01); sizes chunks (W19-03).
+      const probedWindow = (row.capabilities as { contextWindow?: unknown } | null)?.contextWindow;
       hosts.push(
-        await resolveProviderAsync({
-          id: row.id,
-          name: row.name,
-          kind: row.kind as LlmProviderKind,
-          baseUrl: row.baseUrl,
-          model: row.model,
-          ...(apiKey ? { apiKey } : {}),
-          ...(row.headers ? { headers: row.headers } : {}),
-          allowPublicHost: row.allowPublicHost,
-        }),
+        typeof probedWindow === 'number' ? { ...resolved, contextWindow: probedWindow } : resolved,
       );
     } catch (err) {
       skipped.push({ name: row.name, reason: err instanceof Error ? err.message : String(err) });

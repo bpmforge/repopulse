@@ -1,0 +1,15 @@
+{
+  "specialist": "performance",
+  "kind": "diff",
+  "files": [
+    {
+      "path": "src/jobs/sync.ts",
+      "patch": "@@ -1,5 +1,9 @@\n export async function syncAll(orders) {\n+  for (const order of orders) {\n+    const customer = await db.query('SELECT * FROM customers WHERE id = $1', [order.customerId]);\n+    await notify(customer);\n+  }\n }"
+    }
+  ],
+  "planted": {
+    "quote": "const customer = await db.query('SELECT * FROM customers WHERE id = $1', [order.customerId]);",
+    "file": "src/jobs/sync.ts",
+    "title": "A query per order inside a loop"
+  }
+}

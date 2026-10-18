@@ -47,6 +47,8 @@ export interface T2Host {
   baseUrl: string;
   /** The connection's label, for sentences that name it (W19-02). */
   name?: string | undefined;
+  /** Context window recorded by the capability probe (W19-01); undefined = never probed or unpublished. */
+  contextWindow?: number | undefined;
   modelSlot: string;
   /**
    * Credential and extra headers for a hosted provider (W16-06). Absent for a

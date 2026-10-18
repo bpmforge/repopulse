@@ -1,0 +1,15 @@
+{
+  "specialist": "test_coverage",
+  "kind": "diff",
+  "files": [
+    {
+      "path": "src/auth/guard.ts",
+      "patch": "@@ -20,5 +20,9 @@ export function canAccess(user, resource) {\n-  return user.role === 'admin';\n+  if (user.role === 'admin') return true;\n+  if (resource.ownerId === user.id && !user.suspended) return true;\n+  return resource.public === true && user.verified;\n }"
+    }
+  ],
+  "planted": {
+    "quote": "if (resource.ownerId === user.id && !user.suspended) return true;",
+    "file": "src/auth/guard.ts",
+    "title": "Access rules changed with no test change in the diff"
+  }
+}
