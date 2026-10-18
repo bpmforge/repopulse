@@ -1,0 +1,56 @@
+{
+  "role": "ai_slop",
+  "cases": [
+    {
+      "id": "slop-stub-export",
+      "kind": "module",
+      "name": "slop-stub-export",
+      "files": [
+        {
+          "path": "src/billing/refunds.ts",
+          "content": "// Step 1: validate the input\n// Step 2: look up the invoice\n// Step 3: issue the refund\nexport function issueRefund(invoiceId: string): void {\n  throw new Error('not implemented');\n}\n"
+        },
+        {
+          "path": "src/billing/index.ts",
+          "content": "import { issueRefund } from './refunds';\n\nexport const billing = { issueRefund };\n"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/billing/refunds.ts",
+          "quote": "throw new Error('not implemented');"
+        }
+      ],
+      "note": "An exported refund function is a stub."
+    },
+    {
+      "id": "slop-silent-fallback",
+      "kind": "file",
+      "path": "src/search/index.ts",
+      "content": "export async function search(q: string) {\n  try {\n    return await vectorSearch(q);\n  } catch {\n    return bruteForceSearch(q);\n  }\n}\n",
+      "labels": [
+        {
+          "file": "src/search/index.ts",
+          "quote": "return bruteForceSearch(q);"
+        }
+      ],
+      "note": "A fallback that returns the right answer and hides a dead fast path."
+    },
+    {
+      "id": "slop-clean-why-comment",
+      "kind": "file",
+      "path": "src/net/retry.ts",
+      "content": "// Jitter avoids synchronised retries after a shared outage.\nexport function backoff(attempt: number): number {\n  return 200 * 2 ** attempt + Math.random() * 100;\n}\n",
+      "labels": [],
+      "note": "A comment that says why, not what."
+    },
+    {
+      "id": "slop-clean-two-impls",
+      "kind": "file",
+      "path": "src/store/index.ts",
+      "content": "export interface Store {\n  get(key: string): Promise<string | null>;\n  set(key: string, value: string): Promise<void>;\n}\n\nexport class MemoryStore implements Store {\n  private m = new Map<string, string>();\n  async get(k: string) { return this.m.get(k) ?? null; }\n  async set(k: string, v: string) { this.m.set(k, v); }\n}\n\nexport class RedisStore implements Store {\n  constructor(private client: RedisClient) {}\n  async get(k: string) { return this.client.get(k); }\n  async set(k: string, v: string) { await this.client.set(k, v); }\n}\n",
+      "labels": [],
+      "note": "An interface with two real implementations."
+    }
+  ]
+}

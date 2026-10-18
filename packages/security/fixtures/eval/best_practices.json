@@ -1,0 +1,51 @@
+{
+  "role": "best_practices",
+  "cases": [
+    {
+      "id": "bp-validate-mutates",
+      "kind": "file",
+      "path": "src/users/service.ts",
+      "content": "import { db } from '../db';\n\nexport function validateEmail(user) {\n  user.email = user.email.trim().toLowerCase();\n  console.log('validated', user.email);\n  return user;\n}\n\nexport async function getUser(id: string) {\n  return db.users.findById(id);\n}\n",
+      "labels": [
+        {
+          "file": "src/users/service.ts",
+          "quote": "export function validateEmail(user) {"
+        }
+      ],
+      "note": "validateEmail mutates and validates nothing."
+    },
+    {
+      "id": "bp-breaking-signature",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/users/get.ts",
+          "patch": "@@ -1,4 +1,4 @@\n-export function getUser(id: string) {\n-  return db.users.findById(id);\n+export function getUser(opts: { id: string; includeDeleted?: boolean }) {\n+  return db.users.findById(opts.id, opts.includeDeleted);\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/users/get.ts",
+          "quote": "export function getUser(opts: { id: string; includeDeleted?: boolean }) {"
+        }
+      ],
+      "note": "Exported signature changed with no caller updated."
+    },
+    {
+      "id": "bp-clean-consistent",
+      "kind": "file",
+      "path": "src/users/repo.ts",
+      "content": "import { db } from '../db';\n\nconst PAGE_SIZE = 50;\n\nexport async function listUsers(page: number) {\n  return db.users.find({ limit: PAGE_SIZE, offset: page * PAGE_SIZE });\n}\n\nexport async function getUser(id: string) {\n  return db.users.findById(id);\n}\n",
+      "labels": [],
+      "note": "Consistent naming; the page size is a named constant."
+    },
+    {
+      "id": "bp-clean-timeout",
+      "kind": "file",
+      "path": "src/net/client.ts",
+      "content": "const TIMEOUT_MS = 5_000;\n\nexport async function get(url: string) {\n  const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });\n  if (!res.ok) throw new Error(`GET ${url}: ${res.status}`);\n  return res.json();\n}\n",
+      "labels": [],
+      "note": "Every request has a timeout and checks the status."
+    }
+  ]
+}

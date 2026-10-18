@@ -1,0 +1,63 @@
+{
+  "role": "performance",
+  "cases": [
+    {
+      "id": "perf-n-plus-one",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/jobs/sync.ts",
+          "patch": "@@ -1,5 +1,9 @@\n export async function syncAll(orders) {\n+  for (const order of orders) {\n+    const customer = await db.query('SELECT * FROM customers WHERE id = $1', [order.customerId]);\n+    await notify(customer);\n+  }\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/jobs/sync.ts",
+          "quote": "const customer = await db.query('SELECT * FROM customers WHERE id = $1', [order.customerId]);"
+        }
+      ],
+      "note": "A query per order inside a loop."
+    },
+    {
+      "id": "perf-sync-io-handler",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/routes/config.ts",
+          "patch": "@@ -3,4 +3,5 @@ export function register(app) {\n   app.get('/config', (req, res) => {\n-    res.json(cached);\n+    const raw = fs.readFileSync('/etc/app/config.json', 'utf8');\n+    res.json(JSON.parse(raw));\n   });\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/routes/config.ts",
+          "quote": "fs.readFileSync('/etc/app/config.json', 'utf8')"
+        }
+      ],
+      "note": "Blocking file read on every request."
+    },
+    {
+      "id": "perf-clean-batched",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/jobs/sync.ts",
+          "patch": "@@ -1,5 +1,7 @@\n export async function syncAll(orders) {\n+  const ids = orders.map((o) => o.customerId);\n+  const customers = await db.query('SELECT * FROM customers WHERE id = ANY($1)', [ids]);\n+  await Promise.all(customers.map(notify));\n }"
+        }
+      ],
+      "labels": [],
+      "note": "One batched query then parallel notify."
+    },
+    {
+      "id": "perf-clean-small-constant",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/ui/menu.ts",
+          "patch": "@@ -1,4 +1,6 @@\n const ITEMS = ['home', 'about', 'contact'];\n+export function labels() {\n+  return ITEMS.map((i) => i.toUpperCase());\n+}"
+        }
+      ],
+      "labels": [],
+      "note": "A map over a three-element constant."
+    }
+  ]
+}

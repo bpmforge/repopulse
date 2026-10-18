@@ -10032,9 +10032,10 @@
                 "Results are deterministic where the provider allows it and the run reports provider errors loudly instead of scoring them; full gate green"
           ],
           "points": 5,
-          "status": "todo",
+          "status": "done",
           "notes": [
-                "See docs/design/AI_LAYER.md (2026-10-17)."
+                "See docs/design/AI_LAYER.md (2026-10-17).",
+      "Built 2026-10-18: packages/security/src/eval (24 labelled cases, precision/recall per role, provider errors reported and withheld from scoring), GET /admin/model-eval and the Admin -> Models table, docs/MODEL_EVAL.md. First row: qwen/qwen3.8-27b on LM Studio (labels unreviewed by a person). OWASP/Juliet slices not part of these runs; one model measured."
           ]
     },
     {

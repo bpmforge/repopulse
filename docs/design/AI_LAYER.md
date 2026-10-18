@@ -251,3 +251,49 @@ table has no place for it; V5's proposals attach to dependency vulnerabilities).
 Those are the next step. The benchmark corpus (`fixtures/benchmark`) grades
 *detection*, so it has no scanner-hit-with-truth cases; the triage cases are
 authored for this ticket.
+
+## W19-05 as built (2026-10-18)
+
+**Harness** (`packages/security/src/eval`): each specialist is run over labelled
+fixtures (`packages/security/fixtures/eval/<role>.json`: four cases per role,
+two with a planted defect and two clean) for a chosen provider and model, and
+scored for **precision** and **recall** per role. A finding matches a planted
+defect when it is on the same file and its evidence quote covers the planted
+quote; one finding satisfies at most one label (a repeat is a duplicate, neither
+right nor wrong). Triage agreement (W19-04) is run in the same pass. The
+specialist is forced to run on every case, so the planner's relevance decision
+cannot hide a defect from the model being measured.
+
+**Provider errors are reported, not scored.** A case that throws is recorded
+with the provider's own words, the role is marked *incomplete*, its precision
+and recall are withheld, and the CLI exits 1. A dropped connection is never
+published as a model that found nothing. A model that answers but never in the
+required format (after the one retry) *is* scored — as nothing found — and
+counted separately as a format failure, because that is a property of the model.
+
+**Published table.** `docs/MODEL_EVAL.md` renders from the committed results
+(`results.generated.ts`); a test fails if they disagree. The same results are
+served by `GET /admin/model-eval`, joined to this workspace's configured models
+(workspace-scoped), and shown in Admin → Models: precision/recall per role, the
+engine and date of the run, "not yet run" for any unmeasured cell, a configured
+model with no result listed as not yet run, and "incomplete" for a run that hit
+provider errors.
+
+**Determinism.** Temperature is fixed at 0.1 by the Tier-2 client. The CLI can
+send a `--seed`, recorded on the row as *requested*; a server may ignore it (the
+page says so). Cases are assigned to concurrency groups by index and run in a
+fixed order, so the same cases produce the same prompts regardless of
+concurrency (tested). Sampling itself is the provider's.
+
+**First measurement** (qwen/qwen3.8-27b on LM Studio, 54 minutes, no provider
+errors): recall 100% on every role; precision 100% for security, code health and
+best practices, 67% for performance, test coverage and AI slop (one false
+positive each, on a clean case); triage 12/12. The fixtures are small and written
+by the same AI assistant that built the ticket, **their labels have not been
+reviewed by a person**, so this is an indicative floor and not an accuracy
+estimate.
+
+**Not run / not built.** The OWASP Benchmark and Juliet slices in
+`fixtures/benchmark` grade scanner *detection*, need a fetched corpus, and are
+not part of these runs (the ticket named them; this is the gap). Only one model
+has been measured. Nothing runs the evaluation on a schedule.

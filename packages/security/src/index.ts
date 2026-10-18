@@ -87,3 +87,4 @@ export * from './scanners/dependency/malicious.js';
 export * from './registers/spdx.js';
 export * from './registers/attribution.js';
 export * from './triage/index.js';
+export * from './eval/index.js';
