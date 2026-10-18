@@ -87,3 +87,44 @@ Stored on the connection (`llm_providers.capabilities`, `probed_at`, migration
 `probe: true` is refused (422, one sentence each) only for what makes a pass
 impossible — no streaming, or a context window under 8192 tokens; missing JSON
 mode or tool use is recorded, not fatal.
+
+## W19-02 as built (2026-10-18)
+
+**Roles** (the names in `ATTEST_EXPERTS.md`): `security`, `performance`,
+`code_health`, `best_practices`, `ai_slop`, `test_coverage`, `triage`, `patch`.
+A pass is routed by `meta.role` when it names one, otherwise by its
+`dimension`; anything else uses the shared pool.
+
+**Storage** (migration 0040, both tables workspace-scoped): `llm_role_routes`
+(one row per link, ordered by `position`, optional per-link model override,
+cascade on connection delete) and `llm_routing_policy` (`local_only`).
+`GET/PUT /admin/llm-routing` (admin, audited as `llm_routing.updated`) replaces
+the whole configuration in one transaction; Admin → Models shows it as a
+"Routing" section. Changes reach the worker within the gateway cache TTL
+(about a minute), no restart.
+
+**Fallback.** Along a chain only on a `ProviderError` (unreachable, refused,
+non-2xx, timeout). A model that answers badly — empty, reasoning-exhausted — is
+never retried on another model. Every call records which link served it
+(`CompleteResult.route`: role, connection, model, link index, and the links that
+failed first with their errors). If every link fails the error names the role
+and each failure. A routed role whose connections are all disabled or deleted
+refuses by name rather than quietly using the shared pool.
+
+**Local-only.** "Leaves the container" means what the egress audit already means
+by leaving the network (`isLocalHost`: loopback, RFC1918, `*.local`,
+`*.internal`) — one definition, so a call is audited exactly when local-only
+would have refused it. Enforced at save time (422 naming the role and the
+connection) and again at call time. With it on, roles without a chain use only
+local connections, and Tier-3 is refused with a `denied` audit row. With it off
+(the default) nothing about Tier-3, the opt-in, the audit row or the monthly
+budget changes; tests pin that.
+
+**Verified against the real LM Studio** (qwen/qwen3.8-27b): a chain whose first
+link is a dead port falls back to LM Studio and records the failed link; a
+local-only chain naming a hosted connection is refused before any request; an
+unrouted role under local-only is served by LM Studio.
+
+**Not built:** per-role budgets (the monthly Tier-3 budget is unchanged), and
+persisting `route` on findings — it is returned and passed to `onRouted`; the
+egress audit's `modelId` already identifies the model for non-local calls.

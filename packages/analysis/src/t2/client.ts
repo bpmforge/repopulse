@@ -31,8 +31,22 @@ export function normalizeHost(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
+/**
+ * The PROVIDER failed — unreachable, refused, rate-limited, 5xx, bad key
+ * (W19-02). The only error a routing chain may fall back on: a model that
+ * answered badly is not a provider error and is never retried elsewhere.
+ */
+export class ProviderError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'ProviderError';
+  }
+}
+
 export interface T2Host {
   baseUrl: string;
+  /** The connection's label, for sentences that name it (W19-02). */
+  name?: string | undefined;
   modelSlot: string;
   /**
    * Credential and extra headers for a hosted provider (W16-06). Absent for a
@@ -294,7 +308,17 @@ export class T2Client {
     return candidates[0]?.host ?? null;
   }
 
-  private async chat(host: T2Host, prompt: string, maxTokens: number, timeoutMs?: number): Promise<ChatResponse> {
+  /** True when this host is under the concurrency cap (used by routing chains). */
+  hasCapacity(host: T2Host): boolean {
+    return (this.inFlight.get(host.baseUrl) ?? 0) < this.config.concurrencyCap;
+  }
+
+  private async chat(
+    host: T2Host,
+    prompt: string,
+    maxTokens: number,
+    timeoutMs?: number,
+  ): Promise<ChatResponse> {
     const controller = new AbortController();
     // The reason travels with the abort, so the scan_run says "the model did
     // not finish in 20 minutes" rather than the bare "This operation was
@@ -351,7 +375,9 @@ export class T2Client {
         // The body carries the provider's own reason, which the crash matcher
         // needs — a bare status code would lose it. Named generically since
         // W16-06: this client now speaks to any OpenAI-compatible endpoint.
-        throw new Error(`Model host responded ${res.status}: ${(await res.text()).slice(0, 300)}`);
+        throw new ProviderError(
+          `Model host responded ${res.status}: ${(await res.text()).slice(0, 300)}`,
+        );
       }
       // BOTH SHAPES, on purpose. A provider that ignores `stream: true` answers
       // with an ordinary JSON body, and breaking on that would trade one
@@ -378,7 +404,7 @@ export class T2Client {
     try {
       return await this.fetchImpl(url, init);
     } catch (error) {
-      throw new Error(describeTransportError(error), { cause: error });
+      throw new ProviderError(describeTransportError(error), { cause: error });
     }
   }
 
@@ -411,12 +437,7 @@ export class T2Client {
           // 45000 ALWAYS, whatever the caller asked for. The cap is a property
           // of the tier (C2/NFR-8), not a per-call preference — enforcing it
           // here is the whole reason callers may not reach LM Studio directly.
-          const body = await this.chat(
-            host,
-            prompt,
-            T2_MAX_TOKENS,
-            this.config.requestTimeoutMs,
-          );
+          const body = await this.chat(host, prompt, T2_MAX_TOKENS, this.config.requestTimeoutMs);
           this.warm.add(host.baseUrl);
           // A model that thought and never concluded is a FAILURE with a name,
           // not an empty answer (W16-38). Thrown rather than returned empty,

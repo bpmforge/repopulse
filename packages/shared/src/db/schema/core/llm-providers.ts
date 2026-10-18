@@ -154,3 +154,65 @@ export const llmProviders = pgTable(
     ),
   ],
 );
+
+// Per-role model routing (W19-02).
+//
+// A workspace maps each ROLE to an ordered chain of (connection, model). One
+// row per link, ordered by `position`; the gateway falls back along the chain
+// on provider errors only. Role names are the ones in
+// docs/design/ATTEST_EXPERTS.md. Keep this list equal to LLM_ROLES in
+// packages/analysis/src/routing (a test in apps/api asserts they match — the
+// shared package cannot import the analysis package).
+export const LLM_ROLES = [
+  'security',
+  'performance',
+  'code_health',
+  'best_practices',
+  'ai_slop',
+  'test_coverage',
+  'triage',
+  'patch',
+] as const;
+
+export const llmRoleRoutes = pgTable(
+  'llm_role_routes',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    role: text('role').notNull(),
+    /** 0 is the first choice. */
+    position: integer('position').notNull(),
+    // CASCADE: a deleted connection leaves the chain, it does not leave a
+    // dangling link that fails on the next scheduled pass.
+    providerId: bigint('provider_id', { mode: 'number' })
+      .notNull()
+      .references(() => llmProviders.id, { onDelete: 'cascade' }),
+    /** Overrides the connection's own model for this role. NULL = use it. */
+    model: text('model'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('llm_role_routes_workspace_id_idx').on(t.workspaceId),
+    unique('llm_role_routes_workspace_role_position_key').on(t.workspaceId, t.role, t.position),
+    check(
+      'llm_role_routes_role_check',
+      sql.raw(`role in (${LLM_ROLES.map((r) => `'${r}'`).join(', ')})`),
+    ),
+    check('llm_role_routes_position_check', sql.raw('position >= 0')),
+  ],
+);
+
+/** One row per workspace; absent means the defaults (local-only off). */
+export const llmRoutingPolicy = pgTable('llm_routing_policy', {
+  workspaceId: bigint('workspace_id', { mode: 'number' })
+    .primaryKey()
+    .references(() => workspaces.id),
+  /** Refuse any role whose chain would leave the operator's network. */
+  localOnly: boolean('local_only').notNull().default(false),
+  updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, {
+    onDelete: 'set null',
+  }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

@@ -289,6 +289,7 @@ export function resolveProvider(config: ProviderConfig): T2Host {
     baseUrl,
     modelSlot: config.model.trim(),
     providerId: config.id,
+    name: config.name,
     ...(spec.chatPath ? { chatUrl: `${baseUrl.replace(/\/+$/, '')}${spec.chatPath}` } : {}),
     ...(config.apiKey || config.headers ? { auth } : {}),
   };

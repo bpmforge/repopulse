@@ -9945,9 +9945,10 @@
                 "Settings are workspace-scoped, tenancy tests stay green, full gate green"
           ],
           "points": 5,
-          "status": "todo",
+          "status": "done",
           "notes": [
-                "See docs/design/AI_LAYER.md (2026-10-17)."
+                "See docs/design/AI_LAYER.md (2026-10-17).",
+      "Built 2026-10-18: role->chain routing (migration 0040), provider-error-only fallback with the serving link recorded, local-only enforced at save and call time (refuses Tier-3 too), Admin -> Models Routing section. Verified against real LM Studio. Per-role budgets and persisting the route on findings not built (docs/design/AI_LAYER.md)."
           ]
     },
     {
