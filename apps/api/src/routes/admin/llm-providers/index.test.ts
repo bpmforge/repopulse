@@ -162,9 +162,83 @@ describeIfLiveInfra('admin LLM providers (W16-07)', () => {
   });
 
   it('names the auth mechanism an unsupported kind needs', async () => {
-    const res = await create({ name: 'Vertex', kind: 'vertex', model: 'gemini-2.0' });
+    const res = await create({ name: 'Copilot', kind: 'copilot', model: 'gpt-4.1' });
     expect(res.statusCode).toBe(400);
-    expect(res.json().detail).toMatch(/service account/i);
+    expect(res.json().detail).toMatch(/OAuth device flow/i);
+  });
+
+  it('Vertex without a service-account key is refused at creation with a sentence (W19-01)', async () => {
+    const res = await create({
+      name: 'Vertex',
+      kind: 'vertex',
+      base_url:
+        'https://us-central1-aiplatform.googleapis.com/v1/projects/p/locations/us-central1/endpoints/openapi',
+      model: 'google/gemini-2.5-flash',
+      allow_public_host: true,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().detail).toMatch(/service-account key/i);
+  });
+
+  it('serves the local-server presets with the kinds (W19-01)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/admin/llm-providers/kinds' });
+    const ids = (res.json().presets as { id: string }[]).map((p) => p.id);
+    expect(ids).toEqual(['lmstudio', 'ollama', 'mlx', 'unsloth', 'vllm', 'litellm']);
+    expect((res.json().kinds as { kind: string }[]).map((k) => k.kind)).toContain('gemini');
+  });
+
+  describe('capability probe (W19-01)', () => {
+    const lan = {
+      name: 'Probed',
+      kind: 'openai_compatible',
+      base_url: 'http://10.0.0.5:1234/v1',
+      model: 'm',
+    };
+    const sse = () =>
+      new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n', {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    const chat = (b: Record<string, unknown>) =>
+      new Response(JSON.stringify(b), { headers: { 'content-type': 'application/json' } });
+
+    it('stores what the probe found on the connection and lists it', async () => {
+      fetchImpl.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/v0/models/')) return chat({ loaded_context_length: 32768 });
+        const body = init?.body ? JSON.parse(String(init.body)) : {};
+        if (body.stream) return sse();
+        if (body.tools)
+          return chat({ choices: [{ message: { content: '', tool_calls: [{ id: '1' }] } }] });
+        return chat({ choices: [{ message: { content: '{"ok":true}' } }] });
+      });
+      const res = await create({ ...lan, probe: true });
+      expect(res.statusCode).toBe(201);
+      expect(res.json().capabilities).toMatchObject({
+        contextWindow: 32768,
+        streaming: 'yes',
+        jsonMode: 'yes',
+        toolUse: 'yes',
+      });
+      const list = await app.inject({ method: 'GET', url: '/admin/llm-providers' });
+      const item = list.json().items[0];
+      expect(item.capabilities.contextWindow).toBe(32768);
+      expect(item.probed_at).toBeTruthy();
+      expect(JSON.stringify(list.json())).not.toMatch(/api_key|credential_ciphertext/);
+    });
+
+    it('refuses a server that cannot stream, at configuration time, with a sentence', async () => {
+      fetchImpl.mockImplementation(async () => chat({ choices: [{ message: { content: 'ok' } }] }));
+      const res = await create({ ...lan, probe: true });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().detail).toMatch(/does not stream/);
+      const list = await app.inject({ method: 'GET', url: '/admin/llm-providers' });
+      expect(list.json().items).toHaveLength(0);
+    });
+
+    it('does not contact the endpoint at all unless asked to probe', async () => {
+      const res = await create(lan);
+      expect(res.statusCode).toBe(201);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
   });
 
   it('rejects a duplicate name rather than making the picker ambiguous', async () => {
@@ -394,7 +468,7 @@ describeIfLiveInfra('the gateway reads configured providers (W16-08)', () => {
     expect(skipped[0]?.reason).toMatch(/needs an API key/i);
   });
 
-  it('never reaches another workspace\'s providers — Law 5', async () => {
+  it("never reaches another workspace's providers — Law 5", async () => {
     // The bug this pins: the first version selected every enabled row with no
     // workspace filter, so on any install with more than one workspace (the
     // seed alone creates two) it would decrypt ONE TENANT'S API KEY and use

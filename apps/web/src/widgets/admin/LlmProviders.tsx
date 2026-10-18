@@ -36,6 +36,27 @@ interface ProviderRow {
   headers: Record<string, string> | null;
   allow_public_host: boolean;
   enabled: boolean;
+  capabilities: Capabilities | null;
+  probed_at: string | null;
+}
+
+// W19-01: what the probe found. 'unknown' is shown as unknown, never as 'no'.
+type Tri = 'yes' | 'no' | 'unknown';
+interface Capabilities {
+  contextWindow: number | null;
+  streaming: Tri;
+  jsonMode: Tri;
+  toolUse: Tri;
+  notes: string[];
+  probedAt: string;
+}
+
+interface Preset {
+  id: string;
+  label: string;
+  kind: string;
+  baseUrl: string;
+  note: string;
 }
 
 interface KindSpec {
@@ -56,12 +77,56 @@ interface TestResult {
   latency_ms?: number;
   model?: string;
   sample?: string;
+  capabilities?: Capabilities;
+  problems?: string[];
+}
+
+const TRI_MARK: Record<Tri, string> = { yes: '✓', no: '✗', unknown: '?' };
+
+/** One line per capability, with the words next to the mark so colour is not the only signal. */
+function CapabilityList({ c }: { c: Capabilities }) {
+  return (
+    <div data-testid="capabilities">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        <li>
+          Context window:{' '}
+          <strong>
+            {c.contextWindow === null ? 'not published' : `${c.contextWindow} tokens`}
+          </strong>
+        </li>
+        <li>
+          Streaming:{' '}
+          <strong>
+            {TRI_MARK[c.streaming]} {c.streaming}
+          </strong>
+        </li>
+        <li>
+          JSON mode:{' '}
+          <strong>
+            {TRI_MARK[c.jsonMode]} {c.jsonMode}
+          </strong>
+        </li>
+        <li>
+          Tool use:{' '}
+          <strong>
+            {TRI_MARK[c.toolUse]} {c.toolUse}
+          </strong>
+        </li>
+      </ul>
+      {c.notes.map((n) => (
+        <p key={n} className="mt-1 text-fg-muted">
+          {n}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 export function LlmProviders() {
   const list = useApiQuery<{ items: ProviderRow[] }>(LIST);
-  const kindsQuery = useApiQuery<{ kinds: KindSpec[] }>(KINDS);
+  const kindsQuery = useApiQuery<{ kinds: KindSpec[]; presets?: Preset[] }>(KINDS);
   const kinds = kindsQuery.data?.kinds ?? [];
+  const presets = (kindsQuery.data as { presets?: Preset[] } | undefined)?.presets ?? [];
 
   const [kind, setKind] = useState('openai_compatible');
   const [name, setName] = useState('');
@@ -98,6 +163,9 @@ export function LlmProviders() {
       model,
       api_key: apiKey || null,
       allow_public_host: allowPublic,
+      // Ask the server to check the model can run a pass, and refuse it with a
+      // sentence now if it cannot (W19-01).
+      probe: true,
     };
   }
 
@@ -129,6 +197,31 @@ export function LlmProviders() {
             });
           }}
         >
+          {presets.length > 0 ? (
+            <div
+              className="flex flex-wrap items-center gap-2 text-xs"
+              data-testid="provider-presets"
+            >
+              <span className="text-fg-muted">Start from:</span>
+              {presets.map((pr) => (
+                <button
+                  key={pr.id}
+                  type="button"
+                  data-testid={`preset-${pr.id}`}
+                  title={pr.note}
+                  onClick={() => {
+                    setKind(pr.kind);
+                    setBaseUrl(pr.baseUrl);
+                    if (name === '') setName(pr.label);
+                  }}
+                  className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-fg"
+                >
+                  {pr.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs text-fg-muted">
               Name
@@ -207,7 +300,7 @@ export function LlmProviders() {
             </label>
 
             <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              API key
+              {kind === 'vertex' ? 'Service-account key (JSON)' : 'API key'}
               <input
                 data-testid="provider-api-key"
                 type="password"
@@ -217,7 +310,9 @@ export function LlmProviders() {
                 className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
               />
               <span className="text-fg-faint">
-                Encrypted at rest and never shown again. A model on your own network needs none.
+                {kind === 'vertex'
+                  ? 'Paste the whole key file. Encrypted at rest and never shown again; only a short-lived access token is sent to Google.'
+                  : 'Encrypted at rest and never shown again. A model on your own network needs none.'}
               </span>
             </label>
           </div>
@@ -294,6 +389,20 @@ export function LlmProviders() {
                   <span className="font-mono">{result.detail}</span>
                 </>
               )}
+              {result.capabilities ? (
+                <div className="mt-2">
+                  <CapabilityList c={result.capabilities} />
+                  {(result.problems ?? []).map((pr) => (
+                    <p
+                      key={pr}
+                      className="mt-1 font-semibold text-crit"
+                      data-testid="capability-problem"
+                    >
+                      {pr}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </form>
@@ -317,6 +426,7 @@ export function LlmProviders() {
               <th scope="col">Name</th>
               <th scope="col">Endpoint</th>
               <th scope="col">Model</th>
+              <th scope="col">Capabilities</th>
               <th scope="col">Key</th>
               <th scope="col">Off-network</th>
               <th scope="col" />
@@ -332,6 +442,13 @@ export function LlmProviders() {
                 <td>{p.name}</td>
                 <td className="font-mono text-xs">{p.base_url ?? '—'}</td>
                 <td className="font-mono text-xs">{p.model}</td>
+                <td className="text-xs" data-testid={`provider-capabilities-${p.id}`}>
+                  {p.capabilities ? (
+                    <CapabilityList c={p.capabilities} />
+                  ) : (
+                    <span className="text-fg-faint">not probed</span>
+                  )}
+                </td>
                 {/* A fingerprint, never the key. */}
                 <td className="font-mono text-xs">{p.credential ?? 'none'}</td>
                 <td>{p.allow_public_host ? '⚠ yes' : 'no'}</td>
@@ -343,7 +460,7 @@ export function LlmProviders() {
                       setResult(null);
                       // By id: the key lives in the vault and the browser has
                       // never had it.
-                      test.mutate({ id: p.id }, { onSuccess: (r) => setResult(r) });
+                      test.mutate({ id: p.id, probe: true }, { onSuccess: (r) => setResult(r) });
                     }}
                     className="mr-2 underline"
                   >

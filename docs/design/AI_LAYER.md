@@ -45,3 +45,45 @@ W19-01 and W19-02 first (they unlock customers connecting anything), then W19-04
 
 - The specialist agents are the attest experts (`~/Code/attest`, v3.13 lineage); W19-03 is rebased on the attest roster once docs/design/ATTEST_EXPERTS.md is written.
 - The Max-plan option is built now, as W19-08, behind an accept-responsibility switch (off by default, audited). The project has not verified the consumer plans' terms; the switch makes the responsibility explicit and API keys stay the supported route.
+
+## W19-01 as built (2026-10-17)
+
+**Kinds.** `gemini` rides Google's OpenAI-compatible endpoint
+(`generativelanguage.googleapis.com/v1beta/openai`) with an ordinary AI Studio
+key; `vertex` takes the project/region OpenAI endpoint URL and a Google
+**service-account key** (JSON) as its credential. Both need a `chatPath`
+because their chat URL is not `<origin>/v1/chat/completions`
+(`T2Host.chatUrl`). Both are public hosts, so the per-row `allow_public_host`
+opt-in (SC-24) still applies.
+
+**Vertex auth.** The stored service-account JSON signs an RS256 JWT
+(`node:crypto`, no dependency), Google's token endpoint returns an access token
+(cached in memory until a minute before expiry), and only that token reaches the
+model endpoint. The JSON is encrypted at rest like any other credential; a token
+URI that is not Google's is refused. Not verified against a real Google project
+(none available here) — covered by unit tests with a generated key and a faked
+token endpoint.
+
+**Not built: Gemini's native `generateContent` wire format.** The compatible
+endpoint is Google's first-party surface and carries everything the gateway uses
+(chat, streaming, JSON mode, tools). A native adapter would add a second
+request/response shape for no capability the passes need; it can be added behind
+the same `kind` if a feature appears that only the native API has.
+
+**Presets** (a URL and a note, not an integration): LM Studio `:1234`, Ollama
+`:11434`, MLX `mlx_lm.server` `:8080`, Unsloth `:8888`, vLLM `:8000`, LiteLLM
+`:4000`. Ports are the servers' usual defaults, shown as a starting point the
+person edits; only LM Studio was run and verified here.
+
+**Capability probe** (`probeCapabilities`): context window (read from the
+server's own model metadata — LM Studio `/api/v0/models/{id}`, vLLM
+`max_model_len`, Ollama `/api/show`, LiteLLM `max_input_tokens` — never
+guessed), streaming, JSON mode (`json_object`, then `json_schema`), tool use.
+Each is `yes` / `no` / `unknown`; `unknown` is never collapsed into `no`. Probes
+run **sequentially**: against a real LM Studio, four requests arriving together
+while the model loaded came back as HTTP 500s that read as "unsupported".
+Stored on the connection (`llm_providers.capabilities`, `probed_at`, migration
+0039), returned by the list route, shown in Admin → Models. Creating with
+`probe: true` is refused (422, one sentence each) only for what makes a pass
+impossible — no streaming, or a context window under 8192 tokens; missing JSON
+mode or tool use is recorded, not fatal.

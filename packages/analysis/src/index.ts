@@ -8,3 +8,5 @@ export * from './config/hosts.js';
 export * from './t3/client.js';
 export * from './escalation/index.js';
 export * from './providers/registry.js';
+export * from './providers/vertex-auth.js';
+export * from './providers/probe.js';

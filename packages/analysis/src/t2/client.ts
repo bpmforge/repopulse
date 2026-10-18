@@ -41,6 +41,16 @@ export interface T2Host {
   auth?: HostAuth | undefined;
   /** The provider row this host came from, for the egress audit. */
   providerId?: number | undefined;
+  /**
+   * Full chat-completions URL, for the vendors whose OpenAI-compatible surface
+   * does not live at `<origin>/v1/chat/completions` (Gemini, Vertex — W19-01).
+   * Absent for everything else, which keeps the derived `/v1` path.
+   */
+  chatUrl?: string | undefined;
+}
+
+export function chatCompletionsUrl(host: T2Host): string {
+  return host.chatUrl ?? `${normalizeHost(host.baseUrl)}/v1/chat/completions`;
 }
 
 export interface T2Config {
@@ -302,7 +312,7 @@ export class T2Client {
         )
       : undefined;
     try {
-      const res = await this.fetchWithCause(`${normalizeHost(host.baseUrl)}/v1/chat/completions`, {
+      const res = await this.fetchWithCause(chatCompletionsUrl(host), {
         method: 'POST',
         // SC-24: credential-free unless a stored provider row carries a key.
         // Nothing user-supplied at call time can introduce a header — that,

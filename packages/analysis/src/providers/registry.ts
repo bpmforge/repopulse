@@ -1,5 +1,6 @@
 import { validateHostUrl, type HostAuth } from '../config/hosts.js';
 import type { T2Host } from '../t2/client.js';
+import { mintAccessToken, ServiceAccountError, type TokenDeps } from './vertex-auth.js';
 
 // Provider registry (W16-06, D-LLM-1).
 //
@@ -20,7 +21,13 @@ import type { T2Host } from '../t2/client.js';
 // than at call time inside a scheduled pass nobody is watching.
 
 export type LlmProviderKind =
-  'openai_compatible' | 'anthropic' | 'vertex' | 'bedrock' | 'copilot' | 'openai_subscription';
+  | 'openai_compatible'
+  | 'anthropic'
+  | 'gemini'
+  | 'vertex'
+  | 'bedrock'
+  | 'copilot'
+  | 'openai_subscription';
 
 export type AuthClass = 'api_key' | 'none' | 'cloud_credentials' | 'oauth_device';
 
@@ -40,7 +47,73 @@ export interface ProviderSpec {
   unsupportedReason?: string;
   /** Examples, purely to make the form's Base URL field self-explanatory. */
   examples?: string[];
+  /**
+   * Path appended to the base URL for chat completions, for vendors whose
+   * OpenAI-compatible surface is not at `/v1/chat/completions` (W19-01). When
+   * set, the base URL is used verbatim, with no `/v1` normalisation.
+   */
+  chatPath?: string;
 }
+
+/** A one-click starting point for a local or self-hosted server (W19-01). */
+export interface ProviderPreset {
+  id: string;
+  label: string;
+  kind: LlmProviderKind;
+  baseUrl: string;
+  /** What the person must still do, in a sentence. */
+  note: string;
+}
+
+/**
+ * Starting points, not guarantees: the port is the server's usual default and
+ * the person edits it if theirs differs. Every one of these is the same
+ * adapter, which is the point — a preset is a URL, not an integration.
+ */
+export const PROVIDER_PRESETS: readonly ProviderPreset[] = Object.freeze([
+  {
+    id: 'lmstudio',
+    label: 'LM Studio',
+    kind: 'openai_compatible',
+    baseUrl: 'http://localhost:1234/v1',
+    note: 'Start the local server in LM Studio (or `lms server start`) and load a model.',
+  },
+  {
+    id: 'ollama',
+    label: 'Ollama',
+    kind: 'openai_compatible',
+    baseUrl: 'http://localhost:11434/v1',
+    note: 'Run `ollama serve`; the model id is the tag you pulled, e.g. `llama3.1:8b`.',
+  },
+  {
+    id: 'mlx',
+    label: 'MLX server (mlx_lm.server)',
+    kind: 'openai_compatible',
+    baseUrl: 'http://localhost:8080/v1',
+    note: 'Run `mlx_lm.server --model <repo>`; the model id is the repo or path you passed.',
+  },
+  {
+    id: 'unsloth',
+    label: 'Unsloth (Studio / llama.cpp server)',
+    kind: 'openai_compatible',
+    baseUrl: 'http://localhost:8888/v1',
+    note: 'Unsloth serves an OpenAI-compatible API; check the port it printed on start.',
+  },
+  {
+    id: 'vllm',
+    label: 'vLLM',
+    kind: 'openai_compatible',
+    baseUrl: 'http://localhost:8000/v1',
+    note: 'Run `vllm serve <model>`; the model id is the name you served.',
+  },
+  {
+    id: 'litellm',
+    label: 'LiteLLM proxy',
+    kind: 'openai_compatible',
+    baseUrl: 'http://localhost:4000/v1',
+    note: 'Use a virtual key as the API key; the model id is a model_name from your LiteLLM config.',
+  },
+]);
 
 export const PROVIDER_REGISTRY: Readonly<Record<LlmProviderKind, ProviderSpec>> = Object.freeze({
   openai_compatible: {
@@ -69,14 +142,30 @@ export const PROVIDER_REGISTRY: Readonly<Record<LlmProviderKind, ProviderSpec>> 
     defaultBaseUrl: 'https://api.anthropic.com',
     supported: true,
   },
+  gemini: {
+    kind: 'gemini',
+    label: 'Google Gemini (API key)',
+    authClass: 'api_key',
+    needsBaseUrl: false,
+    // Google's own first-party OpenAI-compatible surface, so the key is the
+    // ordinary bearer key from AI Studio. No local default: it is a hosted API.
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    chatPath: '/chat/completions',
+    supported: true,
+    examples: ['model id: gemini-2.5-flash'],
+  },
   vertex: {
     kind: 'vertex',
-    label: 'Google Vertex AI',
+    label: 'Google Vertex AI (service account)',
     authClass: 'cloud_credentials',
-    needsBaseUrl: false,
-    supported: false,
-    unsupportedReason:
-      'Vertex authenticates with a Google service account rather than an API key. Support is W16-09.',
+    needsBaseUrl: true,
+    chatPath: '/chat/completions',
+    supported: true,
+    // The region and project are in the URL, so there is no single default.
+    examples: [
+      'https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/endpoints/openapi',
+      'model id: google/gemini-2.5-flash',
+    ],
   },
   bedrock: {
     kind: 'bedrock',
@@ -200,6 +289,7 @@ export function resolveProvider(config: ProviderConfig): T2Host {
     baseUrl,
     modelSlot: config.model.trim(),
     providerId: config.id,
+    ...(spec.chatPath ? { chatUrl: `${baseUrl.replace(/\/+$/, '')}${spec.chatPath}` } : {}),
     ...(config.apiKey || config.headers ? { auth } : {}),
   };
 }
@@ -212,4 +302,35 @@ function isRemote(raw: string): boolean {
   } catch {
     return true;
   }
+}
+
+/**
+ * `resolveProvider` for callers that can await (W19-01).
+ *
+ * Vertex stores a service-account key, not a bearer token, so the host cannot
+ * be built until Google has exchanged one for the other. Every other kind goes
+ * straight through to the synchronous resolver.
+ */
+export async function resolveProviderAsync(
+  config: ProviderConfig,
+  deps: TokenDeps = {},
+): Promise<T2Host> {
+  if (config.kind !== 'vertex') return resolveProvider(config);
+  if (!config.apiKey) {
+    throw new ProviderConfigError(
+      config.name,
+      'Vertex needs a Google service-account key (the JSON file) as its credential',
+    );
+  }
+  let token: string;
+  try {
+    token = await mintAccessToken(config.apiKey, deps);
+  } catch (err) {
+    if (err instanceof ServiceAccountError) throw new ProviderConfigError(config.name, err.message);
+    throw new ProviderConfigError(
+      config.name,
+      `could not reach Google to authenticate: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return resolveProvider({ ...config, apiKey: token });
 }

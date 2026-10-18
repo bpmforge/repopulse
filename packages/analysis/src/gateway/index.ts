@@ -203,5 +203,5 @@ export {
   type EgressOutcome,
   type EgressWriter,
 } from './egress-auditor.js';
-export { T2Client, T2_DEFAULTS, T2_MAX_TOKENS } from '../t2/client.js';
+export { T2Client, T2_DEFAULTS, T2_MAX_TOKENS, chatCompletionsUrl } from '../t2/client.js';
 export type { T2Config, T2Host } from '../t2/client.js';
