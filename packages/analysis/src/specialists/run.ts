@@ -30,6 +30,8 @@ export interface SpecialistRunDeps {
   prBody?: string | null;
   meta: { repoId: string; prNumber: number; initiator: string };
   only?: readonly SpecialistId[];
+  /** Run `only` specialists regardless of relevance (evaluations). */
+  force?: boolean;
 }
 
 export interface SpecialistFinding extends Finding {
@@ -88,7 +90,7 @@ export async function runSpecialists(
   const files = toDiffFiles(input);
   const plan = planWaves(
     files.map((f) => ({ path: f.path, text: f.patch })),
-    deps.only ? { only: deps.only } : {},
+    deps.only ? { only: deps.only, ...(deps.force ? { force: true } : {}) } : {},
   );
 
   const result: SpecialistRunResult = {

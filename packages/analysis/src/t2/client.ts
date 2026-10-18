@@ -47,6 +47,8 @@ export interface T2Host {
   baseUrl: string;
   /** The connection's label, for sentences that name it (W19-02). */
   name?: string | undefined;
+  /** Sampling seed sent with every request when set (W19-05 evals); providers may ignore it. */
+  seed?: number | undefined;
   /** Context window recorded by the capability probe (W19-01); undefined = never probed or unpublished. */
   contextWindow?: number | undefined;
   modelSlot: string;
@@ -349,6 +351,7 @@ export class T2Client {
           messages: [{ role: 'user', content: prompt }],
           max_tokens: maxTokens,
           temperature: 0.1,
+          ...(host.seed !== undefined ? { seed: host.seed } : {}),
           // STREAMED, and not for latency (W16-39).
           //
           // Non-streaming, the endpoint sends no response headers until the

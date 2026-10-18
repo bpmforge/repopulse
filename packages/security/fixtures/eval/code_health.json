@@ -1,0 +1,63 @@
+{
+  "role": "code_health",
+  "cases": [
+    {
+      "id": "ch-empty-catch",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/lib/load.ts",
+          "patch": "@@ -3,4 +3,8 @@ export function load(path) {\n+  try {\n+    return readConfig(path);\n+  } catch (e) {}\n+  return {};\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/lib/load.ts",
+          "quote": "} catch (e) {}"
+        }
+      ],
+      "note": "Swallowed failure returning an empty config."
+    },
+    {
+      "id": "ch-serial-awaits",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/api/profile.ts",
+          "patch": "@@ -1,5 +1,8 @@\n export async function profile(id: string) {\n+  const user = await fetchUser(id);\n+  const orders = await fetchOrders(id);\n+  const prefs = await fetchPrefs(id);\n+  return { user, orders, prefs };\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/api/profile.ts",
+          "quote": "const orders = await fetchOrders(id);"
+        }
+      ],
+      "note": "Three independent awaits in sequence."
+    },
+    {
+      "id": "ch-clean-tidy",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/lib/slug.ts",
+          "patch": "@@ -1,3 +1,6 @@\n+export function slug(title: string): string {\n+  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');\n+}"
+        }
+      ],
+      "labels": [],
+      "note": "A small, clear pure function."
+    },
+    {
+      "id": "ch-clean-rethrow",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/lib/load.ts",
+          "patch": "@@ -3,4 +3,8 @@ export function load(path) {\n+  try {\n+    return readConfig(path);\n+  } catch (e) {\n+    throw new Error(`cannot load ${path}`, { cause: e });\n+  }\n }"
+        }
+      ],
+      "labels": [],
+      "note": "The catch adds context and rethrows."
+    }
+  ]
+}

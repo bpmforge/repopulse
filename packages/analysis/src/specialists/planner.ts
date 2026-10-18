@@ -52,8 +52,14 @@ export interface Plan {
 }
 
 export interface PlanOptions {
-  /** Restrict to these specialists (still subject to relevance). */
+  /** Restrict to these specialists (still subject to relevance unless `force`). */
   only?: readonly SpecialistId[];
+  /**
+   * Run the `only` specialists whether or not the change looks relevant to
+   * them (W19-05). For evaluating a specialist's judgement, which must not be
+   * confounded with the planner's decision — the planner has its own tests.
+   */
+  force?: boolean;
 }
 
 export function planWaves(files: readonly PlanFile[], options: PlanOptions = {}): Plan {
@@ -109,7 +115,7 @@ export function planWaves(files: readonly PlanFile[], options: PlanOptions = {})
       skipped.push({ id: specialist.id, reason: 'not requested' });
       continue;
     }
-    const reason = relevance(specialist.id);
+    const reason = options.force ? 'forced' : relevance(specialist.id);
     if (reason === null) {
       skipped.push({ id: specialist.id, reason: unmet(specialist.id) });
       continue;

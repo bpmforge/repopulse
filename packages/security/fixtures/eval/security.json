@@ -1,0 +1,63 @@
+{
+  "role": "security",
+  "cases": [
+    {
+      "id": "sec-cmd-injection",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/routes/convert.ts",
+          "patch": "@@ -3,4 +3,6 @@ export function register(app) {\n   app.get('/convert', (req, res) => {\n-    run('convert', ['a.png']);\n+    exec('convert ' + req.query.file + ' out.png', cb);\n+    res.sendStatus(200);\n   });\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/routes/convert.ts",
+          "quote": "exec('convert ' + req.query.file + ' out.png', cb);"
+        }
+      ],
+      "note": "Shell command built from a request parameter."
+    },
+    {
+      "id": "sec-md5-passwords",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/auth/hash.ts",
+          "patch": "@@ -1,5 +1,6 @@\n import crypto from 'crypto';\n \n export function hashPassword(pw: string) {\n-  return bcrypt.hashSync(pw, 12);\n+  return crypto.createHash('md5').update(pw).digest('hex');\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/auth/hash.ts",
+          "quote": "crypto.createHash('md5').update(pw).digest('hex')"
+        }
+      ],
+      "note": "Passwords hashed with unsalted MD5."
+    },
+    {
+      "id": "sec-clean-parameterised",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/routes/orders.ts",
+          "patch": "@@ -5,4 +5,5 @@ export function register(app) {\n   app.get('/orders/:id', async (req, res) => {\n-    const rows = await db.query('SELECT * FROM orders');\n+    const rows = await db.query('SELECT * FROM orders WHERE id = $1', [req.params.id]);\n     res.json(rows);\n   });"
+        }
+      ],
+      "labels": [],
+      "note": "Parameterised query; nothing to report."
+    },
+    {
+      "id": "sec-clean-constant-exec",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/build/version.ts",
+          "patch": "@@ -1,4 +1,5 @@\n import { execSync } from 'child_process';\n \n export function gitSha() {\n+  return execSync('git rev-parse HEAD').toString().trim();\n }"
+        }
+      ],
+      "labels": [],
+      "note": "A constant command string."
+    }
+  ]
+}

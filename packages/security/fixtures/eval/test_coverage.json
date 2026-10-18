@@ -1,0 +1,67 @@
+{
+  "role": "test_coverage",
+  "cases": [
+    {
+      "id": "tc-auth-branching",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/auth/guard.ts",
+          "patch": "@@ -20,5 +20,9 @@ export function canAccess(user, resource) {\n-  return user.role === 'admin';\n+  if (user.role === 'admin') return true;\n+  if (resource.ownerId === user.id && !user.suspended) return true;\n+  return resource.public === true && user.verified;\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/auth/guard.ts",
+          "quote": "if (resource.ownerId === user.id && !user.suspended) return true;"
+        }
+      ],
+      "note": "Access rules changed with no test in the diff."
+    },
+    {
+      "id": "tc-parsing",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/lib/money.ts",
+          "patch": "@@ -1,4 +1,8 @@\n export function parseAmount(s: string): number {\n-  return Number(s);\n+  const cleaned = s.replace(/[$,\\s]/g, '');\n+  if (cleaned.endsWith('%')) return Number(cleaned.slice(0, -1)) / 100;\n+  return Math.round(Number(cleaned) * 100) / 100;\n }"
+        }
+      ],
+      "labels": [
+        {
+          "file": "src/lib/money.ts",
+          "quote": "if (cleaned.endsWith('%')) return Number(cleaned.slice(0, -1)) / 100;"
+        }
+      ],
+      "note": "Money parsing changed with no test in the diff."
+    },
+    {
+      "id": "tc-clean-with-test",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/lib/slug.ts",
+          "patch": "@@ -1,3 +1,6 @@\n+export function slug(t: string) {\n+  return t.trim().toLowerCase().replace(/\\s+/g, '-');\n+}"
+        },
+        {
+          "path": "src/lib/slug.test.ts",
+          "patch": "@@ -0,0 +1,6 @@\n+import { slug } from './slug';\n+it('lowercases and hyphenates', () => {\n+  expect(slug('  Hello World ')).toBe('hello-world');\n+});"
+        }
+      ],
+      "labels": [],
+      "note": "The behaviour and its test are in the same diff."
+    },
+    {
+      "id": "tc-clean-rename",
+      "kind": "diff",
+      "files": [
+        {
+          "path": "src/lib/total.ts",
+          "patch": "@@ -1,4 +1,4 @@\n export function total(items) {\n-  let t = 0;\n-  for (const i of items) t += i.price;\n-  return t;\n+  let sum = 0;\n+  for (const item of items) sum += item.price;\n+  return sum;\n }"
+        }
+      ],
+      "labels": [],
+      "note": "A pure rename of local variables."
+    }
+  ]
+}
