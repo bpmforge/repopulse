@@ -9973,7 +9973,7 @@
                 "Golden fixtures per specialist, with chunking bounded to the model's probed context window, full gate green"
           ],
           "points": 8,
-          "status": "todo",
+          "status": "in_progress",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17)."
           ]

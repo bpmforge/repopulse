@@ -1,0 +1,11 @@
+{
+  "specialist": "best_practices",
+  "kind": "file",
+  "path": "src/users/service.ts",
+  "content": "import { db } from '../db';\n\nexport function validateEmail(user) {\n  user.email = user.email.trim().toLowerCase();\n  console.log('validated', user.email);\n  return user;\n}\n\nexport async function getUser(id: string) {\n  return db.users.findById(id);\n}\n",
+  "planted": {
+    "quote": "export function validateEmail(user) {",
+    "file": "src/users/service.ts",
+    "title": "validateEmail mutates its argument and validates nothing"
+  }
+}

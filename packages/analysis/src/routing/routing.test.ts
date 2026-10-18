@@ -6,6 +6,7 @@ import type { T2Host } from '../t2/client.js';
 import {
   LLM_ROLES,
   LocalOnlyViolationError,
+  contextWindowForRole,
   defaultPool,
   localOnlyViolations,
   roleForDimension,
@@ -289,5 +290,24 @@ describe('Tier-3 and the egress audit behave as before when local-only is off (W
     // The bytes went to the cloud host whether or not it answered: attempt + failed.
     expect(rows.map((x) => x.outcome)).toEqual(['attempted', 'failed']);
     expect(rows[0]?.destinationHost).toBe('api.example-llm.com');
+  });
+});
+
+describe('contextWindowForRole (W19-03)', () => {
+  const w = (h: T2Host, contextWindow?: number): T2Host => ({ ...h, contextWindow });
+  it('takes the smallest known window along the chain, because any link can serve a call', () => {
+    const policy = {
+      localOnly: false,
+      chains: { security: [link(w(lan(1), 262144)), link(w(lan(2), 16384)), link(lan(3))] },
+    };
+    expect(contextWindowForRole(policy, 'security', [])).toBe(16384);
+  });
+  it('is null when nothing is known, so callers keep the default budget', () => {
+    expect(contextWindowForRole({ localOnly: false, chains: {} }, 'patch', [lan(1)])).toBeNull();
+  });
+  it('uses the shared pool for an unrouted role, minus non-local hosts under local-only', () => {
+    const pool = [w(cloud, 4096), w(lan(1), 32768)];
+    expect(contextWindowForRole({ localOnly: false, chains: {} }, 'triage', pool)).toBe(4096);
+    expect(contextWindowForRole({ localOnly: true, chains: {} }, 'triage', pool)).toBe(32768);
   });
 });

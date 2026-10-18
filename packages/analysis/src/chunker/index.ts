@@ -89,11 +89,69 @@ export function splitHunks(patch: string): string[] {
   return hunks;
 }
 
-function fits(promptTokens: number): boolean {
-  return (
-    promptTokens <= PROMPT_BUDGET_TOKENS &&
-    projectedOutputTokens(promptTokens) <= OUTPUT_BUDGET_TOKENS
+/** What one chunk may cost (W19-03). The defaults are the Tier-2 constants above. */
+export interface ChunkBudget {
+  promptTokens: number;
+  outputTokens: number;
+}
+
+export const DEFAULT_CHUNK_BUDGET: ChunkBudget = {
+  promptTokens: PROMPT_BUDGET_TOKENS,
+  outputTokens: OUTPUT_BUDGET_TOKENS,
+};
+
+/**
+ * Chunk budget for a model whose context window was PROBED (W19-01/W19-03).
+ *
+ * `null` or unknown keeps the defaults: an unknown window is not a small one,
+ * and shrinking every chunk on a guess would waste calls. A known window
+ * bounds the chunk so that chunk text + the fixed prompt overhead (checklist,
+ * PR context, required JSON — reserved at 3000 tokens) + the projected output
+ * all fit inside it, never exceeding the defaults.
+ */
+export function budgetForContext(contextWindow: number | null | undefined): ChunkBudget {
+  if (contextWindow === null || contextWindow === undefined || contextWindow <= 0) {
+    return DEFAULT_CHUNK_BUDGET;
+  }
+  const outputTokens = Math.min(OUTPUT_BUDGET_TOKENS, Math.floor(contextWindow * 0.25));
+  const promptTokens = Math.max(
+    500,
+    Math.min(PROMPT_BUDGET_TOKENS, contextWindow - outputTokens - 3000),
   );
+  return { promptTokens, outputTokens };
+}
+
+function fits(promptTokens: number, budget: ChunkBudget): boolean {
+  return (
+    promptTokens <= budget.promptTokens &&
+    Math.round(0.35 * promptTokens + 800) <= Math.max(budget.outputTokens, 800)
+  );
+}
+
+/**
+ * A single hunk larger than the budget has no hunk boundary to split at. It is
+ * cut at line boundaries, each piece keeping the original `@@` header so a
+ * reader (and the evidence check) still sees where it came from. Rare, and
+ * degraded on purpose: the alternative is a chunk the model cannot answer.
+ */
+function splitOversizedHunk(hunk: string, budget: ChunkBudget, headerTokens: number): string[] {
+  const lines = hunk.split('\n');
+  const head = lines[0] ?? '';
+  const out: string[] = [];
+  let cur: string[] = [head];
+  let tokens = headerTokens + estimateTokens(head);
+  for (const line of lines.slice(1)) {
+    const t = estimateTokens(line) + 1;
+    if (cur.length > 1 && !fits(tokens + t, budget)) {
+      out.push(cur.join('\n'));
+      cur = [head];
+      tokens = headerTokens + estimateTokens(head);
+    }
+    cur.push(line);
+    tokens += t;
+  }
+  if (cur.length > 1) out.push(cur.join('\n'));
+  return out;
 }
 
 /**
@@ -104,7 +162,11 @@ function fits(promptTokens: number): boolean {
  * small remainder. Packing before splitting would pair a small file with a
  * fragment and blur which finding came from where.
  */
-export function chunkDiff(files: readonly DiffFile[], _dimension: Dimension): ChunkResult {
+export function chunkDiff(
+  files: readonly DiffFile[],
+  _dimension: Dimension,
+  budget: ChunkBudget = DEFAULT_CHUNK_BUDGET,
+): ChunkResult {
   const skipped: SkippedFile[] = [];
   const reviewable: { path: string; patch: string }[] = [];
 
@@ -112,7 +174,8 @@ export function chunkDiff(files: readonly DiffFile[], _dimension: Dimension): Ch
     if (file.binary) skipped.push({ path: file.path, reason: 'binary' });
     else if (file.patchTruncated) skipped.push({ path: file.path, reason: 'patch_truncated' });
     else if (isGenerated(file.path)) skipped.push({ path: file.path, reason: 'generated' });
-    else if (!file.patch || file.patch.trim() === '') skipped.push({ path: file.path, reason: 'no_patch' });
+    else if (!file.patch || file.patch.trim() === '')
+      skipped.push({ path: file.path, reason: 'no_patch' });
     else reviewable.push({ path: file.path, patch: file.patch });
   }
 
@@ -122,19 +185,24 @@ export function chunkDiff(files: readonly DiffFile[], _dimension: Dimension): Ch
   for (const file of reviewable) {
     const header = `--- ${file.path}\n`;
     const tokens = estimateTokens(header + file.patch);
-    if (fits(tokens)) {
+    if (fits(tokens, budget)) {
       packable.push({ path: file.path, patch: file.patch, tokens });
       continue;
     }
 
     // Oversized: split at hunk boundaries, never mid-hunk.
-    const hunks = splitHunks(file.patch);
+    const headerTokens = estimateTokens(header);
+    const hunks = splitHunks(file.patch).flatMap((h) =>
+      fits(headerTokens + estimateTokens(h), budget)
+        ? [h]
+        : splitOversizedHunk(h, budget, headerTokens),
+    );
     const groups: string[][] = [];
     let group: string[] = [];
     let groupTokens = estimateTokens(header);
     for (const hunk of hunks) {
       const hunkTokens = estimateTokens(hunk);
-      if (group.length > 0 && !fits(groupTokens + hunkTokens)) {
+      if (group.length > 0 && !fits(groupTokens + hunkTokens, budget)) {
         groups.push(group);
         group = [];
         groupTokens = estimateTokens(header);
@@ -174,7 +242,7 @@ export function chunkDiff(files: readonly DiffFile[], _dimension: Dimension): Ch
     batchTokens = 0;
   };
   for (const file of packable) {
-    if (batch.length > 0 && !fits(batchTokens + file.tokens)) flush();
+    if (batch.length > 0 && !fits(batchTokens + file.tokens, budget)) flush();
     batch.push({ path: file.path, patch: file.patch });
     batchTokens += file.tokens;
   }
