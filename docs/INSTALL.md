@@ -354,6 +354,94 @@ in the test suite. GitLab deliveries are tested against GitLab's documented
 headers but have **not** been received from a live GitLab. On any forge the
 nightly reconcile still repairs whatever a missed delivery left behind.
 
+## Connect a model (optional)
+
+Open **Admin → Models → Set up a model**. It asks four things and says, at each
+step, what leaves your network:
+
+1. **Where does your model run?** On this machine or your network (nothing
+   leaves your network); through a gateway you run (the gateway, and wherever it
+   forwards, receives your diffs, pull-request descriptions and file paths); or
+   a vendor's API with your own key (the vendor receives them, and every request
+   is recorded in the egress audit).
+2. **Connect and test it.** *Test connection* makes a real request and also
+   probes the model: its context window, whether it streams, supports JSON mode
+   and tool use. A model that cannot stream, or whose context window is under
+   8192 tokens, is refused with a sentence rather than failing later inside a
+   scheduled pass.
+3. **Which kinds of analysis should use it?** It becomes the first choice for the
+   roles you tick; what was already set up stays behind it as a fallback.
+4. **What leaves your network, role by role.** A table per role: stays home, or
+   leaves (and to which host). Tier-3 (the Claude API) is a separate per-repository
+   opt-in and is always audited; the **Local only** switch in the Routing section
+   blocks anything that would leave.
+
+The full forms below the wizard stay available for editing, reordering a
+role's fallbacks and removing connections. The *Quality per model* table shows
+how each model did on labelled test cases, and says *not yet run* for any model
+nobody has measured.
+
+### Worked example 1: LM Studio on the same network
+
+**Verified end to end** on 2026-10-18 by driving the wizard in a real browser
+against a real LM Studio (qwen/qwen3.8-27b): the test, the probe, the save, the
+role assignment and the review all passed (`e2e/models-lm-studio.spec.ts`, which
+you can run yourself with `E2E_LM_STUDIO=1 E2E_LM_STUDIO_MODEL=<id>`).
+
+1. In LM Studio, load a model and start the local server (in LM Studio's Developer
+   tab, or `lms server start`, which is what was used for the check above). Note the model's exact id: `lms ls`, or
+   `curl http://<machine>:1234/v1/models`. Prefer an **instruct or coder** model;
+   a reasoning model works but each call takes tens of seconds to minutes.
+2. In RepoPulse choose **On this machine or my network**, then the **LM Studio**
+   preset (`http://localhost:1234/v1`).
+3. **Use the machine's IP address, not `localhost`, if RepoPulse runs in a
+   container** - inside a container `localhost` is the container itself. Write
+   `http://192.168.1.50:1234/v1` with your machine's address. Host names are not
+   accepted for a model on your network; only IP addresses are.
+4. Type the model id exactly as LM Studio names it and press **Test connection**.
+   Expect *Reached it.* and a capabilities line (context window, streaming,
+   JSON mode, tool use). LM Studio rejects the plain `json_object` format and
+   accepts `json_schema`; the probe knows and reports JSON mode as working.
+5. **Save and continue**, tick the roles, **Save and review**. Each ticked role
+   reads *Stays home.* Nothing was sent anywhere but your LM Studio.
+
+### Worked example 2: a hosted API key (Gemini)
+
+**Not verified with a real key.** No Gemini key was available when this was
+written. What *was* checked: the request path is exercised by tests against a
+faked endpoint, a Gemini connection with no base URL saves (a bug in exactly
+this was found and fixed while writing this section), and the wizard refuses
+to save a hosted connection until you confirm what will be sent. The first real
+request will tell you the rest, and it will tell you plainly: *Test connection*
+shows the vendor's own error text.
+
+1. Create an API key in Google AI Studio.
+2. In RepoPulse choose **A vendor's API, with my key**, then **Google Gemini
+   (API key)**. There is no address to enter. Type a model id such as
+   `gemini-2.5-flash` and paste the key (encrypted at rest, never shown again).
+3. Tick *I understand diffs, pull-request descriptions and file paths will be
+   sent to this vendor* - the **Save** button stays disabled until you do. This
+   is a data-egress decision, so it is recorded with your name.
+4. **Test connection**, then save and choose roles. The review table will say
+   *Leaves* for those roles and name `generativelanguage.googleapis.com`; every
+   request is recorded in **Admin → Analysis** (the egress audit). Hosted calls
+   cost money on your account.
+
+Other vendors (Anthropic, an OpenAI-compatible service, Vertex with a
+service-account key, Bedrock) follow the same shape; Vertex takes its whole JSON
+key file in the key field. Subscription logins (a Claude or ChatGPT plan) are
+not an API key and are not part of this path.
+
+### If it does not connect
+
+- *not a private-range LAN address* - you gave a host name. Use the IP address.
+- *Invalid model identifier* / HTTP 400 - the model id is not exactly what the
+  server names. List it with `lms ls` or `/v1/models`.
+- *Could not connect* with `ECONNREFUSED` - nothing is listening there: the
+  server is not started, or `localhost` is the container (see step 3).
+- *This server does not stream responses* - pick a model or server that
+  supports `stream: true`; every analysis call is streamed.
+
 ## Scan data
 
 Security and code scanning run in a container with **no network at all**. That

@@ -169,6 +169,13 @@ describe('step 2: connect and test', () => {
     await userEvent.click(screen.getByTestId('wizard-next-0'));
   }
 
+  it('tells a local user to use an IP address (and that localhost is the container), but not a hosted one', async () => {
+    await toConnect('local');
+    expect(await screen.findByTestId('wizard-address-hint')).toHaveTextContent(
+      /IP address.*host names are not accepted.*container itself/s,
+    );
+  });
+
   it('local: a preset fills the address and the test sends the probe request', async () => {
     await toConnect('local');
     await userEvent.click(await screen.findByTestId('wizard-preset-lmstudio'));

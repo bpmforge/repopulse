@@ -349,3 +349,45 @@ existing lifecycle (shadow, evidence, an admin's decision). Nothing in the path
 can store any other status or touch an existing rule (tested: the store handed
 to it can only insert). *Gap:* triage verdicts are not persisted yet, so nothing
 feeds this pass automatically - it takes judgements as input.
+
+## W19-07 as built (2026-10-18)
+
+**The wizard** (Admin → Models → "Set up a model", `ModelsWizard.tsx`): where it
+runs (local / a gateway you run / a vendor with your key), connect and test
+(presets, address, model, key, the probing Test), choose roles, and a review. It
+is a path through the same APIs as the full forms below it, which stay for
+editing, reordering fallbacks and removing connections.
+
+**"What leaves the container", stated per role** (`egress.ts`). Built from what
+the *server* reports for each connection - its host, and whether that host is on
+the operator's network by the same `isLocalHost` the egress audit and local-only
+use - never from a connection's name or the form. A hosted connection called
+"Local" still reads as leaving; an endpoint it cannot classify reads as leaving.
+A role whose first choice is local but whose fallback is hosted is not called
+"stays home". Under local-only the shared pool is described as local connections
+only. The Tier-3 opt-in is stated once, separately, because it is a different
+switch. A hosted connection cannot be saved without ticking that diffs, PR
+descriptions and file paths will be sent to it.
+
+**Found and fixed on the way (real defect in W19-01):** the `base_url` CHECK
+constraint did not allow a `gemini` row with no base URL, so creating Gemini from
+the admin screen failed in the database. Migration 0042 plus a route test (W19-01
+only tested LAN connections). It is its own commit.
+
+**Also learned:** model hosts must be IP addresses. The host policy accepts
+loopback and private IPv4 only; a host name needs the explicit off-network
+decision, even though the audit's `isLocalHost` treats `*.local`/`*.internal` as
+local. The two definitions disagree on names, so the wizard and the docs say "use
+the IP address", and (inside a container) that `localhost` is the container. The
+disagreement itself is not resolved here.
+
+**Verified:** component tests for every step (51 admin widget tests); the Models
+page in the Playwright axe scan in both themes and a wizard walk in the admin
+spec, run in a real browser; and `e2e/models-lm-studio.spec.ts` (opt-in) driving
+the whole local path in a real browser against a real LM Studio
+(qwen/qwen3.8-27b): test, probe, save, roles, review "Stays home" - 28 seconds.
+**Not verified:** the hosted worked example with a real key (none available); the
+docs say so. The Playwright runs used a scratch browsers folder that links the
+pinned build to an existing newer one, because installing the pinned browser is a
+download that was not authorised - the same specs should be re-run once with the
+pinned browser in CI.

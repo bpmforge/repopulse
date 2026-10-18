@@ -338,6 +338,14 @@ export function ModelsWizard() {
                   }
                   className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
                 />
+                {where === 'hosted' ? null : (
+                  <span className="text-fg-faint" data-testid="wizard-address-hint">
+                    Use the server&apos;s IP address, such as http://192.168.1.50:1234/v1. A model
+                    on your network is reached by IP; host names are not accepted. If RepoPulse runs
+                    in a container, &quot;localhost&quot; is the container itself - use the
+                    machine&apos;s network address.
+                  </span>
+                )}
               </label>
             ) : null}
 
