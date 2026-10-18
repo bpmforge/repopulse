@@ -10117,7 +10117,7 @@
               "Calls go through the analysis gateway like any provider (chunking, retry, budget, egress audit, local-only switch refuses it), it fails closed with a clear message if the CLI is missing or signed out, and full gate is green"
         ],
         "points": 5,
-        "status": "todo",
+        "status": "in_progress",
         "notes": [
               "Brad 2026-10-17: build it behind an accept-responsibility switch. Terms of the consumer plans were not verified by the project; the switch exists so the responsibility is explicit and the default is off. See docs/design/AI_LAYER.md."
         ]
