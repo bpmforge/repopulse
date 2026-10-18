@@ -159,7 +159,12 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
 
     const [member] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w4-20-member', forgeUserId: 'w4-20-member', login: 'w4-20-member' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w4-20-member',
+        forgeUserId: 'w4-20-member',
+        login: 'w4-20-member',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w4-20-member' } })
       .returning();
     memberUserId = member!.id;

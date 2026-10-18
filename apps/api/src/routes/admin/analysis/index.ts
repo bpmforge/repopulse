@@ -152,7 +152,11 @@ export default async function analysisAdminRoutes(
       if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid repo id');
 
       const [repo] = await db
-        .select({ id: core.repos.id, tier3OptIn: core.repos.tier3OptIn, tier2Auto: core.repos.tier2Auto })
+        .select({
+          id: core.repos.id,
+          tier3OptIn: core.repos.tier3OptIn,
+          tier2Auto: core.repos.tier2Auto,
+        })
         .from(core.repos)
         .where(and(eq(core.repos.id, id), eq(core.repos.workspaceId, workspaceId)))
         .limit(1);
@@ -160,7 +164,8 @@ export default async function analysisAdminRoutes(
       if (!repo) return fail(request, reply, 404, 'Not Found');
 
       const patch: { tier3OptIn?: boolean; tier2Auto?: boolean } = {};
-      if (typeof request.body?.tier3_opt_in === 'boolean') patch.tier3OptIn = request.body.tier3_opt_in;
+      if (typeof request.body?.tier3_opt_in === 'boolean')
+        patch.tier3OptIn = request.body.tier3_opt_in;
       if (typeof request.body?.tier2_auto === 'boolean') patch.tier2Auto = request.body.tier2_auto;
       if (Object.keys(patch).length === 0) {
         return fail(request, reply, 400, 'Invalid body', 'tier3_opt_in or tier2_auto is required');

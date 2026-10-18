@@ -5,6 +5,7 @@ import {
   PROVIDER_REGISTRY,
   localOnlyViolations,
   type LlmProviderKind,
+  isLocalHost,
   type LlmRole,
   type RoutingChains,
   type RoutingPolicy,
@@ -126,4 +127,25 @@ export async function providersFor(db: Database, workspaceId: number) {
     .from(core.llmProviders)
     .where(eq(core.llmProviders.workspaceId, workspaceId))
     .orderBy(asc(core.llmProviders.name));
+}
+
+/**
+ * Where a connection sends requests, for the screen to state plainly (W19-07).
+ * `host` is the endpoint's host only - never a path, a key or a header - and
+ * `leavesNetwork` uses the SAME definition as the egress audit and local-only
+ * (isLocalHost), so what the screen says leaves is exactly what is audited.
+ */
+export function describeEndpoint(
+  kind: string,
+  baseUrl: string | null,
+): { host: string | null; leavesNetwork: boolean } {
+  const base = effectiveBaseUrl(kind, baseUrl);
+  if (!base) return { host: null, leavesNetwork: true };
+  try {
+    const host = new URL(base).host;
+    return { host, leavesNetwork: !isLocalHost(host) };
+  } catch {
+    // An endpoint we cannot read is not one we can promise stays home.
+    return { host: null, leavesNetwork: true };
+  }
 }

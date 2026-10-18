@@ -61,15 +61,13 @@ describeIfLiveInfra('admin model evaluation (W19-05)', () => {
   beforeEach(clear);
 
   it('lists a configured model with no result as not measured', async () => {
-    await db
-      .insert(core.llmProviders)
-      .values({
-        workspaceId: ws,
-        name: 'LAN',
-        kind: 'openai_compatible',
-        baseUrl: 'http://10.0.0.5:1234/v1',
-        model: 'never-measured-model',
-      });
+    await db.insert(core.llmProviders).values({
+      workspaceId: ws,
+      name: 'LAN',
+      kind: 'openai_compatible',
+      baseUrl: 'http://10.0.0.5:1234/v1',
+      model: 'never-measured-model',
+    });
     const body = (await app.inject({ method: 'GET', url: '/admin/model-eval' })).json();
     const entry = body.models.find((m: { model: string }) => m.model === 'never-measured-model');
     expect(entry).toMatchObject({ configured: true, provider_name: 'LAN', result: null });
@@ -79,15 +77,13 @@ describeIfLiveInfra('admin model evaluation (W19-05)', () => {
   it('attaches a published result to a configured model with the same id', async () => {
     const measured = MODEL_EVAL_RESULTS.rows[0];
     if (!measured) return; // nothing published yet: covered by the test above
-    await db
-      .insert(core.llmProviders)
-      .values({
-        workspaceId: ws,
-        name: 'M',
-        kind: 'openai_compatible',
-        baseUrl: 'http://10.0.0.5:1234/v1',
-        model: measured.model,
-      });
+    await db.insert(core.llmProviders).values({
+      workspaceId: ws,
+      name: 'M',
+      kind: 'openai_compatible',
+      baseUrl: 'http://10.0.0.5:1234/v1',
+      model: measured.model,
+    });
     const body = (await app.inject({ method: 'GET', url: '/admin/model-eval' })).json();
     const entry = body.models.find(
       (m: { model: string; configured: boolean }) => m.model === measured.model && m.configured,
@@ -97,15 +93,13 @@ describeIfLiveInfra('admin model evaluation (W19-05)', () => {
   });
 
   it("never lists another workspace's configured models", async () => {
-    await db
-      .insert(core.llmProviders)
-      .values({
-        workspaceId: other,
-        name: 'Theirs',
-        kind: 'openai_compatible',
-        baseUrl: 'http://10.0.0.9:1234/v1',
-        model: 'their-secret-model',
-      });
+    await db.insert(core.llmProviders).values({
+      workspaceId: other,
+      name: 'Theirs',
+      kind: 'openai_compatible',
+      baseUrl: 'http://10.0.0.9:1234/v1',
+      model: 'their-secret-model',
+    });
     const body = (await app.inject({ method: 'GET', url: '/admin/model-eval' })).json();
     expect(JSON.stringify(body)).not.toContain('their-secret-model');
   });

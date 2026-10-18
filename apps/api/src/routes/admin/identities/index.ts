@@ -162,14 +162,24 @@ export default async function identityRoutes(
       const undo = intoRaw === null;
       const intoId = undo ? null : Number(intoRaw);
       if (!undo && !Number.isInteger(intoId)) {
-        return fail(request, reply, 400, 'Invalid body', 'into_id must be an identity id, or null to undo');
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid body',
+          'into_id must be an identity id, or null to undo',
+        );
       }
       if (!undo && intoId === id) {
         return fail(request, reply, 400, 'Cannot merge an identity into itself');
       }
 
       const [source] = await db
-        .select({ id: core.identities.id, login: core.identities.forgeLogin, mergedIntoId: core.identities.mergedIntoId })
+        .select({
+          id: core.identities.id,
+          login: core.identities.forgeLogin,
+          mergedIntoId: core.identities.mergedIntoId,
+        })
         .from(core.identities)
         .where(and(eq(core.identities.id, id), eq(core.identities.workspaceId, workspaceId)))
         .limit(1);
@@ -178,9 +188,18 @@ export default async function identityRoutes(
       let target: { id: number; login: string; mergedIntoId: number | null } | undefined;
       if (!undo) {
         [target] = await db
-          .select({ id: core.identities.id, login: core.identities.forgeLogin, mergedIntoId: core.identities.mergedIntoId })
+          .select({
+            id: core.identities.id,
+            login: core.identities.forgeLogin,
+            mergedIntoId: core.identities.mergedIntoId,
+          })
           .from(core.identities)
-          .where(and(eq(core.identities.id, intoId as number), eq(core.identities.workspaceId, workspaceId)))
+          .where(
+            and(
+              eq(core.identities.id, intoId as number),
+              eq(core.identities.workspaceId, workspaceId),
+            ),
+          )
           .limit(1);
         if (!target) return fail(request, reply, 404, 'Target identity not found');
 
@@ -191,7 +210,9 @@ export default async function identityRoutes(
         const [dependent] = await db
           .select({ id: core.identities.id })
           .from(core.identities)
-          .where(and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.mergedIntoId, id)))
+          .where(
+            and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.mergedIntoId, id)),
+          )
           .limit(1);
         if (dependent) {
           return fail(

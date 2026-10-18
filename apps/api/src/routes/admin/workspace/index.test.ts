@@ -114,7 +114,12 @@ describeIfLiveInfra('admin workspace settings (W4-09)', () => {
 
     const [member] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w4-09-member', forgeUserId: 'w4-09-member', login: 'w4-09-member' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w4-09-member',
+        forgeUserId: 'w4-09-member',
+        login: 'w4-09-member',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w4-09-member' } })
       .returning();
     memberUserId = member!.id;

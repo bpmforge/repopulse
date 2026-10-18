@@ -38,7 +38,9 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
         const chunks: Buffer[] = [];
         req.on('data', (c: Buffer) => chunks.push(c));
         req.on('end', () => {
-          const code = (JSON.parse(Buffer.concat(chunks).toString() || '{}') as { code?: string }).code ?? 'tok';
+          const code =
+            (JSON.parse(Buffer.concat(chunks).toString() || '{}') as { code?: string }).code ??
+            'tok';
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ access_token: code, token_type: 'bearer' }));
         });
@@ -68,7 +70,10 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
       absoluteLifetimeMs: 600_000,
       cookieSecure: false,
       githubOAuth: { clientId: 'x', clientSecret: 'y', redirectUri: 'http://localhost/cb' },
-      githubEndpoints: { tokenUrl: `${ghBase}/login/oauth/access_token`, userUrl: `${ghBase}/user` },
+      githubEndpoints: {
+        tokenUrl: `${ghBase}/login/oauth/access_token`,
+        userUrl: `${ghBase}/user`,
+      },
       loginRedirectUrl: 'http://localhost/',
     });
     await app.ready();
@@ -82,7 +87,12 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
 
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w5-05-owner', forgeUserId: 'w5-05-owner', login: 'w5-05-owner' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w5-05-owner',
+        forgeUserId: 'w5-05-owner',
+        login: 'w5-05-owner',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w5-05-owner' } })
       .returning();
     const [conn] = await db
@@ -121,7 +131,12 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
     const mk = async (login: string) => {
       const [row] = await db
         .insert(core.identities)
-        .values({ workspaceId, provider: 'github', forgeLogin: login, displayName: 'Alice Example' })
+        .values({
+          workspaceId,
+          provider: 'github',
+          forgeLogin: login,
+          displayName: 'Alice Example',
+        })
         .returning();
       return row!.id;
     };
@@ -166,15 +181,34 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
     await db.delete(facts.commitFiles).where(eq(facts.commitFiles.repoId, repoId));
     await db.delete(facts.commits).where(eq(facts.commits.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
-    await db.delete(core.forgeConnections).where(eq(core.forgeConnections.credentialFingerprint, 'w5-05-fp'));
+    await db
+      .delete(core.forgeConnections)
+      .where(eq(core.forgeConnections.credentialFingerprint, 'w5-05-fp'));
     for (const id of [aliceEmailId, botId, aliceId]) {
-      await db.update(core.identities).set({ mergedIntoId: null }).where(eq(core.identities.id, id));
+      await db
+        .update(core.identities)
+        .set({ mergedIntoId: null })
+        .where(eq(core.identities.id, id));
     }
-    await db.delete(core.identities).where(and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.displayName, 'Alice Example')));
+    await db
+      .delete(core.identities)
+      .where(
+        and(
+          eq(core.identities.workspaceId, workspaceId),
+          eq(core.identities.displayName, 'Alice Example'),
+        ),
+      );
     await db.delete(core.users).where(eq(core.users.forgeUserId, 'w5-05-owner'));
     // Leaves no extra workspace admin behind: a suite that does breaks the
     // last-admin assertion in a file it never touched (learned in W4-09).
-    await db.delete(core.workspaceMembers).where(and(eq(core.workspaceMembers.workspaceId, workspaceId), eq(core.workspaceMembers.userId, adminUserId)));
+    await db
+      .delete(core.workspaceMembers)
+      .where(
+        and(
+          eq(core.workspaceMembers.workspaceId, workspaceId),
+          eq(core.workspaceMembers.userId, adminUserId),
+        ),
+      );
     await db.delete(core.users).where(eq(core.users.forgeUserId, 'w5-05-admin'));
     await app.close();
     await new Promise<void>((r) => githubMock.close(() => r()));
@@ -184,7 +218,10 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
   let adminUserId: number;
   async function adminSession(): Promise<string> {
     const cookie = await loginAs(app, 'w5-05-admin');
-    const [u] = await db.select({ id: core.users.id }).from(core.users).where(eq(core.users.forgeUserId, 'w5-05-admin'));
+    const [u] = await db
+      .select({ id: core.users.id })
+      .from(core.users)
+      .where(eq(core.users.forgeUserId, 'w5-05-admin'));
     adminUserId = u!.id;
     await db
       .insert(core.workspaceMembers)
@@ -198,9 +235,17 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
 
   it('lists identities with their commit weight and flags email fallbacks', async () => {
     const cookie = await adminSession();
-    const res = await app.inject({ method: 'GET', url: '/api/v1/admin/identities', cookies: { repopulse_sid: cookie } });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/identities',
+      cookies: { repopulse_sid: cookie },
+    });
     expect(res.statusCode).toBe(200);
-    const items = (res.json() as { items: { id: number; login: string; commits: number; email_fallback: boolean }[] }).items;
+    const items = (
+      res.json() as {
+        items: { id: number; login: string; commits: number; email_fallback: boolean }[];
+      }
+    ).items;
     expect(items.find((i) => i.login === 'w5-05-alice')?.commits).toBe(1);
     // The whole reason this screen exists: an email-only author is a person we
     // could not resolve, not a real account.
@@ -211,7 +256,9 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
   it('a merge REUNIFIES churn attribution — the numbers move, not just the row', async () => {
     const cookie = await adminSession();
 
-    const before = (await readChurnTouches(db, repoId, WINDOW)).filter((t) => t.path === 'src/app.ts');
+    const before = (await readChurnTouches(db, repoId, WINDOW)).filter(
+      (t) => t.path === 'src/app.ts',
+    );
     const beforeLogins = new Set(before.map((t) => t.authorLogin));
     // Split across two identities to start with: 20 lines and 12 lines.
     expect(beforeLogins).toEqual(new Set(['w5-05-alice', 'alice@example.com']));
@@ -225,7 +272,9 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
     });
     expect(merge.statusCode).toBe(200);
 
-    const after = (await readChurnTouches(db, repoId, WINDOW)).filter((t) => t.path === 'src/app.ts');
+    const after = (await readChurnTouches(db, repoId, WINDOW)).filter(
+      (t) => t.path === 'src/app.ts',
+    );
     const afterLogins = new Set(after.map((t) => t.authorLogin));
     // One person now. This is the assertion the whole ticket exists for: if the
     // readers did not resolve merged_into_id, this set would still have two
@@ -291,7 +340,10 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
       payload: { is_bot: true },
     });
     expect(ok.statusCode).toBe(200);
-    const [row] = await db.select({ isBot: core.identities.isBot }).from(core.identities).where(eq(core.identities.id, botId));
+    const [row] = await db
+      .select({ isBot: core.identities.isBot })
+      .from(core.identities)
+      .where(eq(core.identities.id, botId));
     expect(row!.isBot).toBe(true);
 
     const memberCookie = await loginAs(app, 'w5-05-member');
@@ -305,7 +357,10 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
     expect(denied.statusCode).toBe(403);
     // Membership first: logging in creates a workspace_members row (FR-AUTH-3),
     // and deleting the user while it exists violates the FK.
-    const [m] = await db.select({ id: core.users.id }).from(core.users).where(eq(core.users.forgeUserId, 'w5-05-member'));
+    const [m] = await db
+      .select({ id: core.users.id })
+      .from(core.users)
+      .where(eq(core.users.forgeUserId, 'w5-05-member'));
     if (m) {
       await db.delete(core.workspaceMembers).where(eq(core.workspaceMembers.userId, m.id));
       await db.delete(core.users).where(eq(core.users.id, m.id));
