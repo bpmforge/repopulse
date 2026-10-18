@@ -15,10 +15,14 @@ import { TRIAGE_CHECKLIST_VERSION, type TriageProposal } from './types.js';
 
 // Scores one model on the labelled cases and updates the published table.
 //
-//   TRIAGE_BASE_URL=http://localhost:1234/v1 TRIAGE_MODEL=<model id> \
-//     npx tsx packages/security/src/triage/cli.ts
+//   npx tsx packages/security/src/triage/cli.ts \
+//     --base-url http://localhost:1234/v1 --model <model id> [--concurrency 4]
 //
-// Cases are run in `TRIAGE_CONCURRENCY` groups (default 4): one call per case
+// Flags, not environment variables: this is a developer tool, and every
+// environment variable the shipped code reads must be in the configuration
+// reference (config-doc.test.ts).
+//
+// Cases are run in `--concurrency` groups (default 4): one call per case
 // against a reasoning model takes minutes, and a server that allows parallel
 // requests (LM Studio does) turns that into a quarter of the time.
 
@@ -26,13 +30,17 @@ const DOCS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const JSON_FILE = path.join(DOCS, 'triage-eval.json');
 const MD_FILE = path.join(DOCS, 'TRIAGE_EVAL.md');
 
-const baseUrl = process.env.TRIAGE_BASE_URL;
-const model = process.env.TRIAGE_MODEL;
+function flag(name: string): string | undefined {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+const baseUrl = flag('base-url');
+const model = flag('model');
 if (!baseUrl || !model) {
-  console.error('set TRIAGE_BASE_URL and TRIAGE_MODEL');
+  console.error('usage: cli.ts --base-url <url> --model <id> [--concurrency N]');
   process.exit(2);
 }
-const groups = Number(process.env.TRIAGE_CONCURRENCY ?? 4);
+const groups = Number(flag('concurrency') ?? 4);
 
 const { note, cases } = loadTriageCases();
 const gateway = createAnalysisGateway({
