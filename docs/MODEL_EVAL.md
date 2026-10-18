@@ -19,4 +19,17 @@ specialist is run over cases with a planted defect and clean cases, and scored f
 > these runs. Results depend on the provider: the temperature is fixed at 0.1, and a seed is sent only
 > when requested and may be ignored by the server.
 
-**This has not been run yet.** No model has been measured, so every cell is "not yet run".
+### `qwen/qwen3.8-27b`
+
+Engine: OpenAI-compatible endpoint at localhost:1234 · run 2026-10-18 · temperature 0.1 · seed 7 (requested; the provider may ignore it) · complete
+
+| Role | Checklist | Cases | Precision | Recall | TP | FP | FN | Not scored | Format failures |
+|---|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| Security | v1 | 4 | 100% | 100% | 2 | 0 | 0 | 0 | 0 |
+| Performance | v2 | 4 | 67% | 100% | 2 | 1 | 0 | 0 | 0 |
+| Code health | v2 | 4 | 100% | 100% | 2 | 0 | 0 | 0 | 0 |
+| Test coverage | v1 | 4 | 67% | 100% | 2 | 1 | 0 | 0 | 0 |
+| Best practices | v1 | 4 | 100% | 100% | 2 | 0 | 0 | 0 | 0 |
+| AI slop | v1 | 4 | 67% | 100% | 2 | 1 | 0 | 0 | 0 |
+
+Triage agreement: 100% (12 agree, 0 disagree, 0 abstained, 0 rejected, 0 missed real, of 12 — see TRIAGE_EVAL.md)
