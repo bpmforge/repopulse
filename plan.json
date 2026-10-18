@@ -10122,6 +10122,63 @@
               "Brad 2026-10-17: build it behind an accept-responsibility switch. Terms of the consumer plans were not verified by the project; the switch exists so the responsibility is explicit and the default is off. See docs/design/AI_LAYER.md.",
       "Built 2026-10-18: claude_cli kind (customer-supplied, off by default), versioned+hashed statement, durable per-workspace acceptance rows with audit events, no stored credential, constrained subprocess (no tools, stdin, empty cwd, allow-listed env), fails closed with plain messages, through the gateway (egress audit, local-only refuses). Verified against the real CLI only for the failure path (its login had expired); a successful live answer, installing the CLI in the worker image and the compose override are NOT verified."
         ]
-    }
+    },
+      {
+        "id": "W19-09",
+        "title": "Wire the AI layer into a real pass: planned specialists and evidence-fed triage over a repository, persisted",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "packages/analysis/**",
+          "packages/security/**",
+          "packages/shared/**",
+          "packages/ingest/**",
+          "apps/api/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-03",
+          "W19-04",
+          "W19-05"
+        ],
+        "acceptance": [
+          "A queued worker job, started from an API route, snapshots a repository (or reads a pull request diff), runs the planned specialists through the workspace routing chain and then evidence-fed triage on its rule-raised findings; every failure lands on the run row in words, and a repository nobody has run a pass on shows no runs, never an empty success",
+          "Specialist findings are stored as ordinary findings with their dimension and the route record of the call that raised them; triage verdicts are stored as suggestions (verdict, confidence, our copy of the cited lines, proposed VEX justification, verified patch if any) in a workspace-scoped table, and a human accepting or dismissing one is recorded on the suggestion only - nothing in the pass or the route ever changes a finding status, suppresses, merges or writes to a repository (D9a)",
+          "Local-only, the routing chain, the egress audit and the call cap apply; the pass never uses Tier-3; every query is workspace-filtered with a tenancy test; full gate green"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Split from the coordinator request of 2026-10-18; the findings UI is W19-10. See docs/design/AI_LAYER.md."
+        ]
+      },
+      {
+        "id": "W19-10",
+        "title": "Findings UI: AI suggestions labelled as AI, with the citation, and a human accept or dismiss",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-09"
+        ],
+        "acceptance": [
+          "The findings list and detail show AI verdicts as suggestions, clearly labelled as AI, with the cited lines and the model and route that produced them; a finding no pass has covered says it has not been run, never an empty success",
+          "A human can accept or dismiss each suggestion and that is recorded as their decision; accepting a false-positive suggestion offers the existing dismiss action rather than doing it silently; the web app reads only our Postgres through the API",
+          "Accessibility and e2e coverage match the existing findings pages; full gate green"
+        ],
+        "points": 5,
+        "status": "todo",
+        "notes": [
+          "Depends on the verdict row shape and read API settled in W19-09. See docs/design/AI_LAYER.md."
+        ]
+      }
   ]
 }
