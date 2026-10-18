@@ -596,3 +596,48 @@ runs and the list follows it.
 **Not built.** An AI-raised marker on the *list* rows (the list endpoint does not carry
 provenance; the drawer does). A path picker (paths are typed). Re-asking triage for a
 finding that already has a suggestion.
+
+## W19-11 as built (2026-10-18): diff mode
+
+A pass can now review **a pull request's diff** or **a short range of commits** as well
+as typed paths. Migration 0045 adds `mode` (`paths` / `pull_request` / `commit_range`),
+`base_ref`, `head_ref` and `pr_number` to `ai_pass_runs`; the POST body carries exactly
+one of `paths`, `pull_request`, or `base` + `head`.
+
+**Where the diff comes from.** `apps/api/src/workers/ai-pass-diff.ts`, through the
+budgeted forge client on the scan lane (`getPullRequestFiles`, `getCommitFiles`): no
+clone and no archive (C1), read only (D9a), and the web app still reads only our
+Postgres. A pull request must already be ingested (checked against our warehouse
+*before* any forge call). A commit range is resolved from **our own** commit table:
+the non-merge commits ingested after the base up to the head, oldest first. We keep no
+parent graph, so it is the time-ordered set, not a graph walk, and the panel says so.
+Each commit's diff is reviewed on its own, so a finding's line number is as of the
+commit that changed it. The same path in two commits stays two entries rather than being
+merged into a diff that never existed.
+
+**Same limits, still refusing.** 40 file entries, 400 KB of *diff*, 30 model calls, ten
+commits per range; over any of them the pass is refused with a named reason
+(`too_large`), never trimmed. A changed file the forge sends without a complete patch
+(very large files, or clipped) is **listed as not reviewed** on the pass, and a change
+where nothing came with a patch fails as `no_files` rather than succeeding on nothing.
+Removed files are skipped. Tenancy, local-only, the routing chain, the call cap, the
+decide route and "never auto-suppress / auto-merge / write to the repo" are unchanged.
+
+**Triage in a diff.** The specialists see the diff (the existing `diff` review input,
+with the pull request's title or the commit range as the prompt label). Triage runs only
+on open, rule-raised findings with stored context whose lines **overlap lines the
+change adds or alters** (`addedRanges`, parsed from the unified hunks); if none do the
+pass says that, instead of triaging unrelated findings. A finding recorded at an older
+commit than the reviewed head can sit at shifted line numbers; the overlap test is on
+the stored lines and does not pretend otherwise.
+
+**Shown.** The pass panel has a mode choice (paths / pull request / commit range) and
+each run says what it reviewed (`the diff of pull request #12 (base main, head
+abcdef01)`, `the commits aaaaaaa1..bbbbbbb5`, or the files). `GET /findings/:id/ai` now
+carries the pass (`mode`, `pr_number`, `base_ref`, `head_ref`) on `raised_by` and on each
+suggestion, and the drawer prints it ("From a pass over ...").
+
+**Not built.** *Scheduling:* deliberately none - a scheduled pass would send code to a
+model automatically, which needs the owner's own opt-in design. *A commit graph walk* and
+*a true base..head compare* (the forge interface has no compare call). *Re-basing a
+rule finding's line onto the reviewed head.*

@@ -133,4 +133,63 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/failed/);
     expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/Add one in Admin → Models/);
   });
+
+  it('starts a pass on a pull request by number, and only with a real number', () => {
+    render(<AiPassPanel repoId="3" />);
+    fireEvent.click(screen.getByTestId('ai-pass-mode-pull_request'));
+    const btn = screen.getByTestId('ai-pass-start');
+    expect(btn).toHaveProperty('disabled', true);
+    for (const bad of ['', '0', 'abc', '1.5', '-3']) {
+      fireEvent.change(screen.getByTestId('ai-pass-pr'), { target: { value: bad } });
+      expect(btn, bad).toHaveProperty('disabled', true);
+    }
+    fireEvent.change(screen.getByTestId('ai-pass-pr'), { target: { value: ' 123 ' } });
+    fireEvent.click(btn);
+    expect(state.mutate).toHaveBeenCalledWith({ pull_request: 123 });
+  });
+
+  it('starts a pass on a commit range, says how a range is resolved, and needs two commit ids', () => {
+    render(<AiPassPanel repoId="3" />);
+    fireEvent.click(screen.getByTestId('ai-pass-mode-commit_range'));
+    const btn = screen.getByTestId('ai-pass-start');
+    fireEvent.change(screen.getByTestId('ai-pass-base'), { target: { value: 'a1b2c3d' } });
+    expect(btn).toHaveProperty('disabled', true);
+    fireEvent.change(screen.getByTestId('ai-pass-head'), { target: { value: 'not a sha' } });
+    expect(btn).toHaveProperty('disabled', true);
+    fireEvent.change(screen.getByTestId('ai-pass-head'), { target: { value: 'e4f5a6b' } });
+    fireEvent.click(btn);
+    expect(state.mutate).toHaveBeenCalledWith({ base: 'a1b2c3d', head: 'e4f5a6b' });
+    const text = document.body.textContent ?? '';
+    expect(text).toMatch(/no commit graph/);
+    expect(text).toMatch(/a line number is as of the commit that changed it/);
+  });
+
+  it('names what each pass reviewed - paths, a pull request with its refs, or a range - and the files it could not read', () => {
+    state.runs = [
+      run({
+        id: 3,
+        mode: 'pull_request',
+        pr_number: 12,
+        paths: [],
+        base_ref: 'main',
+        head_ref: 'abcdef0123456789',
+        specialists: { usage: {}, unreadable: ['assets/big.json'] },
+      }),
+      run({
+        id: 2,
+        mode: 'commit_range',
+        paths: [],
+        base_ref: 'aaaaaaa1234',
+        head_ref: 'bbbbbbb5678',
+      }),
+      run({ id: 1, paths: ['src/payments'] }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-3').textContent).toMatch(
+      /the diff of pull request #12 \(base main, head abcdef01\)/,
+    );
+    expect(screen.getByTestId('ai-pass-3').textContent).toMatch(/assets\/big\.json/);
+    expect(screen.getByTestId('ai-pass-2').textContent).toMatch(/the commits aaaaaaa1\.\.bbbbbbb5/);
+    expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/the files src\/payments/);
+  });
 });

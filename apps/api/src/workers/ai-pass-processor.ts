@@ -13,6 +13,7 @@ import {
 } from '@repopulse/analysis';
 import { dedupKey, persistFindings } from '@repopulse/insights';
 import { TRIAGE_TOP_N, runTriage, type TriageCandidate } from '@repopulse/security';
+import { overlaps, rangesByFile, type DiffRequest, type LoadedDiff } from './ai-pass-diff.js';
 
 // ai.pass processor (W19-09): planned specialists, then evidence-fed triage, over
 // one repository, through THIS workspace's routing chain.
@@ -63,6 +64,8 @@ export interface AiPassDeps {
     repoId: number;
     paths: string[];
   }) => Promise<LoadedSources>;
+  /** The changes of a pull request or a commit range (W19-11); absent = diff mode unavailable. */
+  loadDiff?: (req: DiffRequest) => Promise<LoadedDiff>;
   maxCalls?: number;
   now?: () => Date;
 }
@@ -133,12 +136,53 @@ export function aiPassProcessor(deps: AiPassDeps) {
         );
       }
 
-      const loaded = await deps.loadSources({ workspaceId, repoId: run.repoId, paths: run.paths });
-      if (!loaded.ok) return fail(loaded.code, loaded.reason);
-      await db
-        .update(read.aiPassRuns)
-        .set({ commitSha: loaded.commitSha })
-        .where(eq(read.aiPassRuns.id, runId));
+      // What is reviewed: the repository's files at its head (paths mode), or the
+      // changes of a pull request / commit range (diff modes).
+      let input: Parameters<typeof runSpecialists>[0];
+      let promptTitle: string;
+      let filesRead: number;
+      let unreadable: string[] = [];
+      let diffRanges: Map<string, [number, number][]> | null = null;
+      let commitSha: string;
+      if (run.mode === 'paths') {
+        const loaded = await deps.loadSources({
+          workspaceId,
+          repoId: run.repoId,
+          paths: run.paths,
+        });
+        if (!loaded.ok) return fail(loaded.code, loaded.reason);
+        commitSha = loaded.commitSha;
+        input = { kind: 'module', name: `repo-${run.repoId}`, files: loaded.files };
+        promptTitle = `Repository pass over ${run.paths.join(', ')}`;
+        filesRead = loaded.files.length;
+      } else {
+        if (!deps.loadDiff) {
+          return fail('no_diff_source', 'Reviewing a diff is not available on this server.');
+        }
+        const loaded = await deps.loadDiff({
+          workspaceId,
+          repoId: run.repoId,
+          mode: run.mode,
+          prNumber: run.prNumber,
+          base: run.baseRef,
+          head: run.headRef,
+        });
+        if (!loaded.ok) return fail(loaded.code, loaded.reason);
+        commitSha = loaded.commitSha;
+        input = {
+          kind: 'diff',
+          files: loaded.files.map((f) => ({ path: f.path, patch: f.patch })),
+        };
+        promptTitle = loaded.title;
+        filesRead = loaded.files.length;
+        unreadable = loaded.unreadable;
+        diffRanges = rangesByFile(loaded.files);
+        await db
+          .update(read.aiPassRuns)
+          .set({ baseRef: loaded.baseRef, headRef: loaded.headRef })
+          .where(eq(read.aiPassRuns.id, runId));
+      }
+      await db.update(read.aiPassRuns).set({ commitSha }).where(eq(read.aiPassRuns.id, runId));
 
       const window = (id: SpecialistId): number | null =>
         contextWindowForRole(wg.routing, specialistById(id).role as LlmRole, wg.hosts);
@@ -147,16 +191,13 @@ export function aiPassProcessor(deps: AiPassDeps) {
       // use) is held back for triage, so a tight cap cannot starve it entirely; any
       // of it the specialists do not need is still the cap, not extra.
       const triageReserve = Math.min(TRIAGE_TOP_N * 2, Math.floor(maxCalls / 3));
-      const spec = await runSpecialists(
-        { kind: 'module', name: `repo-${run.repoId}`, files: loaded.files },
-        {
-          gateway: wg.gateway,
-          contextWindowFor: window,
-          maxCalls: maxCalls - triageReserve,
-          prTitle: `Repository pass over ${run.paths.join(', ')}`,
-          meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },
-        },
-      );
+      const spec = await runSpecialists(input, {
+        gateway: wg.gateway,
+        contextWindowFor: window,
+        maxCalls: maxCalls - triageReserve,
+        prTitle: promptTitle,
+        meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },
+      });
 
       // 2. Persist what they found, as ordinary findings, and how each was raised.
       const analysisRunIds: number[] = [];
@@ -261,6 +302,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
         callsSoFar: spec.calls,
         maxCalls,
         now,
+        diffRanges,
       });
 
       const planned = spec.plan.waves.flatMap((w) => w.specialists.map((s) => s.specialist.id));
@@ -280,7 +322,8 @@ export function aiPassProcessor(deps: AiPassDeps) {
           droppedForBudget: spec.droppedForBudget,
           failures: spec.failures,
           rejected: spec.rejected.length,
-          filesRead: loaded.files.length,
+          filesRead,
+          ...(unreadable.length > 0 ? { unreadable } : {}),
         },
         triageFunnel: triage.funnel as unknown as Record<string, unknown> | null,
         triageSkipped: triage.skipped,
@@ -309,6 +352,8 @@ async function triageStep(a: {
   callsSoFar: number;
   maxCalls: number;
   now: () => Date;
+  /** Diff modes: the lines the change adds, per file; triage is limited to findings on them. */
+  diffRanges: Map<string, [number, number][]> | null;
 }): Promise<{ funnel: object | null; skipped: string | null; calls: number }> {
   const { db } = a.deps;
   const remaining = a.maxCalls - a.callsSoFar;
@@ -342,12 +387,22 @@ async function triageStep(a: {
     )
     .orderBy(desc(read.findings.effectiveRisk))
     .limit(200);
-  const scoped = rows.filter((r) => r.file !== null && inScope(r.file, a.run.paths));
+  const ranges = a.diffRanges;
+  const scoped = rows.filter((r) => {
+    if (r.file === null) return false;
+    // Diff modes: only a finding on lines the change adds or alters.
+    if (ranges) {
+      const mine = ranges.get(r.file);
+      return mine !== undefined && overlaps(mine, r.lineStart!, r.lineEnd ?? r.lineStart!);
+    }
+    return inScope(r.file, a.run.paths);
+  });
   if (scoped.length === 0) {
     return {
       funnel: null,
-      skipped:
-        'No open rule-raised finding in scope has stored code context and no earlier suggestion, so there was nothing to triage.',
+      skipped: ranges
+        ? 'No open rule-raised finding sits on lines this change adds or alters (with stored code context and no earlier suggestion), so there was nothing to triage.'
+        : 'No open rule-raised finding in scope has stored code context and no earlier suggestion, so there was nothing to triage.',
       calls: 0,
     };
   }

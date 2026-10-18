@@ -10181,6 +10181,36 @@
           "Depends on the verdict row shape and read API settled in W19-09. See docs/design/AI_LAYER.md.",
           "Built 2026-10-18: AI suggestions in the finding drawer (AI badge, verdict, confidence, model and route, cited lines from our copy, VEX proposal, accept/dismiss recorded on the suggestion only; accepting a false-positive suggestion offers the existing Dismiss prefilled, never does it) and an AI review pass panel on the repo Security tab (start, last runs, caps, server refusal reasons, not-yet-run, dropped-for-budget). Not built: AI marker on list rows, path picker."
         ]
+      },
+      {
+        "id": "W19-11",
+        "title": "AI pass diff mode: review a pull request or a commit range, triage the findings on the changed lines",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "apps/api/**",
+          "apps/web/**",
+          "packages/shared/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-09",
+          "W19-10"
+        ],
+        "acceptance": [
+          "An admin can start a pass on a pull request or a commit range as well as on typed paths; the specialists review the diff and triage runs only on rule-raised findings that fall on lines the change adds or alters",
+          "The W19-09 caps, tenancy, local-only and routing, the call cap and the decide route are unchanged; the diff is fetched through the budgeted forge client (no clone, C1) and nothing is auto-suppressed, auto-merged or written to the repository (D9a)",
+          "The pass panel and each suggestion show the mode and the base/head refs; files the forge did not send a complete patch for are listed as not reviewed; over a cap the pass is refused with a reason, never truncated",
+          "No scheduling: a scheduled pass would send code to a model automatically and needs the owner's own opt-in design; full gate green"
+        ],
+        "points": 5,
+        "status": "done",
+        "notes": [
+          "Requested by the coordinator 2026-10-18 after W19-10. See docs/design/AI_LAYER.md.",
+          "Built 2026-10-18: migration 0045 (mode, base_ref, head_ref, pr_number), ai-pass-diff.ts (pull request files and a commit range resolved from our own commit table, ten commits at most, refusing over the caps), diff review input and changed-line triage scope, the POST body takes exactly one scope, GET /findings/:id/ai carries the pass, panel mode choice and per-run scope. Not built: scheduling (deliberate), a commit-graph walk or true compare, re-basing rule-finding lines onto the reviewed head."
+        ]
       }
   ]
 }

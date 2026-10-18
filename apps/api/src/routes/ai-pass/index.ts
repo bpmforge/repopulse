@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { auditLog, core, isConstraintViolation, read, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
@@ -65,6 +65,63 @@ export function cleanPaths(raw: unknown): string[] | string {
   return [...new Set(out)].sort();
 }
 
+interface ScopeBody {
+  paths?: unknown;
+  pull_request?: unknown;
+  base?: unknown;
+  head?: unknown;
+}
+
+export interface PassScope {
+  mode: 'paths' | 'pull_request' | 'commit_range';
+  paths: string[];
+  prNumber: number | null;
+  baseRef: string | null;
+  headRef: string | null;
+}
+
+/** Exactly one scope: typed paths, a pull request, or a base..head commit range. */
+export function parseScope(body: ScopeBody | undefined): PassScope | string {
+  const given = [
+    body?.paths !== undefined,
+    body?.pull_request !== undefined,
+    body?.base !== undefined || body?.head !== undefined,
+  ].filter(Boolean).length;
+  if (given === 0) {
+    return 'Name what to review: paths, a pull request number, or a base and head commit. A pass is bounded: it never reads the whole repository.';
+  }
+  if (given > 1) {
+    return 'Name exactly one thing to review: paths, a pull request number, or a base and head commit.';
+  }
+  if (body?.pull_request !== undefined) {
+    const n = body.pull_request;
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 2_147_483_647)
+      return 'pull_request must be a pull request number.';
+    return { mode: 'pull_request', paths: [], prNumber: n, baseRef: null, headRef: null };
+  }
+  if (body?.base !== undefined || body?.head !== undefined) {
+    const sha = /^[0-9a-f]{7,64}$/i;
+    if (
+      typeof body.base !== 'string' ||
+      typeof body.head !== 'string' ||
+      !sha.test(body.base.trim()) ||
+      !sha.test(body.head.trim())
+    ) {
+      return 'A commit range needs both base and head as commit ids (7 to 64 hex characters).';
+    }
+    return {
+      mode: 'commit_range',
+      paths: [],
+      prNumber: null,
+      baseRef: body.base.trim().toLowerCase(),
+      headRef: body.head.trim().toLowerCase(),
+    };
+  }
+  const paths = cleanPaths(body?.paths);
+  if (typeof paths === 'string') return paths;
+  return { mode: 'paths', paths, prNumber: null, baseRef: null, headRef: null };
+}
+
 export default async function aiPassRoutes(
   app: FastifyInstance,
   opts: AiPassRoutesOptions,
@@ -93,7 +150,11 @@ export default async function aiPassRoutes(
   const runView = (r: typeof read.aiPassRuns.$inferSelect, requestedBy: string | null) => ({
     id: r.id,
     status: r.status,
+    mode: r.mode,
     paths: r.paths,
+    base_ref: r.baseRef,
+    head_ref: r.headRef,
+    pr_number: r.prNumber,
     commit_sha: r.commitSha,
     reason_code: r.reasonCode,
     reason: r.reason,
@@ -117,7 +178,7 @@ export default async function aiPassRoutes(
     return repo !== undefined;
   }
 
-  app.post<{ Params: { id: string }; Body: { paths?: unknown } }>(
+  app.post<{ Params: { id: string }; Body: ScopeBody }>(
     '/repos/:id/ai-pass',
     { preHandler: requireAdmin },
     async (request, reply) => {
@@ -130,8 +191,8 @@ export default async function aiPassRoutes(
       if (!(await ownRepo(workspaceId, repoId)))
         return fail(request, reply, 404, 'No such repository');
 
-      const paths = cleanPaths(request.body?.paths);
-      if (typeof paths === 'string') return fail(request, reply, 400, 'Name what to review', paths);
+      const scope = parseScope(request.body);
+      if (typeof scope === 'string') return fail(request, reply, 400, 'Name what to review', scope);
 
       // One active pass per repository: a second click returns the first.
       const [active] = await db
@@ -179,7 +240,17 @@ export default async function aiPassRoutes(
       try {
         const [inserted] = await db
           .insert(read.aiPassRuns)
-          .values({ workspaceId, repoId, requestedBy: userId, paths, createdAt: now() })
+          .values({
+            workspaceId,
+            repoId,
+            requestedBy: userId,
+            paths: scope.paths,
+            mode: scope.mode,
+            prNumber: scope.prNumber,
+            baseRef: scope.baseRef,
+            headRef: scope.headRef,
+            createdAt: now(),
+          })
           .returning();
         run = inserted!;
       } catch (err) {
@@ -201,7 +272,15 @@ export default async function aiPassRoutes(
         workspaceId,
         ip: request.ip,
         ua: request.headers['user-agent'] ?? null,
-        detail: { run_id: run.id, repo_id: repoId, paths },
+        detail: {
+          run_id: run.id,
+          repo_id: repoId,
+          mode: scope.mode,
+          paths: scope.paths,
+          pr_number: scope.prNumber,
+          base: scope.baseRef,
+          head: scope.headRef,
+        },
       });
       return reply.code(202).send({ run: runView(run, null) });
     },
@@ -261,6 +340,38 @@ export default async function aiPassRoutes(
       )
       .orderBy(desc(read.aiTriageVerdicts.createdAt));
 
+    // What each pass reviewed (typed paths, a pull request or a commit range), so the
+    // screen can say it next to the answer.
+    const passIds = [
+      ...new Set([...(prov ? [prov.aiPassRunId] : []), ...verdicts.map((x) => x.v.aiPassRunId)]),
+    ];
+    const passRows =
+      passIds.length === 0
+        ? []
+        : await db
+            .select()
+            .from(read.aiPassRuns)
+            .where(
+              and(
+                eq(read.aiPassRuns.workspaceId, workspaceId),
+                inArray(read.aiPassRuns.id, passIds),
+              ),
+            );
+    const passOf = (id: number) => {
+      const r = passRows.find((x) => x.id === id);
+      return r
+        ? {
+            id: r.id,
+            mode: r.mode,
+            pr_number: r.prNumber,
+            base_ref: r.baseRef,
+            head_ref: r.headRef,
+            commit_sha: r.commitSha,
+            paths: r.paths,
+          }
+        : null;
+    };
+
     return reply.send({
       // Raised by a model (a specialist), and how - or null for a rule-raised finding.
       raised_by: prov
@@ -270,6 +381,7 @@ export default async function aiPassRoutes(
             model: prov.model,
             route: prov.route,
             pass_id: prov.aiPassRunId,
+            pass: passOf(prov.aiPassRunId),
           }
         : null,
       // Always labelled AI on the screen. Suggestions, never decisions.
@@ -287,6 +399,7 @@ export default async function aiPassRoutes(
         checklist_version: v.checklistVersion,
         route: v.route,
         pass_id: v.aiPassRunId,
+        pass: passOf(v.aiPassRunId),
         created_at: v.createdAt,
         decision: v.decision,
         decided_by: login ?? null,

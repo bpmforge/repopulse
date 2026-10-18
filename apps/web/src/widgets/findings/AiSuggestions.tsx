@@ -1,6 +1,12 @@
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
-import { routeLabel, VERDICT_SENTENCE, type AiSuggestion, type FindingAi } from './aiContracts.js';
+import {
+  passLabel,
+  routeLabel,
+  VERDICT_SENTENCE,
+  type AiSuggestion,
+  type FindingAi,
+} from './aiContracts.js';
 
 // AI suggestions in the finding drawer (W19-10).
 //
@@ -61,7 +67,7 @@ function Suggestion({
         <span className="text-xs text-fg-muted">confidence {s.confidence}/5</span>
       </p>
       <p className="text-xs text-fg-muted" data-testid="ai-route">
-        Produced by {routeLabel(s.route, s.model)}
+        From a pass over {passLabel(s.pass ?? null)}. Produced by {routeLabel(s.route, s.model)}
         {s.checklist_version ? `, checklist ${s.checklist_version}` : ''}. A model can be wrong;
         treat this as a lead, not a result.
       </p>
@@ -195,7 +201,8 @@ export function AiSuggestions({
       {raisedBy ? (
         <p className="mt-1 text-xs text-fg-muted" data-testid="ai-raised-by">
           This finding was raised by an AI specialist ({raisedBy.specialist.replace(/_/g, ' ')}),{' '}
-          {routeLabel(raisedBy.route, raisedBy.model)}. A rule did not find it.
+          {routeLabel(raisedBy.route, raisedBy.model)}, in a pass over{' '}
+          {passLabel(raisedBy.pass ?? null)}. A rule did not find it.
         </p>
       ) : null}
       {suggestions.length > 0 ? (

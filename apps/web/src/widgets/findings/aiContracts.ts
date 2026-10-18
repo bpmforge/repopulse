@@ -18,6 +18,32 @@ export interface AiCitation {
   text: string;
 }
 
+export type PassMode = 'paths' | 'pull_request' | 'commit_range';
+
+/** What a pass reviewed, as the API reports it next to an answer. */
+export interface PassInfo {
+  id: number;
+  mode: PassMode;
+  pr_number: number | null;
+  base_ref: string | null;
+  head_ref: string | null;
+  commit_sha: string | null;
+  paths: string[];
+}
+
+export function passLabel(
+  p: Pick<PassInfo, 'mode' | 'pr_number' | 'base_ref' | 'head_ref' | 'paths'> | null,
+): string {
+  if (!p) return 'an unrecorded scope';
+  if (p.mode === 'pull_request') {
+    return `the diff of pull request #${p.pr_number ?? '?'}${p.base_ref ? ` (base ${p.base_ref}${p.head_ref ? `, head ${p.head_ref.slice(0, 8)}` : ''})` : ''}`;
+  }
+  if (p.mode === 'commit_range') {
+    return `the commits ${(p.base_ref ?? '?').slice(0, 8)}..${(p.head_ref ?? '?').slice(0, 8)}`;
+  }
+  return p.paths.length > 0 ? `the files ${p.paths.join(', ')}` : 'typed paths';
+}
+
 export interface AiSuggestion {
   id: number;
   verdict: AiVerdict;
@@ -30,6 +56,7 @@ export interface AiSuggestion {
   checklist_version: string | null;
   route: AiRoute | null;
   pass_id: number;
+  pass?: PassInfo | null;
   created_at: string;
   decision: AiDecision;
   decided_by: string | null;
@@ -43,6 +70,7 @@ export interface FindingAi {
     model: string | null;
     route: AiRoute | null;
     pass_id: number;
+    pass?: PassInfo | null;
   } | null;
   suggestions: AiSuggestion[];
 }
@@ -66,7 +94,11 @@ export type PassStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipp
 export interface AiPassRun {
   id: number;
   status: PassStatus;
+  mode?: PassMode;
   paths: string[];
+  base_ref?: string | null;
+  head_ref?: string | null;
+  pr_number?: number | null;
   commit_sha: string | null;
   reason_code: string | null;
   reason: string | null;
@@ -79,6 +111,7 @@ export interface AiPassRun {
     droppedForBudget?: string[];
     failures?: unknown[];
     filesRead?: number;
+    unreadable?: string[];
   } | null;
   triage_funnel: {
     candidates?: number;
@@ -103,4 +136,5 @@ export const PASS_CAPS = {
   paths: 50,
   calls: 30,
   perDay: 10,
+  commits: 10,
 } as const;

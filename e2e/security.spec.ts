@@ -45,6 +45,11 @@ test('the Security tab says what has NOT been looked at, and passes axe', async 
   // empty list that reads as a clean review, and states its limits up front.
   await expect(page.getByTestId('ai-pass-not-run')).toContainText(/Not yet run/);
   await expect(page.getByTestId('ai-pass-caps')).toContainText(/30 model calls/);
+  // W19-11: a pass can review typed paths, a pull request's diff or a commit range.
+  await expect(page.getByTestId('ai-pass-mode-pull_request')).toBeVisible();
+  await page.getByTestId('ai-pass-mode-commit_range').check();
+  await expect(page.getByTestId('ai-pass-base')).toBeVisible();
+  await expect(page.getByTestId('ai-pass-start')).toBeDisabled();
 
   // Chains: "has not run" rather than "no chains", because those differ.
   await expect(page.getByTestId('chains-empty')).toContainText(/has not run/i);
