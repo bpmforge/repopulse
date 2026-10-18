@@ -721,6 +721,14 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       patchTruncated: false,
       ...over,
     });
+    /** A file whose patch the forge did not send at all. */
+    const noPatch = (path: string): ForgeDiffFile => ({
+      path,
+      status: 'modified',
+      additions: 1,
+      deletions: 0,
+      patchTruncated: false,
+    });
     function forge(opts: { pr?: ForgeDiffFile[][]; commits?: Record<string, ForgeDiffFile[]> }) {
       const calls = { pr: 0, commit: [] as string[] };
       const provider = {
@@ -792,7 +800,7 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       const f = forge({
         pr: [
           [file('a.ts'), file('gone.ts', { status: 'removed' })],
-          [file('big.json', { patch: undefined }), file('b.ts', { patchTruncated: true })],
+          [noPatch('big.json'), file('b.ts', { patchTruncated: true })],
           [file('c.ts')],
         ],
       });
@@ -807,7 +815,7 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     });
 
     it('refuses a pull request that was never ingested, another workspace’s repo, and a change with nothing readable', async () => {
-      const f = forge({ pr: [[file('x.ts', { patch: undefined })]] });
+      const f = forge({ pr: [[noPatch('x.ts')]] });
       const none = await f.load({ ...req, mode: 'pull_request', prNumber: 99 });
       expect(none).toMatchObject({ ok: false, code: 'not_found' });
       expect(f.calls.pr).toBe(0); // checked against our warehouse before any forge call
