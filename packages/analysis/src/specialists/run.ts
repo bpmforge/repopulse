@@ -66,6 +66,21 @@ export function extractJson(text: string): unknown {
   }
 }
 
+/**
+ * The checklist decides what was being reviewed, so the dimension is set from
+ * the specialist BEFORE validation. Found against a real model: asked for
+ * ai_slop it answered `"dimension":"slop"` (the name of the scanner family its
+ * checklist cites) — a correct finding rejected over a label.
+ */
+function withDimension(raw: unknown, dimension: string): unknown {
+  const findings = (raw as { findings?: unknown })?.findings;
+  if (!Array.isArray(findings)) return raw;
+  return {
+    ...(raw as object),
+    findings: findings.map((f) => (f && typeof f === 'object' ? { ...f, dimension } : f)),
+  };
+}
+
 export async function runSpecialists(
   input: ReviewInput,
   deps: SpecialistRunDeps,
@@ -130,7 +145,10 @@ export async function runSpecialists(
           result.calls += 1;
           if (answer.route) result.routes.push(answer.route);
           try {
-            const parsed = validateFindings(extractJson(answer.text), chunk.text);
+            const parsed = validateFindings(
+              withDimension(extractJson(answer.text), specialist.dimension),
+              chunk.text,
+            );
             for (const f of parsed.findings) {
               result.findings.push({
                 ...f,

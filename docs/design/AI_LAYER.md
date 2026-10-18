@@ -128,3 +128,64 @@ unrouted role under local-only is served by LM Studio.
 **Not built:** per-role budgets (the monthly Tier-3 budget is unchanged), and
 persisting `route` on findings — it is returned and passed to `onRouted`; the
 egress audit's `modelId` already identifies the model for non-local calls.
+
+## W19-03 as built (2026-10-18)
+
+**Roster** (`packages/analysis/src/specialists`): `security`, `performance`,
+`code_health`, `test_coverage` and the two new ones, `best_practices` and
+`ai_slop`. One name is the routing role (W19-02), the finding dimension and the
+checklist file (`checklists/{id}.v{N}.md`). The dimension joins
+`FINDING_DIMENSIONS` (migration 0041) so the facet, the API filter and the CHECK
+constraint all know it. Findings use the existing schema unchanged.
+
+**Where the new checklists came from.** `ai_slop.v1` keeps only the *judgement*
+rules of attest v3.13.3's `ANTI_SLOP_RULES` (R-10, R-05..R-08, R-17, R-18,
+R-11/12, R-13/14, R-26, R-27, R-28, R-29); the mechanical ones (phantom imports,
+unused exports, docstring ratio, empty catch, stale JSDoc params) stay with the
+slop scanner and the rule packs, and the checklist names the scanner's `slop.*`
+ids so the two layers dedup into one row. `best_practices.v1` is the roster
+*choice* ATTEST_EXPERTS.md said was needed: pattern/naming/comment drift from
+the pattern-consistency checker, plus contract and boundary hygiene, narrowed to
+what a model can judge from the code in front of it. Provenance is recorded in
+each file.
+
+**Run on a diff, a file or a module.** `ReviewInput` is `diff | file | module`.
+A file or module is presented as the add-only patch of its contents in numbered
+120-line windows, so one chunker, one budget rule and one evidence check serve
+all three (a quote must still be a substring of what the model saw). Repo-wide
+input is *supplied by the caller*; this code does not fetch it, because Law 4
+allows source only through the forge provider / the W8 tarball sandbox.
+
+**Chunking bounded by the probed context window.** `budgetForContext(window)`
+shrinks the prompt and output budgets so chunk + fixed overhead + projected
+output fit; unknown stays at the defaults (an unknown window is not a small
+one). A single hunk larger than the budget is cut at line boundaries (each part
+keeps its `@@` header). The probed window is stored on the connection (W19-01),
+carried onto its host, and `contextWindowForRole` takes the smallest along a
+role's chain, since any link can serve a call.
+
+**Conditional waves.** `planWaves` decides relevance from the change itself —
+file kinds, and for performance whether there is anything for it to review (loops,
+queries, async) — never a model call. Docs-only: nothing runs, with a reason for
+each specialist. Wave 1 security; wave 2 performance, code health, test coverage;
+wave 3 the advisory best-practices and AI-slop. `runSpecialists` takes a call
+cap and, when it would be exceeded, drops *whole* specialists from the last wave
+first and lists them in `droppedForBudget` — a short run says it was short.
+
+**Not built / not verified.** Nothing calls `runSpecialists` from a scheduled
+pass or an API route yet (that needs the forge fetch for repo-wide input and a
+persistence decision for `route` and the new dimensions); the persistence side
+(dimension constraint, facets) is ready. Golden fixtures pin planning, chunking,
+prompt assembly and validation per specialist; whether a model *finds* each
+planted defect is the W19-05 eval harness, though the live check below ran it
+once against the real LM Studio.
+
+**A prompt-template fix found by the live run.** The required-JSON template said
+`"dimension":"<dimension>"`, a placeholder, and a real model (qwen3.8-27b) filled
+it with `slop` for the ai_slop checklist — a correct finding rejected over a
+label. The template now names the exact dimension, and the specialist runner
+sets the dimension from the specialist before validating (the checklist decides
+what was reviewed, not the answer). This changes the prompt text for every
+dimension, so the two golden digests in `checklist-v2.test.ts` were re-recorded
+deliberately; the checklist assets themselves are unchanged, so no checklist
+version was bumped.
