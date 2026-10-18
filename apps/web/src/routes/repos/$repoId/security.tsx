@@ -5,6 +5,7 @@ import { ScannerStatusList, ScanToolingNote } from '../../../widgets/security/Sc
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
 import { CoverageMap } from '../../../widgets/trust/CoverageMap.js';
+import { AiPassPanel } from '../../../widgets/repo/AiPassPanel.js';
 // W8-14. OUT OF THAT TICKET'S DECLARED WRITE SCOPE and mounted anyway: a
 // funnel widget nobody renders is a widget that does not exist, and FR-SEC-15
 // is about what the Security tab SHOWS. Declared in the handoff.
@@ -250,6 +251,12 @@ function SecurityTab() {
             scanners={data.scanners}
           />
         )}
+      </WidgetFrame>
+
+      {/* W19-10: the AI review pass - start one, watch it, and see what it did
+          and did not cover. Its answers appear on the findings. */}
+      <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
+        <AiPassPanel repoId={repoId} />
       </WidgetFrame>
 
       <WidgetFrame title="Attack chains" state={state} testId="security-chains">

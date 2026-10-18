@@ -48,6 +48,11 @@ test('filter → open → acknowledge, with the note the API insists on', async 
   // be verbatim from the reviewed diff (W6-02).
   await expect(page.getByTestId('finding-detail')).toContainText(/select \* from charges|catch|db\./);
 
+  // W19-10: a finding no AI pass has looked at says so; it never reads as
+  // "reviewed and fine".
+  await expect(page.getByTestId('ai-section')).toBeVisible();
+  await expect(page.getByTestId('ai-not-run')).toContainText(/Not yet run/);
+
   // A status change with no note must be impossible from the UI, because the
   // API refuses it: "why was this closed?" is the first question anyone asks
   // about a finding that later turned out to matter.

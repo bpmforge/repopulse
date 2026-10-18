@@ -41,6 +41,11 @@ test('the Security tab says what has NOT been looked at, and passes axe', async 
   // than a blank panel that reads as a clean bill of health.
   await expect(page.getByTestId('cves-empty')).toContainText(/not a clean bill of health/i);
 
+  // W19-10: the AI pass panel says it has not been run, rather than showing an
+  // empty list that reads as a clean review, and states its limits up front.
+  await expect(page.getByTestId('ai-pass-not-run')).toContainText(/Not yet run/);
+  await expect(page.getByTestId('ai-pass-caps')).toContainText(/30 model calls/);
+
   // Chains: "has not run" rather than "no chains", because those differ.
   await expect(page.getByTestId('chains-empty')).toContainText(/has not run/i);
 
