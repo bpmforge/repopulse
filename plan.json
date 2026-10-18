@@ -10002,7 +10002,7 @@
                 "Verdict agreement against the labelled benchmark fixtures is measured and published per model; full gate green"
           ],
           "points": 8,
-          "status": "todo",
+          "status": "in_progress",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17).",
                 "Builds on W18-19 verified patches and the validation funnel; D9a and the VEX human-approval rule stay."

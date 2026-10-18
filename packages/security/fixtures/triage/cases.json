@@ -1,0 +1,377 @@
+{
+  "schema": 1,
+  "note": "Hand-labelled by the author of W19-04 (an AI assistant) and NOT independently reviewed; treat the ground truth as provisional until a person audits it. Six real findings and six false positives, one rule family each, written for this ticket (licence: Proprietary, RepoPulse). Small and authored: an indicative regression floor, not an accuracy estimate.",
+  "cases": [
+    {
+      "id": "sql-concat-param",
+      "truth": "real",
+      "why": "The id comes straight from the request and is concatenated into SQL.",
+      "finding": {
+        "dedupKey": "triage-sql-concat-param",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-sql-built-variable",
+        "title": "SQL built by concatenation",
+        "dimension": "sast",
+        "file": "src/routes/orders.ts",
+        "lineStart": 5,
+        "lineEnd": 5,
+        "evidenceQuote": "db.query(\"SELECT * FROM orders WHERE id = \" + req.params.id)",
+        "ruleDescription": "A query string built with + or a template from a non-literal value",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import { db } from '../db';",
+        "",
+        "export function register(app) {",
+        "  app.get('/orders/:id', async (req, res) => {",
+        "    const rows = await db.query(\"SELECT * FROM orders WHERE id = \" + req.params.id);",
+        "    res.json(rows);",
+        "  });",
+        "}"
+      ]
+    },
+    {
+      "id": "exec-user-input",
+      "truth": "real",
+      "why": "The file name is attacker-controlled and reaches a shell.",
+      "finding": {
+        "dedupKey": "triage-exec-user-input",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-exec-user-input",
+        "title": "Shell command built from input",
+        "dimension": "sast",
+        "file": "src/routes/convert.ts",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "evidenceQuote": "exec(\"convert \" + req.query.file + \" out.png\", cb);",
+        "ruleDescription": "exec() or spawn with shell given a non-literal string",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import { exec } from 'child_process';",
+        "",
+        "export function register(app) {",
+        "  app.get('/convert', (req, res) => {",
+        "    const cb = (err) => res.sendStatus(err ? 500 : 200);",
+        "    exec(\"convert \" + req.query.file + \" out.png\", cb);",
+        "  });",
+        "}"
+      ]
+    },
+    {
+      "id": "eval-request-body",
+      "truth": "real",
+      "why": "Request data is evaluated as code.",
+      "finding": {
+        "dedupKey": "triage-eval-request-body",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-eval-dynamic",
+        "title": "eval of a non-literal",
+        "dimension": "sast",
+        "file": "src/routes/calc.ts",
+        "lineStart": 4,
+        "lineEnd": 4,
+        "evidenceQuote": "const result = eval(req.body.formula);",
+        "ruleDescription": "eval() or new Function() on a non-literal",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "export function register(app) {",
+        "  app.post('/calc', (req, res) => {",
+        "    // formulas arrive from the browser",
+        "    const result = eval(req.body.formula);",
+        "    res.json({ result });",
+        "  });",
+        "}"
+      ]
+    },
+    {
+      "id": "weak-reset-token",
+      "truth": "real",
+      "why": "A password-reset token from Math.random is guessable.",
+      "finding": {
+        "dedupKey": "triage-weak-reset-token",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-weak-random",
+        "title": "Math.random used for a security value",
+        "dimension": "sast",
+        "file": "src/auth/reset.ts",
+        "lineStart": 4,
+        "lineEnd": 4,
+        "evidenceQuote": "const token = Math.random().toString(36).slice(2);",
+        "ruleDescription": "Math.random() used to produce tokens, ids or secrets",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import { saveToken } from './store';",
+        "",
+        "export async function startReset(userId: string) {",
+        "  const token = Math.random().toString(36).slice(2);",
+        "  await saveToken(userId, token);",
+        "  return token;",
+        "}"
+      ]
+    },
+    {
+      "id": "jwt-decode-auth",
+      "truth": "real",
+      "why": "jwt.decode does not verify the signature, and the subject is trusted for access.",
+      "finding": {
+        "dedupKey": "triage-jwt-decode-auth",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-jwt-decode-unverified",
+        "title": "JWT decoded without verification",
+        "dimension": "sast",
+        "file": "src/auth/session.ts",
+        "lineStart": 4,
+        "lineEnd": 4,
+        "evidenceQuote": "const payload = jwt.decode(token);",
+        "ruleDescription": "jwt.decode() whose result is used for authentication",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import jwt from 'jsonwebtoken';",
+        "",
+        "export function currentUser(token: string) {",
+        "  const payload = jwt.decode(token);",
+        "  return payload ? { id: payload.sub, admin: payload.admin === true } : null;",
+        "}"
+      ]
+    },
+    {
+      "id": "log-password",
+      "truth": "real",
+      "why": "The plaintext password is written to the log.",
+      "finding": {
+        "dedupKey": "triage-log-password",
+        "scannerKey": "logging",
+        "ruleId": "bpm-log-secret-field",
+        "title": "Secret field logged",
+        "dimension": "logging",
+        "file": "src/auth/login.ts",
+        "lineStart": 5,
+        "lineEnd": 5,
+        "evidenceQuote": "logger.info('login attempt', { email: req.body.email, password: req.body.password });",
+        "ruleDescription": "A log call includes a field named like a secret",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import { logger } from '../log';",
+        "",
+        "export async function login(req, res) {",
+        "  const { email } = req.body;",
+        "  logger.info('login attempt', { email: req.body.email, password: req.body.password });",
+        "  res.sendStatus(await check(email) ? 200 : 401);",
+        "}"
+      ]
+    },
+    {
+      "id": "sql-allowlisted-column",
+      "truth": "false_positive",
+      "why": "The interpolated column comes from an allow-list map with a fixed default; the user value is never in the SQL.",
+      "finding": {
+        "dedupKey": "triage-sql-allowlisted-column",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-sql-built-variable",
+        "title": "SQL built by concatenation",
+        "dimension": "sast",
+        "file": "src/routes/list.ts",
+        "lineStart": 8,
+        "lineEnd": 8,
+        "evidenceQuote": "const rows = await db.query(`SELECT * FROM items ORDER BY ${column}`);",
+        "ruleDescription": "A query string built with + or a template from a non-literal value",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import { db } from '../db';",
+        "",
+        "const SORTABLE = { name: 'name', created: 'created_at', price: 'unit_price' } as const;",
+        "",
+        "export function register(app) {",
+        "  app.get('/items', async (req, res) => {",
+        "    const column = SORTABLE[String(req.query.sort)] ?? 'created_at';",
+        "    const rows = await db.query(`SELECT * FROM items ORDER BY ${column}`);",
+        "    res.json(rows);",
+        "  });",
+        "}"
+      ]
+    },
+    {
+      "id": "exec-constant",
+      "truth": "false_positive",
+      "why": "The command is a string literal with no input.",
+      "finding": {
+        "dedupKey": "triage-exec-constant",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-exec-user-input",
+        "title": "Shell command built from input",
+        "dimension": "sast",
+        "file": "src/build/version.ts",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "evidenceQuote": "const out = exec(CMD, cb);",
+        "ruleDescription": "exec() or spawn with shell given a non-literal string",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import { exec } from 'child_process';",
+        "",
+        "const CMD = 'git rev-parse HEAD';",
+        "",
+        "export function gitSha(cb) {",
+        "  const out = exec(CMD, cb);",
+        "  return out;",
+        "}"
+      ]
+    },
+    {
+      "id": "eval-in-test",
+      "truth": "false_positive",
+      "why": "This is a unit test asserting a sandbox, in a test file that never ships.",
+      "finding": {
+        "dedupKey": "triage-eval-in-test",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-eval-dynamic",
+        "title": "eval of a non-literal",
+        "dimension": "sast",
+        "file": "src/__tests__/sandbox.test.ts",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "evidenceQuote": "expect(() => eval(snippet)).toThrow();",
+        "ruleDescription": "eval() or new Function() on a non-literal",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import { describe, it, expect } from 'vitest';",
+        "",
+        "describe('sandbox escape', () => {",
+        "  it('blocks globalThis access', () => {",
+        "    const snippet = 'globalThis.process';",
+        "    expect(() => eval(snippet)).toThrow();",
+        "  });",
+        "});"
+      ]
+    },
+    {
+      "id": "random-jitter",
+      "truth": "false_positive",
+      "why": "Math.random only adds jitter to a retry delay; nothing secret depends on it.",
+      "finding": {
+        "dedupKey": "triage-random-jitter",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-weak-random",
+        "title": "Math.random used for a security value",
+        "dimension": "sast",
+        "file": "src/net/retry.ts",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "evidenceQuote": "const delay = base * 2 ** attempt + Math.random() * 100;",
+        "ruleDescription": "Math.random() used to produce tokens, ids or secrets",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "export async function withRetry(fn, attempts = 4, base = 200) {",
+        "  for (let attempt = 0; attempt < attempts; attempt++) {",
+        "    try {",
+        "      return await fn();",
+        "    } catch (err) {",
+        "      const delay = base * 2 ** attempt + Math.random() * 100;",
+        "      await new Promise((r) => setTimeout(r, delay));",
+        "      if (attempt === attempts - 1) throw err;",
+        "    }",
+        "  }",
+        "}"
+      ]
+    },
+    {
+      "id": "jwt-decode-after-verify",
+      "truth": "false_positive",
+      "why": "The token's signature is verified on the line before; decode only reads the already-verified claims.",
+      "finding": {
+        "dedupKey": "triage-jwt-decode-after-verify",
+        "scannerKey": "semgrep",
+        "ruleId": "bpm-jwt-decode-unverified",
+        "title": "JWT decoded without verification",
+        "dimension": "sast",
+        "file": "src/auth/claims.ts",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "evidenceQuote": "const payload = jwt.decode(token);",
+        "ruleDescription": "jwt.decode() whose result is used for authentication",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "import jwt from 'jsonwebtoken';",
+        "import { PUBLIC_KEY } from './keys';",
+        "",
+        "export function claims(token: string) {",
+        "  jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] });",
+        "  const payload = jwt.decode(token);",
+        "  return payload;",
+        "}"
+      ]
+    },
+    {
+      "id": "console-in-cli",
+      "truth": "false_positive",
+      "why": "This is a command-line tool whose interface is its console output.",
+      "finding": {
+        "dedupKey": "triage-console-in-cli",
+        "scannerKey": "code_health",
+        "ruleId": "bpm-ch-console",
+        "title": "console.log left in code",
+        "dimension": "code_health",
+        "file": "bin/report.ts",
+        "lineStart": 5,
+        "lineEnd": 5,
+        "evidenceQuote": "console.log(`${name}: ${count}`);",
+        "ruleDescription": "console.log/debug calls in application code",
+        "packVersion": "v1"
+      },
+      "reachability": {
+        "tier": null
+      },
+      "source": [
+        "#!/usr/bin/env node",
+        "import { summarise } from '../src/summary';",
+        "",
+        "for (const [name, count] of Object.entries(summarise(process.argv[2]))) {",
+        "  console.log(`${name}: ${count}`);",
+        "}"
+      ]
+    }
+  ]
+}
