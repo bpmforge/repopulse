@@ -29,8 +29,6 @@ export function contentAsPatch(content: string, windowLines = WINDOW_LINES): str
   return hunks.join('\n');
 }
 
-const BINARY_HINT = /\u0000/;
-
 /** The input as the diff-shaped files the chunker takes. */
 export function toDiffFiles(input: ReviewInput): DiffFile[] {
   switch (input.kind) {
@@ -44,7 +42,7 @@ export function toDiffFiles(input: ReviewInput): DiffFile[] {
 }
 
 function fileToDiff(path: string, content: string): DiffFile {
-  if (BINARY_HINT.test(content)) return { path, patch: null, binary: true };
+  if (content.includes('\u0000')) return { path, patch: null, binary: true };
   // Generated files are skipped by the chunker with a reason; hand them over
   // unchanged so that reason is recorded rather than the file vanishing here.
   if (isGenerated(path)) return { path, patch: content };

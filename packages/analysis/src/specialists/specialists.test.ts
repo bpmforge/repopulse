@@ -274,6 +274,50 @@ describe('repo-wide mode', () => {
   });
 });
 
+describe('dimension handling (found against a real model)', () => {
+  it('names the exact dimension in the required-JSON template', () => {
+    const prompt = buildChunkPrompt({
+      dimension: 'ai_slop',
+      chunk: { paths: ['a.ts'], text: '+x', promptTokens: 1, projectedOutputTokens: 1 },
+      prTitle: 't',
+      prBody: null,
+      version: 'v1',
+    });
+    expect(prompt.text).toContain('"dimension":"ai_slop"');
+    expect(prompt.text).not.toContain('<dimension>');
+  });
+
+  it('accepts a correct finding whose model-written dimension label is wrong', async () => {
+    const fx = fixtures.find(([n]) => n === 'ai_slop')![1];
+    const { gateway } = scripted(() =>
+      JSON.stringify({
+        findings: [
+          {
+            dimension: 'slop',
+            severity: 4,
+            confidence: 5,
+            file: fx.planted!.file,
+            line_range: [4, 6],
+            title: fx.planted!.title,
+            evidence_quote: fx.planted!.quote,
+            rationale: 'r',
+            suggested_fix: null,
+          },
+        ],
+      }),
+    );
+    const run = await runSpecialists(inputOf(fx), {
+      gateway,
+      prTitle: 't',
+      meta,
+      only: ['ai_slop'],
+    });
+    expect(run.findings).toHaveLength(1);
+    expect(run.findings[0]?.dimension).toBe('ai_slop');
+    expect(run.calls).toBe(1);
+  });
+});
+
 describe('the runner', () => {
   const inputWithAllSignals: ReviewInput = {
     kind: 'diff',

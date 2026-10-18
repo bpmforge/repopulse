@@ -100,12 +100,14 @@ dimension checklist + REQUIRED JSON schema + the chunk.
 | `security` | OWASP-informed: injection (SQL/cmd/path/template), authz gaps (missing checks on new routes/queries), secrets/credentials in diff, crypto misuse (weak hash, static IV/salt, homemade crypto), unsafe deserialization, SSRF-able fetches |
 | `performance` | N+1 query patterns, O(n²)+ loops over unbounded input, blocking-in-async (sync fs/crypto in handlers), unbounded Promise.all / missing pagination, hot-loop allocations |
 | `test_coverage` | does the diff add/modify tests matching changed behavior; **risky-untested-change heuristic**: non-trivial logic change (branching/auth/money/parsing) with zero test-file changes in the PR ⇒ finding |
+| `best_practices` | (W19-03) departs from the surrounding pattern, misleading names, comment contradicts code, silent contract break, unvalidated boundary input, leaked resources, reaching through module boundaries, magic values |
+| `ai_slop` | (W19-03) judgement-only slop: silent fallback hiding a dead primary path, one-use abstraction, speculative generality, cargo-cult patterns, narration comments, unwired scaffolding, stubs presented as features, model output used as trusted input — mechanical rules stay with the slop scanner |
 
 ### REQUIRED finding JSON (FR-ANALYSIS-5; zod-validated; malformed ⇒ retry once w/ error appended ⇒ dead-letter with raw payload kept)
 
 ```ts
 const Finding = z.object({
-  dimension: z.enum(['code_health', 'security', 'performance', 'test_coverage']),
+  dimension: z.enum(['code_health', 'security', 'performance', 'test_coverage', 'best_practices', 'ai_slop']),
   severity: z.number().int().min(1).max(5),      // 5=critical … 1=info (maps to FR-ANALYSIS-5 scale)
   confidence: z.number().int().min(1).max(5),
   file: z.string(), line_range: z.tuple([z.number(), z.number()]),
