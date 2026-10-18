@@ -290,4 +290,99 @@ describeIfLiveInfra('admin LLM routing (W19-02)', () => {
     const gem = (await get()).json().providers.find((p: { name: string }) => p.name === 'Gem');
     expect(gem).toMatchObject({ host: 'generativelanguage.googleapis.com', leaves_network: true });
   });
+
+  describe('host names are not on the network (IPs only, 2026-10-18)', () => {
+    async function nameConn() {
+      const [r] = await db
+        .insert(core.llmProviders)
+        .values({
+          workspaceId: WORKSPACE_ID,
+          name: 'NAS',
+          kind: 'openai_compatible',
+          baseUrl: 'http://nas.local:1234/v1',
+          model: 'n',
+          allowPublicHost: true,
+        })
+        .returning({ id: core.llmProviders.id });
+      return r!.id;
+    }
+
+    it('reports a *.local connection as leaving the network, by name', async () => {
+      await nameConn();
+      const nas = (await get()).json().providers.find((p: { name: string }) => p.name === 'NAS');
+      expect(nas).toMatchObject({ host: 'nas.local:1234', leaves_network: true });
+    });
+
+    it('local-only refuses it at save time and explains the host name', async () => {
+      const id = await nameConn();
+      const res = await put({ local_only: true, roles: { patch: [{ provider_id: id }] } });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().detail).toContain(
+        'Local-only is on: role "patch" would send to connection "NAS", which is outside your network.',
+      );
+      expect(res.json().detail).toContain(
+        'reached by the host name nas.local:1234, and only IP addresses count as on your network',
+      );
+    });
+
+    it('the same machine by IP address stays on the network', async () => {
+      const [r] = await db
+        .insert(core.llmProviders)
+        .values({
+          workspaceId: WORKSPACE_ID,
+          name: 'NAS by IP',
+          kind: 'openai_compatible',
+          baseUrl: 'http://192.168.1.50:1234/v1',
+          model: 'n',
+        })
+        .returning({ id: core.llmProviders.id });
+      expect(
+        (await put({ local_only: true, roles: { patch: [{ provider_id: r!.id }] } })).statusCode,
+      ).toBe(204);
+    });
+
+    it('the provider list marks a name-reached connection so the admin can see which ones changed', async () => {
+      await nameConn();
+      await db
+        .insert(core.llmProviders)
+        .values({
+          workspaceId: WORKSPACE_ID,
+          name: 'By IP',
+          kind: 'openai_compatible',
+          baseUrl: 'http://10.0.0.7:1234/v1',
+          model: 'm',
+        });
+      await db
+        .insert(core.llmProviders)
+        .values({
+          workspaceId: WORKSPACE_ID,
+          name: 'Loopback',
+          kind: 'openai_compatible',
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'm',
+        });
+      // routes for the provider list live in llm-providers; the lib used by both is what decides.
+      const { describeEndpoint } = await import('../../../lib/llm-routing.js');
+      expect(describeEndpoint('openai_compatible', 'http://nas.local:1234/v1')).toMatchObject({
+        hostIsName: true,
+        leavesNetwork: true,
+      });
+      expect(describeEndpoint('openai_compatible', 'http://10.0.0.7:1234/v1')).toMatchObject({
+        hostIsName: false,
+        leavesNetwork: false,
+      });
+      expect(describeEndpoint('openai_compatible', 'http://localhost:1234/v1')).toMatchObject({
+        hostIsName: false,
+        leavesNetwork: false,
+      });
+      expect(describeEndpoint('openai_compatible', 'http://[::1]:1234/v1')).toMatchObject({
+        hostIsName: false,
+        leavesNetwork: false,
+      });
+      expect(describeEndpoint('gemini', null)).toMatchObject({
+        hostIsName: true,
+        leavesNetwork: true,
+      });
+    });
+  });
 });

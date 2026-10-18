@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { validateHostUrl } from '../config/hosts.js';
 import { createAnalysisGateway } from './index.js';
 import { createEgressAuditor, isLocalHost, type EgressAuditRow } from './egress-auditor.js';
 import type { CompleteOpts } from './types.js';
@@ -56,18 +57,86 @@ function startProvider(mode: 'ok' | 'hang' | '500'): Promise<{ url: string; clos
 }
 
 describe('isLocalHost — what counts as leaving the network', () => {
-  it('treats loopback, RFC1918 and .local as ON the network', () => {
+  it('treats loopback and private IPv4 as ON the network', () => {
     for (const h of [
       'localhost',
       '127.0.0.1',
       '127.0.0.1:1234',
+      '127.0.0.2', // the whole 127/8 block is loopback
+      '[::1]:1234', // URL.host form of IPv6 loopback
+      '::1',
       '10.1.2.3',
       '192.168.13.179:1234',
       '172.16.0.9',
-      'lmstudio.local',
-      'models.internal',
+      '100.64.0.1', // CGNAT: private, as the host policy already treats it
     ]) {
       expect(isLocalHost(h), `${h} should be local`).toBe(true);
+    }
+  });
+
+  it('treats a host NAME as OFF the network, even .local and .internal (IPs only, Brad 2026-10-18)', () => {
+    // These were on-network until the audit and the host policy were made to
+    // agree. A name resolves later, elsewhere; the policy already refuses one
+    // without an explicit off-network decision, and so does the audit now.
+    for (const h of [
+      'lmstudio.local',
+      'models.internal',
+      'nas.lan',
+      'studio',
+      'host.containers.internal',
+      'lmstudio.local:1234',
+    ]) {
+      expect(isLocalHost(h), `${h} should be remote`).toBe(false);
+    }
+  });
+
+  it('does not treat link-local or the cloud metadata address as on-network', () => {
+    for (const h of ['169.254.169.254', '169.254.1.1:80']) expect(isLocalHost(h)).toBe(false);
+  });
+
+  it('AGREES with the host policy: a host is on-network exactly when the policy accepts it without an off-network decision', () => {
+    // The point of the change. Every row is a host the two could have disagreed on.
+    const hosts = [
+      'localhost',
+      '127.0.0.1',
+      '127.0.0.2',
+      '::1',
+      '[::1]',
+      '10.0.0.1',
+      '10.255.255.255',
+      '172.15.0.1',
+      '172.16.0.1',
+      '172.31.255.1',
+      '172.32.0.1',
+      '192.168.0.1',
+      '192.167.0.1',
+      '100.63.0.1',
+      '100.64.0.1',
+      '100.127.0.1',
+      '100.128.0.1',
+      '169.254.169.254',
+      '8.8.8.8',
+      'example.com',
+      'lmstudio.local',
+      'models.internal',
+      'nas.lan',
+      '10.evil.com',
+      '300.1.1.1',
+    ];
+    for (const h of hosts) {
+      const url = h.includes(':') && !h.startsWith('[') ? `http://[${h}]:1234` : `http://${h}:1234`;
+      let accepted = true;
+      let hostPart = h;
+      try {
+        hostPart = new URL(url).host;
+        validateHostUrl(url, { allowPublicHosts: false, allowLoopback: true });
+      } catch {
+        // Refused by the policy, or not a URL at all (300.1.1.1): not on-network.
+        accepted = false;
+      }
+      expect(isLocalHost(hostPart), `${h}: policy ${accepted ? 'accepts' : 'refuses'}`).toBe(
+        accepted,
+      );
     }
   });
 
@@ -342,5 +411,66 @@ describe('the gateway, against a local fixture provider', () => {
     expect(t3).not.toHaveBeenCalled();
     expect(rows[0]?.outcome).toBe('denied');
     expect(rows[0]?.bytesSent).toBe(0);
+  });
+});
+
+describe('a model reached by a host name is audited like any off-network call (IPs only)', () => {
+  const opts: CompleteOpts = {
+    tier: 'T2',
+    maxTokens: 100,
+    expectJson: true,
+    meta: {
+      repoId: '1',
+      prNumber: 1,
+      dimension: 'security',
+      checklistVersion: 'v1',
+      initiator: 't',
+    },
+  };
+  const ok = () =>
+    new Response(
+      JSON.stringify({
+        model: 'm',
+        choices: [{ message: { content: '{"findings":[]}' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }),
+      {
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+
+  it('writes the attempt and the outcome for lmstudio.local, which used to be exempt', async () => {
+    const rows: EgressAuditRow[] = [];
+    const gw = createAnalysisGateway({
+      hosts: [{ baseUrl: 'http://lmstudio.local:1234/v1', modelSlot: 'm' }],
+      fetchImpl: (async () => ok()) as unknown as typeof fetch,
+      sleep: async () => {},
+      egressAuditor: createEgressAuditor({ write: async (r) => void rows.push(r) }),
+      resolveAuditIds: async () => ({ workspaceId: 1, repoId: 1 }),
+    });
+    await gw.complete('p', opts);
+    expect(rows.map((r) => r.outcome)).toEqual(['attempted', 'succeeded']);
+    expect(rows[0]?.destinationHost).toBe('lmstudio.local:1234');
+  });
+
+  it('refuses to send to it when the deployment cannot record the egress', async () => {
+    const gw = createAnalysisGateway({
+      hosts: [{ baseUrl: 'http://lmstudio.local:1234/v1', modelSlot: 'm' }],
+      fetchImpl: (async () => ok()) as unknown as typeof fetch,
+    });
+    await expect(gw.complete('p', opts)).rejects.toThrow(/un-auditable egress/);
+  });
+
+  it('the same machine by IP address is still not egress and writes no row', async () => {
+    const rows: EgressAuditRow[] = [];
+    const gw = createAnalysisGateway({
+      hosts: [{ baseUrl: 'http://192.168.1.50:1234/v1', modelSlot: 'm' }],
+      fetchImpl: (async () => ok()) as unknown as typeof fetch,
+      sleep: async () => {},
+      egressAuditor: createEgressAuditor({ write: async (r) => void rows.push(r) }),
+      resolveAuditIds: async () => ({ workspaceId: 1, repoId: 1 }),
+    });
+    await gw.complete('p', opts);
+    expect(rows).toEqual([]);
   });
 });

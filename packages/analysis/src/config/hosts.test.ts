@@ -52,7 +52,9 @@ describe('the evil-URL corpus', () => {
     // Deliberately awkward: a deployment that genuinely runs its model on a
     // public host should have to say so in config, where someone reviews it.
     expect(() => validateHostUrl('http://models.example.com:1234')).toThrow();
-    expect(validateHostUrl('http://models.example.com:1234', { allowPublicHosts: true }).port).toBe('1234');
+    expect(validateHostUrl('http://models.example.com:1234', { allowPublicHosts: true }).port).toBe(
+      '1234',
+    );
   });
 
   it('rejects a hostname by default even if it might resolve privately', () => {
@@ -80,7 +82,12 @@ describe('config parsing', () => {
   });
 
   it('caps concurrency — an unbounded cap would queue a LAN box to death', () => {
-    expect(() => parseT2Config({ hosts: [{ baseUrl: 'http://10.0.0.1:1234', modelSlot: 'a' }], concurrencyCap: 99 })).toThrow();
+    expect(() =>
+      parseT2Config({
+        hosts: [{ baseUrl: 'http://10.0.0.1:1234', modelSlot: 'a' }],
+        concurrencyCap: 99,
+      }),
+    ).toThrow();
   });
 });
 

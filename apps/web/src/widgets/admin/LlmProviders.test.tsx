@@ -438,4 +438,46 @@ describe('Admin → Models (W16-07)', () => {
       expect(row).toHaveTextContent('⚠ yes');
     });
   });
+
+  it('says which saved connections are reached by a host name, and what that now means (IPs only)', async () => {
+    const base = {
+      kind: 'openai_compatible',
+      model: 'm',
+      credential: null,
+      headers: null,
+      enabled: true,
+      capabilities: null,
+      probed_at: null,
+    };
+    listBody = {
+      items: [
+        {
+          ...base,
+          id: 11,
+          name: 'NAS',
+          base_url: 'http://nas.local:1234/v1',
+          allow_public_host: true,
+          host: 'nas.local:1234',
+          leaves_network: true,
+          host_is_name: true,
+        },
+        {
+          ...base,
+          id: 12,
+          name: 'By IP',
+          base_url: 'http://10.0.0.7:1234/v1',
+          allow_public_host: false,
+          host: '10.0.0.7:1234',
+          leaves_network: false,
+          host_is_name: false,
+        },
+      ],
+    };
+    renderScreen();
+    const note = await screen.findByTestId('provider-name-host-11');
+    expect(note).toHaveTextContent(
+      /host name, so it counts as leaving your network.*audited.*Local only refuses it.*IP address/s,
+    );
+    expect(screen.queryByTestId('provider-name-host-12')).toBeNull();
+  });
 });

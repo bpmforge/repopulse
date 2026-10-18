@@ -38,6 +38,10 @@ interface ProviderRow {
   enabled: boolean;
   capabilities: Capabilities | null;
   probed_at: string | null;
+  /** Where it sends, and whether that leaves the network (IP addresses only count as home). */
+  host?: string | null;
+  leaves_network?: boolean;
+  host_is_name?: boolean;
 }
 
 // W19-01: what the probe found. 'unknown' is shown as unknown, never as 'no'.
@@ -607,6 +611,16 @@ export function LlmProviders() {
                 </td>
                 <td className="font-mono text-xs">
                   {p.kind === 'claude_cli' ? 'your Claude Code CLI' : (p.base_url ?? '—')}
+                  {p.host_is_name ? (
+                    <span
+                      className="mt-1 block font-sans text-fg-muted"
+                      data-testid={`provider-name-host-${p.id}`}
+                    >
+                      Reached by a host name, so it counts as leaving your network: its calls are
+                      audited and Local only refuses it. Use the machine&apos;s IP address to keep
+                      it on your network.
+                    </span>
+                  ) : null}
                 </td>
                 <td className="font-mono text-xs">{p.model}</td>
                 <td className="text-xs" data-testid={`provider-capabilities-${p.id}`}>

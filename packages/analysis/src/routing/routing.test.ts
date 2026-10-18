@@ -311,3 +311,43 @@ describe('contextWindowForRole (W19-03)', () => {
     expect(contextWindowForRole({ localOnly: true, chains: {} }, 'triage', pool)).toBe(32768);
   });
 });
+
+describe('host names are not on the network (IPs only, 2026-10-18)', () => {
+  const nas: T2Host = {
+    baseUrl: 'http://nas.local:1234/v1',
+    modelSlot: 'm',
+    providerId: 4,
+    name: 'NAS',
+  };
+
+  it('a *.local or *.internal connection now leaves the network for local-only', () => {
+    for (const baseUrl of ['http://nas.local:1234/v1', 'http://models.internal:1234/v1']) {
+      expect(
+        localOnlyViolations({ localOnly: true, chains: { patch: [link({ ...nas, baseUrl })] } }),
+      ).toHaveLength(1);
+    }
+  });
+
+  it('the refusal explains why, because the machine may be sitting next to the admin', () => {
+    const [msg] = localOnlyViolations({ localOnly: true, chains: { patch: [link(nas)] } });
+    expect(msg).toBe(
+      'Local-only is on: role "patch" would send to connection "NAS", which is outside your network. It is reached by the host name nas.local:1234, and only IP addresses count as on your network - use the machine\'s IP address.',
+    );
+  });
+
+  it('an ordinary public name gets no such hint - it never counted as home', () => {
+    const [msg] = localOnlyViolations({ localOnly: true, chains: { patch: [link(cloud)] } });
+    expect(msg).toBe(
+      'Local-only is on: role "patch" would send to connection "Hosted", which is outside your network.',
+    );
+  });
+
+  it('the shared pool under local-only drops it, and the same machine by IP stays', () => {
+    expect(
+      defaultPool(
+        [nas, { ...nas, baseUrl: 'http://192.168.1.50:1234/v1', name: 'NAS by IP' }],
+        true,
+      ).map((h) => h.name),
+    ).toEqual(['NAS by IP']);
+  });
+});

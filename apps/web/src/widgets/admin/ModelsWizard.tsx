@@ -332,9 +332,7 @@ export function ModelsWizard() {
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder={
-                    where === 'proxy'
-                      ? 'http://gateway.internal:4000/v1'
-                      : 'http://localhost:1234/v1'
+                    where === 'proxy' ? 'http://192.168.1.60:4000/v1' : 'http://localhost:1234/v1'
                   }
                   className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
                 />

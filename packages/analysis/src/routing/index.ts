@@ -19,8 +19,9 @@ import type { T2Host } from '../t2/client.js';
 //      role and the connection. At call time the gateway refuses again — a
 //      connection can be edited after the chain was saved.
 //   3. "LEAVES THE CONTAINER" means what the egress audit already means by
-//      leaving the network (isLocalHost): loopback, RFC1918, *.local,
-//      *.internal. One definition, so a call is audited exactly when
+//      leaving the network (isLocalHost): anything but loopback and private
+//      IPv4. A host name, even *.local or *.internal, leaves. One definition
+//      (config/hosts.ts, shared with the host policy), so a call is audited exactly when
 //      local-only would have refused it.
 
 export const LLM_ROLES = [
@@ -90,15 +91,28 @@ export function hostIsLocal(host: T2Host): boolean {
   }
 }
 
+/**
+ * Names that used to count as "on your network" (the audit trusted `.local` and
+ * `.internal`) and no longer do. A refusal about one of these says so, because
+ * "outside your network" about a host that sits in a rack next to the admin is
+ * confusing without the reason.
+ */
+const FORMERLY_TRUSTED_NAME = /\.(local|internal)(:\d+)?$/i;
+
 export class LocalOnlyViolationError extends Error {
   constructor(
     readonly role: LlmRole | null,
     readonly providerName: string,
+    host?: string | null,
   ) {
+    const hint =
+      host && FORMERLY_TRUSTED_NAME.test(host)
+        ? ` It is reached by the host name ${host}, and only IP addresses count as on your network - use the machine's IP address.`
+        : '';
     super(
-      role
+      (role
         ? `Local-only is on: role "${role}" would send to connection "${providerName}", which is outside your network.`
-        : `Local-only is on: connection "${providerName}" is outside your network.`,
+        : `Local-only is on: connection "${providerName}" is outside your network.`) + hint,
     );
     this.name = 'LocalOnlyViolationError';
   }
@@ -114,7 +128,7 @@ export function localOnlyViolations(policy: RoutingPolicy): string[] {
   for (const role of LLM_ROLES) {
     for (const link of policy.chains[role] ?? []) {
       if (!hostIsLocal(link.host)) {
-        out.push(new LocalOnlyViolationError(role, link.providerName).message);
+        out.push(new LocalOnlyViolationError(role, link.providerName, hostOf(link.host)).message);
       }
     }
   }
@@ -148,4 +162,13 @@ export function contextWindowForRole(
       : defaultPool([...pool], policy?.localOnly ?? false);
   const known = hosts.map((h) => h.contextWindow).filter((n): n is number => typeof n === 'number');
   return known.length === 0 ? null : Math.min(...known);
+}
+
+/** The host (with port) a T2 host sends to, for messages. */
+export function hostOf(host: T2Host): string | null {
+  try {
+    return new URL(host.chatUrl ?? host.baseUrl).host;
+  } catch {
+    return null;
+  }
 }

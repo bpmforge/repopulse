@@ -21,6 +21,7 @@ import {
 } from '@repopulse/analysis';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { isClaudeCliAccepted } from '../../../lib/claude-cli-acceptance.js';
+import { describeEndpoint } from '../../../lib/llm-routing.js';
 import { sendProblem } from '../../../lib/problem.js';
 
 // Admin → Models (W16-07, D-LLM-1).
@@ -182,6 +183,12 @@ export default async function llmProviderRoutes(
         enabled: r.enabled,
         capabilities: r.capabilities ?? null,
         probed_at: r.probedAt,
+        // Where it sends, by the one definition the audit, local-only and the
+        // host policy share: IP addresses on your network are home; a host NAME
+        // is not (Brad, 2026-10-18).
+        host: describeEndpoint(r.kind, r.baseUrl).host,
+        leaves_network: describeEndpoint(r.kind, r.baseUrl).leavesNetwork,
+        host_is_name: describeEndpoint(r.kind, r.baseUrl).hostIsName,
         created_at: r.createdAt,
       })),
     });
