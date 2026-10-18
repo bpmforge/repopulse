@@ -41,6 +41,8 @@ export interface TriageResult {
   proposals: TriageProposal[];
   rejections: TriageRejection[];
   funnel: TriageFunnel;
+  /** Gateway calls made, retries included (W19-09: the pass reports its total). */
+  calls: number;
 }
 
 /** Prompt overhead outside the slice: checklist + provenance + required JSON. Measured, not guessed. */
@@ -183,7 +185,7 @@ export async function runTriage(
     }
   }
 
-  return { proposals, rejections, funnel };
+  return { proposals, rejections, funnel, calls };
 }
 
 function retryPrompt(original: string, problem: string): string {

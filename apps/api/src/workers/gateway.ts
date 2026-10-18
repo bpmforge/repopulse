@@ -5,6 +5,7 @@ import {
   type AnalysisGateway,
   type EgressAuditRow,
   type LlmProviderKind,
+  type RoutingPolicy,
   type T2Host,
 } from '@repopulse/analysis';
 import { credentials } from '@repopulse/auth';
@@ -72,6 +73,8 @@ export function missingGatewayConfig(env: NodeJS.ProcessEnv = process.env): stri
 export interface WorkerGateway {
   gateway: AnalysisGateway;
   hosts: T2Host[];
+  /** The workspace's routing chains and local-only switch (W19-02), when it has providers. */
+  routing?: RoutingPolicy;
   /** Where the hosts came from, so the boot log and the UI can say. */
   source: 'providers' | 'env';
   /** Configured rows that could not be used, each with its own reason. */
@@ -278,7 +281,15 @@ export async function buildWorkerGateway(
     },
   });
 
-  return { gateway, hosts, source, skipped };
+  return {
+    gateway,
+    hosts,
+    ...(routing
+      ? { routing: { localOnly: routing.localOnly, chains: chainsFor(routing, hosts) } }
+      : {}),
+    source,
+    skipped,
+  };
 }
 
 /**
