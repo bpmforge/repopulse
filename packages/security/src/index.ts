@@ -88,3 +88,5 @@ export * from './registers/spdx.js';
 export * from './registers/attribution.js';
 export * from './triage/index.js';
 export * from './eval/index.js';
+export * from './rules/triage-clusters.js';
+export * from './updates/index.js';

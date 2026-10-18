@@ -297,3 +297,55 @@ estimate.
 `fixtures/benchmark` grade scanner *detection*, need a fetched corpus, and are
 not part of these runs (the ticket named them; this is the gap). Only one model
 has been measured. Nothing runs the evaluation on a schedule.
+
+## W19-06 as built (2026-10-18)
+
+Three parts, each independent.
+
+**1. Signed rulepack bundles** (`packages/security/src/updates`, `deploy/`).
+Builds on the existing host-side sync (`deploy/scan-db-sync.sh`, which already
+mounts rulepacks and the grype database read-only into the network-less scan
+container) instead of adding a second channel. A bundle is one JSON file: the
+whole rulepack tree, SHA-256 per file, an Ed25519 signature over the manifest.
+Verification refuses on any altered file, size mismatch, unsafe path, untrusted
+key (named) or bad signature; there is no partial install. Install is
+stage-verify-rename into `versions/<v>`, an atomic `current` symlink swap, an
+audit record (`current.json`), three versions kept; a valid-but-older bundle is
+refused (replay), going back is `rollback` (or `--to-shipped`). The offline path
+is install-from-file; the online path is HTTPS-only, no redirects, size-capped,
+and adds no trust. The operator places the publisher's public key themselves -
+the product ships none - and chooses the schedule (the tool is run by their own
+cron/timer; there is no scheduler inside the product). The sync script mounts
+the installed bundle instead of the shipped packs. For advisory data it adds an
+offline grype import (checksum required) and an opt-in previous-DB copy with
+`deploy/scan-db-rollback.sh`.
+*Verified for real:* the tool end to end on the real 50-file tree; the sync
+script's rulepack step with no bundle, with a bundle, and after rollback; the
+database-swap rollback and its undo. *Not run:* the grype import and
+keep-previous branches (no archive/scan image here; shellcheck and syntax only).
+*Gap:* advisory data is Anchore's and we do not sign it; only a checksum the
+operator supplies is checked. No publisher infrastructure (key custody, a place
+to host bundles) exists yet.
+
+**2. Nightly regression gate** (`bench --compare`, `benchmark/regression.ts`).
+Compares to the last committed report; any worse measured row fails; a row it
+could not measure fails (an unprepared suite is reported as the one cause); a
+failure must reproduce on a second run, a second clean run passes *flagged*
+with the load noted. Run for real on this machine, where it correctly failed:
+the OWASP/Juliet corpora are not fetched here and the load average was ~37 on 16
+cores (another project's builds). `docs/BENCHMARKS.md` has the usage. The
+workflow `.gitea/workflows/nightly-benchmark.yaml` has **never run**; the pass
+path was exercised by tests and not end to end for lack of the fetched corpora.
+
+**3. Rule-tweak proposals from AI-judged false positives**
+(`rules/triage-clusters.ts`). Clusters W19-04's confident `likely_false_positive`
+verdicts per rule (>= 3, confidence >= 3, and *more* false positives than real
+verdicts for that rule). The real verdicts go into the prompt as cases the
+narrower rule must still catch, and the prompt says the examples are AI
+judgements, not confirmed. The draft goes through the existing validator
+(trigger and clean fixtures required) and is stored `proposed` with provenance
+`llm_draft:ai_triage`, set in code, never by the model; from there it is the
+existing lifecycle (shadow, evidence, an admin's decision). Nothing in the path
+can store any other status or touch an existing rule (tested: the store handed
+to it can only insert). *Gap:* triage verdicts are not persisted yet, so nothing
+feeds this pass automatically - it takes judgements as input.

@@ -253,6 +253,52 @@ Until the database exists, the dependency scanner reports itself unavailable
 on the Security tab and names this script. That is the design: a repository
 with no findings must not look like a repository that is clean.
 
+### Updating rulepacks and advisory data between releases (W19-06)
+
+The shipped rulepacks move with the product. To move them **between** releases,
+use a signed bundle: one JSON file holding the whole rulepack tree, a SHA-256
+per file and an Ed25519 signature. The signature, not the channel, is the trust,
+so a bundle can arrive by download, USB stick or email.
+
+```sh
+# you, once: trust the publisher's PUBLIC key. Nothing is trusted by default.
+mkdir -p "$SCAN_RULES_DIR/rulepack-bundle/trusted-keys"
+cp publisher.public.pem "$SCAN_RULES_DIR/rulepack-bundle/trusted-keys/"
+
+# on your own schedule (cron, systemd timer, a CronJob) - or by hand, offline:
+node --import tsx packages/security/src/updates/cli.ts install \
+  --root "$SCAN_RULES_DIR/rulepack-bundle" --file bundle.json      # offline
+node --import tsx packages/security/src/updates/cli.ts install \
+  --root "$SCAN_RULES_DIR/rulepack-bundle" --url https://you.example/bundle.json
+
+node ... cli.ts status   --root "$SCAN_RULES_DIR/rulepack-bundle"  # exits 1 if stale (45 days)
+node ... cli.ts rollback --root "$SCAN_RULES_DIR/rulepack-bundle"  # previous bundle
+node ... cli.ts rollback --root "$SCAN_RULES_DIR/rulepack-bundle" --to-shipped
+```
+
+An install refuses, and changes nothing, when any file's hash differs, a path
+could leave the directory, the signing key is not one you trust, or the version
+is not newer than the installed one (going back is `rollback`, on purpose). It
+stages, re-hashes and renames; `current` moves by an atomic symlink swap, so a
+crash leaves the old version active. Three versions are kept. The next
+`deploy/scan-db-sync.sh` run mounts the installed bundle **instead of** the
+shipped packs and records which one in `rulepacks.version`. After you upgrade
+the product, install a bundle at least as new as the release, or `rollback
+--to-shipped`: an old bundle keeps old rules.
+
+The vulnerability database has its own offline path: set
+`SCAN_VULN_DB_ARCHIVE` to a database archive you carried in and
+`SCAN_VULN_DB_ARCHIVE_SHA256` to its checksum (the sync refuses without it).
+`SCAN_KEEP_PREVIOUS_DB=1` keeps one earlier copy so
+`deploy/scan-db-rollback.sh` can swap back (provision **8 GB**, not 5).
+
+**Not verified end to end.** The bundle tool, the rulepack step of the sync script
+and the rollback swap were run for real on a development machine; the grype
+import path and the keep-previous branch were syntax- and lint-checked only (no
+database archive or scan image was available), so try them on a staging host
+first. The advisory data itself is Anchore's and is not signed by us; only its
+checksum, which you supply, is checked.
+
 ## 10. Maintainers' own install
 
 The maintainers run RepoPulse on their own infrastructure behind their own

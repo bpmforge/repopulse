@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
-import { compareVersions, verifyBundle, type Bundle, type VerifyFailure } from './bundle.js';
+import { compareBundleVersions, verifyBundle, type Bundle, type VerifyFailure } from './bundle.js';
 
 // Installing rulepack bundles (W19-06).
 //
@@ -92,7 +92,7 @@ function writeRecord(root: string, rec: CurrentRecord): void {
 
 function prune(root: string, rec: CurrentRecord): void {
   const keep = new Set([rec.version, ...rec.history].filter((v): v is string => v !== null));
-  const ordered = [...keep].sort((a, b) => compareVersions(b, a)).slice(0, KEEP_VERSIONS);
+  const ordered = [...keep].sort((a, b) => compareBundleVersions(b, a)).slice(0, KEEP_VERSIONS);
   const dir = versionsDir(root);
   if (!existsSync(dir)) return;
   for (const v of readdirSync(dir)) {
@@ -122,7 +122,7 @@ export function installBundle(
 
   const cur = readCurrent(root);
   if (cur.version !== null) {
-    const cmp = compareVersions(bundle.version, cur.version);
+    const cmp = compareBundleVersions(bundle.version, cur.version);
     // A valid-but-old bundle replayed at the installer is an attack as much as
     // a mistake; going back is `rollback`, which is explicit.
     if (cmp === 0) {
