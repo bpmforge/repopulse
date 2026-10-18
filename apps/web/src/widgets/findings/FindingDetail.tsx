@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
@@ -11,6 +11,7 @@ import {
 import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
 import { VerifiedFix } from './VerifiedFix.js';
+import { AiSuggestions } from './AiSuggestions.js';
 import { RulePrecisionSummary } from '../trust/RulePrecision.js';
 import { SHADOW_EXPLAINER, ShadowBadge } from './ShadowBadge.js';
 
@@ -33,6 +34,7 @@ export function FindingDetail({
   const [note, setNote] = useState('');
   const [reason, setReason] = useState<string>('false_positive');
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const noteRef = useRef<HTMLInputElement>(null);
 
   const historyDescriptor = {
     endpoint: '/findings/{id}/history',
@@ -170,6 +172,17 @@ export function FindingDetail({
             download; never a write to the forge (D9a). */}
         <VerifiedFix findingId={finding.id} />
 
+        {/* W19-10: what an AI pass said about this finding, labelled as AI. It
+            only PREFILLS the dismiss form below; the person still writes the note
+            and presses Dismiss (D9a). */}
+        <AiSuggestions
+          findingId={finding.id}
+          onOfferDismiss={() => {
+            setReason('false_positive');
+            noteRef.current?.focus();
+          }}
+        />
+
         {/* W18-22: how far this rule has been shown to be right, before
             anyone acts on what it says. */}
         {finding.rule_id && <RulePrecisionSummary ruleId={finding.rule_id} />}
@@ -204,6 +217,7 @@ export function FindingDetail({
             <input
               className="w-72 panel px-2 py-1 text-sm"
               data-testid="finding-note"
+              ref={noteRef}
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />

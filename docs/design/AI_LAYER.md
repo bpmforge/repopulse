@@ -560,3 +560,39 @@ patches remain their own flow (Admin → Verified patches, W18-19). *Scheduling:
 is started by an admin; no cron starts one. *Dependency findings:* they have a
 reachability tier but no stored code context, so they are not triaged here. V5's
 dependency-CVE proposals were never persisted anywhere; they still are not.
+
+## W19-10 as built (2026-10-18): the findings UI
+
+Two places, both reading only our API (which reads only our Postgres):
+
+**The finding drawer** (`widgets/findings/AiSuggestions.tsx`, under the verified fix).
+Everything from a model carries an **AI** badge. A triage suggestion shows its verdict
+as a sentence ("AI suggests this may be a false positive"), confidence n/5, the model
+and routing link that produced it (a fallback link is said to be one), the rationale,
+the **cited lines as our copy of the file**, a proposed VEX justification ("nothing is
+recorded as VEX until a person does it") and what happened to any patch (none proposed
+or proven, or kept because the re-scan cleared it). A finding raised by a specialist
+says it was raised by an AI specialist, with its dimension, and that a rule did not find
+it. A finding no pass has covered says **"Not yet run: no AI review has been recorded"**
+and that this says nothing either way; a failed load says the same, not "clean".
+
+**Accepting is not dismissing.** "Accept suggestion" / "Dismiss suggestion" call the
+decide route and record who and when *on the suggestion*. The finding stays exactly as
+it was. After accepting a *likely false positive*, the drawer says the finding is still
+open and offers "Dismiss it as a false positive", which only **prefills the drawer's own
+form** (reason, focus on the note): the person writes the note and presses the existing
+Dismiss (PATCH /findings/:id), the only thing that moves a finding (D9a).
+
+**The repository's Security tab** (`widgets/repo/AiPassPanel.tsx`, "AI review pass").
+An admin names the paths and starts a pass; anyone can read the last ten. The limits
+are on the screen (paths, files, bytes, model calls, passes a day) and a refusal shows
+the server's own reason (daily limit, queue unreachable, a bad path). A repository
+nobody has run says "Not yet run ... an absence of review, not a clean result". A
+finished pass says what each specialist raised, **which specialists did not run because
+the call limit was reached (and that the pass says nothing about those dimensions)**,
+and the triage outcome; a failed pass shows its reason; the button is locked while one
+runs and the list follows it.
+
+**Not built.** An AI-raised marker on the *list* rows (the list endpoint does not carry
+provenance; the drawer does). A path picker (paths are typed). Re-asking triage for a
+finding that already has a suggestion.

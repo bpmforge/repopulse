@@ -10176,9 +10176,10 @@
           "Accessibility and e2e coverage match the existing findings pages; full gate green"
         ],
         "points": 5,
-        "status": "todo",
+        "status": "done",
         "notes": [
-          "Depends on the verdict row shape and read API settled in W19-09. See docs/design/AI_LAYER.md."
+          "Depends on the verdict row shape and read API settled in W19-09. See docs/design/AI_LAYER.md.",
+          "Built 2026-10-18: AI suggestions in the finding drawer (AI badge, verdict, confidence, model and route, cited lines from our copy, VEX proposal, accept/dismiss recorded on the suggestion only; accepting a false-positive suggestion offers the existing Dismiss prefilled, never does it) and an AI review pass panel on the repo Security tab (start, last runs, caps, server refusal reasons, not-yet-run, dropped-for-budget). Not built: AI marker on list rows, path picker."
         ]
       }
   ]
