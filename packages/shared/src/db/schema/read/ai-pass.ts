@@ -27,6 +27,9 @@ import { findings } from './findings.js';
 // suggestion, and the finding's own status moves only when that person uses the
 // existing PATCH /findings/:id (D9a: the AI never suppresses, closes or merges).
 
+export const AI_PASS_MODES = ['paths', 'pull_request', 'commit_range'] as const;
+export type AiPassMode = (typeof AI_PASS_MODES)[number];
+
 export const AI_PASS_STATUSES = ['pending', 'running', 'succeeded', 'failed', 'skipped'] as const;
 
 /** One pass over one repository. The row a person watches: every failure lands here in words. */
@@ -47,6 +50,13 @@ export const aiPassRuns = pgTable(
     commitSha: text('commit_sha'),
     /** What the person asked about: file paths or directory prefixes. Bounded - never "everything". */
     paths: jsonb('paths').$type<string[]>().notNull(),
+    /** What was reviewed: typed paths at the head, a pull request's diff, or a range of commits. */
+    mode: text('mode').$type<AiPassMode>().notNull().default('paths'),
+    /** Diff modes: the base (a pull request's base branch, or the range's base commit). */
+    baseRef: text('base_ref'),
+    /** Diff modes: the head commit reviewed. */
+    headRef: text('head_ref'),
+    prNumber: integer('pr_number'),
     status: text('status').notNull().default('pending'),
     /** Machine-readable cause of a failure or skip, e.g. no_gateway, too_large, nothing_relevant. */
     reasonCode: text('reason_code'),
@@ -73,6 +83,10 @@ export const aiPassRuns = pgTable(
   },
   (t) => [
     index('ai_pass_runs_workspace_repo_idx').on(t.workspaceId, t.repoId, t.createdAt.desc()),
+    check(
+      'ai_pass_runs_mode_check',
+      sql`${t.mode} in (${sql.raw(AI_PASS_MODES.map((m) => `'${m}'`).join(', '))})`,
+    ),
     check(
       'ai_pass_runs_status_check',
       sql`${t.status} in (${sql.raw(AI_PASS_STATUSES.map((s) => `'${s}'`).join(', '))})`,

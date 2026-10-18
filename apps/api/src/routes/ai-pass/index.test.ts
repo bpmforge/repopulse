@@ -258,6 +258,51 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
       expect((await start({})).json().detail).toMatch(/never reads the whole repository/);
     });
 
+    it('starts a pass on a pull request or a commit range, and records which', async () => {
+      const pr = await start({ pull_request: 12 });
+      expect(pr.statusCode).toBe(202);
+      expect(pr.json().run).toMatchObject({
+        mode: 'pull_request',
+        pr_number: 12,
+        paths: [],
+        base_ref: null,
+      });
+      await db.delete(read.aiPassRuns).where(eq(read.aiPassRuns.workspaceId, WS));
+      const range = await start({ base: 'ABCDEF1', head: '1234567890abcdef' });
+      expect(range.statusCode).toBe(202);
+      expect(range.json().run).toMatchObject({
+        mode: 'commit_range',
+        base_ref: 'abcdef1',
+        head_ref: '1234567890abcdef',
+        pr_number: null,
+      });
+      const [row] = await db
+        .select()
+        .from(read.aiPassRuns)
+        .where(eq(read.aiPassRuns.id, range.json().run.id));
+      expect([row!.mode, row!.baseRef, row!.headRef]).toEqual([
+        'commit_range',
+        'abcdef1',
+        '1234567890abcdef',
+      ]);
+    });
+
+    it('takes exactly one scope, and a scope that makes sense', async () => {
+      for (const body of [
+        { paths: ['src'], pull_request: 3 },
+        { pull_request: 3, base: 'abcdef1', head: 'abcdef2' },
+        { pull_request: 0 },
+        { pull_request: '3' },
+        { pull_request: 1.5 },
+        { base: 'abcdef1' },
+        { base: 'zz', head: 'abcdef2' },
+        { base: 'abcdef1', head: 5 },
+      ]) {
+        expect((await start(body)).statusCode, JSON.stringify(body)).toBe(400);
+      }
+      expect(add).not.toHaveBeenCalled();
+    });
+
     it('returns the active pass instead of starting a second one', async () => {
       const a = (await start()).json().run.id;
       const again = await start();
@@ -268,15 +313,13 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
 
     it('is capped per day', async () => {
       for (let i = 0; i < AI_PASSES_PER_DAY; i++) {
-        await db
-          .insert(read.aiPassRuns)
-          .values({
-            workspaceId: WS,
-            repoId: REPO,
-            paths: ['x'],
-            status: 'succeeded',
-            createdAt: new Date(clock.getTime() - 3600_000),
-          });
+        await db.insert(read.aiPassRuns).values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: ['x'],
+          status: 'succeeded',
+          createdAt: new Date(clock.getTime() - 3600_000),
+        });
       }
       const res = await start();
       expect(res.statusCode).toBe(429);
@@ -304,27 +347,23 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
     });
 
     it('lists the recent passes with their status and reason, newest first', async () => {
-      await db
-        .insert(read.aiPassRuns)
-        .values({
-          workspaceId: WS,
-          repoId: REPO,
-          paths: ['a'],
-          status: 'failed',
-          reasonCode: 'no_gateway',
-          reason: 'No model.',
-          createdAt: new Date('2026-10-17T00:00:00Z'),
-        });
-      await db
-        .insert(read.aiPassRuns)
-        .values({
-          workspaceId: WS,
-          repoId: REPO,
-          paths: ['b'],
-          status: 'succeeded',
-          createdAt: new Date('2026-10-18T00:00:00Z'),
-          calls: 7,
-        });
+      await db.insert(read.aiPassRuns).values({
+        workspaceId: WS,
+        repoId: REPO,
+        paths: ['a'],
+        status: 'failed',
+        reasonCode: 'no_gateway',
+        reason: 'No model.',
+        createdAt: new Date('2026-10-17T00:00:00Z'),
+      });
+      await db.insert(read.aiPassRuns).values({
+        workspaceId: WS,
+        repoId: REPO,
+        paths: ['b'],
+        status: 'succeeded',
+        createdAt: new Date('2026-10-18T00:00:00Z'),
+        calls: 7,
+      });
       const runs = (await app.inject({ method: 'GET', url: `/repos/${REPO}/ai-pass` })).json().runs;
       expect(runs.map((r: { paths: string[] }) => r.paths[0])).toEqual(['b', 'a']);
       expect(runs[1]).toMatchObject({
@@ -372,6 +411,38 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
       });
       expect(s.citations[0]).toEqual({ file: 'a.ts', line: 1, text: 'x' });
       expect(s.patch).toEqual({ status: 'not_attempted', reason: null, diff: null });
+    });
+
+    it('says what the pass reviewed next to each suggestion: a pull request, a commit range, or typed paths', async () => {
+      const id = await finding();
+      const [pr] = await db
+        .insert(read.aiPassRuns)
+        .values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: [],
+          mode: 'pull_request',
+          prNumber: 12,
+          baseRef: 'main',
+          headRef: 'abc1234def',
+          commitSha: 'abc1234def',
+          status: 'succeeded',
+        })
+        .returning({ id: read.aiPassRuns.id });
+      await verdict(id, { aiPassRunId: pr!.id });
+      await verdict(id, { decision: 'dismissed', decidedAt: new Date() });
+      const body = (await app.inject({ method: 'GET', url: `/findings/${id}/ai` })).json();
+      const modes = body.suggestions.map((s: { pass: { mode: string } }) => s.pass.mode).sort();
+      expect(modes).toEqual(['paths', 'pull_request']);
+      const prSuggestion = body.suggestions.find(
+        (s: { pass: { mode: string } }) => s.pass.mode === 'pull_request',
+      );
+      expect(prSuggestion.pass).toMatchObject({
+        id: pr!.id,
+        pr_number: 12,
+        base_ref: 'main',
+        head_ref: 'abc1234def',
+      });
     });
 
     it('404s a finding of another workspace and never leaks its suggestions', async () => {

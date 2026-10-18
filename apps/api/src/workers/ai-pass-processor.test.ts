@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { writeFileSync } from 'node:fs';
 import type { Job } from 'bullmq';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import { core, createDb, read, security } from '@repopulse/shared';
+import { core, createDb, facts, read, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import {
   createAnalysisGateway,
@@ -13,6 +13,8 @@ import {
   type T2Host,
 } from '@repopulse/analysis';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgeDiffSources, addedRanges, overlaps, type LoadedDiff } from './ai-pass-diff.js';
+import type { ForgeDiffFile, ForgeProvider } from '@repopulse/forge';
 import {
   aiPassProcessor,
   inScope,
@@ -118,6 +120,7 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
   let REPO = 0;
   let scanRunId = 0;
   let connectionId = 0;
+  let IDENT = 0;
 
   async function clear() {
     for (const w of [WS, OTHER]) {
@@ -125,6 +128,10 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       await db.delete(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.workspaceId, w));
       await db.delete(read.aiFindingProvenance).where(eq(read.aiFindingProvenance.workspaceId, w));
       await db.delete(read.aiPassRuns).where(eq(read.aiPassRuns.workspaceId, w));
+    }
+    if (REPO) {
+      await db.delete(facts.pullRequests).where(eq(facts.pullRequests.repoId, REPO));
+      await db.delete(facts.commits).where(eq(facts.commits.repoId, REPO));
     }
     await db
       .delete(read.findings)
@@ -216,6 +223,22 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
           .where(and(eq(core.repos.workspaceId, WS), eq(core.repos.forgeRepoId, 'w19-09-repo')))
           .limit(1)
       )[0]!.id;
+    const ident = {
+      workspaceId: WS,
+      provider: 'github',
+      forgeLogin: 'w19-11-dev',
+      displayName: 'W19-11 dev',
+    };
+    await db.insert(core.identities).values(ident).onConflictDoNothing();
+    IDENT = (
+      await db
+        .select({ id: core.identities.id })
+        .from(core.identities)
+        .where(
+          and(eq(core.identities.workspaceId, WS), eq(core.identities.forgeLogin, 'w19-11-dev')),
+        )
+        .limit(1)
+    )[0]!.id;
     await clear();
     const [sr] = await db
       .insert(security.scanRuns)
@@ -236,6 +259,7 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
   afterAll(async () => {
     await clear();
     await db.delete(security.scanRuns).where(eq(security.scanRuns.id, scanRunId));
+    await db.delete(core.identities).where(eq(core.identities.id, IDENT));
     await db.delete(core.repos).where(eq(core.repos.id, REPO));
     await db.delete(core.forgeConnections).where(eq(core.forgeConnections.id, connectionId));
     await db.delete(core.workspaces).where(eq(core.workspaces.id, OTHER));
@@ -548,6 +572,359 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
       }).d,
     )(job(runId));
     expect(r).toMatchObject({ status: 'skipped', code: 'nothing_relevant' });
+  });
+
+  // ----- W19-11: diff modes -------------------------------------------------
+
+  const PATCH = [
+    '@@ -0,0 +1,6 @@',
+    '+export function register(app) {',
+    "+  app.get('/u/:id', async (req, res) => {",
+    '+    const rows = await db.query("SELECT * FROM users WHERE id = " + req.params.id);',
+    '+    res.json(rows);',
+    '+  });',
+    '+}',
+  ].join('\n');
+
+  async function newDiffRun(
+    over: Partial<typeof read.aiPassRuns.$inferInsert> = {},
+    workspaceId = WS,
+  ) {
+    const [r] = await db
+      .insert(read.aiPassRuns)
+      .values({
+        workspaceId,
+        repoId: REPO,
+        paths: [],
+        mode: 'pull_request',
+        prNumber: 7,
+        ...over,
+      })
+      .returning({ id: read.aiPassRuns.id });
+    return r!.id;
+  }
+  const okDiff = (over: Partial<Extract<LoadedDiff, { ok: true }>> = {}): LoadedDiff => ({
+    ok: true,
+    commitSha: 'headsha1234567',
+    baseRef: 'main',
+    headRef: 'headsha1234567',
+    title: 'Pull request #7: Add users route',
+    files: [{ path: 'src/routes/users.ts', patch: PATCH }],
+    unreadable: [],
+    ...over,
+  });
+
+  it('diff mode reviews the DIFF, labels the pass, and triages only rule findings on lines the change adds', async () => {
+    const inside = await ruleFinding({ lineStart: 3, lineEnd: 3 });
+    const farAway = await ruleFinding({ lineStart: 60, lineEnd: 60 });
+    const otherFile = await ruleFinding({ file: 'lib/other.ts', lineStart: 3, lineEnd: 3 });
+    const runId = await newDiffRun();
+    const seen: unknown[] = [];
+    const { d, gw } = deps({
+      loadDiff: async (req) => {
+        seen.push(req);
+        return okDiff({ unreadable: ['assets/huge.json'] });
+      },
+      loadSources: async () => {
+        throw new Error('a diff pass must not read the repository snapshot');
+      },
+    });
+    const res = await aiPassProcessor(d)(job(runId));
+    expect(res.status).toBe('succeeded');
+    expect(seen[0]).toMatchObject({ mode: 'pull_request', prNumber: 7, repoId: REPO });
+
+    // The specialists were shown the change, titled as the pull request.
+    const specialistPrompt = gw.calls.find((c) => c.role !== 'triage')!.prompt;
+    expect(specialistPrompt).toContain('Pull request #7: Add users route');
+    expect(specialistPrompt).toContain('+    const rows = await db.query(');
+
+    const run = await runOf(runId);
+    expect(run.mode).toBe('pull_request');
+    expect(run.baseRef).toBe('main');
+    expect(run.headRef).toBe('headsha1234567');
+    expect(run.commitSha).toBe('headsha1234567');
+    // Files the forge could not give a full patch for are LISTED, not silently skipped.
+    expect((run.specialists as { unreadable?: string[] }).unreadable).toEqual(['assets/huge.json']);
+
+    const triaged = (
+      await db
+        .select({ id: read.aiTriageVerdicts.findingId })
+        .from(read.aiTriageVerdicts)
+        .where(eq(read.aiTriageVerdicts.workspaceId, WS))
+    ).map((r) => r.id);
+    expect(triaged).toEqual([inside]);
+    expect(triaged).not.toContain(farAway);
+    expect(triaged).not.toContain(otherFile);
+    // And nothing was dismissed or resolved.
+    const [f] = await db.select().from(read.findings).where(eq(read.findings.id, inside));
+    expect(f!.status).toBe('open');
+  });
+
+  it('a commit-range pass passes the base and head through and records them', async () => {
+    const runId = await newDiffRun({
+      mode: 'commit_range',
+      prNumber: null,
+      baseRef: 'aaaaaaa',
+      headRef: 'bbbbbbb',
+    });
+    const seen: unknown[] = [];
+    const { d } = deps({
+      loadDiff: async (req) => {
+        seen.push(req);
+        return okDiff({ baseRef: 'aaaaaaa1', headRef: 'bbbbbbb1', commitSha: 'bbbbbbb1' });
+      },
+    });
+    await aiPassProcessor(d)(job(runId));
+    expect(seen[0]).toMatchObject({ mode: 'commit_range', base: 'aaaaaaa', head: 'bbbbbbb' });
+    const run = await runOf(runId);
+    expect(run.baseRef).toBe('aaaaaaa1');
+    expect(run.headRef).toBe('bbbbbbb1');
+  });
+
+  it('records the loader’s named refusal, and fails by name where diff mode is not wired', async () => {
+    const refused = await newDiffRun();
+    await aiPassProcessor(
+      deps({
+        loadDiff: async () => ({
+          ok: false,
+          code: 'too_large',
+          reason: 'That change is more than 40 files.',
+        }),
+      }).d,
+    )(job(refused));
+    const r1 = await runOf(refused);
+    expect([r1.status, r1.reasonCode]).toEqual(['failed', 'too_large']);
+    expect(r1.reason).toMatch(/more than 40 files/);
+
+    const unwired = await newDiffRun();
+    await aiPassProcessor(deps().d)(job(unwired));
+    const r2 = await runOf(unwired);
+    expect([r2.status, r2.reasonCode]).toEqual(['failed', 'no_diff_source']);
+  });
+
+  it('diff triage says why when no rule finding sits on the change', async () => {
+    await ruleFinding({ lineStart: 60, lineEnd: 60 });
+    const runId = await newDiffRun();
+    await aiPassProcessor(deps({ loadDiff: async () => okDiff() }).d)(job(runId));
+    const run = await runOf(runId);
+    expect(run.triageFunnel).toBeNull();
+    expect(run.triageSkipped).toMatch(/sits on lines this change adds or alters/);
+  });
+
+  describe('the diff loader', () => {
+    const file = (path: string, over: Partial<ForgeDiffFile> = {}): ForgeDiffFile => ({
+      path,
+      status: 'modified',
+      additions: 1,
+      deletions: 0,
+      patch: `@@ -1,1 +1,2 @@\n x\n+y ${path}`,
+      patchTruncated: false,
+      ...over,
+    });
+    /** A file whose patch the forge did not send at all. */
+    const noPatch = (path: string): ForgeDiffFile => ({
+      path,
+      status: 'modified',
+      additions: 1,
+      deletions: 0,
+      patchTruncated: false,
+    });
+    function forge(opts: { pr?: ForgeDiffFile[][]; commits?: Record<string, ForgeDiffFile[]> }) {
+      const calls = { pr: 0, commit: [] as string[] };
+      const provider = {
+        kind: 'github',
+        capabilities: {},
+        async getPullRequestFiles(_ctx: unknown, _repo: string, _n: number, cursor?: string) {
+          const page = Number(cursor ?? 0);
+          calls.pr += 1;
+          const items = opts.pr?.[page] ?? [];
+          return page + 1 < (opts.pr?.length ?? 0)
+            ? { items, nextCursor: String(page + 1) }
+            : { items };
+        },
+        async getCommitFiles(_ctx: unknown, _repo: string, sha: string) {
+          calls.commit.push(sha);
+          return { items: opts.commits?.[sha] ?? [], stats: { additions: 0, deletions: 0 } };
+        },
+      } as unknown as ForgeProvider;
+      return {
+        calls,
+        load: forgeDiffSources({
+          db,
+          forgeFor: async () => ({ provider, repoFullName: 'w19-09/repo' }),
+        }),
+      };
+    }
+    async function addPr(number = 7, headSha = 'h'.repeat(40)) {
+      await db.insert(facts.pullRequests).values({
+        workspaceId: WS,
+        repoId: REPO,
+        number,
+        forgePrId: `pr-${number}`,
+        title: 'Add users route',
+        authorIdentityId: IDENT,
+        state: 'open',
+        isDraft: false,
+        isBot: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        baseRef: 'main',
+        headSha,
+        additions: 1,
+        deletions: 0,
+        changedFiles: 1,
+      });
+    }
+    async function addCommit(sha: string, minutesAgo: number, isMerge = false) {
+      await db.insert(facts.commits).values({
+        workspaceId: WS,
+        repoId: REPO,
+        sha,
+        authorIdentityId: IDENT,
+        committerIdentityId: IDENT,
+        authoredAt: new Date(Date.now() - minutesAgo * 60_000),
+        committedAt: new Date(Date.now() - minutesAgo * 60_000),
+        messageHead: 'x',
+        isRevertHeuristic: false,
+        isMerge,
+      });
+    }
+    const req = { workspaceId: 0, repoId: 0 };
+    beforeEach(() => {
+      req.workspaceId = WS;
+      req.repoId = REPO;
+    });
+
+    it('reads a pull request through the forge, across pages, skipping removed files and listing the unreadable', async () => {
+      await addPr();
+      const f = forge({
+        pr: [
+          [file('a.ts'), file('gone.ts', { status: 'removed' })],
+          [noPatch('big.json'), file('b.ts', { patchTruncated: true })],
+          [file('c.ts')],
+        ],
+      });
+      const out = await f.load({ ...req, mode: 'pull_request', prNumber: 7 });
+      if (!out.ok) throw new Error(out.reason);
+      expect(out.files.map((x) => x.path)).toEqual(['a.ts', 'c.ts']);
+      expect(out.unreadable).toEqual(['big.json', 'b.ts']);
+      expect(out.title).toBe('Pull request #7: Add users route');
+      expect(out.baseRef).toBe('main');
+      expect(out.commitSha).toBe('h'.repeat(40));
+      expect(f.calls.pr).toBe(3);
+    });
+
+    it('refuses a pull request that was never ingested, another workspace’s repo, and a change with nothing readable', async () => {
+      const f = forge({ pr: [[noPatch('x.ts')]] });
+      const none = await f.load({ ...req, mode: 'pull_request', prNumber: 99 });
+      expect(none).toMatchObject({ ok: false, code: 'not_found' });
+      expect(f.calls.pr).toBe(0); // checked against our warehouse before any forge call
+
+      await addPr();
+      const unreadable = await f.load({ ...req, mode: 'pull_request', prNumber: 7 });
+      expect(unreadable).toMatchObject({ ok: false, code: 'no_files' });
+      expect((unreadable as { reason: string }).reason).toMatch(/x\.ts/);
+
+      const other = await f.load({
+        workspaceId: OTHER,
+        repoId: REPO,
+        mode: 'pull_request',
+        prNumber: 7,
+      });
+      expect(other).toMatchObject({ ok: false, code: 'not_found' });
+    });
+
+    it('refuses, rather than truncates, a change over the file or byte cap', async () => {
+      await addPr();
+      const many = Array.from({ length: 41 }, (_, i) => file(`f${i}.ts`));
+      const tooMany = await forge({ pr: [many] }).load({
+        ...req,
+        mode: 'pull_request',
+        prNumber: 7,
+      });
+      expect(tooMany).toMatchObject({ ok: false, code: 'too_large' });
+      const huge = await forge({
+        pr: [[file('big.ts', { patch: `@@ -0,0 +1,1 @@\n+${'x'.repeat(401_000)}` })]],
+      }).load({ ...req, mode: 'pull_request', prNumber: 7 });
+      expect(huge).toMatchObject({ ok: false, code: 'too_large' });
+    });
+
+    it('resolves a commit range from our own warehouse (oldest first, merges skipped) and reads each commit’s files', async () => {
+      await addCommit('aaaaaaa0000000000000000000000000000000aa', 50);
+      await addCommit('bbbbbbb0000000000000000000000000000000bb', 40);
+      await addCommit('mmmmmmm0000000000000000000000000000000mm', 35, true);
+      await addCommit('ccccccc0000000000000000000000000000000cc', 30);
+      const f = forge({
+        commits: {
+          bbbbbbb0000000000000000000000000000000bb: [file('a.ts')],
+          ccccccc0000000000000000000000000000000cc: [file('a.ts'), file('c.ts')],
+        },
+      });
+      const out = await f.load({ ...req, mode: 'commit_range', base: 'aaaaaaa', head: 'ccccccc' });
+      if (!out.ok) throw new Error(out.reason);
+      expect(f.calls.commit).toEqual([
+        'bbbbbbb0000000000000000000000000000000bb',
+        'ccccccc0000000000000000000000000000000cc',
+      ]);
+      // The same path in two commits stays two entries: their line numbers differ.
+      expect(out.files.map((x) => x.path)).toEqual(['a.ts', 'a.ts', 'c.ts']);
+      expect(out.commits).toHaveLength(2);
+      expect(out.baseRef).toBe('aaaaaaa0000000000000000000000000000000aa');
+      expect(out.headRef).toBe('ccccccc0000000000000000000000000000000cc');
+    });
+
+    it('refuses an unknown commit, a reversed range and a range of more than ten commits', async () => {
+      await addCommit('aaaaaaa0000000000000000000000000000000aa', 100);
+      for (let i = 0; i < 11; i++) {
+        await addCommit(`${(i + 1).toString(16).padStart(7, '0')}${'0'.repeat(33)}`, 90 - i);
+      }
+      const f = forge({});
+      const unknown = await f.load({
+        ...req,
+        mode: 'commit_range',
+        base: 'deadbee',
+        head: 'aaaaaaa',
+      });
+      expect(unknown).toMatchObject({ ok: false, code: 'not_found' });
+      const reversed = await f.load({
+        ...req,
+        mode: 'commit_range',
+        base: '000000b',
+        head: 'aaaaaaa',
+      });
+      expect(reversed).toMatchObject({ ok: false, code: 'bad_range' });
+      const wide = await f.load({ ...req, mode: 'commit_range', base: 'aaaaaaa', head: '000000b' });
+      expect(wide).toMatchObject({ ok: false, code: 'too_large' });
+      expect(f.calls.commit).toEqual([]); // refused before any forge call
+      const garbage = await f.load({ ...req, mode: 'commit_range', base: 'zz', head: 'aaaaaaa' });
+      expect(garbage).toMatchObject({ ok: false, code: 'bad_range' });
+    });
+  });
+
+  it('addedRanges lists the new-side lines a patch adds, and overlap finds a finding inside them', () => {
+    const patch = [
+      '@@ -1,4 +10,5 @@',
+      ' keep',
+      '-old',
+      '+new a',
+      '+new b',
+      ' keep',
+      '+tail',
+      '@@ -40,2 +60,3 @@',
+      ' ctx',
+      '+added',
+    ].join('\n');
+    expect(addedRanges(patch)).toEqual([
+      [11, 12],
+      [14, 14],
+      [61, 61],
+    ]);
+    const r = addedRanges(patch);
+    expect(overlaps(r, 12, 13)).toBe(true);
+    expect(overlaps(r, 13, 13)).toBe(false);
+    expect(overlaps(r, 61, 70)).toBe(true);
+    expect(overlaps(r, 1, 9)).toBe(false);
+    expect(addedRanges('')).toEqual([]);
   });
 
   it('will not run a pass that is not pending, or that belongs to another workspace', async () => {

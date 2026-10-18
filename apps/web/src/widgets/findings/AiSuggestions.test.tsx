@@ -174,4 +174,45 @@ describe('AiSuggestions', () => {
     render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
     expect(screen.getByTestId('ai-not-run')).toBeTruthy();
   });
+
+  it('says what the pass reviewed next to a suggestion, and next to an AI-raised finding', () => {
+    respond({
+      raised_by: {
+        specialist: 'security',
+        checklist_version: 'v1',
+        model: 'm',
+        route: { providerName: 'LM Studio', model: 'm', linkIndex: 0 },
+        pass_id: 2,
+        pass: {
+          id: 2,
+          mode: 'pull_request',
+          pr_number: 12,
+          base_ref: 'main',
+          head_ref: 'abcdef0123',
+          commit_sha: 'abcdef0123',
+          paths: [],
+        },
+      },
+      suggestions: [
+        suggestion({
+          pass: {
+            id: 3,
+            mode: 'commit_range',
+            pr_number: null,
+            base_ref: 'aaaaaaa1234',
+            head_ref: 'bbbbbbb5678',
+            commit_sha: 'bbbbbbb5678',
+            paths: [],
+          },
+        }),
+      ],
+    });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
+    expect(screen.getByTestId('ai-raised-by').textContent).toMatch(
+      /in a pass over the diff of pull request #12 \(base main, head abcdef01/,
+    );
+    expect(screen.getByTestId('ai-route').textContent).toMatch(
+      /From a pass over the commits aaaaaaa1\.\.bbbbbbb5/,
+    );
+  });
 });

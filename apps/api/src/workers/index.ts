@@ -22,6 +22,7 @@ import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
 import { snapshotSources } from './ai-pass-sources.js';
+import { forgeDiffSources } from './ai-pass-diff.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { createGatewayResolver, reportGatewayHealth } from './gateway.js';
@@ -896,6 +897,12 @@ async function main(): Promise<void> {
             : null;
         },
         loadSources: snapshotSources({
+          db,
+          forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+        }),
+        // Diff modes (W19-11): a pull request's files or a short commit range,
+        // through the budgeted client on the scan lane.
+        loadDiff: forgeDiffSources({
           db,
           forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
         }),
