@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "rows": [
+    {
+      "model": "qwen/qwen3.8-27b",
+      "ranAt": "2026-10-18T02:54:58.635Z",
+      "checklistVersion": "triage.v1",
+      "total": 12,
+      "agree": 12,
+      "disagree": 0,
+      "abstained": 0,
+      "rejected": 0,
+      "agreement": 1,
+      "missedReal": 0,
+      "cases": [
+        {
+          "id": "sql-concat-param",
+          "truth": "real",
+          "verdict": "real",
+          "outcome": "agree"
+        },
+        {
+          "id": "exec-user-input",
+          "truth": "real",
+          "verdict": "real",
+          "outcome": "agree"
+        },
+        {
+          "id": "eval-request-body",
+          "truth": "real",
+          "verdict": "real",
+          "outcome": "agree"
+        },
+        {
+          "id": "weak-reset-token",
+          "truth": "real",
+          "verdict": "real",
+          "outcome": "agree"
+        },
+        {
+          "id": "jwt-decode-auth",
+          "truth": "real",
+          "verdict": "real",
+          "outcome": "agree"
+        },
+        {
+          "id": "log-password",
+          "truth": "real",
+          "verdict": "real",
+          "outcome": "agree"
+        },
+        {
+          "id": "sql-allowlisted-column",
+          "truth": "false_positive",
+          "verdict": "likely_false_positive",
+          "outcome": "agree"
+        },
+        {
+          "id": "exec-constant",
+          "truth": "false_positive",
+          "verdict": "likely_false_positive",
+          "outcome": "agree"
+        },
+        {
+          "id": "eval-in-test",
+          "truth": "false_positive",
+          "verdict": "likely_false_positive",
+          "outcome": "agree"
+        },
+        {
+          "id": "random-jitter",
+          "truth": "false_positive",
+          "verdict": "likely_false_positive",
+          "outcome": "agree"
+        },
+        {
+          "id": "jwt-decode-after-verify",
+          "truth": "false_positive",
+          "verdict": "likely_false_positive",
+          "outcome": "agree"
+        },
+        {
+          "id": "console-in-cli",
+          "truth": "false_positive",
+          "verdict": "likely_false_positive",
+          "outcome": "agree"
+        }
+      ]
+    }
+  ]
+}

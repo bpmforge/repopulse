@@ -10002,9 +10002,10 @@
                 "Verdict agreement against the labelled benchmark fixtures is measured and published per model; full gate green"
           ],
           "points": 8,
-          "status": "todo",
+          "status": "done",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17).",
+      "Built 2026-10-18: packages/security/src/triage (V5 pattern for rule-raised findings): citations required and matched to our copy of the slice, VEX proposal only on likely_false_positive, patch kept only if the same rules re-scan clean, triage role through the routing chain and local-only. Agreement table docs/TRIAGE_EVAL.md: qwen/qwen3.8-27b 12/12 on 12 hand-labelled cases (labels unreviewed by a person). Not persisted or wired to a pass/route/UI yet.",
                 "Builds on W18-19 verified patches and the validation funnel; D9a and the VEX human-approval rule stay."
           ]
     },

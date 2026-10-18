@@ -189,3 +189,65 @@ what was reviewed, not the answer). This changes the prompt text for every
 dimension, so the two golden digests in `checklist-v2.test.ts` were re-recorded
 deliberately; the checklist assets themselves are unchanged, so no checklist
 version was bumped.
+
+## W19-04 as built (2026-10-18)
+
+Evidence-fed triage of **mechanical** findings: `packages/security/src/triage`.
+It is the V5 pattern (`validation/verify`, which triages dependency CVEs)
+applied to findings a rule raised, and it keeps V5's vocabulary on purpose — a
+funnel with reconcilable invariants, rejection reasons, and a `dismissed`
+counter that is always zero — so a person triaging does not learn two shapes.
+
+**What the role receives.** The rule's provenance (scanner, rule id, pack
+version, the rule's own description, CWE), the flagged lines and text, the
+reachability tier, and a bounded, **line-numbered** slice of the file from the
+snapshot (Law 4: never fetched live). Only dependency findings carry a
+reachability tier today, so for a rule-raised code finding the prompt says
+*"not computed for this scanner"* rather than inventing one. The slice is
+sized to the triage role's probed context window (`budgetForContext`, W19-03)
+and always contains the flagged lines.
+
+**What it returns.** `real`, `likely_false_positive` or `needs_human` (a normal
+answer, never a failure), a confidence, a rationale, **citations**, and
+optionally a VEX justification and a patch. The prompt (`checklists/triage.v1.md`,
+versioned) writes the verdict values out in the answer template.
+
+**Uncited verdicts are rejected.** Every verdict must cite at least one line by
+the number printed in the slice's margin, and a quote, if given, must be on that
+line. The stored citation text is *our* copy of the line, never the model's. A
+verdict citing nothing (`uncited`) or a line it was not shown (`citation_not_found`)
+is thrown away and counted; malformed and uncited answers get one corrective
+retry, an out-of-slice citation does not (a second try would be shopping for a
+nicer answer).
+
+**Nothing is suppressed, merged or written.** A VEX justification is accepted
+only with `likely_false_positive` (on any other verdict it contradicts itself →
+`ungrounded`) and is a proposal for a person. A patch is kept only if the **same
+deterministic rules** that raised the finding no longer fire after it, via the
+existing W18-19 `verifyPatch` path; the model's opinion of its own fix is never
+read. With no runner supplied, or for a scanner no runner reproduces, no patch is
+offered at all.
+
+**Routing and local-only.** Calls carry `meta.role: 'triage'`, so the
+workspace's routing chain, fallback on provider errors and the local-only
+switch (W19-02) apply with no code in triage; tests pin that a local-only
+policy refuses a triage chain naming a hosted connection before anything is
+sent, and that the serving link is recorded on each proposal.
+
+**Agreement, per model** (`docs/TRIAGE_EVAL.md`, rendered from
+`docs/triage-eval.json`; scored with `packages/security/src/triage/cli.ts`).
+Twelve hand-labelled findings — six real, six false positives, one rule family
+each. A verdict *agrees* when it matches the label, *disagrees* when it
+contradicts it, *abstains* on `needs_human`, and is *rejected* when no valid
+verdict came back. "Missed real" — calling a real finding a false positive — is
+counted on its own because it is the error that hides a live problem. **The
+labels were written by the same AI assistant that built the ticket and have not
+been reviewed by a person;** the table says so, and it is an indicative floor on
+a tiny set, not an accuracy estimate.
+
+**Not built.** Nothing calls `runTriage` from a scheduled pass or an API route,
+and a verdict is not yet persisted or shown in the findings UI (the findings
+table has no place for it; V5's proposals attach to dependency vulnerabilities).
+Those are the next step. The benchmark corpus (`fixtures/benchmark`) grades
+*detection*, so it has no scanner-hit-with-truth cases; the triage cases are
+authored for this ticket.
