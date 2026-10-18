@@ -180,6 +180,22 @@ describeIfLiveInfra('admin LLM providers (W16-07)', () => {
     expect(res.json().detail).toMatch(/service-account key/i);
   });
 
+  it('creates a Gemini connection with no base URL, because its endpoint is fixed (W19-07 fix)', async () => {
+    // The W19-01 migration added the kind but not the base-URL constraint's
+    // allowance for it, so this was a 500 from the database.
+    const res = await create({
+      name: 'Gemini',
+      kind: 'gemini',
+      model: 'gemini-2.5-flash',
+      api_key: 'AIza-test-key-not-real',
+      allow_public_host: true,
+    });
+    expect(res.statusCode).toBe(201);
+    const list = (await app.inject({ method: 'GET', url: '/admin/llm-providers' })).json();
+    expect(list.items[0]).toMatchObject({ kind: 'gemini', base_url: null });
+    expect(JSON.stringify(list)).not.toContain('AIza-test-key');
+  });
+
   it('serves the local-server presets with the kinds (W19-01)', async () => {
     const res = await app.inject({ method: 'GET', url: '/admin/llm-providers/kinds' });
     const ids = (res.json().presets as { id: string }[]).map((p) => p.id);

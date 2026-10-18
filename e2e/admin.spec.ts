@@ -180,7 +180,9 @@ test('the Identities tab lists real identities and merges one, passing axe (W5-0
   await expect(page.getByTestId(`identity-merge-${sourceId}`)).toBeVisible();
 });
 
-test('agreements are admin-configurable and show real exception lists (W5-08)', async ({ page }) => {
+test('agreements are admin-configurable and show real exception lists (W5-08)', async ({
+  page,
+}) => {
   await loginAsFixture(page);
   await page.goto('/admin/agreements');
 
@@ -296,4 +298,33 @@ test('the setup checklist says what is outstanding without echoing a secret', as
   }
 
   await expectNoA11yViolations(page);
+});
+
+// W19-07: the Models wizard walks a person through where the model runs and says
+// plainly what leaves the network, before anything is entered. This stays inside
+// the UI on purpose - it must pass on a machine with no model server.
+test('the Models wizard states what leaves the network, per choice, and steps through', async ({
+  page,
+}) => {
+  await loginAsFixture(page);
+  await page.goto('/admin/models');
+  const wizard = page.getByTestId('models-wizard');
+  await expect(wizard).toBeVisible();
+
+  await expect(page.getByTestId('wizard-leaves-local')).toContainText(
+    'Nothing leaves your network.',
+  );
+  await expect(page.getByTestId('wizard-leaves-hosted')).toContainText('egress audit');
+
+  await page.getByTestId('wizard-where-hosted').check();
+  await page.getByTestId('wizard-next-0').click();
+  await expect(page.getByRole('heading', { name: 'Connect and test it' })).toBeFocused();
+  await expect(wizard.locator('[aria-current="step"]')).toContainText('Connect and test');
+
+  // A hosted connection cannot be saved without saying what is sent to it.
+  await page.getByTestId('wizard-name').fill('Gemini');
+  await page.getByTestId('wizard-model').fill('gemini-2.5-flash');
+  await expect(page.getByTestId('wizard-save')).toBeDisabled();
+  await page.getByTestId('wizard-outside').check();
+  await expect(page.getByTestId('wizard-save')).toBeEnabled();
 });

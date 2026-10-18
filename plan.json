@@ -10087,9 +10087,10 @@
                 "Accessibility and e2e coverage match the existing admin pages; full gate green"
           ],
           "points": 5,
-          "status": "todo",
+          "status": "done",
           "notes": [
-                "See docs/design/AI_LAYER.md (2026-10-17)."
+                "See docs/design/AI_LAYER.md (2026-10-17).",
+      "Built 2026-10-18: Models setup wizard stating per role what leaves the network (server-reported hosts), INSTALL.md worked examples. LM Studio path verified end to end in a real browser against a real LM Studio; the hosted (Gemini) example is NOT verified with a real key. Also fixed a W19-01 defect (Gemini with no base URL, migration 0042). Hostnames for local models are not accepted by the host policy (IP only); the audit and the host policy disagree on names."
           ]
     },
     {

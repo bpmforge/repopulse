@@ -139,7 +139,7 @@ export const llmProviders = pgTable(
     check(
       'llm_providers_base_url_check',
       sql.raw(
-        `base_url is not null or kind in ('anthropic', 'bedrock', 'copilot', 'openai_subscription')`,
+        `base_url is not null or kind in ('anthropic', 'gemini', 'bedrock', 'copilot', 'openai_subscription')`,
       ),
     ),
     // The encrypted-credential columns move together or not at all. A row with

@@ -5,6 +5,7 @@ import { LLM_ROLES, isLlmRole, type LlmRole } from '@repopulse/analysis';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
 import {
+  describeEndpoint,
   loadStoredRouting,
   providersFor,
   violationsFor,
@@ -62,6 +63,12 @@ export default async function llmRoutingRoutes(
             provider_id: r.providerId,
             provider_name: names.get(r.providerId) ?? null,
             model: r.model,
+            // Where this link sends requests, so the screen can say what leaves.
+            ...(() => {
+              const p = providers.find((x) => x.id === r.providerId);
+              const e = p ? describeEndpoint(p.kind, p.baseUrl) : null;
+              return { host: e?.host ?? null, leaves_network: e?.leavesNetwork ?? null };
+            })(),
           })),
       })),
       // For the pickers: the connections a chain may use. Never a credential.
@@ -71,6 +78,8 @@ export default async function llmRoutingRoutes(
         kind: p.kind,
         model: p.model,
         enabled: p.enabled,
+        host: describeEndpoint(p.kind, p.baseUrl).host,
+        leaves_network: describeEndpoint(p.kind, p.baseUrl).leavesNetwork,
       })),
     });
   });

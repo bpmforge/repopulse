@@ -47,6 +47,8 @@ const ROUTES: { path: string; ready: string }[] = [
   { path: '/admin/identities', ready: 'identities' },
   { path: '/admin/agreements', ready: 'agreements' },
   { path: '/admin/analysis', ready: 'analysis-policy' },
+  // W19-07: the Models page, including the setup wizard.
+  { path: '/admin/models', ready: 'models-wizard' },
 ];
 
 for (const theme of ['dark', 'light'] as const) {
