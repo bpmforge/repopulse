@@ -59,12 +59,31 @@ mkdir -p "$DEST"
 # has them under packages/security; a bundle has no checkout and ships them
 # beside this script as deploy/rulepacks. Explicit RULEPACKS_SRC wins.
 RULEPACKS_SRC="${RULEPACKS_SRC:-}"
+RULEPACKS_SRC_EXPLICIT="$RULEPACKS_SRC"
 if [ -z "$RULEPACKS_SRC" ]; then
   if [ -d "$REPO_ROOT/packages/security/rulepacks" ]; then
     RULEPACKS_SRC="$REPO_ROOT/packages/security/rulepacks"
   elif [ -d "$SCRIPT_DIR/rulepacks" ]; then
     RULEPACKS_SRC="$SCRIPT_DIR/rulepacks"
   fi
+fi
+# An INSTALLED, VERIFIED rulepack bundle (W19-06) replaces the shipped packs.
+# `rulepack-bundle/current` is a symlink that only the bundle tool moves, and it
+# only ever points at a bundle whose SHA-256s and Ed25519 signature checked out
+# against a key the operator trusts (packages/security/src/updates). An explicit
+# RULEPACKS_SRC still wins, so a deliberate override is never second-guessed.
+# To go back to the packs that shipped with this install, run the tool's
+# `rollback --to-shipped`, which removes the symlink.
+RULEPACK_BUNDLE_DIR="$(env_value RULEPACK_BUNDLE_DIR)"
+: "${RULEPACK_BUNDLE_DIR:=$DEST/rulepack-bundle}"
+BUNDLE_VERSION=""
+if [ -z "${RULEPACKS_SRC_EXPLICIT:-}" ] && [ -L "$RULEPACK_BUNDLE_DIR/current" ] && [ -d "$RULEPACK_BUNDLE_DIR/current" ]; then
+  RULEPACKS_SRC="$RULEPACK_BUNDLE_DIR/current"
+  BUNDLE_VERSION="$(basename "$(readlink "$RULEPACK_BUNDLE_DIR/current")")"
+  log "using installed rulepack bundle $BUNDLE_VERSION (replaces the shipped packs)"
+elif [ -e "$RULEPACK_BUNDLE_DIR/current" ] || [ -L "$RULEPACK_BUNDLE_DIR/current" ]; then
+  log "ERROR: $RULEPACK_BUNDLE_DIR/current exists but is not a symlink to a directory - ignoring it, using the shipped packs"
+  FAILED=1
 fi
 if [ -n "$RULEPACKS_SRC" ] && [ -d "$RULEPACKS_SRC" ]; then
   log "syncing in-house rulepacks from $RULEPACKS_SRC"
@@ -80,6 +99,7 @@ if [ -n "$RULEPACKS_SRC" ] && [ -d "$RULEPACKS_SRC" ]; then
   ( cd "$DEST/rulepacks" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256 ) \
     > "$DEST/rulepacks.sha256"
   log "rulepacks synced: $(wc -l < "$DEST/rulepacks.sha256" | tr -d ' ') files"
+  printf '%s\n' "${BUNDLE_VERSION:-shipped}" > "$DEST/rulepacks.version"
 else
   log "ERROR: no rulepack directory at $REPO_ROOT/packages/security/rulepacks or $SCRIPT_DIR/rulepacks (set RULEPACKS_SRC)"
   FAILED=1
@@ -150,10 +170,36 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
       # GRYPE_DB_AUTO_UPDATE is false in the image — that is the setting the
       # SCAN container must have — and `grype db update` is an explicit command
       # that overrides it (verified by running: it downloads regardless).
-      if "$runtime" run --rm --user 0:0 \
+      # OFFLINE PATH (W19-06). With SCAN_VULN_DB_ARCHIVE set, nothing is fetched:
+      # the database comes from an archive the operator carried in (grype's own
+      # `db import`), and it must match SCAN_VULN_DB_ARCHIVE_SHA256 or the sync
+      # refuses - the checksum is the operator's statement of what they meant to
+      # install. It then goes through the same prove-before-publish check below.
+      db_fetch=(grype db update)
+      db_mounts=()
+      ARCHIVE="$(env_value SCAN_VULN_DB_ARCHIVE)"
+      if [ -n "$ARCHIVE" ]; then
+        ARCHIVE_SHA="$(env_value SCAN_VULN_DB_ARCHIVE_SHA256)"
+        if [ ! -f "$ARCHIVE" ]; then
+          log "ERROR: SCAN_VULN_DB_ARCHIVE=$ARCHIVE is not a file"
+          FAILED=1; rm -rf "$stage"; ARCHIVE_BAD=1
+        elif [ -z "$ARCHIVE_SHA" ]; then
+          log "ERROR: SCAN_VULN_DB_ARCHIVE is set without SCAN_VULN_DB_ARCHIVE_SHA256 - refusing to import an unverified database"
+          FAILED=1; rm -rf "$stage"; ARCHIVE_BAD=1
+        elif [ "$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')" != "$ARCHIVE_SHA" ]; then
+          log "ERROR: $ARCHIVE does not match SCAN_VULN_DB_ARCHIVE_SHA256 - refusing to import it"
+          FAILED=1; rm -rf "$stage"; ARCHIVE_BAD=1
+        else
+          log "importing the grype database from $ARCHIVE (offline; checksum verified)"
+          db_fetch=(grype db import /import/db-archive)
+          db_mounts=(-v "$ARCHIVE:/import/db-archive:ro")
+        fi
+      fi
+      if [ -z "${ARCHIVE_BAD:-}" ] && "$runtime" run --rm --user 0:0 \
            -e GRYPE_DB_CACHE_DIR=/db \
            -v "$stage:/db:rw" \
-           "$SCAN_IMAGE" grype db update; then
+           ${db_mounts[@]+"${db_mounts[@]}"} \
+           "$SCAN_IMAGE" "${db_fetch[@]}"; then
         # Read-only for everyone, matching the rulepacks: the scan container
         # mounts this ro anyway, and defence in depth costs one chmod.
         find "$stage" -type d -exec chmod 0555 {} +
@@ -175,6 +221,14 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
             mv "$VULN_DB_DIR" "$VULN_DB_DIR.old"
           fi
           mv "$stage" "$VULN_DB_DIR"
+          # SCAN_KEEP_PREVIOUS_DB=1 keeps ONE earlier database as vuln-db.prev so
+          # deploy/scan-db-rollback.sh can go back. Off by default: it holds a
+          # third ~1.9 GiB copy while the next sync stages, so provision 8 GB,
+          # not 5, if you turn it on.
+          if [ "$(env_value SCAN_KEEP_PREVIOUS_DB)" = "1" ] && [ -e "$VULN_DB_DIR.old" ]; then
+            rm -rf "$VULN_DB_DIR.prev"
+            mv "$VULN_DB_DIR.old" "$VULN_DB_DIR.prev"
+          fi
           rm -rf "$VULN_DB_DIR.old"
           log "grype database synced: $(du -sh "$VULN_DB_DIR" | awk '{print $1}') at $VULN_DB_DIR"
         else
@@ -183,8 +237,8 @@ if [ "${SCAN_SYNC_VULN_DB:-1}" = "1" ]; then
           log "       copy; the staged one is at $stage for inspection."
           FAILED=1
         fi
-      else
-        log "ERROR: 'grype db update' failed inside $SCAN_IMAGE. This host needs"
+      elif [ -z "${ARCHIVE_BAD:-}" ]; then
+        log "ERROR: 'grype ${db_fetch[*]}' failed inside $SCAN_IMAGE. This host needs"
         log "       outbound HTTPS to grype.anchore.io, and $SCAN_IMAGE must exist"
         log "       (podman compose ... build scan)."
         chmod -R u+w "$stage" 2>/dev/null || true

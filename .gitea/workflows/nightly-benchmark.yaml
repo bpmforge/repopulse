@@ -1,0 +1,64 @@
+# Nightly benchmark regression gate (W19-06).
+#
+# THIS WORKFLOW HAS NEVER RUN. It is written against the same runner assumptions
+# as gate.yaml (which has not run either - see its header) and has not been
+# executed anywhere. The command it wraps HAS been run locally (see
+# docs/BENCHMARKS.md, "Regression gate"); the schedule, the runner image and the
+# corpus downloads below have not. Treat every step as unexecuted until a run
+# of it is green.
+#
+# What it does: re-measures the deterministic scanners on the benchmark corpus
+# and compares to the LAST COMMITTED report (docs/benchmarks/report.json). It
+# fails when any measured row got worse - and only when the SAME rows get worse
+# on a second run, because a busy machine makes Opengrep drop findings and a
+# slow neighbour must not turn the build red (the load caveat, handled in
+# packages/security/src/benchmark/regression.ts). A row the run could not
+# measure fails it too: measuring less is not a way to pass.
+#
+# It needs, on the runner: opengrep (or semgrep) on PATH, because the YAML rules
+# are the bulk of the measured rows; without it the run reports "the YAML engine
+# did not run" and fails, loudly, on purpose. The tool adapters (checkov,
+# actionlint, hadolint, shellcheck) need the scan image; without it their rows
+# are lost coverage in the same way.
+
+name: nightly-benchmark
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    name: benchmark vs the committed report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: opengrep present?
+        run: |
+          command -v opengrep || command -v semgrep || {
+            echo "::error::no opengrep or semgrep on PATH - the regression gate would lose the YAML engine"
+            exit 1
+          }
+
+      # Prep-time downloads, pinned and hash-verified by the scripts themselves
+      # (they refuse a corpus that does not match the committed pin).
+      - name: prepare the OWASP Benchmark corpus
+        run: pnpm --filter @repopulse/security bench:prepare-owasp
+
+      - name: prepare the Juliet corpus
+        run: pnpm --filter @repopulse/security bench:prepare-juliet
+
+      - name: compare to the committed report
+        run: pnpm --filter @repopulse/security bench --compare docs/benchmarks/report.json
