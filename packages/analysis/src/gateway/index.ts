@@ -249,7 +249,7 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
       const chain = role ? deps.routing?.chains[role] : undefined;
 
       // No chain for this role: the shared pool, exactly as before W19-02.
-      if (!chain || chain.length === 0) {
+      if (chain === undefined) {
         const host = t2.pickHost();
         // Null means every host is at its cap. Surfaced so the SCHEDULER parks
         // and retries, rather than an unbounded in-process queue nobody can see.
@@ -258,6 +258,15 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
         const route = recordOf(role, host, deps.hosts.indexOf(host), []);
         deps.onRouted?.(route);
         return { ...result, route };
+      }
+
+      // A role that IS routed but has no usable connection (all disabled or
+      // deleted) refuses by name instead of quietly using the shared pool and a
+      // model nobody chose for it.
+      if (chain.length === 0) {
+        throw new Error(
+          `Role "${role}" is routed to specific connections but none of them is usable (disabled, deleted or misconfigured) — fix it in Admin → Models → Routing.`,
+        );
       }
 
       // A chain. Each link is tried in order; only a PROVIDER error moves on.

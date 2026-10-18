@@ -10,6 +10,7 @@ import {
 import { credentials } from '@repopulse/auth';
 import { core, read, type Database } from '@repopulse/shared';
 import { and, eq } from 'drizzle-orm';
+import { chainsFor, loadStoredRouting } from '../lib/llm-routing.js';
 
 // The analysis gateway, built once for the worker (carry-forward from W9-03,
 // W9-04 and W9-07).
@@ -225,8 +226,18 @@ export async function buildWorkerGateway(
     },
   });
 
+  // Per-role routing and the local-only switch (W19-02). Only for configured
+  // providers: the deprecated env path has no connections to route between.
+  const routing =
+    source === 'providers' && workspaceId !== undefined
+      ? await loadStoredRouting(db, workspaceId)
+      : null;
+
   const gateway = createAnalysisGateway({
     hosts,
+    ...(routing
+      ? { routing: { localOnly: routing.localOnly, chains: chainsFor(routing, hosts) } }
+      : {}),
     egressAuditor,
     /**
      * The gateway speaks in the string repoId its callers use; the audit table

@@ -177,6 +177,17 @@ describe('a chain falls back on PROVIDER errors only (W19-02)', () => {
   });
 });
 
+describe('a routed role with no usable connection (W19-02)', () => {
+  it('refuses by name instead of quietly using the shared pool and a model nobody chose', async () => {
+    const f = fakeFetch({});
+    const gw = gatewayFor([lan(1)], { localOnly: false, chains: { security: [] } }, f.impl);
+    await expect(gw.complete('p', opts)).rejects.toThrow(
+      /Role "security" is routed.*none of them is usable/s,
+    );
+    expect(f.impl).not.toHaveBeenCalled();
+  });
+});
+
 describe('local-only (W19-02)', () => {
   it('names the role and the connection that would leave the network', () => {
     const msgs = localOnlyViolations({

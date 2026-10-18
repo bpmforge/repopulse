@@ -104,6 +104,7 @@ export type AuditEvent =
   // stops analysis, which is equally worth a record.
   | 'llm_provider.created'
   | 'llm_provider.deleted'
+  | 'llm_routing.updated'
   // W16-10. A manual run spends CPU on the host and, for a sync, forge budget
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.
