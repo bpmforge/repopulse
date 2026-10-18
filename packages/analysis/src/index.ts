@@ -12,3 +12,4 @@ export * from './providers/vertex-auth.js';
 export * from './providers/probe.js';
 export * from './routing/index.js';
 export * from './specialists/index.js';
+export * from './providers/claude-cli.js';

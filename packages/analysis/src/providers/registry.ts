@@ -27,9 +27,10 @@ export type LlmProviderKind =
   | 'vertex'
   | 'bedrock'
   | 'copilot'
-  | 'openai_subscription';
+  | 'openai_subscription'
+  | 'claude_cli';
 
-export type AuthClass = 'api_key' | 'none' | 'cloud_credentials' | 'oauth_device';
+export type AuthClass = 'api_key' | 'none' | 'cloud_credentials' | 'oauth_device' | 'local_cli';
 
 export interface ProviderSpec {
   kind: LlmProviderKind;
@@ -53,6 +54,13 @@ export interface ProviderSpec {
    * set, the base URL is used verbatim, with no `/v1` normalisation.
    */
   chatPath?: string;
+  /**
+   * The customer installs and operates this themselves (W19-08). The UI shows it
+   * as customer-supplied, never as a RepoPulse feature.
+   */
+  customerSupplied?: boolean;
+  /** Off until an admin accepts a responsibility statement, which is recorded. */
+  requiresAcceptance?: boolean;
 }
 
 /** A one-click starting point for a local or self-hosted server (W19-01). */
@@ -213,6 +221,21 @@ export const PROVIDER_REGISTRY: Readonly<Record<LlmProviderKind, ProviderSpec>> 
     unsupportedReason:
       'A subscription plan authenticates through a browser sign-in rather than an API key. Support is W16-09.',
   },
+  claude_cli: {
+    kind: 'claude_cli',
+    label: 'Claude Code CLI you installed (customer-supplied)',
+    authClass: 'local_cli',
+    needsBaseUrl: false,
+    // NOMINAL, and deliberate: the CLI talks to Anthropic, so this is where the
+    // data goes. Giving the kind that destination makes the egress audit record
+    // it, the local-only switch refuse it, and the wizard say it leaves the
+    // network - all from the one definition every other kind uses.
+    defaultBaseUrl: 'https://api.anthropic.com',
+    supported: true,
+    customerSupplied: true,
+    requiresAcceptance: true,
+    examples: ['model id: sonnet, opus, or a full model name the CLI accepts'],
+  },
 });
 
 export const SUPPORTED_KINDS = Object.values(PROVIDER_REGISTRY)
@@ -229,6 +252,12 @@ export interface ProviderConfig {
   apiKey?: string | undefined;
   headers?: Record<string, string> | undefined;
   allowPublicHost: boolean;
+  /**
+   * Whether this workspace's admin has accepted the responsibility statement
+   * for the customer-supplied CLI option (W19-08). Absent means NOT accepted:
+   * the kind fails closed.
+   */
+  cliAccepted?: boolean | undefined;
 }
 
 export class ProviderConfigError extends Error {
@@ -255,6 +284,8 @@ export function resolveProvider(config: ProviderConfig): T2Host {
   if (!spec) throw new ProviderConfigError(config.name, `unknown kind "${config.kind}"`);
   if (!spec.supported)
     throw new ProviderConfigError(config.name, spec.unsupportedReason ?? 'not supported yet');
+
+  if (config.kind === 'claude_cli') return resolveClaudeCli(config, spec);
 
   const baseUrl = config.baseUrl ?? spec.defaultBaseUrl;
   if (!baseUrl) {
@@ -334,4 +365,38 @@ export async function resolveProviderAsync(
     );
   }
   return resolveProvider({ ...config, apiKey: token });
+}
+
+/**
+ * The customer-supplied Claude Code CLI (W19-08). Fails CLOSED, with a sentence
+ * for each way it can be unavailable, and holds no credential: the login lives
+ * in the CLI's own config in the customer's container, which RepoPulse never
+ * reads, stores or transmits.
+ */
+function resolveClaudeCli(config: ProviderConfig, spec: ProviderSpec): T2Host {
+  if (config.cliAccepted !== true) {
+    throw new ProviderConfigError(
+      config.name,
+      'the Claude Code CLI option is off: an admin must read and accept the responsibility statement in Admin → Models first',
+    );
+  }
+  if (config.apiKey) {
+    throw new ProviderConfigError(
+      config.name,
+      'this option takes no API key - the CLI keeps its own login, and nothing is stored here. Use the Anthropic API-key provider for a key.',
+    );
+  }
+  if (config.model.trim() === '') {
+    throw new ProviderConfigError(
+      config.name,
+      'no model - name one the CLI accepts, such as "sonnet"',
+    );
+  }
+  return {
+    baseUrl: spec.defaultBaseUrl!,
+    modelSlot: config.model.trim(),
+    providerId: config.id,
+    name: config.name,
+    transport: 'claude_cli',
+  };
 }

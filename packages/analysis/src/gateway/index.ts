@@ -7,6 +7,7 @@ import {
   type T2Deps,
   type T2Host,
 } from '../t2/client.js';
+import { runClaudeCli, type CliDeps } from '../providers/claude-cli.js';
 import {
   LocalOnlyViolationError,
   defaultPool,
@@ -34,6 +35,8 @@ export interface GatewayDeps extends T2Deps {
    * behaviour from before this ticket: every call uses the shared host pool.
    */
   routing?: RoutingPolicy;
+  /** Overrides for the customer-supplied CLI backend (tests; a non-default binary path). */
+  cli?: CliDeps;
   /** Told which link served each call, for logs and provenance. */
   onRouted?: (route: RouteRecord) => void;
   /** Per-repo Tier-3 opt-in (admin flag). Absent = not opted in. */
@@ -157,7 +160,24 @@ export function createAnalysisGateway(deps: GatewayDeps): AnalysisGateway {
       host.modelSlot,
       prompt,
       opts.meta,
-      () => t2.complete(prompt, { ...opts, maxTokens: T2_MAX_TOKENS }, host),
+      () =>
+        host.transport === 'claude_cli'
+          ? // The customer's own CLI, counted against the same concurrency cap. It
+            // is audited above like any host that leaves the network: its nominal
+            // destination is Anthropic.
+            t2.track(host, async () => {
+              const r = await runClaudeCli(prompt, host.modelSlot, deps.cli);
+              return {
+                text: r.text,
+                model: r.model,
+                tokensIn: r.tokensIn,
+                tokensOut: r.tokensOut,
+                // The plan is flat-rate: a per-call dollar figure would be invented.
+                costUsd: null,
+                durationMs: r.durationMs,
+              };
+            })
+          : t2.complete(prompt, { ...opts, maxTokens: T2_MAX_TOKENS }, host),
       (r) => ({ tokensSent: r.tokensIn, tokensReceived: r.tokensOut }),
     );
   }
