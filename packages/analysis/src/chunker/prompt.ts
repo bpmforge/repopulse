@@ -40,9 +40,11 @@ export function prContext(title: string, body: string | null): string {
   return `${header}\n${trimmed}\n`;
 }
 
-const REQUIRED_JSON = `Respond ONLY with JSON of this exact shape, and nothing else:
+const requiredJson = (
+  dimension: string,
+) => `Respond ONLY with JSON of this exact shape, and nothing else:
 
-{"findings":[{"dimension":"<dimension>","severity":1-5,"confidence":1-5,
+{"findings":[{"dimension":"${dimension}","severity":1-5,"confidence":1-5,
 "file":"<path>","line_range":[start,end],"title":"<=120 chars",
 "evidence_quote":"verbatim text copied from the diff above",
 "rationale":"<=800 chars","suggested_fix":"<=800 chars or null"}]}
@@ -78,7 +80,7 @@ export function buildChunkPrompt(params: {
     params.chunk.text,
     '```',
     '',
-    REQUIRED_JSON,
+    requiredJson(params.dimension),
   ].join('\n');
 
   return { text, tokens: estimateTokens(text), checklistVersion: version };

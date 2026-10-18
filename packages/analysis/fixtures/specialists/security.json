@@ -1,0 +1,15 @@
+{
+  "specialist": "security",
+  "kind": "diff",
+  "files": [
+    {
+      "path": "src/routes/users.ts",
+      "patch": "@@ -10,6 +10,9 @@ export function register(app) {\n   app.get('/users/:id', async (req, res) => {\n-    const row = await db.query('SELECT * FROM users WHERE id = $1', [req.params.id]);\n+    const row = await db.query(\"SELECT * FROM users WHERE id = \" + req.params.id);\n     res.json(row);\n   });\n }"
+    }
+  ],
+  "planted": {
+    "quote": "db.query(\"SELECT * FROM users WHERE id = \" + req.params.id)",
+    "file": "src/routes/users.ts",
+    "title": "SQL built by string concatenation from a route parameter"
+  }
+}

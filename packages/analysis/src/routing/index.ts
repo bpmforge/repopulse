@@ -47,6 +47,8 @@ export function roleForDimension(dimension: string): LlmRole | null {
     case 'performance':
     case 'code_health':
     case 'test_coverage':
+    case 'best_practices':
+    case 'ai_slop':
       return dimension;
     default:
       return null;
@@ -126,4 +128,24 @@ export function localOnlyViolations(policy: RoutingPolicy): string[] {
  */
 export function defaultPool(hosts: T2Host[], localOnly: boolean): T2Host[] {
   return localOnly ? hosts.filter(hostIsLocal) : hosts;
+}
+
+/**
+ * The smallest probed context window among the connections a role may use
+ * (W19-03). The smallest, because a fallback link can serve any call and the
+ * chunks must fit whichever one does. `null` when none has a known window — an
+ * unknown window is not a small one, and callers keep the default budget.
+ */
+export function contextWindowForRole(
+  policy: RoutingPolicy | undefined,
+  role: LlmRole,
+  pool: readonly T2Host[],
+): number | null {
+  const chain = policy?.chains[role];
+  const hosts =
+    chain !== undefined
+      ? chain.map((l) => l.host)
+      : defaultPool([...pool], policy?.localOnly ?? false);
+  const known = hosts.map((h) => h.contextWindow).filter((n): n is number => typeof n === 'number');
+  return known.length === 0 ? null : Math.min(...known);
 }

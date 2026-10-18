@@ -31,6 +31,9 @@ export const FINDING_DIMENSIONS = [
   'security',
   'performance',
   'test_coverage',
+  // W19-03: the specialists added to the roster, stored beside the first four.
+  'best_practices',
+  'ai_slop',
   // Scanners (W8/W9).
   'secrets',
   'dependency',

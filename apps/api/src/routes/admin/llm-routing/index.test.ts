@@ -248,4 +248,15 @@ describeIfLiveInfra('admin LLM routing (W19-02)', () => {
     expect(chains.triage).toEqual([]);
     expect(chains.patch).toBeUndefined();
   });
+
+  it("carries a connection's probed context window onto its host (W19-03)", async () => {
+    await db
+      .update(core.llmProviders)
+      .set({ capabilities: { contextWindow: 32768, streaming: 'yes' } })
+      .where(eq(core.llmProviders.id, lanId));
+    const { hostsFromProviders } = await import('../../../workers/gateway.js');
+    const { hosts } = await hostsFromProviders(db, Buffer.alloc(32, 7), WORKSPACE_ID);
+    expect(hosts.find((h) => h.providerId === lanId)?.contextWindow).toBe(32768);
+    expect(hosts.find((h) => h.providerId === lan2Id)?.contextWindow).toBeUndefined();
+  });
 });
