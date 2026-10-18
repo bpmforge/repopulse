@@ -9,6 +9,7 @@ import {
   bigint,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { workspaces } from './workspaces.js';
@@ -53,6 +54,9 @@ export const LLM_PROVIDER_KINDS = [
   'bedrock',
   'copilot',
   'openai_subscription',
+  // W19-08: the customer's own Claude Code CLI. Off until an admin accepts the
+  // responsibility statement (llm_responsibility_acceptances).
+  'claude_cli',
 ] as const;
 
 export type LlmProviderKind = (typeof LLM_PROVIDER_KINDS)[number];
@@ -139,7 +143,7 @@ export const llmProviders = pgTable(
     check(
       'llm_providers_base_url_check',
       sql.raw(
-        `base_url is not null or kind in ('anthropic', 'gemini', 'bedrock', 'copilot', 'openai_subscription')`,
+        `base_url is not null or kind in ('anthropic', 'gemini', 'bedrock', 'copilot', 'openai_subscription', 'claude_cli')`,
       ),
     ),
     // The encrypted-credential columns move together or not at all. A row with
@@ -216,3 +220,44 @@ export const llmRoutingPolicy = pgTable('llm_routing_policy', {
   }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Responsibility acceptances (W19-08).
+//
+// Some options are off until an admin reads a statement and accepts it. The
+// acceptance is a ROW, not a flag: who, when, which topic, which VERSION of the
+// statement and its SHA-256, so what was agreed to is provable later. Rows are
+// never deleted; revoking sets `revoked_at` / `revoked_by`. At most one ACTIVE
+// (not revoked) acceptance per workspace and topic.
+export const llmResponsibilityAcceptances = pgTable(
+  'llm_responsibility_acceptances',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    /** What was accepted. Today only 'claude_cli'. */
+    topic: text('topic').notNull(),
+    statementVersion: text('statement_version').notNull(),
+    statementSha256: text('statement_sha256').notNull(),
+    acceptedBy: bigint('accepted_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedBy: bigint('revoked_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('llm_responsibility_acceptances_workspace_idx').on(t.workspaceId),
+    uniqueIndex('llm_responsibility_acceptances_active_key')
+      .on(t.workspaceId, t.topic)
+      .where(sql`revoked_at is null`),
+    check('llm_responsibility_acceptances_topic_check', sql.raw(`topic in ('claude_cli')`)),
+    // A revoke records who, and a row with a revoker has a revoke time.
+    check(
+      'llm_responsibility_acceptances_revoke_check',
+      sql.raw(`(revoked_at is null and revoked_by is null) or revoked_at is not null`),
+    ),
+  ],
+);

@@ -287,6 +287,13 @@
       "when": 1792400000000,
       "tag": "0042_gemini_fixed_endpoint",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0043_claude_cli_acceptance",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,9 @@ import { auditLog, core, isConstraintViolation, type Database } from '@repopulse
 import { credentials } from '@repopulse/auth';
 import {
   PROVIDER_PRESETS,
+  claudeCliStatus,
+  runClaudeCli,
+  type CliDeps,
   PROVIDER_REGISTRY,
   ProviderConfigError,
   HostPolicyError,
@@ -17,6 +20,7 @@ import {
   type T2Host,
 } from '@repopulse/analysis';
 import { requireAdmin } from '../../../lib/rbac.js';
+import { isClaudeCliAccepted } from '../../../lib/claude-cli-acceptance.js';
 import { sendProblem } from '../../../lib/problem.js';
 
 // Admin → Models (W16-07, D-LLM-1).
@@ -42,6 +46,8 @@ export interface LlmProviderRoutesOptions {
   tokenKey: Buffer;
   /** Injectable so the test can exercise the round trip without a model. */
   fetchImpl?: typeof fetch;
+  /** Injectable so tests need no real Claude Code CLI (W19-08). */
+  cli?: CliDeps;
 }
 
 interface ProviderBody {
@@ -130,6 +136,10 @@ export default async function llmProviderRoutes(
         supported: s.supported,
         unsupported_reason: s.unsupportedReason ?? null,
         examples: s.examples ?? [],
+        // W19-08: shown as customer-supplied, never as a RepoPulse feature, and
+        // unusable until an admin accepts the statement.
+        customer_supplied: s.customerSupplied === true,
+        requires_acceptance: s.requiresAcceptance === true,
       })),
       presets: PROVIDER_PRESETS,
     });
@@ -188,7 +198,7 @@ export default async function llmProviderRoutes(
     const name = str(body.name);
     const kind = str(body.kind) as LlmProviderKind | null;
     const model = str(body.model);
-    const baseUrl = str(body.base_url);
+    let baseUrl = str(body.base_url);
     const apiKey = str(body.api_key);
     const headers = parseHeaders(body.headers);
 
@@ -220,6 +230,32 @@ export default async function llmProviderRoutes(
       );
     }
 
+    // The customer-supplied CLI option (W19-08): off until an admin has accepted
+    // the responsibility statement, and it holds no credential.
+    let cliAccepted = false;
+    if (kind === 'claude_cli') {
+      baseUrl = null; // its endpoint is fixed; nothing the form said can change where it goes
+      cliAccepted = await isClaudeCliAccepted(db, workspaceId);
+      if (!cliAccepted) {
+        return fail(
+          request,
+          reply,
+          403,
+          'The Claude Code CLI option is off',
+          'An admin must read and accept the responsibility statement first (Admin → Models).',
+        );
+      }
+      if (apiKey) {
+        return fail(
+          request,
+          reply,
+          400,
+          'This option takes no API key',
+          'The CLI keeps its own login and nothing is stored here. Use the Anthropic API-key provider for a key.',
+        );
+      }
+    }
+
     // Resolve BEFORE writing: a row that cannot produce a callable host is a row
     // whose failure would surface on some future scheduled pass instead of on
     // the screen of the person who just created it.
@@ -234,6 +270,7 @@ export default async function llmProviderRoutes(
         ...(apiKey ? { apiKey } : {}),
         ...(headers ? { headers } : {}),
         allowPublicHost: body.allow_public_host === true,
+        cliAccepted,
       });
     } catch (err) {
       if (err instanceof ProviderConfigError || err instanceof HostPolicyError) {
@@ -245,7 +282,8 @@ export default async function llmProviderRoutes(
     // Capability probe (W19-01): refuse a model that cannot run a pass HERE,
     // with a sentence, rather than inside a scheduled one.
     let probed: Capabilities | null = null;
-    if (body.probe === true) {
+    // The CLI is not an HTTP chat endpoint: the HTTP probe does not apply to it.
+    if (body.probe === true && kind !== 'claude_cli') {
       probed = await probeCapabilities(resolved, { fetchImpl });
       const problems = capabilityProblems(probed);
       if (problems.length > 0) {
@@ -407,6 +445,37 @@ export default async function llmProviderRoutes(
       return fail(request, reply, 400, 'A kind and a model are required');
     }
     if (headers === 'invalid') return fail(request, reply, 400, 'Invalid headers');
+
+    // The customer-supplied CLI (W19-08) is not an HTTP endpoint: Test runs the
+    // customer's own CLI once, and reports its own words if it cannot.
+    if (kind === 'claude_cli') {
+      if (!(await isClaudeCliAccepted(db, workspaceId))) {
+        return reply.send({
+          ok: false,
+          stage: 'config',
+          detail:
+            'The Claude Code CLI option is off: an admin must read and accept the responsibility statement first.',
+        });
+      }
+      const started = Date.now();
+      try {
+        const status = await claudeCliStatus(opts.cli);
+        if (!status.found) return reply.send({ ok: false, stage: 'config', detail: status.reason });
+        const r = await runClaudeCli('Reply with the single word: ok', model, opts.cli);
+        return reply.send({
+          ok: true,
+          latency_ms: Date.now() - started,
+          model: r.model,
+          sample: r.text.slice(0, 120),
+        });
+      } catch (err) {
+        return reply.send({
+          ok: false,
+          stage: 'transport',
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     let host: T2Host;
     try {

@@ -129,6 +129,7 @@ describe('configuration errors surface at configuration time', () => {
     expect([...SUPPORTED_KINDS].sort()).toEqual([
       'anthropic',
       'bedrock',
+      'claude_cli',
       'gemini',
       'openai_compatible',
       'vertex',

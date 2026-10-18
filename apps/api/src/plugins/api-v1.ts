@@ -27,6 +27,7 @@ import patchRoutes from '../routes/patches/index.js';
 import intentsRoutes from '../routes/intents/index.js';
 import analysisAdminRoutes from '../routes/admin/analysis/index.js';
 import llmProviderRoutes from '../routes/admin/llm-providers/index.js';
+import claudeCliRoutes from '../routes/admin/claude-cli/index.js';
 import llmRoutingRoutes from '../routes/admin/llm-routing/index.js';
 import modelEvalRoutes from '../routes/admin/model-eval/index.js';
 import runRoutes from '../routes/runs/index.js';
@@ -250,6 +251,7 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // W16-07: the configuration surface for bring-your-own-LLM. Needs tokenKey —
   // provider API keys go through the same vault as forge tokens (Law 9).
   await app.register(llmProviderRoutes, { db: opts.db, tokenKey: opts.tokenKey });
+  await app.register(claudeCliRoutes, { db: opts.db });
   await app.register(llmRoutingRoutes, { db: opts.db });
   await app.register(modelEvalRoutes, { db: opts.db });
   // W16-10 (F15): nothing in this product could be started by hand until now.

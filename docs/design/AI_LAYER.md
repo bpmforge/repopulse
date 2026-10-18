@@ -391,3 +391,58 @@ docs say so. The Playwright runs used a scratch browsers folder that links the
 pinned build to an existing newer one, because installing the pinned browser is a
 download that was not authorised - the same specs should be re-run once with the
 pinned browser in CI.
+
+## W19-08 as built (2026-10-18)
+
+**What it is.** A `claude_cli` provider kind that runs the customer's own Claude
+Code CLI - installed and signed in to by them, inside their container - as a model
+backend (Brad, 2026-10-17). Shown everywhere as *customer-supplied*, never as a
+RepoPulse feature. **Off by default.** The project has not verified that Anthropic's
+consumer plan terms allow this; the switch exists so the responsibility is explicit,
+and API keys stay the supported route.
+
+**The switch.** `GET/POST /admin/llm-providers/claude-cli[/accept|/revoke]`. The
+statement (`claude-cli.v1`, seven plain points, hashed) is served by the server and
+shown in full. An admin must send the *current* version and SHA-256 to accept, so a
+reworded statement cannot be accepted on an old click. The acceptance is a row in
+`llm_responsibility_acceptances` (migration 0043): who, when, topic, version, hash.
+Rows are never deleted; revoking sets `revoked_at`/`revoked_by`. One active
+acceptance per workspace (a partial unique index); an acceptance of an *older*
+statement does not count. Also an audit event (`llm_claude_cli.accepted` /
+`.revoked`). It is per workspace (tested): another tenant's acceptance turns nothing on.
+Create, Test and the worker all fail closed without a current acceptance; revoking
+makes existing connections skip with the reason at the next gateway build.
+
+**No credential, by construction.** The kind takes no API key (refused), ignores any
+base URL, stores nothing. The runner reads exactly one boolean from `claude auth
+status` (not the email or organisation in the same object).
+
+**Constrained, because the CLI is an agent and this is a completion call.**
+`--tools ""` (no tools: it cannot run commands or read files),
+`--no-session-persistence`, an empty temporary directory as cwd (no project files or
+CLAUDE.md), the prompt on stdin not argv, and an allow-listed environment (PATH,
+HOME, the CLI's config dir, proxy and CA variables; none of RepoPulse's secrets;
+tested). `--bare` is deliberately *not* used: it would drop the subscription login.
+
+**Through the gateway like any provider.** The host's nominal destination is
+`api.anthropic.com`, so the egress audit records it (and refuses to run unauditable),
+local-only refuses it naming role and connection, the wizard review says it leaves,
+and it counts against the same concurrency cap. Every failure is a `ProviderError`
+with a plain message - missing binary, signed out/expired, timeout, bad output - so a
+routing chain falls back past it. Cost is reported as null: the plan is flat-rate and
+a per-call figure would be invented.
+
+**Verified against the real CLI on this machine (claude 2.1.287):** `--version`,
+`auth status --json`, and one real call - which returned *"Failed to
+authenticate: OAuth session expired and could not be refreshed"* (exit 1, `is_error:
+true`) although `auth status` still said `loggedIn: true`. So: the signed-out path is
+tested against the CLI's real words, and `auth status` is only a hint (the UI says
+so); Test connection is the proof. **Not verified:** a successful answer from a live
+CLI (the login had expired; signing in is the customer's act, not mine, and I did not
+attempt it), the success-path parsing is built from the observed result shape
+(`result`, `usage`, `modelUsage`) and fakes; installing the CLI inside the hardened
+worker image (needs network and a login); `deploy/compose.claude-cli.yaml` (never
+run). The worker runs as an unprivileged user with the database URL in its
+environment: the CLI runs in that container as the same user. It is started with an
+empty environment and no tools, but it is another program there, and the compose
+file says to think about that before choosing this over an API key.

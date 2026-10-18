@@ -416,6 +416,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: '1',
   },
   {
+    name: 'CLAUDE_CLI_PATH',
+    scope: 'worker',
+    required: false,
+    purpose:
+      'Where the customer-supplied Claude Code CLI is installed (W19-08). Only used if an admin has accepted the responsibility statement and added a Claude Code CLI connection; RepoPulse does not ship or install the CLI.',
+    ifWrong:
+      'Wrong, and a CLI connection fails closed with "was not found" naming this path; nothing is sent. Unset, the worker looks for `claude` on its PATH.',
+    default: 'claude (looked up on PATH)',
+  },
+  {
     name: 'LMSTUDIO_REQUEST_TIMEOUT_MS',
     scope: 'worker',
     required: false,

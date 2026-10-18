@@ -47,6 +47,11 @@ export interface T2Host {
   baseUrl: string;
   /** The connection's label, for sentences that name it (W19-02). */
   name?: string | undefined;
+  /**
+   * How the host is called (W19-08). Absent means HTTP chat-completions, which
+   * is every provider but the customer-supplied Claude Code CLI.
+   */
+  transport?: 'claude_cli' | undefined;
   /** Sampling seed sent with every request when set (W19-05 evals); providers may ignore it. */
   seed?: number | undefined;
   /** Context window recorded by the capability probe (W19-01); undefined = never probed or unpublished. */
@@ -310,6 +315,20 @@ export class T2Client {
       .filter((c) => c.load < this.config.concurrencyCap)
       .sort((a, b) => a.load - b.load);
     return candidates[0]?.host ?? null;
+  }
+
+  /**
+   * Runs `fn` while counting it against the host's concurrency cap. For
+   * transports that are not HTTP chat-completions (the CLI), which still must
+   * not exceed the cap or share a machine more than the operator allowed.
+   */
+  async track<T>(host: T2Host, fn: () => Promise<T>): Promise<T> {
+    this.inFlight.set(host.baseUrl, (this.inFlight.get(host.baseUrl) ?? 0) + 1);
+    try {
+      return await fn();
+    } finally {
+      this.inFlight.set(host.baseUrl, Math.max(0, (this.inFlight.get(host.baseUrl) ?? 1) - 1));
+    }
   }
 
   /** True when this host is under the concurrency cap (used by routing chains). */
