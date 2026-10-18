@@ -6,3 +6,4 @@ export * from './reports.js';
 export * from './saved-views.js';
 export * from './egress-audit.js';
 export * from './verified-patches.js';
+export * from './ai-pass.js';
