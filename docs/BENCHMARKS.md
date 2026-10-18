@@ -316,6 +316,33 @@ the report as *not yet run*, which is not the same as zero. hadolint, shellcheck
 fixed list (every code the tool can raise at error or warning level), so everything outside the table is
 not yet run.
 
+## Regression gate (W19-06)
+
+```sh
+pnpm --filter @repopulse/security bench --compare docs/benchmarks/report.json
+```
+
+Re-measures and compares to the **last committed report**. It fails when any
+measured row got worse (a true positive lost, a false positive or miss added,
+in the totals, a dimension, a suite, a rule, or a CWE's detection or false-alarm
+rate). A row the new run could **not** measure is a failure of its own: a lost
+engine (Opengrep or the tool adapters), a rule that vanished, or a suite that is
+no longer prepared (reported as the single cause - fetch it with
+`bench:prepare-owasp` / `bench:prepare-juliet` - instead of a wall of derived
+rows). Measuring less is not a way to pass. It writes nothing; re-recording the
+report stays a deliberate act.
+
+**Load.** Opengrep under a busy machine times out and drops findings, which
+looks exactly like a regression. So a failure must **reproduce**: the first run
+that is not clean triggers a second, and the gate fails only if the *same* rows
+are worse both times. A second clean run passes, **flagged**, with the first
+run's regressions in the output and the load average if it was high; two
+different bad runs fail as *unstable* rather than being guessed at. The CLI also
+warns up front when the machine is busy.
+
+`.gitea/workflows/nightly-benchmark.yaml` runs it nightly (needs Opengrep on the
+runner and downloads the two public corpora). **That workflow has never run.**
+
 ## Corpus
 
 | Suite | What | Source and pin | Licence | Labels |

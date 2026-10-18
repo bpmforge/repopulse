@@ -27,7 +27,7 @@ export function clusterDismissals(
   dismissals: readonly { ruleId: string | null; file: string | null; evidence: string }[],
   minSize = 3,
 ): FpCluster[] {
-  const byRule = new Map<string, typeof dismissals[number][]>();
+  const byRule = new Map<string, (typeof dismissals)[number][]>();
   for (const d of dismissals) {
     const key = d.ruleId ?? 'unattributed';
     const list = byRule.get(key) ?? [];
@@ -35,16 +35,20 @@ export function clusterDismissals(
     byRule.set(key, list);
   }
 
-  return [...byRule.entries()]
-    // A cluster of one or two is a disagreement, not a pattern. Drafting a
-    // rule from it would encode one reviewer's Tuesday into the product.
-    .filter(([, items]) => items.length >= minSize)
-    .map(([ruleId, items]) => ({
-      sourceRuleId: ruleId === 'unattributed' ? null : ruleId,
-      size: items.length,
-      samples: items.slice(0, 5).map((i) => ({ file: i.file ?? '(repo-level)', evidence: i.evidence })),
-    }))
-    .sort((a, b) => b.size - a.size);
+  return (
+    [...byRule.entries()]
+      // A cluster of one or two is a disagreement, not a pattern. Drafting a
+      // rule from it would encode one reviewer's Tuesday into the product.
+      .filter(([, items]) => items.length >= minSize)
+      .map(([ruleId, items]) => ({
+        sourceRuleId: ruleId === 'unattributed' ? null : ruleId,
+        size: items.length,
+        samples: items
+          .slice(0, 5)
+          .map((i) => ({ file: i.file ?? '(repo-level)', evidence: i.evidence })),
+      }))
+      .sort((a, b) => b.size - a.size)
+  );
 }
 
 /** The prompt for a drafting pass. Grounded in the cluster, nothing else. */
@@ -84,12 +88,16 @@ export interface DraftResult {
  * that could name its own status could propose itself active, and a draft that
  * could name its own provenance could claim to be ours.
  */
-export function acceptDraft(raw: unknown, now: Date): DraftResult {
+export function acceptDraft(
+  raw: unknown,
+  now: Date,
+  source: 'llm_draft' | 'llm_draft:ai_triage' = 'llm_draft',
+): DraftResult {
   const candidate = {
     ...(typeof raw === 'object' && raw !== null ? raw : {}),
     status: 'proposed' as const,
     provenance: {
-      source: 'llm_draft',
+      source,
       license: 'UNLICENSED-REPOPULSE',
       author: 'analysis-gateway',
       date: now.toISOString().slice(0, 10),

@@ -10058,9 +10058,10 @@
                 "Clusters of AI-judged false positives produce human-reviewed rule-tweak proposals; nothing changes a rule without a person approving it; full gate green"
           ],
           "points": 8,
-          "status": "todo",
+          "status": "done",
           "notes": [
                 "See docs/design/AI_LAYER.md (2026-10-17).",
+      "Built 2026-10-18: bench --compare regression gate (must reproduce on a second run; unmeasured rows fail; load-aware), signed Ed25519 rulepack bundles with install/rollback/offline import wired into deploy/scan-db-sync.sh (plus offline grype import and opt-in previous-DB rollback), and rule-tweak proposals from AI-judged false positives (proposed only). Gaps: the grype import and keep-previous branches and the nightly workflow have never run; triage verdicts are not persisted so nothing feeds the tweak pass automatically; no publisher key custody/hosting exists; advisory data is not signed by us.",
                 "The standing track Brad asked for: mechanical checks keep getting stronger after Snyk parity."
           ]
     },
