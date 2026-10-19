@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ErrorNote } from '../../components/primitives/ErrorNote.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { WidgetFrame, WidgetGrid, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
@@ -34,7 +35,9 @@ function ViewDetail() {
     { invalidate: [queryKeyFor(descriptor)] },
   );
   const setHome = useApiMutation<{ view_id: number }, unknown>(
-    { endpoint: '/me/default-view', method: 'POST' },
+    // PUT, matching the API (W20-01): this was POST, which the API does not
+    // route, so Set as home 404'd and changed nothing.
+    { endpoint: '/me/default-view', method: 'PUT' },
     { invalidate: [queryKeyFor(descriptor), queryKeyFor({ endpoint: '/me/context' })] },
   );
 
@@ -74,11 +77,9 @@ function ViewDetail() {
         </button>
       </div>
 
-      {data?.share_slug && (
-        <p className="text-xs text-fg-muted" data-testid="share-slug">
-          Anyone in this workspace can open this view: <code>/views/shared/{data.share_slug}</code>
-        </p>
-      )}
+      {data?.share_slug && <ShareLink slug={data.share_slug} />}
+
+      <ErrorNote error={share.error ?? setHome.error ?? save.error} testId="view-action-error" />
 
       {editing && (
         <>
@@ -116,6 +117,39 @@ function ViewDetail() {
       >
         <WidgetGrid widgets={widgets} />
       </WidgetFrame>
+    </div>
+  );
+}
+
+/**
+ * The share link as something a person can actually send (W20-01, UX_TODO
+ * DSH-01): the full address, not a bare path, and a Copy button.
+ */
+export function ShareLink({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/views/shared/${slug}`;
+  return (
+    <div
+      className="flex flex-wrap items-center gap-2 text-xs text-fg-muted"
+      data-testid="share-slug"
+    >
+      <span>Anyone signed in to this workspace can open this view:</span>
+      <code className="select-all break-all" data-testid="share-url">
+        {url}
+      </code>
+      <button
+        type="button"
+        className="panel-inset px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        data-testid="share-copy"
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(url)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+      >
+        {copied ? 'Copied' : 'Copy link'}
+      </button>
     </div>
   );
 }

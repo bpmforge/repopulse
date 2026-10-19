@@ -10,9 +10,7 @@ import { createLocalUser, type CreatedUser } from './contracts.js';
 // the URL. So accounts come from first boot or from an admin — and without this
 // form, "from an admin" meant a curl command, which is not user management.
 //
-// MOUNTING: this component is not rendered anywhere yet. It belongs in
-// apps/web/src/routes/admin/members.tsx beside <Members/>, which is outside
-// W15-04's file scope; the report for this ticket names the one line.
+// Mounted above <Members/> in apps/web/src/routes/admin/members.tsx (W20-01).
 //
 // The temporary password is the part that has to be got right. The API returns
 // it EXACTLY ONCE and it is a scrypt hash afterwards — nothing can recover it —
@@ -51,11 +49,7 @@ export function CreateUser() {
     'rounded-sm border border-border bg-surface-2 px-3 py-2 text-sm text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
 
   return (
-    <section
-      className="panel p-4"
-      data-testid="create-user"
-      aria-labelledby="create-user-title"
-    >
+    <section className="panel p-4" data-testid="create-user" aria-labelledby="create-user-title">
       <h3 id="create-user-title" className="text-sm font-medium text-fg">
         Add a member
       </h3>

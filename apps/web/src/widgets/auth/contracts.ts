@@ -97,6 +97,25 @@ export function changePassword(current: string, next: string): Promise<unknown> 
   });
 }
 
+/**
+ * Ends a real session (W20-01, UX_TODO ADM-02). The caller reloads the page
+ * afterwards so the shell re-decides from scratch and lands on sign-in, with
+ * no cached data from the old session left in memory.
+ */
+export function signOut(): Promise<unknown> {
+  return apiFetch<unknown>('/auth/logout', { method: 'POST' });
+}
+
+/** Signs out, then reloads whether or not the request succeeded. */
+export function signOutAndReload(
+  go: (url: string) => void = (url) => window.location.assign(url),
+): Promise<void> {
+  return signOut()
+    .then(() => undefined)
+    .catch(() => undefined)
+    .finally(() => go('/'));
+}
+
 /** Walks away from a session that cannot do anything else (see local.ts). */
 export function abandonPendingSession(): Promise<unknown> {
   return apiFetch<unknown>('/auth/local/logout', { method: 'POST' });

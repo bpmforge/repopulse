@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
-import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { ErrorNote } from '../../components/primitives/ErrorNote.js';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
+import { apiFetch, buildUrl } from '../../api/client.js';
 import {
   RULE_NEXT_STATUS,
   RULE_NEXT_STEP,
@@ -22,12 +25,23 @@ export const Route = createFileRoute('/admin/rules')({ component: RuleWorkbench 
 
 const LIST = { endpoint: '/rules' } as const;
 
-function RuleWorkbench() {
+export function RuleWorkbench() {
   const { data, isLoading, isError, error } = useApiQuery<{ items: RuleRow[] }>(LIST);
-  const transition = useApiMutation<{ ruleId: string; to: string }, unknown>(
-    { endpoint: '/rules/{ruleId}/transition', method: 'POST' },
-    { invalidate: [queryKeyFor(LIST)] },
-  );
+  const queryClient = useQueryClient();
+  // W20-01 (UX_TODO FND-69): this was a useApiMutation with the template
+  // `/rules/{ruleId}/transition` and the id only in the body, so every press
+  // hit the literal `{ruleId}` URL and 404'd — silently, since nothing showed
+  // the error. The id goes in the PATH now, per row, and failures are shown.
+  const transition = useMutation<unknown, Error, { ruleId: string; to: string }>({
+    mutationFn: ({ ruleId, to }) =>
+      apiFetch<unknown>(buildUrl('/rules/{ruleId}/transition', { path: { ruleId } }), {
+        method: 'POST',
+        body: JSON.stringify({ to }),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeyFor(LIST) });
+    },
+  });
 
   const items = data?.items ?? [];
   const state = frameState({ isLoading, isError, isEmpty: items.length === 0 });
@@ -97,7 +111,10 @@ function RuleWorkbench() {
                     type="button"
                     className="rounded-md border border-accent bg-accent/10 px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
                     data-testid={`rule-advance-${rule.rule_id}`}
-                    disabled={rule.status === 'candidate' && !rule.promotion.eligible}
+                    disabled={
+                      transition.isPending ||
+                      (rule.status === 'candidate' && !rule.promotion.eligible)
+                    }
                     onClick={() =>
                       transition.mutate({
                         ruleId: rule.rule_id,
@@ -107,6 +124,13 @@ function RuleWorkbench() {
                   >
                     {RULE_NEXT_STEP[rule.status]}
                   </button>
+                  {transition.variables?.ruleId === rule.rule_id && (
+                    <ErrorNote
+                      error={transition.error}
+                      className="mt-1"
+                      testId={`rule-error-${rule.rule_id}`}
+                    />
+                  )}
                   {rule.status === 'candidate' && rule.promotion.reasons.length > 0 && (
                     <ul
                       className="mt-1 text-xs text-fg-muted"
