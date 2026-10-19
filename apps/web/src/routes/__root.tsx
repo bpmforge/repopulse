@@ -81,6 +81,7 @@ const SUBPAGE_LABELS: Record<string, string> = {
   findings: 'Findings',
   security: 'Security',
   'code-health': 'Code Health',
+  'ai-review': 'AI Review',
   prs: 'Pull Requests',
   files: 'Files',
   connections: 'Connections',

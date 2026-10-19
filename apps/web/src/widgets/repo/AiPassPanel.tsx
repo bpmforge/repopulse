@@ -62,7 +62,11 @@ function RunRow({ run }: { run: AiPassRun }) {
         <span className="text-xs text-fg-muted">
           {' '}
           · {run.created_at.slice(0, 16).replace('T', ' ')}
-          {run.requested_by ? ` · started by ${run.requested_by}` : ''}
+          {run.trigger === 'schedule'
+            ? ' · started by the schedule'
+            : run.requested_by
+              ? ` · started by ${run.requested_by}`
+              : ''}
           {run.calls !== null ? ` · ${run.calls} model call${run.calls === 1 ? '' : 's'}` : ''}
         </span>
       </p>

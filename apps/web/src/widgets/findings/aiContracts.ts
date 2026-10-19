@@ -99,6 +99,8 @@ export interface AiPassRun {
   base_ref?: string | null;
   head_ref?: string | null;
   pr_number?: number | null;
+  /** W19-12: a person pressed start, or the repository's schedule did. */
+  trigger?: 'manual' | 'schedule';
   commit_sha: string | null;
   reason_code: string | null;
   reason: string | null;
@@ -138,3 +140,41 @@ export const PASS_CAPS = {
   perDay: 10,
   commits: 10,
 } as const;
+
+// GET/PUT /repos/{id}/ai-pass/schedule (W19-12). Off until an admin turns it on,
+// and turning it on is an acknowledgement in the server's own wording.
+export type ScheduleScope = 'paths' | 'new_commits';
+export type ScheduleCadence = 'daily' | 'weekly';
+
+export interface AiPassSchedule {
+  saved: boolean;
+  enabled: boolean;
+  scope: ScheduleScope;
+  paths: string[];
+  cadence: ScheduleCadence;
+  monthly_cap: number;
+  require_local: boolean;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  ack_version: string | null;
+  last_scheduled_at: string | null;
+  last_head_sha: string | null;
+  next_due_at: string | null;
+  started_this_month: number;
+  updated_at: string | null;
+}
+
+export interface AiPassScheduleResponse {
+  schedule: AiPassSchedule;
+  acknowledgement: { version: string; text: string };
+}
+
+export interface AiPassScheduleBody {
+  enabled: boolean;
+  scope: ScheduleScope;
+  paths: string[];
+  cadence: ScheduleCadence;
+  monthly_cap: number;
+  require_local: boolean;
+  acknowledge?: string;
+}

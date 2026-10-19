@@ -41,21 +41,53 @@ test('the Security tab says what has NOT been looked at, and passes axe', async 
   // than a blank panel that reads as a clean bill of health.
   await expect(page.getByTestId('cves-empty')).toContainText(/not a clean bill of health/i);
 
-  // W19-10: the AI pass panel says it has not been run, rather than showing an
-  // empty list that reads as a clean review, and states its limits up front.
-  await expect(page.getByTestId('ai-pass-not-run')).toContainText(/Not yet run/);
-  await expect(page.getByTestId('ai-pass-caps')).toContainText(/30 model calls/);
-  // W19-11: a pass can review typed paths, a pull request's diff or a commit range.
-  await expect(page.getByTestId('ai-pass-mode-pull_request')).toBeVisible();
-  await page.getByTestId('ai-pass-mode-commit_range').check();
-  await expect(page.getByTestId('ai-pass-base')).toBeVisible();
-  await expect(page.getByTestId('ai-pass-start')).toBeDisabled();
+  // W19-12: the AI review pass moved to its own tab; a line here points to it.
+  await expect(page.getByTestId('security-ai-pass-moved')).toContainText(/AI Review/);
 
   // Chains: "has not run" rather than "no chains", because those differ.
   await expect(page.getByTestId('chains-empty')).toContainText(/has not run/i);
 
   await expectNoA11yViolations(page);
 });
+
+for (const theme of ['dark', 'light'] as const) {
+  test(`the AI Review tab: a pass not yet run, a schedule off until acknowledged, axe-clean in the ${theme} theme`, async ({
+    page,
+  }) => {
+    await loginAsFixture(page);
+    await openSeededRepo(page);
+    await page.getByTestId('repo-tabs').getByRole('link', { name: 'AI Review' }).click();
+    await expect(page).toHaveURL(/\/repos\/\d+\/ai-review/);
+    await expect(page.getByTestId('ai-review-tab')).toBeVisible();
+
+    // W19-10: the AI pass panel says it has not been run, rather than showing an
+    // empty list that reads as a clean review, and states its limits up front.
+    await expect(page.getByTestId('ai-pass-not-run')).toContainText(/Not yet run/);
+    await expect(page.getByTestId('ai-pass-caps')).toContainText(/30 model calls/);
+    // W19-11: a pass can review typed paths, a pull request's diff or a commit range.
+    await expect(page.getByTestId('ai-pass-mode-pull_request')).toBeVisible();
+    await page.getByTestId('ai-pass-mode-commit_range').check();
+    await expect(page.getByTestId('ai-pass-base')).toBeVisible();
+    await expect(page.getByTestId('ai-pass-start')).toBeDisabled();
+
+    // W19-12: off by default; turning it on shows the acknowledgement and will
+    // not save until it is ticked. Nothing is saved here.
+    await expect(page.getByTestId('ai-schedule-state')).toContainText(/Off\./);
+    await page.getByTestId('ai-schedule-enabled').check();
+    await expect(page.getByTestId('ai-schedule-ack-box')).toContainText(
+      /without anyone pressing start/,
+    );
+    await expect(page.getByTestId('ai-schedule-save')).toBeDisabled();
+    await page.getByTestId('ai-schedule-ack-check').check();
+    await expect(page.getByTestId('ai-schedule-save')).toBeEnabled();
+
+    if (theme === 'light') {
+      await page.getByTestId('theme-toggle').click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    }
+    await expectNoA11yViolations(page);
+  });
+}
 
 test('a never-run scanner shows a dash, not a zero', async ({ page }) => {
   await loginAsFixture(page);

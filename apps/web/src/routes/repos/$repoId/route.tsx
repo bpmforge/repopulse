@@ -40,6 +40,9 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/repos/$repoId/findings', label: 'Findings' },
   { to: '/repos/$repoId/security', label: 'Security' },
   { to: '/repos/$repoId/code-health', label: 'Code Health' },
+  // W19-12. The AI review pass and its schedule, out from under the scanner
+  // tables on Security, where the W19 UX review found them buried.
+  { to: '/repos/$repoId/ai-review', label: 'AI Review' },
 ];
 
 /**

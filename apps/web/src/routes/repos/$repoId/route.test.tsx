@@ -235,6 +235,7 @@ describe('repo detail layout — the workspace tabs (W17-19)', () => {
       'repo-tab-findings',
       'repo-tab-security',
       'repo-tab-code-health',
+      'repo-tab-ai-review',
     ]) {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     }

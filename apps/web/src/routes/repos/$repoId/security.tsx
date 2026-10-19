@@ -5,7 +5,6 @@ import { ScannerStatusList, ScanToolingNote } from '../../../widgets/security/Sc
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
 import { CoverageMap } from '../../../widgets/trust/CoverageMap.js';
-import { AiPassPanel } from '../../../widgets/repo/AiPassPanel.js';
 // W8-14. OUT OF THAT TICKET'S DECLARED WRITE SCOPE and mounted anyway: a
 // funnel widget nobody renders is a widget that does not exist, and FR-SEC-15
 // is about what the Security tab SHOWS. Declared in the handoff.
@@ -253,11 +252,19 @@ function SecurityTab() {
         )}
       </WidgetFrame>
 
-      {/* W19-10: the AI review pass - start one, watch it, and see what it did
-          and did not cover. Its answers appear on the findings. */}
-      <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
-        <AiPassPanel repoId={repoId} />
-      </WidgetFrame>
+      {/* W19-12: the AI review pass and its schedule moved to their own tab. A
+          line stays here so someone who looks for it where it was finds it. */}
+      <p className="text-xs text-fg-muted" data-testid="security-ai-pass-moved">
+        The AI review pass and its schedule are on the{' '}
+        <Link
+          to="/repos/$repoId/ai-review"
+          params={{ repoId }}
+          className="underline hover:text-accent"
+        >
+          AI Review
+        </Link>{' '}
+        tab.
+      </p>
 
       <WidgetFrame title="Attack chains" state={state} testId="security-chains">
         {data && <ChainsPanel chains={data.chains} computed={data.chains_computed} />}

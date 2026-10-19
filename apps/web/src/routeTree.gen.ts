@@ -36,6 +36,7 @@ import { Route as ViewsViewIdRouteImport } from './routes/views/$viewId'
 import { Route as PrintReportsReportIdRouteImport } from './routes/print/reports/$reportId'
 import { Route as ReposRepoIdIndexRouteImport } from './routes/repos/$repoId/index'
 import { Route as ReposRepoIdActivityRouteImport } from './routes/repos/$repoId/activity'
+import { Route as ReposRepoIdAiReviewRouteImport } from './routes/repos/$repoId/ai-review'
 import { Route as ReposRepoIdAiReviewersRouteImport } from './routes/repos/$repoId/ai-reviewers'
 import { Route as ReposRepoIdCiRouteImport } from './routes/repos/$repoId/ci'
 import { Route as ReposRepoIdCodeHealthRouteImport } from './routes/repos/$repoId/code-health'
@@ -183,6 +184,11 @@ const ReposRepoIdActivityRoute = ReposRepoIdActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => ReposRepoIdRouteRoute,
 } as any)
+const ReposRepoIdAiReviewRoute = ReposRepoIdAiReviewRouteImport.update({
+  id: '/ai-review',
+  path: '/ai-review',
+  getParentRoute: () => ReposRepoIdRouteRoute,
+} as any)
 const ReposRepoIdAiReviewersRoute = ReposRepoIdAiReviewersRouteImport.update({
   id: '/ai-reviewers',
   path: '/ai-reviewers',
@@ -266,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
+  '/repos/$repoId/ai-review': typeof ReposRepoIdAiReviewRoute
   '/repos/$repoId/ai-reviewers': typeof ReposRepoIdAiReviewersRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
@@ -304,6 +311,7 @@ export interface FileRoutesByTo {
   '/views': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
+  '/repos/$repoId/ai-review': typeof ReposRepoIdAiReviewRoute
   '/repos/$repoId/ai-reviewers': typeof ReposRepoIdAiReviewersRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
@@ -345,6 +353,7 @@ export interface FileRoutesById {
   '/views/': typeof ViewsIndexRoute
   '/print/reports/$reportId': typeof PrintReportsReportIdRoute
   '/repos/$repoId/activity': typeof ReposRepoIdActivityRoute
+  '/repos/$repoId/ai-review': typeof ReposRepoIdAiReviewRoute
   '/repos/$repoId/ai-reviewers': typeof ReposRepoIdAiReviewersRoute
   '/repos/$repoId/ci': typeof ReposRepoIdCiRoute
   '/repos/$repoId/code-health': typeof ReposRepoIdCodeHealthRoute
@@ -387,6 +396,7 @@ export interface FileRouteTypes {
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/activity'
+    | '/repos/$repoId/ai-review'
     | '/repos/$repoId/ai-reviewers'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
@@ -425,6 +435,7 @@ export interface FileRouteTypes {
     | '/views'
     | '/print/reports/$reportId'
     | '/repos/$repoId/activity'
+    | '/repos/$repoId/ai-review'
     | '/repos/$repoId/ai-reviewers'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
@@ -465,6 +476,7 @@ export interface FileRouteTypes {
     | '/views/'
     | '/print/reports/$reportId'
     | '/repos/$repoId/activity'
+    | '/repos/$repoId/ai-review'
     | '/repos/$repoId/ai-reviewers'
     | '/repos/$repoId/ci'
     | '/repos/$repoId/code-health'
@@ -688,6 +700,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReposRepoIdActivityRouteImport
       parentRoute: typeof ReposRepoIdRouteRoute
     }
+    '/repos/$repoId/ai-review': {
+      id: '/repos/$repoId/ai-review'
+      path: '/ai-review'
+      fullPath: '/repos/$repoId/ai-review'
+      preLoaderRoute: typeof ReposRepoIdAiReviewRouteImport
+      parentRoute: typeof ReposRepoIdRouteRoute
+    }
     '/repos/$repoId/ai-reviewers': {
       id: '/repos/$repoId/ai-reviewers'
       path: '/ai-reviewers'
@@ -800,6 +819,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 
 interface ReposRepoIdRouteRouteChildren {
   ReposRepoIdActivityRoute: typeof ReposRepoIdActivityRoute
+  ReposRepoIdAiReviewRoute: typeof ReposRepoIdAiReviewRoute
   ReposRepoIdAiReviewersRoute: typeof ReposRepoIdAiReviewersRoute
   ReposRepoIdCiRoute: typeof ReposRepoIdCiRoute
   ReposRepoIdCodeHealthRoute: typeof ReposRepoIdCodeHealthRoute
@@ -816,6 +836,7 @@ interface ReposRepoIdRouteRouteChildren {
 
 const ReposRepoIdRouteRouteChildren: ReposRepoIdRouteRouteChildren = {
   ReposRepoIdActivityRoute: ReposRepoIdActivityRoute,
+  ReposRepoIdAiReviewRoute: ReposRepoIdAiReviewRoute,
   ReposRepoIdAiReviewersRoute: ReposRepoIdAiReviewersRoute,
   ReposRepoIdCiRoute: ReposRepoIdCiRoute,
   ReposRepoIdCodeHealthRoute: ReposRepoIdCodeHealthRoute,
