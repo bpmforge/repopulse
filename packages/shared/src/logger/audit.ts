@@ -104,6 +104,9 @@ export type AuditEvent =
   // stops analysis, which is equally worth a record.
   | 'llm_provider.created'
   | 'llm_provider.deleted'
+  // W20-06 (UX_TODO AI-03). Editing or switching off a connection changes where
+  // diffs go just as creating one does. The key itself is never in the detail.
+  | 'llm_provider.updated'
   | 'llm_routing.updated'
   // W19-08. Accepting or revoking the responsibility statement for the
   // customer-supplied Claude Code CLI: who, when, which version.

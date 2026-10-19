@@ -35,6 +35,12 @@ export interface EgressDestination {
   host: string | null;
   leaves_network: boolean;
   roles: string[];
+  /**
+   * The models this connection would be asked for (W20-06, UX_TODO AI-11/AI-12):
+   * a chain link's override, or the connection's own. Not part of the digest, so
+   * adding it did not invalidate an acknowledged schedule.
+   */
+  models?: string[];
 }
 
 export interface PassEgress {
@@ -75,13 +81,21 @@ export function sentenceFor(
     .join(', ')} would receive ${PASS_SENDS}. Each request is recorded in the egress audit.`;
 }
 
-/** Always workspace-filtered (Law 5). */
-export async function passEgress(db: Database, workspaceId: number): Promise<PassEgress> {
+/**
+ * Always workspace-filtered (Law 5). `roles` defaults to an AI pass's; the
+ * verified-fix flow asks for `['patch']` (W20-06, UX_TODO AI-12) so the drawer
+ * can say which connection drafts the fix and whether the file leaves.
+ */
+export async function passEgress(
+  db: Database,
+  workspaceId: number,
+  roles: readonly LlmRole[] = PASS_ROLES,
+): Promise<PassEgress> {
   const stored = await loadStoredRouting(db, workspaceId);
   const providers = (await providersFor(db, workspaceId)).filter((p) => p.enabled);
   const byId = new Map(providers.map((p) => [p.id, p]));
   const dest = new Map<number, EgressDestination>();
-  const add = (providerId: number, role: string) => {
+  const add = (providerId: number, role: string, model: string | null = null) => {
     const p = byId.get(providerId);
     if (!p) return;
     const where = describeEndpoint(p.kind, p.baseUrl);
@@ -91,14 +105,18 @@ export async function passEgress(db: Database, workspaceId: number): Promise<Pas
       host: where.host,
       leaves_network: where.leavesNetwork,
       roles: [],
+      models: [],
     };
     if (!d.roles.includes(role)) d.roles.push(role);
+    const m = model ?? p.model;
+    d.models ??= [];
+    if (!d.models.includes(m)) d.models.push(m);
     dest.set(p.id, d);
   };
-  for (const role of PASS_ROLES) {
+  for (const role of roles) {
     const chain = stored.routes.filter((r) => r.role === role);
     if (chain.length > 0) {
-      for (const link of chain) add(link.providerId, role);
+      for (const link of chain) add(link.providerId, role, link.model);
     } else {
       // No chain: the shared pool. Under local-only only local connections serve it.
       for (const p of providers) {

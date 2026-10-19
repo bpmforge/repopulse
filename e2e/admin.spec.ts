@@ -217,19 +217,21 @@ test('the Analysis tab states the consequence of Tier-3 opt-in and audits the to
   const row = page.locator('[data-testid^="analysis-repo-"]').first();
   await expect(row).toBeVisible();
 
-  // Off by default, and the row SAYS what that means rather than showing an
-  // unlabelled checkbox. Someone ticking it is deciding that code may leave
-  // their network — that belongs beside the control.
-  await expect(row).toContainText(/stays on your network/i);
-
-  const toggle = page.locator('[data-testid^="tier3-"]').first();
+  const toggle = row.locator('input[data-testid^="tier3-"]');
   await expect(toggle).not.toBeChecked();
+  await expect(row).toContainText(/off/i);
   // click(), not check(): the checkbox is CONTROLLED by the server's value, so
   // its state only changes after the mutation refetches. check() asserts the
   // new state synchronously and fails with "clicking did not change its state"
   // — a true statement about a correct control.
   await toggle.click();
-  await expect(row).toContainText(/diffs may be sent/i);
+  // W20-06 (UX_TODO AI-10, AI-72): opting in asks first, says what would be
+  // sent where, and that Tier 3 is not available yet.
+  const confirm = page.locator('[data-testid^="tier3-confirm-"]').first();
+  await expect(confirm).toContainText(/Anthropic/);
+  await expect(confirm).toContainText(/not available yet/i);
+  await page.locator('[data-testid^="tier3-confirm-do-"]').first().click();
+  await expect(row).toContainText(/opted in \(nothing is sent yet\)/i);
 
   // Nothing has actually been sent — the opt-in is permission, not a call.
   await expect(row).toContainText(/nothing sent/i);
@@ -239,7 +241,7 @@ test('the Analysis tab states the consequence of Tier-3 opt-in and audits the to
   await expect(page.getByText(/written before each call/i)).toBeVisible();
 
   await toggle.click();
-  await expect(row).toContainText(/stays on your network/i);
+  await expect(toggle).not.toBeChecked();
 });
 
 test('the rule workbench shows shadow evidence and blocks an unready promotion', async ({

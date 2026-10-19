@@ -273,6 +273,8 @@ async function awaitWorkerProviderRefresh(): Promise<void> {
 async function removeProvider(id: number): Promise<void> {
   await page.goto('/admin/models');
   await page.getByTestId(`provider-delete-${id}`).click();
+  // W20-06 (UX_TODO AI-04): Remove asks first and names the roles it drops.
+  await page.getByTestId(`provider-confirm-do-${id}`).click();
   await expect(page.getByTestId(`provider-row-${id}`)).toHaveCount(0);
 }
 

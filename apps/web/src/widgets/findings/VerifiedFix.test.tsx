@@ -4,9 +4,10 @@ import { VerifiedFix, type PatchResponse } from './VerifiedFix.js';
 
 // "Verified fix" in the finding drawer (W18-19). The API decides what each
 // caller may see; what is pinned here is that the panel shows a verified patch
-// with copy and download and the re-scan note, shows NOTHING for a rejected
-// attempt unless the API handed it an admin's reason, and offers a draft only
-// when the finding is eligible.
+// with copy and download and the re-scan note, never shows a rejected diff (an
+// admin also gets the reason), and offers a draft only when the finding is
+// eligible. W20-06: a rejection keeps the section with Try again (AI-13), and
+// the drafting connection is named before the button (AI-12).
 
 const state = vi.hoisted(() => ({
   data: undefined as unknown,
@@ -97,10 +98,17 @@ describe('VerifiedFix', () => {
     expect(screen.queryByText(/pull request|open a pr|commit this/i)).toBeNull();
   });
 
-  it('shows NOTHING for a rejected attempt when no reason was sent (a developer)', () => {
+  it('W20-06 (UX_TODO AI-13): a rejected attempt says it did not pass, with Try again, and no diff or reason for a developer', () => {
     respond({ eligible: true, patch: { ...base, status: 'rejected' } });
-    const { container } = render(<VerifiedFix findingId={5} />);
-    expect(container.textContent).toBe('');
+    render(<VerifiedFix findingId={5} />);
+    expect(screen.getByTestId('verified-fix-rejected')).toHaveTextContent(
+      /A drafted fix did not pass the re-scan/,
+    );
+    expect(screen.queryByTestId('verified-fix-admin-reason')).toBeNull();
+    expect(screen.queryByTestId('verified-fix-diff')).toBeNull();
+    fireEvent.click(screen.getByTestId('verified-fix-retry'));
+    // An explicit retry: the API returns a decided answer otherwise.
+    expect(state.mutate).toHaveBeenCalledWith({ tier: 't2', retry: true });
   });
 
   it('shows an admin the rejection reason, as diagnostics', () => {
@@ -115,6 +123,50 @@ describe('VerifiedFix', () => {
     render(<VerifiedFix findingId={5} />);
     expect(screen.getByTestId('verified-fix-admin-reason').textContent).toContain('bpm-inner-html');
     expect(screen.queryByTestId('verified-fix-diff')).toBeNull();
+  });
+
+  it('W20-06 (UX_TODO AI-12): names the drafting connection and whether the file leaves, before the button', () => {
+    respond({
+      eligible: true,
+      patch: null,
+      drafter: {
+        local_only: false,
+        leaves_network: true,
+        destinations: [
+          {
+            provider_name: 'Gemini',
+            host: 'generativelanguage.googleapis.com',
+            leaves_network: true,
+            models: ['gemini-2.5-flash'],
+          },
+          {
+            provider_name: 'LM Studio',
+            host: '10.0.0.5:1234',
+            leaves_network: false,
+            models: ['m'],
+          },
+        ],
+      },
+    });
+    render(<VerifiedFix findingId={5} />);
+    const note = screen.getByTestId('verified-fix-drafter');
+    expect(note).toHaveTextContent(
+      /Drafted by Gemini \(gemini-2\.5-flash\) · leaves your network: the file is sent to generativelanguage\.googleapis\.com, or if it is down, LM Studio \(m\) · stays on your network/,
+    );
+    expect(
+      note.compareDocumentPosition(screen.getByTestId('verified-fix-draft')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('says when no model is set up to draft fixes', () => {
+    respond({
+      eligible: true,
+      patch: null,
+      drafter: { local_only: false, leaves_network: false, destinations: [] },
+    });
+    render(<VerifiedFix findingId={5} />);
+    expect(screen.getByTestId('verified-fix-drafter')).toHaveTextContent(/No model is set up/);
   });
 
   it('offers a local draft for an eligible finding, and nothing for an ineligible one', () => {

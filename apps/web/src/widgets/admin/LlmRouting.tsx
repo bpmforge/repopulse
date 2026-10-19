@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { summarizeRole, type EgressLink, type EgressProvider } from './egress.js';
 
 // Admin → Models → Routing (W19-02).
 //
@@ -23,6 +24,8 @@ interface ChainLink {
   provider_id: number;
   provider_name: string | null;
   model: string | null;
+  host?: string | null;
+  leaves_network?: boolean | null;
 }
 interface RoleRow {
   role: string;
@@ -34,6 +37,9 @@ interface ProviderOption {
   kind: string;
   model: string;
   enabled: boolean;
+  /** Where it sends, by the egress audit's rule (the API's describeEndpoint). */
+  host?: string | null;
+  leaves_network?: boolean | null;
 }
 interface RoutingState {
   local_only: boolean;
@@ -65,11 +71,19 @@ export function effectiveChainText(
   if (chain.length === 0) {
     if (providers.length === 0)
       return 'No connection is set up, so this role will skip and say so.';
-    return localOnly
-      ? 'Uses the shared pool, limited to connections on your network (local-only is on): ' +
-          providers.map((p) => `${p.name} · ${p.model}`).join(', ') +
-          '.'
-      : 'Uses the shared pool: ' + providers.map((p) => `${p.name} · ${p.model}`).join(', ') + '.';
+    if (!localOnly)
+      return (
+        'Uses the shared pool: ' + providers.map((p) => `${p.name} · ${p.model}`).join(', ') + '.'
+      );
+    // W20-06 (UX_TODO AI-05): under local-only the pool really is limited, so
+    // the list is too. It used to name every enabled connection, hosted ones
+    // included, right after "limited to connections on your network".
+    const home = providers.filter((p) => p.leaves_network === false);
+    return home.length === 0
+      ? 'Local-only is on and no connection is on your network, so this role will skip and say so.'
+      : 'Uses the shared pool, limited to connections on your network (local-only is on): ' +
+          home.map((p) => `${p.name} · ${p.model}`).join(', ') +
+          '.';
   }
   const label = (l: ChainLink): string => {
     const known = providers.find((p) => p.id === l.provider_id);
@@ -81,6 +95,30 @@ export function effectiveChainText(
     ? `Uses ${label(first!)}. If it is down or refuses, the role skips and says so.`
     : `Tries ${label(first!)}; if it is down or refuses, then ${rest.map(label).join(', then ')}.`;
 }
+
+/**
+ * The chain as the egress summary needs it (W20-06, UX_TODO AI-05). A link added
+ * on this screen has no host yet, so it takes its connection's, as reported by
+ * the server, never a guess from the name.
+ */
+function egressLinks(chain: ChainLink[], providers: ProviderOption[]): EgressLink[] {
+  return chain.map((l) => {
+    const p = providers.find((x) => x.id === l.provider_id);
+    return {
+      provider_id: l.provider_id,
+      provider_name: l.provider_name,
+      host: p?.host ?? l.host ?? null,
+      leaves_network: p?.leaves_network ?? l.leaves_network ?? null,
+    };
+  });
+}
+
+const EGRESS_MARK = {
+  stays: '✓ Stays on your network.',
+  gateway: '⚠ Through a gateway.',
+  leaves: '⚠ Leaves your network.',
+  unavailable: '— Not used.',
+} as const;
 
 export function LlmRouting() {
   const query = useApiQuery<RoutingState>(ROUTING);
@@ -101,6 +139,16 @@ export function LlmRouting() {
   );
 
   const providers = (query.data?.providers ?? []).filter((p) => p.enabled);
+  // W20-06 (UX_TODO AI-03): a switched-off connection is not offered in the
+  // pickers, and that used to be silent. It is named, with where to fix it.
+  const switchedOff = (query.data?.providers ?? []).filter((p) => !p.enabled);
+  const egressProviders: EgressProvider[] = providers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    enabled: p.enabled,
+    host: p.host ?? null,
+    leaves_network: p.leaves_network ?? null,
+  }));
   const roles = query.data?.roles ?? [];
 
   const update = (role: string, next: ChainLink[]) => {
@@ -157,6 +205,13 @@ export function LlmRouting() {
             (including Tier-3, the Claude API). Roles without a chain use only my local connections.
           </span>
         </label>
+
+        {switchedOff.length > 0 ? (
+          <p className="text-xs text-fg-muted" data-testid="routing-switched-off">
+            Switched off, so not offered below: {switchedOff.map((p) => p.name).join(', ')}. Turn a
+            connection back on with Edit in Configured providers.
+          </p>
+        ) : null}
 
         <table className="table-plain w-full text-sm" data-testid="routing-table">
           <caption className="sr-only">Connection chain per role</caption>
@@ -240,6 +295,24 @@ export function LlmRouting() {
                     >
                       {effectiveChainText(chain, providers, localOnly)}
                     </p>
+                    {/* W20-06 (UX_TODO AI-05): whether code leaves the network,
+                        from the same summary the wizard's review uses. */}
+                    {(() => {
+                      const e = summarizeRole({
+                        chain: egressLinks(chain, providers),
+                        providers: egressProviders,
+                        localOnly,
+                      });
+                      return (
+                        <p
+                          className="mt-0.5 text-xs text-fg"
+                          data-testid={`routing-egress-${role}`}
+                          data-tone={e.tone}
+                        >
+                          <span className="font-semibold">{EGRESS_MARK[e.tone]}</span> {e.text}
+                        </p>
+                      );
+                    })()}
                     <select
                       aria-label={`Add a connection to ${ROLE_LABEL[role] ?? role}`}
                       data-testid={`routing-add-${role}`}

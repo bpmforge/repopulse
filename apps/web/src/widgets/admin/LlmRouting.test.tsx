@@ -24,10 +24,35 @@ const STATE = {
     role,
     chain: role === 'security' ? [{ provider_id: 1, provider_name: 'LAN', model: null }] : [],
   })),
+  // host / leaves_network as the API reports them (describeEndpoint).
   providers: [
-    { id: 1, name: 'LAN', kind: 'openai_compatible', model: 'lan-m', enabled: true },
-    { id: 2, name: 'Hosted', kind: 'openai_compatible', model: 'cloud-m', enabled: true },
-    { id: 3, name: 'Off', kind: 'openai_compatible', model: 'x', enabled: false },
+    {
+      id: 1,
+      name: 'LAN',
+      kind: 'openai_compatible',
+      model: 'lan-m',
+      enabled: true,
+      host: '10.0.0.5:1234',
+      leaves_network: false,
+    },
+    {
+      id: 2,
+      name: 'Hosted',
+      kind: 'openai_compatible',
+      model: 'cloud-m',
+      enabled: true,
+      host: 'api.example-llm.com',
+      leaves_network: true,
+    },
+    {
+      id: 3,
+      name: 'Off',
+      kind: 'openai_compatible',
+      model: 'x',
+      enabled: false,
+      host: '10.0.0.9:1234',
+      leaves_network: false,
+    },
   ],
 };
 
@@ -151,6 +176,36 @@ describe('Admin → Models → Routing (W19-02)', () => {
     await userEvent.click(screen.getByTestId('routing-local-only'));
     expect(screen.getByTestId('routing-effective-triage')).toHaveTextContent(
       /limited to connections on your network \(local-only is on\)/,
+    );
+  });
+
+  // W20-06 (UX_TODO AI-05): each role says whether code leaves the network, and
+  // the local-only pool sentence lists only connections that are on it.
+  it('says per role whether code leaves the network, and limits the local-only pool for real', async () => {
+    renderScreen();
+    const security = await screen.findByTestId('routing-egress-security');
+    expect(security).toHaveTextContent(/Stays on your network\. Uses LAN/);
+    expect(screen.getByTestId('routing-egress-triage')).toHaveTextContent(
+      /May leave your network: the shared pool includes Hosted \(api\.example-llm\.com\)/,
+    );
+    // A hosted link added on this screen takes its connection's host at once.
+    await userEvent.selectOptions(screen.getByTestId('routing-add-patch'), '2');
+    expect(screen.getByTestId('routing-egress-patch')).toHaveTextContent(
+      /Leaves your network.*Hosted \(api\.example-llm\.com\) receives diffs/s,
+    );
+
+    await userEvent.click(screen.getByTestId('routing-local-only'));
+    const pool = screen.getByTestId('routing-effective-triage').textContent ?? '';
+    expect(pool).toContain('LAN · lan-m');
+    expect(pool).not.toContain('Hosted');
+    expect(screen.getByTestId('routing-egress-patch')).toHaveTextContent(/Blocked by Local only/);
+  });
+
+  // W20-06 (UX_TODO AI-03): a switched-off connection is named, not silently hidden.
+  it('names switched-off connections instead of hiding them silently', async () => {
+    renderScreen();
+    expect(await screen.findByTestId('routing-switched-off')).toHaveTextContent(
+      /Switched off, so not offered below: Off/,
     );
   });
 });

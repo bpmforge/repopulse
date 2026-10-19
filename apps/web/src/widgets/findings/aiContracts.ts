@@ -110,7 +110,10 @@ export interface AiPassRun {
   specialists: {
     usage?: Record<string, { calls?: number; findings?: number }>;
     droppedForBudget?: string[];
-    failures?: unknown[];
+    /** Specialists whose answer was malformed even after a retry, with the paths they were given. */
+    failures?: { specialist: string; paths: string[]; error: string }[];
+    /** Findings the evidence validator refused (a quote not in the source, a line out of range). */
+    rejected?: number;
     filesRead?: number;
     unreadable?: string[];
   } | null;
@@ -148,6 +151,8 @@ export interface EgressDestination {
   host: string | null;
   leaves_network: boolean;
   roles: string[];
+  /** W20-06 (UX_TODO AI-11): the models this connection would be asked for. */
+  models?: string[];
 }
 
 export interface PassEgress {

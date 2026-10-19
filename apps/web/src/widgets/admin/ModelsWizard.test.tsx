@@ -392,8 +392,116 @@ describe('steps 3 and 4: roles and the review', () => {
     expect(screen.getByTestId('wizard-review-triage')).toHaveTextContent(
       /May leave your network: the shared pool includes Gemini/,
     );
+    // W20-06 (UX_TODO AI-72): Tier 3 is described as what it is today.
     expect(screen.getByTestId('wizard-tier3')).toHaveTextContent(
-      /Tier-3.*opts in.*blocks it entirely/s,
+      /used for every repository.*Tier 3.*not available yet.*sends nothing/s,
     );
+  });
+
+  // W20-06 (UX_TODO AI-07): a vendor key must not become first choice for every
+  // kind of analysis because the boxes were pre-ticked.
+  it('a hosted vendor starts with no role ticked, and says what ticking one means', async () => {
+    renderIt();
+    await userEvent.click(await screen.findByTestId('wizard-where-hosted'));
+    await userEvent.click(screen.getByTestId('wizard-next-0'));
+    await userEvent.selectOptions(await screen.findByTestId('wizard-kind'), 'gemini');
+    await userEvent.type(screen.getByTestId('wizard-name'), 'Gemini');
+    await userEvent.type(screen.getByTestId('wizard-model'), 'gemini-2.5-flash');
+    await userEvent.click(screen.getByTestId('wizard-outside'));
+    await userEvent.click(screen.getByTestId('wizard-save'));
+    await screen.findByRole('heading', { name: /Which kinds of analysis should use Gemini/ });
+    for (const r of ROLES) expect(screen.getByTestId(`wizard-role-${r}`)).not.toBeChecked();
+    expect(screen.getByTestId('wizard-roles-none-ticked')).toHaveTextContent(
+      /every role you tick sends diffs.*to this vendor/s,
+    );
+    await userEvent.click(screen.getByTestId('wizard-roles-all'));
+    for (const r of ROLES) expect(screen.getByTestId(`wizard-role-${r}`)).toBeChecked();
+  });
+
+  // W20-06 (UX_TODO AI-06): a gateway on a LAN IP is not "Stays home".
+  it('a connection added as a gateway is reviewed as "through a gateway", not "stays home"', async () => {
+    renderIt();
+    await userEvent.click(await screen.findByTestId('wizard-where-proxy'));
+    await userEvent.click(screen.getByTestId('wizard-next-0'));
+    await userEvent.type(await screen.findByTestId('wizard-name'), 'LiteLLM');
+    await userEvent.type(screen.getByTestId('wizard-base-url'), 'http://10.0.0.7:4000/v1');
+    await userEvent.type(screen.getByTestId('wizard-model'), 'm');
+    await userEvent.click(screen.getByTestId('wizard-save'));
+    await screen.findByRole('heading', { name: /Which kinds of analysis should use LiteLLM/ });
+    routing = {
+      local_only: false,
+      roles: ROLES.map((role) => ({
+        role,
+        chain:
+          role === 'security'
+            ? [
+                {
+                  provider_id: 7,
+                  provider_name: 'LiteLLM',
+                  model: null,
+                  host: '10.0.0.7:4000',
+                  leaves_network: false,
+                },
+              ]
+            : [],
+      })),
+      providers: [
+        { id: 7, name: 'LiteLLM', enabled: true, host: '10.0.0.7:4000', leaves_network: false },
+      ],
+    };
+    await userEvent.click(screen.getByTestId('wizard-role-security'));
+    await userEvent.click(screen.getByTestId('wizard-assign'));
+    const row = await screen.findByTestId('wizard-review-security');
+    await waitFor(() => expect(row).toHaveTextContent(/Through a gateway/));
+    expect(row).toHaveTextContent(/stays on your network only if the gateway does not forward it/);
+    expect(row).not.toHaveTextContent(/Stays home/);
+  });
+
+  // W20-06 (UX_TODO AI-58): warned before anything is typed.
+  it('warns at "Where it runs" that Local only will block a vendor or gateway', async () => {
+    routing = { ...(routing as object), local_only: true };
+    renderIt();
+    await userEvent.click(await screen.findByTestId('wizard-where-hosted'));
+    expect(await screen.findByTestId('wizard-local-only-warning')).toHaveTextContent(
+      /Local only is on.*will not be used until Local only is turned off/s,
+    );
+    await userEvent.click(screen.getByTestId('wizard-where-local'));
+    expect(screen.queryByTestId('wizard-local-only-warning')).toBeNull();
+  });
+});
+
+// W20-06 (UX_TODO AI-57): in a container, localhost is the container itself.
+describe('presets in a container install', () => {
+  it('fills a machine-IP placeholder, focuses it, shows the preset note, and explains a localhost failure', async () => {
+    const original = KINDS.presets[0]!.note;
+    KINDS.presets[0]!.note = 'Start the local server in LM Studio and load a model.';
+    (KINDS as { in_container?: boolean }).in_container = true;
+    try {
+      renderIt();
+      await userEvent.click(await screen.findByTestId('wizard-where-local'));
+      await userEvent.click(screen.getByTestId('wizard-next-0'));
+      await userEvent.click(await screen.findByTestId('wizard-preset-lmstudio'));
+      const field = screen.getByTestId('wizard-base-url');
+      expect(field).toHaveValue('http://<machine-ip>:1234/v1');
+      await waitFor(() => expect(field).toHaveFocus());
+      expect(screen.getByTestId('wizard-preset-note')).toHaveTextContent(
+        /Start the local server in LM Studio.*Replace <machine-ip>/s,
+      );
+
+      testBody = {
+        ok: false,
+        stage: 'transport',
+        detail: 'connect ECONNREFUSED 127.0.0.1:1234',
+        hint: 'RepoPulse runs in a container, so "localhost" here means the container itself.',
+      };
+      await userEvent.type(screen.getByTestId('wizard-model'), 'm');
+      await userEvent.click(screen.getByTestId('wizard-test'));
+      expect(await screen.findByTestId('wizard-test-hint-localhost')).toHaveTextContent(
+        /means the container itself/,
+      );
+    } finally {
+      KINDS.presets[0]!.note = original;
+      delete (KINDS as { in_container?: boolean }).in_container;
+    }
   });
 });

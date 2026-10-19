@@ -47,6 +47,8 @@ interface TestResult {
   ok: boolean;
   stage?: string;
   detail?: string;
+  /** W20-06 (UX_TODO AI-57): the plain-words reason a localhost test failed in a container. */
+  hint?: string;
   latency_ms?: number;
   model?: string;
   capabilities?: Parameters<typeof CapabilityList>[0]['c'];
@@ -89,12 +91,30 @@ const HOSTED_KINDS = ['gemini', 'anthropic', 'openai_compatible', 'vertex', 'bed
 
 const STEPS = ['Where it runs', 'Connect and test', 'Choose roles', 'Review'] as const;
 
+const ALL_ROLES = Object.keys(ROLE_LABEL);
+
+/**
+ * W20-06 (UX_TODO AI-57): in a container, "localhost" is the container itself,
+ * so a preset's localhost address cannot reach a model on the host machine. The
+ * preset fills a placeholder the person replaces instead of an address that
+ * fails with a raw ECONNREFUSED.
+ */
+export const MACHINE_IP = '<machine-ip>';
+export function presetAddress(baseUrl: string, inContainer: boolean): string {
+  return inContainer
+    ? baseUrl.replace(/\/\/(localhost|127\.0\.0\.1)(?=[:/]|$)/, `//${MACHINE_IP}`)
+    : baseUrl;
+}
+
 export function ModelsWizard() {
   const queryClient = useQueryClient();
-  const kindsQuery = useApiQuery<{ kinds: KindSpec[]; presets?: Preset[] }>(KINDS);
+  const kindsQuery = useApiQuery<{ kinds: KindSpec[]; presets?: Preset[]; in_container?: boolean }>(
+    KINDS,
+  );
   const routingQuery = useApiQuery<Routing>(ROUTING);
   const kinds = kindsQuery.data?.kinds ?? [];
   const presets = kindsQuery.data?.presets ?? [];
+  const inContainer = kindsQuery.data?.in_container === true;
 
   const [step, setStep] = useState(0);
   const [where, setWhere] = useState<Where>('local');
@@ -107,8 +127,10 @@ export function ModelsWizard() {
   const [result, setResult] = useState<TestResult | null>(null);
   const [createdName, setCreatedName] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set(Object.keys(ROLE_LABEL)));
+  const [picked, setPicked] = useState<Set<string>>(new Set(ALL_ROLES));
   const [saved, setSaved] = useState(false);
+  const [presetNote, setPresetNote] = useState<string | null>(null);
+  const addressField = useRef<HTMLInputElement>(null);
 
   // Move focus to the new step's heading, so a keyboard or screen-reader user
   // lands where the content changed instead of back at the top of the page.
@@ -160,6 +182,7 @@ export function ModelsWizard() {
     setWhere(w);
     setResult(null);
     setOutside(false);
+    setPresetNote(null);
     setKind(w === 'hosted' ? (hostedKinds[0]?.kind ?? 'gemini') : 'openai_compatible');
   };
 
@@ -189,6 +212,9 @@ export function ModelsWizard() {
 
   const providers = routingQuery.data?.providers ?? [];
   const localOnly = routingQuery.data?.local_only ?? false;
+  // W20-06 (UX_TODO AI-06): the connection just added through "a gateway I run"
+  // is known to be one, whatever its address; the review must not call it home.
+  const gatewayIds = new Set<number>(where === 'proxy' && createdId !== null ? [createdId] : []);
 
   return (
     <WidgetFrame title="Set up a model" state="ready">
@@ -249,6 +275,20 @@ export function ModelsWizard() {
                 </label>
               ))}
             </fieldset>
+            {/* W20-06 (UX_TODO AI-58): said before anything is typed, not after
+                the review contradicts itself. */}
+            {localOnly && where !== 'local' ? (
+              <p
+                role="status"
+                className="rounded-sm border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs text-fg"
+                data-testid="wizard-local-only-warning"
+              >
+                <strong>Local only is on.</strong>{' '}
+                {where === 'hosted'
+                  ? 'A vendor is outside your network, so it will not be used until Local only is turned off in Routing below.'
+                  : 'A gateway on a host name or a public address will not be used until Local only is turned off in Routing below.'}
+              </p>
+            ) : null}
             <div>
               <button
                 type="button"
@@ -287,8 +327,22 @@ export function ModelsWizard() {
                     data-testid={`wizard-preset-${p.id}`}
                     title={p.note}
                     onClick={() => {
-                      setBaseUrl(p.baseUrl);
+                      const address = presetAddress(p.baseUrl, inContainer);
+                      setBaseUrl(address);
                       if (name === '') setName(p.label);
+                      // The note was only a tooltip, which touch and keyboard
+                      // users never see (W20-06, UX_TODO AI-57).
+                      setPresetNote(p.note);
+                      // Land in the field so the machine's IP gets typed in.
+                      if (address.includes(MACHINE_IP)) {
+                        setTimeout(() => {
+                          const el = addressField.current;
+                          if (!el) return;
+                          el.focus();
+                          const at = address.indexOf(MACHINE_IP);
+                          el.setSelectionRange(at, at + MACHINE_IP.length);
+                        }, 0);
+                      }
                     }}
                     className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-fg"
                   >
@@ -296,6 +350,14 @@ export function ModelsWizard() {
                   </button>
                 ))}
               </div>
+            ) : null}
+            {where === 'local' && presetNote ? (
+              <p className="text-xs text-fg" data-testid="wizard-preset-note">
+                <strong>Still to do:</strong> {presetNote}
+                {baseUrl.includes(MACHINE_IP)
+                  ? ` Replace ${MACHINE_IP} with the address of the machine the model runs on.`
+                  : ''}
+              </p>
             ) : null}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -338,11 +400,14 @@ export function ModelsWizard() {
               <label className="flex flex-col gap-1 text-xs text-fg-muted">
                 Address
                 <input
+                  ref={addressField}
                   data-testid="wizard-base-url"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder={
-                    where === 'proxy' ? 'http://192.168.1.60:4000/v1' : 'http://localhost:1234/v1'
+                    where === 'proxy' || inContainer
+                      ? 'http://192.168.1.60:4000/v1'
+                      : 'http://localhost:1234/v1'
                   }
                   className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
                 />
@@ -435,6 +500,11 @@ export function ModelsWizard() {
                     onSuccess: (r) => {
                       setCreatedId(r.id);
                       setCreatedName(name);
+                      // W20-06 (UX_TODO AI-07): a model on your network starts
+                      // with every role; a vendor or gateway starts with none,
+                      // so a new key never becomes first choice for every kind
+                      // of analysis by default.
+                      setPicked(new Set(where === 'local' ? ALL_ROLES : []));
                       setStep(2);
                     },
                   })
@@ -499,6 +569,11 @@ export function ModelsWizard() {
                       .
                     </strong>{' '}
                     <span className="font-mono">{result.detail}</span>
+                    {result.hint ? (
+                      <span className="mt-1 block" data-testid="wizard-test-hint-localhost">
+                        {result.hint}
+                      </span>
+                    ) : null}
                   </>
                 )}
                 {result.capabilities ? (
@@ -534,6 +609,20 @@ export function ModelsWizard() {
               It becomes the first choice for the roles you tick; anything already set up stays
               behind it as a fallback. Roles you leave unticked are unchanged.
             </p>
+            {where !== 'local' ? (
+              <p className="text-xs text-fg" data-testid="wizard-roles-none-ticked">
+                Nothing is ticked yet: every role you tick sends {WHAT_IS_SENT} to{' '}
+                {where === 'hosted' ? 'this vendor' : 'this gateway'}.{' '}
+                <button
+                  type="button"
+                  data-testid="wizard-roles-all"
+                  onClick={() => setPicked(new Set(ALL_ROLES))}
+                  className="underline"
+                >
+                  Tick all roles
+                </button>
+              </p>
+            ) : null}
             <fieldset className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <legend className="sr-only">Roles</legend>
               {Object.entries(ROLE_LABEL).map(([role, label]) => (
@@ -621,7 +710,7 @@ export function ModelsWizard() {
               </thead>
               <tbody>
                 {(routingQuery.data?.roles ?? []).map((r) => {
-                  const s = summarizeRole({ chain: r.chain, providers, localOnly });
+                  const s = summarizeRole({ chain: r.chain, providers, localOnly, gatewayIds });
                   return (
                     <tr
                       key={r.role}
@@ -635,9 +724,11 @@ export function ModelsWizard() {
                         <span className="font-semibold">
                           {s.tone === 'stays'
                             ? '✓ Stays home. '
-                            : s.tone === 'leaves'
-                              ? '⚠ Leaves. '
-                              : '— Not set up. '}
+                            : s.tone === 'gateway'
+                              ? '⚠ Through a gateway. '
+                              : s.tone === 'leaves'
+                                ? '⚠ Leaves. '
+                                : '— Not used. '}
                         </span>
                         {s.text}
                       </td>
@@ -670,6 +761,8 @@ export function ModelsWizard() {
                   setOutside(false);
                   setSaved(false);
                   setCreatedId(null);
+                  setPresetNote(null);
+                  setPicked(new Set(ALL_ROLES));
                   void queryClient.invalidateQueries({ queryKey: queryKeyFor(ROUTING) });
                 }}
                 className="rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-sm text-fg"

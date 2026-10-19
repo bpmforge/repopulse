@@ -13,12 +13,15 @@ const state = vi.hoisted(() => ({
   isPending: false,
   error: null as unknown,
   isError: false,
+  schedule: null as unknown,
 }));
 vi.mock('../../api/useApiQuery.js', () => ({
   useApiQuery: (d: { endpoint: string }) =>
     d.endpoint === '/me/context'
       ? { data: { role: state.role } }
-      : { data: { runs: state.runs }, isLoading: false, isError: state.isError },
+      : d.endpoint.endsWith('/schedule') && state.schedule
+        ? { data: state.schedule, isLoading: false, isError: false }
+        : { data: { runs: state.runs }, isLoading: false, isError: state.isError },
   useApiMutation: () => ({
     mutate: state.mutate,
     isPending: state.isPending,
@@ -56,6 +59,7 @@ beforeEach(() => {
   state.isPending = false;
   state.error = null;
   state.isError = false;
+  state.schedule = null;
 });
 
 describe('AiPassPanel', () => {
@@ -219,5 +223,96 @@ describe('AiPassPanel', () => {
     render(<AiPassPanel repoId="3" />);
     expect(screen.getByTestId('ai-pass-6').textContent).toMatch(/scheduled/);
     expect(screen.queryByTestId('ai-pass-5')).toBeNull();
+  });
+
+  // W20-06 (UX_TODO AI-11): where the code goes, and which models read it, is
+  // said above Start - from the same server statement the schedule uses.
+  it('names the destinations and models before a pass is started', () => {
+    state.schedule = {
+      schedule: null,
+      acknowledgement_stale: false,
+      monthly: { cap: 100, used: 0, remaining: 100 },
+      limits: { passes_per_day: 2, tick_minutes: 15 },
+      runs: [],
+      egress: {
+        local_only: false,
+        leaves_network: true,
+        digest: 'd',
+        sentence:
+          'Leaves your network: Gemini (generativelanguage.googleapis.com) would receive the files.',
+        sends: 'the contents of the files in scope',
+        destinations: [
+          {
+            provider_id: 2,
+            provider_name: 'Gemini',
+            host: 'generativelanguage.googleapis.com',
+            leaves_network: true,
+            roles: ['security'],
+            models: ['gemini-2.5-flash'],
+          },
+        ],
+      },
+    };
+    render(<AiPassPanel repoId="3" />);
+    const box = screen.getByTestId('ai-pass-egress');
+    expect(box).toHaveAttribute('data-leaves', 'true');
+    expect(screen.getByTestId('ai-pass-egress-sentence')).toHaveTextContent(
+      /Leaves your network: Gemini/,
+    );
+    expect(screen.getByTestId('ai-pass-dest-2')).toHaveTextContent(
+      /Gemini generativelanguage\.googleapis\.com — off your network · model gemini-2\.5-flash/,
+    );
+    // It sits before the button, so it is read before the decision.
+    expect(
+      box.compareDocumentPosition(screen.getByTestId('ai-pass-start')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('says so when the destinations cannot be loaded, rather than nothing', () => {
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-egress-unknown')).toHaveTextContent(/could not be loaded/);
+  });
+
+  // W20-06 (UX_TODO AI-59): unusable specialist answers are on the run row.
+  it('lists specialists whose answers could not be used, with their paths, and the discarded count', () => {
+    state.runs = [
+      run({
+        status: 'failed',
+        reason_code: 'specialists_unusable',
+        reason: 'No specialist gave a usable answer, so this pass reviewed nothing.',
+        specialists: {
+          usage: { security: { calls: 2, findings: 0 } },
+          failures: [
+            { specialist: 'security', paths: ['src/a.ts', 'src/b.ts'], error: 'not JSON' },
+          ],
+          rejected: 2,
+        },
+        triage_funnel: null,
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-status')).toHaveTextContent('failed');
+    expect(screen.getByTestId('ai-pass-failures')).toHaveTextContent(
+      /Could not use the answer of.*says nothing about these.*security: src\/a\.ts, src\/b\.ts/s,
+    );
+    expect(screen.getByTestId('ai-pass-rejected')).toHaveTextContent(
+      '2 suggested findings were discarded',
+    );
+  });
+
+  it('a finished pass with some failed specialists does not claim "no specialist raised a finding"', () => {
+    state.runs = [
+      run({
+        specialists: {
+          usage: { security: { calls: 2, findings: 0 } },
+          failures: [{ specialist: 'performance', paths: ['src/a.ts'], error: 'x' }],
+        },
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-raised')).toHaveTextContent(
+      /No usable answer raised a finding/,
+    );
   });
 });

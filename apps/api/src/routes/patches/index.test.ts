@@ -363,6 +363,63 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
     expect(added).toHaveLength(0);
   });
 
+  it('W20-06 (UX_TODO AI-13): a REJECTED draft is re-asked only on an explicit retry', async () => {
+    const rejected = await setRow({
+      status: 'rejected',
+      reasonCode: 'new_finding',
+      reason: 'introduces a finding',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: `/findings/${findingId}/patch`,
+      headers: as('member'),
+      payload: { tier: 't2', retry: true },
+    });
+    expect(res.statusCode).toBe(202);
+    expect(res.json().patch).toMatchObject({ id: rejected.id, status: 'pending' });
+    expect(added).toHaveLength(1);
+  });
+
+  it('W20-06 (UX_TODO AI-12): says which connection drafts the fix and whether the file leaves, before asking', async () => {
+    const [p] = await db
+      .insert(core.llmProviders)
+      .values({
+        workspaceId,
+        name: 'Gemini',
+        kind: 'gemini',
+        baseUrl: null,
+        model: 'gemini-2.5-flash',
+        allowPublicHost: true,
+        enabled: true,
+      })
+      .returning({ id: core.llmProviders.id });
+    try {
+      await db
+        .insert(core.llmRoleRoutes)
+        .values({ workspaceId, role: 'patch', position: 0, providerId: p!.id });
+      const body = (
+        await app.inject({
+          method: 'GET',
+          url: `/findings/${findingId}/patch`,
+          headers: as('member'),
+        })
+      ).json();
+      expect(body.drafter.leaves_network).toBe(true);
+      expect(body.drafter.destinations).toEqual([
+        {
+          provider_name: 'Gemini',
+          host: 'generativelanguage.googleapis.com',
+          leaves_network: true,
+          models: ['gemini-2.5-flash'],
+        },
+      ]);
+      // Never a credential or a path.
+      expect(JSON.stringify(body.drafter)).not.toMatch(/key|v1beta/);
+    } finally {
+      await db.delete(core.llmProviders).where(eq(core.llmProviders.id, p!.id));
+    }
+  });
+
   it('a FAILED attempt may be retried, and is re-enqueued under a fresh job id', async () => {
     const failed = await setRow({ status: 'failed', reasonCode: 'no_gateway', reason: 'No model' });
     const res = await app.inject({

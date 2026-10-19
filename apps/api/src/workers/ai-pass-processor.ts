@@ -318,7 +318,18 @@ export function aiPassProcessor(deps: AiPassDeps) {
         counts: spec.plan.counts,
       };
       const nothingRelevant = planned.length === 0 && triage.skipped !== null;
-      return finish(nothingRelevant ? 'skipped' : 'succeeded', {
+      // W20-06 (UX_TODO AI-59): a pass where every specialist that ran gave only
+      // unusable answers (malformed JSON twice, common with local models) and
+      // triage reviewed nothing has reviewed NOTHING. Recorded as failed, with
+      // the reason, so it can never read as "✓ finished, no findings".
+      const ran = planned.filter((id) => !spec.droppedForBudget.includes(id));
+      const failedIds = new Set(spec.failures.map((f) => f.specialist));
+      const allSpecialistsFailed =
+        ran.length > 0 &&
+        ran.every((id) => failedIds.has(id) && (spec.usage[id]?.findings ?? 0) === 0);
+      const triageReviewed = ((triage.funnel as { triaged?: number } | null)?.triaged ?? 0) > 0;
+      const unusable = allSpecialistsFailed && !triageReviewed;
+      return finish(nothingRelevant ? 'skipped' : unusable ? 'failed' : 'succeeded', {
         plan: summary,
         specialists: {
           usage: spec.usage,
@@ -337,7 +348,13 @@ export function aiPassProcessor(deps: AiPassDeps) {
               reasonCode: 'nothing_relevant',
               reason: 'Nothing in scope needed a specialist, and there was nothing to triage.',
             }
-          : {}),
+          : unusable
+            ? {
+                reasonCode: 'specialists_unusable',
+                reason:
+                  'No specialist gave a usable answer (each answer was malformed, even after a retry), so this pass reviewed nothing. Try a model that follows JSON instructions more reliably.',
+              }
+            : {}),
       });
     } catch (err) {
       // A local-only refusal arrives here with its sentence (role and connection).
