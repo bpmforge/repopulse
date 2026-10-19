@@ -89,12 +89,12 @@ function renderAt(url: string) {
 const lastList = () => requests.filter((u) => u.pathname.endsWith('/findings')).at(-1)!;
 
 describe('Repo → Findings (FND-14)', () => {
-  it('asks for open findings by default and says how many there are', async () => {
+  it('asks for the findings still to fix by default (W20-08, FND-49) and says how many there are', async () => {
     renderAt('/repos/7/findings');
     await screen.findByTestId('finding-1');
-    expect(lastList().searchParams.get('status')).toBe('open');
+    expect(lastList().searchParams.get('status')).toBe('active');
     expect(lastList().searchParams.get('repo_id')).toBe('7');
-    expect(screen.getByText('Findings (3 open)')).toBeInTheDocument();
+    expect(screen.getByText('Findings (3 still to fix)')).toBeInTheDocument();
   });
 
   it('pages with next_cursor, forward and back', async () => {

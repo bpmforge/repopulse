@@ -57,6 +57,13 @@ export const findings = pgTable(
     lineEnd: integer('line_end'),
     evidence: text('evidence').notNull(),
     recommendation: text('recommendation').notNull(),
+    /**
+     * W20-08 (UX_TODO FND-57): why the finding applies, kept beside the fix.
+     * `recommendation` holds the fix when there is one and the rationale only
+     * when there is not, so a dependency CVE with an upgrade lost the sentence
+     * explaining whether the package is even reached. Null on older rows.
+     */
+    rationale: text('rationale'),
     tier: smallint('tier').notNull(),
     // sha256(dimension + '\0' + file + '\0' + normalize(evidence_quote)) +
     // line-bucket tiebreak (ANALYSIS_TIERS.md §5).

@@ -27,7 +27,13 @@ export const opengrepOutputSchema = z.object({
     }),
   ),
   errors: z
-    .array(z.object({ message: z.string().optional(), level: z.string().optional() }))
+    .array(
+      z.object({
+        message: z.string().optional(),
+        level: z.string().optional(),
+        path: z.string().optional(),
+      }),
+    )
     .default([]),
   paths: z.object({ scanned: z.array(z.string()).optional() }).optional(),
 });
@@ -99,7 +105,18 @@ export interface ParseArgs {
 }
 
 export type ParseResult =
-  | { ok: true; findings: SemgrepFinding[]; scannedFiles: number; toolErrors: string[] }
+  | {
+      ok: true;
+      findings: SemgrepFinding[];
+      scannedFiles: number;
+      /** Root-relative paths the engine read (W20-08): what a full run reviewed. */
+      scannedPaths: string[];
+      toolErrors: string[];
+      /** Files an error names (a parse failure): read, but not fully. */
+      erroredPaths: string[];
+      /** Errors naming no file, such as a rule that failed to load. */
+      pathlessErrors: number;
+    }
   | { ok: false; error: string };
 
 export function parseOpengrepOutput(args: ParseArgs): ParseResult {
@@ -161,9 +178,22 @@ export function parseOpengrepOutput(args: ParseArgs): ParseResult {
     ok: true,
     findings,
     scannedFiles: parsed.data.paths?.scanned?.length ?? 0,
+    // W20-08 (UX_TODO FND-48): the files the engine actually read, which is
+    // what a FULL run may close findings on. Stripped like a finding's path so
+    // the two compare.
+    scannedPaths: (parsed.data.paths?.scanned ?? []).map((p) =>
+      root && p.startsWith(root) ? p.slice(root.length + 1) : p,
+    ),
     // Surfaced, never swallowed: a rulepack that failed to load produces zero
     // findings and exit code 0, which is indistinguishable from a clean repo
     // unless someone reads this.
     toolErrors: parsed.data.errors.map((e) => e.message ?? 'unknown opengrep error'),
+    // W20-08: what a full run must NOT treat as reviewed. A file that failed to
+    // parse was not matched, and a rule that failed to load matched nothing, so
+    // findings there are unknown rather than fixed.
+    erroredPaths: parsed.data.errors.flatMap((e) =>
+      e.path ? [root && e.path.startsWith(root) ? e.path.slice(root.length + 1) : e.path] : [],
+    ),
+    pathlessErrors: parsed.data.errors.filter((e) => !e.path).length,
   };
 }

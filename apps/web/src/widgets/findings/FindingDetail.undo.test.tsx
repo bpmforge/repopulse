@@ -66,7 +66,7 @@ describe('undo after a status change (FND-02)', () => {
     const { rerender } = render(
       <FindingDetail finding={finding('open')} onClose={vi.fn()} invalidate={[]} />,
     );
-    fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'test code' } });
+    fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'test code only' } });
     fireEvent.change(screen.getByTestId('finding-dismiss-reason'), {
       target: { value: 'not_applicable' },
     });
@@ -130,7 +130,7 @@ describe('undo after a status change (FND-02)', () => {
     const { rerender } = render(
       <FindingDetail finding={finding('open')} onClose={vi.fn()} invalidate={[]} />,
     );
-    fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'x' } });
+    fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'only test code' } });
     fireEvent.click(screen.getByTestId('finding-dismiss'));
     succeed(0);
     rerender(

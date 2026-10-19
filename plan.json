@@ -10575,6 +10575,50 @@
           "N-9 remainder: report PDFs still print health letters ('score (B)') and letter axes; the dashboard no longer does.",
           "Found, not in UX_TODO: org rollup metric rows (repo_id NULL) are only written by the seed, so unscoped Overview reads rely on the new pool-all-repos fallback in scopedMetrics; the FINDINGS metric row is written for 30d only; /me/prs lacked a workspace filter and POST /plans did not tenancy-check from_report_id (both fixed); openapi.snapshot.json is stale."
         ]
+      },
+      {
+        "id": "W20-08",
+        "title": "Findings: VEX, scanners, CI tokens, licenses, auto-close",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/src/routes/findings/**",
+          "apps/api/src/routes/security/**",
+          "apps/api/src/routes/rules/**",
+          "apps/api/src/routes/admin/workspace/index.test.ts",
+          "apps/api/src/lib/workspace-settings.ts",
+          "packages/security/**",
+          "packages/insights/**",
+          "packages/shared/src/db/schema/read/findings.ts",
+          "packages/shared/drizzle/**",
+          "tools/repopulse-cli/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-03"
+        ],
+        "acceptance": [
+          "UX_TODO FND-05, FND-07, FND-17, FND-18: a person records a VEX statement with a required justification from a dependency finding's panel; admins turn scanners on and off from Coverage; Settings has CI tokens (create with repo scope and expiry, shown once, list, revoke) and a license policy; the Security tab shows the license register",
+          "UX_TODO FND-48, FND-58: full scans pass the files (or manifests) they read as reviewed files so fixed SAST, code-health, performance, logging, anti-slop and register findings close; processor-level tests cover each type",
+          "UX_TODO FND-49, FND-56, FND-57, FND-50: 'Still to fix' (open + confirmed) is one definition and the Reviews default; the Vulnerable dependencies table shows real rows; the dependency panel shows reachability, call sites, scope and the rationale; repopulse check links each finding and says how to dismiss it",
+          "UX_TODO FND-59, FND-65, FND-66: IaC tools get proposed registry rows promoted only by the existing thresholds; admins can propose a rule from a finding or Settings -> Rules; dismissal needs a minimum note and the role the spec names",
+          "Every fix has a test; lint, typecheck and the web suite are green"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop), findings batch after W20-03.",
+          "Fixed: FND-05, FND-07, FND-12 (remainder: select all N matching via GET /findings/ids, capped at 1000), FND-17, FND-18, FND-48, FND-49, FND-50, FND-56, FND-57, FND-58, FND-59, FND-65, FND-66.",
+          "Migration 0047_finding_rationale adds findings.rationale (FND-57): the explaining sentence is kept beside the fix instead of being dropped when a fix exists.",
+          "FND-66 reading: roles are admin and member only (SRS FR-AUTH-4), so dismiss / won't-fix of severity >= 4 or a finding raised on an open PR needs admin; both need a note of at least 10 characters. Mark fixed (open -> resolved) stays open to members.",
+          "FND-18: settings key is license_policy (snake case, like every other key); the register still reads a legacy hand-written licensePolicy until the next settings save drops it.",
+          "FND-58 limits: anti-slop sweeps only on a complete tree read (a repo past the source-read cap does not auto-close anti-slop findings); model judgement findings (*.judgment) never auto-close; EOL findings stay open when the run had no snapshot; a code-health adapter that failed keeps its tool.<x> findings open.",
+          "FND-58 tests: persistFindings full-sweep integration (store-sweep), registers close-on-removal integration, fullRunSweep / listTreeFiles / antiSlopSweep units. Perf and logging close through the same fullRunSweep + store path but have no processor-level close test of their own.",
+          "Not done: FND-03 remainder (filters in Saved Views). The views config schema holds dashboard layouts only and belongs to the dashboards area; the URL-synced filters from W20-03 cover reload, Back and shared links."
+        ]
       }
   ]
 }

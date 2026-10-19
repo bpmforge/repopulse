@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 // Reading a snapshot's sources (W9-06).
@@ -120,4 +120,49 @@ export function readSnapshotSources(
 
   walk(root);
   return { files, skipped, truncated };
+}
+
+/**
+ * Every file path in a snapshot tree, relative and unread (W20-08, UX_TODO
+ * FND-48).
+ *
+ * A full scan closes a finding whose file is no longer in the tree: deleting
+ * the file is a fix too, and a file that is gone can never be "reviewed". Only
+ * `.git` is skipped (an archive carries none, and it is not source). Past the
+ * cap the list is CLEARED rather than cut: a partial list would make every
+ * file beyond it look deleted.
+ */
+export function listTreeFiles(root: string, maxFiles = 500_000): string[] {
+  const out: string[] = [];
+  let overflow = false;
+  const walk = (dir: string): void => {
+    let entries: string[];
+    try {
+      entries = readdirSync(dir).sort();
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (overflow) return;
+      if (entry === '.git') continue;
+      const full = path.join(dir, entry);
+      let stats;
+      try {
+        stats = lstatSync(full);
+      } catch {
+        continue;
+      }
+      if (stats.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (out.length >= maxFiles) {
+        overflow = true;
+        return;
+      }
+      out.push(path.relative(root, full));
+    }
+  };
+  walk(root);
+  return overflow ? [] : out;
 }

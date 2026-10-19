@@ -12,6 +12,7 @@ import {
   type WorkspaceSettingsResponse,
 } from './contracts.js';
 import { AiAuthorshipPatternsPanel } from './AiAuthorshipPatterns.js';
+import { LicensePolicyPanel } from './LicensePolicy.js';
 
 // Admin → Settings (W4-09, UX_SPEC §4.i). The knobs that decide what every
 // other number on every other screen means: health-score weights, which logins
@@ -220,6 +221,22 @@ export function Settings() {
           onSave={(patch) =>
             save.mutate(patch, {
               onSuccess: () => onSaved('AI authorship patterns saved'),
+              onError: onFailed,
+            })
+          }
+        />
+      )}
+
+      {/* W20-08 (UX_TODO FND-18): the license register's policy. */}
+      {data?.effective.licensePolicy && data.defaults.licensePolicy && (
+        <LicensePolicyPanel
+          effective={data.effective.licensePolicy}
+          defaults={data.defaults.licensePolicy}
+          isDefaulted={isDefaulted(stored, 'license_policy')}
+          saving={save.isPending}
+          onSave={(patch) =>
+            save.mutate(patch, {
+              onSuccess: () => onSaved('License policy saved — applies from the next scan'),
               onError: onFailed,
             })
           }

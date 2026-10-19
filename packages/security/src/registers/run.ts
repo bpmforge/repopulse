@@ -8,6 +8,7 @@ import { licenseFindings, DEFAULT_LICENSE_POLICY, type LicensePolicy } from './l
 import { LICENSE_CATEGORIES, type LicenseCategory } from './spdx.js';
 import { readDeclaredRuntimes } from './manifests.js';
 import { resolveScopes } from './sbom.js';
+import { listTreeFiles } from '../snapshot/index.js';
 
 // The nightly supply-chain register pass (W10-02, FR-REG-2/3/4).
 //
@@ -44,20 +45,35 @@ export interface SupplyChainRunResult {
   error?: string;
 }
 
-/** Workspace license policy, defaulted rather than required. */
+/**
+ * Workspace license policy, defaulted rather than required.
+ *
+ * W20-08 (UX_TODO FND-18): read from `license_policy` (snake case, what
+ * Settings now writes through the admin API) and, failing that, the older
+ * hand-written `licensePolicy` (camel case). The camel key only survives until
+ * the next Settings save, which re-parses the blob through the schema; it is
+ * read so a policy written by hand before W20-08 still applies until then.
+ */
 export function policyFrom(settings: Record<string, unknown> | null): LicensePolicy {
-  const configured = settings?.['licensePolicy'];
+  const snake = settings?.['license_policy'];
+  const camel = settings?.['licensePolicy'];
+  const configured = snake !== null && typeof snake === 'object' ? snake : camel;
   if (configured === null || typeof configured !== 'object') return DEFAULT_LICENSE_POLICY;
-  const record = configured as Partial<LicensePolicy>;
+  const record = configured as Record<string, unknown>;
+  const pick = (a: string, b: string): unknown => record[a] ?? record[b];
+  const allow = pick('allow', 'allow');
+  const flag = pick('flag', 'flag');
+  const flagUnknown = pick('flag_unknown', 'flagUnknown');
+  const flagCategories = pick('flag_categories', 'flagCategories');
   return {
-    allow: Array.isArray(record.allow) ? record.allow : DEFAULT_LICENSE_POLICY.allow,
-    flag: Array.isArray(record.flag) ? record.flag : DEFAULT_LICENSE_POLICY.flag,
+    allow: Array.isArray(allow) ? (allow as string[]) : DEFAULT_LICENSE_POLICY.allow,
+    flag: Array.isArray(flag) ? (flag as string[]) : DEFAULT_LICENSE_POLICY.flag,
     flagUnknown:
-      typeof record.flagUnknown === 'boolean'
-        ? record.flagUnknown
-        : DEFAULT_LICENSE_POLICY.flagUnknown,
-    flagCategories: Array.isArray(record.flagCategories)
-      ? record.flagCategories.filter((c): c is LicenseCategory => LICENSE_CATEGORIES.includes(c))
+      typeof flagUnknown === 'boolean' ? flagUnknown : DEFAULT_LICENSE_POLICY.flagUnknown,
+    flagCategories: Array.isArray(flagCategories)
+      ? (flagCategories as LicenseCategory[]).filter((c): c is LicenseCategory =>
+          LICENSE_CATEGORIES.includes(c),
+        )
       : DEFAULT_LICENSE_POLICY.flagCategories,
   };
 }
@@ -78,7 +94,9 @@ export async function runSupplyChainRegisters(
   const [sbom] = await deps.db
     .select({ document: security.sboms.document, commitSha: security.sboms.commitSha })
     .from(security.sboms)
-    .where(and(eq(security.sboms.workspaceId, deps.workspaceId), eq(security.sboms.repoId, deps.repoId)))
+    .where(
+      and(eq(security.sboms.workspaceId, deps.workspaceId), eq(security.sboms.repoId, deps.repoId)),
+    )
     .orderBy(desc(security.sboms.createdAt))
     .limit(1);
 
@@ -120,11 +138,12 @@ export async function runSupplyChainRegisters(
       .select({ settings: core.workspaces.settings })
       .from(core.workspaces)
       .where(eq(core.workspaces.id, deps.workspaceId));
-    const licenses = licenseFindings(components, deps.policy ?? policyFrom(workspace?.settings ?? null));
+    const licenses = licenseFindings(
+      components,
+      deps.policy ?? policyFrom(workspace?.settings ?? null),
+    );
 
-    const cycles = (await deps.db
-      .select()
-      .from(security.eolProducts)) as unknown as EolCycleRow[];
+    const cycles = (await deps.db.select().from(security.eolProducts)) as unknown as EolCycleRow[];
     const runtimes = deps.snapshotDir ? readDeclaredRuntimes(deps.snapshotDir) : null;
     const eol = runtimes
       ? eolFindings({ declared: runtimes.declared, cycles, now })
@@ -186,6 +205,15 @@ export async function runSupplyChainRegisters(
       })),
     ];
 
+    // W20-08 (UX_TODO FND-58): the registers read the WHOLE component list,
+    // so a license or dependency-health finding this run no longer raises is
+    // stale: the AGPL package was removed, the abandoned one upgraded. They
+    // have no file, and the store could close only findings on reviewed files,
+    // so none of them ever closed. EOL findings point at a manifest and close
+    // when the snapshot shows it no longer declares that runtime; with no
+    // snapshot, or a manifest that could not be read, they stay as they are.
+    const unreadable = new Set(runtimes?.unreadable ?? []);
+    const tree = deps.snapshotDir ? listTreeFiles(deps.snapshotDir) : [];
     const persisted = await persistFindings(deps.db, {
       workspaceId: deps.workspaceId,
       repoId: deps.repoId,
@@ -195,6 +223,14 @@ export async function runSupplyChainRegisters(
       findings: incoming,
       sweepDimensions: ['dependency_health'],
       sweepScannerKey: SUPPLY_CHAIN_REGISTER_KEY,
+      reviewedFiles: tree.filter((f) => !unreadable.has(f)),
+      fullSweep: {
+        repoLevel: true,
+        treeFiles: tree,
+        keepOpen: (row) =>
+          (row.ruleId?.startsWith('eol.') ?? false) &&
+          (runtimes === null || (row.file !== null && unreadable.has(row.file))),
+      },
     });
 
     await deps.db

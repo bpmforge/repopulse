@@ -88,7 +88,109 @@ export interface Finding {
    * shadow findings, and always marked when it is.
    */
   experimental?: boolean;
+  /**
+   * W20-08 (UX_TODO FND-57): why the scanner thinks it applies, kept beside
+   * the fix. Null when it would only repeat the recommendation.
+   */
+  rationale?: string | null;
+  /** W20-08 (FND-66): dismissing or marking won't fix needs an admin. */
+  dismiss_requires_admin?: boolean;
+  /** W20-08 (FND-57): what the dependency scanner worked out, or null. */
+  dependency?: DependencyEvidence | null;
 }
+
+/** GET /findings/:id `dependency` (W20-08, UX_TODO FND-57). */
+export interface DependencyEvidence {
+  /** manifest_only | imported | symbol_reachable | proven_unreachable. */
+  reachability: string | null;
+  usage: string | null;
+  usage_evidence: { file: string; line: number | null; quote: string | null }[];
+  call_sites: { file: string; line: number | null; symbol: string | null }[];
+  scope: { kind: string; depth: number | null } | null;
+  epss: number | null;
+  aliases: string[];
+}
+
+/** Each reachability tier in a sentence a person can act on (FR-SEC-13). */
+export const REACHABILITY_LABEL: Record<string, string> = {
+  manifest_only: 'Listed in a manifest, and no import of it was found.',
+  imported: 'Imported by this repository; no call to the vulnerable function was traced.',
+  symbol_reachable: 'This repository calls a function the advisory names.',
+  proven_unreachable: 'No call path to the vulnerable function was found.',
+};
+
+/**
+ * `?status=` values the Reviews filter offers (W20-08, UX_TODO FND-49).
+ *
+ * `active` (open AND confirmed) is the default and means what every "N open"
+ * count on the Security tab and Sensitive changes means. `open` alone dropped
+ * a finding from the default list the moment someone confirmed it, which is
+ * exactly when it still needs fixing.
+ */
+export const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: 'active', label: 'Still to fix (open + confirmed)' },
+  { value: 'open', label: 'open' },
+  { value: 'confirmed', label: 'confirmed' },
+  { value: 'dismissed', label: 'dismissed' },
+  { value: 'resolved', label: 'resolved' },
+  { value: 'wont_fix', label: "won't fix" },
+];
+
+/** The default status filter, left out of the URL (W20-08). */
+export const DEFAULT_STATUS_FILTER = 'active';
+
+/** The API's minimum for a dismissal or won't-fix note (W20-08, FND-66). */
+export const DISMISS_NOTE_MIN = 10;
+
+/**
+ * Whether a finding closes by itself once the code is fixed (W20-08, UX_TODO
+ * FND-58), said in the panel so nobody waits for a re-scan that will never
+ * close it. The scanners listed sweep their own findings on a full run; a
+ * model's judgement, a secret in history and a checklist answer do not.
+ */
+const AUTO_CLOSING_SCANNERS: Record<string, string> = {
+  semgrep: 'the next weekly security scan',
+  code_health_tools: 'the next code health scan',
+  performance: 'the next weekly scan',
+  logging_hygiene: 'the next weekly scan',
+  anti_slop: 'the next weekly scan that reads the whole tree',
+  supply_chain_register: 'the next nightly dependency register run',
+  dependency_cve: 'the next dependency scan',
+  container_image: 'the next image scan',
+};
+
+export function autoCloseNote(finding: {
+  scanner_key?: string | null;
+  rule_id?: string | null;
+}): string {
+  const when = finding.scanner_key ? AUTO_CLOSING_SCANNERS[finding.scanner_key] : undefined;
+  if (when && !(finding.rule_id ?? '').endsWith('.judgment')) {
+    return `Closes on its own when ${when} no longer finds it. Mark fixed to close it sooner.`;
+  }
+  return 'Does not close on its own: no later scan re-checks it. Mark it fixed once the code is fixed.';
+}
+
+/** OpenVEX statuses a person may record (W20-08, UX_TODO FND-05). */
+export const VEX_STATUSES = [
+  { value: 'not_affected', label: 'Not affected' },
+  { value: 'affected', label: 'Affected' },
+  { value: 'fixed', label: 'Fixed' },
+] as const;
+
+/** OpenVEX justifications, required with not_affected (SRS FR-SEC-14). */
+export const VEX_JUSTIFICATIONS = [
+  { value: 'component_not_present', label: 'The component is not present' },
+  { value: 'vulnerable_code_not_present', label: 'The vulnerable code is not present' },
+  {
+    value: 'vulnerable_code_not_in_execute_path',
+    label: 'The vulnerable code is never executed',
+  },
+  {
+    value: 'vulnerable_code_cannot_be_controlled_by_adversary',
+    label: 'An attacker cannot control the vulnerable code',
+  },
+  { value: 'inline_mitigations_already_exist', label: 'Mitigations are already in place' },
+] as const;
 
 /** The explorer's shadow facet — the API's `experimental` query value. */
 export type ShadowMode = 'exclude' | 'only' | 'include';
@@ -233,7 +335,8 @@ export const FINDING_TRANSITIONS: Record<
   FindingLifecycleStatus,
   readonly FindingLifecycleStatus[]
 > = {
-  open: ['confirmed', 'dismissed', 'wont_fix'],
+  // open → resolved: "Mark fixed" without a Confirm first (W20-08, FND-58).
+  open: ['confirmed', 'resolved', 'dismissed', 'wont_fix'],
   confirmed: ['resolved', 'dismissed', 'wont_fix'],
   dismissed: ['open'],
   wont_fix: ['open'],

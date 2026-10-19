@@ -59,10 +59,14 @@ describe('lifecycle', () => {
     expect(canTransition('dismissed', 'open')).toBe(true);
   });
 
-  it('refuses to jump straight from open to resolved', () => {
-    // Resolving means someone checked it was fixed; open → resolved without
-    // confirmation would let a finding be closed without ever being read.
-    expect(canTransition('open', 'resolved')).toBe(false);
+  it('lets a person mark an open finding fixed without confirming it first (W20-08)', () => {
+    // UX_TODO FND-58: the person who fixed it had to Confirm and then Mark
+    // fixed, two notes for one fix. The note is still required, so the
+    // finding is still read before it closes.
+    expect(canTransition('open', 'resolved')).toBe(true);
+    // Nothing else changed: a judgement still only goes back to open.
+    expect(canTransition('dismissed', 'resolved')).toBe(false);
+    expect(canTransition('wont_fix', 'resolved')).toBe(false);
   });
 
   it('NEVER reopens a human dismissal because the model repeated itself', () => {

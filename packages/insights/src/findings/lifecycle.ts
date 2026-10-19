@@ -18,7 +18,9 @@ export type DismissReason =
 
 /** Transitions a person may make (FR-INSIGHTS-1). */
 const HUMAN: Record<FindingStatus, FindingStatus[]> = {
-  open: ['confirmed', 'dismissed', 'wont_fix'],
+  // open → resolved (W20-08, UX_TODO FND-58): a person who fixed the code had
+  // to Confirm first and then Mark fixed, writing two notes for one fix.
+  open: ['confirmed', 'resolved', 'dismissed', 'wont_fix'],
   confirmed: ['resolved', 'dismissed', 'wont_fix'],
   dismissed: ['open'],
   wont_fix: ['open'],

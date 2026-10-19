@@ -5,6 +5,8 @@ import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { FindingDetail } from '../../../widgets/findings/FindingDetail.js';
 import { FindingSeverityBadge } from '../../../widgets/findings/FindingSeverity.js';
 import {
+  DEFAULT_STATUS_FILTER,
+  STATUS_FILTERS,
   VERIFY_LABEL,
   locationOf,
   type Finding,
@@ -31,7 +33,9 @@ import {
 // repository with more had no sign that more existed. It now filters by status
 // (open by default, in the URL like the explorer's) and pages.
 
-const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as const;
+// W20-08 (UX_TODO FND-49): the default is "still to fix" (open + confirmed),
+// the one definition every count uses; `open` alone is now a choice.
+const STATUSES = STATUS_FILTERS.map((s) => s.value);
 
 function validateFindingsSearch(search: Record<string, unknown>): {
   finding?: number;
@@ -39,18 +43,24 @@ function validateFindingsSearch(search: Record<string, unknown>): {
 } {
   const raw = search.finding;
   const id = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
-  // Open is the default and is left out of the URL; `any` is every status.
+  // Still-to-fix is the default and is left out of the URL; `any` is every
+  // status.
   const status =
     search.status === 'any' ||
     (typeof search.status === 'string' &&
-      search.status !== 'open' &&
-      (STATUSES as readonly string[]).includes(search.status))
+      search.status !== DEFAULT_STATUS_FILTER &&
+      STATUSES.includes(search.status))
       ? (search.status as string)
       : undefined;
   return {
     ...(Number.isInteger(id) && id > 0 ? { finding: id } : {}),
     ...(status ? { status } : {}),
   };
+}
+
+/** A status filter in words: `active` reads as "still to fix". */
+function statusWords(status: string): string {
+  return status === DEFAULT_STATUS_FILTER ? 'still to fix' : status.replace('_', ' ');
 }
 
 export const Route = createFileRoute('/repos/$repoId/findings')({
@@ -65,7 +75,7 @@ function RepoFindings() {
   // click have to land on the same screen.
   const search = Route.useSearch();
   const openId = search.finding ?? null;
-  const status = search.status === 'any' ? '' : (search.status ?? 'open');
+  const status = search.status === 'any' ? '' : (search.status ?? DEFAULT_STATUS_FILTER);
   const setOpenId = (id: number | null) => {
     void navigate({
       search: (prev: Record<string, unknown>) => ({
@@ -79,7 +89,7 @@ function RepoFindings() {
     void navigate({
       search: (prev: Record<string, unknown>) => ({
         ...prev,
-        status: next === '' ? 'any' : next === 'open' ? undefined : next,
+        status: next === '' ? 'any' : next === DEFAULT_STATUS_FILTER ? undefined : next,
       }),
     });
   };
@@ -131,9 +141,9 @@ function RepoFindings() {
             onChange={(e) => setStatus(e.target.value)}
           >
             <option value="">Any</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.replace('_', ' ')}
+            {STATUS_FILTERS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -145,7 +155,7 @@ function RepoFindings() {
           search={
             {
               repos: repoId,
-              ...(status === 'open' ? {} : { status: status || 'any' }),
+              ...(status === DEFAULT_STATUS_FILTER ? {} : { status: status || 'any' }),
             } as never
           }
           className="text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
@@ -157,7 +167,7 @@ function RepoFindings() {
       <WidgetFrame
         title={
           typeof data?.total === 'number'
-            ? `Findings (${data.total.toLocaleString()} ${status ? status.replace('_', ' ') : 'in all'})`
+            ? `Findings (${data.total.toLocaleString()} ${status ? statusWords(status) : 'in all'})`
             : 'Findings'
         }
         state={state}
@@ -168,8 +178,8 @@ function RepoFindings() {
         // analysed — and the reader can tell which from the Security tab's run
         // history, which is where that question belongs.
         emptyMessage={
-          status && status !== 'open'
-            ? `No ${status.replace('_', ' ')} findings in this repository.`
+          status && status !== DEFAULT_STATUS_FILTER
+            ? `No ${statusWords(status)} findings in this repository.`
             : 'No findings recorded for this repository. Findings appear once an analysis run completes — the Security tab shows when each scanner last ran.'
         }
       >

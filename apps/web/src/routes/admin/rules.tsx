@@ -13,6 +13,7 @@ import {
   type RuleRow,
 } from '../../widgets/rules/contracts.js';
 import { RulePrecisionTable } from '../../widgets/trust/RulePrecision.js';
+import { ProposeRuleForm } from '../../widgets/rules/ProposeRuleForm.js';
 
 // Rule workbench (W9-07, CODE_HEALTH_SUITE.md §8, FR-CH-8, FR-AUTH-4).
 //
@@ -52,6 +53,8 @@ export function RuleWorkbench() {
    */
   const [confirming, setConfirming] = useState<Move | null>(null);
   const [message, setMessage] = useState<{ ruleId: string; text: string } | null>(null);
+  /** W20-08 (UX_TODO FND-65): the "Propose a rule" form, open or not. */
+  const [proposing, setProposing] = useState(false);
   const transition = useMutation<unknown, Error, Move>({
     mutationFn: ({ ruleId, to }) =>
       apiFetch<unknown>(buildUrl('/rules/{ruleId}/transition', { path: { ruleId } }), {
@@ -87,7 +90,11 @@ export function RuleWorkbench() {
         // `bpm-log-console-in-prod` concludes the screen is broken. It holds
         // only CANDIDATE rules drafted from this workspace's own findings,
         // working through shadow before they are allowed to count.
-        emptyMessage="No candidate rules yet. This registry holds rules DRAFTED from your own findings, which run in shadow before they are allowed to raise anything — the rules that ship in the scanners' packs are always on and are not listed here."
+        // W20-08 (UX_TODO FND-65): it said rules were "drafted from your own
+        // findings" while nothing drafted them. They arrive by a person
+        // proposing one (below, or from a finding), or as a tool row the first
+        // time a shadow tool such as checkov raises a finding.
+        emptyMessage="No rules in the registry yet. A rule gets here when an admin proposes one (Propose a rule, below, or from a finding's panel), or the first time a shadow tool such as checkov or hadolint raises a finding. Rules here run in shadow before they may count; the rules that ship in the scanners' packs are always on and are not listed."
         testId="rules-frame"
       >
         {message && (
@@ -229,6 +236,22 @@ export function RuleWorkbench() {
           </tbody>
         </table>
       </WidgetFrame>
+      <div className="flex flex-col gap-2" data-testid="propose-rule">
+        {proposing ? (
+          <ProposeRuleForm onClose={() => setProposing(false)} />
+        ) : (
+          <div>
+            <button
+              type="button"
+              className={FORWARD}
+              data-testid="propose-rule-open"
+              onClick={() => setProposing(true)}
+            >
+              Propose a rule
+            </button>
+          </div>
+        )}
+      </div>
       {/* W18-22: every rule's measured precision and lifecycle, including the
           pack rules this registry does not hold. */}
       <RulePrecisionTable />

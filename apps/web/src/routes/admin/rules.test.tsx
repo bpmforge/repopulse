@@ -168,3 +168,43 @@ describe('rule workbench moves (W20-03)', () => {
     expect(parsed).toEqual(RULE_TRANSITIONS);
   });
 });
+
+// W20-08 (UX_TODO FND-65): nothing could put a rule into the registry. The
+// workbench now has a Propose form that posts a proposed rule to /rules.
+describe('propose a rule (W20-08)', () => {
+  it('opens the form, names what is missing, and posts a proposed rule', async () => {
+    rows = [];
+    renderPage();
+    fireEvent.click(await screen.findByTestId('propose-rule-open'));
+    const submit = screen.getByTestId('propose-rule-submit');
+    expect(submit).toBeDisabled();
+    expect(screen.getByTestId('propose-rule-problems')).toHaveTextContent(
+      /Name at least one language/,
+    );
+    fireEvent.change(screen.getByTestId('propose-rule-id'), {
+      target: { value: 'perf.n-plus-one' },
+    });
+    fireEvent.change(screen.getByTestId('propose-rule-languages'), {
+      target: { value: 'typescript' },
+    });
+    fireEvent.change(screen.getByTestId('propose-rule-checklist'), {
+      target: { value: 'Is a query issued inside a loop?' },
+    });
+    fireEvent.change(screen.getByTestId('propose-rule-trigger'), {
+      target: { value: 'for (const x of xs) await db.q(x)' },
+    });
+    fireEvent.change(screen.getByTestId('propose-rule-clean'), {
+      target: { value: 'await db.q(xs)' },
+    });
+    fireEvent.click(submit);
+    await waitFor(() => {
+      const post = requests.find((r) => r.init?.method === 'POST');
+      expect(post?.url).toBe('/api/v1/rules');
+      expect(JSON.parse(String(post?.init?.body))).toMatchObject({
+        id: 'perf.n-plus-one',
+        status: 'proposed',
+        languages: ['typescript'],
+      });
+    });
+  });
+});

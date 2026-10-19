@@ -174,7 +174,8 @@ registerWidget({
   component: () => {
     const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Finding[] }>({
       endpoint: '/findings',
-      query: { status: 'open' },
+      // W20-08 (UX_TODO FND-49): open + confirmed, as every "open" count means.
+      query: { status: 'active' },
     });
     const items = data?.items ?? [];
     return (

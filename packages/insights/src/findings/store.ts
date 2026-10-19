@@ -77,6 +77,35 @@ export interface PersistParams {
    */
   sweepDimensions?: readonly string[];
   sweepScannerKey?: string | null;
+  /**
+   * W20-08 (UX_TODO FND-48, FND-58): what a FULL run may close beyond
+   * `reviewedFiles`. Before this, full scans passed only the files that still
+   * had findings as reviewed, so a fix that cleaned the last finding out of a
+   * file left that finding open for good, and repo-level findings (licenses,
+   * dependency health) had no file to be reviewed at all.
+   *
+   * Honoured only with a sweep scope (`sweepScannerKey` or explicit
+   * `sweepDimensions`): an unscoped full sweep would close every other
+   * scanner's findings on the same files.
+   */
+  fullSweep?: FullSweep;
+}
+
+export interface FullSweep {
+  /**
+   * Every file in the tree the run looked at. A finding on a file NOT in it
+   * points at a file that no longer exists, which is the plainest fix there
+   * is, so it is closed too.
+   */
+  treeFiles?: readonly string[];
+  /** Close file-less (repo-level) findings this run no longer reports. */
+  repoLevel?: boolean;
+  /**
+   * Rows this run could not have reproduced (a tool adapter that failed, a
+   * judgement half with no model, a manifest it could not parse). They stay
+   * as they are: not seeing something you did not look for is not a fix.
+   */
+  keepOpen?: (row: { ruleId: string | null; file: string | null }) => boolean;
 }
 
 export interface PersistResult {
@@ -226,6 +255,7 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         lineEnd: finding.lineEnd,
         evidence: finding.evidenceQuote,
         recommendation: finding.suggestedFix ?? finding.rationale,
+        rationale: finding.rationale,
         tier: params.tier,
         scannerKey: finding.scannerKey ?? null,
         ruleId: finding.ruleId ?? null,
@@ -261,6 +291,9 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         occurrenceCount: prior.occurrenceCount + 1,
         ...(decision ? { status: decision.next, statusChangedAt: now } : {}),
         ...(finding.experimental !== undefined ? { experimental: finding.experimental } : {}),
+        // W20-08 (FND-57): the reason follows the latest scan, as the context
+        // does — a reachability tier that moved should say so.
+        rationale: finding.rationale,
         ...(finding.context !== undefined
           ? {
               contextLines: finding.context?.lines ?? null,
@@ -287,10 +320,24 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
   }
 
   // Findings on files this run reviewed but no longer reports are stale.
-  if (params.reviewedFiles && params.reviewedFiles.length > 0) {
+  const reviewed = new Set(params.reviewedFiles ?? []);
+  const full = params.fullSweep;
+  // An empty list is "no list", never "every file is gone".
+  const tree = full?.treeFiles && full.treeFiles.length > 0 ? new Set(full.treeFiles) : null;
+  const scoped =
+    (params.sweepScannerKey !== undefined && params.sweepScannerKey !== null) ||
+    (params.sweepDimensions !== undefined && params.sweepDimensions.length > 0);
+  // W20-08: a full sweep must name what it owns (see PersistParams.fullSweep).
+  const sweepFull = full !== undefined && scoped;
+  if (reviewed.size > 0 || sweepFull) {
     const seenKeys = new Set(deduped.map((k) => k.key));
-    const sweepDimensions =
-      params.sweepDimensions ?? [...new Set(params.findings.map((f) => f.dimension))];
+    const sweepDimensions = params.sweepDimensions ?? [
+      ...new Set(params.findings.map((f) => f.dimension)),
+    ];
+    // Filtered here rather than with `file IN (...)`: a full run's file list is
+    // the whole tree, and a monorepo's runs past Postgres's bind-parameter
+    // limit. The candidates are this repo's open findings in the sweep scope,
+    // which is the smaller set.
     const candidates = await db
       .select()
       .from(read.findings)
@@ -298,7 +345,6 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         and(
           eq(read.findings.workspaceId, params.workspaceId),
           eq(read.findings.repoId, params.repoId),
-          inArray(read.findings.file, [...params.reviewedFiles]),
           inArray(read.findings.status, ['open', 'confirmed']),
           // A run may only close what it could have found. A pass with nothing
           // to say about a dimension has not observed that its findings are
@@ -312,8 +358,17 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
         ),
       );
 
+    const inScope = (row: { file: string | null; ruleId: string | null }): boolean => {
+      if (full?.keepOpen?.({ ruleId: row.ruleId, file: row.file })) return false;
+      if (row.file !== null && reviewed.has(row.file)) return true;
+      if (!sweepFull || full === undefined) return false;
+      if (row.file === null) return full.repoLevel === true;
+      return tree !== null && !tree.has(row.file);
+    };
+
     for (const row of candidates) {
       if (seenKeys.has(row.dedupKey)) continue;
+      if (!inScope(row)) continue;
       const decision = autoResolveOutdated(row.status as FindingStatus);
       if (!decision) continue;
       await db

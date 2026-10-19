@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { readSnapshotSources } from './sources.js';
+import { listTreeFiles, readSnapshotSources } from './sources.js';
 
 // Snapshot source reading (W9-06).
 
@@ -86,5 +86,19 @@ describe('reading a snapshot tree', () => {
     // The snapshot is ephemeral by design and the sweeper may take it — a
     // scan should not fail over a race with its own cleanup.
     expect(() => readSnapshotSources(path.join(tmpdir(), 'w9-06-never-existed'))).not.toThrow();
+  });
+});
+
+// W20-08 (UX_TODO FND-48): the tree a full run compares against, so a finding
+// on a deleted file closes.
+describe('listTreeFiles (W20-08)', () => {
+  it('lists every file relative to the root, skipping .git', () => {
+    const root = tree({ 'src/a.ts': 'x', 'b.bin': 'y', '.git/HEAD': 'ref' });
+    expect(listTreeFiles(root).sort()).toEqual(['b.bin', 'src/a.ts']);
+  });
+
+  it('returns nothing rather than a partial list past the cap', () => {
+    const root = tree({ 'a.ts': '', 'b.ts': '', 'c.ts': '' });
+    expect(listTreeFiles(root, 2)).toEqual([]);
   });
 });

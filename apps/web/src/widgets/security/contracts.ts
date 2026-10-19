@@ -145,7 +145,18 @@ export interface RepoSecurity {
     last_history_scan_at: string | null;
     verified: number;
   };
-  cves: { cve_id: string; package: string; severity: number; kev: boolean }[];
+  /**
+   * Open dependency and image CVEs (W20-08, UX_TODO FND-56). `finding_id`
+   * links each row to its finding; optional for payloads from before it.
+   */
+  cves: {
+    finding_id?: number;
+    cve_id: string;
+    package: string;
+    severity: number;
+    kev: boolean;
+    scanner_key?: string | null;
+  }[];
   chains: { id: string; severity: number; nodes: ChainNode[] }[];
   /** false = chain analysis has never run, which is not the same as no chains. */
   chains_computed: boolean;
@@ -239,11 +250,11 @@ export function dependencyEmptyCopy(scanner: ScannerStatus | undefined): string 
       return `The last dependency scan proposed findings and every one was rejected, ${NOT_CLEAN}`;
     case 'partial':
       return scanner.open_findings > 0
-        ? `The last dependency scan was cut short and still left ${scanner.open_findings} open — see Open findings below. The set is incomplete.`
+        ? `The last dependency scan was cut short and still left ${scanner.open_findings} open — see Open findings above. The set is incomplete.`
         : 'The last dependency scan was cut short. An empty list from an incomplete scan is not a clean bill of health.';
     case 'ok':
       return scanner.open_findings > 0
-        ? `The dependency scan ran and left ${scanner.open_findings} open finding${scanner.open_findings === 1 ? '' : 's'} — see Open findings below.`
+        ? `The dependency scan ran and left ${scanner.open_findings} open finding${scanner.open_findings === 1 ? '' : 's'} — see Open findings above.`
         : 'The dependency scan ran and found no known vulnerabilities in the resolved dependency set. This one IS a measurement.';
   }
 }

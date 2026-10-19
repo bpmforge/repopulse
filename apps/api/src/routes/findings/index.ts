@@ -28,6 +28,64 @@ const DIMENSIONS = FINDING_DIMENSIONS;
 const DISMISS_REASONS = ['false_positive', 'accepted_risk', 'not_applicable', 'duplicate'] as const;
 
 const PAGE_SIZE = 50;
+/** The most ids one "select all matching" may hold (W20-08, FND-12). */
+export const BULK_SELECT_CAP = 1000;
+
+/**
+ * `status=active`: the findings still to fix, open AND confirmed (W20-08,
+ * UX_TODO FND-49). The Security tab, Sensitive changes and every "N open"
+ * count already meant this; the list's `status=open` meant open alone, so a
+ * finding left the default list the moment someone confirmed it — exactly when
+ * it still needed fixing — and "All 12 open findings" landed on a shorter list.
+ */
+export const ACTIVE_STATUSES = ['open', 'confirmed'] as const;
+
+/**
+ * The statuses a `status` query names: one status, `active`, or a comma list
+ * of either. Unknown values are dropped; an empty answer means "no filter",
+ * the same leniency the single value always had.
+ */
+export function statusesFrom(raw: string | undefined): string[] {
+  if (!raw) return [];
+  const out = new Set<string>();
+  for (const part of raw.split(',')) {
+    const value = part.trim();
+    if (value === 'active') ACTIVE_STATUSES.forEach((s) => out.add(s));
+    else if (STATUSES.includes(value as FindingStatus)) out.add(value);
+  }
+  return [...out];
+}
+
+/**
+ * Who may dismiss or mark won't-fix (W20-08, UX_TODO FND-66).
+ *
+ * SRS FR-AUTH-4 has two roles, admin and member, so "a security reviewer"
+ * is the admin. Any member could dismiss a critical finding with a one-word
+ * note and turn their own failing `repopulse check` green, with no second
+ * person involved. Now a high or critical finding, or one raised on a pull
+ * request that is still open (the author's own build), needs an admin; every
+ * other finding any member may still close, with a note long enough to be
+ * read later.
+ */
+export const DISMISS_NOTE_MIN = 10;
+const CLOSING_STATUSES: readonly string[] = ['dismissed', 'wont_fix'];
+
+export function dismissNeedsAdmin(f: { severity: number; prState: string | null }): boolean {
+  return f.severity >= 4 || f.prState === 'open';
+}
+
+/** Why this role may not make this move, or null when it may. */
+export function dismissRefusal(
+  to: string,
+  finding: { severity: number; prState: string | null },
+  role: string | undefined,
+): string | null {
+  if (!CLOSING_STATUSES.includes(to) || role === 'admin') return null;
+  if (!dismissNeedsAdmin(finding)) return null;
+  return finding.severity >= 4
+    ? "Only an admin may dismiss or mark won't fix a high or critical finding."
+    : "Only an admin may dismiss or mark won't fix a finding raised on a pull request that is still open.";
+}
 
 function fail(
   req: FastifyRequest,
@@ -121,6 +179,8 @@ function findingsQuery(db: Database) {
         contextLines: read.findings.contextLines,
         contextStartLine: read.findings.contextStartLine,
         recommendation: read.findings.recommendation,
+        rationale: read.findings.rationale,
+        prState: facts.pullRequests.state,
         status: read.findings.status,
         dismissReason: read.findings.dismissReason,
         occurrenceCount: read.findings.occurrenceCount,
@@ -155,6 +215,9 @@ function findingsQuery(db: Database) {
       // An inner join here would have silently dropped every Tier-2 finding from
       // the explorer — the failure mode this codebase keeps producing.
       .leftJoin(security.scanRuns, eq(security.scanRuns.id, read.findings.scanRunId))
+      // W20-08 (FND-66): whether the pull request it was raised on is still
+      // open decides who may dismiss it.
+      .leftJoin(facts.pullRequests, eq(facts.pullRequests.id, read.findings.pullRequestId))
   );
 }
 
@@ -180,7 +243,15 @@ function toFinding(r: FindingRow) {
         ? null
         : { start_line: r.contextStartLine, lines: r.contextLines },
     recommendation: r.recommendation,
+    // W20-08 (UX_TODO FND-57): WHY the scanner thinks this applies. It was
+    // overwritten by the fix whenever one existed, so the person deciding
+    // "real, or not affected?" saw the upgrade advice and never the reason.
+    // Null on rows stored before the column, and wherever it would only repeat
+    // the recommendation.
+    rationale: r.rationale !== null && r.rationale !== r.recommendation ? r.rationale : null,
     status: r.status,
+    // W20-08 (FND-66): true when dismissing or marking won't fix needs an admin.
+    dismiss_requires_admin: dismissNeedsAdmin(r),
     dismiss_reason: r.dismissReason,
     occurrence_count: r.occurrenceCount,
     verify_status: r.verifyStatus,
@@ -196,6 +267,7 @@ function toFinding(r: FindingRow) {
     chain_id: r.chainId,
     scan_run_id: r.scanRunId,
     kev: r.yields?.['kev'] === true,
+    dependency: dependencyEvidenceOf(r),
     // null, not 0: the nightly reprice may not have reached it, and a 0
     // would read as "judged, and judged harmless".
     effective_risk: r.effectiveRisk === null ? null : Number(r.effectiveRisk),
@@ -210,6 +282,53 @@ function toFinding(r: FindingRow) {
     // to — a finding about the whole repository has no file, and a connection
     // with no recorded base URL has no instance to point at.
     forge: forgeLinkFor(r),
+  };
+}
+
+/**
+ * What the dependency scanner worked out about one CVE (W20-08, UX_TODO
+ * FND-57): reachability tier, usage and its evidence, call sites, scope,
+ * EPSS and aliases. All of it was computed and stored in `yields` and none of
+ * it was sent, so the panel could say only "pkg@ver is affected by CVE-X".
+ * Null for every finding that is not a dependency or image CVE.
+ */
+export function dependencyEvidenceOf(r: {
+  dimension: string;
+  scannerKey: string | null;
+  yields: Record<string, unknown> | null;
+}) {
+  if (r.dimension !== 'dependency' || r.yields === null) return null;
+  const y = r.yields;
+  const strings = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  const scope = y['dep_scope'] as { kind?: unknown; depth?: unknown } | undefined;
+  // Both are stored as the scanner's own records ({file, line, symbol} and
+  // {file, line, quote}, validation/types.ts); anything else is dropped rather
+  // than rendered as "[object Object]".
+  const located = (v: unknown, extra: 'symbol' | 'quote') =>
+    (Array.isArray(v) ? v : []).flatMap((c: unknown) => {
+      if (!c || typeof c !== 'object') return [];
+      const rec = c as Record<string, unknown>;
+      if (typeof rec['file'] !== 'string') return [];
+      return [
+        {
+          file: rec['file'],
+          line: typeof rec['line'] === 'number' ? rec['line'] : null,
+          [extra]: typeof rec[extra] === 'string' ? rec[extra] : null,
+        },
+      ];
+    });
+  return {
+    reachability: typeof y['reachability'] === 'string' ? y['reachability'] : null,
+    usage: typeof y['usage'] === 'string' ? y['usage'] : null,
+    usage_evidence: located(y['usage_evidence'], 'quote'),
+    call_sites: located(y['call_sites'], 'symbol'),
+    scope:
+      scope && typeof scope.kind === 'string'
+        ? { kind: scope.kind, depth: typeof scope.depth === 'number' ? scope.depth : null }
+        : null,
+    epss: typeof y['epss'] === 'number' ? y['epss'] : null,
+    aliases: strings(y['aliases']),
   };
 }
 
@@ -315,6 +434,139 @@ async function applyTransition(
   });
 }
 
+/** The state of each pull request a finding was raised on, by internal id. */
+async function prStates(
+  db: Database,
+  workspaceId: number,
+  ids: readonly (number | null)[],
+): Promise<Map<number, string>> {
+  const wanted = [...new Set(ids.filter((id): id is number => id !== null))];
+  if (wanted.length === 0) return new Map();
+  const rows = await db
+    .select({ id: facts.pullRequests.id, state: facts.pullRequests.state })
+    .from(facts.pullRequests)
+    .where(
+      and(eq(facts.pullRequests.workspaceId, workspaceId), inArray(facts.pullRequests.id, wanted)),
+    );
+  return new Map(rows.map((r) => [r.id, r.state]));
+}
+
+/** The note rule for closing moves (W20-08, FND-66), or null when the note will do. */
+function noteRefusal(to: string, note: string): string | null {
+  if (!CLOSING_STATUSES.includes(to) || note.length >= DISMISS_NOTE_MIN) return null;
+  return `A dismissal or won't-fix note must say why in at least ${DISMISS_NOTE_MIN} characters: it is the only record of the decision.`;
+}
+
+/** The list's query parameters, as GET /findings and GET /findings/ids read them. */
+interface ListQuery {
+  dimension?: string;
+  status?: string;
+  severity_min?: string;
+  confidence_min?: string;
+  repo_id?: string;
+  file?: string;
+  pr_number?: string;
+  verify_status?: string;
+  scanner_key?: string;
+  cve_id?: string;
+  in_chain?: string;
+  kev?: string;
+  risk_band?: string;
+  rule_id?: string;
+  experimental?: string;
+}
+
+/**
+ * Every filter the list applies, built once (W20-08). GET /findings/ids must
+ * select exactly the rows the list counts in `total`, or "select all 240
+ * matching" would act on a different 240.
+ */
+function listFilters(db: Database, workspaceId: number, q: ListQuery) {
+  const filters = [eq(read.findings.workspaceId, workspaceId)];
+  if (q.dimension && DIMENSIONS.includes(q.dimension as (typeof DIMENSIONS)[number])) {
+    filters.push(eq(read.findings.dimension, q.dimension));
+  }
+  // One status, `active` (open + confirmed) or a comma list (W20-08, FND-49).
+  const statuses = statusesFrom(q.status);
+  if (statuses.length === 1) filters.push(eq(read.findings.status, statuses[0]!));
+  else if (statuses.length > 1) filters.push(inArray(read.findings.status, statuses));
+  if (q.severity_min && Number.isInteger(Number(q.severity_min))) {
+    filters.push(gte(read.findings.severity, Number(q.severity_min)));
+  }
+  if (q.confidence_min && Number.isInteger(Number(q.confidence_min))) {
+    filters.push(gte(read.findings.confidence, Number(q.confidence_min)));
+  }
+  if (q.repo_id && Number.isInteger(Number(q.repo_id))) {
+    filters.push(eq(read.findings.repoId, Number(q.repo_id)));
+  }
+  // EXACT path, not a prefix match. The file drill-down asks about one file,
+  // and a prefix would fold `src/pay.ts` in with `src/pay.test.ts` — a
+  // longer list that looks like more thorough reporting and is wrong.
+  if (q.file) filters.push(eq(read.findings.file, q.file));
+
+  // A PR is identified by (repo, number) everywhere the UI can see; the
+  // findings table stores the internal id. Resolved with a subquery rather
+  // than by teaching the web app about internal ids, and REQUIRING repo_id —
+  // a bare number is not a pull request, and matching one across every
+  // repository would attach another project's review to this PR.
+  if (q.pr_number && q.repo_id && Number.isInteger(Number(q.pr_number))) {
+    filters.push(
+      inArray(
+        read.findings.pullRequestId,
+        db
+          .select({ id: facts.pullRequests.id })
+          .from(facts.pullRequests)
+          .where(
+            and(
+              eq(facts.pullRequests.workspaceId, workspaceId),
+              eq(facts.pullRequests.repoId, Number(q.repo_id)),
+              eq(facts.pullRequests.number, Number(q.pr_number)),
+            ),
+          ),
+      ),
+    );
+  }
+  // W6-05 facet. 'unverified' is a real answer, not the absence of one — a
+  // finding nobody re-judged must be filterable as such.
+  if (q.verify_status && ['unverified', 'confirmed', 'contradicted'].includes(q.verify_status)) {
+    filters.push(eq(read.findings.verifyStatus, q.verify_status));
+  }
+
+  // W8-10 scanner facets (SECURITY_SUITE §5). Driven by what the finding
+  // rows carry, so a scanner added later is filterable the day it writes its
+  // first row — no per-scanner code here.
+  if (q.scanner_key) filters.push(eq(read.findings.scannerKey, q.scanner_key));
+  if (q.cve_id) filters.push(eq(read.findings.cveId, q.cve_id));
+  if (q.in_chain === 'true') filters.push(isNotNull(read.findings.chainId));
+  if (q.risk_band && ['act', 'schedule', 'track'].includes(q.risk_band)) {
+    filters.push(eq(read.findings.riskBand, q.risk_band));
+  }
+  if (q.rule_id) filters.push(eq(read.findings.ruleId, q.rule_id));
+  if (q.kev === 'true') {
+    // KEV lives in the finding's payload rather than a column: it is a fact
+    // about the CVE, set by the dependency scanner (W8-06, parked), and a
+    // column would have to be backfilled for every scanner that never sets
+    // it. Filtering on the payload means this facet works the day W8-06
+    // lands and returns nothing — correctly — until then.
+    filters.push(sql`${read.findings.yields} ->> 'kev' = 'true'`);
+  }
+
+  // SHADOW FINDINGS ARE NEVER MIXED IN SILENTLY (W18-29). A candidate rule's
+  // finding is stamped experimental so its precision can be measured before
+  // anyone is asked to act on it (CODE_HEALTH_SUITE §8.2). Listing them
+  // beside active findings by default — which this route did until now,
+  // while the risk view and top actions already left them out — presented an
+  // unproven rule's guess with the same weight as a proven one. Excluded by
+  // default; the explorer's facet asks for them by name, and the response
+  // counts what was held back so the screen can say so instead of hiding it.
+  const experimentalMode =
+    q.experimental === 'include' || q.experimental === 'only' ? q.experimental : 'exclude';
+  const withoutShadowFacet = [...filters];
+  if (experimentalMode === 'exclude') filters.push(eq(read.findings.experimental, false));
+  if (experimentalMode === 'only') filters.push(eq(read.findings.experimental, true));
+  return { filters, withoutShadowFacet, experimentalMode };
+}
+
 export default async function findingsRoutes(
   app: FastifyInstance,
   opts: FindingsRoutesOptions,
@@ -354,91 +606,16 @@ export default async function findingsRoutes(
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
 
+    const {
+      filters: built,
+      withoutShadowFacet,
+      experimentalMode,
+    } = listFilters(db, workspaceId, request.query);
     const q = request.query;
-    const filters = [eq(read.findings.workspaceId, workspaceId)];
-    if (q.dimension && DIMENSIONS.includes(q.dimension as (typeof DIMENSIONS)[number])) {
-      filters.push(eq(read.findings.dimension, q.dimension));
-    }
-    if (q.status && STATUSES.includes(q.status as FindingStatus)) {
-      filters.push(eq(read.findings.status, q.status));
-    }
-    if (q.severity_min && Number.isInteger(Number(q.severity_min))) {
-      filters.push(gte(read.findings.severity, Number(q.severity_min)));
-    }
-    if (q.confidence_min && Number.isInteger(Number(q.confidence_min))) {
-      filters.push(gte(read.findings.confidence, Number(q.confidence_min)));
-    }
-    if (q.repo_id && Number.isInteger(Number(q.repo_id))) {
-      filters.push(eq(read.findings.repoId, Number(q.repo_id)));
-    }
-    // EXACT path, not a prefix match. The file drill-down asks about one file,
-    // and a prefix would fold `src/pay.ts` in with `src/pay.test.ts` — a
-    // longer list that looks like more thorough reporting and is wrong.
-    if (q.file) filters.push(eq(read.findings.file, q.file));
-
-    // A PR is identified by (repo, number) everywhere the UI can see; the
-    // findings table stores the internal id. Resolved with a subquery rather
-    // than by teaching the web app about internal ids, and REQUIRING repo_id —
-    // a bare number is not a pull request, and matching one across every
-    // repository would attach another project's review to this PR.
-    if (q.pr_number && q.repo_id && Number.isInteger(Number(q.pr_number))) {
-      filters.push(
-        inArray(
-          read.findings.pullRequestId,
-          db
-            .select({ id: facts.pullRequests.id })
-            .from(facts.pullRequests)
-            .where(
-              and(
-                eq(facts.pullRequests.workspaceId, workspaceId),
-                eq(facts.pullRequests.repoId, Number(q.repo_id)),
-                eq(facts.pullRequests.number, Number(q.pr_number)),
-              ),
-            ),
-        ),
-      );
-    }
-    // W6-05 facet. 'unverified' is a real answer, not the absence of one — a
-    // finding nobody re-judged must be filterable as such.
-    if (q.verify_status && ['unverified', 'confirmed', 'contradicted'].includes(q.verify_status)) {
-      filters.push(eq(read.findings.verifyStatus, q.verify_status));
-    }
-
-    // W8-10 scanner facets (SECURITY_SUITE §5). Driven by what the finding
-    // rows carry, so a scanner added later is filterable the day it writes its
-    // first row — no per-scanner code here.
-    if (q.scanner_key) filters.push(eq(read.findings.scannerKey, q.scanner_key));
-    if (q.cve_id) filters.push(eq(read.findings.cveId, q.cve_id));
-    if (q.in_chain === 'true') filters.push(isNotNull(read.findings.chainId));
-    if (q.risk_band && ['act', 'schedule', 'track'].includes(q.risk_band)) {
-      filters.push(eq(read.findings.riskBand, q.risk_band));
-    }
-    if (q.rule_id) filters.push(eq(read.findings.ruleId, q.rule_id));
-    if (q.kev === 'true') {
-      // KEV lives in the finding's payload rather than a column: it is a fact
-      // about the CVE, set by the dependency scanner (W8-06, parked), and a
-      // column would have to be backfilled for every scanner that never sets
-      // it. Filtering on the payload means this facet works the day W8-06
-      // lands and returns nothing — correctly — until then.
-      filters.push(sql`${read.findings.yields} ->> 'kev' = 'true'`);
-    }
-
-    // SHADOW FINDINGS ARE NEVER MIXED IN SILENTLY (W18-29). A candidate rule's
-    // finding is stamped experimental so its precision can be measured before
-    // anyone is asked to act on it (CODE_HEALTH_SUITE §8.2). Listing them
-    // beside active findings by default — which this route did until now,
-    // while the risk view and top actions already left them out — presented an
-    // unproven rule's guess with the same weight as a proven one. Excluded by
-    // default; the explorer's facet asks for them by name, and the response
-    // counts what was held back so the screen can say so instead of hiding it.
-    const experimentalMode =
-      q.experimental === 'include' || q.experimental === 'only' ? q.experimental : 'exclude';
-    const withoutShadowFacet = [...filters];
-    if (experimentalMode === 'exclude') filters.push(eq(read.findings.experimental, false));
-    if (experimentalMode === 'only') filters.push(eq(read.findings.experimental, true));
+    const filters = [...built];
 
     // Every filter, no cursor: what `total` counts (W20-03).
-    const listFilters = [...filters];
+    const countFilters = [...filters];
 
     // Keyset, not offset: the list is ordered by severity and new findings
     // arrive at the top, so an offset page would skip or repeat rows while
@@ -512,7 +689,7 @@ export default async function findingsRoutes(
     const [matching] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(read.findings)
-      .where(and(...listFilters));
+      .where(and(...countFilters));
 
     return reply.send({
       items: page.map(toFinding),
@@ -520,6 +697,29 @@ export default async function findingsRoutes(
       total: matching?.n ?? 0,
       experimental: experimentalMode,
       shadow_hidden: shadowHidden,
+    });
+  });
+
+  /**
+   * GET /findings/ids — every id the list's filters match, across pages
+   * (W20-08, UX_TODO FND-12): "select all 240 matching" for the bulk bar.
+   * The same filters as the list (listFilters), capped, and the cap is said
+   * rather than silently applied, so a selection never claims rows it lacks.
+   */
+  app.get<{ Querystring: ListQuery }>('/findings/ids', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const { filters } = listFilters(db, workspaceId, request.query);
+    const rows = await db
+      .select({ id: read.findings.id })
+      .from(read.findings)
+      .where(and(...filters))
+      .orderBy(desc(read.findings.id))
+      .limit(BULK_SELECT_CAP + 1);
+    return reply.send({
+      ids: rows.slice(0, BULK_SELECT_CAP).map((r) => r.id),
+      truncated: rows.length > BULK_SELECT_CAP,
+      cap: BULK_SELECT_CAP,
     });
   });
 
@@ -710,12 +910,29 @@ export default async function findingsRoutes(
       );
     }
 
+    const shortNote = noteRefusal(next, note);
+    if (shortNote) return fail(request, reply, 400, 'The note is too short', shortNote);
+
     const [finding] = await db
       .select()
       .from(read.findings)
       .where(and(eq(read.findings.id, id), eq(read.findings.workspaceId, workspaceId)))
       .limit(1);
     if (!finding) return fail(request, reply, 404, 'Not Found');
+
+    const states = await prStates(db, workspaceId, [finding.pullRequestId]);
+    const refusal = dismissRefusal(
+      next,
+      {
+        severity: finding.severity,
+        prState:
+          finding.pullRequestId === null ? null : (states.get(finding.pullRequestId) ?? null),
+      },
+      request.role,
+    );
+    // 403 after the 404: the finding is this workspace's, so saying it exists
+    // leaks nothing, and the reason tells the member whom to ask.
+    if (refusal) return fail(request, reply, 403, 'Admin role required', refusal);
 
     if (!canTransition(finding.status as FindingStatus, next as FindingStatus)) {
       // 409, not 400: the request is well-formed, the STATE forbids it.
@@ -803,6 +1020,8 @@ export default async function findingsRoutes(
       return fail(request, reply, 400, 'Invalid status');
     }
     if (note === '') return fail(request, reply, 400, 'A note is required');
+    const shortNote = noteRefusal(next, note);
+    if (shortNote) return fail(request, reply, 400, 'The note is too short', shortNote);
     const rawReason = request.body?.dismiss_reason;
     if (
       rawReason !== undefined &&
@@ -841,7 +1060,26 @@ export default async function findingsRoutes(
       if (!found.has(id)) skipped.push({ id, reason: 'not found' });
     }
 
+    const states = await prStates(
+      db,
+      workspaceId,
+      rows.map((r) => r.pullRequestId),
+    );
     for (const row of rows) {
+      // Per row, like the lifecycle check (W20-08, FND-66): a member's bulk
+      // dismissal still closes the low-severity rows and reports the rest.
+      const refusal = dismissRefusal(
+        next,
+        {
+          severity: row.severity,
+          prState: row.pullRequestId === null ? null : (states.get(row.pullRequestId) ?? null),
+        },
+        request.role,
+      );
+      if (refusal) {
+        skipped.push({ id: row.id, reason: 'needs an admin' });
+        continue;
+      }
       if (!canTransition(row.status as FindingStatus, next as FindingStatus)) {
         // Reported per id rather than failing the whole batch: a bulk action
         // that rejects 40 findings because one was already resolved is a

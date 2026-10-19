@@ -73,7 +73,9 @@ describe('only the submitting action is disabled while pending (W17-23, acceptan
       variables: { status: 'confirmed' },
     };
     renderPanel();
-    fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'seen it' } });
+    fireEvent.change(screen.getByTestId('finding-note'), {
+      target: { value: 'seen it before, harmless' },
+    });
     expect(screen.getByTestId('finding-confirm')).toBeDisabled();
     expect(screen.getByTestId('finding-confirm').textContent).toMatch(/Confirming/);
     expect(screen.getByTestId('finding-dismiss')).toBeEnabled();
@@ -87,7 +89,9 @@ describe('only the submitting action is disabled while pending (W17-23, acceptan
       variables: { status: 'dismissed' },
     };
     renderPanel();
-    fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'seen it' } });
+    fireEvent.change(screen.getByTestId('finding-note'), {
+      target: { value: 'seen it before, harmless' },
+    });
     expect(screen.getByTestId('finding-dismiss')).toBeDisabled();
     expect(screen.getByTestId('finding-confirm')).toBeEnabled();
   });

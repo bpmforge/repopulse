@@ -29,6 +29,8 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   // W18-29: the verified-fix attempts, beside the model that drafts them.
   { to: '/admin/patches', label: 'Verified fixes' },
   { to: '/admin/settings', label: 'Settings' },
+  // W20-08 (UX_TODO FND-17): minting a CI token needed curl and a copied cookie.
+  { to: '/admin/ci-tokens', label: 'CI tokens' },
   // W11-02. Its own top-level route rather than an /admin child — the setup
   // checklist is what an operator opens when something is not working yet, and
   // burying it under a tab group they are already lost in helps nobody. The

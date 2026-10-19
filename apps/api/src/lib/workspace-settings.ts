@@ -10,6 +10,7 @@ import {
   type AiAuthorshipPatterns,
 } from '@repopulse/metrics';
 import { DEFAULT_WEIGHTS } from '@repopulse/insights';
+import { DEFAULT_LICENSE_POLICY, LICENSE_CATEGORIES, policyFrom } from '@repopulse/security';
 
 // Workspace settings (W4-09, DATABASE.md workspaces.settings, API_DESIGN.md §2
 // "admin"). One jsonb column, read by the admin route AND by the snapshot
@@ -67,6 +68,27 @@ export const aiAuthorshipPatternsSchema = z
   })
   .strict();
 
+/**
+ * W20-08 (UX_TODO FND-18): the license register's policy. The register has
+ * read `licensePolicy` from these settings since W18-39, and nothing could
+ * write it: the key was not in this schema, so PATCH refused it, and because
+ * the stored blob is re-parsed through the schema on every save, any other
+ * settings save would have dropped a policy written by hand. Every field is
+ * optional, the same unset-vs-empty rule as the lists above.
+ */
+export const licensePolicySchema = z
+  .object({
+    /** Categories flagged in production scope (permissive, weak, strong, network copyleft, unknown). */
+    flag_categories: z.array(z.enum(LICENSE_CATEGORIES as [string, ...string[]])).optional(),
+    /** Flag a production dependency whose license could not be read. */
+    flag_unknown: z.boolean().optional(),
+    /** SPDX ids always allowed, whatever their category. */
+    allow: z.array(z.string().trim().min(1).max(100)).max(200).optional(),
+    /** SPDX ids always flagged. */
+    flag: z.array(z.string().trim().min(1).max(100)).max(200).optional(),
+  })
+  .strict();
+
 export const workspaceSettingsSchema = z.object({
   health_weights: healthWeightsSchema.optional(),
   /** Absent = METRICS.md §0 defaults. `[]` = bot exclusion deliberately off. */
@@ -84,6 +106,7 @@ export const workspaceSettingsSchema = z.object({
     })
     .optional(),
   ai_authorship_patterns: aiAuthorshipPatternsSchema.optional(),
+  license_policy: licensePolicySchema.optional(),
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
@@ -95,6 +118,13 @@ export interface EffectiveWorkspaceSettings {
   stalePrDays: number;
   forgeBudget: { share: number; floor: number };
   aiAuthorshipPatterns: AiAuthorshipPatterns;
+  /** What the license register applies (W20-08). */
+  licensePolicy: {
+    flagCategories: string[];
+    flagUnknown: boolean;
+    allow: string[];
+    flag: string[];
+  };
 }
 
 export const SETTINGS_DEFAULTS: EffectiveWorkspaceSettings = {
@@ -105,6 +135,12 @@ export const SETTINGS_DEFAULTS: EffectiveWorkspaceSettings = {
   // the floor mirrors the budgeted client's own reserve.
   forgeBudget: { share: 1, floor: 100 },
   aiAuthorshipPatterns: DEFAULT_AI_AUTHORSHIP_PATTERNS,
+  licensePolicy: {
+    flagCategories: [...DEFAULT_LICENSE_POLICY.flagCategories],
+    flagUnknown: DEFAULT_LICENSE_POLICY.flagUnknown,
+    allow: [...DEFAULT_LICENSE_POLICY.allow],
+    flag: [...DEFAULT_LICENSE_POLICY.flag],
+  },
 };
 
 export function applyDefaults(stored: WorkspaceSettings): EffectiveWorkspaceSettings {
@@ -120,6 +156,16 @@ export function applyDefaults(stored: WorkspaceSettings): EffectiveWorkspaceSett
     aiAuthorshipPatterns: resolveAiAuthorshipPatterns({
       ai_authorship_patterns: stored.ai_authorship_patterns,
     }),
+    // The register's own reader, so this screen shows the policy it applies.
+    licensePolicy: (() => {
+      const p = policyFrom(stored as Record<string, unknown>);
+      return {
+        flagCategories: [...(p.flagCategories ?? [])],
+        flagUnknown: p.flagUnknown,
+        allow: [...p.allow],
+        flag: [...p.flag],
+      };
+    })(),
   };
 }
 
