@@ -437,6 +437,9 @@ export default async function findingsRoutes(
     if (experimentalMode === 'exclude') filters.push(eq(read.findings.experimental, false));
     if (experimentalMode === 'only') filters.push(eq(read.findings.experimental, true));
 
+    // Every filter, no cursor: what `total` counts (W20-03).
+    const listFilters = [...filters];
+
     // Keyset, not offset: the list is ordered by severity and new findings
     // arrive at the top, so an offset page would skip or repeat rows while
     // someone is reading — which presents as "findings are missing".
@@ -503,9 +506,18 @@ export default async function findingsRoutes(
       shadowHidden = hidden?.n ?? 0;
     }
 
+    // How many findings match, across every page (W20-03, UX_TODO FND-10).
+    // The triage queue holds one page and called it the whole queue; "50 of
+    // 1,240" needs the second number, and only the database has it.
+    const [matching] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(read.findings)
+      .where(and(...listFilters));
+
     return reply.send({
       items: page.map(toFinding),
       next_cursor: rows.length > PAGE_SIZE && last ? encodeCursor(sort, last) : null,
+      total: matching?.n ?? 0,
       experimental: experimentalMode,
       shadow_hidden: shadowHidden,
     });
@@ -764,73 +776,106 @@ export default async function findingsRoutes(
     return reply.send({ id, status: next, dismiss_reason: dismissReason });
   });
 
-  /** POST /findings/bulk — the same transition across a selection. */
-  app.post<{ Body: { ids?: unknown; status?: unknown; note?: unknown } }>(
-    '/findings/bulk',
-    async (request, reply) => {
-      const workspaceId = request.workspace?.id;
-      const userId = request.session.get('userId');
-      if (workspaceId === undefined || userId === undefined) {
-        return fail(request, reply, 401, 'No active session');
+  /**
+   * POST /findings/bulk — the same transition across a selection.
+   *
+   * W20-03 (UX_TODO FND-11): a bulk dismissal now carries `dismiss_reason`,
+   * validated and recorded exactly as PATCH /findings/:id records it. Before
+   * this every bulk dismissal landed with no reason category, so it was
+   * invisible to the false-positive rate and to the rule precision it feeds.
+   * Every status the lifecycle has is accepted; canTransition decides per row.
+   */
+  app.post<{
+    Body: { ids?: unknown; status?: unknown; note?: unknown; dismiss_reason?: unknown };
+  }>('/findings/bulk', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    const userId = request.session.get('userId');
+    if (workspaceId === undefined || userId === undefined) {
+      return fail(request, reply, 401, 'No active session');
+    }
+    const ids = Array.isArray(request.body?.ids)
+      ? (request.body.ids as unknown[]).map(Number).filter(Number.isInteger)
+      : [];
+    const next = request.body?.status;
+    const note = typeof request.body?.note === 'string' ? request.body.note.trim() : '';
+    if (ids.length === 0) return fail(request, reply, 400, 'No findings selected');
+    if (typeof next !== 'string' || !STATUSES.includes(next as FindingStatus)) {
+      return fail(request, reply, 400, 'Invalid status');
+    }
+    if (note === '') return fail(request, reply, 400, 'A note is required');
+    const rawReason = request.body?.dismiss_reason;
+    if (
+      rawReason !== undefined &&
+      rawReason !== null &&
+      !DISMISS_REASONS.includes(rawReason as (typeof DISMISS_REASONS)[number])
+    ) {
+      // Refused rather than dropped: forty findings dismissed under a reason
+      // nobody can see afterwards is the defect this field exists to end.
+      return fail(
+        request,
+        reply,
+        400,
+        'Invalid dismiss reason',
+        `dismiss_reason must be one of ${DISMISS_REASONS.join(', ')}`,
+      );
+    }
+    const dismissReason = next === 'dismissed' && typeof rawReason === 'string' ? rawReason : null;
+    // Resolved ONCE for the whole batch — it is the same person for every row
+    // and a lookup per finding would be a query per finding. After the
+    // guards, so a malformed request costs no query at all.
+    const bulkActorLogin = await actorLoginFor(db, userId);
+
+    const rows = await db
+      .select()
+      .from(read.findings)
+      .where(and(eq(read.findings.workspaceId, workspaceId), inArray(read.findings.id, ids)));
+
+    const applied: number[] = [];
+    const skipped: { id: number; reason: string }[] = [];
+
+    // An id this workspace does not hold is reported, not silently dropped —
+    // as "not found" whether it never existed or is another workspace's, so
+    // the answer cannot be used to probe for ids (Law 5, as PATCH's 404).
+    const found = new Set(rows.map((r) => r.id));
+    for (const id of new Set(ids)) {
+      if (!found.has(id)) skipped.push({ id, reason: 'not found' });
+    }
+
+    for (const row of rows) {
+      if (!canTransition(row.status as FindingStatus, next as FindingStatus)) {
+        // Reported per id rather than failing the whole batch: a bulk action
+        // that rejects 40 findings because one was already resolved is a
+        // bulk action nobody uses.
+        skipped.push({ id: row.id, reason: `${row.status} → ${next} not permitted` });
+        continue;
       }
-      const ids = Array.isArray(request.body?.ids)
-        ? (request.body.ids as unknown[]).map(Number).filter(Number.isInteger)
-        : [];
-      const next = request.body?.status;
-      const note = typeof request.body?.note === 'string' ? request.body.note.trim() : '';
-      if (ids.length === 0) return fail(request, reply, 400, 'No findings selected');
-      if (typeof next !== 'string' || !STATUSES.includes(next as FindingStatus)) {
-        return fail(request, reply, 400, 'Invalid status');
-      }
-      if (note === '') return fail(request, reply, 400, 'A note is required');
-      // Resolved ONCE for the whole batch — it is the same person for every row
-      // and a lookup per finding would be a query per finding. After the
-      // guards, so a malformed request costs no query at all.
-      const bulkActorLogin = await actorLoginFor(db, userId);
-
-      const rows = await db
-        .select()
-        .from(read.findings)
-        .where(and(eq(read.findings.workspaceId, workspaceId), inArray(read.findings.id, ids)));
-
-      const applied: number[] = [];
-      const skipped: { id: number; reason: string }[] = [];
-
-      for (const row of rows) {
-        if (!canTransition(row.status as FindingStatus, next as FindingStatus)) {
-          // Reported per id rather than failing the whole batch: a bulk action
-          // that rejects 40 findings because one was already resolved is a
-          // bulk action nobody uses.
-          skipped.push({ id: row.id, reason: `${row.status} → ${next} not permitted` });
-          continue;
-        }
-        const ok = await applyTransition(db, {
-          workspaceId,
-          findingId: row.id,
-          fromStatus: row.status,
-          toStatus: next,
-          userId,
-          actorLogin: bulkActorLogin,
-          reason: note,
-        });
-        if (ok) applied.push(row.id);
-        else
-          skipped.push({ id: row.id, reason: 'changed status while this request was in flight' });
-      }
-
-      auditLog(request.log, {
-        event: 'finding.status_changed',
-        actorUserId: userId,
+      const ok = await applyTransition(db, {
         workspaceId,
-        ip: request.ip,
-        ua: request.headers['user-agent'] ?? null,
-        bulk: true,
-        appliedCount: applied.length,
-        skippedCount: skipped.length,
+        findingId: row.id,
+        fromStatus: row.status,
         toStatus: next,
+        userId,
+        actorLogin: bulkActorLogin,
+        reason: dismissReason ? `${dismissReason}: ${note}` : note,
+        ...(next === 'dismissed' ? { dismissReason } : {}),
       });
+      if (ok) applied.push(row.id);
+      else skipped.push({ id: row.id, reason: 'changed status while this request was in flight' });
+    }
 
-      return reply.send({ applied, skipped });
-    },
-  );
+    auditLog(request.log, {
+      event: 'finding.status_changed',
+      actorUserId: userId,
+      workspaceId,
+      ip: request.ip,
+      ua: request.headers['user-agent'] ?? null,
+      bulk: true,
+      appliedCount: applied.length,
+      skippedCount: skipped.length,
+      toStatus: next,
+      dismissReason,
+    });
+
+    return reply.send({ applied, skipped });
+  });
 }

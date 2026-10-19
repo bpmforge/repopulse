@@ -119,11 +119,14 @@ describe('a failed mutation does not falsely change the status (W17-23, acceptan
       target: { value: 'not_applicable' },
     });
     fireEvent.click(screen.getByTestId('finding-dismiss'));
-    expect(mutation.current.mutate).toHaveBeenCalledWith({
-      status: 'dismissed',
-      note: 'fixture code',
-      dismiss_reason: 'not_applicable',
-    });
+    expect(mutation.current.mutate).toHaveBeenCalledWith(
+      {
+        status: 'dismissed',
+        note: 'fixture code',
+        dismiss_reason: 'not_applicable',
+      },
+      expect.anything(),
+    );
     // Still open on screen: nothing changes until the list is re-read.
     expect(screen.getByTestId('finding-status').textContent).toBe('status open');
   });

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
 import { buildApp } from '../../app.js';
@@ -345,5 +345,147 @@ describeIfLiveInfra('finding transitions persist and invalid ones are refused (W
         reason: 'Weekly review.',
       });
     }
+  });
+
+  // W20-03 (UX_TODO FND-11): the bulk bar offers every lifecycle move and a
+  // dismiss reason. The route takes both, and still decides per row.
+  it('bulk dismissal records the reason category on each row and in its history', async () => {
+    const a = await seedFinding('bulk-reason-a');
+    const b = await seedFinding('bulk-reason-b', 'dismissed');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/findings/bulk',
+      headers: CSRF,
+      cookies: { repopulse_sid: cookie },
+      payload: {
+        ids: [a, b],
+        status: 'dismissed',
+        note: 'Vendored code.',
+        dismiss_reason: 'not_applicable',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { applied: number[]; skipped: { id: number; reason: string }[] };
+    expect(body.applied).toEqual([a]);
+    expect(body.skipped).toEqual([{ id: b, reason: 'dismissed → dismissed not permitted' }]);
+
+    const [row] = await db.select().from(read.findings).where(eq(read.findings.id, a));
+    expect(row?.status).toBe('dismissed');
+    expect(row?.dismissReason).toBe('not_applicable');
+    const [event] = await db
+      .select()
+      .from(read.findingEvents)
+      .where(eq(read.findingEvents.findingId, a));
+    expect(event?.reason).toBe('not_applicable: Vendored code.');
+  });
+
+  it('bulk refuses an unknown dismiss reason before touching any row', async () => {
+    const a = await seedFinding('bulk-bad-reason');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/findings/bulk',
+      headers: CSRF,
+      cookies: { repopulse_sid: cookie },
+      payload: { ids: [a], status: 'dismissed', note: 'x', dismiss_reason: 'because' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(await statusOf(a)).toBe('open');
+  });
+
+  it("bulk resolve, won't fix and reopen follow the lifecycle per row", async () => {
+    const confirmed = await seedFinding('bulk-resolve-a', 'confirmed');
+    const open = await seedFinding('bulk-resolve-b');
+    const send = (ids: number[], status: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/findings/bulk',
+        headers: CSRF,
+        cookies: { repopulse_sid: cookie },
+        payload: { ids, status, note: 'Sprint close.' },
+      });
+
+    // open → resolved is not a move a person makes; confirmed → resolved is.
+    const resolved = (await send([confirmed, open], 'resolved')).json() as {
+      applied: number[];
+      skipped: { id: number; reason: string }[];
+    };
+    expect(resolved.applied).toEqual([confirmed]);
+    expect(resolved.skipped).toEqual([{ id: open, reason: 'open → resolved not permitted' }]);
+
+    expect((await send([open], 'wont_fix')).json()).toMatchObject({ applied: [open] });
+    expect((await send([confirmed, open], 'open')).json()).toMatchObject({
+      skipped: [],
+    });
+    expect(await statusOf(confirmed)).toBe('open');
+    expect(await statusOf(open)).toBe('open');
+  });
+
+  it("bulk never touches another workspace's finding, and reports it as not found", async () => {
+    const [other] = await db
+      .insert(core.workspaces)
+      .values({ slug: 'w20-03-other', name: 'Other' })
+      .onConflictDoUpdate({ target: core.workspaces.slug, set: { name: 'Other' } })
+      .returning();
+    const [foreign] = await db
+      .insert(read.findings)
+      .values({
+        workspaceId: other!.id,
+        repoId,
+        dimension: 'security',
+        tier: 1,
+        severity: 4,
+        confidence: 4,
+        title: 'W20-03 foreign',
+        file: 'src/pay.ts',
+        lineStart: 1,
+        lineEnd: 1,
+        evidence: 'e',
+        recommendation: 'r',
+        dedupKey: 'w20-03-foreign',
+        scanRunId,
+        scannerKey: 'secrets',
+        status: 'open',
+      })
+      .returning();
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/findings/bulk',
+        headers: CSRF,
+        cookies: { repopulse_sid: cookie },
+        payload: {
+          ids: [foreign!.id],
+          status: 'dismissed',
+          note: 'x',
+          dismiss_reason: 'duplicate',
+        },
+      });
+      expect(res.json()).toEqual({
+        applied: [],
+        skipped: [{ id: foreign!.id, reason: 'not found' }],
+      });
+      const [row] = await db.select().from(read.findings).where(eq(read.findings.id, foreign!.id));
+      expect(row?.status).toBe('open');
+    } finally {
+      await db.delete(read.findings).where(eq(read.findings.id, foreign!.id));
+      await db.delete(core.workspaces).where(eq(core.workspaces.id, other!.id));
+    }
+  });
+
+  it('the list reports how many findings match across every page', async () => {
+    await seedFinding('total-a');
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/findings?repo_id=${repoId}&status=open`,
+      cookies: { repopulse_sid: cookie },
+    });
+    const body = res.json() as { items: { status: string }[]; total: number };
+    const [counted] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(read.findings)
+      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.status, 'open')));
+    expect(body.total).toBe(counted!.n);
+    expect(body.total).toBeGreaterThan(0);
   });
 });

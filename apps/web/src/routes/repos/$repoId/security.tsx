@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
+import { API_BASE } from '../../../api/client.js';
 import { ScannerStatusList, ScanToolingNote } from '../../../widgets/security/ScannerStatusList.js';
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
@@ -114,7 +115,9 @@ function SecurityTab() {
                   >
                     <Link
                       to="/findings"
-                      search={{ finding: finding.id } as never}
+                      // W20-03 (FND-04): the repository rides along, so closing
+                      // the finding leaves a list of THIS repository's findings.
+                      search={{ finding: finding.id, repos: repoId } as never}
                       className="truncate underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                       data-testid={`security-finding-link-${finding.id}`}
                     >
@@ -189,7 +192,10 @@ function SecurityTab() {
             // the a11y sweep on this very route.
             <Link
               to="/findings"
-              search={{ dimension: 'secrets' } as never}
+              // W20-03 (FND-04): the explorer now reads `dimension` from the
+              // URL (it used to strip it), and `repos` keeps the drill-down
+              // to this repository instead of the whole workspace.
+              search={{ repos: repoId, dimension: 'secrets' } as never}
               className="mt-2 inline-block text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="secrets-drill"
             >
@@ -257,6 +263,45 @@ function SecurityTab() {
             scanners={data.scanners}
           />
         )}
+      </WidgetFrame>
+
+      {/* W20-03 (UX_TODO FND-06): the OpenVEX export and the NOTICE-style
+          attribution existed on the API with no link anywhere in the UI.
+          Plain links, not fetch(): the browser streams the download and the
+          server's content-disposition names the file. */}
+      <WidgetFrame title="Exports" state="ready" testId="security-exports">
+        <ul className="flex flex-col gap-1 text-sm">
+          <li>
+            <a
+              href={`${API_BASE}/repos/${repoId}/vex.json`}
+              download
+              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="download-vex"
+            >
+              Download VEX
+            </a>{' '}
+            <span className="text-xs text-fg-muted">
+              OpenVEX statements recorded for this repository&apos;s dependencies.
+            </span>
+          </li>
+          <li>
+            <a
+              href={`${API_BASE}/repos/${repoId}/attribution`}
+              download
+              className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="download-attribution"
+            >
+              Download attribution (NOTICE)
+            </a>{' '}
+            <span className="text-xs text-fg-muted">
+              Third-party licenses, from the last SBOM the dependency scanner stored
+              {dependencyScanner && !ranSuccessfully(dependencyScanner)
+                ? ' (none yet: the dependency scanner has not completed a run here)'
+                : ''}
+              .
+            </span>
+          </li>
+        </ul>
       </WidgetFrame>
 
       <WidgetFrame title="Attack chains" state={state} testId="security-chains">

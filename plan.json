@@ -10323,6 +10323,41 @@
         "notes": [
           "From docs/work/UX_TODO.md ADM-42, found by code reading on 2026-10-19 and not yet reproduced in a running install."
         ]
+      },
+      {
+        "id": "W20-03",
+        "title": "Findings and triage UX: lifecycle undo, URL filters, triage queue, bulk actions, rule workbench, downloads",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/src/routes/findings/**",
+          "apps/api/src/routes/rules/**",
+          "docs/**",
+          "plan.json",
+          "e2e/findings.spec.ts",
+          "e2e/repo-detail.spec.ts"
+        ],
+        "depends_on": [
+          "W20-01"
+        ],
+        "acceptance": [
+          "UX_TODO FND-02: after a status change in the finding panel or a bulk action, a status message offers Undo (PATCH or bulk back to the previous status with an 'Undo of <action>' note) where the lifecycle allows it, and says so where it does not",
+          "UX_TODO FND-03, FND-04, FND-14: Reviews filters (dimension, status, severity, scanner, chain, rule, stage, verification, sort) are validated URL search params; the Security tab's drill-downs pass repos and dimension; Repo > Findings pages with next_cursor and filters by status, defaulting to open",
+          "UX_TODO FND-08, FND-09, FND-10: the triage queue starts with an empty required note, needs a dismiss reason (picker or keys 1-4), has visible buttons mirroring j/k/c/d, is labelled 'Triage this page (n of N)' from a total in GET /findings, and ends the page with a summary offering the next page",
+          "UX_TODO FND-11, FND-12, FND-13: the bulk bar offers every lifecycle move with a dismiss reason (POST /findings/bulk takes dismiss_reason, enforces canTransition per row and workspace filtering, reports unknown ids as not found), selection clears on filter or page change, the header selects the page, and dismissing more than 5 asks first",
+          "UX_TODO FND-15, FND-16, FND-06: rule moves offer every transition the lifecycle allows, with a confirm step for Promote and destructive steps, a success message and neutral destructive styling; the Security tab links Download VEX and Download attribution (NOTICE)"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop), second batch after W20-01.",
+          "FND-03 partial: every filter is in the URL (so a link, Back or a reload keeps it), but Saved Views store widget layouts and there is still no way to save the explorer's filters as a view.",
+          "FND-12 partial: the selection is held to its page and the header selects the page; 'select all N matching' across pages is not built (it needs a bulk-by-filter API).",
+          "FND-16: there is no active -> shadow move. CODE_HEALTH_SUITE section 8.2 makes demotion an admin-confirmed deprecation, and lifecycle.ts brings a deprecated rule back only through a fresh shadow trial, so the flag's action is Demote (deprecate) and the lifecycle was not changed. Reject (proposed) and Retire (shadow) are new on screen; a test pins the web table to ALLOWED in packages/security lifecycle.ts.",
+          "GET /findings now returns total (matching rows across pages, one count query) for the triage label. e2e/findings.spec.ts and e2e/repo-detail.spec.ts were updated for the required dismiss reason, the header checkbox and the open default, and were not run here (no seeded stack)."
+        ]
       }
   ]
 }

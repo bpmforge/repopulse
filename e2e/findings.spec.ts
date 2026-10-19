@@ -21,9 +21,7 @@ test('the explorer lists seeded findings, filters, and passes axe', async ({ pag
 
   // Filtering narrows server-side, not in the browser.
   await page.getByTestId('filter-dimension').selectOption('code_health');
-  await expect
-    .poll(async () => (await rows.allInnerTexts()).join(' '))
-    .toMatch(/Empty catch/i);
+  await expect.poll(async () => (await rows.allInnerTexts()).join(' ')).toMatch(/Empty catch/i);
   await expect(page.getByTestId('finding-rows')).not.toContainText(/SQL built/i);
 });
 
@@ -46,7 +44,9 @@ test('filter → open → acknowledge, with the note the API insists on', async 
   await expect(page.getByTestId('finding-detail')).toBeVisible();
   // The evidence quote is what makes a finding believable — it is validated to
   // be verbatim from the reviewed diff (W6-02).
-  await expect(page.getByTestId('finding-detail')).toContainText(/select \* from charges|catch|db\./);
+  await expect(page.getByTestId('finding-detail')).toContainText(
+    /select \* from charges|catch|db\./,
+  );
 
   // W19-10: a finding no AI pass has looked at says so; it never reads as
   // "reviewed and fine".
@@ -75,12 +75,18 @@ test('bulk triage applies to a selection and refuses without a note', async ({ p
   await loginAsFixture(page);
   await page.goto('/findings');
 
-  const boxes = page.locator('[data-testid^="finding-select-"]');
+  // Row boxes only: since W20-03 the header has a select-the-page box too.
+  const boxes = page.locator(
+    '[data-testid^="finding-select-"]:not([data-testid="finding-select-page"])',
+  );
   await boxes.nth(0).check();
   await expect(page.getByTestId('bulk-bar')).toBeVisible();
   await expect(page.getByTestId('bulk-dismissed')).toBeDisabled();
 
   await page.getByTestId('bulk-note').fill('Triaged in the weekly review.');
+  // W20-03 (FND-11): a bulk dismissal needs a reason too.
+  await expect(page.getByTestId('bulk-dismissed')).toBeDisabled();
+  await page.getByTestId('bulk-dismiss-reason').selectOption('not_applicable');
   await expect(page.getByTestId('bulk-dismissed')).toBeEnabled();
 });
 
@@ -125,10 +131,16 @@ test('the triage queue steps with the keyboard and reports its own FP count (W6-
   await page.keyboard.press('k');
   await expect(position).toContainText(/1 of/);
 
-  // d dismisses as a false positive and advances; the summary counts it,
-  // feeding the same false-positive metric the quality widget reads.
+  // W20-03 (FND-08): the note starts empty and a dismissal needs a reason —
+  // 1 picks false positive. Then d dismisses and advances; the summary counts
+  // it, feeding the same false-positive metric the quality widget reads.
+  await page.getByTestId('triage-note').fill('Fixture code, not shipped.');
+  await page.getByTestId('triage-note').blur();
+  await page.keyboard.press('1');
   await page.keyboard.press('d');
-  await expect(page.getByTestId('triage-summary')).toContainText(/1 dismissed/);
+  await expect(page.getByTestId('triage-summary')).toContainText(
+    /1 dismissed \(1 as false positive\)/,
+  );
 
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('triage-queue')).toHaveCount(0);

@@ -1,9 +1,11 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
 import { RuleWorkbench } from './rules.js';
-import type { RuleRow } from '../../widgets/rules/contracts.js';
+import { RULE_TRANSITIONS, type RuleRow } from '../../widgets/rules/contracts.js';
 
 // Settings → Rules lifecycle buttons (W20-01, UX_TODO FND-69).
 //
@@ -23,9 +25,11 @@ const rule: RuleRow = {
 
 const requests: { url: string; init: RequestInit | undefined }[] = [];
 let transitionAnswer: { status: number; body: unknown };
+let rows: RuleRow[];
 
 beforeEach(() => {
   requests.length = 0;
+  rows = [rule];
   transitionAnswer = { status: 200, body: { rule_id: rule.rule_id, status: 'candidate' } };
   vi.stubGlobal(
     'fetch',
@@ -35,7 +39,7 @@ beforeEach(() => {
       const answer = url.includes('/transition')
         ? transitionAnswer
         : url.endsWith('/rules')
-          ? { status: 200, body: { items: [rule] } }
+          ? { status: 200, body: { items: rows } }
           : { status: 200, body: {} };
       return Promise.resolve(
         new Response(JSON.stringify(answer.body), {
@@ -59,7 +63,7 @@ function renderPage() {
 describe('rule lifecycle buttons (W20-01)', () => {
   it('posts to the rule’s own URL with only the target state in the body', async () => {
     renderPage();
-    fireEvent.click(await screen.findByTestId(`rule-advance-${rule.rule_id}`));
+    fireEvent.click(await screen.findByTestId(`rule-move-candidate-${rule.rule_id}`));
     await waitFor(() => {
       const post = requests.find((r) => r.init?.method === 'POST');
       expect(post?.url).toBe(`/api/v1/rules/${rule.rule_id}/transition`);
@@ -74,9 +78,93 @@ describe('rule lifecycle buttons (W20-01)', () => {
       body: { status: 400, title: 'Promotion gate not met', detail: 'too few findings' },
     };
     renderPage();
-    fireEvent.click(await screen.findByTestId(`rule-advance-${rule.rule_id}`));
+    fireEvent.click(await screen.findByTestId(`rule-move-candidate-${rule.rule_id}`));
     expect((await screen.findByTestId(`rule-error-${rule.rule_id}`)).textContent).toMatch(
       /Promotion gate not met/,
     );
+  });
+});
+
+// W20-03 (UX_TODO FND-15, FND-16): confirm before Promote and every destructive
+// step, say what happened, draw destructive steps neutral, and offer every move
+// the lifecycle allows rather than one forward step.
+describe('rule workbench moves (W20-03)', () => {
+  const at = (status: RuleRow['status'], over: Partial<RuleRow> = {}): RuleRow => ({
+    ...rule,
+    rule_id: `r-${status}`,
+    status,
+    ...over,
+  });
+  const posts = () => requests.filter((r) => r.init?.method === 'POST');
+
+  it.each([
+    ['proposed', ['Accept to shadow', 'Reject']],
+    ['candidate', ['Promote to active', 'Retire']],
+    ['active', ['Deprecate']],
+    ['deprecated', ['Return to shadow']],
+  ] as const)('from %s, offers %j', async (status, labels) => {
+    rows = [at(status)];
+    renderPage();
+    const row = await screen.findByTestId(`rule-row-r-${status}`);
+    const offered = [...row.querySelectorAll('[data-testid^="rule-move-"]')].map(
+      (b) => b.textContent,
+    );
+    expect(offered).toEqual(labels);
+  });
+
+  it('Reject asks first, Cancel sends nothing, and yes sends it and says so', async () => {
+    rows = [at('proposed')];
+    transitionAnswer = { status: 200, body: { rule_id: 'r-proposed', status: 'deprecated' } };
+    renderPage();
+    const reject = await screen.findByTestId('rule-move-deprecated-r-proposed');
+    // Neutral, not the accent the forward step wears.
+    expect(reject.className).not.toMatch(/border-accent/);
+    expect(screen.getByTestId('rule-move-candidate-r-proposed').className).toMatch(/border-accent/);
+
+    fireEvent.click(reject);
+    expect(screen.getByTestId('rule-confirm-r-proposed')).toHaveTextContent(/Reject this proposal/);
+    fireEvent.click(screen.getByTestId('rule-confirm-no-r-proposed'));
+    expect(posts()).toHaveLength(0);
+
+    fireEvent.click(reject);
+    fireEvent.click(screen.getByTestId('rule-confirm-yes-r-proposed'));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(JSON.parse(String(posts()[0]!.init?.body))).toEqual({ to: 'deprecated' });
+    expect(await screen.findByTestId('rule-status-message')).toHaveTextContent(
+      'Rejected. The rule will not run.',
+    );
+  });
+
+  it('Promote asks first too', async () => {
+    rows = [at('candidate', { promotion: { eligible: true, reasons: [] } })];
+    renderPage();
+    fireEvent.click(await screen.findByTestId('rule-move-active-r-candidate'));
+    expect(posts()).toHaveLength(0);
+    expect(screen.getByTestId('rule-confirm-r-candidate')).toHaveTextContent(/Promote to active\?/);
+  });
+
+  it('a demotion candidate has its demotion action beside the flag', async () => {
+    rows = [at('active', { demotion_candidate: true })];
+    renderPage();
+    fireEvent.click(await screen.findByTestId('rule-demote-action-r-active'));
+    expect(screen.getByTestId('rule-confirm-r-active')).toHaveTextContent(
+      /Deprecate this active rule/,
+    );
+  });
+
+  it('the web table mirrors ALLOWED in packages/security/src/rules/lifecycle.ts', () => {
+    const candidates = [
+      path.resolve(process.cwd(), '../../packages/security/src/rules/lifecycle.ts'),
+      path.resolve(process.cwd(), 'packages/security/src/rules/lifecycle.ts'),
+    ];
+    const file = candidates.find((c) => existsSync(c));
+    if (!file) throw new Error(`lifecycle.ts not found; looked in: ${candidates.join(', ')}`);
+    const block = /const ALLOWED[^=]*=\s*\{([\s\S]*?)\n\};/.exec(readFileSync(file, 'utf8'))?.[1];
+    const parsed: Record<string, string[]> = {};
+    for (const m of (block ?? '').matchAll(/^\s*(\w+):\s*\[([^\]]*)\]/gm)) {
+      parsed[m[1]!] = [...m[2]!.matchAll(/'(\w+)'/g)].map((x) => x[1]!);
+    }
+    expect(Object.keys(parsed).length).toBe(4);
+    expect(parsed).toEqual(RULE_TRANSITIONS);
   });
 });
