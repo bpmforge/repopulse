@@ -722,3 +722,27 @@ the same ticket. What the first pass of pictures showed:
 
 All twelve states pass axe in both themes and neither the schedule form nor the drawer
 scrolls sideways at 375 px.
+
+## W19-13: cheap UX fixes from the screenshot review (2026-10-19)
+
+- **Models page.** Once a connection exists, the by-hand connection form folds behind
+  *Advanced: add a connection by hand*; with no connection it stays open, because then it
+  is the way in. The wizard above it is the main path.
+- **Routing rows** say in one sentence what each role will do: *Uses LM Studio ·
+  qwen/qwen3.8-27b. If it is down or refuses, the role skips and says so.*, or *Tries A;
+  if it is down or refuses, then B*, or the shared pool of enabled connections (limited to
+  connections on your network when local-only is on). It is computed from what is on the
+  screen, so it updates as a chain is edited.
+- **Quality per model.** Precision and recall are separate, right-aligned columns under
+  each role, with a visible caption: small cases, labels no person has reviewed, a rough
+  guide. The wider table scrolls sideways, so its region is labelled and keyboard-reachable
+  (axe caught that in the screenshot run).
+- **Security tab.** The AI review pass sits directly under the scanner coverage, ahead of
+  the open findings.
+- **Wizard.** The greyed-out *Test connection* and *Save and continue* buttons say what is
+  missing ("To save: give the connection a name; enter the model name; tick the box
+  above"), tied to the buttons with `aria-describedby`; the roles step says why its Save
+  is waiting.
+
+The source review file (`UX-REVIEW.md`) was not reachable from the machine that did this,
+so these five were built from the request's own description of them.

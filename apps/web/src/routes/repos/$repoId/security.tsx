@@ -80,6 +80,12 @@ function SecurityTab() {
         </div>
       </WidgetFrame>
 
+      {/* W19-10: the AI review pass - start one, watch it, and see what it did
+          and did not cover. Its answers appear on the findings. */}
+      <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
+        <AiPassPanel repoId={repoId} />
+      </WidgetFrame>
+
       {/* W18-22: the holes beside the scanner table — languages, skipped
           files, absent scanners, shadow rules. */}
       <CoverageMap repoId={repoId} />
@@ -251,12 +257,6 @@ function SecurityTab() {
             scanners={data.scanners}
           />
         )}
-      </WidgetFrame>
-
-      {/* W19-10: the AI review pass - start one, watch it, and see what it did
-          and did not cover. Its answers appear on the findings. */}
-      <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
-        <AiPassPanel repoId={repoId} />
       </WidgetFrame>
 
       <WidgetFrame title="Attack chains" state={state} testId="security-chains">

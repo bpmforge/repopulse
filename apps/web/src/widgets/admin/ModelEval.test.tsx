@@ -70,9 +70,21 @@ describe('Admin → Models → quality per model (W19-05)', () => {
       ],
     };
     renderIt();
-    expect(await screen.findByTestId('model-eval-qwen-security')).toHaveTextContent(
-      'P 100% · R 50%',
-    );
+    // Precision and recall are separate cells, so the numbers line up down a column.
+    expect(await screen.findByTestId('model-eval-qwen-security-p')).toHaveTextContent('100%');
+    expect(screen.getByTestId('model-eval-qwen-security-r')).toHaveTextContent('50%');
+    expect(
+      screen.getAllByRole('columnheader', { name: 'P' }).length,
+      'a P and an R sub-header per role',
+    ).toBe(ROLES.length);
+    // The table can scroll sideways, so its region is labelled and reachable by keyboard.
+    const region = screen.getByRole('region', { name: /Quality per model/ });
+    expect(region).toHaveAttribute('tabindex', '0');
+    // The caveat is a visible caption, not screen-reader-only.
+    const caption = screen.getByTestId('model-eval-table').querySelector('caption')!;
+    expect(caption.className).not.toContain('sr-only');
+    expect(caption).toHaveTextContent(/not been reviewed by a person/);
+    expect(caption).toHaveTextContent(/not a guarantee/);
     // A role the run did not cover is not yet run, not blank.
     expect(screen.getByTestId('model-eval-qwen-performance')).toHaveTextContent('not yet run');
     const row = screen.getByTestId('model-eval-row-qwen');

@@ -105,6 +105,24 @@ function renderSecurity() {
   );
 }
 
+describe('Security tab — the AI review pass is near the top', () => {
+  it('sits right after the scanner coverage, above the open findings and the lower panels', async () => {
+    renderSecurity();
+    await screen.findByTestId('security-coverage');
+    const order = Array.from(
+      document.querySelectorAll(
+        '[data-testid="security-coverage"], [data-testid="security-ai-pass"], [data-testid="security-findings"], [data-testid="security-chains"]',
+      ),
+    ).map((el) => el.getAttribute('data-testid'));
+    expect(order).toEqual([
+      'security-coverage',
+      'security-ai-pass',
+      'security-findings',
+      'security-chains',
+    ]);
+  });
+});
+
 describe('Security tab — a fixture scan that found something', () => {
   it('lists the findings and links each to the explorer by its real id', async () => {
     security = base({

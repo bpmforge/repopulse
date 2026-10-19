@@ -231,6 +231,36 @@ describe('step 2: connect and test', () => {
     expect(r).toHaveTextContent('ECONNREFUSED');
   });
 
+  it('says, next to the greyed-out buttons, what is missing', async () => {
+    await toConnect('hosted');
+    await screen.findByTestId('wizard-kind');
+    // Nothing entered yet: Test and Save both say what they are waiting for.
+    expect(screen.getByTestId('wizard-test')).toBeDisabled();
+    expect(screen.getByTestId('wizard-test-hint')).toHaveTextContent(
+      'To test the connection: enter the model name.',
+    );
+    expect(screen.getByTestId('wizard-save-hint').textContent).toMatch(
+      /give the connection a name; enter the model name; tick the box above/,
+    );
+    expect(screen.getByTestId('wizard-save')).toHaveAttribute(
+      'aria-describedby',
+      'wizard-save-hint',
+    );
+    await userEvent.type(screen.getByTestId('wizard-name'), 'Gemini');
+    expect(screen.getByTestId('wizard-save-hint').textContent).not.toMatch(
+      /give the connection a name/,
+    );
+    await userEvent.type(screen.getByTestId('wizard-model'), 'gemini-2.5-flash');
+    // Test is ready: its hint is gone. Save still needs the acknowledgement.
+    expect(screen.queryByTestId('wizard-test-hint')).toBeNull();
+    expect(screen.getByTestId('wizard-save-hint').textContent).toMatch(
+      /^To save: tick the box above/,
+    );
+    await userEvent.click(screen.getByTestId('wizard-outside'));
+    expect(screen.queryByTestId('wizard-save-hint')).toBeNull();
+    expect(screen.getByTestId('wizard-save')).not.toHaveAttribute('aria-describedby');
+  });
+
   it('hosted: offers only supported vendors, hides the address for a fixed endpoint, and cannot be saved without acknowledging what is sent', async () => {
     await toConnect('hosted');
     const options = within(await screen.findByTestId('wizard-kind'))
