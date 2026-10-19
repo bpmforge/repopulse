@@ -69,7 +69,12 @@ describeIfLiveInfra('supply-chain registers', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w10-02-user', forgeUserId: 'w10-02-user', login: 'w10-02-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w10-02-user',
+        forgeUserId: 'w10-02-user',
+        login: 'w10-02-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w10-02-user' } })
       .returning();
 
@@ -164,10 +169,18 @@ describeIfLiveInfra('supply-chain registers', () => {
     await db.delete(security.sboms).where(eq(security.sboms.repoId, repoId));
     await db
       .delete(security.releaseMeta)
-      .where(inArray(security.releaseMeta.package, ['w10-02-abandoned', 'w10-02-dev', 'w10-02-copyleft']));
+      .where(
+        inArray(security.releaseMeta.package, [
+          'w10-02-abandoned',
+          'w10-02-dev',
+          'w10-02-copyleft',
+        ]),
+      );
     await db.delete(security.eolProducts).where(eq(security.eolProducts.product, 'w10-02-runtime'));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
-    await db.delete(core.forgeConnections).where(eq(core.forgeConnections.credentialFingerprint, FP));
+    await db
+      .delete(core.forgeConnections)
+      .where(eq(core.forgeConnections.credentialFingerprint, FP));
     await db.delete(core.users).where(eq(core.users.forgeUserId, 'w10-02-user'));
   });
 
@@ -188,7 +201,9 @@ describeIfLiveInfra('supply-chain registers', () => {
     const rows = await db
       .select({ ruleId: read.findings.ruleId, title: read.findings.title })
       .from(read.findings)
-      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.dimension, 'dependency_health')));
+      .where(
+        and(eq(read.findings.repoId, repoId), eq(read.findings.dimension, 'dependency_health')),
+      );
 
     const rules = rows.map((r) => r.ruleId);
     expect(rules).toContain('dependency_health.abandoned');
@@ -201,7 +216,10 @@ describeIfLiveInfra('supply-chain registers', () => {
       .select()
       .from(security.scanRuns)
       .where(
-        and(eq(security.scanRuns.repoId, repoId), eq(security.scanRuns.scannerKey, SUPPLY_CHAIN_REGISTER_KEY)),
+        and(
+          eq(security.scanRuns.repoId, repoId),
+          eq(security.scanRuns.scannerKey, SUPPLY_CHAIN_REGISTER_KEY),
+        ),
       );
     expect(run?.status).toBe('succeeded');
     expect(run?.finishedAt).toBeTruthy();
@@ -218,7 +236,12 @@ describeIfLiveInfra('supply-chain registers', () => {
         riskFactors: read.findings.riskFactors,
       })
       .from(read.findings)
-      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'dependency_health.abandoned')));
+      .where(
+        and(
+          eq(read.findings.repoId, repoId),
+          eq(read.findings.ruleId, 'dependency_health.abandoned'),
+        ),
+      );
 
     const prod = rows.find((r) => r.title.includes('w10-02-abandoned'))!;
     const dev = rows.find((r) => r.title.includes('w10-02-dev'))!;
@@ -231,7 +254,10 @@ describeIfLiveInfra('supply-chain registers', () => {
 
   it('serves the decomposition that reproduces the stored score (FR-REG-7)', async () => {
     const [row] = await db
-      .select({ effectiveRisk: read.findings.effectiveRisk, riskFactors: read.findings.riskFactors })
+      .select({
+        effectiveRisk: read.findings.effectiveRisk,
+        riskFactors: read.findings.riskFactors,
+      })
       .from(read.findings)
       .where(and(eq(read.findings.repoId, repoId), eq(read.findings.ruleId, 'eol.past')));
 
@@ -240,6 +266,47 @@ describeIfLiveInfra('supply-chain registers', () => {
       Number(row!.effectiveRisk),
       2,
     );
+  });
+
+  // W20-08 (UX_TODO FND-58): removing the AGPL package closes its license
+  // finding on the next run. Before, register findings had no file and the run
+  // passed no reviewed files, so nothing ever closed them.
+  it('closes the license finding once the package is gone, and keeps EOL open without a snapshot', async () => {
+    const without = {
+      ...SBOM,
+      components: SBOM.components.filter((c) => c['bom-ref'] !== 'copyleft'),
+      dependencies: [{ ref: 'root', dependsOn: ['prod-abandoned'] }],
+    };
+    await db
+      .update(security.sboms)
+      .set({ document: without, componentCount: without.components.length })
+      .where(and(eq(security.sboms.repoId, repoId), eq(security.sboms.commitSha, 'w10-02-sha')));
+    try {
+      // No snapshot: the EOL register cannot look, so its finding must stay.
+      const result = await runSupplyChainRegisters({
+        db,
+        workspaceId,
+        repoId,
+        now: new Date('2026-08-20T00:00:00Z'),
+      });
+      expect(result.status).toBe('succeeded');
+      const rows = await db
+        .select({ ruleId: read.findings.ruleId, status: read.findings.status })
+        .from(read.findings)
+        .where(eq(read.findings.repoId, repoId));
+      expect(rows.find((r) => r.ruleId === 'license.policy')?.status).toBe('resolved');
+      expect(rows.find((r) => r.ruleId === 'eol.past')?.status).toBe('open');
+      expect(
+        rows
+          .filter((r) => r.ruleId === 'dependency_health.abandoned')
+          .every((r) => r.status === 'open'),
+      ).toBe(true);
+    } finally {
+      await db
+        .update(security.sboms)
+        .set({ document: SBOM, componentCount: SBOM.components.length })
+        .where(and(eq(security.sboms.repoId, repoId), eq(security.sboms.commitSha, 'w10-02-sha')));
+    }
   });
 
   it('says no_sbom rather than "clean" for a repo nothing has scanned', async () => {
@@ -254,6 +321,8 @@ describeIfLiveInfra('supply-chain registers', () => {
     expect(policyFrom({ licensePolicy: { flag: ['GPL-3.0'] } }).flag).toEqual(['GPL-3.0']);
     // priceFinding is the same function the repricer used above — imported
     // here so this file fails if the export ever moves.
-    expect(priceFinding({ dimension: 'dependency_health', severity: 3, confidence: 4 }).band).toBeTruthy();
+    expect(
+      priceFinding({ dimension: 'dependency_health', severity: 3, confidence: 4 }).band,
+    ).toBeTruthy();
   });
 });

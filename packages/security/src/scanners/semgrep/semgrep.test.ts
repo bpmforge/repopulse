@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { bareRuleId, parseOpengrepOutput, severityOf } from './output.js';
 import {
   assertNotRegistryConfig,
+  fullRunSweep,
   readRulepack,
   RegistryRulesRefusedError,
   runSemgrepScan,
@@ -210,4 +211,45 @@ describeIfScanImage('opengrep, actually run in the sandbox (FR-SEC-6)', () => {
     expect(result.status, result.error ?? '').toBe('succeeded');
     expect(result.findings.map((f) => `${f.ruleId}:${f.lineStart}`)).toEqual([]);
   }, 300_000);
+});
+
+// W20-08 (UX_TODO FND-48): a full run reviews every file the engine read, so
+// the fix that cleans the last finding out of a file closes it.
+describe('what a full run reviewed (W20-08)', () => {
+  it('reports the scanned and errored paths relative to the mount', () => {
+    const parsed = parseOpengrepOutput({
+      stdout: JSON.stringify({
+        version: '1.27.1',
+        results: [],
+        errors: [{ message: 'Syntax error', path: '/scan/src/bad.js' }, { message: 'rule' }],
+        paths: { scanned: ['/scan/src/a.js', '/scan/src/bad.js'] },
+      }),
+      knownRuleIds: [],
+      rootDir: '/scan',
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.scannedPaths).toEqual(['src/a.js', 'src/bad.js']);
+    expect(parsed.erroredPaths).toEqual(['src/bad.js']);
+    expect(parsed.pathlessErrors).toBe(1);
+  });
+
+  it('reviews the scanned files minus the ones that failed, and passes the tree on', () => {
+    const sweep = fullRunSweep(
+      { scannedPaths: ['a.js', 'bad.js', 'clean.js'], erroredPaths: ['bad.js'], pathlessErrors: 0 },
+      ['a.js'],
+      ['a.js', 'bad.js', 'clean.js', 'README.md'],
+    );
+    expect(new Set(sweep.reviewedFiles)).toEqual(new Set(['a.js', 'clean.js']));
+    expect(sweep.fullSweep?.treeFiles).toContain('README.md');
+  });
+
+  it('falls back to the finding files when a rule failed to load or paths are unknown', () => {
+    expect(
+      fullRunSweep({ scannedPaths: ['a.js', 'b.js'], pathlessErrors: 1 }, ['a.js'], ['a.js']),
+    ).toEqual({
+      reviewedFiles: ['a.js'],
+    });
+    expect(fullRunSweep({}, ['a.js', null], ['a.js'])).toEqual({ reviewedFiles: ['a.js'] });
+  });
 });

@@ -6,9 +6,14 @@ import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings } from '@repopulse/insights';
 import type { CallCtx, ForgeProvider } from '@repopulse/forge';
-import { shred, snapshotForScan } from '../../snapshot/index.js';
+import { listTreeFiles, shred, snapshotForScan } from '../../snapshot/index.js';
 import { shadowFindings } from '../../rules/shadow.js';
-import { runSemgrepScan, SEMGREP_SCANNER_KEY, toIncomingFindings } from './scanner.js';
+import {
+  fullRunSweep,
+  runSemgrepScan,
+  SEMGREP_SCANNER_KEY,
+  toIncomingFindings,
+} from './scanner.js';
 
 // Full and incremental modes (W8-07, SECURITY_SUITE.md §3.3 / §4).
 //
@@ -155,7 +160,13 @@ export async function runSemgrepFull(
           // A FULL run has seen the whole tree, so it may close what it no
           // longer reports — but only its own findings. Scoping this to the
           // scanner is what stops a semgrep run resolving a secrets finding.
-          reviewedFiles: [...new Set(findings.map((f) => f.file).filter((f): f is string => !!f))],
+          // W20-08 (UX_TODO FND-48): every file the engine read counts as
+          // reviewed, not just the ones that still had findings.
+          ...fullRunSweep(
+            scan,
+            findings.map((f) => f.file),
+            listTreeFiles(snapshot.dir),
+          ),
           sweepScannerKey: SEMGREP_SCANNER_KEY,
         });
 
@@ -192,7 +203,8 @@ export async function runSemgrepFull(
 // Every language the shipped packs have rules for. Semgrep itself routes rules
 // by extension, so a file here with no rules costs a parse and nothing more —
 // but a language missing here means its rules never run on a PR at all.
-const SCANNABLE = /\.(js|jsx|ts|tsx|mjs|cjs|c|cc|cpp|cxx|h|hh|hpp|hxx|go|py|rs|java|kt|kts|cs|php|rb)$/;
+const SCANNABLE =
+  /\.(js|jsx|ts|tsx|mjs|cjs|c|cc|cpp|cxx|h|hh|hpp|hxx|go|py|rs|java|kt|kts|cs|php|rb)$/;
 
 /**
  * INCREMENTAL mode: the files a PR touched, fetched one by one.

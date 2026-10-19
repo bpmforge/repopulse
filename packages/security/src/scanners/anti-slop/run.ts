@@ -75,7 +75,8 @@ import {
   readDeclaredDependencies,
   type DeclaredSet,
 } from '../../validation/declared.js';
-import { runSemgrepScan } from '../semgrep/scanner.js';
+import { runSemgrepScan, type SemgrepRunResult } from '../semgrep/scanner.js';
+import { listTreeFiles } from '../../snapshot/index.js';
 import {
   ANTI_SLOP_PACK_FILE_PREFIX,
   CODE_HEALTH_PACK_DIR,
@@ -219,6 +220,53 @@ async function shippedRuleStatus(
   return effectiveStatus('candidate', registry.get(ruleId));
 }
 
+/**
+ * What a snapshot pass may close (W20-08, UX_TODO FND-58).
+ *
+ * The anti-slop scanner saved with no reviewed files, so a slop finding never
+ * closed after the code was cleaned up. A tree pass now reviews every source
+ * file it read (and the files the pack read), and closes findings on files
+ * that are gone. Only over a COMPLETE read with the manifests and the pack in
+ * hand: the whole-tree rules (dead exports, phantom imports) say nothing over
+ * a capped read, and the dependency-hygiene rules nothing without manifests,
+ * so a partial pass must not read their silence as a fix. The judgement half
+ * is never swept: it samples candidates and may not have run at all.
+ */
+export function antiSlopSweep(
+  deps: Pick<
+    AntiSlopDeps,
+    'files' | 'sources' | 'sourcesComplete' | 'snapshotDir' | 'targetDir' | 'trigger'
+  >,
+  pack: Pick<SemgrepRunResult, 'scannedPaths' | 'erroredPaths' | 'pathlessErrors'> | null,
+): {
+  reviewedFiles?: string[];
+  fullSweep?: {
+    treeFiles: readonly string[];
+    keepOpen: (row: { ruleId: string | null }) => boolean;
+  };
+} {
+  const treePass =
+    deps.files.length === 0 &&
+    deps.trigger !== 'pr_synced' &&
+    deps.sourcesComplete === true &&
+    deps.snapshotDir !== undefined &&
+    deps.targetDir !== undefined &&
+    pack !== null &&
+    (pack.pathlessErrors ?? 0) === 0;
+  if (!treePass || !deps.snapshotDir) return {};
+  const errored = new Set(pack?.erroredPaths ?? []);
+  const reviewed = new Set((deps.sources ?? []).map((s) => s.path));
+  for (const p of pack?.scannedPaths ?? []) reviewed.add(p);
+  for (const p of errored) reviewed.delete(p);
+  return {
+    reviewedFiles: [...reviewed],
+    fullSweep: {
+      treeFiles: listTreeFiles(deps.snapshotDir),
+      keepOpen: (row) => row.ruleId === 'slop.judgment',
+    },
+  };
+}
+
 export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResult> {
   const checklist = loadChecklist('anti_slop', deps.checklistDir);
   const [run] = await deps.db
@@ -242,6 +290,8 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
   let pack = 0;
   let excluded = 0;
   let toolVersions: Record<string, string> | null = null;
+  /** The pack run, kept for the stale sweep (W20-08). */
+  let packRun: SemgrepRunResult | null = null;
 
   try {
     // ---- Deterministic layer -------------------------------------------
@@ -806,6 +856,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
         throw new Error(`anti-slop pack run failed: ${result.error ?? result.status}`);
       }
       toolVersions = result.toolVersions;
+      packRun = result;
 
       for (const finding of result.findings) {
         if (!finding.ruleId.startsWith('bpm-ch-')) continue;
@@ -968,6 +1019,7 @@ export async function runAntiSlopScan(deps: AntiSlopDeps): Promise<AntiSlopResul
       tier: 2,
       findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: ANTI_SLOP_SCANNER_KEY,
+      ...antiSlopSweep(deps, packRun),
     });
 
     await deps.db

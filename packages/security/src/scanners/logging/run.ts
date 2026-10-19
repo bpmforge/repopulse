@@ -14,7 +14,9 @@ import {
 import { repoContextFor } from '../context/repo-context.js';
 import { buildChecklistPrompt, loadChecklist } from '../owasp/checklist.js';
 import { shadowFindings } from '../../rules/shadow.js';
+import { listTreeFiles } from '../../snapshot/index.js';
 import {
+  fullRunSweep,
   runSemgrepScan,
   SEMGREP_RULEPACK_DIR,
   type SemgrepRunArgs,
@@ -178,6 +180,10 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
   let rejected = 0;
   let refuted = 0;
 
+  // W20-08 (UX_TODO FND-58): what this run may close. Set only by a pass over
+  // a whole tree; a diff-scoped run has seen a handful of files.
+  let sweep: ReturnType<typeof fullRunSweep> | null = null;
+
   try {
     // ---- Deterministic: the W9-01 pack, logging rules only ---------------
     let deterministic = 0;
@@ -203,6 +209,13 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
         deps.workspaceId,
         pack.findings.filter((f) => f.ruleId.startsWith('bpm-log-')),
       );
+      if (deps.trigger !== 'pr_synced') {
+        sweep = fullRunSweep(
+          pack,
+          logging.map((f) => f.file),
+          listTreeFiles(deps.targetDir),
+        );
+      }
       for (const finding of logging) {
         if (isExcluded(finding.file, globs)) {
           excluded += 1;
@@ -324,6 +337,17 @@ export async function runLoggingScan(deps: LoggingRunDeps): Promise<LoggingRunRe
       tier: 2,
       findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: LOGGING_SCANNER_KEY,
+      // The pack's findings only: the judgement half reads a diff (or nothing,
+      // with no gateway), so not seeing one of ITS findings again says nothing.
+      ...(sweep
+        ? {
+            reviewedFiles: sweep.reviewedFiles,
+            fullSweep: {
+              ...sweep.fullSweep,
+              keepOpen: (row: { ruleId: string | null }) => row.ruleId === 'logging.judgment',
+            },
+          }
+        : {}),
     });
 
     await deps.db

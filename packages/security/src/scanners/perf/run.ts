@@ -3,8 +3,9 @@ import { security, type Database, safeErrorText } from '@repopulse/shared';
 import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import { shadowFindings } from '../../rules/shadow.js';
-import { runSemgrepScan, SEMGREP_RULEPACK_DIR } from '../semgrep/scanner.js';
-import { DEFAULT_EXCLUDED_GLOBS, isExcluded } from '../logging/run.js';
+import { fullRunSweep, runSemgrepScan, SEMGREP_RULEPACK_DIR } from '../semgrep/scanner.js';
+import { DEFAULT_EXCLUDED_GLOBS, isExcluded, type PackRunner } from '../logging/run.js';
+import { listTreeFiles } from '../../snapshot/index.js';
 import path from 'node:path';
 
 // performance (W9-13, CODE_HEALTH_SUITE.md §9.1, closing W9-08's fourth
@@ -56,6 +57,8 @@ export interface PerfRunDeps {
   trigger?: 'pr_synced' | 'schedule' | 'manual';
   pullRequestId?: number | null;
   excludedGlobs?: readonly string[];
+  /** Defaults to runSemgrepScan; a test seam like the logging scanner's. */
+  runPack?: PackRunner;
 }
 
 export interface PerfRunResult {
@@ -107,7 +110,7 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
   let deterministic = 0;
 
   try {
-    const pack = await runSemgrepScan({
+    const pack = await (deps.runPack ?? runSemgrepScan)({
       targetDir: deps.targetDir,
       rulepackDir: PERF_PACK_DIR,
       budget: { wallClockMs: 10 * 60 * 1000 },
@@ -173,6 +176,15 @@ export async function runPerfScan(deps: PerfRunDeps): Promise<PerfRunResult> {
       tier: 1,
       findings: await attachExcerpts(deps.targetDir, findings),
       sweepScannerKey: PERF_SCANNER_KEY,
+      // W20-08 (UX_TODO FND-58): a pass over the tree closes the N+1 that was
+      // fixed. It saved with no reviewed files, so nothing ever closed.
+      ...(deps.trigger === 'pr_synced'
+        ? {}
+        : fullRunSweep(
+            pack,
+            perf.map((f) => f.file),
+            listTreeFiles(deps.targetDir),
+          )),
     });
 
     await deps.db

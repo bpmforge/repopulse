@@ -15,7 +15,29 @@ export interface EffectiveSettings {
   forgeBudget: { share: number; floor: number };
   /** W18-20. Absent on an API older than this screen — the panel then hides. */
   aiAuthorshipPatterns?: AiAuthorshipPatterns;
+  /** W20-08 (FND-18). Absent on an older API — the panel then hides. */
+  licensePolicy?: LicensePolicy;
 }
+
+/** W20-08 (UX_TODO FND-18): the license register's policy, as `effective` returns it. */
+export type LicenseCategory =
+  'permissive' | 'weak-copyleft' | 'strong-copyleft' | 'network-copyleft' | 'unknown';
+
+export interface LicensePolicy {
+  flagCategories: LicenseCategory[];
+  flagUnknown: boolean;
+  allow: string[];
+  flag: string[];
+}
+
+/** Mirrors packages/security spdx.ts LICENSE_CATEGORIES, in that order. */
+export const LICENSE_CATEGORY_LABEL: Record<LicenseCategory, string> = {
+  permissive: 'Permissive (MIT, Apache-2.0, BSD)',
+  'weak-copyleft': 'Weak copyleft (LGPL, MPL, EPL)',
+  'strong-copyleft': 'Strong copyleft (GPL)',
+  'network-copyleft': 'Network copyleft (AGPL, SSPL)',
+  unknown: 'Unrecognised license ids',
+};
 
 /** W18-20: what marks a change as AI-authored. Camel-case as the API's `effective` returns it. */
 export interface AiAuthorshipPatterns {
@@ -34,6 +56,12 @@ export interface StoredSettings {
     trailer_patterns?: string[];
     bot_logins?: string[];
     branch_prefixes?: string[];
+  };
+  license_policy?: {
+    flag_categories?: LicenseCategory[];
+    flag_unknown?: boolean;
+    allow?: string[];
+    flag?: string[];
   };
 }
 

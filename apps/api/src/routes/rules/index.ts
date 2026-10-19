@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, like, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, read, security, type Database } from '@repopulse/shared';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@repopulse/security';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
+import { actorLoginFor } from '../../lib/actor.js';
 
 // Rule workbench API (W9-07, CODE_HEALTH_SUITE.md §8, FR-CH-8/9, FR-AUTH-4).
 //
@@ -33,6 +34,20 @@ function fail(
   return reply;
 }
 
+/**
+ * The finding rule ids a registry row speaks for (W20-08, UX_TODO FND-59).
+ *
+ * A tool row (`tool.checkov`) governs every one of that tool's rules, and its
+ * findings carry the longer per-rule id (`tool.checkov.CKV_AWS_24`), so an
+ * exact match counted zero findings and the row could never meet the gate.
+ * A tool row counts all of the tool's rules; any other row its own id only.
+ */
+export function ruleIdMatch(ruleId: string) {
+  return /^tool\.[^.]+$/.test(ruleId)
+    ? or(eq(read.findings.ruleId, ruleId), like(read.findings.ruleId, `${ruleId}.%`))!
+    : eq(read.findings.ruleId, ruleId);
+}
+
 /** Findings + dispositions for one rule, the promotion gate's evidence. */
 async function evidenceFor(
   db: Database,
@@ -47,7 +62,7 @@ async function evidenceFor(
       fp: sql<number>`count(*) filter (where ${read.findings.status} = 'dismissed' and ${read.findings.dismissReason} = 'false_positive')::int`,
     })
     .from(read.findings)
-    .where(and(eq(read.findings.workspaceId, workspaceId), eq(read.findings.ruleId, ruleId)));
+    .where(and(eq(read.findings.workspaceId, workspaceId), ruleIdMatch(ruleId)));
 
   return {
     findings: counts?.findings ?? 0,
@@ -106,12 +121,29 @@ export default async function rulesRoutes(
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
 
+    // W20-08 (UX_TODO FND-65): who proposed it and when are stamped here when
+    // the body leaves them out, as the web form does — the signed-in admin and
+    // today, rather than whatever a form field claimed.
+    const body = (request.body ?? {}) as { provenance?: Record<string, unknown> };
+    const userId = request.session.get('userId');
+    const provenance = {
+      ...(body.provenance ?? {}),
+      author:
+        typeof body.provenance?.['author'] === 'string' && body.provenance['author'] !== ''
+          ? body.provenance['author']
+          : ((userId !== undefined ? await actorLoginFor(db, userId) : null) ?? 'unknown'),
+      date:
+        typeof body.provenance?.['date'] === 'string' && body.provenance['date'] !== ''
+          ? body.provenance['date']
+          : new Date().toISOString().slice(0, 10),
+    };
+
     let rule;
     try {
       // enforceLicense: a proposal arriving over the API is an import as far
       // as licensing is concerned, whoever typed it.
       rule = validateHealthRule(
-        { ...(request.body as object), status: 'proposed' },
+        { ...(request.body as object), provenance, status: 'proposed' },
         { enforceLicense: true },
       );
     } catch (err) {

@@ -109,6 +109,14 @@ export interface SemgrepRunResult {
   status: 'succeeded' | 'failed' | 'timed_out' | 'invalid_output';
   findings: SemgrepFinding[];
   toolErrors: string[];
+  /**
+   * Snapshot-relative files the engine read (W20-08). Present only on a
+   * succeeded run; a full run passes it as its reviewed files.
+   */
+  scannedPaths?: string[];
+  /** Files an engine error names, and errors naming none (W20-08). */
+  erroredPaths?: string[];
+  pathlessErrors?: number;
   durationMs: number;
   error?: string;
   /** Stamped into scan_runs.tool_versions. */
@@ -249,9 +257,40 @@ export async function runSemgrepScan(args: SemgrepRunArgs): Promise<SemgrepRunRe
     status: 'succeeded',
     findings: parsed.findings,
     toolErrors: parsed.toolErrors,
+    scannedPaths: parsed.scannedPaths,
+    erroredPaths: parsed.erroredPaths,
+    pathlessErrors: parsed.pathlessErrors,
     durationMs: Date.now() - started,
     toolVersions,
   };
+}
+
+/**
+ * What a FULL run over a whole tree may close (W20-08, UX_TODO FND-48/58).
+ *
+ * The full runs passed only the files that still had findings as "reviewed",
+ * so a fix that removed the last finding from a file left it open for good,
+ * and a run with no findings swept nothing at all. Reviewed is now every file
+ * the engine read, less the files an error names; the tree list lets the
+ * store close findings on files that no longer exist. An error naming no file
+ * (a rule that failed to load) means the run cannot vouch for anything it
+ * did not report, so only the old, narrow sweep applies.
+ */
+export function fullRunSweep(
+  scan: Pick<SemgrepRunResult, 'scannedPaths' | 'erroredPaths' | 'pathlessErrors'>,
+  findingFiles: readonly (string | null)[],
+  treeFiles: readonly string[],
+): { reviewedFiles: string[]; fullSweep?: { treeFiles: readonly string[] } } {
+  const fromFindings = findingFiles.filter((f): f is string => !!f);
+  if ((scan.pathlessErrors ?? 0) > 0 || scan.scannedPaths === undefined) {
+    return { reviewedFiles: [...new Set(fromFindings)] };
+  }
+  const errored = new Set(scan.erroredPaths ?? []);
+  const reviewed = new Set(scan.scannedPaths.filter((p) => !errored.has(p)));
+  for (const f of fromFindings) reviewed.add(f);
+  // A file that errored is still in the tree, so it is neither reviewed nor
+  // "gone": its findings stay as they are.
+  return { reviewedFiles: [...reviewed], fullSweep: { treeFiles } };
 }
 
 /**
@@ -295,7 +334,12 @@ export function scannableFiles(dir: string): string[] {
         walk(full);
         continue;
       }
-      if (/\.(js|jsx|ts|tsx|mjs|cjs|c|cc|cpp|cxx|h|hh|hpp|hxx|go|py|rs|java|kt|kts|cs|php|rb)$/.test(entry)) out.push(full);
+      if (
+        /\.(js|jsx|ts|tsx|mjs|cjs|c|cc|cpp|cxx|h|hh|hpp|hxx|go|py|rs|java|kt|kts|cs|php|rb)$/.test(
+          entry,
+        )
+      )
+        out.push(full);
     }
   };
   walk(dir);

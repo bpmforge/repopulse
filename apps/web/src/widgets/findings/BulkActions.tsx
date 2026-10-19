@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiMutation } from '../../api/useApiQuery.js';
 import {
+  DISMISS_NOTE_MIN,
   DISMISS_REASONS,
   FINDING_ACTIONS,
   FINDING_DONE_LABEL,
@@ -24,6 +25,9 @@ import {
 
 /** Above this many, a bulk dismissal asks first (FND-13). */
 export const DISMISS_CONFIRM_OVER = 5;
+
+/** Moves that close findings without a fix: a longer note, and maybe an admin. */
+const CLOSING: readonly FindingLifecycleStatus[] = ['dismissed', 'wont_fix'];
 
 /** The order the bar offers moves in: forward first, reopen last. */
 const ORDER: FindingLifecycleStatus[] = ['confirmed', 'resolved', 'wont_fix', 'dismissed', 'open'];
@@ -70,10 +74,18 @@ export function bulkMoves(selected: readonly Finding[]): FindingLifecycleStatus[
 
 export function BulkActions({
   selected,
+  allMatching = null,
   onApplied,
   invalidate,
 }: {
   selected: readonly Finding[];
+  /**
+   * W20-08 (UX_TODO FND-12): every finding matching the filters, across
+   * pages, from GET /findings/ids. When set the bar acts on these ids; the
+   * moves offered are still read from the page's findings, and the API
+   * decides per row as it always has.
+   */
+  allMatching?: { ids: number[]; truncated: boolean } | null;
   onApplied: () => void;
   invalidate: readonly (readonly unknown[])[];
 }) {
@@ -94,7 +106,8 @@ export function BulkActions({
   const [undoing, setUndoing] = useState(false);
 
   const moves = bulkMoves(selected);
-  const ids = selected.map((f) => f.id);
+  const ids = allMatching ? allMatching.ids : selected.map((f) => f.id);
+  const count = ids.length;
 
   const run = (to: FindingLifecycleStatus) => {
     const before = Object.fromEntries(
@@ -127,10 +140,17 @@ export function BulkActions({
       { status: FindingLifecycleStatus; reason: string | null; ids: number[] }
     >();
     let stuck = 0;
+    // Findings acted on from other pages (select all matching): what they were
+    // before is not known here, so they are counted, not guessed at.
+    let unknown = 0;
     for (const id of l.result.applied) {
       const was = l.before[id];
-      const target = was ? undoTargetFor(was.status, l.to) : null;
-      if (!was || !target) {
+      if (!was) {
+        unknown += 1;
+        continue;
+      }
+      const target = undoTargetFor(was.status, l.to);
+      if (!target) {
         stuck += 1;
         continue;
       }
@@ -140,7 +160,7 @@ export function BulkActions({
       g.ids.push(id);
       groups.set(key, g);
     }
-    return { groups: [...groups.values()], stuck };
+    return { groups: [...groups.values()], stuck, unknown };
   };
 
   const undo = async (l: LastBulk) => {
@@ -167,11 +187,19 @@ export function BulkActions({
   };
 
   const noteMissing = note.trim() === '';
+  const noteShort = note.trim().length < DISMISS_NOTE_MIN;
 
   return (
     <>
       {selected.length > 0 && (
-        <WidgetFrame title={`${selected.length} selected`} state="ready">
+        <WidgetFrame
+          title={
+            allMatching
+              ? `${count} selected (every finding matching these filters${allMatching.truncated ? ', up to the limit' : ''})`
+              : `${count} selected`
+          }
+          state="ready"
+        >
           <div className="flex flex-wrap items-end gap-2" data-testid="bulk-bar">
             <label className="flex flex-col gap-1 text-xs text-fg-muted">
               Note (required)
@@ -209,17 +237,25 @@ export function BulkActions({
               // stay live rather than the whole bar greying out.
               const pending = bulk.isPending && bulk.variables?.status === to;
               const needsReason = to === 'dismissed' && reason === '';
+              // W20-08 (FND-66): the API's ten-character minimum, said here.
+              const shortNote = CLOSING.includes(to) && noteShort;
               return (
                 <button
                   key={to}
                   type="button"
                   className={BUTTON}
                   data-testid={`bulk-${to}`}
-                  title={needsReason ? 'Choose a dismiss reason first.' : action.hint}
-                  disabled={pending || noteMissing || needsReason}
+                  title={
+                    needsReason
+                      ? 'Choose a dismiss reason first.'
+                      : shortNote
+                        ? `Say why in at least ${DISMISS_NOTE_MIN} characters.`
+                        : action.hint
+                  }
+                  disabled={pending || noteMissing || needsReason || shortNote}
                   aria-busy={pending || undefined}
                   onClick={() => {
-                    if (to === 'dismissed' && selected.length > DISMISS_CONFIRM_OVER) {
+                    if (to === 'dismissed' && count > DISMISS_CONFIRM_OVER) {
                       setConfirming(true);
                       return;
                     }
@@ -231,6 +267,13 @@ export function BulkActions({
               );
             })}
           </div>
+          {moves.some((to) => CLOSING.includes(to)) && (
+            <p className="mt-1 text-xs text-fg-faint" data-testid="bulk-dismiss-rule">
+              Dismiss and Won&apos;t fix need a note of at least {DISMISS_NOTE_MIN} characters. High
+              and critical findings, and findings on a pull request that is still open, are closed
+              only by an admin; for anyone else they are skipped and listed.
+            </p>
+          )}
           {confirming && (
             <div
               className="mt-2 flex flex-wrap items-center gap-2 text-sm"
@@ -239,7 +282,7 @@ export function BulkActions({
               aria-label="Confirm bulk dismissal"
             >
               <span>
-                Dismiss {selected.length} findings as{' '}
+                Dismiss {count} findings as{' '}
                 {reason ? REASON_LABEL[reason].toLowerCase() : 'dismissed'}?
               </span>
               {/* Neutral, not accent: the destructive step is never the
@@ -250,7 +293,7 @@ export function BulkActions({
                 data-testid="bulk-dismiss-confirm-yes"
                 onClick={() => run('dismissed')}
               >
-                Dismiss {selected.length}
+                Dismiss {count}
               </button>
               <button
                 type="button"
@@ -286,7 +329,7 @@ function LastBulkNote({
   onUndo,
 }: {
   last: LastBulk;
-  groups: { groups: { ids: number[] }[]; stuck: number };
+  groups: { groups: { ids: number[] }[]; stuck: number; unknown: number };
   undoing: boolean;
   onUndo: () => void;
 }) {
@@ -321,6 +364,13 @@ function LastBulkNote({
               {' '}
               {groups.stuck} cannot be undone: the lifecycle has no way from {to.replace('_', ' ')}{' '}
               back to where {groups.stuck === 1 ? 'it was' : 'they were'}.
+            </span>
+          )}
+          {groups.unknown > 0 && (
+            <span data-testid="bulk-undo-off-page">
+              {' '}
+              {groups.unknown} from other pages cannot be undone from here; reopen them from their
+              own panels.
             </span>
           )}
         </>

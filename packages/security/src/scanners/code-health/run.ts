@@ -3,7 +3,7 @@ import { read, security, type Database, safeErrorText } from '@repopulse/shared'
 import { attachExcerpts } from '../../excerpt.js';
 import { persistFindings, type IncomingFinding } from '@repopulse/insights';
 import type { ForgeProvider } from '@repopulse/forge';
-import { snapshotForScan } from '../../snapshot/index.js';
+import { listTreeFiles, snapshotForScan } from '../../snapshot/index.js';
 import { runCodeHealthTools, CODE_HEALTH_SCANNER_KEY, type CodeHealthFinding } from './tools.js';
 import { dedupeAcrossTools, dedupeAgainstPack, listAdapters } from './adapters/registry.js';
 import type { AdapterFinding } from './adapters/types.js';
@@ -165,6 +165,58 @@ export async function adapterShadowState(
   return { kept, experimental };
 }
 
+/**
+ * A registry row for each shadow adapter tool that raised findings (W20-08,
+ * UX_TODO FND-59).
+ *
+ * IaC findings leave shadow only when a `tool.<tool>` row is active, and
+ * nothing ever created one, so Settings → Rules never listed checkov, hadolint,
+ * actionlint or shellcheck and there was nothing to promote. The row is seeded
+ * as a CANDIDATE with its shadow clock started: exactly the state the shipped
+ * default already implied, now visible. Promotion is still an admin's action
+ * behind the existing gate (20 findings, 30 days, under 20% false positives);
+ * an existing row, whatever its status, is never touched.
+ */
+export async function seedAdapterRegistry(
+  db: Database,
+  workspaceId: number,
+  findings: readonly AdapterFinding[],
+  now = new Date(),
+): Promise<string[]> {
+  const shadowKeys = new Set(
+    listAdapters()
+      .filter((a) => a.shadow)
+      .map((a) => a.key),
+  );
+  const tools = [
+    ...new Set(
+      findings.map((f) => f.ruleId.split('.')[1] ?? '').filter((tool) => shadowKeys.has(tool)),
+    ),
+  ];
+  if (tools.length === 0) return [];
+  const inserted = await db
+    .insert(security.ruleRegistry)
+    .values(
+      tools.map((tool) => ({
+        workspaceId,
+        ruleId: `tool.${tool}`,
+        status: 'candidate',
+        shadowStartedAt: now,
+        provenance: {
+          source: `adapter:${tool}`,
+          // The mapping from the tool's output to findings is ours; the tool
+          // runs unmodified in the sandbox and none of its rule text is stored.
+          license: 'UNLICENSED-REPOPULSE',
+          author: 'repopulse',
+          date: now.toISOString().slice(0, 10),
+        },
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ ruleId: security.ruleRegistry.ruleId });
+  return inserted.map((r) => r.ruleId);
+}
+
 /** Weekly/manual pass over a snapshot. */
 export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHealthRunResult> {
   const [run] = await deps.db
@@ -230,6 +282,12 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           againstPack.kept,
         );
         const findings = [...toIncoming(tools.findings), ...adapterToIncoming(kept, experimental)];
+        await seedAdapterRegistry(deps.db, deps.workspaceId, kept);
+        // W20-08 (UX_TODO FND-48): the whole tree was in front of the tools,
+        // so every file in it is reviewed. An adapter that failed saw nothing,
+        // and its findings are left exactly as they were.
+        const tree = listTreeFiles(snapshot.dir);
+        const failedTools = new Set(tools.adapterErrors.map((e) => e.adapter));
         const persisted = await persistFindings(deps.db, {
           workspaceId: deps.workspaceId,
           repoId: deps.repoId,
@@ -239,7 +297,16 @@ export async function runCodeHealthScan(deps: CodeHealthRunDeps): Promise<CodeHe
           findings: await attachExcerpts(snapshot.dir, findings),
           // A snapshot run has seen the whole tree, so it may close what it no
           // longer reports — its own findings only.
-          reviewedFiles: [...new Set(findings.map((f) => f.file).filter((f): f is string => !!f))],
+          reviewedFiles: [
+            ...new Set([...tree, ...findings.map((f) => f.file).filter((f): f is string => !!f)]),
+          ],
+          fullSweep: {
+            treeFiles: tree,
+            keepOpen: (row) =>
+              row.ruleId !== null &&
+              row.ruleId.startsWith('tool.') &&
+              failedTools.has(row.ruleId.split('.')[1] ?? ''),
+          },
           sweepScannerKey: CODE_HEALTH_SCANNER_KEY,
         });
 

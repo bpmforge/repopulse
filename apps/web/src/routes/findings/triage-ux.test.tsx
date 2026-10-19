@@ -73,6 +73,7 @@ beforeEach(() => {
       else if (p.endsWith('/auth/identity')) body = { state: 'linked', identity_id: 7 };
       else if (p.endsWith('/findings/stats')) body = { total: 3, false_positive_rate: null };
       else if (p.endsWith('/scanners')) body = { items: [] };
+      else if (p.endsWith('/findings/ids')) body = { ids: [1, 2, 3], truncated: false, cap: 1000 };
       else if (p.endsWith('/findings')) {
         body = pages[url.searchParams.get('cursor') ?? ''] ?? { items: [], next_cursor: null };
       }
@@ -123,7 +124,7 @@ describe('filters live in the URL (FND-03, FND-04)', () => {
       const last = listRequests().at(-1)!;
       expect(last.searchParams.get('dimension')).toBe('secrets');
       expect(last.searchParams.get('repo_id')).toBe('7');
-      expect(last.searchParams.get('status')).toBe('open');
+      expect(last.searchParams.get('status')).toBe('active');
     });
   });
 
@@ -154,6 +155,7 @@ describe('filters live in the URL (FND-03, FND-04)', () => {
       }),
     ).toEqual({
       finding: 4,
+      status: 'open',
       dimension: 'secrets',
       verify_status: 'confirmed',
       in_chain: true,
@@ -186,6 +188,30 @@ describe('selection belongs to the page it was made on (FND-12)', () => {
     await user.selectOptions(screen.getByTestId('filter-severity'), '5');
     await waitFor(() => expect(screen.queryByTestId('bulk-bar')).toBeNull());
   });
+
+  // W20-08 (UX_TODO FND-12): with the whole page ticked, "Select all N
+  // matching" fetches every matching id under the same filters, and the bulk
+  // action then sends all of them.
+  it('selects every finding matching the filters, not just this page', async () => {
+    renderAt();
+    const user = userEvent.setup();
+    await screen.findByTestId('finding-1');
+    await user.click(screen.getByTestId('finding-select-page'));
+    await user.click(screen.getByTestId('select-all-matching-button'));
+    await screen.findByTestId('select-page-only');
+    const idsCall = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .map((c) => new URL(String(c[0]), 'http://test'))
+      .find((u) => u.pathname.endsWith('/findings/ids'));
+    expect(idsCall?.searchParams.get('status')).toBe('active');
+    await user.type(screen.getByTestId('bulk-note'), 'checked');
+    await user.click(screen.getByTestId('bulk-confirmed'));
+    await waitFor(() =>
+      expect(posts[0]).toEqual({
+        url: '/api/v1/findings/bulk',
+        body: { ids: [1, 2, 3], status: 'confirmed', note: 'checked' },
+      }),
+    );
+  });
 });
 
 describe('the bulk bar (FND-11, FND-13, FND-02)', () => {
@@ -194,20 +220,27 @@ describe('the bulk bar (FND-11, FND-13, FND-02)', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByTestId('finding-select-1'));
     const bar = screen.getByTestId('bulk-bar');
-    // From open: confirm, won't fix, dismiss. Never "mark fixed" or reopen.
+    // From open: confirm, won't fix, dismiss, and (W20-08, UX_TODO FND-58)
+    // mark fixed — a person may close what they fixed without confirming it
+    // first. Never reopen.
     expect(within(bar).getByTestId('bulk-confirmed')).toBeInTheDocument();
     expect(within(bar).getByTestId('bulk-wont_fix')).toBeInTheDocument();
-    expect(within(bar).queryByTestId('bulk-resolved')).toBeNull();
+    expect(within(bar).getByTestId('bulk-resolved')).toBeInTheDocument();
     expect(within(bar).queryByTestId('bulk-open')).toBeNull();
 
-    await user.type(screen.getByTestId('bulk-note'), 'vendored');
+    await user.type(screen.getByTestId('bulk-note'), 'vendored code');
     expect(screen.getByTestId('bulk-dismissed')).toBeDisabled();
     await user.selectOptions(screen.getByTestId('bulk-dismiss-reason'), 'not_applicable');
     await user.click(screen.getByTestId('bulk-dismissed'));
     await waitFor(() =>
       expect(posts[0]).toEqual({
         url: '/api/v1/findings/bulk',
-        body: { ids: [1], status: 'dismissed', note: 'vendored', dismiss_reason: 'not_applicable' },
+        body: {
+          ids: [1],
+          status: 'dismissed',
+          note: 'vendored code',
+          dismiss_reason: 'not_applicable',
+        },
       }),
     );
     expect(await screen.findByTestId('bulk-result')).toHaveTextContent('Dismissed: applied to 1');
@@ -217,7 +250,7 @@ describe('the bulk bar (FND-11, FND-13, FND-02)', () => {
     renderAt();
     const user = userEvent.setup();
     await user.click(await screen.findByTestId('finding-select-page'));
-    await user.type(screen.getByTestId('bulk-note'), 'noise');
+    await user.type(screen.getByTestId('bulk-note'), 'scanner noise');
     await user.selectOptions(screen.getByTestId('bulk-dismiss-reason'), 'false_positive');
     await user.click(screen.getByTestId('bulk-dismissed'));
     await user.click(await screen.findByTestId('bulk-undo'));
@@ -252,7 +285,7 @@ describe('the bulk bar (FND-11, FND-13, FND-02)', () => {
     renderAt();
     const user = userEvent.setup();
     await user.click(await screen.findByTestId('finding-select-page'));
-    await user.type(screen.getByTestId('bulk-note'), 'dupes');
+    await user.type(screen.getByTestId('bulk-note'), 'duplicate rows');
     await user.selectOptions(screen.getByTestId('bulk-dismiss-reason'), 'duplicate');
     await user.click(screen.getByTestId('bulk-dismissed'));
     const confirm = screen.getByTestId('bulk-dismiss-confirm');

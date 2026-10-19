@@ -114,7 +114,12 @@ describeIfLiveInfra('admin workspace settings (W4-09)', () => {
 
     const [member] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w4-09-member', forgeUserId: 'w4-09-member', login: 'w4-09-member' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w4-09-member',
+        forgeUserId: 'w4-09-member',
+        login: 'w4-09-member',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w4-09-member' } })
       .returning();
     memberUserId = member!.id;
@@ -387,6 +392,47 @@ describeIfLiveInfra('admin workspace settings (W4-09)', () => {
     expect(body.defaults.aiAuthorshipPatterns.branchPrefixes).toContain('claude/');
 
     const bad = await patch(cookie, { ai_authorship_patterns: { regexes: ['.*'] } });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  // W20-08 (UX_TODO FND-18): the license policy was not in the schema, so it
+  // could not be set and any other save stripped it.
+  it('stores a license policy, reports what the register applies, and keeps it across other saves', async () => {
+    const cookie = await adminSession();
+    const before = (await get(cookie)).json() as {
+      effective: { licensePolicy: { flagCategories: string[]; flagUnknown: boolean } };
+    };
+    expect(before.effective.licensePolicy.flagUnknown).toBe(true);
+
+    const ok = await patch(cookie, {
+      license_policy: {
+        flag_categories: ['weak-copyleft'],
+        flag_unknown: false,
+        allow: ['MPL-2.0'],
+      },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect((await patch(cookie, { stale_pr_days: 9 })).statusCode).toBe(200);
+    const body = (await get(cookie)).json() as {
+      stored: { license_policy?: unknown };
+      effective: {
+        licensePolicy: {
+          flagCategories: string[];
+          flagUnknown: boolean;
+          allow: string[];
+          flag: string[];
+        };
+      };
+    };
+    expect(body.stored.license_policy).toBeDefined();
+    expect(body.effective.licensePolicy).toMatchObject({
+      flagCategories: ['weak-copyleft'],
+      flagUnknown: false,
+      allow: ['MPL-2.0'],
+    });
+    expect(body.effective.licensePolicy.flag).toContain('AGPL-3.0');
+
+    const bad = await patch(cookie, { license_policy: { flag_categories: ['viral'] } });
     expect(bad.statusCode).toBe(400);
   });
 

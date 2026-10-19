@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -64,17 +64,30 @@ const base = (over: Partial<RepoSecurity> = {}): RepoSecurity => ({
 });
 
 let security: RepoSecurity;
+let me: { role?: string };
+const writes: { url: string; method: string; body: unknown }[] = [];
 
 beforeEach(() => {
   security = base();
+  me = {};
+  writes.length = 0;
   // jsdom has no scrollTo; the router's scroll restoration logs a stack per
   // navigation otherwise, which is noise rather than a failure.
   vi.stubGlobal('scrollTo', vi.fn());
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: unknown) => {
+    vi.fn((input: unknown, init?: RequestInit) => {
       const url = String(input);
-      const body = url.includes('/repos/7/security') ? security : {};
+      if (init?.method && init.method !== 'GET') {
+        writes.push({ url, method: init.method, body: JSON.parse(String(init.body ?? 'null')) });
+      }
+      const body = url.includes('/repos/7/security')
+        ? security
+        : url.includes('/me/context')
+          ? me
+          : url.includes('/scanners/')
+            ? { repo_id: 7, enabled: true }
+            : {};
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -343,5 +356,54 @@ describe('Security tab — drill-downs and exports', () => {
     );
     // No SBOM yet, and the link says so before the click rather than after.
     expect(screen.getByTestId('security-exports')).toHaveTextContent(/has not completed a run/);
+  });
+});
+
+// W20-08 (UX_TODO FND-56, FND-07).
+describe('Security tab — CVE rows and scanner switches (W20-08)', () => {
+  it('each vulnerable-dependency row opens its finding', async () => {
+    security = base({
+      cves: [
+        {
+          finding_id: 91,
+          cve_id: 'CVE-2026-1',
+          package: 'lodash@4.17.20',
+          severity: 4,
+          kev: false,
+          scanner_key: 'dependency_cve',
+        },
+      ] as never,
+    });
+    renderSecurity();
+    const link = await screen.findByTestId('cve-link-91');
+    expect(link.getAttribute('href')).toMatch(/finding=91/);
+    expect(link).toHaveTextContent('CVE-2026-1');
+  });
+
+  it('a member sees no switches', async () => {
+    renderSecurity();
+    await screen.findByTestId('scanner-status');
+    expect(screen.queryByTestId('scanner-toggle-owasp_web')).toBeNull();
+  });
+
+  it('an admin turns a scanner on only after reading what it costs', async () => {
+    me = { role: 'admin' };
+    security = base({
+      scanners: [scanner({ key: 'owasp_web', enabled: false, state: 'not_enabled' })],
+    });
+    renderSecurity();
+    fireEvent.click(await screen.findByTestId('scanner-toggle-owasp_web'));
+    expect(writes).toHaveLength(0);
+    expect(screen.getByTestId('scanner-toggle-confirm-owasp_web')).toHaveTextContent(
+      /analysis model/,
+    );
+    fireEvent.click(screen.getByTestId('scanner-toggle-yes-owasp_web'));
+    await waitFor(() =>
+      expect(writes[0]).toEqual({
+        url: '/api/v1/scanners/owasp_web',
+        method: 'PUT',
+        body: { repo_id: 7, enabled: true },
+      }),
+    );
   });
 });

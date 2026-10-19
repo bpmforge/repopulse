@@ -1,3 +1,4 @@
+import { InternalLink } from '../plans/InternalLink.js';
 import {
   VEX_JUSTIFICATION_LABEL,
   type ScannerStatus,
@@ -43,6 +44,12 @@ interface Props {
    * the only place it can be wrong.
    */
   scanners: ScannerStatus[];
+  /**
+   * W20-08 (UX_TODO FND-05): with a repository, the panel links to its
+   * dependency findings, where a person records a VEX statement. The counts
+   * below are statements; this is where they are written.
+   */
+  repoId?: string;
 }
 
 /** Vulnerabilities V1 placed in a resolved dependency set. */
@@ -63,7 +70,7 @@ export function openDependencyFindings(scanners: ScannerStatus[]): number | null
   return row.open_findings;
 }
 
-export function ValidationFunnelPanel({ funnel, recorded, vex, scanners }: Props) {
+export function ValidationFunnelPanel({ funnel, recorded, vex, scanners, repoId }: Props) {
   if (!recorded || !funnel) {
     // NOT A ROW OF ZEROES. `raw` lives only on the scan run that measured it,
     // so a repository whose last dependency scan predates the column has no
@@ -180,6 +187,21 @@ export function ValidationFunnelPanel({ funnel, recorded, vex, scanners }: Props
           </dl>
         )}
       </div>
+
+      {repoId && (
+        <p className="text-xs text-fg-muted">
+          A statement is recorded from a dependency finding&rsquo;s panel (Record VEX statement):{' '}
+          <InternalLink
+            to="/findings"
+            search={{ repos: repoId, dimension: 'dependency' }}
+            className="text-accent hover:underline"
+            testId="funnel-record-vex"
+          >
+            open this repository&rsquo;s dependency findings
+          </InternalLink>
+          .
+        </p>
+      )}
 
       {Object.keys(funnel.proposed).length > 0 && (
         <p className="text-xs text-fg-muted" data-testid="funnel-proposed">

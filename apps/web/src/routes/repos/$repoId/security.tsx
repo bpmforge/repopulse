@@ -4,6 +4,7 @@ import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { API_BASE } from '../../../api/client.js';
 import { ScannerStatusList, ScanToolingNote } from '../../../widgets/security/ScannerStatusList.js';
 import { RunScanButton } from '../../../widgets/security/RunScanButton.js';
+import { LicensesPanel } from '../../../widgets/security/LicensesPanel.js';
 import { ChainsPanel } from '../../../widgets/security/ChainsPanel.js';
 import { CoverageMap } from '../../../widgets/trust/CoverageMap.js';
 import { AiPassPanel } from '../../../widgets/repo/AiPassPanel.js';
@@ -45,6 +46,8 @@ function SecurityTab() {
     refetchInterval: (latest) => intervalRef.current(latest),
   });
   const scan = useScanRun(data);
+  const { data: me } = useApiQuery<{ role?: string }>({ endpoint: '/me/context' });
+  const isAdmin = me?.role === 'admin';
   intervalRef.current = scan.refetchInterval;
 
   const state = frameState({
@@ -65,7 +68,13 @@ function SecurityTab() {
         {...(error ? { error } : {})}
         testId="security-coverage"
       >
-        {data && <ScannerStatusList scanners={data.scanners} />}
+        {/* W20-08 (UX_TODO FND-07): admins switch scanners on and off here. */}
+        {data && (
+          <ScannerStatusList
+            scanners={data.scanners}
+            manage={isAdmin ? { repoId, invalidate: [queryKeyFor(descriptor)] } : null}
+          />
+        )}
         {data?.tooling && <ScanToolingNote tooling={data.tooling} />}
         {/* W16-10 (F15). This table said "never run" for every scanner and
             offered no way to change that. */}
@@ -227,9 +236,25 @@ function SecurityTab() {
                 </thead>
                 <tbody>
                   {data.cves.map((cve) => (
-                    <tr key={cve.cve_id} className="border-t border-border">
+                    <tr
+                      key={cve.finding_id ?? `${cve.cve_id}|${cve.package}`}
+                      className="border-t border-border"
+                    >
                       <th scope="row" className="text-left font-normal">
-                        {cve.cve_id}
+                        {/* W20-08 (FND-56): each row opens its finding, where
+                            the reachability and the VEX form are. */}
+                        {cve.finding_id ? (
+                          <Link
+                            to="/findings"
+                            search={{ finding: cve.finding_id, repos: repoId } as never}
+                            className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                            data-testid={`cve-link-${cve.finding_id}`}
+                          >
+                            {cve.cve_id}
+                          </Link>
+                        ) : (
+                          cve.cve_id
+                        )}
                         {cve.kev && (
                           <span className="ml-1 text-xs" data-testid="kev-flag">
                             ! known exploited
@@ -261,8 +286,14 @@ function SecurityTab() {
             // own tests exercise — a number computed here would be untested in
             // the one place it can be wrong.
             scanners={data.scanners}
+            repoId={repoId}
           />
         )}
+      </WidgetFrame>
+
+      {/* W20-08 (UX_TODO FND-18): license findings and the policy behind them. */}
+      <WidgetFrame title="Licenses" state="ready" testId="security-licenses">
+        <LicensesPanel repoId={repoId} />
       </WidgetFrame>
 
       {/* W20-03 (UX_TODO FND-06): the OpenVEX export and the NOTICE-style

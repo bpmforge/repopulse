@@ -104,6 +104,56 @@ export const SECURITY_DIMENSIONS: ReadonlySet<string> = new Set([
   'compound',
 ]);
 
+/**
+ * The Vulnerable dependencies table, from the open dependency findings
+ * (W20-08, UX_TODO FND-56). Worst first, then KEV, one row per finding.
+ *
+ * The package is read back from the title both scanners write
+ * (`<id> in <pkg> <ver>`, and `<id> in <image> (<pkg> <ver>)` for an image),
+ * because it is stored nowhere else; a title in neither shape keeps the whole
+ * text rather than a guessed part of it. Shadow-rule findings are left out, as
+ * they are from every count on this tab.
+ */
+export function cveRows(
+  findings: readonly {
+    id: number;
+    title: string;
+    dimension: string;
+    severity: number;
+    scannerKey: string | null;
+    cveId: string | null;
+    ruleId: string | null;
+    yields: Record<string, unknown> | null;
+    experimental: boolean;
+  }[],
+): {
+  finding_id: number;
+  cve_id: string;
+  package: string;
+  severity: number;
+  kev: boolean;
+  scanner_key: string | null;
+}[] {
+  return findings
+    .filter((f) => f.dimension === 'dependency' && !f.experimental && (f.cveId ?? f.ruleId))
+    .map((f) => {
+      const after = f.title.split(' in ').slice(1).join(' in ');
+      const inImage = /\(([^()]+)\)\s*$/.exec(after);
+      return {
+        finding_id: f.id,
+        cve_id: (f.cveId ?? f.ruleId) as string,
+        package: (inImage ? inImage[1] : after) || f.title,
+        severity: f.severity,
+        kev: f.yields?.['kev'] === true,
+        scanner_key: f.scannerKey,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.severity - a.severity || Number(b.kev) - Number(a.kev) || a.finding_id - b.finding_id,
+    );
+}
+
 function startedLongAgo(startedAt: Date | null | undefined, now = Date.now()): boolean {
   if (!startedAt) return false;
   return now - startedAt.getTime() > STALE_RUN_AFTER_MS;
@@ -229,6 +279,10 @@ export default async function securityRoutes(
         scannerKey: read.findings.scannerKey,
         status: read.findings.status,
         firstSeenAt: read.findings.firstSeenAt,
+        cveId: read.findings.cveId,
+        ruleId: read.findings.ruleId,
+        yields: read.findings.yields,
+        experimental: read.findings.experimental,
       })
       .from(read.findings)
       .where(
@@ -394,11 +448,11 @@ export default async function securityRoutes(
         // verifier can confirm liveness this is honestly zero.
         verified: 0,
       },
-      // CVEs: empty until the dependency scanner exists (W8-06, parked for
-      // missing tools). The KEY is present so the tab renders an explained
-      // empty state rather than a missing section — an absent panel reads as a
-      // broken page, and a broken security page reads as no problems.
-      cves: [] as { cve_id: string; package: string; severity: number; kev: boolean }[],
+      // W20-08 (UX_TODO FND-56): the open dependency and image CVEs. This was
+      // a constant `[]` "until the dependency scanner exists" long after both
+      // scanners shipped, so no CVE id, package or known-exploited flag ever
+      // appeared here. Still an explained empty state when there are none.
+      cves: cveRows(findings),
       validation_funnel: storedFunnel,
       // NULL, not zero, when the last dependency run predates the column or
       // never happened. The honesty rule (FR-SEC-15) says the raw count is

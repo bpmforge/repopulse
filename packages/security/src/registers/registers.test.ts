@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { readComponents, resolveScopes, parsePurl } from './sbom.js';
+import { policyFrom } from './run.js';
 import {
   dependencyHealthFindings,
   libyearFor,
@@ -214,17 +215,52 @@ describe('dependency health', () => {
 
 describe('EOL', () => {
   const cycles = [
-    { product: 'nodejs', cycle: '18', eolDate: new Date('2025-04-30'), supportUntil: null, latestVersion: '18.20.0' },
-    { product: 'nodejs', cycle: '20', eolDate: new Date('2026-04-30'), supportUntil: null, latestVersion: '20.19.0' },
-    { product: 'nodejs', cycle: '22', eolDate: new Date('2027-04-30'), supportUntil: null, latestVersion: '22.11.0' },
-    { product: 'python', cycle: '3.1', eolDate: new Date('2012-01-01'), supportUntil: null, latestVersion: '3.1.5' },
-    { product: 'python', cycle: '3.11', eolDate: new Date('2026-10-31'), supportUntil: null, latestVersion: '3.11.9' },
+    {
+      product: 'nodejs',
+      cycle: '18',
+      eolDate: new Date('2025-04-30'),
+      supportUntil: null,
+      latestVersion: '18.20.0',
+    },
+    {
+      product: 'nodejs',
+      cycle: '20',
+      eolDate: new Date('2026-04-30'),
+      supportUntil: null,
+      latestVersion: '20.19.0',
+    },
+    {
+      product: 'nodejs',
+      cycle: '22',
+      eolDate: new Date('2027-04-30'),
+      supportUntil: null,
+      latestVersion: '22.11.0',
+    },
+    {
+      product: 'python',
+      cycle: '3.1',
+      eolDate: new Date('2012-01-01'),
+      supportUntil: null,
+      latestVersion: '3.1.5',
+    },
+    {
+      product: 'python',
+      cycle: '3.11',
+      eolDate: new Date('2026-10-31'),
+      supportUntil: null,
+      latestVersion: '3.11.9',
+    },
   ];
 
   it('matches the LONGEST cycle prefix, not the first one that starts alike', () => {
     // '3.11' must not match cycle '3.1' — that would report a 2012 EOL date
     // for a runtime that is supported until late 2026.
-    expect(cycleFor('3.11.4', cycles.filter((c) => c.product === 'python'))!.cycle).toBe('3.11');
+    expect(
+      cycleFor(
+        '3.11.4',
+        cycles.filter((c) => c.product === 'python'),
+      )!.cycle,
+    ).toBe('3.11');
   });
 
   it('sev 4 for a past-EOL production runtime', () => {
@@ -297,7 +333,10 @@ describe('EOL', () => {
   it('walks a snapshot for manifests, skipping node_modules', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'w10-02-'));
     mkdirSync(path.join(root, 'node_modules', 'x'), { recursive: true });
-    writeFileSync(path.join(root, 'node_modules', 'x', 'package.json'), '{"engines":{"node":"14"}}');
+    writeFileSync(
+      path.join(root, 'node_modules', 'x', 'package.json'),
+      '{"engines":{"node":"14"}}',
+    );
     writeFileSync(path.join(root, '.nvmrc'), '20\n');
     writeFileSync(path.join(root, 'Dockerfile'), 'FROM node:18-bullseye\n');
     const { declared } = readDeclaredRuntimes(root);
@@ -392,5 +431,28 @@ describe('evidence identifies its subject', () => {
     });
     const evidence = findings.map((f) => f.evidence);
     expect(new Set(evidence).size).toBe(evidence.length);
+  });
+});
+
+// W20-08 (UX_TODO FND-18): Settings writes `license_policy` in snake case
+// through the admin API; the register must apply it, and still honour a
+// hand-written camel-case `licensePolicy` from before.
+describe('policyFrom (W20-08)', () => {
+  it('reads the snake-case policy Settings writes, defaulting each absent field', () => {
+    const p = policyFrom({
+      license_policy: { flag_categories: ['weak-copyleft', 'bogus'], flag_unknown: false },
+    });
+    expect(p.flagCategories).toEqual(['weak-copyleft']);
+    expect(p.flagUnknown).toBe(false);
+    expect(p.flag).toContain('AGPL-3.0');
+    expect(p.allow).toEqual([]);
+  });
+
+  it('prefers the snake-case key and falls back to the legacy camel-case one', () => {
+    expect(
+      policyFrom({ license_policy: { flag: ['SSPL-1.0'] }, licensePolicy: { flag: ['GPL-3.0'] } })
+        .flag,
+    ).toEqual(['SSPL-1.0']);
+    expect(policyFrom({ licensePolicy: { flagUnknown: false } }).flagUnknown).toBe(false);
   });
 });

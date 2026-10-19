@@ -451,6 +451,18 @@ function fenced(text) {
 const MARKDOWN_ROWS = 50;
 
 /**
+ * Where a finding opens in RepoPulse (W20-08, UX_TODO FND-50): the findings
+ * explorer's own deep link. A developer whose build fails on a wrong finding
+ * needs the one screen where it can be dismissed.
+ *
+ * @param {CheckConfig} config
+ * @param {number} id
+ */
+export function findingUrl(config, id) {
+  return `${config.server}/findings?finding=${encodeURIComponent(String(id))}`;
+}
+
+/**
  * The summary your CI posts as a PR comment, with your own token.
  *
  * @param {PrFindings} result
@@ -490,13 +502,13 @@ export function toMarkdown(result, verdict, config) {
     lines.push('No new findings.');
     return lines.join('\n') + '\n';
   }
-  lines.push('| Severity | Finding | Location | Rule |');
-  lines.push('|---|---|---|---|');
+  lines.push('| Severity | Finding | Location | Rule | |');
+  lines.push('|---|---|---|---|---|');
   for (const f of result.items.slice(0, MARKDOWN_ROWS)) {
     const loc = f.file ? `${f.file}${f.line_start ? `:${f.line_start}` : ''}` : '(repository)';
     const tag = f.experimental ? ' _(experimental)_' : '';
     lines.push(
-      `| ${f.severity_label} | ${cell(f.title)}${tag} | \`${cell(loc)}\` | \`${cell(ruleIdOf(f))}\` |`,
+      `| ${f.severity_label} | ${cell(f.title)}${tag} | \`${cell(loc)}\` | \`${cell(ruleIdOf(f))}\` | [View in RepoPulse](${findingUrl(config, f.id)}) |`,
     );
   }
   if (n > MARKDOWN_ROWS) lines.push(`\n…and ${n - MARKDOWN_ROWS} more (see the SARIF report).`);
@@ -509,6 +521,11 @@ export function toMarkdown(result, verdict, config) {
     if (f.suggested_fix) lines.push(`**Suggested fix:** ${f.suggested_fix.replace(/\r?\n/g, ' ')}`);
     lines.push('</details>');
   }
+  lines.push('');
+  // The way out of a wrong finding, said where the developer is looking.
+  lines.push(
+    '_A finding that is wrong? Open it with "View in RepoPulse" and dismiss it with a reason; a dismissed finding no longer counts, so the next run of this check clears it._',
+  );
   return lines.join('\n') + '\n';
 }
 

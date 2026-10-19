@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
+import { apiFetch, buildUrl } from '../../api/client.js';
+import { ErrorNote } from '../../components/primitives/ErrorNote.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
 import { BulkActions } from '../../widgets/findings/BulkActions.js';
@@ -10,7 +12,9 @@ import {
   ALL_DIMENSIONS as DIMENSIONS,
   DIMENSIONS_AWAITING_PRODUCER,
   awaitingProducer,
+  DEFAULT_STATUS_FILTER,
   SEVERITY_LABEL,
+  STATUS_FILTERS,
   locationOf,
   VERIFY_LABEL,
   type Finding,
@@ -56,9 +60,10 @@ export function validateFindingsSearch(search: Record<string, unknown>): Finding
  * stripped and landed on the unfiltered, workspace-wide list. Names match the
  * API's own query parameters so a link reads the same at both ends.
  *
- * Status defaults to open and is left out of the URL when it is; `any` is the
- * explicit "every status". Lenient, like `finding`: a junk value is dropped
- * rather than white-screening the screen.
+ * Status defaults to "still to fix" (open + confirmed, W20-08 FND-49) and is
+ * left out of the URL when it is; `any` is the explicit "every status".
+ * Lenient, like `finding`: a junk value is dropped rather than white-screening
+ * the screen.
  */
 export interface FindingsSearch {
   finding?: number;
@@ -73,7 +78,7 @@ export interface FindingsSearch {
   sort?: 'severity';
 }
 
-const FILTER_STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'];
+const FILTER_STATUSES = STATUS_FILTERS.map((s) => s.value);
 const VERIFY_STATUSES = ['confirmed', 'unverified', 'contradicted'];
 
 function validateFilterSearch(search: Record<string, unknown>): Omit<FindingsSearch, 'finding'> {
@@ -82,7 +87,7 @@ function validateFilterSearch(search: Record<string, unknown>): Omit<FindingsSea
   const dimension = str(search.dimension);
   if ((DIMENSIONS as readonly string[]).includes(dimension)) out.dimension = dimension;
   const status = str(search.status);
-  if (status === 'any' || (FILTER_STATUSES.includes(status) && status !== 'open')) {
+  if (status === 'any' || (FILTER_STATUSES.includes(status) && status !== DEFAULT_STATUS_FILTER)) {
     out.status = status;
   }
   const sev = Number(search.severity_min);
@@ -107,8 +112,6 @@ export const Route = createFileRoute('/findings/')({
 });
 
 const LIST = { endpoint: '/findings' } as const;
-
-const STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'] as const;
 
 /**
  * The shadow facet's choices (W18-29). Active-only is the default and the API's
@@ -157,7 +160,10 @@ function FindingsExplorer() {
   const search = Route.useSearch();
   const openId = search.finding ?? null;
   const dimension = search.dimension ?? '';
-  const status = search.status === 'any' ? '' : (search.status ?? 'open');
+  // W20-08 (UX_TODO FND-49): "still to fix" by default, the definition the
+  // Security tab and Sensitive changes count by. `open` alone dropped a
+  // finding from this list the moment someone confirmed it.
+  const status = search.status === 'any' ? '' : (search.status ?? DEFAULT_STATUS_FILTER);
   const severityMin = search.severity_min ? String(search.severity_min) : '';
   const verifyStatus = search.verify_status ?? '';
   // W8-10 scanner facets. A secrets finding was storable and countable before
@@ -181,7 +187,11 @@ function FindingsExplorer() {
     }
     if ('status' in patch) {
       next.status =
-        patch.status === '' ? 'any' : patch.status === 'open' ? undefined : patch.status;
+        patch.status === ''
+          ? 'any'
+          : patch.status === DEFAULT_STATUS_FILTER
+            ? undefined
+            : patch.status;
     }
     if (patch.experimental === 'exclude') next.experimental = undefined;
     void navigate({
@@ -348,6 +358,37 @@ function FindingsExplorer() {
   const someOnPage = !allOnPage && items.some((f) => selected.includes(f.id));
 
   /**
+   * "Select all N matching" (W20-08, UX_TODO FND-12). Offered once the whole
+   * page is selected and more match than the page holds. The ids come from
+   * GET /findings/ids under the same filters as `total`, so the bar acts on
+   * exactly the findings it names. Held against the filters like the page
+   * selection; unticking any row on the page drops back to the page.
+   */
+  const [matching, setMatching] = useState<{
+    key: string;
+    ids: number[];
+    truncated: boolean;
+  } | null>(null);
+  const [matchingState, setMatchingState] = useState<{ pending: boolean; error: unknown }>({
+    pending: false,
+    error: null,
+  });
+  const allMatching = matching && matching.key === filterKey && allOnPage ? matching : null;
+  const total = data?.total ?? 0;
+  const selectAllMatching = async () => {
+    setMatchingState({ pending: true, error: null });
+    try {
+      const found = await apiFetch<{ ids: number[]; truncated: boolean }>(
+        buildUrl('/findings/ids', { query: filterQuery }),
+      );
+      setMatching({ key: filterKey, ids: found.ids, truncated: found.truncated });
+      setMatchingState({ pending: false, error: null });
+    } catch (error) {
+      setMatchingState({ pending: false, error });
+    }
+  };
+
+  /**
    * The open finding, fetched by id when the LIST does not hold it (W16-32).
    *
    * The filters are component state, so a link resolves against the
@@ -496,9 +537,9 @@ function FindingsExplorer() {
             onChange={(e) => setFilters({ status: e.target.value })}
           >
             <option value="">Any</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.replace('_', ' ')}
+            {STATUS_FILTERS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -626,9 +667,59 @@ function FindingsExplorer() {
         </div>
       </WidgetFrame>
 
+      {allOnPage && total > items.length && (
+        <div
+          className="flex flex-wrap items-center gap-2 text-xs"
+          data-testid="select-all-matching"
+        >
+          {allMatching ? (
+            <>
+              <span>
+                All {allMatching.ids.length.toLocaleString()} findings matching these filters are
+                selected
+                {allMatching.truncated
+                  ? ` (the most one action takes; ${total.toLocaleString()} match)`
+                  : ''}
+                .
+              </span>
+              <button
+                type="button"
+                className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="select-page-only"
+                onClick={() => setMatching(null)}
+              >
+                Select only this page
+              </button>
+            </>
+          ) : (
+            <>
+              <span>All {items.length} findings on this page are selected.</span>
+              <button
+                type="button"
+                className="text-accent underline underline-offset-2 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="select-all-matching-button"
+                disabled={matchingState.pending}
+                onClick={() => void selectAllMatching()}
+              >
+                {matchingState.pending
+                  ? 'Selecting…'
+                  : `Select all ${total.toLocaleString()} matching`}
+              </button>
+            </>
+          )}
+          <ErrorNote error={matchingState.error} testId="select-all-matching-error" />
+        </div>
+      )}
+
       <BulkActions
         selected={selectedFindings}
-        onApplied={() => setSelection({ key: selectionKey, ids: [] })}
+        allMatching={
+          allMatching ? { ids: allMatching.ids, truncated: allMatching.truncated } : null
+        }
+        onApplied={() => {
+          setSelection({ key: selectionKey, ids: [] });
+          setMatching(null);
+        }}
         invalidate={[
           queryKeyFor(listDescriptor),
           queryKeyFor(LIST),

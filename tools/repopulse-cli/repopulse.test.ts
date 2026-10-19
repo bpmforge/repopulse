@@ -284,6 +284,15 @@ describe('toMarkdown', () => {
     expect(md).not.toMatch(/grade|score/i);
   });
 
+  // W20-08 (UX_TODO FND-50): every row links back to its finding, and the
+  // comment says how a wrong finding stops failing the build.
+  it('links each finding to RepoPulse and says how to clear a false positive', () => {
+    const r = result([finding({ id: 42 })]);
+    const md = toMarkdown(r, evaluate(r, config()), config());
+    expect(md).toContain(`[View in RepoPulse](${config().server}/findings?finding=42)`);
+    expect(md).toMatch(/dismiss it with a reason.*next run of this check clears it/);
+  });
+
   it('says plainly when there is nothing new', () => {
     const r = result([]);
     expect(toMarkdown(r, evaluate(r, config()), config())).toContain('No new findings.');

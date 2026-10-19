@@ -32,7 +32,9 @@ describeIfLiveInfra('finding transitions persist and invalid ones are refused (W
   let triagerUserId: number;
   let cookie: string;
 
-  async function seedFinding(key: string, status = 'open'): Promise<number> {
+  // Severity 3 by default: a member (the triager) may close it. W20-08
+  // (FND-66) put high and critical findings behind the admin role.
+  async function seedFinding(key: string, status = 'open', severity = 3): Promise<number> {
     const [row] = await db
       .insert(read.findings)
       .values({
@@ -40,7 +42,7 @@ describeIfLiveInfra('finding transitions persist and invalid ones are refused (W
         repoId,
         dimension: 'security',
         tier: 1,
-        severity: 4,
+        severity,
         confidence: 4,
         title: `W17-23 ${key}`,
         file: 'src/pay.ts',
@@ -387,7 +389,12 @@ describeIfLiveInfra('finding transitions persist and invalid ones are refused (W
       url: '/api/v1/findings/bulk',
       headers: CSRF,
       cookies: { repopulse_sid: cookie },
-      payload: { ids: [a], status: 'dismissed', note: 'x', dismiss_reason: 'because' },
+      payload: {
+        ids: [a],
+        status: 'dismissed',
+        note: 'Not our code at all.',
+        dismiss_reason: 'because',
+      },
     });
     expect(res.statusCode).toBe(400);
     expect(await statusOf(a)).toBe('open');
@@ -405,15 +412,16 @@ describeIfLiveInfra('finding transitions persist and invalid ones are refused (W
         payload: { ids, status, note: 'Sprint close.' },
       });
 
-    // open → resolved is not a move a person makes; confirmed → resolved is.
+    // W20-08 (FND-58): open → resolved is a person's move too ("Mark fixed");
+    // a won't-fix finding still cannot be marked fixed.
+    expect((await send([open], 'wont_fix')).json()).toMatchObject({ applied: [open] });
     const resolved = (await send([confirmed, open], 'resolved')).json() as {
       applied: number[];
       skipped: { id: number; reason: string }[];
     };
     expect(resolved.applied).toEqual([confirmed]);
-    expect(resolved.skipped).toEqual([{ id: open, reason: 'open → resolved not permitted' }]);
+    expect(resolved.skipped).toEqual([{ id: open, reason: 'wont_fix → resolved not permitted' }]);
 
-    expect((await send([open], 'wont_fix')).json()).toMatchObject({ applied: [open] });
     expect((await send([confirmed, open], 'open')).json()).toMatchObject({
       skipped: [],
     });
@@ -457,7 +465,7 @@ describeIfLiveInfra('finding transitions persist and invalid ones are refused (W
         payload: {
           ids: [foreign!.id],
           status: 'dismissed',
-          note: 'x',
+          note: 'Duplicate of another.',
           dismiss_reason: 'duplicate',
         },
       });
@@ -487,5 +495,169 @@ describeIfLiveInfra('finding transitions persist and invalid ones are refused (W
       .where(and(eq(read.findings.repoId, repoId), eq(read.findings.status, 'open')));
     expect(body.total).toBe(counted!.n);
     expect(body.total).toBeGreaterThan(0);
+  });
+  // ---- W20-08 ------------------------------------------------------------
+
+  const patch = (id: number, payload: Record<string, unknown>) =>
+    app.inject({
+      method: 'PATCH',
+      url: `/api/v1/findings/${id}`,
+      headers: CSRF,
+      cookies: { repopulse_sid: cookie },
+      payload,
+    });
+
+  it('W20-08 (FND-66): a dismissal needs a note of at least ten characters', async () => {
+    const id = await seedFinding('short-note');
+    const res = await patch(id, { status: 'dismissed', note: 'nope', dismiss_reason: 'duplicate' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ title: 'The note is too short' });
+    expect(await statusOf(id)).toBe('open');
+    // Confirm keeps the old rule: any note will do.
+    expect((await patch(id, { status: 'confirmed', note: 'ok' })).statusCode).toBe(200);
+  });
+
+  it("W20-08 (FND-66): a member may not dismiss or mark won't fix a high finding", async () => {
+    const id = await seedFinding('member-high', 'open', 4);
+    for (const status of ['dismissed', 'wont_fix']) {
+      const res = await patch(id, {
+        status,
+        note: 'This is a test fixture.',
+        dismiss_reason: 'false_positive',
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({ title: 'Admin role required' });
+    }
+    expect(await statusOf(id)).toBe('open');
+    // The finding says so, for the button.
+    const got = await app.inject({
+      method: 'GET',
+      url: `/api/v1/findings/${id}`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(got.json()).toMatchObject({ dismiss_requires_admin: true });
+    // Mark fixed is not a dismissal: a member may still do it.
+    expect((await patch(id, { status: 'resolved', note: 'Fixed in #12.' })).statusCode).toBe(200);
+  });
+
+  it('W20-08 (FND-66): a bulk dismissal by a member skips the high rows and says why', async () => {
+    const low = await seedFinding('bulk-low');
+    const high = await seedFinding('bulk-high', 'open', 5);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/findings/bulk',
+      headers: CSRF,
+      cookies: { repopulse_sid: cookie },
+      payload: {
+        ids: [low, high],
+        status: 'dismissed',
+        note: 'Vendored, not ours.',
+        dismiss_reason: 'not_applicable',
+      },
+    });
+    expect(res.json()).toEqual({
+      applied: [low],
+      skipped: [{ id: high, reason: 'needs an admin' }],
+    });
+    expect(await statusOf(high)).toBe('open');
+  });
+
+  it('W20-08 (FND-49): status=active lists open and confirmed together', async () => {
+    const open = await seedFinding('active-open');
+    const confirmed = await seedFinding('active-confirmed', 'confirmed');
+    const dismissed = await seedFinding('active-dismissed', 'dismissed');
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/findings?repo_id=${repoId}&status=active`,
+      cookies: { repopulse_sid: cookie },
+    });
+    const ids = (res.json() as { items: { id: number; status: string }[] }).items.map((f) => f.id);
+    expect(ids).toEqual(expect.arrayContaining([open, confirmed]));
+    expect(ids).not.toContain(dismissed);
+    // A comma list means the same thing.
+    const csv = await app.inject({
+      method: 'GET',
+      url: `/api/v1/findings?repo_id=${repoId}&status=open,confirmed`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect((csv.json() as { total: number }).total).toBe((res.json() as { total: number }).total);
+  });
+
+  it('W20-08 (FND-12): /findings/ids returns every matching id, across pages', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/findings/ids?repo_id=${repoId}&status=active`,
+      cookies: { repopulse_sid: cookie },
+    });
+    const body = res.json() as { ids: number[]; truncated: boolean };
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/v1/findings?repo_id=${repoId}&status=active`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(body.ids.length).toBe((list.json() as { total: number }).total);
+    expect(body.truncated).toBe(false);
+  });
+
+  it('W20-08 (FND-65): POST /rules stamps the proposing admin and today when the form leaves them out', async () => {
+    const ruleId = 'perf.w20-08-stamp';
+    const setRole = (role: 'admin' | 'member') =>
+      db
+        .update(core.workspaceMembers)
+        .set({ role })
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, workspaceId),
+            eq(core.workspaceMembers.userId, triagerUserId),
+          ),
+        );
+    const drop = () =>
+      db
+        .delete(security.ruleRegistry)
+        .where(
+          and(
+            eq(security.ruleRegistry.workspaceId, workspaceId),
+            eq(security.ruleRegistry.ruleId, ruleId),
+          ),
+        );
+    await drop();
+    await setRole('admin');
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/rules',
+        headers: CSRF,
+        cookies: { repopulse_sid: cookie },
+        payload: {
+          id: ruleId,
+          domain: 'perf',
+          layer: 'llm',
+          languages: ['typescript'],
+          severity: 3,
+          status: 'proposed',
+          provenance: { source: 'field_lesson:finding/1', license: 'UNLICENSED-REPOPULSE' },
+          checklistItem: 'Is a query issued inside a loop?',
+          fixtures: { trigger: ['for (x of xs) await q(x)'], clean: ['await q(xs)'] },
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const [row] = await db
+        .select({ provenance: security.ruleRegistry.provenance })
+        .from(security.ruleRegistry)
+        .where(
+          and(
+            eq(security.ruleRegistry.workspaceId, workspaceId),
+            eq(security.ruleRegistry.ruleId, ruleId),
+          ),
+        );
+      expect(row?.provenance).toMatchObject({
+        author: TRIAGER,
+        date: new Date().toISOString().slice(0, 10),
+        source: 'field_lesson:finding/1',
+      });
+    } finally {
+      await drop();
+      await setRole('member');
+    }
   });
 });

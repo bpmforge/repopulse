@@ -251,3 +251,30 @@ describe('machine proposals are never counted as decisions', () => {
     expect(screen.getByTestId('funnel-suppressed').textContent).toContain('0');
   });
 });
+
+// W20-08 (UX_TODO FND-05): the funnel counts statements; it now links to where
+// a person writes one.
+describe('the funnel links to where a VEX statement is recorded (W20-08)', () => {
+  it('points at this repository’s dependency findings', () => {
+    render(
+      <ValidationFunnelPanel
+        funnel={funnel()}
+        recorded
+        vex={vex()}
+        scanners={scanners(31)}
+        repoId="7"
+      />,
+    );
+    expect(screen.getByTestId('funnel-record-vex')).toHaveAttribute(
+      'href',
+      '/findings?repos=7&dimension=dependency',
+    );
+  });
+
+  it('shows no link without a repository', () => {
+    render(
+      <ValidationFunnelPanel funnel={funnel()} recorded vex={vex()} scanners={scanners(31)} />,
+    );
+    expect(screen.queryByTestId('funnel-record-vex')).toBeNull();
+  });
+});

@@ -3,6 +3,8 @@ import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
   allowedFindingTransitions,
+  autoCloseNote,
+  DISMISS_NOTE_MIN,
   DISMISS_REASONS,
   FINDING_ACTIONS,
   FINDING_DONE_LABEL,
@@ -20,6 +22,12 @@ import { VerifiedFix } from './VerifiedFix.js';
 import { AiSuggestions } from './AiSuggestions.js';
 import { RulePrecisionSummary } from '../trust/RulePrecision.js';
 import { SHADOW_EXPLAINER, ShadowBadge } from './ShadowBadge.js';
+import { DependencyWhy } from './DependencyWhy.js';
+import { VexForm } from './VexForm.js';
+import { ProposeRuleForm } from '../rules/ProposeRuleForm.js';
+
+/** Moves that close a finding without a fix (W20-08, UX_TODO FND-66). */
+const CLOSING: readonly string[] = ['dismissed', 'wont_fix'];
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
 
@@ -39,6 +47,17 @@ export function FindingDetail({
   const [reason, setReason] = useState<string>('false_positive');
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const noteRef = useRef<HTMLInputElement>(null);
+  const [proposing, setProposing] = useState(false);
+  const { data: me } = useApiQuery<{ role?: string }>({ endpoint: '/me/context' });
+  const isAdmin = me?.role === 'admin';
+  /**
+   * W20-08 (UX_TODO FND-66): a high or critical finding, or one raised on a
+   * pull request still open, is dismissed or marked won't fix by an admin
+   * only (SRS FR-AUTH-4 has two roles), and every such note says why in at
+   * least ten characters. The API enforces both; the buttons say so first.
+   */
+  const closingLocked = finding.dismiss_requires_admin === true && !isAdmin;
+  const noteTooShort = note.trim().length < DISMISS_NOTE_MIN;
   /**
    * The last change made from this panel, for the status message and its Undo
    * (W20-03, UX_TODO FND-02). Held with the finding's id because the explorer
@@ -206,6 +225,15 @@ export function FindingDetail({
           <p className="mt-1 text-sm">{finding.recommendation}</p>
         </div>
 
+        {/* W20-08 (UX_TODO FND-57): what the scanner worked out, so "real, or
+            not affected?" can be answered from this panel. */}
+        <DependencyWhy finding={finding} />
+
+        {/* W20-08 (UX_TODO FND-05): a person records the VEX statement here. */}
+        {finding.dimension === 'dependency' && (finding.cve_id || finding.rule_id) && (
+          <VexForm finding={finding} invalidate={invalidate} />
+        )}
+
         {/* W18-19: a model-drafted patch, shown only once the re-scan proved it
             clears this finding without raising another (D16). Copy and
             download; never a write to the forge (D9a). */}
@@ -285,14 +313,22 @@ export function FindingDetail({
           )}
           {allowed.map((to) => {
             const action = FINDING_ACTIONS[to];
+            const closing = CLOSING.includes(to);
+            const locked = closing && closingLocked;
             return (
               <button
                 key={to}
                 type="button"
                 className={ACTION_BUTTON}
                 data-testid={action.testId}
-                title={action.hint}
-                disabled={pending === to || note.trim() === ''}
+                title={
+                  locked
+                    ? `${action.hint} Only an admin may do this for a high or critical finding, or one on a pull request that is still open.`
+                    : action.hint
+                }
+                disabled={
+                  pending === to || note.trim() === '' || locked || (closing && noteTooShort)
+                }
                 aria-busy={pending === to || undefined}
                 onClick={() => {
                   const from = finding.status;
@@ -338,6 +374,18 @@ export function FindingDetail({
           {/* To the plan for this finding's repository (W17-24): a link that
               carries the id, and only navigates. */}
           <PlanForRepoLink repoId={finding.repo.id} />
+          {/* W20-08 (UX_TODO FND-65): an admin turns a finding pattern into a
+              rule proposal; it lands proposed and runs nowhere until accepted. */}
+          {isAdmin && !proposing && (
+            <button
+              type="button"
+              className={ACTION_BUTTON}
+              data-testid="finding-propose-rule"
+              onClick={() => setProposing(true)}
+            >
+              Propose a rule from this finding
+            </button>
+          )}
           <button
             type="button"
             className="text-xs text-fg-muted underline underline-offset-2"
@@ -355,6 +403,36 @@ export function FindingDetail({
             unreviewable six months later, which is exactly when it matters. */}
         {note.trim() === '' && (
           <p className="text-xs text-fg-faint">A note is required before changing status.</p>
+        )}
+        {allowed.some((to) => CLOSING.includes(to)) && (
+          <p className="text-xs text-fg-faint" data-testid="finding-dismiss-rule">
+            {closingLocked
+              ? "Dismiss and Won't fix: admins only for this finding (high or critical, or raised on a pull request that is still open). Ask an admin, or Confirm it."
+              : `Dismiss and Won't fix need a note of at least ${DISMISS_NOTE_MIN} characters${
+                  finding.dismiss_requires_admin ? ', and an admin for this finding' : ''
+                }.`}
+          </p>
+        )}
+        {/* W20-08 (UX_TODO FND-58): whether waiting for a re-scan will close it. */}
+        {(finding.status === 'open' || finding.status === 'confirmed') && (
+          <p className="text-xs text-fg-faint" data-testid="finding-auto-close">
+            {autoCloseNote(finding)}
+          </p>
+        )}
+        {proposing && (
+          <ProposeRuleForm
+            seed={{
+              id: finding.id,
+              title: finding.title,
+              dimension: finding.dimension,
+              severity: finding.severity,
+              file: finding.file,
+              evidence: finding.evidence,
+              rule_id: finding.rule_id ?? null,
+              context: finding.context ?? null,
+            }}
+            onClose={() => setProposing(false)}
+          />
         )}
       </div>
     </WidgetFrame>

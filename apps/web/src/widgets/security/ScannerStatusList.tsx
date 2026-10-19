@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { ErrorNote } from '../../components/index.js';
+import { useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import {
   hasMeasuredCount,
   scannerStateLabel,
@@ -15,7 +18,26 @@ import {
 
 interface Props {
   scanners: ScannerStatus[];
+  /**
+   * W20-08 (UX_TODO FND-07): with a repository and an admin, each row gets an
+   * on/off switch (PUT /scanners/:key). Absent = the read-only table.
+   */
+  manage?: { repoId: string; invalidate: readonly (readonly unknown[])[] } | null;
 }
+
+/**
+ * What turning a scanner on costs and sends, beyond its default's rationale
+ * (W20-08, UX_TODO FND-07). Named for the scanners whose cost is not "one more
+ * pass over a snapshot we already have".
+ */
+export const SCANNER_COST: Record<string, string> = {
+  container_image:
+    'Pulls each image the repository names from its registry (network traffic to that registry) and scans it in the sandbox; slow on large images.',
+  owasp_llm:
+    'Sends changed code to the analysis model this workspace routes to, so model calls and any egress the routing allows apply.',
+  owasp_web:
+    'Sends changed code to the analysis model this workspace routes to, so model calls and any egress the routing allows apply.',
+};
 
 function when(iso: string | null): string {
   if (!iso) return 'never';
@@ -63,7 +85,7 @@ export function looksLikeStaleVulnDb(error: string): boolean {
   return /vulnerability database|vulnerability db|scan-db-sync/i.test(error);
 }
 
-export function ScannerStatusList({ scanners }: Props) {
+export function ScannerStatusList({ scanners, manage = null }: Props) {
   return (
     <table className="table-plain w-full text-sm" data-testid="scanner-status">
       <caption className="sr-only">Scanner coverage for this repository</caption>
@@ -81,6 +103,11 @@ export function ScannerStatusList({ scanners }: Props) {
           <th scope="col" className="py-1 text-right">
             Open
           </th>
+          {manage && (
+            <th scope="col" className="py-1 text-right">
+              On for this repository
+            </th>
+          )}
         </tr>
       </thead>
       <tbody>
@@ -146,10 +173,100 @@ export function ScannerStatusList({ scanners }: Props) {
                   the count column must not make the claim the label refused. */}
               {hasMeasuredCount(scanner.state) ? scanner.open_findings : '—'}
             </td>
+            {manage && (
+              <td className="py-1.5 text-right">
+                {scanner.registered ? <ScannerToggle scanner={scanner} manage={manage} /> : '—'}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * One scanner's on/off switch for one repository (W20-08, UX_TODO FND-07).
+ *
+ * `PUT /scanners/:key` existed with no caller, so the opt-in image scan could
+ * never be opted into and the OWASP checklists read "not enabled" for good.
+ * Turning one ON asks first and says what it costs and sends; turning one OFF
+ * applies at once and says the findings already stored stay. Admin-only, as
+ * the API is.
+ */
+function ScannerToggle({
+  scanner,
+  manage,
+}: {
+  scanner: ScannerStatus;
+  manage: { repoId: string; invalidate: readonly (readonly unknown[])[] };
+}) {
+  const [asking, setAsking] = useState(false);
+  const catalogue = { endpoint: '/scanners', query: { repo_id: manage.repoId } } as const;
+  const { data } = useApiQuery<{ items: { key: string; rationale: string | null }[] }>(catalogue);
+  const put = useApiMutation<{ repo_id: number; enabled: boolean }, { enabled: boolean }>(
+    { endpoint: '/scanners/{key}', path: { key: scanner.key }, method: 'PUT' },
+    { invalidate: [...manage.invalidate, ['/scanners', {}, { repo_id: manage.repoId }]] },
+  );
+  const rationale = data?.items?.find((i) => i.key === scanner.key)?.rationale ?? null;
+  const send = (enabled: boolean) => {
+    setAsking(false);
+    put.mutate({ repo_id: Number(manage.repoId), enabled });
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1 text-xs">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={scanner.enabled}
+        aria-label={`${scanner.display_name}: ${scanner.enabled ? 'on' : 'off'} for this repository`}
+        className="rounded-md border border-border px-2 py-0.5 hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        data-testid={`scanner-toggle-${scanner.key}`}
+        disabled={put.isPending}
+        onClick={() => (scanner.enabled ? send(false) : setAsking(true))}
+      >
+        {put.isPending ? 'Saving…' : scanner.enabled ? 'On · turn off' : 'Off · turn on'}
+      </button>
+      {asking && (
+        <div
+          className="flex max-w-xs flex-col items-end gap-1 text-left"
+          role="alertdialog"
+          aria-label={`Turn on ${scanner.display_name}?`}
+          data-testid={`scanner-toggle-confirm-${scanner.key}`}
+        >
+          <p className="text-fg-muted">
+            {SCANNER_COST[scanner.key] ?? 'Runs on its usual schedule from now on.'}
+            {rationale ? ` Default off because: ${rationale}` : ''}
+          </p>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid={`scanner-toggle-yes-${scanner.key}`}
+              onClick={() => send(true)}
+            >
+              Turn on
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              onClick={() => setAsking(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {put.isSuccess && (
+        <span role="status" data-testid={`scanner-toggle-done-${scanner.key}`}>
+          {put.data.enabled
+            ? 'On. It runs from the next scheduled or manual scan.'
+            : 'Off. Findings it already stored stay as they are.'}
+        </span>
+      )}
+      <ErrorNote error={put.error} testId={`scanner-toggle-error-${scanner.key}`} />
+    </div>
   );
 }
 
@@ -209,11 +326,20 @@ export function ScanToolingNote({ tooling }: { tooling: SecurityTooling }) {
     : null;
   return (
     <div className="mt-2 flex flex-col gap-1 text-xs text-fg-muted" data-testid="scan-tooling">
-      <div data-testid="vuln-db-status" data-present={db.present} data-stale={db.stale ?? 'unknown'}>
+      <div
+        data-testid="vuln-db-status"
+        data-present={db.present}
+        data-stale={db.stale ?? 'unknown'}
+      >
         {db.present ? (
           <>
             Vulnerability database: built {built ?? 'on an unknown date'}
-            {db.ageDays !== null && <> ({db.ageDays} day{db.ageDays === 1 ? '' : 's'} old)</>}
+            {db.ageDays !== null && (
+              <>
+                {' '}
+                ({db.ageDays} day{db.ageDays === 1 ? '' : 's'} old)
+              </>
+            )}
             {db.stale === true && (
               <>
                 {' '}

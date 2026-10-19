@@ -19,6 +19,7 @@ import { Route as SensitiveChangesRouteImport } from './routes/sensitive-changes
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAgreementsRouteImport } from './routes/admin/agreements'
 import { Route as AdminAnalysisRouteImport } from './routes/admin/analysis'
+import { Route as AdminCiTokensRouteImport } from './routes/admin/ci-tokens'
 import { Route as AdminIdentitiesRouteImport } from './routes/admin/identities'
 import { Route as AdminMembersRouteImport } from './routes/admin/members'
 import { Route as AdminModelsRouteImport } from './routes/admin/models'
@@ -98,6 +99,11 @@ const AdminAgreementsRoute = AdminAgreementsRouteImport.update({
 const AdminAnalysisRoute = AdminAnalysisRouteImport.update({
   id: '/analysis',
   path: '/analysis',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCiTokensRoute = AdminCiTokensRouteImport.update({
+  id: '/ci-tokens',
+  path: '/ci-tokens',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminIdentitiesRoute = AdminIdentitiesRouteImport.update({
@@ -262,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
+  '/admin/ci-tokens': typeof AdminCiTokensRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/models': typeof AdminModelsRoute
@@ -302,6 +309,7 @@ export interface FileRoutesByTo {
   '/sensitive-changes': typeof SensitiveChangesRoute
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
+  '/admin/ci-tokens': typeof AdminCiTokensRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/models': typeof AdminModelsRoute
@@ -345,6 +353,7 @@ export interface FileRoutesById {
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
+  '/admin/ci-tokens': typeof AdminCiTokensRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
   '/admin/models': typeof AdminModelsRoute
@@ -389,6 +398,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId'
     | '/admin/agreements'
     | '/admin/analysis'
+    | '/admin/ci-tokens'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/models'
@@ -429,6 +439,7 @@ export interface FileRouteTypes {
     | '/sensitive-changes'
     | '/admin/agreements'
     | '/admin/analysis'
+    | '/admin/ci-tokens'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/models'
@@ -471,6 +482,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId'
     | '/admin/agreements'
     | '/admin/analysis'
+    | '/admin/ci-tokens'
     | '/admin/identities'
     | '/admin/members'
     | '/admin/models'
@@ -593,6 +605,13 @@ declare module '@tanstack/react-router' {
       path: '/analysis'
       fullPath: '/admin/analysis'
       preLoaderRoute: typeof AdminAnalysisRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/ci-tokens': {
+      id: '/admin/ci-tokens'
+      path: '/ci-tokens'
+      fullPath: '/admin/ci-tokens'
+      preLoaderRoute: typeof AdminCiTokensRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/identities': {
@@ -811,6 +830,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteRouteChildren {
   AdminAgreementsRoute: typeof AdminAgreementsRoute
   AdminAnalysisRoute: typeof AdminAnalysisRoute
+  AdminCiTokensRoute: typeof AdminCiTokensRoute
   AdminIdentitiesRoute: typeof AdminIdentitiesRoute
   AdminMembersRoute: typeof AdminMembersRoute
   AdminModelsRoute: typeof AdminModelsRoute
@@ -824,6 +844,7 @@ interface AdminRouteRouteChildren {
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAgreementsRoute: AdminAgreementsRoute,
   AdminAnalysisRoute: AdminAnalysisRoute,
+  AdminCiTokensRoute: AdminCiTokensRoute,
   AdminIdentitiesRoute: AdminIdentitiesRoute,
   AdminMembersRoute: AdminMembersRoute,
   AdminModelsRoute: AdminModelsRoute,
