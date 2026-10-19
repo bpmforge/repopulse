@@ -112,6 +112,9 @@ export type AuditEvent =
   // W19-09. An admin started an AI pass, and a person answered an AI suggestion.
   | 'ai_pass.started'
   | 'ai_verdict.decided'
+  // W19-12. An admin changed a repository's AI pass schedule (the acknowledgement
+  // version is in the detail when this change needed one).
+  | 'ai_pass.schedule_changed'
   // W16-10. A manual run spends CPU on the host and, for a sync, forge budget
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.

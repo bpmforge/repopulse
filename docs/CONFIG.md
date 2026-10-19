@@ -66,6 +66,7 @@ every variable at fault. The API will not half-boot.
 | `RECONCILE_CRON` | no | `17 3 * * *` | Nightly reconcile sweep schedule. 'off' disables it. | Drift between the forge and the warehouse is never corrected. |
 | `SECRETS_HISTORY_CRON` | no | `23 4 1 * *` | Monthly secrets history sweep. 'off' disables it. | Credentials committed and later deleted are never found. |
 | `SECURITY_WEEKLY_CRON` | no | `41 2 * * 0` | Weekly full security and code-health pass. 'off' disables it. | Findings only ever come from pull requests, so unchanged code is never reviewed. |
+| `AI_PASS_SCHEDULE_CRON` | no | `19 * * * *` | How often the worker checks repositories' AI pass schedules (W19-12); each schedule is still daily or weekly and off until an admin turns it on. 'off' disables scheduled passes for the whole install. | Schedules an admin turned on never start a pass, and no skipped run is recorded either. |
 | `SECURITY_CHAIN_CRON` | no | `41 3 * * 0` | Attack-chain recompute, deliberately an hour after the weekly pass. | Chains are built from findings the weekly scan is about to replace. |
 | `REGISTERS_NIGHTLY_CRON` | no | `17 3 * * *` | Nightly W10 register pass (knowledge, supply chain, architecture, test gap). 'off' disables it. | Register findings never refresh; EOL dates in particular go stale silently. |
 | `EOL_PRODUCTS` | no | `nodejs,python,go,ruby,php,java,dotnet,debian,ubuntu,alpine,postgresql,redis,nginx` | Comma-separated endoflife.date products the nightly sync tracks. | A runtime you use is not tracked, so no EOL finding is ever raised for it. |

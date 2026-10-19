@@ -362,6 +362,16 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     validate: isCron,
   },
   {
+    name: 'AI_PASS_SCHEDULE_CRON',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "How often the worker checks repositories' AI pass schedules (W19-12); each schedule is still daily or weekly and off until an admin turns it on. 'off' disables scheduled passes for the whole install.",
+    ifWrong: 'Schedules an admin turned on never start a pass, and no skipped run is recorded either.',
+    default: '19 * * * *',
+    validate: isCron,
+  },
+  {
     name: 'SECURITY_CHAIN_CRON',
     scope: 'worker',
     required: false,

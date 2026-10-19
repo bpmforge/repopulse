@@ -4,7 +4,8 @@ import { and, eq } from 'drizzle-orm';
 import { core, createDb, read, security } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import aiPassRoutes, { AI_PASSES_PER_DAY, cleanPaths } from './index.js';
+import aiPassRoutes, { AI_PASSES_PER_DAY, cleanPaths, parseScheduleBody } from './index.js';
+import { AI_SCHEDULE_ACK_VERSION } from '../../workers/ai-pass-schedule.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 
 // W19-09. Starting a pass, watching it, reading what it suggested, and a person's
@@ -35,6 +36,7 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
       await db.delete(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.workspaceId, w));
       await db.delete(read.aiFindingProvenance).where(eq(read.aiFindingProvenance.workspaceId, w));
       await db.delete(read.aiPassRuns).where(eq(read.aiPassRuns.workspaceId, w));
+      await db.delete(read.aiPassSchedules).where(eq(read.aiPassSchedules.workspaceId, w));
     }
     await db.delete(read.findings).where(eq(read.findings.workspaceId, WS));
   }
@@ -337,6 +339,125 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
     it('404s a repository of another workspace', async () => {
       asWorkspace = OTHER;
       expect((await start()).statusCode).toBe(404);
+    });
+  });
+
+  describe('scheduled passes (W19-12)', () => {
+    const url = `/repos/${0}/ai-pass/schedule`;
+    const put = (body: object, repo = REPO) =>
+      app.inject({
+        method: 'PUT',
+        url: url.replace('/0/', `/${repo}/`),
+        headers: CSRF,
+        payload: body,
+      });
+    const get = (repo = REPO) =>
+      app.inject({ method: 'GET', url: url.replace('/0/', `/${repo}/`) });
+    const on = {
+      enabled: true,
+      scope: 'new_commits',
+      cadence: 'weekly',
+      monthly_cap: 4,
+      require_local: true,
+    };
+
+    it('is off by default, with the wording to acknowledge', async () => {
+      const res = await get();
+      expect(res.statusCode).toBe(200);
+      expect(res.json().schedule).toMatchObject({
+        saved: false,
+        enabled: false,
+        require_local: true,
+        monthly_cap: 4,
+        next_due_at: null,
+        started_this_month: 0,
+      });
+      expect(res.json().acknowledgement.version).toBe(AI_SCHEDULE_ACK_VERSION);
+      expect(res.json().acknowledgement.text).toMatch(/without anyone pressing start/);
+    });
+
+    it('turning it on needs the acknowledgement, and stores who and when', async () => {
+      const refused = await put(on);
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json().title).toBe('Acknowledgement needed');
+      expect((await put({ ...on, acknowledge: 'w19-12/0' })).statusCode).toBe(400);
+
+      const ok = await put({ ...on, acknowledge: AI_SCHEDULE_ACK_VERSION });
+      expect(ok.statusCode).toBe(200);
+      expect(ok.json().schedule).toMatchObject({
+        saved: true,
+        enabled: true,
+        acknowledged_by: 'tester',
+        ack_version: AI_SCHEDULE_ACK_VERSION,
+      });
+      expect(ok.json().schedule.next_due_at).not.toBeNull();
+
+      // Editing an enabled schedule (a lower cap) needs no second acknowledgement...
+      const edited = await put({ ...on, monthly_cap: 2 });
+      expect(edited.statusCode, edited.body).toBe(200);
+      expect(edited.json().schedule.monthly_cap).toBe(2);
+      // ...but letting it reach hosted models does.
+      expect((await put({ ...on, require_local: false })).statusCode).toBe(400);
+      expect(
+        (await put({ ...on, require_local: false, acknowledge: AI_SCHEDULE_ACK_VERSION })).json()
+          .schedule.require_local,
+      ).toBe(false);
+
+      // Turning it off needs nothing, and turning it on again needs a fresh one.
+      expect((await put({ ...on, enabled: false })).json().schedule.enabled).toBe(false);
+      expect((await put(on)).statusCode).toBe(400);
+    });
+
+    it('is for admins, and 404s another workspace', async () => {
+      role = 'member';
+      expect((await put({ ...on, acknowledge: AI_SCHEDULE_ACK_VERSION })).statusCode).toBe(403);
+      expect((await get()).statusCode).toBe(200);
+      role = 'admin';
+      asWorkspace = OTHER;
+      expect((await get()).statusCode).toBe(404);
+      expect((await put({ ...on, acknowledge: AI_SCHEDULE_ACK_VERSION })).statusCode).toBe(404);
+    });
+
+    it('validates the whole schedule: paths for a paths schedule, a cap from 1 to 31', () => {
+      expect(parseScheduleBody({ ...on, monthly_cap: 0 })).toMatch(/1 to 31/);
+      expect(parseScheduleBody({ ...on, cadence: 'hourly' })).toMatch(/cadence/);
+      expect(parseScheduleBody({ ...on, scope: 'paths', paths: [] })).toMatch(/Name the files/);
+      expect(parseScheduleBody({ ...on, scope: 'paths', paths: ['../x'] })).toMatch(
+        /not a repository-relative/,
+      );
+      expect(parseScheduleBody({ ...on, scope: 'paths', paths: ['src/'] })).toMatchObject({
+        paths: ['src'],
+      });
+      // A new-commits schedule keeps no paths, whatever was sent.
+      expect(parseScheduleBody({ ...on, paths: ['src'] })).toMatchObject({ paths: [] });
+    });
+
+    it("a schedule's skipped runs do not use up the daily limit for people", async () => {
+      for (let i = 0; i < AI_PASSES_PER_DAY; i++) {
+        await db.insert(read.aiPassRuns).values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: [],
+          trigger: 'schedule',
+          status: 'skipped',
+          createdAt: new Date(clock.getTime() - 3600_000),
+        });
+      }
+      expect((await start()).statusCode).toBe(202);
+    });
+
+    it('a run says it was started by the schedule', async () => {
+      await db.insert(read.aiPassRuns).values({
+        workspaceId: WS,
+        repoId: REPO,
+        paths: [],
+        trigger: 'schedule',
+        status: 'skipped',
+        reasonCode: 'nothing_new',
+        reason: 'No commit has been ingested since the last scheduled pass.',
+      });
+      const runs = (await app.inject({ method: 'GET', url: `/repos/${REPO}/ai-pass` })).json().runs;
+      expect(runs[0]).toMatchObject({ trigger: 'schedule', reason_code: 'nothing_new' });
     });
   });
 

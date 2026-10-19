@@ -37,6 +37,8 @@ export const AI_PASS_MAX_BYTES = 400_000;
 export const AI_PASS_MAX_PATHS = 50;
 /** Gateway calls for one pass - specialists and triage together, retries counted. */
 export const AI_PASS_MAX_CALLS = 30;
+/** Passes one workspace may start in 24 hours, by hand and by schedule together. */
+export const AI_PASSES_PER_DAY = 10;
 
 export interface AiPassJobData {
   workspaceId: number;

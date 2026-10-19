@@ -1,11 +1,18 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { auditLog, core, isConstraintViolation, read, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
-import { AI_PASS_MAX_PATHS } from '../../workers/ai-pass-processor.js';
+import { AI_PASS_MAX_PATHS, AI_PASSES_PER_DAY } from '../../workers/ai-pass-processor.js';
+import {
+  AI_SCHEDULE_ACK_TEXT,
+  AI_SCHEDULE_ACK_VERSION,
+  nextDueAt,
+  passesInLastDay,
+  startedThisMonth,
+} from '../../workers/ai-pass-schedule.js';
 
 // The AI pass: start one, watch it, and read what it suggested (W19-09).
 //
@@ -13,13 +20,15 @@ import { AI_PASS_MAX_PATHS } from '../../workers/ai-pass-processor.js';
 //   GET  /repos/:id/ai-pass                 the repository's recent passes
 //   GET  /findings/:id/ai                   how the finding was raised, and its AI suggestions
 //   POST /findings/:id/ai-verdicts/:v/decide  a person accepts or dismisses a SUGGESTION
+//   GET  /repos/:id/ai-pass/schedule        the repository's schedule (W19-12), off if never set
+//   PUT  /repos/:id/ai-pass/schedule        admin - turning it on needs the acknowledgement
 //
 // NOTHING HERE CHANGES A FINDING. Deciding a suggestion stores the decision on the
 // suggestion row and stops there; moving the finding is the existing
 // PATCH /findings/:id, done by the same person, with a note (D9a). The web app
 // reads only this API, which reads only our Postgres.
 
-export const AI_PASSES_PER_DAY = 10;
+export { AI_PASSES_PER_DAY };
 
 export interface AiPassRoutesOptions {
   db: Database;
@@ -122,6 +131,58 @@ export function parseScope(body: ScopeBody | undefined): PassScope | string {
   return { mode: 'paths', paths, prNumber: null, baseRef: null, headRef: null };
 }
 
+interface ScheduleBody {
+  enabled?: unknown;
+  scope?: unknown;
+  paths?: unknown;
+  cadence?: unknown;
+  monthly_cap?: unknown;
+  require_local?: unknown;
+  acknowledge?: unknown;
+}
+
+export interface ParsedSchedule {
+  enabled: boolean;
+  scope: 'paths' | 'new_commits';
+  paths: string[];
+  cadence: 'daily' | 'weekly';
+  monthlyCap: number;
+  requireLocal: boolean;
+  /** The acknowledgement version the person ticked, if they did. */
+  acknowledge: string | null;
+}
+
+/** A whole schedule, every field named: a PUT replaces it, nothing is inferred. */
+export function parseScheduleBody(body: ScheduleBody | undefined): ParsedSchedule | string {
+  if (typeof body?.enabled !== 'boolean') return 'enabled must be true or false.';
+  if (body.scope !== 'paths' && body.scope !== 'new_commits')
+    return 'scope must be "paths" or "new_commits".';
+  if (body.cadence !== 'daily' && body.cadence !== 'weekly')
+    return 'cadence must be "daily" or "weekly".';
+  const cap = body.monthly_cap;
+  if (typeof cap !== 'number' || !Number.isInteger(cap) || cap < 1 || cap > 31)
+    return 'monthly_cap must be a whole number from 1 to 31.';
+  if (typeof body.require_local !== 'boolean') return 'require_local must be true or false.';
+  let paths: string[] = [];
+  if (body.scope === 'paths') {
+    const cleaned = cleanPaths(body.paths);
+    if (typeof cleaned === 'string') return cleaned;
+    paths = cleaned;
+  }
+  const ack = body.acknowledge;
+  if (ack !== undefined && ack !== null && typeof ack !== 'string')
+    return 'acknowledge must be the acknowledgement version.';
+  return {
+    enabled: body.enabled,
+    scope: body.scope,
+    paths,
+    cadence: body.cadence,
+    monthlyCap: cap,
+    requireLocal: body.require_local,
+    acknowledge: typeof ack === 'string' ? ack : null,
+  };
+}
+
 export default async function aiPassRoutes(
   app: FastifyInstance,
   opts: AiPassRoutesOptions,
@@ -155,6 +216,7 @@ export default async function aiPassRoutes(
     base_ref: r.baseRef,
     head_ref: r.headRef,
     pr_number: r.prNumber,
+    trigger: r.trigger,
     commit_sha: r.commitSha,
     reason_code: r.reasonCode,
     reason: r.reason,
@@ -208,13 +270,7 @@ export default async function aiPassRoutes(
         .limit(1);
       if (active) return reply.code(202).send({ run: runView(active, null) });
 
-      const since = new Date(now().getTime() - 24 * 60 * 60 * 1000);
-      const [{ n } = { n: 0 }] = await db
-        .select({ n: sql<number>`count(*)::int` })
-        .from(read.aiPassRuns)
-        .where(
-          and(eq(read.aiPassRuns.workspaceId, workspaceId), gte(read.aiPassRuns.createdAt, since)),
-        );
+      const n = await passesInLastDay(db, workspaceId, now());
       if (n >= AI_PASSES_PER_DAY) {
         return fail(
           request,
@@ -481,6 +537,175 @@ export default async function aiPassRoutes(
       // Deliberately nothing about the finding: its status is moved by the person
       // through PATCH /findings/:id, with a note.
       return reply.send({ id: verdictId, decision });
+    },
+  );
+
+  // ---- Scheduled passes (W19-12) ------------------------------------------
+  //
+  // Off until an admin turns it on. Turning it on - or letting a schedule that
+  // was local-only reach hosted models - needs the acknowledgement, in the exact
+  // wording the screen showed (its version), and stores who and when.
+
+  const scheduleView = async (
+    workspaceId: number,
+    repoId: number,
+    row: typeof read.aiPassSchedules.$inferSelect | undefined,
+  ) => {
+    const at = now();
+    let acknowledgedBy: string | null = null;
+    if (row?.acknowledgedBy) {
+      const [u] = await db
+        .select({ login: core.users.login })
+        .from(core.users)
+        .where(eq(core.users.id, row.acknowledgedBy))
+        .limit(1);
+      acknowledgedBy = u?.login ?? null;
+    }
+    return {
+      schedule: {
+        saved: row !== undefined,
+        enabled: row?.enabled ?? false,
+        scope: row?.scope ?? 'new_commits',
+        paths: row?.paths ?? [],
+        cadence: row?.cadence ?? 'weekly',
+        monthly_cap: row?.monthlyCap ?? 4,
+        require_local: row?.requireLocal ?? true,
+        acknowledged_by: row?.enabled ? acknowledgedBy : null,
+        acknowledged_at: row?.enabled ? row.acknowledgedAt : null,
+        ack_version: row?.enabled ? row.ackVersion : null,
+        last_scheduled_at: row?.lastScheduledAt ?? null,
+        last_head_sha: row?.lastHeadSha ?? null,
+        next_due_at: row?.enabled ? nextDueAt(row, at) : null,
+        started_this_month: await startedThisMonth(db, workspaceId, repoId, at),
+        updated_at: row?.updatedAt ?? null,
+      },
+      acknowledgement: { version: AI_SCHEDULE_ACK_VERSION, text: AI_SCHEDULE_ACK_TEXT },
+    };
+  };
+
+  async function loadSchedule(workspaceId: number, repoId: number) {
+    const [row] = await db
+      .select()
+      .from(read.aiPassSchedules)
+      .where(
+        and(
+          eq(read.aiPassSchedules.workspaceId, workspaceId),
+          eq(read.aiPassSchedules.repoId, repoId),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  app.get<{ Params: { id: string } }>('/repos/:id/ai-pass/schedule', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const repoId = Number(request.params.id);
+    if (!Number.isInteger(repoId)) return fail(request, reply, 400, 'Invalid repository id');
+    if (!(await ownRepo(workspaceId, repoId)))
+      return fail(request, reply, 404, 'No such repository');
+    return reply.send(
+      await scheduleView(workspaceId, repoId, await loadSchedule(workspaceId, repoId)),
+    );
+  });
+
+  app.put<{ Params: { id: string }; Body: ScheduleBody }>(
+    '/repos/:id/ai-pass/schedule',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const userId = request.session?.get('userId');
+      if (workspaceId === undefined || userId === undefined)
+        return fail(request, reply, 401, 'No active session');
+      const repoId = Number(request.params.id);
+      if (!Number.isInteger(repoId)) return fail(request, reply, 400, 'Invalid repository id');
+      if (!(await ownRepo(workspaceId, repoId)))
+        return fail(request, reply, 404, 'No such repository');
+
+      const body = parseScheduleBody(request.body);
+      if (typeof body === 'string') return fail(request, reply, 400, 'Invalid schedule', body);
+
+      const before = await loadSchedule(workspaceId, repoId);
+      const turningOn = body.enabled && !before?.enabled;
+      const wideningEgress =
+        body.enabled && before?.enabled === true && before.requireLocal && !body.requireLocal;
+      const needsAck = turningOn || wideningEgress;
+      if (needsAck && body.acknowledge !== AI_SCHEDULE_ACK_VERSION) {
+        return fail(
+          request,
+          reply,
+          400,
+          'Acknowledgement needed',
+          turningOn
+            ? 'Turning a schedule on sends this repository’s code to your models with nobody pressing start. Read and acknowledge the statement to turn it on.'
+            : 'Letting this schedule use hosted models sends this repository’s code outside your network. Read and acknowledge the statement to allow it.',
+        );
+      }
+
+      const at = now();
+      const values = {
+        enabled: body.enabled,
+        scope: body.scope,
+        paths: body.paths,
+        cadence: body.cadence,
+        monthlyCap: body.monthlyCap,
+        requireLocal: body.requireLocal,
+        updatedBy: userId,
+        updatedAt: at,
+        ...(needsAck
+          ? { acknowledgedBy: userId, acknowledgedAt: at, ackVersion: AI_SCHEDULE_ACK_VERSION }
+          : {}),
+      };
+      // Update when it exists, insert when it does not: Postgres checks the
+      // proposed INSERT row against ai_pass_schedules_ack_check before any
+      // ON CONFLICT, so an upsert of an unacknowledged edit would be refused.
+      if (before) {
+        await db
+          .update(read.aiPassSchedules)
+          .set(values)
+          .where(
+            and(
+              eq(read.aiPassSchedules.id, before.id),
+              eq(read.aiPassSchedules.workspaceId, workspaceId),
+            ),
+          );
+      } else {
+        try {
+          await db
+            .insert(read.aiPassSchedules)
+            .values({ workspaceId, repoId, ...values, createdAt: at });
+        } catch (err) {
+          if (isConstraintViolation(err, 'ai_pass_schedules_workspace_repo_key')) {
+            return fail(
+              request,
+              reply,
+              409,
+              'The schedule was changed at the same time; reload it',
+            );
+          }
+          throw err;
+        }
+      }
+      auditLog(request.log, {
+        event: 'ai_pass.schedule_changed',
+        actorUserId: userId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        detail: {
+          repo_id: repoId,
+          enabled: body.enabled,
+          scope: body.scope,
+          paths: body.paths,
+          cadence: body.cadence,
+          monthly_cap: body.monthlyCap,
+          require_local: body.requireLocal,
+          acknowledged: needsAck ? AI_SCHEDULE_ACK_VERSION : null,
+        },
+      });
+      return reply.send(
+        await scheduleView(workspaceId, repoId, await loadSchedule(workspaceId, repoId)),
+      );
     },
   );
 }

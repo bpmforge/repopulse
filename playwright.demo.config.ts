@@ -58,6 +58,7 @@ export default defineConfig({
         RECONCILE_CRON: 'off',
         SECRETS_HISTORY_CRON: 'off',
         SECURITY_WEEKLY_CRON: 'off',
+        AI_PASS_SCHEDULE_CRON: 'off',
       },
       reuseExistingServer: false,
       // Generous: demo.ts reseeds the whole warehouse (~1.5k snapshot rows)

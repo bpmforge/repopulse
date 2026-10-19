@@ -21,6 +21,7 @@ import { plansVerifyProcessor } from './plans-processor.js';
 import { scanProcessor } from './scan-processor.js';
 import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
+import { AI_SCHEDULE_SWEEP_JOB, sweepSchedules, withScheduleSweep } from './ai-pass-schedule.js';
 import { snapshotSources } from './ai-pass-sources.js';
 import { forgeDiffSources } from './ai-pass-diff.js';
 import { providerForRepo } from './forge-provider.js';
@@ -142,6 +143,8 @@ async function main(): Promise<void> {
   const enrichQueue = createQueue(QUEUE.enrich, connection);
   const reconcileQueue = createQueue(QUEUE.reconcile, connection);
   const securityScanQueue = createQueue(QUEUE.securityScan, connection);
+  // W19-12: the schedule sweep starts ordinary passes on the ai.pass queue.
+  const aiPassQueue = createQueue(QUEUE.aiPass, connection);
   const processorDeps = {
     db,
     tokenKey: credentials.loadTokenKey(),
@@ -888,25 +891,42 @@ async function main(): Promise<void> {
       // W19-09. The AI pass: the planned specialists, then evidence-fed triage,
       // through this workspace's routing chain. Reads an archive (D9a), writes
       // findings and SUGGESTIONS, and cannot change a finding's status.
-      [QUEUE.aiPass]: aiPassProcessor({
-        db,
-        gatewayFor: async (workspaceId) => {
-          const built = await gateways.for(workspaceId);
-          return built
-            ? { gateway: built.gateway, hosts: built.hosts, ...(built.routing ? { routing: built.routing } : {}) }
-            : null;
-        },
-        loadSources: snapshotSources({
+      // W19-12: the same queue carries the hourly schedule sweep, which only
+      // STARTS ordinary passes (or records why a due one did not start).
+      [QUEUE.aiPass]: withScheduleSweep(
+        () =>
+          sweepSchedules({
+            db,
+            gatewayFor: async (workspaceId) => {
+              const built = await gateways.for(workspaceId);
+              return built
+                ? { hosts: built.hosts, ...(built.routing ? { routing: built.routing } : {}) }
+                : null;
+            },
+            enqueue: async (workspaceId, runId) => {
+              await aiPassQueue.add('ai.pass', { workspaceId, runId }, { jobId: `ai-pass-${runId}` });
+            },
+          }),
+        aiPassProcessor({
           db,
-          forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+          gatewayFor: async (workspaceId) => {
+            const built = await gateways.for(workspaceId);
+            return built
+              ? { gateway: built.gateway, hosts: built.hosts, ...(built.routing ? { routing: built.routing } : {}) }
+              : null;
+          },
+          loadSources: snapshotSources({
+            db,
+            forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+          }),
+          // Diff modes (W19-11): a pull request's files or a short commit range,
+          // through the budgeted client on the scan lane.
+          loadDiff: forgeDiffSources({
+            db,
+            forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
+          }),
         }),
-        // Diff modes (W19-11): a pull request's files or a short commit range,
-        // through the budgeted client on the scan lane.
-        loadDiff: forgeDiffSources({
-          db,
-          forgeFor: (workspaceId, repoId) => providerForRepo(scanForgeDeps, workspaceId, repoId),
-        }),
-      }),
+      ),
     },
     // Structured, so an aggregator can alert on it: this is the callback that
     // fires when a job has exhausted its retries, which is the single most
@@ -1026,6 +1046,20 @@ async function main(): Promise<void> {
   log.info(
     `[worker] weekly security pass: ${weeklyCron === 'off' ? 'disabled' : `${weeklyCron} (semgrep), ${chainCron} (chains)`}`,
   );
+
+  // W19-12. Scheduled AI passes: hourly, because a schedule is daily or weekly
+  // from the moment it was last acted on, not at one wall-clock time. The sweep
+  // starts nothing for a repository whose owner has not turned its schedule on
+  // and acknowledged it; 'off' stops it for the whole install.
+  const aiScheduleCron = process.env.AI_PASS_SCHEDULE_CRON ?? '19 * * * *';
+  if (aiScheduleCron !== 'off') {
+    await aiPassQueue.add(
+      AI_SCHEDULE_SWEEP_JOB,
+      { workspaceId: 0, runId: 0 },
+      { repeat: { pattern: aiScheduleCron }, jobId: 'ai-pass-schedule-sweep' },
+    );
+  }
+  log.info(`[worker] AI pass schedule sweep: ${aiScheduleCron === 'off' ? 'disabled' : aiScheduleCron}`);
 
   // 3301 — see the note beside the API port; 3001 is the neighbour every 3000
 // picks and was already taken on this machine.

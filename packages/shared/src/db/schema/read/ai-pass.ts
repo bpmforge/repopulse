@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -32,6 +33,84 @@ export type AiPassMode = (typeof AI_PASS_MODES)[number];
 
 export const AI_PASS_STATUSES = ['pending', 'running', 'succeeded', 'failed', 'skipped'] as const;
 
+/** Who started a pass: a person pressing start, or a repository's schedule (W19-12). */
+export const AI_PASS_TRIGGERS = ['manual', 'schedule'] as const;
+export type AiPassTrigger = (typeof AI_PASS_TRIGGERS)[number];
+
+/** What a schedule reviews: fixed paths at the head, or the commits ingested since its last pass. */
+export const AI_SCHEDULE_SCOPES = ['paths', 'new_commits'] as const;
+export type AiScheduleScope = (typeof AI_SCHEDULE_SCOPES)[number];
+
+export const AI_SCHEDULE_CADENCES = ['daily', 'weekly'] as const;
+export type AiScheduleCadence = (typeof AI_SCHEDULE_CADENCES)[number];
+
+/**
+ * A repository's schedule for AI passes (W19-12). One row per repository, OFF
+ * until an admin turns it on - and turning it on is an acknowledgement that the
+ * repository's code will be sent to the configured models with nobody pressing
+ * start. Who acknowledged, when, and which wording they saw are kept on the row;
+ * an enabled schedule without them cannot exist (the check below).
+ *
+ * The schedule only STARTS ordinary passes (`ai_pass_runs`, trigger 'schedule'),
+ * so every cap and guarantee of a pass applies unchanged.
+ */
+export const aiPassSchedules = pgTable(
+  'ai_pass_schedules',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    repoId: bigint('repo_id', { mode: 'number' })
+      .notNull()
+      .references(() => repos.id),
+    enabled: boolean('enabled').notNull().default(false),
+    scope: text('scope').$type<AiScheduleScope>().notNull().default('new_commits'),
+    /** Scope 'paths': what to review each time. Empty for 'new_commits'. */
+    paths: jsonb('paths')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    cadence: text('cadence').$type<AiScheduleCadence>().notNull().default('weekly'),
+    /** Scheduled passes that may START in one calendar month (UTC); skipped runs do not count. */
+    monthlyCap: integer('monthly_cap').notNull().default(4),
+    /** Skip the pass unless every model it could reach is on the operator's network. */
+    requireLocal: boolean('require_local').notNull().default(true),
+    acknowledgedBy: bigint('acknowledged_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    /** Which wording of the acknowledgement was shown (AI_SCHEDULE_ACK_VERSION). */
+    ackVersion: text('ack_version'),
+    /** 'new_commits': the newest commit the last scheduled pass reviewed. */
+    lastHeadSha: text('last_head_sha'),
+    /** When the sweep last acted on this schedule, whether it started a pass or recorded a skip. */
+    lastScheduledAt: timestamp('last_scheduled_at', { withTimezone: true }),
+    updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('ai_pass_schedules_workspace_repo_key').on(t.workspaceId, t.repoId),
+    check(
+      'ai_pass_schedules_scope_check',
+      sql`${t.scope} in (${sql.raw(AI_SCHEDULE_SCOPES.map((m) => `'${m}'`).join(', '))})`,
+    ),
+    check(
+      'ai_pass_schedules_cadence_check',
+      sql`${t.cadence} in (${sql.raw(AI_SCHEDULE_CADENCES.map((m) => `'${m}'`).join(', '))})`,
+    ),
+    check('ai_pass_schedules_cap_check', sql`${t.monthlyCap} between 1 and 31`),
+    // On means somebody acknowledged it.
+    check(
+      'ai_pass_schedules_ack_check',
+      sql`not ${t.enabled} or (${t.acknowledgedAt} is not null and ${t.ackVersion} is not null)`,
+    ),
+  ],
+);
+
 /** One pass over one repository. The row a person watches: every failure lands here in words. */
 export const aiPassRuns = pgTable(
   'ai_pass_runs',
@@ -57,6 +136,11 @@ export const aiPassRuns = pgTable(
     /** Diff modes: the head commit reviewed. */
     headRef: text('head_ref'),
     prNumber: integer('pr_number'),
+    /** A person (requested_by) or a repository's schedule (schedule_id). */
+    trigger: text('trigger').$type<AiPassTrigger>().notNull().default('manual'),
+    scheduleId: bigint('schedule_id', { mode: 'number' }).references(() => aiPassSchedules.id, {
+      onDelete: 'set null',
+    }),
     status: text('status').notNull().default('pending'),
     /** Machine-readable cause of a failure or skip, e.g. no_gateway, too_large, nothing_relevant. */
     reasonCode: text('reason_code'),
@@ -86,6 +170,10 @@ export const aiPassRuns = pgTable(
     check(
       'ai_pass_runs_mode_check',
       sql`${t.mode} in (${sql.raw(AI_PASS_MODES.map((m) => `'${m}'`).join(', '))})`,
+    ),
+    check(
+      'ai_pass_runs_trigger_check',
+      sql`${t.trigger} in (${sql.raw(AI_PASS_TRIGGERS.map((m) => `'${m}'`).join(', '))})`,
     ),
     check(
       'ai_pass_runs_status_check',
