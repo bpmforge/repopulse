@@ -1,5 +1,6 @@
 import { Chart, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { docsUrl } from '../../lib/docs.js';
 import type { MetricSeries, RepoCi } from './contracts.js';
 
 // CI tab (UX_SPEC §4.b): pass-rate trend, run duration, and the flakiest
@@ -32,6 +33,7 @@ export function CiTrends({ repoId, window }: Props) {
     data: ci,
     isLoading: ciLoading,
     isError: ciIsError,
+    error: ciError,
     refetch: refetchCi,
   } = useApiQuery<RepoCi>({
     endpoint: '/repos/{id}/ci',
@@ -74,9 +76,10 @@ export function CiTrends({ repoId, window }: Props) {
             rows: labels.map((l, i) => [l, values[i] ?? 0]),
           }}
           option={{
-            grid: { left: 44, right: 12, top: 16, bottom: 28 },
+            grid: { left: 44, right: 12, top: 30, bottom: 28 },
             xAxis: { type: 'category', data: labels },
-            yAxis: { type: 'value', max: 100 },
+            // W20-12 (UX_TODO DSH-28): the unit on the axis, as TrendChart does.
+            yAxis: { type: 'value', max: 100, name: '%', nameLocation: 'end', nameGap: 8 },
             tooltip: { trigger: 'axis' },
             series: [{ type: 'line', smooth: true, showSymbol: false, data: values }],
           }}
@@ -90,6 +93,9 @@ export function CiTrends({ repoId, window }: Props) {
           isError: ciIsError,
           isEmpty: ci !== undefined && ci.duration?.medianMs == null,
         })}
+        // W20-12 (UX_TODO DSH-29): the error itself, so a failure shows its
+        // message and request id rather than "Something went wrong."
+        {...(ciError ? { errorMessage: ciError.message, error: ciError } : {})}
         onRetry={() => void refetchCi()}
         emptyMessage={
           ci && !ci.components_available
@@ -124,14 +130,23 @@ export function CiTrends({ repoId, window }: Props) {
           isError: ciIsError,
           isEmpty: ci !== undefined && (ci.flakiest?.length ?? 0) === 0,
         })}
+        {...(ciError ? { errorMessage: ciError.message, error: ciError } : {})}
         onRetry={() => void refetchCi()}
-        definitionHref="/docs/design/METRICS.md"
+        // W20-12 (UX_TODO DSH-16): through docsUrl — the bare path opened the
+        // app's 404 page, since the app does not serve /docs.
+        definitionHref={docsUrl('/docs/design/METRICS.md')}
         emptyMessage={
           ci && !ci.components_available
             ? 'This repo has not been snapshotted since flakiness began being recorded.'
             : 'No workflow was rerun on the same commit in this window — flakiness needs a rerun to measure.'
         }
       >
+        {/* W20-12 (UX_TODO DSH-29): the columns in plain words. */}
+        <p className="mb-2 text-xs text-fg-muted">
+          A workflow is flaky when it failed and then passed on a rerun of the same commit.
+          &ldquo;Commits rerun&rdquo; counts commits where it was rerun; &ldquo;Failed then
+          passed&rdquo; counts the ones where the rerun changed the result.
+        </p>
         <table className="table-plain w-full text-sm" data-testid="ci-flakiest">
           <caption className="sr-only">
             Workflows ranked by fail-to-pass reruns on the same commit
@@ -140,13 +155,13 @@ export function CiTrends({ repoId, window }: Props) {
             <tr className="text-left text-xs text-fg-muted">
               <th scope="col">Workflow</th>
               <th scope="col" className="text-right">
-                Flaky reruns
+                Failed then passed
               </th>
               <th scope="col" className="text-right">
-                Rerun groups
+                Commits rerun
               </th>
               <th scope="col" className="text-right">
-                Rate
+                Flaky rate
               </th>
             </tr>
           </thead>

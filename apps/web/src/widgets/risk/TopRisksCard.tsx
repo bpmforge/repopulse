@@ -38,8 +38,10 @@ export function TopRisksCard({ repoId, repos }: { repoId?: string; repos?: strin
           <li key={item.finding_id} className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
               <RiskBandChip band={item.risk_band} testId={`risk-band-${item.finding_id}`} />
+              {/* W20-12 (UX_TODO DSH-33): open the finding inside its repo. */}
               <Link
-                to="/findings"
+                to="/repos/$repoId/findings"
+                params={{ repoId: String(item.repo.id) }}
                 search={{ finding: item.finding_id } as never}
                 className="truncate underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid={`top-risk-${item.finding_id}`}

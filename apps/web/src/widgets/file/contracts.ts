@@ -3,6 +3,17 @@
 
 export interface FileDetail {
   path: string;
+  /**
+   * W20-12 (UX_TODO DSH-94): true when no default-branch commit touches this
+   * path yet (new in an open PR, or outside the backfilled history). The API
+   * answers with empty series instead of a 404. Optional: older API.
+   */
+  no_commits?: boolean;
+  /** W20-12 (DSH-68): the file on the forge's default branch; null when unknown. */
+  forge_url?: string | null;
+  default_branch?: string;
+  /** W20-12 (DSH-35): the file's current hotspot score, as the repo tab ranks it. */
+  hotspot?: { score: number; gross: number; days_since: number; window_days: number } | null;
   /** Per non-merge commit, oldest first. */
   churn_series: { sha: string; authored_at: string; additions: number; deletions: number }[];
   /**
@@ -40,6 +51,30 @@ export const STALE_FILE_DAYS = 90;
 
 /** M3: a file whose top author holds >=80% of changed lines is single-owner. */
 export const SINGLE_OWNER_THRESHOLD = 0.8;
+
+/**
+ * M3's bus factor for one file (METRICS.md §1): the smallest number of authors
+ * whose changed lines reach half the total. Null with no authorship — an
+ * unmeasured file has no bus factor, not a bus factor of 0. W20-12 (DSH-35).
+ */
+export function busFactorOf(owners: readonly { share: number }[]): number | null {
+  if (owners.length === 0) return null;
+  const shares = owners.map((o) => o.share).sort((a, b) => b - a);
+  let sum = 0;
+  for (let i = 0; i < shares.length; i++) {
+    sum += shares[i]!;
+    if (sum >= 0.5) return i + 1;
+  }
+  return shares.length;
+}
+
+/** The forge's name for a link label, from its URL shape (W20-12, DSH-38/68). */
+export function forgeNameOf(url: string): string {
+  if (url.includes('/-/blob/') || url.includes('/-/merge_requests/')) return 'GitLab';
+  if (url.includes('/src/branch/') || url.includes('/src/commit/') || /\/pulls\/\d+$/.test(url))
+    return 'Gitea';
+  return 'GitHub';
+}
 
 // W4-17 REMOVED the browser-side weekly bucketing that stood here.
 //

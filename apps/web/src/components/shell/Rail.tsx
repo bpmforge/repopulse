@@ -260,7 +260,23 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
                     </span>
                     {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                     {!collapsed && badge !== undefined && badge > 0 && (
-                      <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent">
+                      // W20-12 (UX_TODO DSH-64, partial): a bare number read as
+                      // "Pull Requests 3" to a screen reader. The count is
+                      // your own review queue, and now says so.
+                      <span
+                        className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent"
+                        aria-label={
+                          item.to === '/pull-requests'
+                            ? `${badge} ${badge === 1 ? 'review' : 'reviews'} waiting on you`
+                            : `${badge} new`
+                        }
+                        title={
+                          item.to === '/pull-requests'
+                            ? 'Reviews waiting on you — your queue is on My Focus'
+                            : undefined
+                        }
+                        data-testid={`rail-badge-${navTestId(item.to)}`}
+                      >
                         {badge}
                       </span>
                     )}

@@ -26,6 +26,9 @@ export interface MeRoutesOptions {
 // lives here, not in the browser: "which screen is this persona's home" is a
 // product decision the API already owns via default_view_id, and duplicating it
 // client-side is how the two drift.
+/** The "Files I've changed most" window (W20-12, UX_TODO DSH-88). */
+const MY_FILES_DAYS = 90;
+
 export const PERSONAS = ['lead', 'developer', 'security', 'exec'] as const;
 export type Persona = (typeof PERSONAS)[number];
 
@@ -202,6 +205,10 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         deletions: facts.pullRequests.deletions,
         createdAt: facts.pullRequests.createdAt,
         mergedAt: facts.pullRequests.mergedAt,
+        // W20-12 (UX_TODO DSH-42): what the stage chip is derived from.
+        isDraft: facts.pullRequests.isDraft,
+        firstReviewAt: facts.pullRequests.firstReviewAt,
+        firstApprovalAt: facts.pullRequests.firstApprovalAt,
       })
       .from(facts.pullRequests)
       // Every My Focus list spans repositories, and PR numbers restart per
@@ -228,6 +235,9 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         size_bucket: prSizeBucket(p.additions + p.deletions),
         opened_at: p.createdAt.toISOString(),
         merged_at: p.mergedAt?.toISOString() ?? null,
+        is_draft: p.isDraft,
+        first_review_at: p.firstReviewAt?.toISOString() ?? null,
+        first_approval_at: p.firstApprovalAt?.toISOString() ?? null,
         links: { self: `/api/v1/repos/${p.repoId}/prs/${p.number}` },
       })),
     });
@@ -287,7 +297,13 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     });
   });
 
-  // GET /me/hotspots — files I own that are hot (my churn share of the file).
+  // GET /me/hotspots — the files I have changed most RECENTLY.
+  //
+  // W20-12 (UX_TODO DSH-88). This summed every line the user ever changed, all
+  // time, under the title "Hotspots I own" — so long-deleted files and old
+  // lockfiles ranked first and nothing on the card was a hotspot. It is now
+  // bounded to the trailing 90 days (what "currently" can honestly mean from
+  // commit facts) and the screen calls it what it is.
   app.get('/me/hotspots', async (request, reply) => {
     const ctx = await myIdentity(request);
     if (!ctx) return fail(request, reply, 401, 'No active session');
@@ -308,6 +324,7 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
           eq(facts.commitFiles.workspaceId, ctx.workspaceId),
           eq(facts.commits.authorIdentityId, ctx.identityId),
           eq(facts.commits.isMerge, false),
+          gte(facts.commits.authoredAt, new Date(Date.now() - MY_FILES_DAYS * 24 * 60 * 60 * 1000)),
         ),
       )
       // org/name are grouped rather than aggregated: they are functionally
@@ -322,6 +339,7 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         repo: { id: r.repoId, org: r.repoOrg, name: r.repoName },
         path: r.path,
         my_lines: r.myLines ?? 0,
+        window_days: MY_FILES_DAYS,
         links: { file: `/api/v1/repos/${r.repoId}/files/${encodeURIComponent(r.path)}` },
       })),
     });
@@ -340,8 +358,21 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         >`percentile_cont(0.5) within group (order by ${facts.pullRequests.additions} + ${facts.pullRequests.deletions}) filter (where ${facts.pullRequests.mergedAt} is not null)`,
       })
       .from(facts.pullRequests)
-      .where(eq(facts.pullRequests.authorIdentityId, ctx.identityId));
-    return reply.send({ merged_prs: row?.mergedCount ?? 0, median_size: row?.medianSize ?? null });
+      .where(
+        and(
+          // Law 5 (W20-12): this was the one My Focus read with no workspace
+          // condition — an identity id alone is not a tenancy boundary.
+          eq(facts.pullRequests.workspaceId, ctx.workspaceId),
+          eq(facts.pullRequests.authorIdentityId, ctx.identityId),
+        ),
+      );
+    // `period: 'all_time'` (W20-12, UX_TODO DSH-40) so the tile can say which
+    // period "PRs merged" covers instead of leaving the reader to guess.
+    return reply.send({
+      merged_prs: row?.mergedCount ?? 0,
+      median_size: row?.medianSize ?? null,
+      period: 'all_time',
+    });
   });
 
   /**
@@ -422,6 +453,11 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     return reply.send({
       since: since.toISOString(),
       first_visit: false,
+      // W20-12 (UX_TODO DSH-87): these are reviews the user SUBMITTED, not
+      // requests made to them (requested reviewers are not ingested). Sent
+      // under the honest name; `review_requests` stays as an alias for an
+      // older client and is no longer read by this web app.
+      reviews_given: reviewRequests?.n ?? 0,
       review_requests: reviewRequests?.n ?? 0,
       prs_advanced: advanced?.n ?? 0,
       findings_on_my_prs: findingsOnMine?.n ?? 0,

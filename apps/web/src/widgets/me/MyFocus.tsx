@@ -7,12 +7,15 @@ import {
   frameState,
   type DataTableColumn,
 } from '../../components/index.js';
+import { useState } from 'react';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { useAuthProviders } from '../auth/contracts.js';
 import { spansMultipleRepos, type MeContext, type RepoRef } from '../org/contracts.js';
 import {
   REVIEW_SLA_DAYS,
   formatAge,
   isOverSla,
+  prStage,
   type MyHotspot,
   type MyHotspots,
   type MyPr,
@@ -30,8 +33,31 @@ interface Props {
   search: Record<string, string>;
 }
 
+/**
+ * The way out of the identity-unlinked state (W20-12, UX_TODO DSH-42): the copy
+ * said "Re-authorize GitHub" with nothing to press. Offered only when GitHub
+ * sign-in is configured — a button to a provider this install does not have
+ * would be a dead end.
+ */
+function ReauthorizeLink() {
+  const { providers } = useAuthProviders();
+  if (!providers.github) return null;
+  return (
+    <a
+      href="/auth/login"
+      className="inline-flex h-8 items-center rounded-md border border-border bg-surface-2 px-3 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      data-testid="reauthorize-github"
+    >
+      Sign in with GitHub again
+    </a>
+  );
+}
+
 export function MyFocus({ search }: Props) {
   const now = Date.now();
+  // W20-12 (UX_TODO DSH-42): the list defaults to OPEN pull requests; merged
+  // and closed ones are history and sit behind this toggle.
+  const [showClosed, setShowClosed] = useState(false);
   const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
   const prs = useApiQuery<MyPrs>({ endpoint: '/me/prs' });
   const queue = useApiQuery<ReviewQueue>({ endpoint: '/me/review-queue' });
@@ -42,6 +68,8 @@ export function MyFocus({ search }: Props) {
   const since = useApiQuery<{
     since: string | null;
     first_visit: boolean;
+    /** W20-12 (DSH-87): reviews I submitted. Older API: only review_requests. */
+    reviews_given?: number;
     review_requests: number;
     prs_advanced: number;
     findings_on_my_prs: number;
@@ -53,12 +81,16 @@ export function MyFocus({ search }: Props) {
   // failure of the two.
   if (me && me.identity_id === null) {
     return (
-      <WidgetFrame
-        title="My Focus"
-        state="empty"
-        emptyMessage="We could not match your login to a commit author in this workspace, so your PRs and review load cannot be shown. Re-authorize GitHub, or ask an admin to check the identity mapping."
-        data-testid="identity-unlinked"
-      />
+      <div className="flex flex-col gap-3" data-testid="identity-unlinked">
+        <WidgetFrame
+          title="My Focus"
+          state="empty"
+          emptyMessage="We could not match your login to a commit author in this workspace, so your PRs and review load cannot be shown. Sign in with GitHub again to link it, or ask an admin to check the identity mapping."
+        />
+        <div>
+          <ReauthorizeLink />
+        </div>
+      </div>
     );
   }
 
@@ -71,6 +103,9 @@ export function MyFocus({ search }: Props) {
   // one open PR and one merged one, on a screen whose job is telling someone
   // what is on their plate. A merged pull request is not on anyone's plate.
   const openPrItems = prItems.filter((pr) => pr.state === 'open');
+  const closedCount = prItems.length - openPrItems.length;
+  const shownPrItems = showClosed ? prItems : openPrItems;
+  const reviewsGiven = since.data ? (since.data.reviews_given ?? since.data.review_requests) : 0;
   const queueItems = queue.data?.items ?? [];
   const hotspotItems = hotspots.data?.items ?? [];
 
@@ -104,8 +139,25 @@ export function MyFocus({ search }: Props) {
         </Link>
       ),
     },
-    ...(spansMultipleRepos(prItems) ? [repoColumn<MyPr>()] : []),
-    { id: 'state', header: 'State', cell: (row) => row.state },
+    ...(spansMultipleRepos(shownPrItems) ? [repoColumn<MyPr>()] : []),
+    {
+      // W20-12 (UX_TODO DSH-42): what each PR is waiting on, and for how
+      // long — the stage chip the spec draws — instead of the bare state.
+      id: 'stage',
+      header: 'Stage',
+      cell: (row) => {
+        const stage = prStage(row);
+        if (!stage) return <span className="text-fg-muted">{row.state}</span>;
+        return (
+          <span className="whitespace-nowrap" data-testid="pr-stage-chip">
+            <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 text-xs">{stage.label}</span>{' '}
+            <span className="text-xs tabular-nums text-fg-muted">
+              {formatAge(stage.since, now)}
+            </span>
+          </span>
+        );
+      },
+    },
     { id: 'size', header: 'Size', cell: (row) => row.size_bucket },
     {
       id: 'age',
@@ -113,11 +165,13 @@ export function MyFocus({ search }: Props) {
       align: 'right',
       cell: (row) => {
         // An open PR that has sat past the SLA is the actionable one, so it is
-        // marked. A merged PR is history and never highlighted.
-        const stalled = row.merged_at === null && isOverSla(row.opened_at, now);
+        // marked. Merged AND closed PRs are history and never highlighted —
+        // a closed, unmerged PR was flagged as stalled forever (W20-12, DSH-41).
+        const open = row.state === 'open';
+        const stalled = open && isOverSla(row.opened_at, now);
         return (
           <span className={`tabular-nums ${stalled ? 'text-warn' : ''}`}>
-            {row.merged_at === null ? formatAge(row.opened_at, now) : '—'}
+            {open ? formatAge(row.opened_at, now) : '—'}
           </span>
         );
       },
@@ -146,7 +200,10 @@ export function MyFocus({ search }: Props) {
     { id: 'author', header: 'Author', cell: (row) => row.author },
     {
       id: 'age',
-      header: 'Waiting',
+      // W20-12 (UX_TODO DSH-41, partial): the age is measured from when the
+      // PR was OPENED — review-request times are not ingested — so the header
+      // says that instead of "Waiting", which implied the request's age.
+      header: 'Open for',
       align: 'right',
       cell: (row) => {
         const over = isOverSla(row.opened_at, now);
@@ -181,7 +238,7 @@ export function MyFocus({ search }: Props) {
     ...(spansMultipleRepos(hotspotItems) ? [repoColumn<MyHotspot>()] : []),
     {
       id: 'lines',
-      header: 'My lines',
+      header: 'My lines (90d)',
       align: 'right',
       sortable: true,
       cell: (row) => <span className="tabular-nums">{row.my_lines}</span>,
@@ -195,24 +252,36 @@ export function MyFocus({ search }: Props) {
           furniture people learn to skip. */}
       {since.data &&
         !since.data.first_visit &&
-        (since.data.review_requests > 0 ||
-          since.data.prs_advanced > 0 ||
-          since.data.findings_on_my_prs > 0) && (
+        (reviewsGiven > 0 || since.data.prs_advanced > 0 || since.data.findings_on_my_prs > 0) && (
+          // W20-12 (UX_TODO DSH-87): the first count is reviews the user GAVE —
+          // it was labelled "review requests", telling someone who reviewed
+          // five PRs that five people were waiting on them. DSH-42: the PR and
+          // findings counts jump to the list they are about (each PR's page
+          // carries its automated-review findings).
           <div className="panel-inset px-3 py-2 text-xs" data-testid="since-strip">
-            Since your last visit: {since.data.review_requests} review
-            {since.data.review_requests === 1 ? ' request' : ' requests'}, {since.data.prs_advanced}{' '}
-            of your pull requests advanced, {since.data.findings_on_my_prs} new findings on your
-            work.
+            Since your last visit: you gave {reviewsGiven}{' '}
+            {reviewsGiven === 1 ? 'review' : 'reviews'},{' '}
+            <a href="#my-prs" className="text-accent underline-offset-2 hover:underline">
+              {since.data.prs_advanced} of your pull requests advanced
+            </a>
+            ,{' '}
+            <a href="#my-prs" className="text-accent underline-offset-2 hover:underline">
+              {since.data.findings_on_my_prs} new findings on your pull requests
+            </a>
+            .
           </div>
         )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="my-stats">
+        {/* W20-12 (UX_TODO DSH-40): "—" until the data is in — `?? 0` showed
+            a confident 0 while loading or after a failure — and the labels
+            say which period the counts cover. */}
         <KpiTile
-          label="PRs merged"
-          value={String(stats.data?.merged_prs ?? 0)}
+          label="PRs merged (all time)"
+          value={stats.data ? String(stats.data.merged_prs) : null}
           polarity="neutral"
         />
         <KpiTile
-          label="Median PR size"
+          label="Median merged PR size (all time)"
           // `?? null` inside String() rendered the literal text "null" while
           // the request was still in flight — and a non-null string also slips
           // past KpiTile's value === null guard, so the tile captioned itself
@@ -224,8 +293,16 @@ export function MyFocus({ search }: Props) {
           unit="lines"
           polarity="neutral"
         />
-        <KpiTile label="Open PRs" value={String(openPrItems.length)} polarity="neutral" />
-        <KpiTile label="To review" value={String(queueItems.length)} polarity="neutral" />
+        <KpiTile
+          label="Open PRs (now)"
+          value={prs.data ? String(openPrItems.length) : null}
+          polarity="neutral"
+        />
+        <KpiTile
+          label="Open PRs by others (now)"
+          value={queue.data ? String(queueItems.length) : null}
+          polarity="neutral"
+        />
       </div>
 
       <WidgetFrame
@@ -235,20 +312,41 @@ export function MyFocus({ search }: Props) {
           isError: prs.isError,
           isEmpty: prs.data !== undefined && prItems.length === 0,
         })}
-        {...(prs.error ? { errorMessage: prs.error.message } : {})}
+        // W20-12 (UX_TODO DSH-43): the error object too, so the frame shows
+        // the request id like every other screen.
+        {...(prs.error ? { errorMessage: prs.error.message, error: prs.error } : {})}
         onRetry={() => void prs.refetch()}
-        // The list is not an open-PR list, so its empty state cannot say
-        // "nothing open" — an author with only merged PRs would be told they
-        // have none.
         emptyMessage="No pull requests authored by you in this workspace."
+        drillDown={
+          closedCount > 0 ? (
+            <button
+              type="button"
+              className="text-xs text-accent underline-offset-2 hover:underline"
+              onClick={() => setShowClosed((v) => !v)}
+              aria-pressed={showClosed}
+              data-testid="my-prs-toggle-closed"
+            >
+              {showClosed ? 'Open only' : `Show merged and closed (${closedCount})`}
+            </button>
+          ) : undefined
+        }
       >
-        <div data-testid="my-prs">
-          <DataTable
-            name="my-prs"
-            columns={prColumns}
-            data={prItems}
-            getRowId={(row) => `${row.repo_id}:${row.number}`}
-          />
+        <div data-testid="my-prs" id="my-prs">
+          {shownPrItems.length === 0 ? (
+            // Not the frame's empty state: the author HAS pull requests, just
+            // none open, and the toggle above shows them.
+            <p className="text-sm text-fg-muted" data-testid="my-prs-none-open">
+              Nothing open — {closedCount} merged or closed{' '}
+              {closedCount === 1 ? 'pull request is' : 'pull requests are'} hidden.
+            </p>
+          ) : (
+            <DataTable
+              name="my-prs"
+              columns={prColumns}
+              data={shownPrItems}
+              getRowId={(row) => `${row.repo_id}:${row.number}`}
+            />
+          )}
         </div>
       </WidgetFrame>
 
@@ -259,7 +357,7 @@ export function MyFocus({ search }: Props) {
           isError: queue.isError,
           isEmpty: queue.data !== undefined && queueItems.length === 0,
         })}
-        {...(queue.error ? { errorMessage: queue.error.message } : {})}
+        {...(queue.error ? { errorMessage: queue.error.message, error: queue.error } : {})}
         onRetry={() => void queue.refetch()}
         emptyMessage="No open pull requests by others are waiting without a review from you."
       >
@@ -274,15 +372,17 @@ export function MyFocus({ search }: Props) {
       </WidgetFrame>
 
       <WidgetFrame
-        title="Hotspots I own"
+        // W20-12 (UX_TODO DSH-88): it was "Hotspots I own" over an all-time sum
+        // with no hotspot score — the honest name for what the list is.
+        title="Files I've changed most (last 90 days)"
         state={frameState({
           isLoading: hotspots.isLoading,
           isError: hotspots.isError,
           isEmpty: hotspots.data !== undefined && hotspotItems.length === 0,
         })}
-        {...(hotspots.error ? { errorMessage: hotspots.error.message } : {})}
+        {...(hotspots.error ? { errorMessage: hotspots.error.message, error: hotspots.error } : {})}
         onRetry={() => void hotspots.refetch()}
-        emptyMessage="No files with your authorship are currently hot."
+        emptyMessage="You have not changed any files in the last 90 days."
       >
         <div data-testid="my-hotspots">
           <DataTable

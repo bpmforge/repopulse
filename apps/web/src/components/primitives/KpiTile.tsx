@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react';
-import { TrendDelta, type MissingDeltaReason, type TrendPolarity } from './TrendDelta.js';
+import {
+  TrendDelta,
+  type DeltaKind,
+  type MissingDeltaReason,
+  type TrendPolarity,
+} from './TrendDelta.js';
 
 // KpiTile (UX §2.2 / §4.a): a headline metric — label, big tabular value with
 // unit, and the vs-prior-window delta. The value uses tabular-nums + the KPI
@@ -17,7 +22,11 @@ export interface KpiTileProps {
    * facts and the caption says which.
    */
   deltaPct?: number | null;
+  /** What the delta is measured in (W20-12, DSH-17/83); percent by default. */
+  deltaKind?: DeltaKind;
   polarity?: TrendPolarity;
+  /** A caption under the delta — the sample a ratio rests on (W20-12, DSH-81). */
+  caption?: ReactNode;
   /** Optional inline sparkline / definition link slot. */
   aside?: ReactNode;
   className?: string;
@@ -43,15 +52,14 @@ export function KpiTile({
   // difference between "this caller does not compare windows" and "there was no
   // earlier window", which is the whole point of the caption below.
   deltaPct,
+  deltaKind,
   polarity = 'up-good',
   aside,
+  caption,
   className = '',
 }: KpiTileProps) {
   return (
-    <div
-      className={`panel-inset flex flex-col gap-1.5 p-4 ${className}`}
-      data-testid="kpi-tile"
-    >
+    <div className={`panel-inset flex flex-col gap-1.5 p-4 ${className}`} data-testid="kpi-tile">
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-medium text-fg-muted">{label}</span>
         {aside}
@@ -66,8 +74,10 @@ export function KpiTile({
         deltaPct={deltaPct ?? null}
         polarity={polarity}
         missingReason={missingReasonFor(value, deltaPct)}
+        {...(deltaKind ? { kind: deltaKind } : {})}
         className="text-xs"
       />
+      {caption}
     </div>
   );
 }

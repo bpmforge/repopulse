@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { KpiTile, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { docsUrl } from '../../lib/docs.js';
 import {
   DELIVERY_METRICS,
   UNCOMPUTED_DORA,
@@ -82,14 +83,14 @@ export function RepoPerformance({ repoId, window, search }: Props) {
     query: { window },
   });
 
-  const passRate = ci?.pass_rate ?? null;
-
   return (
     <div className="flex flex-col gap-4" data-testid="repo-performance">
       <WidgetFrame
         title="Delivery cadence"
         state="ready"
-        definitionHref="/api/v1/metrics/catalog"
+        // W20-12 (UX_TODO DSH-15): the rendered definitions, not the raw JSON
+        // catalog endpoint a browser shows as a wall of text.
+        definitionHref={docsUrl('/docs/design/METRICS.md')}
         drillDown={
           <Link
             to="/repos/$repoId/"
@@ -106,10 +107,14 @@ export function RepoPerformance({ repoId, window, search }: Props) {
           {DELIVERY_METRICS.map((metric) => (
             <DeliveryTile key={metric.key} repoId={repoId} window={window} metric={metric} />
           ))}
+          {/* W20-12 (UX_TODO DSH-26): the default-branch pass rate is the CI
+              card's headline just above on this tab; a second tile with the
+              same number made the reader compare two identical figures.
+              Duration stays — the CI card does not carry it. */}
           <KpiTile
-            label="CI pass rate (default branch)"
-            value={passRate === null ? null : (passRate * 100).toFixed(0)}
-            unit="%"
+            label="CI run duration (median)"
+            value={formatMs(ci?.duration?.medianMs ?? null)}
+            polarity="down-good"
             aside={
               <Link
                 to="/repos/$repoId/ci"
@@ -121,11 +126,6 @@ export function RepoPerformance({ repoId, window, search }: Props) {
                 CI →
               </Link>
             }
-          />
-          <KpiTile
-            label="CI run duration (median)"
-            value={formatMs(ci?.duration?.medianMs ?? null)}
-            polarity="down-good"
           />
         </div>
         {isError && (
@@ -154,7 +154,8 @@ export function RepoPerformance({ repoId, window, search }: Props) {
       </div>
 
       <WidgetFrame
-        title="Not computed in v1"
+        // W20-12 (UX_TODO DSH-27): plain words, not a release number.
+        title="Not measured yet"
         state={frameState({ isLoading: false, isError: false, isEmpty: false })}
         testId="uncomputed-dora"
       >

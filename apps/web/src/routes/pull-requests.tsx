@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { WidgetFrame, frameState, PageHeader } from '../components/index.js';
 import { useApiQuery } from '../api/useApiQuery.js';
+import { formatAge } from '../widgets/me/contracts.js';
 
 // The rail's "Pull Requests" destination — the ORG-WIDE list (UX_SPEC §4.c).
 //
@@ -20,6 +21,12 @@ export interface PrListSearch {
   stale?: true;
   unreviewed?: true;
   cursor?: string;
+  /**
+   * W20-12 (UX_TODO DSH-45): the cursors of the pages before this one, so
+   * "Previous page" knows where to go. `~` stands for the first page (which
+   * has no cursor); cursors are `ms:id` and never contain a comma.
+   */
+  prev?: string;
 }
 
 /**
@@ -36,6 +43,7 @@ export function validatePrListSearch(search: Record<string, unknown>): PrListSea
   if (search.stale === true || search.stale === 'true') out.stale = true;
   if (search.unreviewed === true || search.unreviewed === 'true') out.unreviewed = true;
   if (typeof search.cursor === 'string' && search.cursor.length > 0) out.cursor = search.cursor;
+  if (typeof search.prev === 'string' && /^[~0-9:,]+$/.test(search.prev)) out.prev = search.prev;
   return out;
 }
 
@@ -63,6 +71,23 @@ interface OrgPr {
 interface OrgPrPage {
   items: OrgPr[];
   next_cursor: string | null;
+  /** W20-12 (DSH-45): rows matching the filters, across every page. */
+  total?: number;
+}
+
+/** The cursor history after paging forward from `cursor`. */
+export function pushPage(prev: string | undefined, cursor: string | undefined): string {
+  return [...(prev ? prev.split(',') : []), cursor ?? '~'].join(',');
+}
+
+/** The cursor and history after paging back; `~` is the first page. */
+export function popPage(prev: string | undefined): { cursor?: string; prev?: string } {
+  const stack = prev ? prev.split(',') : [];
+  const last = stack.pop();
+  return {
+    ...(last && last !== '~' ? { cursor: last } : {}),
+    ...(stack.length > 0 ? { prev: stack.join(',') } : {}),
+  };
 }
 
 function PullRequestsIndex() {
@@ -83,6 +108,7 @@ function PullRequestsIndex() {
       search: (prev: Record<string, unknown>) => {
         const next: Record<string, unknown> = { ...prev, ...patch };
         delete next.cursor;
+        delete next.prev;
         for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
         return next as never;
       },
@@ -110,6 +136,9 @@ function PullRequestsIndex() {
   });
 
   const items = data?.items ?? [];
+  const now = Date.now();
+  const pageIndex = search.prev ? search.prev.split(',').length : 0;
+  const PAGE = 25;
 
   return (
     <div className="flex flex-col gap-4" data-testid="org-pr-list">
@@ -173,7 +202,12 @@ function PullRequestsIndex() {
       </div>
 
       <WidgetFrame
-        title="Pull requests"
+        // W20-12 (UX_TODO DSH-45): how many, and which of them are on screen.
+        title={
+          data?.total !== undefined && data.total > 0
+            ? `Pull requests — ${pageIndex * PAGE + 1}–${pageIndex * PAGE + items.length} of ${data.total}`
+            : 'Pull requests'
+        }
         state={frameState({
           isLoading,
           isError,
@@ -195,13 +229,20 @@ function PullRequestsIndex() {
                 <th scope="col">Author</th>
                 <th scope="col">Size</th>
                 <th scope="col">State</th>
+                <th scope="col" className="text-right">
+                  Age
+                </th>
                 <th scope="col">Reviewed</th>
               </tr>
             </thead>
             <tbody data-testid="org-pr-rows">
               {items.map((pr) => (
                 <tr key={`${pr.repo.id}-${pr.number}`} className="border-t border-border">
-                  <td className="py-1">{pr.repo.name}</td>
+                  {/* org/name (W20-12, DSH-45): `api` in two orgs looked identical. */}
+                  <td className="py-1 whitespace-nowrap">
+                    <span className="text-fg-muted">{pr.repo.org}/</span>
+                    {pr.repo.name}
+                  </td>
                   <th scope="row" className="py-1 text-left font-normal">
                     <Link
                       to="/repos/$repoId/prs/$number"
@@ -215,6 +256,10 @@ function PullRequestsIndex() {
                   <td className="py-1">{pr.author}</td>
                   <td className="py-1 tabular-nums">{pr.size_bucket}</td>
                   <td className="py-1">{pr.state}</td>
+                  {/* How long it has been open; a finished PR has no age. */}
+                  <td className="py-1 text-right tabular-nums">
+                    {pr.state === 'open' ? formatAge(pr.opened_at, now) : '—'}
+                  </td>
                   {/* Paired mark + text: never colour alone (WCAG, UX_SPEC §7). */}
                   <td className="py-1">{pr.review_covered ? '✓ yes' : '— no'}</td>
                 </tr>
@@ -226,21 +271,47 @@ function PullRequestsIndex() {
 
       {/* Only rendered when the server says there IS another page. A "next"
           button that is always present teaches people it sometimes lies. */}
-      {data?.next_cursor && (
-        <div>
-          <button
-            type="button"
-            className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            data-testid="pr-next-page"
-            onClick={() =>
-              void navigate({
-                search: (prev: Record<string, unknown>) =>
-                  ({ ...prev, cursor: data.next_cursor }) as never,
-              })
-            }
-          >
-            Next page
-          </button>
+      {(data?.next_cursor || search.prev) && (
+        <div className="flex gap-2">
+          {/* W20-12 (UX_TODO DSH-45): a way back, not only forward. */}
+          {search.prev && (
+            <button
+              type="button"
+              className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="pr-prev-page"
+              onClick={() =>
+                void navigate({
+                  search: (prev: Record<string, unknown>) => {
+                    const next: Record<string, unknown> = { ...prev };
+                    delete next.cursor;
+                    delete next.prev;
+                    return { ...next, ...popPage(search.prev) } as never;
+                  },
+                })
+              }
+            >
+              Previous page
+            </button>
+          )}
+          {data?.next_cursor && (
+            <button
+              type="button"
+              className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="pr-next-page"
+              onClick={() =>
+                void navigate({
+                  search: (prev: Record<string, unknown>) =>
+                    ({
+                      ...prev,
+                      cursor: data.next_cursor,
+                      prev: pushPage(search.prev, cursor),
+                    }) as never,
+                })
+              }
+            >
+              Next page
+            </button>
+          )}
         </div>
       )}
     </div>

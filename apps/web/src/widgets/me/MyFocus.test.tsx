@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MyFocus } from './MyFocus.js';
 import type { MyHotspot, MyPr, ReviewQueueItem } from './contracts.js';
@@ -160,10 +160,48 @@ describe('the Open PRs tile (W16-51)', () => {
 
   it('reads zero when every pull request of mine is already merged', () => {
     renderWith({ prs: [merged(1, 'web', 1), merged(2, 'api', 2)] });
-    // …and the table is still not empty, which is the case the old empty
-    // message ("Nothing open — you have no pull requests in flight") described
-    // wrongly: those authors have pull requests, just none open.
+    // …and the list says they exist rather than claiming the author has none:
+    // W20-12 (DSH-42) lists OPEN PRs by default, with the rest one click away.
     expect(openPrTile().textContent).toContain('0');
-    expect(within(table('my-prs')).getAllByRole('row').length).toBeGreaterThan(1);
+    expect(screen.getByTestId('my-prs-none-open').textContent).toContain('2 merged or closed');
+    fireEvent.click(screen.getByTestId('my-prs-toggle-closed'));
+    expect(within(table('my-prs')).getAllByTestId(/^row-/)).toHaveLength(2);
+  });
+});
+
+describe('My Focus friction (W20-12)', () => {
+  it('shows a stage chip for open PRs and hides merged ones by default (DSH-42)', () => {
+    renderWith({
+      prs: [
+        { ...pr(1, 'web', 5), first_review_at: '2026-08-19T00:00:00.000Z' },
+        { ...pr(1, 'web', 6), state: 'merged', merged_at: '2026-08-20T00:00:00.000Z' },
+      ],
+    });
+    const rows = within(table('my-prs')).getAllByTestId(/^row-/);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]!).getByTestId('pr-stage-chip').textContent).toContain('In review');
+  });
+
+  it('never flags a closed, unmerged PR as stalled (DSH-41)', () => {
+    renderWith({ prs: [{ ...pr(1, 'web', 7), state: 'closed' }] });
+    fireEvent.click(screen.getByTestId('my-prs-toggle-closed'));
+    const row = within(table('my-prs')).getAllByTestId(/^row-/)[0]!;
+    expect(row.querySelector('.text-warn')).toBeNull();
+  });
+
+  it('renders a dash, not 0, while the counts are loading (DSH-40)', () => {
+    useApiQuery.mockImplementation(() => ({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    }));
+    render(<MyFocus search={{}} />);
+    for (const tile of screen.getAllByTestId('kpi-tile')) {
+      expect(tile.textContent).toContain('—');
+      expect(tile.textContent).not.toMatch(/\b0\b/);
+    }
+    expect(screen.getByText('PRs merged (all time)')).toBeTruthy();
   });
 });

@@ -10,6 +10,47 @@ import { HealthWhy } from '../../../widgets/repo/HealthWhy.js';
 // is the defect class this codebase keeps rediscovering.
 import { RiskAxisStrip } from '../../../widgets/risk/RiskAxisStrip.js';
 import type { RepoDetail } from '../../../widgets/repo/contracts.js';
+import { asOfLabel } from '../../../widgets/org/contracts.js';
+
+/**
+ * The repository's sync state in words (W20-12, UX_TODO DSH-24, UX_SPEC
+ * §4.b). The header never said when the forge was last read or that
+ * monitoring was paused, so a stale page looked current.
+ */
+export function syncLabel(
+  sync: string,
+  lastSyncedAt: string | null | undefined,
+): {
+  text: string;
+  tone: 'ok' | 'warn' | 'crit' | 'info';
+} {
+  const when = lastSyncedAt
+    ? new Date(lastSyncedAt).toLocaleString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+  switch (sync) {
+    case 'live':
+      return { text: when ? `Synced ${when}` : 'Synced', tone: 'ok' };
+    case 'paused':
+      return { text: 'Monitoring paused', tone: 'warn' };
+    case 'paused_budget':
+      return { text: 'Paused — forge API budget used up', tone: 'warn' };
+    case 'error':
+      return { text: when ? `Sync failed — last good ${when}` : 'Sync failed', tone: 'crit' };
+    case 'backfilling':
+      return { text: 'Backfilling history', tone: 'info' };
+    case 'pending_backfill':
+      return { text: 'Waiting to backfill', tone: 'info' };
+    default:
+      return { text: sync, tone: 'info' };
+  }
+}
+
+const SYNC_DOT = { ok: 'bg-ok', warn: 'bg-warn', crit: 'bg-crit', info: 'bg-info' } as const;
 
 // Repo Detail layout (UX_SPEC §4.b). Each tab is its OWN route, not local state
 // (DASHBOARD §1): a tab has to be linkable, back-button-able and paste-able, and
@@ -22,7 +63,7 @@ export const Route = createFileRoute('/repos/$repoId')({
 // CURRENT route, so once you are on /hotspots the Hotspots link becomes
 // /hotspots/hotspots. Caught by the deep-link e2e, which is exactly the case a
 // click-through walk would have kept passing.
-const TABS: { to: string; label: string; exact?: boolean }[] = [
+const TABS: { to: string; label: string; exact?: boolean; testId?: string }[] = [
   { to: '/repos/$repoId/', label: 'Pulse', exact: true },
   // Activity and Performance sit next to Pulse because they are the two
   // questions asked before any drill-down: "what has been happening here" and
@@ -30,7 +71,12 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   // Activity links the analyses that already exist, Performance reads the
   // delivery metrics nothing else on this screen shows.
   { to: '/repos/$repoId/activity', label: 'Activity' },
-  { to: '/repos/$repoId/performance', label: 'Performance' },
+  // W20-12 (UX_TODO DSH-25): the PR list had no tab — it was reachable only
+  // through Activity → "All pull requests →".
+  { to: '/repos/$repoId/prs', label: 'Pull requests' },
+  // Renamed (DSH-25): this tab reviews performance FINDINGS; delivery cadence
+  // lives under Activity, so "Performance" sent people to the wrong one.
+  { to: '/repos/$repoId/performance', label: 'Performance findings', testId: 'performance' },
   { to: '/repos/$repoId/hotspots', label: 'Hotspots' },
   { to: '/repos/$repoId/pr-flow', label: 'PR Flow' },
   // W18-23. Beside PR Flow because it is the other half of the review story:
@@ -104,30 +150,40 @@ function RepoLayout() {
     // W17-31: ten tabs in a row scroll within the strip, not the page. Measured
     // at 390px the unscrollable strip pushed <main> 292px wide of the viewport
     // on every repository tab. Same fix as the Settings strip.
-    <nav
-      className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
-      data-testid="repo-tabs"
-      aria-label="Repository sections"
-    >
-      {TABS.map((tab) => (
-        <Link
-          key={tab.label}
-          to={tab.to as never}
-          params={{ repoId } as never}
-          search={preserved as never}
-          // includeSearch off (W18-28): an EXACT match also compares the search
-          // params in full, and the filters in the URL never equal the preserved
-          // subset this link carries — so the default tab (Pulse, Connections) was
-          // never marked active on the screen it was showing.
-          activeOptions={{ exact: tab.exact ?? false, includeSearch: false }}
-          activeProps={{ 'data-active': 'true' }}
-          className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          data-testid={`repo-tab-${tab.label.toLowerCase().replace(/\s/g, '-')}`}
-        >
-          {tab.label}
-        </Link>
-      ))}
-    </nav>
+    // W20-12 (UX_TODO DSH-25): a fade on the strip's right edge below `lg`
+    // says there are more tabs to scroll to; eleven tabs scrolled sideways on
+    // a phone with nothing showing they were there.
+    <div className="relative">
+      <nav
+        className="flex gap-0.5 overflow-x-auto border-b border-border pb-px"
+        data-testid="repo-tabs"
+        aria-label="Repository sections"
+      >
+        {TABS.map((tab) => (
+          <Link
+            key={tab.label}
+            to={tab.to as never}
+            params={{ repoId } as never}
+            search={preserved as never}
+            // includeSearch off (W18-28): an EXACT match also compares the search
+            // params in full, and the filters in the URL never equal the preserved
+            // subset this link carries — so the default tab (Pulse, Connections) was
+            // never marked active on the screen it was showing.
+            activeOptions={{ exact: tab.exact ?? false, includeSearch: false }}
+            activeProps={{ 'data-active': 'true' }}
+            className="relative shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg-muted hover:text-fg data-[active=true]:font-medium data-[active=true]:text-fg data-[active=true]:after:absolute data-[active=true]:after:inset-x-3 data-[active=true]:after:-bottom-px data-[active=true]:after:h-0.5 data-[active=true]:after:rounded-full data-[active=true]:after:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            // A stable id across a relabel, so bookmarked tests and e2e keep working.
+            data-testid={`repo-tab-${tab.testId ?? tab.label.toLowerCase().replace(/\s/g, '-')}`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-bg to-transparent lg:hidden"
+      />
+    </div>
   );
 
   // A failing repo query used to return the error frame ALONE, which took the
@@ -212,12 +268,35 @@ function RepoLayout() {
   return (
     <div className="flex flex-col gap-4" data-testid="repo-detail">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="repo-name">
-          {fresh ? `${fresh.org}/${fresh.name}` : 'Loading…'}
-        </h1>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="repo-name">
+            {fresh ? `${fresh.org}/${fresh.name}` : 'Loading…'}
+          </h1>
+          {fresh && (
+            // W20-12 (UX_TODO DSH-24/48): sync state and data freshness.
+            <p className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+              {((label) => (
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  data-testid="repo-sync-state"
+                  data-sync={fresh.sync}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`h-2 w-2 rounded-full ${SYNC_DOT[label.tone]}`}
+                  />
+                  {label.text}
+                </span>
+              ))(syncLabel(fresh.sync, fresh.last_synced_at))}
+              {fresh.as_of !== undefined && (
+                <span data-testid="repo-as-of">{asOfLabel(fresh.as_of)}</span>
+              )}
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-4">
           <RiskAxisStrip repoId={repoId} />
-          {fresh && <HealthWhy health={fresh.health} />}
+          {fresh && <HealthWhy health={fresh.health} repoId={repoId} search={preserved} />}
         </div>
       </header>
 

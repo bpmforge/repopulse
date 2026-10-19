@@ -118,3 +118,32 @@ export function blobUrl(input: BlobUrlInput): string | null {
       return `${base}/${repoPath}/src/${input.refKind}/${encodeURIComponent(input.ref)}/${file}${frag}`;
   }
 }
+
+/**
+ * A link to pull request `number` in the forge (W20-12, UX_TODO DSH-38).
+ *
+ * Same purity as blobUrl: string construction only, no request. The three
+ * forms are each forge's public PR page:
+ *   github  /{org}/{repo}/pull/{n}
+ *   gitlab  /{org}/{repo}/-/merge_requests/{n}
+ *   gitea   /{org}/{repo}/pulls/{n}
+ */
+export function pullUrl(input: {
+  kind: ForgeKind;
+  baseUrl: string;
+  org: string;
+  repo: string;
+  number: number;
+}): string | null {
+  const base = input.baseUrl.replace(/\/+$/, '');
+  if (!base || !Number.isInteger(input.number) || input.number <= 0) return null;
+  const repoPath = `${encodeURIComponent(input.org)}/${encodeURIComponent(input.repo)}`;
+  switch (input.kind) {
+    case 'github':
+      return `${base}/${repoPath}/pull/${input.number}`;
+    case 'gitlab':
+      return `${base}/${repoPath}/-/merge_requests/${input.number}`;
+    case 'gitea':
+      return `${base}/${repoPath}/pulls/${input.number}`;
+  }
+}

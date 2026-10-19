@@ -91,14 +91,51 @@ export function complexityEmptyCopy(scanner: Pick<CodeHealthScanner, 'state'> | 
   }
 }
 
+/**
+ * Why a rule list is empty, from its scanner's state (W20-12, UX_TODO DSH-32).
+ * "No slop findings recorded" was printed when the scanner had never run —
+ * the zero-vs-unmeasured rule the complexity panel already follows.
+ */
+export function ruleEmptyCopy(
+  what: string,
+  scannerName: string,
+  scanner: Pick<CodeHealthScanner, 'state'> | undefined,
+): string {
+  const NOT_MEASURED = 'This is not a measurement.';
+  switch (scanner?.state) {
+    case 'ok':
+      return `The ${scannerName} scanner ran and found no ${what} findings.`;
+    case 'partial':
+      return `No ${what} findings in what the ${scannerName} scanner covered before it was cut short. ${NOT_MEASURED}`;
+    case 'running':
+      return `No ${what} findings yet — the ${scannerName} scanner is running now. ${NOT_MEASURED}`;
+    case 'stale':
+      return `No ${what} findings — the last ${scannerName} scan was interrupted. ${NOT_MEASURED}`;
+    case 'error':
+      return `No ${what} findings — the last ${scannerName} scan failed; the coverage table above has the error. ${NOT_MEASURED}`;
+    case 'nothing_scanned':
+      return `No ${what} findings — the last ${scannerName} scan covered nothing. ${NOT_MEASURED}`;
+    case 'all_rejected':
+      return `No ${what} findings — every one the last ${scannerName} scan proposed was rejected. ${NOT_MEASURED}`;
+    case 'not_enabled':
+      return `No ${what} findings — the ${scannerName} scanner is not enabled for this repository. ${NOT_MEASURED}`;
+    case 'never_run':
+    case undefined:
+      return `No ${what} findings — the ${scannerName} scanner has never run for this repository. ${NOT_MEASURED}`;
+  }
+}
+
 function Headline({
   label,
   value,
   suffix,
+  ratio,
 }: {
   label: string;
   value: number | null;
   suffix?: string;
+  /** W20-12 (UX_TODO DSH-31): a 0–1 ratio, printed as a percentage. */
+  ratio?: boolean;
 }) {
   return (
     <div className="flex flex-col" data-testid={`ch-headline-${label}`}>
@@ -109,7 +146,7 @@ function Headline({
         {value === null ? (
           <span className="text-sm text-fg-muted">not measured</span>
         ) : (
-          `${Math.round(value * 100) / 100}${suffix ?? ''}`
+          `${ratio ? Math.round(value * 1000) / 10 : Math.round(value * 100) / 100}${ratio ? '%' : (suffix ?? '')}`
         )}
       </span>
     </div>
@@ -122,22 +159,19 @@ function CodeHealthTab() {
   // Same ref dance as the Security tab: the poll interval is decided from the
   // payload the query is fetching.
   const intervalRef = useRef<ScanRun['refetchInterval']>(() => false);
-  const { data, isLoading, isError, error } = useApiQuery<CodeHealthPayload>(descriptor, {
+  const { data, isLoading, isError, error, refetch } = useApiQuery<CodeHealthPayload>(descriptor, {
     refetchInterval: (latest) => intervalRef.current(latest),
   });
   const scan = useScanRun(data);
   intervalRef.current = scan.refetchInterval;
 
   const state = frameState({ isLoading, isError, isEmpty: false });
+  // W20-12 (UX_TODO DSH-31): every frame on the tab offers Retry on error.
+  const retry = { onRetry: () => void refetch(), ...(error ? { error } : {}) };
 
   return (
     <div className="flex flex-col gap-4" data-testid="code-health-tab">
-      <WidgetFrame
-        title="Debt signals"
-        state={state}
-        {...(error ? { error } : {})}
-        testId="ch-signals"
-      >
+      <WidgetFrame title="Debt signals" state={state} {...retry} testId="ch-signals">
         {data && (
           <div className="flex flex-wrap gap-6" data-testid="ch-headlines">
             <Headline
@@ -145,15 +179,21 @@ function CodeHealthTab() {
               value={latest(data.series['ch_duplication_pct'])}
               suffix="%"
             />
-            <Headline label="Complexity p90" value={latest(data.series['ch_complexity_p90'])} />
+            {/* W20-12 (UX_TODO DSH-31): the unit, and ratios as percentages —
+                "Revert rate 0.05" read as a twentieth of a percent. */}
+            <Headline
+              label="Complexity p90"
+              value={latest(data.series['ch_complexity_p90'])}
+              suffix=" cyclomatic"
+            />
             <Headline label="Worst functions" value={latest(data.series['ch_worst_fn_count'])} />
-            <Headline label="Rework 14d" value={latest(data.series['M13'])} />
-            <Headline label="Revert rate" value={latest(data.series['M14'])} />
+            <Headline label="Rework 14d" value={latest(data.series['M13'])} ratio />
+            <Headline label="Revert rate" value={latest(data.series['M14'])} ratio />
           </div>
         )}
       </WidgetFrame>
 
-      <WidgetFrame title="Coverage" state={state} testId="ch-coverage">
+      <WidgetFrame title="Coverage" state={state} {...retry} testId="ch-coverage">
         {/* W16-10 (F15). Same table, same problem: three scanners, all "has
             never run", and no way to run one. */}
         <div className="mb-3">
@@ -231,7 +271,7 @@ function CodeHealthTab() {
       </WidgetFrame>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <WidgetFrame title="Most complex functions" state={state} testId="ch-complexity">
+        <WidgetFrame title="Most complex functions" state={state} {...retry} testId="ch-complexity">
           {data &&
             (data.worst_complexity.length === 0 ? (
               <p className="text-sm text-fg-muted" data-testid="ch-complexity-empty">
@@ -241,8 +281,11 @@ function CodeHealthTab() {
               <ol className="flex flex-col gap-1 text-sm" data-testid="ch-complexity-list">
                 {data.worst_complexity.map((item) => (
                   <li key={item.finding_id} className="flex justify-between gap-2">
+                    {/* W20-12 (UX_TODO DSH-33): the repo's own Findings tab, so
+                        the trail stays "… › payments › Findings". */}
                     <Link
-                      to="/findings"
+                      to="/repos/$repoId/findings"
+                      params={{ repoId }}
                       search={{ finding: item.finding_id } as never}
                       className="truncate underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                       data-testid={`ch-complexity-${item.finding_id}`}
@@ -256,20 +299,30 @@ function CodeHealthTab() {
             ))}
         </WidgetFrame>
 
-        <WidgetFrame title="Slop and logging by rule" state={state} testId="ch-rules">
+        <WidgetFrame title="Slop and logging by rule" state={state} {...retry} testId="ch-rules">
           {data && (
             <div className="flex flex-col gap-3 text-sm">
               <RuleList
                 title="Structural slop"
                 rules={data.slop_by_rule}
                 testId="ch-slop-rules"
-                emptyMessage="No slop findings recorded for this repository."
+                repoId={repoId}
+                emptyMessage={ruleEmptyCopy(
+                  'slop',
+                  'anti-slop',
+                  data.scanners.find((s) => s.key === 'anti_slop'),
+                )}
               />
               <RuleList
                 title="Logging hygiene"
                 rules={data.logging_by_rule}
                 testId="ch-logging-rules"
-                emptyMessage="No logging findings recorded for this repository."
+                repoId={repoId}
+                emptyMessage={ruleEmptyCopy(
+                  'logging',
+                  'logging hygiene',
+                  data.scanners.find((s) => s.key === 'logging_hygiene'),
+                )}
               />
             </div>
           )}
@@ -284,11 +337,13 @@ function RuleList({
   rules,
   testId,
   emptyMessage,
+  repoId,
 }: {
   title: string;
   rules: { rule: string; count: number }[];
   testId: string;
   emptyMessage: string;
+  repoId: string;
 }) {
   return (
     <section data-testid={testId}>
@@ -299,7 +354,17 @@ function RuleList({
         <ul className="flex flex-col">
           {rules.map((rule) => (
             <li key={rule.rule} className="flex justify-between">
-              <span className="truncate">{rule.rule}</span>
+              {/* W20-12 (UX_TODO DSH-32): each rule opens the repo's findings
+                  filtered to it — the ids were plain text. */}
+              <Link
+                to="/repos/$repoId/findings"
+                params={{ repoId }}
+                search={(prev: Record<string, unknown>) => ({ ...prev, rule_id: rule.rule })}
+                className="truncate underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid={`ch-rule-${rule.rule}`}
+              >
+                {rule.rule}
+              </Link>
               <span className="tabular-nums">{rule.count}</span>
             </li>
           ))}

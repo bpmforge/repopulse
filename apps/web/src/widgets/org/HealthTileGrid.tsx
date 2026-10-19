@@ -8,6 +8,7 @@ import {
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { HealthTiles } from './contracts.js';
+import { basisWords } from '../repo/HealthWhy.js';
 
 // UX_SPEC §4.a: per-repo health grid, click → repo (W4-04's /repos/$repoId).
 //
@@ -89,9 +90,9 @@ export function HealthTileGrid({ window, search }: Props) {
                 <p className="mt-1 text-xs text-fg-muted">
                   {progress
                     ? 'Backfilling — score pending'
-                    : repo.health.measured
-                      ? `Basis: ${repo.health.basis}`
-                      : 'Not measured yet'}
+                    : // W20-12 (UX_TODO DSH-19): plain words and the not-measured
+                      // parts, as the repo header says them — not "Basis: Tier-1 only".
+                      basisWords(repo.health.not_measured, repo.health.basis)}
                 </p>
               </Link>
             </li>

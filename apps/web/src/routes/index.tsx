@@ -4,7 +4,8 @@ import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { OrgOverview, orgWidgets } from '../widgets/org/OrgOverview.js';
 import { PageHeader } from '../components/index.js';
 import { useApiQuery } from '../api/useApiQuery.js';
-import type { MeContext } from '../widgets/org/contracts.js';
+import { asOfLabel, type MeContext, type OrgSummary } from '../widgets/org/contracts.js';
+import { withRepos } from '../widgets/scopeRepos.js';
 import { SaveAsViewButton } from '../views/SaveAsViewButton.js';
 
 // Org Overview — the landing screen (UX_SPEC §4.a). Everything it renders reads
@@ -55,6 +56,13 @@ function OrgOverviewRoute() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const { data: me } = useApiQuery<MeContext>({ endpoint: '/me/context' });
+  // The KPI row's own query (same key, so one request): its `as_of` is the
+  // page's freshness stamp (W20-12, UX_TODO DSH-48).
+  const repos = search.repos && search.repos !== 'all' ? search.repos : undefined;
+  const { data: summary } = useApiQuery<OrgSummary>({
+    endpoint: '/org/summary',
+    query: withRepos({ window: search.window }, repos),
+  });
 
   useEffect(() => {
     if (!me || !firstArrival()) return;
@@ -69,6 +77,13 @@ function OrgOverviewRoute() {
       <PageHeader
         title="Overview"
         description="Delivery, code health and risk across every tracked repository."
+        meta={
+          summary ? (
+            <span className="text-xs text-fg-muted" data-testid="overview-as-of">
+              {asOfLabel(summary.as_of)}
+            </span>
+          ) : undefined
+        }
         actions={
           <SaveAsViewButton
             widgets={orgWidgets(search.window, serializeGlobalSearch(search))}

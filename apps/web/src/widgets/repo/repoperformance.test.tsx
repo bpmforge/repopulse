@@ -98,10 +98,12 @@ describe('RepoPerformance (W17-19)', () => {
     expect(deploy?.textContent).not.toMatch(/\b0\b/);
   });
 
-  it('repeats CI turnaround as tiles and links to the CI tab rather than re-charting it', async () => {
+  it('repeats CI duration as a tile and links to the CI tab rather than re-charting it', async () => {
     renderPerformance();
-    expect(await screen.findByText('93')).toBeInTheDocument();
-    expect(screen.getByText('5.0m')).toBeInTheDocument();
+    expect(await screen.findByText('5.0m')).toBeInTheDocument();
+    // W20-12 (DSH-26): the pass rate is the Activity CI card's figure; it is
+    // not repeated as a second tile in the same tab.
+    expect(screen.queryByText('93')).not.toBeInTheDocument();
     expect(screen.getByTestId('performance-to-ci')).toHaveAttribute(
       'href',
       expect.stringMatching(/\/repos\/7\/ci\?.*window=30d/),

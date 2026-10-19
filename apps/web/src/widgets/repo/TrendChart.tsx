@@ -31,10 +31,16 @@ export function TrendChart({
   });
 
   const points = (data?.points ?? []).filter(
-    (p): p is { computed_at: string; value: number } => p.value !== null,
+    (p): p is typeof p & { value: number } => p.value !== null,
   );
   const labels = points.map((p) => p.computed_at.slice(0, 10));
   const values = points.map((p) => Number(scaleForUnit(p.value, metric.unit).toFixed(2)));
+  // W20-12 (UX_TODO DSH-81): a ratio's parts, so the tooltip and the table
+  // say what each point rests on ("40% — 4 of 10"). Absent for non-ratios.
+  const samples = points.map((p) =>
+    p.numerator != null && p.denominator != null ? `${p.numerator} of ${p.denominator}` : null,
+  );
+  const hasSamples = samples.some((x) => x !== null);
 
   return (
     <WidgetFrame
@@ -44,13 +50,26 @@ export function TrendChart({
       onRetry={() => void refetch()}
       emptyMessage="No snapshots for this metric in this window."
     >
+      {/* W20-12 (UX_TODO DSH-75): what a point IS. The series now spans the
+          selected window, and each point is that night's rolling value. */}
+      <p className="mb-1 text-xs text-fg-faint" data-testid={`trend-caption-${metric.key}`}>
+        Rolling {window} value, computed nightly — last {window}.
+      </p>
       <Chart
         testId={`trend-${metric.key}`}
-        ariaLabel={`${metric.label} trend, last ${window}`}
+        ariaLabel={`${metric.label}, rolling ${window} value by night over the last ${window}`}
         height={180}
         tableData={{
-          columns: ['Date', metric.unit ? `${metric.label} (${metric.unit})` : metric.label],
-          rows: labels.map((l, i) => [l, values[i] ?? 0]),
+          columns: [
+            'Date',
+            metric.unit ? `${metric.label} (${metric.unit})` : metric.label,
+            ...(hasSamples ? ['Based on'] : []),
+          ],
+          rows: labels.map((l, i) => [
+            l,
+            values[i] ?? 0,
+            ...(hasSamples ? [samples[i] ?? '—'] : []),
+          ]),
         }}
         option={{
           // `top` LEAVES ROOM FOR THE UNIT (W16-42). At 16 the axis name sat
@@ -79,7 +98,22 @@ export function TrendChart({
                 }
               : {}),
           },
-          tooltip: { trigger: 'axis' },
+          tooltip: {
+            trigger: 'axis',
+            ...(hasSamples
+              ? {
+                  formatter: (params: unknown) => {
+                    const first = (Array.isArray(params) ? params[0] : params) as {
+                      dataIndex: number;
+                      axisValue: string;
+                      value: number;
+                    };
+                    const sample = samples[first.dataIndex];
+                    return `${first.axisValue}<br/>${first.value}${metric.unit ? ` ${metric.unit}` : ''}${sample ? ` — ${sample}` : ''}`;
+                  },
+                }
+              : {}),
+          },
           series: [{ type: 'line', smooth: true, showSymbol: false, data: values }],
         }}
       />

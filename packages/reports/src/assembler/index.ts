@@ -3,12 +3,12 @@ import {
   buildHealthSubScores,
   computeHealthScore,
   healthInputsFromSnapshots,
-  scoreLetter,
   securityInputsMany,
   type SecurityInputs,
 } from '@repopulse/insights';
 import { and, desc, eq } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
+import { HEALTH_BAND_LABEL, healthBand } from '@repopulse/shared/health-band';
 import type {
   ReportAssembler,
   ReportData,
@@ -148,7 +148,8 @@ export function createReportAssembler(db: Database): ReportAssembler {
   ): {
     rows: ScoreBreakdownRow[];
     score: number;
-    letter: string;
+    /** The health band's word ("healthy" / "watch" / "needs attention"). */
+    band: string;
     tier1Only: boolean;
     subScores: { key: string; normalized: number }[];
   } {
@@ -202,9 +203,12 @@ export function createReportAssembler(db: Database): ReportAssembler {
     return {
       rows,
       score: Math.round(score.score),
-      letter: scoreLetter(score.score),
+      // W20-12: the band WORD, not scoreLetter's A–E. The dashboard dropped
+      // letters in W20-09 (N-9 "signals, not grades"); a PDF printing "B" for
+      // the same repository the web calls "watch 72" was the last remainder.
+      band: HEALTH_BAND_LABEL[healthBand(Math.round(score.score))],
       tier1Only: score.renormalized,
-      // W10-05: carried out so the report can print the AXIS LETTERS from the
+      // W10-05: carried out so the report can print the AXIS SCORES from the
       // same sub-scores this breakdown was built from. axisSection existed
       // since W9-12 and nothing called it — the letters were in the design and
       // in a unit test, and in no report anyone received.
@@ -238,7 +242,7 @@ export function createReportAssembler(db: Database): ReportAssembler {
       {
         kind: 'summary',
         markdown:
-          `**${repo.org}/${repo.name}** scored **${health.score} (${health.letter})** over the ` +
+          `**${repo.org}/${repo.name}** scored **${health.score} of 100 (${health.band})** over the ` +
           `last ${params.windowDays} days.` +
           (health.tier1Only
             ? '\n\nBasis: **Tier-1 only** — sub-scores with no data were excluded and the remaining weights renormalized.'
@@ -255,9 +259,9 @@ export function createReportAssembler(db: Database): ReportAssembler {
           ),
     );
 
-    // W10-05: the axis letters, from the sub-scores above. An axis with no
+    // W10-05: the risk axes, from the sub-scores above. An axis with no
     // sub-score prints "not measured" rather than a grade (FR-INSIGHTS-3).
-    sections.push(axisSection(health.subScores, scoreLetter));
+    sections.push(axisSection(health.subScores));
 
     // Hotspots (M2) — the dims carry the ranked file list.
     const m2 = snap(snapshots, repo.id, 'M2');
@@ -397,11 +401,11 @@ export function createReportAssembler(db: Database): ReportAssembler {
         ? {
             kind: 'table',
             id: 'per_repo_scores',
-            columns: ['Repository', 'Score', 'Letter', 'Basis'],
+            columns: ['Repository', 'Score', 'Band', 'Basis'],
             rows: scored.map((p) => [
               `${p.repo.org}/${p.repo.name}`,
               p.health.score,
-              p.health.letter,
+              p.health.band,
               p.health.tier1Only ? 'Tier-1 only' : 'full',
             ]),
           }

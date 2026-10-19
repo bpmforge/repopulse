@@ -22,3 +22,14 @@ export function healthBand(score: number): HealthBand {
   if (score >= HEALTH_WATCH_MIN) return 'watch';
   return 'attend';
 }
+
+/**
+ * The band's word, as every surface prints it next to the number. Lives here
+ * (not only in the web badge) since W20-12 so the report PDFs say the same
+ * word the dashboard does instead of a letter grade (N-9, RISK_MODEL §4).
+ */
+export const HEALTH_BAND_LABEL: Record<HealthBand, string> = {
+  good: 'healthy',
+  watch: 'watch',
+  attend: 'needs attention',
+};

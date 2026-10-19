@@ -8,6 +8,7 @@ import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
 import { loginAs } from '../../testing/login.js';
+import { pointsInWindow } from './index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -19,7 +20,6 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
   let app: FastifyInstance;
   const db: Database = createDb(databaseUrl as string);
   let repoId: number;
-
 
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
@@ -89,7 +89,12 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
       .returning();
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w3-12-conn-user', forgeUserId: 'w3-12-conn-user', login: 'w3-12-conn-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w3-12-conn-user',
+        forgeUserId: 'w3-12-conn-user',
+        login: 'w3-12-conn-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w3-12-conn-user' } })
       .returning();
     const [conn] = await db
@@ -221,6 +226,15 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
     });
     expect(summary.statusCode).toBe(200);
     expect(summary.json().tiles).toHaveLength(5);
+    // W20-12 (DSH-81): the ratio tile carries the sample behind it.
+    const m5 = (summary.json().tiles as { metric_key: string; sample: unknown }[]).find(
+      (t) => t.metric_key === 'M5',
+    );
+    expect(m5?.sample).toEqual({ numerator: 8, denominator: 10 });
+    // W20-12 (DSH-48): when the newest snapshot in scope was taken.
+    expect(Date.parse(summary.json().as_of)).toBeGreaterThanOrEqual(
+      Date.parse('2026-07-19T00:00:00Z'),
+    );
 
     const tiles = await app.inject({
       method: 'GET',
@@ -259,5 +273,24 @@ describeIfLiveInfra('metrics/org/hotspots read API (W3-12, FR-API-2, C1)', () =>
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+});
+
+describe('the series spans the selected window (W20-12, UX_TODO DSH-75)', () => {
+  const day = (n: number) => ({ computedAt: new Date(Date.UTC(2026, 9, 19) - n * 86_400_000), n });
+  // Nightly rows for 400 days, newest first, as readMetricTrend returns them.
+  const nightly = Array.from({ length: 400 }, (_, i) => day(i));
+
+  it('returns one window of nights plus the baseline the KPI delta compares with', () => {
+    const seven = pointsInWindow(nightly, '7d');
+    // Nights 0..6 inside the window, and night 7 as the baseline.
+    expect(seven.map((r) => r.n)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(pointsInWindow(nightly, '30d')).toHaveLength(31);
+    expect(pointsInWindow(nightly, '365d')).toHaveLength(366);
+  });
+
+  it('keeps a sparse series drawable, and an empty one empty', () => {
+    expect(pointsInWindow([day(0), day(31)], '30d').map((r) => r.n)).toEqual([0, 31]);
+    expect(pointsInWindow([], '30d')).toEqual([]);
   });
 });

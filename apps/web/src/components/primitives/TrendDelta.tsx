@@ -25,9 +25,20 @@ const MISSING_TEXT: Record<MissingDeltaReason, string> = {
   'no-prior-window': 'no prior window to compare',
 };
 
+/**
+ * What `deltaPct` is measured in (W20-12, UX_TODO DSH-17/83).
+ * - `pct`: relative percent change (the default).
+ * - `pts`: percentage POINTS — for a metric that is itself a percentage, where
+ *   "▲5%" was ambiguous between 40%→42% and 40%→45%.
+ * - `abs`: an absolute change from a zero baseline, "+5 from 0", where a
+ *   percentage does not exist and "no prior window" was false.
+ */
+export type DeltaKind = 'pct' | 'pts' | 'abs';
+
 export interface TrendDeltaProps {
-  /** Signed percent change vs prior window, or null when there is none. */
+  /** Signed change vs prior window in `kind` units, or null when there is none. */
   deltaPct: number | null;
+  kind?: DeltaKind;
   /** Whether an increase is good, bad, or neutral for this metric. */
   polarity?: TrendPolarity;
   /** Which absence this is, when `deltaPct` is null. */
@@ -52,6 +63,7 @@ export function TrendDelta({
   deltaPct,
   polarity = 'up-good',
   missingReason = 'no-prior-window',
+  kind = 'pct',
   className = '',
 }: TrendDeltaProps) {
   if (deltaPct === null) {
@@ -76,15 +88,24 @@ export function TrendDelta({
   const tone = toneFor(deltaPct, polarity);
   const arrow = deltaPct > 0 ? '▲' : deltaPct < 0 ? '▼' : '■';
   const magnitude = Math.abs(deltaPct);
-  const formatted = `${magnitude.toFixed(magnitude < 10 ? 1 : 0)}%`;
+  const digits = magnitude.toFixed(magnitude < 10 ? 1 : 0);
+  const formatted =
+    kind === 'pts'
+      ? `${digits} pts`
+      : kind === 'abs'
+        ? `${Number.isInteger(magnitude) ? magnitude : digits} from 0`
+        : `${digits}%`;
   const dir = deltaPct > 0 ? 'up' : deltaPct < 0 ? 'down' : 'flat';
+  // W20-12 (UX_TODO DSH-17): good-or-bad in WORDS. Colour alone carried it,
+  // and "▼12%" on cycle time is good news a colour-blind lead could not read.
+  const verdict = tone === 'ok' ? 'better' : tone === 'crit' ? 'worse' : null;
   // A measured zero keeps its digits on screen — the number is what makes it
   // read as a reading rather than a status — but the accessible name says
   // "unchanged" outright, because "flat 0.0%" is ambiguous when heard alone.
   const label =
     dir === 'flat'
       ? `unchanged versus prior window, ${formatted}`
-      : `${dir} ${formatted} versus prior window`;
+      : `${dir} ${formatted} versus prior window${verdict ? `, ${verdict}` : ''}`;
 
   return (
     <span
@@ -95,6 +116,7 @@ export function TrendDelta({
     >
       <span aria-hidden="true">{arrow}</span>
       {formatted}
+      {verdict && <span className="ml-1 font-normal">{verdict}</span>}
     </span>
   );
 }

@@ -3,11 +3,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, facts, type Database } from '@repopulse/shared';
 import {
   attributeRework,
+  computeHotspots,
   readChurnTouches,
   readMetricTrend,
   scopeTouchesToFile,
 } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
+import { fileForgeUrl, readRepoForge } from '../../lib/forge-links.js';
 
 // File detail (FR-API-5, API_DESIGN §2): churn series + owners + hotspot
 // history for one path. Path can contain slashes → wildcard route param.
@@ -15,7 +17,6 @@ import { sendProblem } from '../../lib/problem.js';
 export interface FilesRoutesOptions {
   db: Database;
 }
-
 
 const WEEKS = 52;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -59,14 +60,8 @@ function fail(
   return reply;
 }
 
-async function ownsRepo(db: Database, workspaceId: number, id: number): Promise<boolean> {
-  const [r] = await db
-    .select({ w: core.repos.workspaceId })
-    .from(core.repos)
-    .where(eq(core.repos.id, id))
-    .limit(1);
-  return !!r && r.w === workspaceId;
-}
+/** The window the header's current hotspot score is computed over (the repo tab's default). */
+const HOTSPOT_WINDOW_DAYS = 30;
 
 export default async function filesRoutes(
   app: FastifyInstance,
@@ -78,8 +73,10 @@ export default async function filesRoutes(
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
     const repoId = Number(request.params.id);
-    if (!Number.isInteger(repoId) || !(await ownsRepo(db, workspaceId, repoId)))
-      return fail(request, reply, 404, 'Not Found');
+    // Workspace-filtered (Law 5) and, since W20-12, also the facts the forge
+    // link is built from — one read instead of an ownership check plus a second.
+    const forge = Number.isInteger(repoId) ? await readRepoForge(db, workspaceId, repoId) : null;
+    if (!forge) return fail(request, reply, 404, 'Not Found');
     const path = request.params['*'];
 
     // Per-commit churn series for the file (non-merge commits).
@@ -120,7 +117,13 @@ export default async function filesRoutes(
       .groupBy(core.identities.forgeLogin)
       .orderBy(desc(sql`sum(${facts.commitFiles.additions} + ${facts.commitFiles.deletions})`));
 
-    if (series.length === 0) return fail(request, reply, 404, 'Not Found');
+    // W20-12 (UX_TODO DSH-94): NO COMMITS IS AN ANSWER, NOT A 404. A PR's
+    // "Files changed" links every path it touches, and a file the PR adds has
+    // no default-branch commit until it merges (backfill reads the default
+    // branch only). The 404 turned the file page into four error cards whose
+    // Retry could never work. The empty answer carries the reason; the PRs
+    // query below still runs, because pr_files does know this path.
+    const noCommits = series.length === 0;
     const totalLines = owners.reduce((s, o) => s + (o.lines ?? 0), 0);
 
     // --- W4-17: weekly gross/net/rework, rename chain, hotspot history, PRs ---
@@ -190,8 +193,31 @@ export default async function filesRoutes(
 
     const lastTouch = series[series.length - 1];
 
+    // W20-12 (UX_TODO DSH-35): the file's CURRENT hotspot score, for the
+    // header. Computed exactly as the repo Hotspots tab ranks it (M2 over the
+    // trailing 30 days, normalised within this repository), from the touches
+    // already read above — so the two screens cannot disagree about a file.
+    const hotspotSince = Date.now() - HOTSPOT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const current = computeHotspots(
+      touches.filter((t) => new Date(t.touchedAt).getTime() >= hotspotSince),
+      new Date(),
+    ).find((h) => h.path === path);
+
     return reply.send({
       path,
+      no_commits: noCommits,
+      // W20-12 (UX_TODO DSH-68): the file on the forge's default branch. Null
+      // when the forge's web root cannot be known (a Gitea with no base URL).
+      forge_url: fileForgeUrl(forge, path),
+      default_branch: forge.defaultBranch,
+      hotspot: current
+        ? {
+            score: current.score,
+            gross: current.gross,
+            days_since: current.daysSince,
+            window_days: HOTSPOT_WINDOW_DAYS,
+          }
+        : null,
       churn_series: series.map((c) => ({
         sha: c.sha,
         authored_at: c.authoredAt.toISOString(),
@@ -207,7 +233,7 @@ export default async function filesRoutes(
         lines_changed: o.lines ?? 0,
         share: totalLines > 0 ? (o.lines ?? 0) / totalLines : 0,
       })),
-      hotspot_history: hotspotHistory
+      hotspot_history: (noCommits ? [] : hotspotHistory)
         .map((h) => ({ computed_at: h.computedAt, score: Number(h.value) }))
         .reverse(),
       prs: prRows.map((p) => ({

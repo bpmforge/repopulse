@@ -7,7 +7,7 @@ import { buildPulse, computeMetricTrend } from '@repopulse/insights';
 import { computeAiGovernance, readMetricTrend } from '@repopulse/metrics';
 import { healthBand } from '@repopulse/shared/health-band';
 import { sendProblem } from '../../lib/problem.js';
-import { scopedMetrics } from '../../lib/scope-metrics.js';
+import { latestSnapshotAt, scopedMetrics } from '../../lib/scope-metrics.js';
 import { isMeasured, repoHealthMany } from './health.js';
 import { collectTopActions, serializeTopActions } from './top-actions.js';
 
@@ -71,10 +71,17 @@ export default async function orgRoutes(
       // repo set the tiles are that set's values — ratios pooled, counts summed
       // (lib/scope-metrics) — and the previous value is the same read one window
       // back, the comparison computeMetricTrend makes for the org series.
+      // W20-12 (UX_TODO DSH-81): how many items each ratio tile rests on, read
+      // with the same scope rules as the value it sits under.
+      const samples = new Map<string, { numerator: number; denominator: number }>();
+      const sampleOf = (key: string) => samples.get(key) ?? null;
+      // W20-12 (UX_TODO DSH-48): when the newest snapshot in scope was taken,
+      // so the page can say "data as of last night" instead of looking live.
+      const asOf = await latestSnapshotAt(opts.db, workspaceId, repoIds);
       if (repoIds.length > 0) {
         const windowMs = (Number(window.replace('d', '')) || 30) * 86_400_000;
         const [current, previous] = await Promise.all([
-          scopedMetrics(opts.db, workspaceId, repoIds, window, { keys: KPI_METRICS }),
+          scopedMetrics(opts.db, workspaceId, repoIds, window, { keys: KPI_METRICS, samples }),
           scopedMetrics(opts.db, workspaceId, repoIds, window, {
             keys: KPI_METRICS,
             asOf: new Date(Date.now() - windowMs),
@@ -88,10 +95,12 @@ export default async function orgRoutes(
             value,
             delta: value === null || prev === null ? null : value - prev,
             previous: prev,
+            sample: sampleOf(metricKey),
           };
         });
-        return reply.send({ window, repo_ids: repoIds, tiles });
+        return reply.send({ window, repo_ids: repoIds, tiles, as_of: asOf });
       }
+      await scopedMetrics(opts.db, workspaceId, [], window, { keys: KPI_METRICS, samples });
       const tiles = await Promise.all(
         KPI_METRICS.map(async (metricKey) => {
           const trend = await computeMetricTrend(opts.db, {
@@ -109,10 +118,11 @@ export default async function orgRoutes(
             value: trend.current,
             delta: trend.delta,
             previous: trend.previous,
+            sample: sampleOf(metricKey),
           };
         }),
       );
-      return reply.send({ window, tiles });
+      return reply.send({ window, tiles, as_of: asOf });
     },
   );
 
@@ -159,6 +169,9 @@ export default async function orgRoutes(
             letter: measured ? health.letter : null,
             measured,
             basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
+            // W20-12 (UX_TODO DSH-19): which parts of the score were not
+            // measured, so the tile can say so in words the repo page uses.
+            not_measured: health.notMeasured.map((n) => n.key),
             // delta needs a prior health snapshot series — a later enrichment.
             delta: null,
           },

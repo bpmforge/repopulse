@@ -9,6 +9,10 @@ export interface RepoDetail {
   org: string;
   name: string;
   sync: string;
+  /** W20-12 (UX_TODO DSH-24): when the forge was last read. Optional: older API. */
+  last_synced_at?: string | null;
+  /** W20-12 (UX_TODO DSH-48): the newest snapshot behind this page. */
+  as_of?: string | null;
   health: {
     /** null when nothing has been measured (W20-05, UX_TODO DSH-08). */
     score: number | null;
@@ -31,13 +35,28 @@ export interface RepoDetail {
        */
       inputs?: { key: string; raw: number; good: number; bad: number; normalized: number }[];
     }[];
+    /**
+     * W20-12 (UX_TODO DSH-80): the sub-scores dropped for want of inputs, with
+     * the weight each would have carried, and whether the rest were rescaled.
+     * Optional: an older API omits them.
+     */
+    not_measured?: { key: string; weight: number }[];
+    renormalized?: boolean;
   };
   links: Record<string, string>;
 }
 
 /** GET /repos/{id}/hotspots?window= */
 export interface RepoHotspots {
-  items: { path: string; hotspot_score: number; links: { file: string } }[];
+  items: {
+    path: string;
+    hotspot_score: number;
+    /** M2's parts (FR-METRICS-2). Optional: older API. W20-12 (DSH-20/21). */
+    decomposition?: { gross: number; normChurn: number; daysSince: number; decay: number };
+    /** Top author by lines changed, with their share. W20-12 (DSH-20). */
+    top_owner?: { login: string; share: number } | null;
+    links: { file: string };
+  }[];
 }
 
 /** GET /repos/{id}/prs?state=&size_bucket=… */
@@ -48,13 +67,50 @@ export interface RepoPrs {
     state: string;
     size_bucket: string;
     review_covered: boolean;
+    /** Milestones, sent all along (W20-12, UX_TODO DSH-30). Optional: older API. */
+    opened_at?: string;
+    first_review_at?: string | null;
+    first_approval_at?: string | null;
+    merged_at?: string | null;
     links: { self: string };
   }[];
 }
 
+/**
+ * The line-count bounds of each size bucket (METRICS.md §1 M7; the API's
+ * SIZE_BUCKET_BOUNDS), for the histogram's legend (W20-12, UX_TODO DSH-30).
+ */
+export const SIZE_BUCKET_RANGE: Record<(typeof SIZE_BUCKETS)[number], string> = {
+  XS: 'under 10 lines',
+  S: '10–99',
+  M: '100–499',
+  L: '500–999',
+  XL: '1,000+',
+};
+
+/** Median and p90 (nearest rank) of a list of hours; null when empty. */
+export function stagePercentiles(hours: readonly number[]): {
+  median: number | null;
+  p90: number | null;
+  n: number;
+} {
+  const sorted = [...hours].sort((a, b) => a - b);
+  if (sorted.length === 0) return { median: null, p90: null, n: 0 };
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  const p90 = sorted[Math.max(0, Math.ceil(0.9 * sorted.length) - 1)]!;
+  return { median, p90, n: sorted.length };
+}
+
 /** GET /metrics/series?metric_key=&window=&repo_id= — oldest-first. */
 export interface MetricSeries {
-  points: { computed_at: string; value: number | null }[];
+  points: {
+    computed_at: string;
+    value: number | null;
+    /** A ratio's parts (W20-12, UX_TODO DSH-81); null for a non-ratio metric. */
+    numerator?: number | null;
+    denominator?: number | null;
+  }[];
   basis_label: string | null;
 }
 
@@ -111,11 +167,20 @@ export function scaleForUnit(value: number, unit: string): number {
   return unit === '%' ? value * 100 : value;
 }
 
-/** Group hotspot paths into a treemap: one node per top-level directory. */
-export function toTreemap(
-  items: RepoHotspots['items'],
-): { name: string; value: number; children: { name: string; value: number; path: string }[] }[] {
-  const dirs = new Map<string, { name: string; value: number; path: string }[]>();
+/**
+ * Group hotspot paths into a treemap: one node per top-level directory.
+ *
+ * W20-12 (UX_TODO DSH-21): AREA is churn (lines changed) and colour is the
+ * score, as the spec draws it. Both encoded the score before, so the map said
+ * one thing twice. `score` rides on each leaf for the colour; a payload with
+ * no decomposition falls back to sizing by score.
+ */
+export function toTreemap(items: RepoHotspots['items']): {
+  name: string;
+  value: number;
+  children: { name: string; value: number; score: number; path: string }[];
+}[] {
+  const dirs = new Map<string, { name: string; value: number; score: number; path: string }[]>();
   for (const item of items) {
     const segments = item.path.split('/');
     // Files at the repo root have no directory — group them under '/' rather
@@ -123,7 +188,8 @@ export function toTreemap(
     const dir = segments.length > 1 ? segments[0]! : '/';
     const leaf = {
       name: segments[segments.length - 1]!,
-      value: item.hotspot_score,
+      value: item.decomposition?.gross ?? item.hotspot_score,
+      score: item.hotspot_score,
       path: item.path,
     };
     dirs.set(dir, [...(dirs.get(dir) ?? []), leaf]);

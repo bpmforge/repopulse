@@ -21,7 +21,16 @@ const HEALTH_METRIC_KEYS = ['M4', 'M5', 'M8', 'M9', 'M11', FINDINGS_METRIC_KEY] 
 type Latest = { value: number | null; dims: Record<string, unknown> };
 const ABSENT: Latest = { value: null, dims: {} };
 
-export type RepoHealth = HealthScore & { letter: string };
+export type RepoHealth = HealthScore & {
+  letter: string;
+  /**
+   * The sub-scores that were DROPPED for want of inputs, with the weight each
+   * would have carried (W20-12, UX_TODO DSH-19/80). computeHealthScore only
+   * returns the survivors, so without this a score built from two parts of
+   * seven read exactly like one built from all seven.
+   */
+  notMeasured: { key: string; weight: number }[];
+};
 
 /**
  * Whether the warehouse measured anything for this repository (W17-18).
@@ -137,8 +146,16 @@ export async function repoHealthMany(
       },
     );
 
-    const score = computeHealthScore(buildHealthSubScores(inputs, effective.healthWeights));
-    out.set(repo.id, { ...score, letter: scoreLetter(score.score) });
+    const defs = buildHealthSubScores(inputs, effective.healthWeights);
+    const score = computeHealthScore(defs);
+    const scored = new Set(score.subScores.map((s) => s.key));
+    out.set(repo.id, {
+      ...score,
+      letter: scoreLetter(score.score),
+      notMeasured: defs
+        .filter((d) => !scored.has(d.key))
+        .map((d) => ({ key: d.key, weight: d.weight })),
+    });
   }
   return out;
 }

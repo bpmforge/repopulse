@@ -25,6 +25,33 @@ function toNum(v: string | null): number | null {
   return v === null ? null : Number(v);
 }
 
+const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 };
+
+/**
+ * The snapshots that fall inside the selected window (W20-12, UX_TODO DSH-75).
+ *
+ * The series returned up to 400 nightly rows whatever the window, so a chart
+ * labelled "last 7d" drew about thirteen months, and changing the window only
+ * changed how smooth that year looked. It now spans one window ending at the
+ * newest snapshot, plus the newest row at or before the window's start: the
+ * same baseline computeMetricTrend compares a KPI tile's delta against, so the
+ * line starts where the tile's "versus prior window" starts.
+ *
+ * Anchored on the newest snapshot, not the wall clock, so a workspace whose
+ * nightly job stalled still shows its last window rather than an empty chart.
+ */
+export function pointsInWindow<T extends { computedAt: Date }>(
+  newestFirst: readonly T[],
+  window: string,
+): T[] {
+  const newest = newestFirst[0];
+  if (!newest) return [];
+  const cutoff = newest.computedAt.getTime() - (WINDOW_DAYS[window] ?? 30) * 86_400_000;
+  const inside = newestFirst.filter((r) => r.computedAt.getTime() > cutoff);
+  const baseline = newestFirst.find((r) => r.computedAt.getTime() <= cutoff);
+  return baseline ? [...inside, baseline] : inside;
+}
+
 function fail(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -63,12 +90,14 @@ export default async function metricsRoutes(
         limit: 400, // ≥400d retention (FR-METRICS-13)
       });
       // readMetricTrend is newest-first; a time-series wants oldest-first.
-      const points = [...rows].reverse().map((r) => ({
-        computed_at: r.computedAt.toISOString(),
-        value: toNum(r.value),
-        numerator: toNum(r.numerator),
-        denominator: toNum(r.denominator),
-      }));
+      const points = pointsInWindow(rows, window)
+        .reverse()
+        .map((r) => ({
+          computed_at: r.computedAt.toISOString(),
+          value: toNum(r.value),
+          numerator: toNum(r.numerator),
+          denominator: toNum(r.denominator),
+        }));
       const basisLabel = (rows[0]?.dims as { basis?: string } | undefined)?.basis ?? null;
       return reply.send({ points, basis_label: basisLabel });
     },

@@ -60,7 +60,9 @@ describe('PlanItemCard has no human path to done (W17-25)', () => {
     }
     expect(
       buttons.every((b) =>
-        ['Accept', 'Dismiss…', 'Start', 'Restore'].includes(b.textContent ?? ''),
+        ['Accept', 'Dismiss…', 'Start', 'Restore', 'Restart', 'Back to accepted'].includes(
+          b.textContent ?? '',
+        ),
       ),
     ).toBe(true);
   });
@@ -164,5 +166,41 @@ describe('PlanItemCard explains progress (W17-25)', () => {
   it('claims nothing for proposed work', () => {
     render(<PlanItemCard item={item('proposed', checked('holds', 0.9))} metricNames={names} />);
     expect(screen.queryByTestId('plan-item-progress-7')).not.toBeInTheDocument();
+  });
+});
+
+describe('regressed items and agreement evidence (W20-12, UX_TODO DSH-89/DSH-90)', () => {
+  it('offers Restart and Dismiss on a regressed item', () => {
+    render(<PlanItemCard item={item('regressed', checked('broken', 0.5))} metricNames={names} />);
+    fireEvent.click(screen.getByTestId('plan-restart-7'));
+    expect(mutate).toHaveBeenCalledWith({ status: 'in_progress' });
+    fireEvent.click(screen.getByTestId('plan-dismiss-7'));
+    expect(screen.getByTestId('plan-dismiss-form-7')).toBeInTheDocument();
+  });
+
+  it('lets an in-progress item go back to accepted', () => {
+    render(<PlanItemCard item={item('in_progress')} metricNames={names} />);
+    fireEvent.click(screen.getByTestId('plan-pause-7'));
+    expect(mutate).toHaveBeenCalledWith({ status: 'accepted' });
+  });
+
+  it('names the agreement and links each breaching PR', () => {
+    render(
+      <PlanItemCard
+        item={item('proposed', {
+          agreementId: 3,
+          agreementKind: 'review_turnaround',
+          exceptions: [{ repoId: 12, prNumber: 88 }, { bogus: true }],
+        })}
+        metricNames={names}
+      />,
+    );
+    expect(screen.getByTestId('plan-item-agreement-7')).toHaveTextContent(
+      'Raised by working agreement: review turnaround',
+    );
+    expect(screen.getByTestId('plan-item-breach-7-12-88')).toHaveAttribute(
+      'href',
+      '/repos/12/prs/88',
+    );
   });
 });

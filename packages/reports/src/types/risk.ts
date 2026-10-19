@@ -32,10 +32,11 @@ export interface RiskMovement {
   newFindings: number;
 }
 
-export interface AxisLetterRow {
+export interface AxisRow {
   axis: string;
-  /** null when the sub-score is absent — an absent axis, never a fake grade. */
-  letter: string | null;
+  /** 0–100; null when the sub-score is absent — an absent axis, never a fake grade. */
   score: number | null;
+  /** The health band word (W20-12: never a letter, N-9). */
+  band: string | null;
   basis: string;
 }

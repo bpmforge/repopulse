@@ -53,6 +53,20 @@ export function PlanItemCard({
   const [reason, setReason] = useState('');
 
   const regressed = item.status === 'regressed';
+  // W20-12 (UX_TODO DSH-90): an item a broken working agreement raised. Its
+  // evidence names the agreement and the breaching PRs; the card showed
+  // neither, so the item appeared with nothing behind it.
+  const agreementKind =
+    typeof item.evidence.agreementKind === 'string' ? item.evidence.agreementKind : null;
+  const breaches = Array.isArray(item.evidence.exceptions)
+    ? (item.evidence.exceptions as unknown[]).filter(
+        (e): e is { repoId: number; prNumber: number } =>
+          typeof e === 'object' &&
+          e !== null &&
+          typeof (e as { repoId?: unknown }).repoId === 'number' &&
+          typeof (e as { prNumber?: unknown }).prNumber === 'number',
+      )
+    : [];
   // WHY it is where it is (W17-25): the verifier's last check, in words that
   // cite the number and the criterion. A human state gets no sentence.
   const progress = progressInWords(item, metricNames);
@@ -96,6 +110,30 @@ export function PlanItemCard({
         </p>
       )}
 
+      {agreementKind && (
+        <p className="mt-1 text-xs text-fg-faint" data-testid={`plan-item-agreement-${item.id}`}>
+          Raised by working agreement: {agreementKind.replace(/_/g, ' ')}
+          {breaches.length > 0 && (
+            <>
+              {' '}
+              · broken by{' '}
+              {breaches.map((b, i) => (
+                <span key={`${b.repoId}-${b.prNumber}`}>
+                  {i > 0 && ', '}
+                  <InternalLink
+                    to={`/repos/${b.repoId}/prs/${b.prNumber}`}
+                    className="text-accent underline-offset-2 hover:underline"
+                    testId={`plan-item-breach-${item.id}-${b.repoId}-${b.prNumber}`}
+                  >
+                    PR #{b.prNumber}
+                  </InternalLink>
+                </span>
+              ))}
+            </>
+          )}
+        </p>
+      )}
+
       {/* The findings the generator clustered into this item (W17-24) — the
           ids the row carries, linked back to the review they came from. A
           metric item has none, and shows none. */}
@@ -119,6 +157,33 @@ export function PlanItemCard({
       )}
 
       <div className="mt-2 flex flex-wrap gap-1.5">
+        {/* W20-12 (UX_TODO DSH-89): a regressed item is the verifier's verdict
+            that a fix came undone. It was highlighted at the top of the plan
+            with no buttons; the API lets a person pick it up again or dismiss
+            it, so the card does too. */}
+        {item.status === 'regressed' && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid={`plan-restart-${item.id}`}
+            disabled={transition.isPending}
+            onClick={() => transition.mutate({ status: 'in_progress' })}
+          >
+            Restart
+          </button>
+        )}
+        {(item.status === 'proposed' || item.status === 'regressed') && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid={`plan-dismiss-${item.id}`}
+            disabled={transition.isPending}
+            aria-expanded={dismissing}
+            onClick={() => setDismissing((v) => !v)}
+          >
+            Dismiss…
+          </button>
+        )}
         {item.status === 'proposed' && (
           <>
             <button
@@ -129,16 +194,6 @@ export function PlanItemCard({
               onClick={() => transition.mutate({ status: 'accepted' })}
             >
               Accept
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              data-testid={`plan-dismiss-${item.id}`}
-              disabled={transition.isPending}
-              aria-expanded={dismissing}
-              onClick={() => setDismissing((v) => !v)}
-            >
-              Dismiss…
             </button>
           </>
         )}
@@ -168,12 +223,25 @@ export function PlanItemCard({
             its metric actually moves (W5-06 nightly verify). A manual close
             would make the whole verification story decorative. The progress
             line above says what the last check saw. */}
+        {/* W20-12 (UX_TODO DSH-44): started by mistake, or paused — back to
+            accepted, which the API allowed and the card never offered. */}
+        {item.status === 'in_progress' && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid={`plan-pause-${item.id}`}
+            disabled={transition.isPending}
+            onClick={() => transition.mutate({ status: 'accepted' })}
+          >
+            Back to accepted
+          </button>
+        )}
         {item.status === 'in_progress' && (
           <span className="text-xs text-fg-faint">Closes automatically once the metric holds.</span>
         )}
       </div>
 
-      {dismissing && item.status === 'proposed' && (
+      {dismissing && (item.status === 'proposed' || item.status === 'regressed') && (
         <form
           className="mt-2 flex flex-wrap items-end gap-2"
           data-testid={`plan-dismiss-form-${item.id}`}

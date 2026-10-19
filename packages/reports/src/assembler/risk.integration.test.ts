@@ -2,7 +2,6 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
-import { scoreLetter } from '@repopulse/insights';
 import { axisSection, riskSections } from './risk.js';
 import type { ReportSection } from '../types/index.js';
 
@@ -37,7 +36,12 @@ describeIfLiveInfra('risk opener', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w9-12-user', forgeUserId: 'w9-12-user', login: 'w9-12-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w9-12-user',
+        forgeUserId: 'w9-12-user',
+        login: 'w9-12-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w9-12-user' } })
       .returning();
     userId = user!.id;
@@ -193,7 +197,13 @@ describeIfLiveInfra('risk opener', () => {
     const rows = top?.kind === 'table' ? top.rows : [];
     // The composite never appears without the number a reader already
     // understands.
-    expect(rows[0]).toEqual(['act', 80, 5, 'eval on request input', 'acme/risk-report · src/app.js']);
+    expect(rows[0]).toEqual([
+      'act',
+      80,
+      5,
+      'eval on request input',
+      'acme/risk-report · src/app.js',
+    ]);
   });
 
   it('EXCLUDES a shadow-rule finding, even at risk 99', async () => {
@@ -293,32 +303,33 @@ describeIfLiveInfra('risk opener', () => {
   });
 });
 
-describe('the axis letter row', () => {
-  it('renders a letter per scored axis', () => {
-    const section = axisSection(
-      [
-        { key: 'security', normalized: 90 },
-        { key: 'codeHealth', normalized: 55 },
-      ],
-      scoreLetter,
-    );
+describe('the axis row', () => {
+  it('renders a 0–100 score and band word per scored axis, never a letter (W20-12, N-9)', () => {
+    const section = axisSection([
+      { key: 'security', normalized: 90 },
+      { key: 'codeHealth', normalized: 55.4 },
+    ]);
     expect(section.kind).toBe('table');
-    const rows = section.kind === 'table' ? section.rows : [];
-    expect(rows.find((r) => r[0] === 'Security')?.[1]).toBe('A');
-    expect(rows.find((r) => r[0] === 'Code Health')?.[1]).toBe('C');
+    if (section.kind !== 'table') return;
+    expect(section.columns).not.toContain('Letter');
+    const rows = section.rows;
+    expect(rows.find((r) => r[0] === 'Security')?.slice(1, 3)).toEqual([90, 'healthy']);
+    expect(rows.find((r) => r[0] === 'Code Health')?.slice(1, 3)).toEqual([55, 'watch']);
+    for (const row of rows) expect(row[2]).not.toMatch(/^[A-E]$/);
   });
 
   it('shows an ABSENT axis with a basis line, never a grade', () => {
     // FR-INSIGHTS-3: a letter for an axis nobody measured is a fake grade.
-    const section = axisSection([{ key: 'security', normalized: 90 }], scoreLetter);
+    const section = axisSection([{ key: 'security', normalized: 90 }]);
     const rows = section.kind === 'table' ? section.rows : [];
     const codeHealth = rows.find((r) => r[0] === 'Code Health');
-    expect(codeHealth?.[1]).toBe('—');
+    expect(codeHealth?.[1]).toBeNull();
+    expect(codeHealth?.[2]).toBe('—');
     expect(String(codeHealth?.[3])).toMatch(/not measured for this scope/);
   });
 
   it('renders NOTHING rather than a grid of dashes when no sub-score exists', () => {
-    const section = axisSection([], scoreLetter);
+    const section = axisSection([]);
     expect(section.kind).toBe('no_data');
     expect(section.kind === 'no_data' ? section.reason : '').toMatch(/grade nobody measured/);
   });
