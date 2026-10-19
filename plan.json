@@ -10719,6 +10719,47 @@
           "DSH-92 skipped: Performance findings paging is findings-area work.",
           "Found: /me/stats had no workspace filter (fixed); the file page's 'Hotspot score history' plots repo M2 (the top file), not this file; the API still sends a `letter` field."
         ]
+      },
+      {
+        "id": "W20-11",
+        "title": "AI layer P2 friction",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/src/widgets/admin/**",
+          "apps/web/src/widgets/repo/**",
+          "apps/web/src/widgets/findings/AiSuggestions*",
+          "apps/web/src/widgets/findings/VerifiedFix*",
+          "apps/web/src/widgets/findings/FindingDetail.tsx",
+          "apps/web/src/widgets/findings/aiContracts.ts",
+          "apps/web/src/widgets/org/AiGovernanceCard*",
+          "apps/web/src/routes/**",
+          "apps/api/src/routes/ai-pass/**",
+          "apps/api/src/routes/patches/**",
+          "apps/api/src/routes/admin/analysis/**",
+          "apps/api/src/routes/admin/llm-providers/**",
+          "apps/api/src/workers/ai-pass-*",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-06"
+        ],
+        "acceptance": [
+          "UX_TODO AI-nn P2 items in section 3 are fixed or listed in these notes with a reason",
+          "Disabled AI actions say why, failures name a next step, and scrollable AI regions are focusable",
+          "Every behaviour change has a test; lint, typecheck and the web suite are green"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop).",
+          "Fixed (41): P2 AI-17, 18, 19, 21, 22 (already fixed by W20-06 AI-86; verified), 23, 24, 25, 26, 27, 28, 30, 34, 35, 36, 37, 39, 41, 42, 44, 45, 46, 47, 49, 60, 61, 62, 65, 66, 67, 68, 75, 76, 79, 81, 82, 83, 84; P1 AI-15 (link from AI reviewers to Security > AI review pass), AI-16 (CLI command and run time beside each unmeasured model); P3 AI-50.",
+          "Partial, left open: AI-29 (repository, destination, outcome, initiator columns and caption done; role and pass are not stored in egress_audit, needs a schema change). AI-32 (link to the findings list done; AI marker on list rows belongs to the findings area). AI-40 (15-minute 'Change my answer' done; the optional 'why wrong' note needs a column). AI-43 (VEX justification in words done; 'Record this VEX statement' is FND-05, VEX area). AI-64 (stalled-pending alerts and elapsed time done; calls used are not recorded mid-run). AI-80 (repository filter, cursor paging and total done; no date range or CSV export).",
+          "P1 partials, left open: AI-73 (the status line says the check runs in the API container, INSTALL says so; running the check in the worker is not done). AI-85 (supported languages listed beside the paths box and files-read count on each run; skipped-file counts and the exact refusal reason need loader changes in packages/security).",
+          "Skipped: AI-20 (model list after Test needs a /v1/models fetch in the test route). AI-31 (path, PR and commit pickers: a feature). AI-33 (cancelling a pass needs worker cooperation). AI-38 (skip notifications are cross-flow). AI-48 (governance of RepoPulse's own AI use: a feature). AI-63 (last success/error per connection needs gateway writes and a column). AI-77 (workspace schedules list and pause-all: a feature). AI-78 (env fallback lives in the gateway, ops). P1 AI-08 (cost and price entry), AI-14 (second opinion), AI-74 (deploy overlay in the bundle and up.sh: ops)."
+        ]
       }
   ]
 }

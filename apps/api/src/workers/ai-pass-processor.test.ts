@@ -607,6 +607,34 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     expect(failures[0]!.paths).toContain('src/routes/users.ts');
   });
 
+  // W20-11 (UX_TODO AI-60): a pass that fails partway keeps what it had done:
+  // the specialists' model calls (they count toward the cap) and their usage.
+  it('a pass that fails after the specialists ran keeps their calls and usage on the row', async () => {
+    let modelCalled = false;
+    let thrown = false;
+    const gw = scripted({ onCall: () => (modelCalled = true) });
+    const runId = await newRun();
+    const r = await aiPassProcessor({
+      ...deps({}, gw).d,
+      // The first clock read after a model call is in the persistence step:
+      // fail there once, as a crash partway through would.
+      now: () => {
+        if (modelCalled && !thrown) {
+          thrown = true;
+          throw new Error('The model has crashed without additional information.');
+        }
+        return new Date();
+      },
+    })(job(runId));
+    expect(r).toMatchObject({ status: 'failed', code: 'error' });
+    const run = await runOf(runId);
+    expect(run.reason).toMatch(/crashed/);
+    expect(run.calls).toBe(gw.calls.length);
+    expect(run.calls).toBeGreaterThan(0);
+    const usage = (run.specialists as { usage: Record<string, { findings: number }> }).usage;
+    expect(Object.keys(usage).length).toBeGreaterThan(0);
+  });
+
   // ----- W19-11: diff modes -------------------------------------------------
 
   const PATCH = [

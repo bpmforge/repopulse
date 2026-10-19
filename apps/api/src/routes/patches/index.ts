@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Queue } from 'bullmq';
 import { auditLog, core, read, type Database } from '@repopulse/shared';
@@ -97,8 +97,24 @@ export function patchView(row: PatchRow, file: string, isAdmin: boolean) {
     // that an attempt exists and nothing more.
     return isAdmin ? { ...base, ...admin, diff: row.diff, model_id: row.modelId } : base;
   }
+  // W20-11 (UX_TODO AI-65): a member whose draft FAILED (it never reached the
+  // re-scan) saw only "could not be made", even for "no model is configured".
+  // The CODE of such a failure says nothing about the source or the network, so
+  // a member gets it when it is one of these; the free-text reason stays admin-only.
+  if (!isAdmin && row.status === 'failed' && MEMBER_SAFE_FAILURES.has(row.reasonCode ?? '')) {
+    return { ...base, reason_code: row.reasonCode };
+  }
   return { ...base, ...admin };
 }
+
+/** Failure codes a member may see (no text, no host, no path). */
+const MEMBER_SAFE_FAILURES = new Set([
+  'no_gateway',
+  'model_busy',
+  'no_connection',
+  'source_unavailable',
+  'tier3_not_opted_in',
+]);
 
 export default async function patchRoutes(
   app: FastifyInstance,
@@ -354,11 +370,36 @@ export default async function patchRoutes(
    * Where an admin reads why fixes are being rejected: a model that keeps
    * producing diffs that do not apply, or a rule that every fix trips.
    */
-  app.get('/admin/patches', async (request, reply) => {
+  app.get<{
+    Querystring: { status?: string; model?: string; repo_id?: string; before?: string };
+  }>('/admin/patches', async (request, reply) => {
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
     if (request.role !== 'admin')
       return fail(request, reply, 403, 'Forbidden — admin role required');
+    // W20-11 (UX_TODO AI-66): the list stopped at the hundred newest with no
+    // filter, so "why were last month's fixes rejected?" had no answer. Status,
+    // model and repository narrow it; `before` (an attempt id) pages back.
+    const q = request.query ?? {};
+    const STATUSES = ['pending', 'verified', 'rejected', 'failed'];
+    if (q.status !== undefined && !STATUSES.includes(q.status)) {
+      return fail(
+        request,
+        reply,
+        400,
+        'Invalid status',
+        `status must be one of ${STATUSES.join(', ')}.`,
+      );
+    }
+    const before = q.before !== undefined ? Number(q.before) : null;
+    if (before !== null && !Number.isInteger(before)) {
+      return fail(request, reply, 400, 'Invalid cursor');
+    }
+    const repoId = q.repo_id !== undefined ? Number(q.repo_id) : null;
+    if (repoId !== null && !Number.isInteger(repoId)) {
+      return fail(request, reply, 400, 'Invalid repository');
+    }
+    const PAGE = 100;
     const rows = await db
       .select({
         id: read.verifiedPatches.id,
@@ -393,18 +434,55 @@ export default async function patchRoutes(
           eq(core.repos.workspaceId, workspaceId),
         ),
       )
-      .where(eq(read.verifiedPatches.workspaceId, workspaceId))
-      .orderBy(desc(read.verifiedPatches.createdAt))
-      .limit(100);
+      .where(
+        and(
+          eq(read.verifiedPatches.workspaceId, workspaceId),
+          ...(q.status ? [eq(read.verifiedPatches.status, q.status)] : []),
+          ...(q.model ? [eq(read.verifiedPatches.modelId, q.model)] : []),
+          ...(repoId !== null ? [eq(read.verifiedPatches.repoId, repoId)] : []),
+          ...(before !== null ? [lt(read.verifiedPatches.id, before)] : []),
+        ),
+      )
+      .orderBy(desc(read.verifiedPatches.id))
+      .limit(PAGE + 1);
     // Over every attempt, not the hundred listed: the split is the point.
     const counts = await db
       .select({ status: read.verifiedPatches.status, n: sql<number>`count(*)::int` })
       .from(read.verifiedPatches)
       .where(eq(read.verifiedPatches.workspaceId, workspaceId))
       .groupBy(read.verifiedPatches.status);
+    const models = await db
+      .selectDistinct({ model: read.verifiedPatches.modelId })
+      .from(read.verifiedPatches)
+      .where(
+        and(
+          eq(read.verifiedPatches.workspaceId, workspaceId),
+          isNotNull(read.verifiedPatches.modelId),
+        ),
+      );
+    const repos = await db
+      .selectDistinct({ id: read.verifiedPatches.repoId, name: core.repos.name })
+      .from(read.verifiedPatches)
+      .leftJoin(
+        core.repos,
+        and(
+          eq(core.repos.id, read.verifiedPatches.repoId),
+          eq(core.repos.workspaceId, workspaceId),
+        ),
+      )
+      .where(eq(read.verifiedPatches.workspaceId, workspaceId));
+    const page = rows.slice(0, PAGE);
     return reply.send({
       counts: Object.fromEntries(counts.map((c) => [c.status, c.n])),
-      items: rows.map((r) => ({
+      models: models
+        .map((m) => m.model)
+        .filter((m): m is string => m !== null)
+        .sort(),
+      repos: repos
+        .map((x) => ({ id: x.id, name: x.name ?? `repository ${x.id}` }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      next_cursor: rows.length > PAGE ? String(page[page.length - 1]!.id) : null,
+      items: page.map((r) => ({
         id: r.id,
         finding_id: r.findingId,
         status: r.status,

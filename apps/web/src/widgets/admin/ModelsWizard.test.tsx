@@ -1,9 +1,41 @@
+import type { ReactNode } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
 import { ModelsWizard } from './ModelsWizard.js';
+
+// The "What next" links (W20-11, UX_TODO AI-23) render as plain anchors here.
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    hash,
+    children,
+    search: _search,
+    params: _params,
+    ...rest
+  }: {
+    to: string;
+    hash?: string;
+    search?: unknown;
+    params?: unknown;
+    children: ReactNode;
+  }) => (
+    <a href={`${to}${hash ? `#${hash}` : ''}`} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+/**
+ * Save without pressing Test first. W20-11 (UX_TODO AI-18): Save is no longer
+ * greyed out until a test passes; an untested save asks to confirm instead.
+ */
+async function saveUntested() {
+  await userEvent.click(screen.getByTestId('wizard-save'));
+  await userEvent.click(await screen.findByTestId('wizard-save-anyway'));
+}
 
 // W19-07. A person is walked from "where does it run" to "what leaves my
 // network, per role". What matters: the wording about what leaves, that a hosted
@@ -124,6 +156,14 @@ beforeEach(() => {
       if (init?.method === 'POST')
         return Promise.resolve(json({ id: 7, capabilities: null }, createStatus));
       if (url.includes('/kinds')) return Promise.resolve(json(KINDS));
+      if (url.includes('/claude-cli'))
+        return Promise.resolve(
+          json({
+            statement: { version: 'v1', sha256: 'x', title: 'Using your own CLI', points: [] },
+            accepted: null,
+            cli: { found: false, version: null, reportsLoggedIn: false, reason: 'not installed' },
+          }),
+        );
       if (url.includes('/admin/llm-routing')) return Promise.resolve(json(routing));
       return Promise.resolve(json({ items: [] }));
     }),
@@ -266,10 +306,11 @@ describe('step 2: connect and test', () => {
     const options = within(await screen.findByTestId('wizard-kind'))
       .getAllByRole('option')
       .map((o) => o.textContent);
+    // W20-11 (UX_TODO AI-19): Gemini first, the cheapest way to start.
     expect(options).toEqual([
-      'OpenAI-compatible endpoint',
-      'Anthropic (Claude API)',
       'Google Gemini (API key)',
+      'Anthropic (Claude API)',
+      'OpenAI-compatible endpoint',
     ]);
     expect(screen.queryByText(/Copilot/)).toBeNull();
     // The customer-supplied CLI option is deliberately not on the guided path: it
@@ -282,7 +323,7 @@ describe('step 2: connect and test', () => {
     expect(screen.getByTestId('wizard-save')).toBeDisabled();
     await userEvent.click(screen.getByTestId('wizard-outside'));
     expect(screen.getByTestId('wizard-save')).toBeEnabled();
-    await userEvent.click(screen.getByTestId('wizard-save'));
+    await saveUntested();
     await waitFor(() =>
       expect(posted('/llm-providers')[0]).toMatchObject({
         kind: 'gemini',
@@ -298,7 +339,7 @@ describe('step 2: connect and test', () => {
     await toConnect('local');
     await userEvent.type(await screen.findByTestId('wizard-name'), 'x');
     await userEvent.type(screen.getByTestId('wizard-model'), 'm');
-    await userEvent.click(screen.getByTestId('wizard-save'));
+    await saveUntested();
     await waitFor(() => expect(screen.getByTestId('wizard-error')).toBeInTheDocument());
     expect(screen.getByRole('heading', { name: 'Connect and test it' })).toBeInTheDocument();
   });
@@ -311,7 +352,7 @@ describe('steps 3 and 4: roles and the review', () => {
     await userEvent.click(screen.getByTestId('wizard-next-0'));
     await userEvent.type(await screen.findByTestId('wizard-name'), 'New box');
     await userEvent.type(screen.getByTestId('wizard-model'), 'm');
-    await userEvent.click(screen.getByTestId('wizard-save'));
+    await saveUntested();
     await screen.findByRole('heading', { name: /Which kinds of analysis should use New box/ });
   }
 
@@ -408,7 +449,7 @@ describe('steps 3 and 4: roles and the review', () => {
     await userEvent.type(screen.getByTestId('wizard-name'), 'Gemini');
     await userEvent.type(screen.getByTestId('wizard-model'), 'gemini-2.5-flash');
     await userEvent.click(screen.getByTestId('wizard-outside'));
-    await userEvent.click(screen.getByTestId('wizard-save'));
+    await saveUntested();
     await screen.findByRole('heading', { name: /Which kinds of analysis should use Gemini/ });
     for (const r of ROLES) expect(screen.getByTestId(`wizard-role-${r}`)).not.toBeChecked();
     expect(screen.getByTestId('wizard-roles-none-ticked')).toHaveTextContent(
@@ -426,7 +467,7 @@ describe('steps 3 and 4: roles and the review', () => {
     await userEvent.type(await screen.findByTestId('wizard-name'), 'LiteLLM');
     await userEvent.type(screen.getByTestId('wizard-base-url'), 'http://10.0.0.7:4000/v1');
     await userEvent.type(screen.getByTestId('wizard-model'), 'm');
-    await userEvent.click(screen.getByTestId('wizard-save'));
+    await saveUntested();
     await screen.findByRole('heading', { name: /Which kinds of analysis should use LiteLLM/ });
     routing = {
       local_only: false,
@@ -503,5 +544,80 @@ describe('presets in a container install', () => {
       KINDS.presets[0]!.note = original;
       delete (KINDS as { in_container?: boolean }).in_container;
     }
+  });
+});
+
+describe('W20-11 friction fixes', () => {
+  // UX_TODO AI-18: Save was greyed out until a test passed, with no way past a
+  // flaky test; now an untested save asks first.
+  it('an untested save asks to confirm; a tested one saves straight away', async () => {
+    renderIt();
+    await userEvent.click(await screen.findByTestId('wizard-where-local'));
+    await userEvent.click(screen.getByTestId('wizard-next-0'));
+    await userEvent.type(await screen.findByTestId('wizard-name'), 'Box');
+    await userEvent.type(screen.getByTestId('wizard-model'), 'm');
+    await userEvent.click(screen.getByTestId('wizard-save'));
+    expect(screen.getByTestId('wizard-confirm-untested')).toBeInTheDocument();
+    expect(posted('/llm-providers')).toHaveLength(0);
+    await userEvent.click(screen.getByTestId('wizard-confirm-cancel'));
+    expect(screen.queryByTestId('wizard-confirm-untested')).toBeNull();
+    await userEvent.click(screen.getByTestId('wizard-test'));
+    await screen.findByTestId('wizard-test-result');
+    await userEvent.click(screen.getByTestId('wizard-save'));
+    expect(screen.queryByTestId('wizard-confirm-untested')).toBeNull();
+    await waitFor(() => expect(posted('/llm-providers')).toHaveLength(1));
+  });
+
+  // UX_TODO AI-19: say where the key comes from.
+  it('links to where a hosted vendor key is made', async () => {
+    renderIt();
+    await userEvent.click(await screen.findByTestId('wizard-where-hosted'));
+    await userEvent.click(screen.getByTestId('wizard-next-0'));
+    expect(await screen.findByTestId('wizard-kind')).toHaveValue('gemini');
+    expect(screen.getByTestId('wizard-key-help')).toHaveAttribute(
+      'href',
+      'https://aistudio.google.com/apikey',
+    );
+  });
+
+  // UX_TODO AI-21: a failed test says what to do, not only what went wrong.
+  it('a refused connection comes with a next step', async () => {
+    testBody = { ok: false, stage: 'transport', detail: 'connect ECONNREFUSED 10.0.0.5:1234' };
+    renderIt();
+    await userEvent.click(await screen.findByTestId('wizard-where-local'));
+    await userEvent.click(screen.getByTestId('wizard-next-0'));
+    await userEvent.type(await screen.findByTestId('wizard-model'), 'm');
+    await userEvent.click(screen.getByTestId('wizard-test'));
+    expect(await screen.findByTestId('wizard-test-next-step')).toHaveTextContent(
+      /Nothing answered at that address/,
+    );
+  });
+
+  // UX_TODO AI-17: the customer-supplied CLI is offered as its own choice.
+  it('offers the customer-supplied CLI as its own choice, with no API key field', async () => {
+    renderIt();
+    await screen.findByTestId('wizard-where-cli');
+    expect(screen.getByText(/off until an admin accepts a statement/)).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('wizard-where-cli'));
+    await userEvent.click(screen.getByTestId('wizard-next-0'));
+    expect(await screen.findByTestId('wizard-cli-no-key')).toBeInTheDocument();
+  });
+
+  // UX_TODO AI-68: the wizard ends by saying how a first review is run.
+  it('the review ends with what to do next', async () => {
+    renderIt();
+    await userEvent.click(await screen.findByTestId('wizard-where-local'));
+    await userEvent.click(screen.getByTestId('wizard-next-0'));
+    await userEvent.type(await screen.findByTestId('wizard-name'), 'New box');
+    await userEvent.type(screen.getByTestId('wizard-model'), 'm');
+    await saveUntested();
+    await screen.findByRole('heading', { name: /Which kinds of analysis should use New box/ });
+    await userEvent.click(screen.getByTestId('wizard-skip'));
+    const next = await screen.findByTestId('wizard-what-next');
+    expect(within(next).getByText('Repositories')).toHaveAttribute('href', '/repos');
+    expect(within(next).getByText('Settings → Analysis')).toHaveAttribute(
+      'href',
+      '/admin/analysis',
+    );
   });
 });

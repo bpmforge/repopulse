@@ -168,8 +168,49 @@ export function CapabilityList({ c }: { c: Capabilities }) {
   );
 }
 
+/**
+ * A plain next step for a failed Test (W20-11, UX_TODO AI-21). The endpoint's
+ * own words stay, in monospace, because they are what an operator searches
+ * for; but "model crashed", "loading" or a refused key each have one obvious
+ * thing to do, and the raw sentence did not say it. Null when nothing fits.
+ */
+export function testNextStep(r: { ok: boolean; status?: number; detail?: string }): string | null {
+  if (r.ok) return null;
+  const d = r.detail ?? '';
+  if (/crash|exited unexpectedly|terminated/i.test(d)) {
+    return 'The model crashed. In LM Studio, reload it (a smaller context length or model helps if it ran out of memory), wait for it to finish loading, and test again.';
+  }
+  if (/loading|not (yet )?loaded|no models? (are )?loaded/i.test(d)) {
+    return 'The model may still be loading in LM Studio. Wait until it is ready, and test again.';
+  }
+  if (/reasoning/i.test(d)) {
+    return 'The model used its whole answer on reasoning and gave no reply. Choose a model or setting with reasoning off or limited, and test again.';
+  }
+  if (
+    r.status === 401 ||
+    r.status === 403 ||
+    /unauthori[sz]ed|invalid.*key|api key|permission/i.test(d)
+  ) {
+    return 'The key was refused. Check the API key (paste it again with Edit), and that it is allowed to use this model.';
+  }
+  if (
+    r.status === 404 ||
+    /model.*(not found|does not exist|unknown)|unknown model|no such model/i.test(d)
+  ) {
+    return 'The server does not know that model name. Copy the name exactly as the server lists it, and test again.';
+  }
+  if (r.status === 429 || /rate.?limit|quota/i.test(d)) {
+    return 'The vendor is limiting this key (rate or quota). Wait a minute, or check the plan, and test again.';
+  }
+  if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ETIMEDOUT|timed? ?out|fetch failed|socket/i.test(d)) {
+    return 'Nothing answered at that address. Check the server is running and reachable from the machine RepoPulse runs on, then test again.';
+  }
+  return null;
+}
+
 /** One test result, in the endpoint's own words. Shared by the form and each row. */
 function TestResultNote({ result, testId }: { result: TestResult; testId: string }) {
+  const next = testNextStep(result);
   return (
     <div
       className={`rounded-sm border px-2 py-1.5 text-xs ${
@@ -197,6 +238,11 @@ function TestResultNote({ result, testId }: { result: TestResult; testId: string
           {/* The endpoint's own words, not ours. */}
           <span className="font-mono">{result.detail}</span>
           {result.hint ? <span className="mt-1 block">{result.hint}</span> : null}
+          {next ? (
+            <span className="mt-1 block font-semibold" data-testid="test-next-step">
+              What to do: {next}
+            </span>
+          ) : null}
         </>
       )}
       {result.capabilities ? (
@@ -222,7 +268,11 @@ const CLAUDE_CLI = { endpoint: '/admin/llm-providers/claude-cli' } as const;
  * server - the text, its version and its hash - so what is accepted is exactly
  * what was displayed.
  */
-function ClaudeCliPanel({ onAcceptedChange }: { onAcceptedChange: (accepted: boolean) => void }) {
+export function ClaudeCliPanel({
+  onAcceptedChange,
+}: {
+  onAcceptedChange: (accepted: boolean) => void;
+}) {
   const info = useApiQuery<ClaudeCliInfo>(CLAUDE_CLI);
   const queryClient = useQueryClient();
   const [read, setRead] = useState(false);
@@ -234,6 +284,18 @@ function ClaudeCliPanel({ onAcceptedChange }: { onAcceptedChange: (accepted: boo
     { endpoint: '/admin/llm-providers/claude-cli/revoke', method: 'POST' },
     { invalidate: [queryKeyFor(CLAUDE_CLI)] },
   );
+  // W20-11 (UX_TODO AI-67): Switch off says which roles it stops, so it can
+  // confirm with them. Shared query keys: no extra request.
+  const providers = useApiQuery<{ items: ProviderRow[] }>(LIST);
+  const routing = useApiQuery<{ roles: { role: string; chain: { provider_id: number }[] }[] }>(
+    ROUTING,
+  );
+  const cliIds = (providers.data?.items ?? [])
+    .filter((p) => p.kind === 'claude_cli')
+    .map((p) => p.id);
+  const cliRoles = [...new Set(cliIds.flatMap((id) => rolesUsing(routing.data?.roles ?? [], id)))];
+  const [confirmOff, setConfirmOff] = useState(false);
+  const [switchedOff, setSwitchedOff] = useState(false);
   const d = info.data;
   const on = d?.accepted?.current === true;
   useEffect(() => {
@@ -266,31 +328,85 @@ function ClaudeCliPanel({ onAcceptedChange }: { onAcceptedChange: (accepted: boo
       <p className="text-fg-muted" data-testid="claude-cli-status">
         {d.cli.found
           ? `Found ${d.cli.version ?? 'the CLI'} on this server. It ${d.cli.reportsLoggedIn === true ? 'reports being signed in (only Test connection proves it works)' : d.cli.reportsLoggedIn === false ? 'reports being signed out' : 'did not say whether it is signed in'}.`
-          : (d.cli.reason ?? 'The Claude Code CLI was not found on this server.')}
+          : (d.cli.reason ?? 'The Claude Code CLI was not found on this server.')}{' '}
+        {/* W20-11 (UX_TODO AI-73, partial): which container this looked in. */}
+        This check and Test connection run in the API container. With the documented compose overlay
+        the CLI is installed in the worker container instead, so &ldquo;not found&rdquo; here does
+        not prove the worker lacks it.
       </p>
+      {switchedOff && !on ? (
+        <div
+          role="status"
+          className="rounded-sm border border-border p-2"
+          data-testid="claude-cli-signout"
+        >
+          {/* W20-11 (UX_TODO AI-75): Switch off revokes the acceptance only. */}
+          <strong>Switched off.</strong> RepoPulse no longer uses the CLI, but it is still installed
+          and signed in inside the worker. To remove it: sign the CLI out inside the worker
+          container, start RepoPulse without <code>compose.claude-cli.yaml</code>, and delete the{' '}
+          <code>claude-cli</code> volume. INSTALL.md, &ldquo;Removing it&rdquo;, has the commands.
+        </div>
+      ) : null}
       {on ? (
-        <div className="flex flex-wrap items-center gap-2" data-testid="claude-cli-accepted">
-          <span>
-            ✓ Accepted by <strong>{d.accepted?.by ?? 'an admin'}</strong> on{' '}
-            {d.accepted ? d.accepted.at.slice(0, 10) : ''} (statement {d.accepted?.version}).
-          </span>
-          <button
-            type="button"
-            data-testid="claude-cli-revoke"
-            disabled={revoke.isPending}
-            onClick={() =>
-              revoke.mutate(
-                {},
-                {
-                  onSuccess: () =>
-                    void queryClient.invalidateQueries({ queryKey: queryKeyFor(CLAUDE_CLI) }),
-                },
-              )
-            }
-            className="underline"
-          >
-            Switch off
-          </button>
+        <div className="flex flex-col gap-2" data-testid="claude-cli-accepted">
+          <div className="flex flex-wrap items-center gap-2">
+            <span>
+              ✓ Accepted by <strong>{d.accepted?.by ?? 'an admin'}</strong> on{' '}
+              {d.accepted ? d.accepted.at.slice(0, 10) : ''} (statement {d.accepted?.version}).
+            </span>
+            <button
+              type="button"
+              data-testid="claude-cli-revoke"
+              disabled={revoke.isPending}
+              onClick={() => setConfirmOff(true)}
+              className="underline"
+            >
+              Switch off…
+            </button>
+          </div>
+          {confirmOff ? (
+            <div
+              className="flex flex-col gap-1 rounded-sm border border-warn/40 bg-warn/10 px-2 py-1.5"
+              data-testid="claude-cli-revoke-confirm"
+            >
+              <p>
+                Switch off the Claude Code CLI?{' '}
+                {cliRoles.length === 0
+                  ? 'No routing chain names a CLI connection.'
+                  : `Every CLI connection stops serving ${cliRoles.length} role${cliRoles.length === 1 ? '' : 's'}: ${cliRoles.join(', ')}. Each moves to the next connection in its chain, and a role with no other connection refuses and says so.`}
+              </p>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  data-testid="claude-cli-revoke-do"
+                  disabled={revoke.isPending}
+                  onClick={() =>
+                    revoke.mutate(
+                      {},
+                      {
+                        onSuccess: () => {
+                          setConfirmOff(false);
+                          setSwitchedOff(true);
+                          void queryClient.invalidateQueries({ queryKey: queryKeyFor(CLAUDE_CLI) });
+                        },
+                      },
+                    )
+                  }
+                  className="rounded-md border border-crit px-2 py-1 text-xs text-crit hover:bg-crit/10 disabled:opacity-50"
+                >
+                  {revoke.isPending ? 'Switching off…' : 'Switch off the CLI'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmOff(false)}
+                  className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <ErrorNote error={revoke.error} testId="claude-cli-revoke-error" />
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -389,10 +505,13 @@ export function LlmProviders() {
   // exists this sits behind Advanced instead of repeating the wizard at full size.
   const modelsForm = (
     <WidgetFrame title="Models" state="ready">
-      <p className="text-xs text-fg-muted">
-        RepoPulse runs its analysis on a model you provide. Anything speaking the OpenAI
-        chat-completions API works — Ollama, LM Studio, vLLM and llama.cpp locally, or OpenRouter,
-        Groq, Together and OpenAI itself over the network.
+      {/* W20-11 (UX_TODO AI-23): this named only OpenAI-compatible servers. */}
+      <p className="text-xs text-fg-muted" data-testid="provider-form-intro">
+        RepoPulse runs its analysis on a model you provide: a server speaking the OpenAI
+        chat-completions API (Ollama, LM Studio, vLLM and llama.cpp locally, or OpenRouter, Groq,
+        Together and OpenAI over the network), Google Gemini, Anthropic, Google Vertex AI, AWS
+        Bedrock, or your own Claude Code CLI. The Provider list below shows which this server
+        supports. The &ldquo;Set up a model&rdquo; guide above does the same, step by step.
       </p>
 
       <form
@@ -670,6 +789,7 @@ function ProviderTableRow({ p, routedRoles }: { p: ProviderRow; routedRoles: str
   const [baseUrl, setBaseUrl] = useState(p.base_url ?? '');
   const [apiKey, setApiKey] = useState('');
   const isCli = p.kind === 'claude_cli';
+  const cliInfo = useApiQuery<ClaudeCliInfo>(CLAUDE_CLI, { enabled: isCli });
   // A fixed-endpoint vendor (Gemini, Anthropic) has no address to edit.
   const hasAddress = !isCli && p.base_url !== null;
   const roleList = routedRoles.join(', ');
@@ -693,6 +813,21 @@ function ProviderTableRow({ p, routedRoles }: { p: ProviderRow; routedRoles: str
               data-testid={`provider-customer-supplied-${p.id}`}
             >
               Claude Code CLI · customer-supplied
+            </span>
+          ) : null}
+          {/* W20-11 (UX_TODO AI-67): the acceptance was visible only by picking
+              the CLI in the Advanced form; a statement changed by an upgrade
+              made the gateway skip this row while it looked normal here. */}
+          {isCli && cliInfo.data ? (
+            <span
+              className={`block text-xs ${cliInfo.data.accepted?.current === true ? 'text-fg-muted' : 'font-semibold text-warn'}`}
+              data-testid={`provider-cli-acceptance-${p.id}`}
+            >
+              {cliInfo.data.accepted?.current === true
+                ? `Statement accepted by ${cliInfo.data.accepted.by ?? 'an admin'}`
+                : cliInfo.data.accepted
+                  ? '⚠ Needs re-acceptance: the statement changed, so this connection is not used. Open Advanced → Provider: Claude Code CLI.'
+                  : '⚠ Not accepted: this connection is not used until an admin accepts the statement (Advanced → Provider: Claude Code CLI).'}
             </span>
           ) : null}
           {p.enabled ? null : (

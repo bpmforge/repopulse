@@ -46,6 +46,14 @@ describe('Admin → Models → quality per model (W19-05)', () => {
       'not yet run',
     );
     expect(screen.getByTestId('model-eval-row-my-model')).toHaveTextContent('LAN');
+    // W20-11 (UX_TODO AI-16, partial; AI-28): how to measure it, and how to read the table.
+    expect(screen.getByTestId('model-eval-how-to-measure')).toHaveTextContent(
+      /my-model.*npx tsx packages\/security\/src\/eval\/cli\.ts/,
+    );
+    expect(screen.getByTestId('model-eval-guide')).toHaveTextContent(
+      /read a gap smaller than that as a tie/,
+    );
+    expect(screen.getByTestId('model-eval-routing-link')).toHaveAttribute('href', '#model-routing');
   });
 
   it('shows precision and recall, the engine and the date for a measured model', async () => {
@@ -125,11 +133,16 @@ describe('Admin → Models → quality per model (W19-05)', () => {
     };
     renderIt();
     const cell = await screen.findByTestId('model-eval-flaky-security');
-    expect(cell).toHaveTextContent('incomplete (2 errors)');
+    expect(cell).toHaveTextContent('incomplete: 2 of 4 cases hit a provider error (listed below)');
     expect(cell).not.toHaveTextContent('%');
     expect(screen.getByTestId('model-eval-incomplete-flaky')).toHaveTextContent(
       '2 provider errors',
     );
     expect(screen.getByTestId('model-eval-row-flaky')).toHaveTextContent('not configured here');
+    // W20-11 (UX_TODO AI-27): the errors themselves, as text, not a tooltip.
+    const errors = screen.getByTestId('model-eval-errors-flaky');
+    expect(errors.querySelector('details')).toBeTruthy();
+    expect(errors).toHaveTextContent('Security, case a: x');
+    expect(cell.getAttribute('title')).toBeNull();
   });
 });

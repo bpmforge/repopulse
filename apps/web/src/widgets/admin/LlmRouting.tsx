@@ -124,7 +124,10 @@ export function LlmRouting() {
   const query = useApiQuery<RoutingState>(ROUTING);
   const [localOnly, setLocalOnly] = useState(false);
   const [chains, setChains] = useState<Record<string, ChainLink[]>>({});
-  const [saved, setSaved] = useState(false);
+  // What was last saved, so "Saved." holds until the next edit even before the
+  // refetched routing arrives.
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [confirmStrip, setConfirmStrip] = useState(false);
 
   // Re-seed the editor whenever the server's copy changes (first load, save).
   useEffect(() => {
@@ -137,6 +140,48 @@ export function LlmRouting() {
     { endpoint: '/admin/llm-routing', method: 'PUT' },
     { invalidate: [queryKeyFor(ROUTING)] },
   );
+
+  // W20-11 (UX_TODO AI-24): edits wait for "Save routing", and nothing said so;
+  // the Local only tick read as instant, and leaving the page dropped the edits.
+  const serverChains = Object.fromEntries((query.data?.roles ?? []).map((r) => [r.role, r.chain]));
+  const norm = (c: Record<string, ChainLink[]>) =>
+    JSON.stringify(
+      Object.keys(c)
+        .sort()
+        .map((role) => [role, (c[role] ?? []).map((l) => [l.provider_id, l.model || null])])
+        .filter(([, chain]) => (chain as unknown[]).length > 0),
+    );
+  const currentKey = JSON.stringify([localOnly, norm(chains)]);
+  const dirty =
+    query.data !== undefined &&
+    currentKey !== JSON.stringify([query.data.local_only, norm(serverChains)]) &&
+    currentKey !== savedKey;
+  const saved = savedKey !== null && savedKey === currentKey;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  const discard = () => {
+    if (!query.data) return;
+    setLocalOnly(query.data.local_only);
+    setChains(serverChains);
+    setConfirmStrip(false);
+  };
+
+  // W20-11 (UX_TODO AI-76): ticking Local only with hosted links still in the
+  // chains was refused on Save (a 422 listing them), and each link then had to
+  // be found and removed by hand across up to eight roles. They are marked
+  // here, and one confirmed action removes them and saves.
+  const leaves = (id: number) =>
+    (query.data?.providers ?? []).find((p) => p.id === id)?.leaves_network === true;
+  const offNetwork = Object.entries(chains)
+    .map(([role, chain]) => ({ role, links: chain.filter((l) => leaves(l.provider_id)) }))
+    .filter((r) => r.links.length > 0);
 
   const providers = (query.data?.providers ?? []).filter((p) => p.enabled);
   // W20-06 (UX_TODO AI-03): a switched-off connection is not offered in the
@@ -152,15 +197,14 @@ export function LlmRouting() {
   const roles = query.data?.roles ?? [];
 
   const update = (role: string, next: ChainLink[]) => {
-    setSaved(false);
     setChains((c) => ({ ...c, [role]: next }));
   };
 
-  function body(): Record<string, unknown> {
+  function body(from: Record<string, ChainLink[]> = chains): Record<string, unknown> {
     return {
       local_only: localOnly,
       roles: Object.fromEntries(
-        Object.entries(chains)
+        Object.entries(from)
           .filter(([, chain]) => chain.length > 0)
           .map(([role, chain]) => [
             role,
@@ -181,7 +225,7 @@ export function LlmRouting() {
       {...(query.error ? { errorMessage: query.error.message } : {})}
       onRetry={() => void query.refetch()}
     >
-      <div data-testid="llm-routing" className="flex flex-col gap-3">
+      <div data-testid="llm-routing" id="model-routing" className="flex flex-col gap-3">
         <p className="text-xs text-fg-muted">
           Choose which connection and model handles each kind of analysis. A role with no chain uses
           your connections as a shared pool. If a connection is down or refuses a request, the next
@@ -195,7 +239,6 @@ export function LlmRouting() {
             data-testid="routing-local-only"
             checked={localOnly}
             onChange={(e) => {
-              setSaved(false);
               setLocalOnly(e.target.checked);
             }}
             className="mt-0.5"
@@ -205,6 +248,114 @@ export function LlmRouting() {
             (including Tier-3, the Claude API). Roles without a chain use only my local connections.
           </span>
         </label>
+
+        {localOnly && offNetwork.length > 0 ? (
+          <div
+            role="alert"
+            className="flex flex-col gap-1 rounded-sm border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs"
+            data-testid="routing-local-only-conflict"
+          >
+            <p>
+              <strong>Local only cannot be saved yet:</strong>{' '}
+              {offNetwork.reduce((n, r) => n + r.links.length, 0)} link
+              {offNetwork.reduce((n, r) => n + r.links.length, 0) === 1 ? '' : 's'} below leave your
+              network, in {offNetwork.map((r) => ROLE_LABEL[r.role] ?? r.role).join(', ')}. They are
+              marked &ldquo;will be removed&rdquo;.
+            </p>
+            {confirmStrip ? (
+              <p>
+                Remove them from{' '}
+                {offNetwork
+                  .map(
+                    (r) =>
+                      `${ROLE_LABEL[r.role] ?? r.role} (${r.links.map((l) => l.provider_name ?? `connection ${l.provider_id}`).join(', ')})`,
+                  )
+                  .join('; ')}{' '}
+                and save with Local only on? A role left with no link uses your local connections.
+              </p>
+            ) : null}
+            <div className="flex gap-1.5">
+              {confirmStrip ? (
+                <>
+                  <button
+                    type="button"
+                    data-testid="routing-strip-do"
+                    disabled={save.isPending}
+                    onClick={() => {
+                      const stripped = Object.fromEntries(
+                        Object.entries(chains).map(([role, chain]) => [
+                          role,
+                          chain.filter((l) => !leaves(l.provider_id)),
+                        ]),
+                      );
+                      setChains(stripped);
+                      save.mutate(body(stripped), {
+                        onSuccess: () => {
+                          setSavedKey(JSON.stringify([localOnly, norm(stripped)]));
+                          setConfirmStrip(false);
+                        },
+                      });
+                    }}
+                    className="rounded-md border border-warn px-2 py-1 text-xs hover:bg-warn/10 disabled:opacity-50"
+                  >
+                    Remove and save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmStrip(false)}
+                    className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="routing-strip"
+                  onClick={() => setConfirmStrip(true)}
+                  className="rounded-md border border-warn px-2 py-1 text-xs hover:bg-warn/10"
+                >
+                  Remove off-network links and turn on Local only…
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {/* W20-11 (UX_TODO AI-26): one model for every role took eight
+            separate "Add a connection…" picks. */}
+        {providers.length > 0 ? (
+          <label className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+            Use one connection for every role:
+            <select
+              data-testid="routing-apply-all"
+              value=""
+              onChange={(e) => {
+                const p = providers.find((x) => x.id === Number(e.target.value));
+                if (!p) return;
+                setChains(
+                  Object.fromEntries(
+                    roles.map(({ role }) => [
+                      role,
+                      [{ provider_id: p.id, provider_name: p.name, model: null }],
+                    ]),
+                  ),
+                );
+              }}
+              className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-xs"
+            >
+              <option value="">Choose…</option>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-fg-faint">
+              Replaces every chain with that one connection; nothing is saved until Save routing.
+            </span>
+          </label>
+        ) : null}
 
         {switchedOff.length > 0 ? (
           <p className="text-xs text-fg-muted" data-testid="routing-switched-off">
@@ -239,10 +390,18 @@ export function LlmRouting() {
                         {chain.map((link, i) => (
                           <li
                             key={`${link.provider_id}-${i}`}
-                            className="flex items-center gap-2 text-xs"
+                            className="flex flex-wrap items-center gap-2 text-xs"
                           >
                             <span className="text-fg-muted">{i + 1}.</span>
                             <span>{link.provider_name ?? `connection ${link.provider_id}`}</span>
+                            {localOnly && leaves(link.provider_id) ? (
+                              <span
+                                className="font-semibold text-warn"
+                                data-testid={`routing-will-remove-${role}-${i}`}
+                              >
+                                leaves your network: will be removed
+                              </span>
+                            ) : null}
                             <input
                               aria-label={`Model override for ${ROLE_LABEL[role] ?? role} link ${i + 1}`}
                               data-testid={`routing-model-${role}-${i}`}
@@ -270,6 +429,21 @@ export function LlmRouting() {
                               className="underline disabled:opacity-40"
                             >
                               ↑
+                            </button>
+                            {/* W20-11 (UX_TODO AI-25): a link could go up but not down. */}
+                            <button
+                              type="button"
+                              aria-label={`Move link ${i + 1} down`}
+                              data-testid={`routing-down-${role}-${i}`}
+                              disabled={i === chain.length - 1}
+                              onClick={() => {
+                                const next = [...chain];
+                                [next[i], next[i + 1]] = [next[i + 1]!, next[i]!];
+                                update(role, next);
+                              }}
+                              className="underline disabled:opacity-40"
+                            >
+                              ↓
                             </button>
                             <button
                               type="button"
@@ -341,19 +515,35 @@ export function LlmRouting() {
           </tbody>
         </table>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             data-testid="routing-save"
             disabled={save.isPending}
             onClick={() => {
-              setSaved(false);
-              save.mutate(body(), { onSuccess: () => setSaved(true) });
+              const sent = currentKey;
+              setSavedKey(null);
+              save.mutate(body(), { onSuccess: () => setSavedKey(sent) });
             }}
             className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
           >
             {save.isPending ? 'Saving…' : 'Save routing'}
           </button>
+          {dirty && !save.isPending ? (
+            <>
+              <span className="text-xs font-semibold text-warn" data-testid="routing-unsaved">
+                Unsaved changes: nothing above applies until you save.
+              </span>
+              <button
+                type="button"
+                data-testid="routing-discard"
+                onClick={discard}
+                className="text-xs underline underline-offset-2"
+              >
+                Discard
+              </button>
+            </>
+          ) : null}
           {saved ? (
             <span role="status" data-testid="routing-saved" className="text-xs text-fg-muted">
               Saved.

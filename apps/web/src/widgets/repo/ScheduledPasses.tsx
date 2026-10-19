@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
-import type { PassStatus, ScheduleResponse } from '../findings/aiContracts.js';
+import { localDateTime, type PassStatus, type ScheduleResponse } from '../findings/aiContracts.js';
 
 // Scheduled AI passes, on the repository's Security tab (W19-12).
 //
@@ -32,7 +32,11 @@ const MARK: Record<PassStatus, string> = {
   skipped: '–',
 };
 
-const when = (iso: string | null): string => (iso ? iso.slice(0, 16).replace('T', ' ') : 'never');
+// W20-11 (UX_TODO AI-39): local time with its zone, not the raw UTC string.
+const when = (iso: string | null): string => localDateTime(iso);
+
+/** Times a failed pull-request review is tried again (PR_REVIEW_ATTEMPTS on the server). */
+const PR_REVIEW_ATTEMPTS = 3;
 
 function parsePaths(text: string): string[] {
   return text
@@ -58,6 +62,7 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
   const [paths, setPaths] = useState('');
   const [ack, setAck] = useState(false);
   const [capText, setCapText] = useState<string | null>(null);
+  const [capSaved, setCapSaved] = useState(false);
 
   if (isLoading) return <p className="text-sm text-fg-muted">Loading…</p>;
   if (isError || !data || !data.egress) {
@@ -73,6 +78,14 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
   const pathList = parsePaths(paths);
   const scopeOk = scope === 'new_pull_requests' || pathList.length > 0;
   const canEnable = ack && scopeOk && egress.destinations.length > 0;
+  // W20-11 (UX_TODO AI-37): why Enable is greyed out, in words, tied to the button.
+  const enableBlockers = [
+    ...(egress.destinations.length === 0 ? ['set up a model first, in Admin → Models'] : []),
+    ...(scopeOk ? [] : ['enter at least one path']),
+    ...(ack || egress.destinations.length === 0
+      ? []
+      : ['tick the box above to acknowledge where source would be sent']),
+  ];
   const capShown = capText ?? String(monthly.cap);
   const capNumber = /^\d{1,6}$/.test(capShown.trim()) ? Number(capShown.trim()) : null;
   const showForm = isAdmin && editing;
@@ -248,12 +261,20 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
                 onChange={(e) => setPaths(e.target.value)}
                 placeholder="src/payments"
               />
+              {/* W20-11 (UX_TODO AI-84): what a paths schedule re-reads, said
+                  as plainly as the pull-request rule below. */}
+              <span className="text-fg-faint" data-testid="schedule-paths-rerun">
+                Each run reads these paths again in full, up to 30 model calls. A run is skipped
+                when no new commit has been ingested since the last one; a new commit anywhere in
+                the repository makes the next run read these paths again.
+              </span>
             </label>
           ) : (
             <p className="text-xs text-fg-faint">
               One open, non-draft pull request per run, oldest first, only if it changed since the
               last run; if more are waiting it looks again within the hour. A pull request is
-              reviewed again only when its head changes.
+              reviewed again only when its head changes, or when its review failed (tried up to{' '}
+              {PR_REVIEW_ATTEMPTS} times).
             </p>
           )}
 
@@ -314,6 +335,7 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
               data-testid="schedule-enable"
               disabled={!canEnable || put.isPending}
               aria-busy={put.isPending || undefined}
+              aria-describedby={enableBlockers.length > 0 ? 'schedule-enable-hint' : undefined}
             >
               {put.isPending ? 'Saving…' : on ? 'Save and acknowledge' : 'Enable schedule'}
             </button>
@@ -325,6 +347,15 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
               Cancel
             </button>
           </div>
+          {enableBlockers.length > 0 ? (
+            <p
+              id="schedule-enable-hint"
+              className="text-xs text-fg-muted"
+              data-testid="schedule-enable-hint"
+            >
+              To enable: {enableBlockers.join('; ')}.
+            </p>
+          ) : null}
           <ErrorNote error={put.error} testId="schedule-error" />
         </form>
       ) : (
@@ -336,18 +367,26 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
           className="flex flex-wrap items-end gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (capNumber !== null && capNumber <= 100000)
-              cap.mutate({ monthly_call_cap: capNumber });
+            if (capNumber !== null && capNumber <= 100000) {
+              setCapSaved(false);
+              cap.mutate({ monthly_call_cap: capNumber }, { onSuccess: () => setCapSaved(true) });
+            }
           }}
         >
+          {/* W20-11 (UX_TODO AI-36): one number for the whole workspace, edited
+              here on one repository's tab, so the label says so; and a save
+              says it saved. */}
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
-            Monthly cap (model calls)
+            Workspace monthly cap (model calls, all repositories)
             <input
               className="panel w-36 px-2 py-1 text-sm"
               inputMode="numeric"
               data-testid="schedule-cap-input"
               value={capShown}
-              onChange={(e) => setCapText(e.target.value)}
+              onChange={(e) => {
+                setCapSaved(false);
+                setCapText(e.target.value);
+              }}
             />
           </label>
           <button
@@ -360,7 +399,14 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
           >
             Save cap
           </button>
-          <span className="text-xs text-fg-faint">0 stops every scheduled pass.</span>
+          <span className="text-xs text-fg-faint">
+            Applies to every repository in this workspace. 0 stops every scheduled pass.
+          </span>
+          {capSaved ? (
+            <span role="status" className="text-xs text-fg-muted" data-testid="schedule-cap-saved">
+              Saved.
+            </span>
+          ) : null}
           <ErrorNote error={cap.error} testId="schedule-cap-error" />
         </form>
       ) : null}
@@ -388,6 +434,12 @@ export function ScheduledPasses({ repoId, isAdmin }: { repoId: string; isAdmin: 
                 {r.reason ? (
                   <span className="block text-fg-muted" data-testid="schedule-run-reason">
                     {r.reason}
+                  </span>
+                ) : null}
+                {r.status === 'failed' && r.mode === 'pull_request' && r.pr_number ? (
+                  <span className="block text-fg" data-testid="schedule-run-retry">
+                    PR #{r.pr_number}: review failed. A later scheduled run tries it again, up to{' '}
+                    {PR_REVIEW_ATTEMPTS} times for the same head.
                   </span>
                 ) : null}
               </li>

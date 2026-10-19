@@ -163,13 +163,30 @@ describe('ReviewBots tab (W18-23)', () => {
     renderTab();
     const row = await screen.findByTestId('review-bot-coderabbit');
     const cells = within(row).getAllByRole('cell');
-    // Comments / PR, follow-up, repeat: dashes, each explained on hover.
+    // Comments / PR, follow-up, repeat: dashes, each explained in words, not
+    // a hover tooltip (W20-11, UX_TODO AI-47): a footnote mark, the reason for a
+    // screen reader, and the notes listed under the table.
     for (const i of [2, 4, 5]) {
       expect(cells[i]).toHaveTextContent('—');
-      expect(cells[i]).toHaveAttribute('title', expect.stringMatching(/line-level/));
+      expect(cells[i]).toHaveTextContent(/line-level/);
+      expect(cells[i]!.querySelector('sup')).toHaveTextContent('1');
     }
+    expect(screen.getByTestId('review-bots-blank-notes')).toHaveTextContent(
+      /Blank because: .*line-level/,
+    );
     expect(screen.getByTestId('review-bots-line-data')).toHaveTextContent(
       'Gitea does not give RepoPulse line-level review-comment data',
+    );
+  });
+
+  // W20-11 (UX_TODO AI-15): this tab is about third-party bots; RepoPulse's own
+  // AI review is elsewhere, and the tab says where.
+  it('points to RepoPulse’s own AI review on the Security tab', async () => {
+    renderTab();
+    const own = await screen.findByTestId('review-bots-own-ai');
+    expect(within(own).getByRole('link')).toHaveAttribute(
+      'href',
+      '/repos/7/security#ai-review-pass',
     );
   });
 

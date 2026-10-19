@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import {
   PASS_CAPS,
+  TRIAGE_PER_PASS,
+  localDateTime,
   passLabel,
+  specialistLabel,
   type AiPassRun,
   type PassMode,
   type PassStatus,
@@ -47,7 +51,87 @@ function parsePaths(text: string): string[] {
     .filter((p) => p !== '');
 }
 
-function RunRow({ run }: { run: AiPassRun }) {
+/**
+ * W20-11 (UX_TODO AI-85, partial): the pass reads only these source types. The
+ * panel promised it "never reads part of what you asked for", while a directory
+ * of Vue or Terraform files was quietly reviewed as its TypeScript alone. Mirrors
+ * READABLE in packages/security/src/snapshot/sources.ts.
+ */
+export const READABLE_SOURCES =
+  'JavaScript and TypeScript (.js, .jsx, .ts, .tsx, .mjs, .cjs), Python, Go (and go.mod), Ruby, Java, Kotlin, C#, PHP and Rust';
+
+/** Minutes after which a queued pass no worker took is called stalled (as "Run scans now" does). */
+export const STALLED_AFTER_MIN = 5;
+
+const LINK =
+  'underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+
+/**
+ * The next step for a failed pass, by its reason code (W20-11, UX_TODO AI-35).
+ * A failure said what went wrong and stopped: "no model configured" did not
+ * link to Models, nor a local-only refusal to Routing. Members are told who can
+ * act, since the fixes are admin pages.
+ */
+export function failureFix(
+  run: Pick<AiPassRun, 'status' | 'reason_code' | 'reason'>,
+  isAdmin: boolean,
+): ReactNode {
+  if (run.status !== 'failed') return null;
+  const code = run.reason_code ?? '';
+  const admin = (to: string, label: string, hash?: string) =>
+    isAdmin ? (
+      <Link to={to as never} {...(hash ? { hash } : {})} className={LINK}>
+        {label}
+      </Link>
+    ) : (
+      <span>Ask an admin to {label.charAt(0).toLowerCase() + label.slice(1)}.</span>
+    );
+  if (code === 'no_gateway') return admin('/admin/models', 'Set up a model in Admin → Models');
+  if (code === 'specialists_unusable') {
+    return admin(
+      '/admin/models',
+      'Compare models in Admin → Models → Quality per model',
+      'quality-per-model',
+    );
+  }
+  if (code === 'no_connection' || code === 'no_snapshot') {
+    return admin('/admin/sync', 'Check the forge connection in Admin → Sync');
+  }
+  if (code === 'no_head_sha') return <span>Wait for the first sync of this repository.</span>;
+  if (code === 'too_large' || code === 'no_files' || code === 'bad_range' || code === 'not_found') {
+    return <span>Change what to review above, then start the pass again.</span>;
+  }
+  // A local-only refusal arrives as a plain error carrying its own sentence.
+  if (/local[- ]only/i.test(run.reason ?? '')) {
+    return admin('/admin/models', 'Change the routing in Admin → Models → Routing');
+  }
+  return admin(
+    '/admin/models',
+    'Test the model in Admin → Models (it may be down, still loading or out of memory)',
+  );
+}
+
+/** Whole minutes since a timestamp, for a pass in flight. */
+function minutesSince(iso: string | null, now: number): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? null : Math.max(0, Math.floor((now - t) / 60000));
+}
+const duration = (min: number): string =>
+  min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
+
+function RunRow({
+  run,
+  isAdmin,
+  repoId,
+  onRerun,
+}: {
+  run: AiPassRun;
+  isAdmin: boolean;
+  repoId: string;
+  /** Starts the same scope again; absent while a pass runs or for a member. */
+  onRerun?: (() => void) | undefined;
+}) {
   const funnel = run.triage_funnel;
   const verdicts = funnel?.verdicts ?? {};
   const usage = run.specialists?.usage ?? {};
@@ -61,6 +145,16 @@ function RunRow({ run }: { run: AiPassRun }) {
     failedBy.set(f.specialist, [...(failedBy.get(f.specialist) ?? []), ...f.paths]);
   }
   const rejectedCount = run.specialists?.rejected ?? 0;
+  const now = Date.now();
+  const elapsed = minutesSince(run.started_at, now);
+  const waiting = minutesSince(run.created_at, now);
+  const fix = failureFix(run, isAdmin);
+  // W20-11 (UX_TODO AI-60): findings a failed pass's specialists had already
+  // written are real findings on the repository; the row now says so.
+  const savedBeforeFailure = raised.reduce((n, [, u]) => n + (u.findings ?? 0), 0);
+  const filesRead = run.specialists?.filesRead;
+  const skippedTop = funnel?.skipped?.below_top_n ?? 0;
+  const skippedBudget = funnel?.skipped?.budget_exhausted ?? 0;
   return (
     <li
       className="flex flex-col gap-1 border-t border-border pt-2"
@@ -71,12 +165,28 @@ function RunRow({ run }: { run: AiPassRun }) {
         <span data-testid="ai-pass-status">{WORD[run.status]}</span>
         <span className="text-xs text-fg-muted">
           {' '}
-          {run.trigger === 'scheduled' ? ' · scheduled' : ''} ·{' '}
-          {run.created_at.slice(0, 16).replace('T', ' ')}
+          {run.trigger === 'scheduled' ? ' · scheduled' : ''} · {localDateTime(run.created_at)}
           {run.requested_by ? ` · started by ${run.requested_by}` : ''}
           {run.calls !== null ? ` · ${run.calls} model call${run.calls === 1 ? '' : 's'}` : ''}
         </span>
       </p>
+      {/* W20-11 (UX_TODO AI-64, partial): a pass no worker picks up sat at
+          "queued…" forever, and a long one on a slow local model showed nothing
+          moving. Calls so far are not recorded until the pass ends. */}
+      {run.status === 'running' && elapsed !== null ? (
+        <p className="text-xs text-fg-muted" data-testid="ai-pass-elapsed">
+          Running for {duration(elapsed)}. A pass on a local model can take several minutes; the
+          model calls it used are shown when it ends.
+        </p>
+      ) : null}
+      {run.status === 'pending' && waiting !== null && waiting >= STALLED_AFTER_MIN ? (
+        <p className="text-xs text-fg" role="alert" data-testid="ai-pass-stalled">
+          Queued for {duration(waiting)} and no worker has picked it up.{' '}
+          {isAdmin
+            ? 'Check that the worker is running (Settings → System health).'
+            : 'Ask an admin to check the worker.'}
+        </p>
+      ) : null}
       <p className="text-xs text-fg-faint" data-testid="ai-pass-scope">
         Reviewed{' '}
         <span>
@@ -95,6 +205,18 @@ function RunRow({ run }: { run: AiPassRun }) {
           {run.reason}
         </p>
       ) : null}
+      {fix ? (
+        <p className="text-xs text-fg" data-testid="ai-pass-fix">
+          Next step: {fix}
+        </p>
+      ) : null}
+      {run.status === 'failed' && savedBeforeFailure > 0 ? (
+        <p className="text-xs text-fg" data-testid="ai-pass-saved-before-failure">
+          {savedBeforeFailure} finding{savedBeforeFailure === 1 ? ' was' : 's were'} saved before it
+          failed ({raised.map(([id, u]) => `${specialistLabel(id)} ${u.findings}`).join(', ')}).
+          They are on the findings list like any other.
+        </p>
+      ) : null}
       {failedBy.size > 0 ? (
         <div className="text-xs text-fg" data-testid="ai-pass-failures">
           <p>
@@ -104,7 +226,7 @@ function RunRow({ run }: { run: AiPassRun }) {
           <ul className="ml-4 list-disc">
             {[...failedBy.entries()].map(([id, paths]) => (
               <li key={id}>
-                {id.replace(/_/g, ' ')}: {[...new Set(paths)].slice(0, 5).join(', ')}
+                {specialistLabel(id)}: {[...new Set(paths)].slice(0, 5).join(', ')}
                 {new Set(paths).size > 5 ? ', …' : ''}
               </li>
             ))}
@@ -122,7 +244,7 @@ function RunRow({ run }: { run: AiPassRun }) {
           {raised.length > 0 ? (
             <li data-testid="ai-pass-raised">
               Specialists raised:{' '}
-              {raised.map(([id, u]) => `${id.replace(/_/g, ' ')} ${u.findings}`).join(', ')}.
+              {raised.map(([id, u]) => `${specialistLabel(id)} ${u.findings}`).join(', ')}.
             </li>
           ) : failedBy.size > 0 ? (
             <li data-testid="ai-pass-raised">
@@ -142,20 +264,58 @@ function RunRow({ run }: { run: AiPassRun }) {
           {dropped.length > 0 ? (
             <li data-testid="ai-pass-dropped">
               Did not run, because the call limit was reached:{' '}
-              {dropped.map((d) => d.replace(/_/g, ' ')).join(', ')}. This pass says nothing about
-              those dimensions.
+              {dropped.map(specialistLabel).join(', ')}. This pass says nothing about those
+              dimensions.
+            </li>
+          ) : null}
+          {typeof filesRead === 'number' && (run.mode ?? 'paths') === 'paths' ? (
+            <li data-testid="ai-pass-files-read">
+              {filesRead} file{filesRead === 1 ? '' : 's'} read. Only {READABLE_SOURCES} files are
+              read; other file types in these paths were not reviewed.
             </li>
           ) : null}
           {funnel ? (
             <li data-testid="ai-pass-triage">
-              Triage: {funnel.triaged ?? 0} finding{funnel.triaged === 1 ? '' : 's'} reviewed
-              {funnel.accepted !== undefined ? `, ${funnel.accepted} kept` : ''}
+              {/* W20-11 (UX_TODO AI-82, AI-50): the funnel the processor stores,
+                  so a pass over 80 findings does not read as all 80 triaged, and
+                  "kept" said in words. */}
+              Triage: {funnel.triaged ?? 0}
+              {funnel.candidates !== undefined ? ` of ${funnel.candidates} eligible` : ''} finding
+              {(funnel.candidates ?? funnel.triaged) === 1 ? '' : 's'} reviewed
+              {funnel.accepted !== undefined ? `, ${funnel.accepted} gave a usable answer` : ''}
               {Object.keys(verdicts).length > 0
                 ? ` (${Object.entries(verdicts)
                     .map(([v, n]) => `${n} ${v.replace(/_/g, ' ')}`)
                     .join(', ')})`
                 : ''}
-              . Suggestions are on the findings.
+              .
+              {skippedTop > 0
+                ? ` ${skippedTop} not looked at, because a pass triages at most ${TRIAGE_PER_PASS}.`
+                : ''}
+              {skippedBudget > 0 ? ` ${skippedBudget} dropped when the call budget ran out.` : ''}{' '}
+              Suggestions are on the findings:{' '}
+              <Link
+                to="/findings"
+                search={{ repos: repoId } as never}
+                className={LINK}
+                data-testid="ai-pass-findings-link"
+              >
+                open this repository&rsquo;s findings
+              </Link>
+              .
+              {skippedTop + skippedBudget > 0 && onRerun ? (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className={LINK}
+                    data-testid="ai-pass-rerun"
+                    onClick={onRerun}
+                  >
+                    Run again to triage the next {TRIAGE_PER_PASS}
+                  </button>
+                </>
+              ) : null}
             </li>
           ) : run.triage_skipped ? (
             <li data-testid="ai-pass-triage-skipped">Triage did not run: {run.triage_skipped}</li>
@@ -221,15 +381,33 @@ export function PassDestinations({ repoId }: { repoId: string }) {
   );
 }
 
-export function AiPassPanel({ repoId }: { repoId: string }) {
-  const descriptor = { endpoint: '/repos/{id}/ai-pass', path: { id: repoId } } as const;
-  const { data, isLoading, isError } = useApiQuery<{ runs?: AiPassRun[] }>(descriptor, {
+export function AiPassPanel({
+  repoId,
+  initialPaths,
+}: {
+  repoId: string;
+  /** W20-11 (UX_TODO AI-44): a finding's "start a pass" link prefills its file. */
+  initialPaths?: string | undefined;
+}) {
+  // W20-11 (UX_TODO AI-81): the API leaves out scheduled skips (which used to
+  // push every real pass out of the ten newest, so a reviewed repository could
+  // read "not yet run") and returns older passes on request.
+  const [limit, setLimit] = useState(10);
+  const descriptor = {
+    endpoint: '/repos/{id}/ai-pass',
+    path: { id: repoId },
+    ...(limit !== 10 ? { query: { limit } } : {}),
+  } as const;
+  const { data, isLoading, isError } = useApiQuery<{
+    runs?: AiPassRun[];
+    more?: boolean;
+  }>(descriptor, {
     // Follow a pass while it is in flight; a settled list does not change.
     refetchInterval: (d) => ((d?.runs ?? []).some((r) => ACTIVE(r.status)) ? 5000 : false),
   });
   const { data: me } = useApiQuery<{ role?: string }>({ endpoint: '/me/context' });
   const isAdmin = me?.role === 'admin';
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialPaths ?? '');
   const [mode, setMode] = useState<PassMode>('paths');
   const [pr, setPr] = useState('');
   const [base, setBase] = useState('');
@@ -263,9 +441,28 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
         : rangeOk
           ? { base: base.trim(), head: head.trim() }
           : null;
+  // W20-11 (UX_TODO AI-30): why Start is greyed out, in words, tied to the
+  // button (the wizard's pattern from W19-13).
+  const startBlocker = active
+    ? 'wait for the running pass to end; this list follows it'
+    : body !== null
+      ? null
+      : mode === 'paths'
+        ? 'enter at least one file or directory'
+        : mode === 'pull_request'
+          ? 'enter a pull request number'
+          : 'enter a base and a head commit SHA (7 to 64 hexadecimal characters each)';
+  const rerun = (r: AiPassRun) => {
+    const m = r.mode ?? 'paths';
+    if (m === 'paths' && r.paths.length > 0) start.mutate({ paths: r.paths });
+    else if (m === 'pull_request' && r.pr_number) start.mutate({ pull_request: r.pr_number });
+    else if (m === 'commit_range' && r.base_ref && r.head_ref)
+      start.mutate({ base: r.base_ref, head: r.head_ref });
+  };
+  const newest = runs[0];
 
   return (
-    <div className="flex flex-col gap-3" data-testid="ai-pass-panel">
+    <div className="flex flex-col gap-3" data-testid="ai-pass-panel" id="ai-review-pass">
       <p className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
         <AiBadge />
         <span>
@@ -279,8 +476,9 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
       <p className="text-xs text-fg-faint" data-testid="ai-pass-caps">
         Limits: at most {PASS_CAPS.paths} paths, {PASS_CAPS.files} files and{' '}
         {PASS_CAPS.bytes / 1000} KB read (of source, or of diff), {PASS_CAPS.calls} model calls per
-        pass, and {PASS_CAPS.perDay} passes a day for the workspace. Over a limit the pass is
-        refused with the reason; it never reads part of what you asked for and calls it all.
+        pass, and {PASS_CAPS.perDay} passes a day for the workspace (passes that ran, failed ones
+        included; a scheduled run that was skipped does not count). Over a limit the pass is refused
+        with the reason; it never reads part of what you asked for and calls it all.
       </p>
 
       {isAdmin ? (
@@ -323,6 +521,10 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
                 onChange={(e) => setText(e.target.value)}
                 placeholder="src/payments"
               />
+              <span className="text-fg-faint" data-testid="ai-pass-languages">
+                Reads {READABLE_SOURCES} files only, each up to 512 KB. Other files in these paths
+                are not reviewed.
+              </span>
             </label>
           ) : mode === 'pull_request' ? (
             <div className="flex flex-col gap-1">
@@ -382,10 +584,20 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
               data-testid="ai-pass-start"
               disabled={body === null || start.isPending || active}
               aria-busy={start.isPending || undefined}
+              aria-describedby={startBlocker ? 'ai-pass-start-hint' : undefined}
             >
               {start.isPending ? 'Starting…' : active ? 'A pass is running' : 'Start an AI pass'}
             </button>
           </div>
+          {startBlocker ? (
+            <p
+              id="ai-pass-start-hint"
+              className="text-xs text-fg-muted"
+              data-testid="ai-pass-start-hint"
+            >
+              To start: {startBlocker}.
+            </p>
+          ) : null}
           {/* The server's own reason: a daily limit, an unreachable queue, a bad path. */}
           <ErrorNote error={start.error} testId="ai-pass-error" />
         </form>
@@ -407,11 +619,34 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
           That is an absence of review, not a clean result.
         </p>
       ) : (
-        <ol className="flex flex-col gap-2" data-testid="ai-pass-runs">
-          {runs.map((r) => (
-            <RunRow key={r.id} run={r} />
-          ))}
-        </ol>
+        <>
+          {/* W20-11 (UX_TODO AI-34): status changes arrive by polling; a screen
+              reader is told when the newest pass moves on. */}
+          <p className="sr-only" role="status" data-testid="ai-pass-live">
+            {newest ? `Newest AI pass: ${WORD[newest.status]}.` : ''}
+          </p>
+          <ol className="flex flex-col gap-2" data-testid="ai-pass-runs">
+            {runs.map((r) => (
+              <RunRow
+                key={r.id}
+                run={r}
+                isAdmin={isAdmin}
+                repoId={repoId}
+                onRerun={isAdmin && !active && !start.isPending ? () => rerun(r) : undefined}
+              />
+            ))}
+          </ol>
+          {data?.more && limit < 50 ? (
+            <button
+              type="button"
+              className={`self-start text-xs ${LINK}`}
+              data-testid="ai-pass-older"
+              onClick={() => setLimit((n) => Math.min(50, n + 20))}
+            >
+              Show older passes
+            </button>
+          ) : null}
+        </>
       )}
 
       <ScheduledPasses repoId={repoId} isAdmin={isAdmin} />

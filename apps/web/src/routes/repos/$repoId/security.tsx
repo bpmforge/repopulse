@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useSearch } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { API_BASE } from '../../../api/client.js';
@@ -33,10 +33,24 @@ import {
 // instead of one fixed excuse; and the findings a scan DID leave are listed
 // and linked, so a scan that found something is a screen with something on it.
 
-export const Route = createFileRoute('/repos/$repoId/security')({ component: SecurityTab });
+/**
+ * `?ai_path=` (W20-11, UX_TODO AI-44): a finding's "start a pass on this file"
+ * link lands here with the file already in the AI review pass box. Lenient: a
+ * junk value is dropped, never a white screen.
+ */
+export function validateSecuritySearch(search: Record<string, unknown>): { ai_path?: string } {
+  const raw = search.ai_path;
+  return typeof raw === 'string' && raw.length > 0 && raw.length <= 500 ? { ai_path: raw } : {};
+}
+
+export const Route = createFileRoute('/repos/$repoId/security')({
+  validateSearch: validateSecuritySearch,
+  component: SecurityTab,
+});
 
 function SecurityTab() {
   const { repoId } = useParams({ from: '/repos/$repoId/security' });
+  const aiPath = (useSearch({ strict: false }) as { ai_path?: string }).ai_path;
   const descriptor = { endpoint: '/repos/{id}/security', path: { id: repoId } } as const;
   // The hook needs the latest payload to decide whether to keep polling, and
   // the query needs the hook's interval. A ref breaks the order: the query is
@@ -93,7 +107,7 @@ function SecurityTab() {
       {/* W19-10: the AI review pass - start one, watch it, and see what it did
           and did not cover. Its answers appear on the findings. */}
       <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
-        <AiPassPanel repoId={repoId} />
+        <AiPassPanel repoId={repoId} initialPaths={aiPath} />
       </WidgetFrame>
 
       {/* W18-22: the holes beside the scanner table — languages, skipped

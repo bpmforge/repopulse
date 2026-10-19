@@ -209,3 +209,68 @@ describe('Admin → Models → Routing (W19-02)', () => {
     );
   });
 });
+
+describe('Routing friction (W20-11)', () => {
+  const putBody = () =>
+    JSON.parse(String(requests.find((r) => r.init?.method === 'PUT')?.init?.body)) as {
+      local_only: boolean;
+      roles: Record<string, { provider_id: number; model: string | null }[]>;
+    };
+
+  // UX_TODO AI-24: pending edits are announced, and can be discarded.
+  it('says edits are unsaved until Save routing, and Discard puts the saved routing back', async () => {
+    renderScreen();
+    await screen.findByTestId('routing-row-security');
+    expect(screen.queryByTestId('routing-unsaved')).toBeNull();
+    await userEvent.click(screen.getByTestId('routing-local-only'));
+    expect(screen.getByTestId('routing-unsaved')).toHaveTextContent(/nothing above applies/);
+    await userEvent.click(screen.getByTestId('routing-discard'));
+    expect(screen.queryByTestId('routing-unsaved')).toBeNull();
+    expect(screen.getByTestId('routing-local-only')).not.toBeChecked();
+  });
+
+  // UX_TODO AI-25: a link can move down as well as up.
+  it('moves a link down the chain', async () => {
+    renderScreen();
+    await screen.findByTestId('routing-row-security');
+    await userEvent.selectOptions(screen.getByTestId('routing-add-security'), '2');
+    expect(screen.getByTestId('routing-down-security-1')).toBeDisabled();
+    await userEvent.click(screen.getByTestId('routing-down-security-0'));
+    await userEvent.click(screen.getByTestId('routing-save'));
+    await waitFor(() => expect(requests.some((r) => r.init?.method === 'PUT')).toBe(true));
+    expect(putBody().roles.security!.map((l) => l.provider_id)).toEqual([2, 1]);
+  });
+
+  // UX_TODO AI-26: one connection for every role in one pick.
+  it('applies one connection to every role', async () => {
+    renderScreen();
+    await screen.findByTestId('routing-row-security');
+    await userEvent.selectOptions(screen.getByTestId('routing-apply-all'), '1');
+    await userEvent.click(screen.getByTestId('routing-save'));
+    await waitFor(() => expect(requests.some((r) => r.init?.method === 'PUT')).toBe(true));
+    const roles = putBody().roles;
+    expect(Object.keys(roles).sort()).toEqual([...ROLES].sort());
+    for (const r of ROLES) expect(roles[r]).toEqual([{ provider_id: 1, model: null }]);
+  });
+
+  // UX_TODO AI-76: ticking Local only with an off-network link says which, and
+  // offers to strip them, after asking.
+  it('Local only with an off-network link names it and can strip it, after a confirm', async () => {
+    renderScreen();
+    await screen.findByTestId('routing-row-security');
+    await userEvent.selectOptions(screen.getByTestId('routing-add-security'), '2');
+    await userEvent.click(screen.getByTestId('routing-local-only'));
+    expect(screen.getByTestId('routing-local-only-conflict')).toHaveTextContent(
+      /1 link below leave/,
+    );
+    expect(screen.getByTestId('routing-will-remove-security-1')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('routing-strip'));
+    expect(requests.some((r) => r.init?.method === 'PUT')).toBe(false);
+    await userEvent.click(screen.getByTestId('routing-strip-do'));
+    await waitFor(() => expect(requests.some((r) => r.init?.method === 'PUT')).toBe(true));
+    expect(putBody()).toMatchObject({
+      local_only: true,
+      roles: { security: [{ provider_id: 1, model: null }] },
+    });
+  });
+});

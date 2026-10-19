@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
-import { CapabilityList } from './LlmProviders.js';
+import { CapabilityList, ClaudeCliPanel, testNextStep } from './LlmProviders.js';
 import {
   summarizeRole,
   TIER3_NOTE,
@@ -23,7 +24,7 @@ const KINDS = { endpoint: '/admin/llm-providers/kinds' } as const;
 const LIST = { endpoint: '/admin/llm-providers' } as const;
 const ROUTING = { endpoint: '/admin/llm-routing' } as const;
 
-type Where = 'local' | 'proxy' | 'hosted';
+type Where = 'local' | 'proxy' | 'hosted' | 'cli';
 
 interface Preset {
   id: string;
@@ -37,6 +38,7 @@ interface KindSpec {
   label: string;
   needs_base_url: boolean;
   supported: boolean;
+  examples?: string[];
 }
 interface Routing {
   local_only: boolean;
@@ -87,7 +89,37 @@ const WHERE_CHOICES: { id: Where; title: string; blurb: string; leaves: string }
   },
 ];
 
+/**
+ * W20-11 (UX_TODO AI-17): the customer-supplied CLI was reachable only from
+ * the Advanced form's Provider list, so the main path never showed it or its
+ * responsibility statement. Offered only when this server supports it.
+ */
+const CLI_CHOICE = {
+  id: 'cli' as const,
+  title: 'My own Claude Code CLI (customer-supplied)',
+  blurb:
+    'A Claude Code CLI you install and sign in to yourself, in your own container. Not a RepoPulse feature: off until an admin accepts a statement.',
+  leaves: `Anthropic receives ${WHAT_IS_SENT}, through your own plan. Every request is recorded in the egress audit.`,
+};
+
+// Listed in this order, Gemini first: the vendor dropdown opened on
+// "OpenAI-compatible endpoint" while the Name placeholder said "Gemini"
+// (W20-11, UX_TODO AI-19).
 const HOSTED_KINDS = ['gemini', 'anthropic', 'openai_compatible', 'vertex', 'bedrock'];
+
+/** Where to get a key, per vendor (W20-11, UX_TODO AI-19). */
+const KEY_HELP: Record<string, { href: string; label: string } | undefined> = {
+  gemini: { href: 'https://aistudio.google.com/apikey', label: 'Get a Gemini API key' },
+  anthropic: {
+    href: 'https://console.anthropic.com/settings/keys',
+    label: 'Get an Anthropic API key',
+  },
+  vertex: {
+    href: 'https://console.cloud.google.com/iam-admin/serviceaccounts',
+    label: 'Create a service-account key',
+  },
+  bedrock: { href: 'https://console.aws.amazon.com/iam/', label: 'Create AWS access keys' },
+};
 
 const STEPS = ['Where it runs', 'Connect and test', 'Choose roles', 'Review'] as const;
 
@@ -140,13 +172,21 @@ export function ModelsWizard() {
   }, [step]);
 
   const spec = kinds.find((k) => k.kind === kind);
-  const hostedKinds = kinds.filter((k) => HOSTED_KINDS.includes(k.kind) && k.supported);
-  const needsUrl = where !== 'hosted' || spec?.needs_base_url !== false;
+  const hostedKinds = kinds
+    .filter((k) => HOSTED_KINDS.includes(k.kind) && k.supported)
+    .sort((a, b) => HOSTED_KINDS.indexOf(a.kind) - HOSTED_KINDS.indexOf(b.kind));
+  const cliOffered = kinds.some((k) => k.kind === 'claude_cli' && k.supported);
+  const whereChoices = cliOffered ? [...WHERE_CHOICES, CLI_CHOICE] : WHERE_CHOICES;
+  const isCli = where === 'cli';
+  const [cliAccepted, setCliAccepted] = useState(false);
+  const onCliAccepted = useCallback((a: boolean) => setCliAccepted(a), []);
+  const needsUrl = !isCli && (where !== 'hosted' || spec?.needs_base_url !== false);
   // A hosted vendor is outside the network by definition; the person must say so.
   const mustAcknowledge = where === 'hosted';
 
   // Why Test / Save are greyed out, said in words next to them.
   const saveBlockers = [
+    ...(isCli && !cliAccepted ? ['accept the statement above to turn the CLI option on'] : []),
     ...(name.trim() === '' ? ['give the connection a name'] : []),
     ...(model.trim() === '' ? ['enter the model name'] : []),
     ...(mustAcknowledge && !outside
@@ -160,10 +200,17 @@ export function ModelsWizard() {
     kind,
     base_url: needsUrl ? baseUrl || null : null,
     model,
-    api_key: apiKey || null,
+    api_key: isCli ? null : apiKey || null,
     allow_public_host: mustAcknowledge || where === 'proxy' ? outside : false,
     probe: true,
   });
+  // W20-11 (UX_TODO AI-18): Save worked without a passing Test, so a broken
+  // endpoint could be saved and handed every role. A save is "tested" only when
+  // the last Test passed for exactly these settings; otherwise it asks first.
+  const settingsKey = JSON.stringify([kind, needsUrl ? baseUrl : '', model, apiKey, where]);
+  const [testedKey, setTestedKey] = useState<string | null>(null);
+  const testedOk = result?.ok === true && testedKey === settingsKey;
+  const [confirmUntested, setConfirmUntested] = useState(false);
 
   const test = useApiMutation<Record<string, unknown>, TestResult>({
     endpoint: '/admin/llm-providers/test',
@@ -183,8 +230,30 @@ export function ModelsWizard() {
     setResult(null);
     setOutside(false);
     setPresetNote(null);
-    setKind(w === 'hosted' ? (hostedKinds[0]?.kind ?? 'gemini') : 'openai_compatible');
+    setConfirmUntested(false);
+    setKind(
+      w === 'hosted'
+        ? (hostedKinds[0]?.kind ?? 'gemini')
+        : w === 'cli'
+          ? 'claude_cli'
+          : 'openai_compatible',
+    );
   };
+
+  const save = () =>
+    create.mutate(body(), {
+      onSuccess: (r) => {
+        setConfirmUntested(false);
+        setCreatedId(r.id);
+        setCreatedName(name);
+        // W20-06 (UX_TODO AI-07): a model on your network starts
+        // with every role; a vendor or gateway starts with none,
+        // so a new key never becomes first choice for every kind
+        // of analysis by default.
+        setPicked(new Set(where === 'local' ? ALL_ROLES : []));
+        setStep(2);
+      },
+    });
 
   async function assignRoles() {
     const current = routingQuery.data;
@@ -248,7 +317,7 @@ export function ModelsWizard() {
             </h3>
             <fieldset className="flex flex-col gap-2">
               <legend className="sr-only">Where the model runs</legend>
-              {WHERE_CHOICES.map((c) => (
+              {whereChoices.map((c) => (
                 <label
                   key={c.id}
                   className="flex cursor-pointer items-start gap-2 rounded-sm border border-border p-3 text-sm"
@@ -286,7 +355,9 @@ export function ModelsWizard() {
                 <strong>Local only is on.</strong>{' '}
                 {where === 'hosted'
                   ? 'A vendor is outside your network, so it will not be used until Local only is turned off in Routing below.'
-                  : 'A gateway on a host name or a public address will not be used until Local only is turned off in Routing below.'}
+                  : where === 'cli'
+                    ? 'The Claude Code CLI sends code to Anthropic, so it will not be used until Local only is turned off in Routing below.'
+                    : 'A gateway on a host name or a public address will not be used until Local only is turned off in Routing below.'}
               </p>
             ) : null}
             <div>
@@ -372,7 +443,9 @@ export function ModelsWizard() {
                       ? 'Workstation LM Studio'
                       : where === 'proxy'
                         ? 'Team gateway'
-                        : 'Gemini'
+                        : where === 'cli'
+                          ? 'My Claude Code CLI'
+                          : (spec?.label ?? 'Gemini')
                   }
                   className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
                 />
@@ -405,9 +478,11 @@ export function ModelsWizard() {
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder={
-                    where === 'proxy' || inContainer
-                      ? 'http://192.168.1.60:4000/v1'
-                      : 'http://localhost:1234/v1'
+                    where === 'hosted'
+                      ? (spec?.examples?.[0] ?? 'https://api.example.com/v1')
+                      : where === 'proxy' || inContainer
+                        ? 'http://192.168.1.60:4000/v1'
+                        : 'http://localhost:1234/v1'
                   }
                   className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
                 />
@@ -422,6 +497,8 @@ export function ModelsWizard() {
               </label>
             ) : null}
 
+            {isCli ? <ClaudeCliPanel onAcceptedChange={onCliAccepted} /> : null}
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs text-fg-muted">
                 Model
@@ -429,26 +506,52 @@ export function ModelsWizard() {
                   data-testid="wizard-model"
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  placeholder="exactly as the server names it"
+                  placeholder={isCli ? 'sonnet' : 'exactly as the server names it'}
                   className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-xs text-fg-muted">
-                {kind === 'vertex'
-                  ? 'Service-account key (JSON)'
-                  : where === 'local'
-                    ? 'API key (usually none)'
-                    : 'API key'}
-                <input
-                  data-testid="wizard-api-key"
-                  type="password"
-                  autoComplete="off"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
-                />
-                <span className="text-fg-faint">Encrypted at rest and never shown again.</span>
-              </label>
+              {isCli ? (
+                <p className="text-xs text-fg-muted" data-testid="wizard-cli-no-key">
+                  No key or address to enter: the CLI keeps its own login, and nothing is stored
+                  here.
+                </p>
+              ) : (
+                <label className="flex flex-col gap-1 text-xs text-fg-muted">
+                  {kind === 'vertex'
+                    ? 'Service-account key (JSON)'
+                    : where === 'local'
+                      ? 'API key (usually none)'
+                      : 'API key'}
+                  <input
+                    data-testid="wizard-api-key"
+                    type="password"
+                    autoComplete="off"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
+                  />
+                  <span className="text-fg-faint">
+                    Encrypted at rest and never shown again.
+                    {where === 'hosted' && KEY_HELP[kind] ? (
+                      <>
+                        {' '}
+                        <a
+                          href={KEY_HELP[kind]!.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline underline-offset-2"
+                          data-testid="wizard-key-help"
+                        >
+                          {KEY_HELP[kind]!.label}
+                        </a>
+                        .
+                      </>
+                    ) : where === 'hosted' ? (
+                      " Create one in your vendor's dashboard."
+                    ) : null}
+                  </span>
+                </label>
+              )}
             </div>
 
             {mustAcknowledge || where === 'proxy' ? (
@@ -476,9 +579,16 @@ export function ModelsWizard() {
                 disabled={test.isPending || model.trim() === ''}
                 onClick={() => {
                   setResult(null);
+                  setConfirmUntested(false);
+                  const key = settingsKey;
                   test.mutate(
                     { ...body(), name: name || 'test' },
-                    { onSuccess: (r) => setResult(r) },
+                    {
+                      onSuccess: (r) => {
+                        setResult(r);
+                        setTestedKey(key);
+                      },
+                    },
                   );
                 }}
                 className="rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-sm text-fg disabled:opacity-50"
@@ -489,26 +599,8 @@ export function ModelsWizard() {
                 type="button"
                 data-testid="wizard-save"
                 aria-describedby={saveBlockers.length > 0 ? 'wizard-save-hint' : undefined}
-                disabled={
-                  create.isPending ||
-                  name.trim() === '' ||
-                  model.trim() === '' ||
-                  (mustAcknowledge && !outside)
-                }
-                onClick={() =>
-                  create.mutate(body(), {
-                    onSuccess: (r) => {
-                      setCreatedId(r.id);
-                      setCreatedName(name);
-                      // W20-06 (UX_TODO AI-07): a model on your network starts
-                      // with every role; a vendor or gateway starts with none,
-                      // so a new key never becomes first choice for every kind
-                      // of analysis by default.
-                      setPicked(new Set(where === 'local' ? ALL_ROLES : []));
-                      setStep(2);
-                    },
-                  })
-                }
+                disabled={create.isPending || saveBlockers.length > 0}
+                onClick={() => (testedOk ? save() : setConfirmUntested(true))}
                 className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
               >
                 {create.isPending ? 'Saving…' : 'Save and continue'}
@@ -517,6 +609,39 @@ export function ModelsWizard() {
                 Back
               </button>
             </div>
+            {confirmUntested ? (
+              <div
+                role="alert"
+                className="flex flex-col gap-1 rounded-sm border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs"
+                data-testid="wizard-confirm-untested"
+              >
+                <p>
+                  <strong>Save without a successful test?</strong>{' '}
+                  {result && !result.ok && testedKey === settingsKey
+                    ? 'The last test of these settings failed, so every role you give it will fail too until it is fixed.'
+                    : 'These settings have not passed Test connection, so nobody knows yet whether this model answers.'}
+                </p>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    data-testid="wizard-save-anyway"
+                    disabled={create.isPending}
+                    onClick={save}
+                    className="rounded-md border border-warn px-2 py-1 text-xs hover:bg-warn/10 disabled:opacity-50"
+                  >
+                    Save anyway
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="wizard-confirm-cancel"
+                    onClick={() => setConfirmUntested(false)}
+                    className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+                  >
+                    Go back and test
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {/* Why a button is greyed out, in words, next to it (and tied to the buttons
                 with aria-describedby): a disabled control that gives no reason reads
                 as broken. */}
@@ -572,6 +697,15 @@ export function ModelsWizard() {
                     {result.hint ? (
                       <span className="mt-1 block" data-testid="wizard-test-hint-localhost">
                         {result.hint}
+                      </span>
+                    ) : null}
+                    {/* W20-11 (UX_TODO AI-21): the raw text stays; a plain step follows. */}
+                    {testNextStep(result) ? (
+                      <span
+                        className="mt-1 block font-semibold"
+                        data-testid="wizard-test-next-step"
+                      >
+                        What to do: {testNextStep(result)}
                       </span>
                     ) : null}
                   </>
@@ -747,6 +881,35 @@ export function ModelsWizard() {
               </a>{' '}
               below.
             </p>
+            {/* W20-11 (UX_TODO AI-68): the wizard ended without saying how AI
+                review then actually runs on a repository. */}
+            <div className="text-xs" data-testid="wizard-what-next">
+              <h4 className="font-semibold">What next</h4>
+              <ul className="mt-1 ml-4 list-disc text-fg-muted">
+                <li>
+                  Run a first AI review: open a repository from{' '}
+                  <Link to="/repos" className="underline underline-offset-2">
+                    Repositories
+                  </Link>
+                  , then <strong>Security → AI review pass</strong>, name the files and start it.
+                  The same section can schedule passes.
+                </li>
+                <li>
+                  See what has been sent off your network, per repository, in{' '}
+                  <Link to="/admin/analysis" className="underline underline-offset-2">
+                    Settings → Analysis
+                  </Link>
+                  .
+                </li>
+                <li>
+                  Check how this model scores on each role in{' '}
+                  <a href="#quality-per-model" className="underline underline-offset-2">
+                    Quality per model
+                  </a>
+                  ; a model not measured yet shows how to measure it.
+                </li>
+              </ul>
+            </div>
             <div>
               <button
                 type="button"
@@ -762,6 +925,8 @@ export function ModelsWizard() {
                   setSaved(false);
                   setCreatedId(null);
                   setPresetNote(null);
+                  setTestedKey(null);
+                  setConfirmUntested(false);
                   setPicked(new Set(ALL_ROLES));
                   void queryClient.invalidateQueries({ queryKey: queryKeyFor(ROUTING) });
                 }}
