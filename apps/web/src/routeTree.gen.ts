@@ -19,6 +19,7 @@ import { Route as SensitiveChangesRouteImport } from './routes/sensitive-changes
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAgreementsRouteImport } from './routes/admin/agreements'
 import { Route as AdminAnalysisRouteImport } from './routes/admin/analysis'
+import { Route as AdminAuditRouteImport } from './routes/admin/audit'
 import { Route as AdminCiTokensRouteImport } from './routes/admin/ci-tokens'
 import { Route as AdminIdentitiesRouteImport } from './routes/admin/identities'
 import { Route as AdminMembersRouteImport } from './routes/admin/members'
@@ -99,6 +100,11 @@ const AdminAgreementsRoute = AdminAgreementsRouteImport.update({
 const AdminAnalysisRoute = AdminAnalysisRouteImport.update({
   id: '/analysis',
   path: '/analysis',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminCiTokensRoute = AdminCiTokensRouteImport.update({
@@ -268,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/ci-tokens': typeof AdminCiTokensRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
@@ -309,6 +316,7 @@ export interface FileRoutesByTo {
   '/sensitive-changes': typeof SensitiveChangesRoute
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/ci-tokens': typeof AdminCiTokensRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
@@ -353,6 +361,7 @@ export interface FileRoutesById {
   '/repos/$repoId': typeof ReposRepoIdRouteRouteWithChildren
   '/admin/agreements': typeof AdminAgreementsRoute
   '/admin/analysis': typeof AdminAnalysisRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/ci-tokens': typeof AdminCiTokensRoute
   '/admin/identities': typeof AdminIdentitiesRoute
   '/admin/members': typeof AdminMembersRoute
@@ -398,6 +407,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId'
     | '/admin/agreements'
     | '/admin/analysis'
+    | '/admin/audit'
     | '/admin/ci-tokens'
     | '/admin/identities'
     | '/admin/members'
@@ -439,6 +449,7 @@ export interface FileRouteTypes {
     | '/sensitive-changes'
     | '/admin/agreements'
     | '/admin/analysis'
+    | '/admin/audit'
     | '/admin/ci-tokens'
     | '/admin/identities'
     | '/admin/members'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/repos/$repoId'
     | '/admin/agreements'
     | '/admin/analysis'
+    | '/admin/audit'
     | '/admin/ci-tokens'
     | '/admin/identities'
     | '/admin/members'
@@ -605,6 +617,13 @@ declare module '@tanstack/react-router' {
       path: '/analysis'
       fullPath: '/admin/analysis'
       preLoaderRoute: typeof AdminAnalysisRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/audit': {
+      id: '/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/ci-tokens': {
@@ -830,6 +849,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteRouteChildren {
   AdminAgreementsRoute: typeof AdminAgreementsRoute
   AdminAnalysisRoute: typeof AdminAnalysisRoute
+  AdminAuditRoute: typeof AdminAuditRoute
   AdminCiTokensRoute: typeof AdminCiTokensRoute
   AdminIdentitiesRoute: typeof AdminIdentitiesRoute
   AdminMembersRoute: typeof AdminMembersRoute
@@ -844,6 +864,7 @@ interface AdminRouteRouteChildren {
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAgreementsRoute: AdminAgreementsRoute,
   AdminAnalysisRoute: AdminAnalysisRoute,
+  AdminAuditRoute: AdminAuditRoute,
   AdminCiTokensRoute: AdminCiTokensRoute,
   AdminIdentitiesRoute: AdminIdentitiesRoute,
   AdminMembersRoute: AdminMembersRoute,

@@ -11,7 +11,7 @@ GT = Gitea adapter (v1.x).
 - **SC-1 Forge-token encryption at rest** (T-13, T-25). AES-256-GCM via `node:crypto`
   (`createCipheriv`, random 12-byte IV per row, auth tag stored; columns per DATABASE.md
   forge_connections). Key: 32-byte `REPOPULSE_TOKEN_KEY` from env/secret store, `key_version`
-  column enables rotation (decrypt-old/encrypt-new sweep job). Decryption only inside
+  column enables rotation (decrypt-old/encrypt-new sweep: `pnpm rotate:token-key` / `deploy/rotate-token-key.sh`, one transaction, W20-10; RUNBOOK → Hand over the install). Decryption only inside
   packages/forge memory; plaintext never returned by any API, never serialized to logs/errors.
   Same scheme for `webhook_secret_ciphertext`. *Lands:* W1 · packages/forge + shared schema.
   *Verify:* unit tests (roundtrip, wrong-key fail, IV uniqueness, tamper→auth-tag reject);

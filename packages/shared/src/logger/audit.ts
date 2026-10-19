@@ -149,7 +149,16 @@ export type AuditEvent =
   | 'connection.credential_replaced'
   | 'connection.removed'
   | 'repo.tracking_paused'
-  | 'repo.tracking_resumed';
+  | 'repo.tracking_resumed'
+  // W20-10 (UX_TODO INS-51, ADM-77). Linking a person to a forge account
+  // decides whose commits and reviews My Focus counts as theirs; re-pointing
+  // every webhook is a change to where the forge sends deliveries.
+  | 'identity.linked'
+  | 'connection.webhooks_reregistered'
+  // W20-10 (UX_TODO ADM-13). Written by deploy/backup.sh straight into
+  // audit_events (it has psql, not this function); listed so the name is
+  // owned here. System health reads the newest one as "last backup".
+  | 'ops.backup.taken';
 
 export interface AuditEntry {
   event: AuditEvent;
@@ -162,6 +171,37 @@ export interface AuditEntry {
   [extra: string]: unknown;
 }
 
+/** One audit entry as handed to a sink: the entry plus the time it was logged. */
+export type AuditRecord = AuditEntry & { ts: string };
+
+/**
+ * Where audit entries go besides the log (W20-10, UX_TODO X-04).
+ *
+ * The API and worker register one at boot that writes the
+ * `audit_events` table behind Settings → Audit log. A process-wide hook rather
+ * than a new parameter because every one of the ~60 call sites already passes
+ * `request.log`, and threading a database handle through each of them is how
+ * one gets missed. A sink must not throw; persistence failures are its own to
+ * report, and the log line above has already been written either way.
+ */
+export type AuditSink = (record: AuditRecord) => void;
+
+let auditSink: AuditSink | undefined;
+
+/** Install (or with undefined, remove) the process-wide audit sink. */
+export function setAuditSink(sink: AuditSink | undefined): void {
+  auditSink = sink;
+}
+
 export function auditLog(logger: AuditLogger, entry: AuditEntry): void {
-  logger.info({ audit: true, ...entry, ts: new Date().toISOString() }, `audit:${entry.event}`);
+  const ts = new Date().toISOString();
+  logger.info({ audit: true, ...entry, ts }, `audit:${entry.event}`);
+  if (!auditSink) return;
+  try {
+    auditSink({ ...entry, ts });
+  } catch (err) {
+    // The action being audited already happened; a broken sink must not turn
+    // it into a 500. The log line above is still the record.
+    logger.info({ err, auditEvent: entry.event }, 'audit sink failed');
+  }
 }

@@ -190,13 +190,49 @@ async function localAuthRoutes(app: FastifyInstance, opts: LocalAuthRoutesOption
       request.session.set('createdAt', Date.now());
       await request.session.save();
 
+      // W20-10 (UX_TODO ADM-78). The change exists because someone else may
+      // know the old password, so every OTHER session of this account ends
+      // here — including the pre-change one, which regenerate() leaves in the
+      // store. Only this browser stays signed in.
+      const signedOut =
+        (await app.sessionStore?.destroyUserSessions(user.id, request.session.sessionId)) ?? 0;
+
       auditLog(request.log, {
         event: 'auth.login.success',
         actorUserId: user.id,
         reason: 'password_changed',
+        other_sessions_ended: signedOut,
         ...auditContext(request),
       });
-      return reply.send({ user: { ...publicUser(user), must_change_password: false } });
+      return reply.send({
+        user: { ...publicUser(user), must_change_password: false },
+        other_sessions_signed_out: signedOut,
+      });
+    },
+  );
+
+  // "Sign out everywhere" (W20-10, UX_TODO ADM-78): ends every session this
+  // account holds, this one included. For someone who left a session open on a
+  // shared or lost machine; logout only ever ended the current one.
+  app.post(
+    '/auth/sessions/revoke-all',
+    { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
+    async (request, reply) => {
+      const userId = request.session?.get('userId');
+      if (userId === undefined) return problem(request, reply, 401, 'No active session');
+      if (!app.sessionStore) {
+        return problem(request, reply, 503, 'Sessions cannot be listed on this server');
+      }
+      const others = await app.sessionStore.destroyUserSessions(userId, request.session.sessionId);
+      await request.session.destroy();
+      auditLog(request.log, {
+        event: 'auth.session.revoked',
+        actorUserId: userId,
+        scope: 'all',
+        sessions_ended: others + 1,
+        ...auditContext(request),
+      });
+      return reply.send({ sessions_ended: others + 1 });
     },
   );
 

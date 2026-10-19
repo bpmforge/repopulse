@@ -1,6 +1,8 @@
 # RepoPulse operations runbook
 
-Backup, restore, upgrade and rollback for a **customer-hosted** install.
+Backup, restore (including onto a new server), upgrade, rollback, rotating
+secrets, changing the install's address and what to do when it is down, for a
+**customer-hosted** install.
 
 Everything here is runnable by an admin with the install directory
 (`deploy/compose.yaml`, `deploy/.env`, the `deploy/*.sh` scripts) and a
@@ -276,6 +278,190 @@ upgrade sequence → the key value is absent from the entire log. It refuses to
 run against the project named `repopulse`. 44 checks; the record of the last
 run is in `docs/work/product-completion/evidence/`.
 
+### Restore onto a new server (the old one is gone)
+
+The procedure above restores into a stack that is already running with the
+right key. On a **new** machine it is not: `install.sh` (or `configure.sh`)
+writes a fresh `deploy/.env` with a newly generated `TOKEN_ENC_KEY`, and
+`restore.sh` then refuses the dump ("TOKEN_ENC_KEY in .env is not the key this
+dump was taken under"). So the order matters (W20-10, UX_TODO ADM-76):
+
+1. **Gather** the dump and its `.manifest`, and the old `deploy/.env` — or at
+   least the `TOKEN_ENC_KEY` you stored separately. Without the key the
+   restore can still load the data, but every forge credential, webhook secret
+   and model API key has to be entered again.
+2. **Extract the same version's bundle** as the one the dump was taken on (the
+   manifest's `REPOPULSE_VERSION`). A newer bundle works too — migrations run
+   forward on restore — but the same version is the boring path.
+3. **Put the old `.env` in place BEFORE installing:** copy it to
+   `deploy/.env` in the new directory. If you only kept the key, run
+   `./deploy/configure.sh` first and then replace its `TOKEN_ENC_KEY=` line
+   with the saved key. Carry over, too: `SCAN_RULES_DIR` and `EXTRA_CA_DIR`
+   (and the internal-CA PEM inside it, or TLS to a self-hosted forge fails),
+   and check `PUBLIC_BASE_URL`, `API_BASE_URL` and `REPOPULSE_PORT` — if the
+   new server has a different address, also follow *Change the install's
+   address* below once the restore is done.
+4. `./install.sh` — it keeps the `.env` it finds and starts an empty stack.
+5. `./deploy/restore.sh --project=repopulse --production repopulse-<timestamp>.sql`
+   (the full command: the target is never assumed). It checks the dump and the
+   key, loads it, migrates forward and proves every credential decrypts.
+6. `./deploy/scan-db-sync.sh` — the vulnerability database is not in the
+   dump.
+7. Put the cron lines back (backup, scan-db-sync), pointing at the new
+   directory.
+8. **Check a sync works:** Settings → System health shows Database, Worker and
+   Forge connection working, and Settings → Sync moves a repository. That is
+   the end-to-end proof the key is right.
+
+### Change the install's address (`PUBLIC_BASE_URL`)
+
+Moving to a new hostname, a new domain or from http to https after
+repositories are tracked (W20-10, UX_TODO ADM-77). Each repository's push
+webhook was registered once, when it was first tracked, pointing at the
+address in force then — so after a move every forge keeps delivering to the
+old address and live updates stop without a warning (only the nightly
+reconcile still runs). Sign-in callbacks registered with your identity
+provider and GitHub App name the old address too.
+
+1. Edit `deploy/.env`: `PUBLIC_BASE_URL`, `API_BASE_URL` (normally the same
+   origin), and `REPOPULSE_PORT` / `REPOPULSE_BIND` if those change.
+   `configure.sh` will not rewrite an existing `.env`; edit it by hand.
+2. If you sign in with OIDC, change the redirect URI registered with the IdP
+   to `<new address>/auth/oidc/callback`, and `OIDC_REDIRECT_URI` in `.env`
+   to match. If you use "Sign in with GitHub", change the GitHub App's
+   callback URL to `<new address>/auth/callback`.
+3. Restart: `podman compose -f deploy/compose.yaml down && ./deploy/up.sh`.
+4. **Re-register the webhooks:** Settings → Connections → *Re-register
+   webhooks* on each connection. It registers each tracked (not paused)
+   repository's hook at the new address with the connection's existing
+   secret and reports any repository it could not (the forge account needs
+   admin on that repository).
+5. Delete the hooks that still point at the **old** address in each forge
+   (repository → Settings → Webhooks). RepoPulse cannot delete them for you
+   yet; until you do, the forge records failed deliveries to a host that no
+   longer answers, which is harmless but noisy.
+6. Check: push to a tracked repository and watch Settings → Sync show it
+   within a minute.
+
+---
+
+## Hand over the install / rotate secrets
+
+When someone who could read `deploy/.env` (or a backup of it) leaves, or a
+secret may have been exposed (W20-10, UX_TODO ADM-45). Rotate each value below
+that they could have seen. Take a backup first.
+
+| Secret | How to rotate | Who is signed out |
+|---|---|---|
+| `TOKEN_ENC_KEY` | `./deploy/rotate-token-key.sh` (below) | nobody |
+| `SESSION_SECRET` | `openssl rand -hex 32` into `.env`, restart the stack | **everyone** — every session cookie was signed with the old value |
+| `POSTGRES_PASSWORD` | change the role, then `.env` (below), restart | nobody |
+| `REDIS_PASSWORD` | `.env` (`REDIS_PASSWORD` and the password in `REDIS_URL`), restart | nobody (sessions are kept in Redis's volume) |
+| `ADMIN_PASSWORD` | only used to create the first account: delete the line from `.env`, then change that account's password in **Account → Change password** | that account's other sessions |
+| `SCAN_RUNNER_TOKEN` | `openssl rand -hex 32` into `.env`, restart the stack | nobody |
+| OIDC / GitHub App client secrets | regenerate at the provider, put the new value in `.env`, restart | nobody |
+| Forge tokens, model API keys | replace them in Settings → Connections / Models; revoke the old ones at the forge or vendor | nobody |
+
+**`TOKEN_ENC_KEY`.** A new key on its own makes every stored credential
+undecryptable, so it has to be swept:
+
+```sh
+./deploy/rotate-token-key.sh          # generates the new key, dry run, asks, rotates
+```
+
+It opens every stored secret under the current key first (a dry run that
+writes nothing), stops the api and worker, re-seals every forge token,
+webhook secret and model API key under the new key **in one transaction**
+inside the api image, saves the old `.env` as `deploy/.env.pre-rotate-<stamp>`
+(mode 600), writes the new key into `deploy/.env` and starts the api and worker
+again. If anything does not open, nothing is changed. Neither key is printed;
+the new one reaches the container on stdin. From a checkout:
+`TOKEN_ENC_KEY=<current> NEW_TOKEN_ENC_KEY=<new> pnpm rotate:token-key [--dry-run]`.
+
+Afterwards: **backups taken before the rotation need the OLD key** — store it
+(from the `.env.pre-rotate` copy) with those backups, then delete the copy from
+the server. Store the new key separately from the dumps, and take a fresh
+backup. Settings → System health shows the key fingerprint of the newest
+backup, so you can see when the fresh one has been taken.
+
+**`POSTGRES_PASSWORD`.** The data volume keeps the password it was created
+with, so change it inside Postgres first:
+
+```sh
+podman compose -f deploy/compose.yaml exec postgres \
+  psql -U repopulse -d repopulse -c "ALTER ROLE repopulse PASSWORD '<new>'"
+```
+
+then set `POSTGRES_PASSWORD` and the password inside `DATABASE_URL` in `.env`
+to the same value, and restart the stack. `up.sh` names a `28P01` failure
+(password mismatch) if the two disagree.
+
+**Sign everyone out of one account.** A password change (by the member, or an
+admin's **Reset password…** in Settings → Members) ends every other session of
+that account. A member can also use **Sign out everywhere** in the user menu.
+The `reset:password` command line does not end sessions, but the forced
+password change it leads to does.
+
+---
+
+## When the app is down
+
+What users see, how to check, and how to recover (W20-10, UX_TODO ADM-44).
+**Settings → System health** answers most of this from the browser as long as
+the api is up; the commands below are for when it cannot.
+
+### The disk is full
+
+*What users see:* saving anything fails with "Internal Server Error"; reports
+fail to generate; System health shows **Disk space — Not working**, or
+Postgres stops answering.
+
+*Check:* `df -h` on the server. Postgres data, report files (the `reportdata`
+volume), scan data under `SCAN_RULES_DIR`, container images and — by default —
+the backups (`OUT_DIR` defaults to the directory `backup.sh` runs in) all grow
+on this host, and nothing removes old backups for you.
+
+*Recover:*
+
+1. Move old backups off the host (keep the newest few, each with its
+   `.manifest`), and point `OUT_DIR` at another disk in the cron line.
+2. `podman image prune` removes images of versions you no longer run.
+3. `podman system df` shows which volume is large. A `reportdata` volume full
+   of old PDFs can be trimmed: a report whose files are gone keeps its row and
+   can be generated again.
+4. `./deploy/up.sh` once there is room; it says which services did not come
+   back.
+
+### Postgres is not answering
+
+*What users see:* one banner, "RepoPulse can't reach its database", instead of
+the app (or over it, if it happened mid-session); nothing on screen is
+current. Sign-in fails.
+
+*Check:* `podman compose -f deploy/compose.yaml ps` — is `postgres` running and
+healthy? `podman compose -f deploy/compose.yaml logs --tail 50 postgres` says
+why. `curl -s localhost:<port>/healthz` from the server prints
+`postgres=down` while it is down.
+
+*Recover:* a full disk (above) is the usual cause. Otherwise
+`podman compose -f deploy/compose.yaml down && ./deploy/up.sh`. If Postgres
+will not start because its data is damaged, restore the newest backup (see
+*Restore*). The app recovers on its own once Postgres answers: the outage
+banner checks every ten seconds.
+
+### Redis is not answering
+
+*What users see:* the same outage banner naming Redis; everyone is signed out
+(sessions live in Redis); live updates, syncs, scans and reports stop.
+
+*Check:* `podman compose -f deploy/compose.yaml logs --tail 50 redis`. A
+`NOAUTH`/`WRONGPASS` in the api log means `REDIS_PASSWORD` and the password in
+`REDIS_URL` disagree.
+
+*Recover:* `podman compose -f deploy/compose.yaml down && ./deploy/up.sh`.
+Queued jobs survive a restart (append-only file on the `redisdata` volume);
+sessions do too, unless the volume was removed.
+
 ---
 
 ## Routine care
@@ -303,8 +489,8 @@ podman compose -f deploy/compose.yaml exec api \
   tsx apps/api/src/cli/reset-password.ts --email you@example.com  # a bundle install
 ```
 
-Existing sessions of that account are not signed out by a reset; restart the
-stack if that matters.
+A reset from Settings ends every session that account had (W20-10). The
+command line does not, but the forced password change it leads to does.
 
 **Check the worker from Settings.** "Background worker — Not working" means no
 heartbeat in the last minute; `./deploy/up.sh` brings it back and reports what

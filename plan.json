@@ -10619,6 +10619,45 @@
           "FND-58 tests: persistFindings full-sweep integration (store-sweep), registers close-on-removal integration, fullRunSweep / listTreeFiles / antiSlopSweep units. Perf and logging close through the same fullRunSweep + store path but have no processor-level close test of their own.",
           "Not done: FND-03 remainder (filters in Saved Views). The views config schema holds dashboard layouts only and belongs to the dashboards area; the URL-synced filters from W20-03 cover reload, Back and shared links."
         ]
+      },
+      {
+        "id": "W20-10",
+        "title": "Cross-flow and operations: deep links, inbox, audit trail, sessions, ops procedures",
+        "phase": 20,
+        "module": "api",
+        "stories": [],
+        "write_scope": [
+          "apps/api/**",
+          "apps/web/**",
+          "packages/auth/src/**",
+          "packages/shared/src/logger/audit.ts",
+          "packages/shared/src/db/schema/read/audit-events.ts",
+          "packages/shared/src/db/schema/read/index.ts",
+          "packages/shared/drizzle/**",
+          "deploy/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-07"
+        ],
+        "acceptance": [
+          "UX_TODO X-01, INS-50: SSO sign-in returns to the deep link it started from (same-origin relative paths only, open-redirect guard tested); GitHub orgs, OIDC groups and email domains can be allowlisted from the environment (tested)",
+          "UX_TODO X-03, X-04: an Inbox shows new critical/high, KEV and secret findings and failed scans since the user's last look, with a Reviews badge; audit events are persisted to a workspace-scoped table and admins read, filter and export them in Settings → Audit log (tenancy tested)",
+          "UX_TODO ADM-78, INS-51: a password change or admin reset signs out the user's other sessions and Sign out everywhere exists (per-user Redis session index, tested); admins link a member to a forge identity in Settings → Identities",
+          "UX_TODO ADM-13, ADM-43, ADM-44: System health shows the version, last backup and a TOKEN_ENC_KEY reminder, and disk space; an outage that starts mid-session shows one banner instead of every card erroring",
+          "UX_TODO ADM-45, ADM-76, ADM-77, INS-63: RUNBOOK covers when the app is down, rotating secrets (a tested TOKEN_ENC_KEY re-encryption CLI), restoring onto a new server and changing PUBLIC_BASE_URL with a Re-register webhooks action; HTTPS_PROXY/NO_PROXY are honoured and documented"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). Cross-flow and operations P1s from docs/work/UX_TODO.md.",
+          "Fixed: X-01, X-03, X-04, ADM-13, ADM-43 (mid-session remainder), ADM-44, ADM-45, ADM-76, ADM-77, ADM-78, INS-50, INS-51, INS-63.",
+          "NOT fixed: INS-09 remainder (auto-add future repos needs a connection flag plus discovery in the reconcile worker; purge needs an FK traversal and egress_audit is INSERT-only and references repos). Left unticked.",
+          "Remaining within fixed items: X-03 findings are not pushed over SSE (the worker publishes no finding events), so the inbox polls every 60 s and refreshes on sync events. X-04 'last changed by' is on Settings, Analysis and Models but not Rules (W20-08's area); failed sign-ins have no workspace and stay log-only. ADM-77 re-registers hooks at the new address but cannot delete the old ones (no provider deleteWebhook); the RUNBOOK says to remove them in the forge. ADM-13 shows the version on System health, not in the rail footer. INS-50: Remove does not itself block a re-join; the allowlist is the mechanism (documented).",
+          "Migration 0048_audit_events (journal idx 45, when 1793000000000). Not 0047: a concurrent W20-08 branch already applied 0047_finding_rationale (when 1792900000000) to the shared dev database.",
+          "Bugs noticed, not in UX_TODO: the GitHub and OIDC callbacks do not regenerate the session id after sign-in (session fixation); @fastify/session regenerate() leaves the old session in Redis (the new per-user index now clears it on password change); the RUNBOOK told operators to restart the stack to end sessions, which does nothing because Redis persists them (fixed)."
+        ]
       }
   ]
 }

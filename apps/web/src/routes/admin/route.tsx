@@ -31,6 +31,8 @@ const TABS: { to: string; label: string; exact?: boolean }[] = [
   { to: '/admin/settings', label: 'Settings' },
   // W20-08 (UX_TODO FND-17): minting a CI token needed curl and a copied cookie.
   { to: '/admin/ci-tokens', label: 'CI tokens' },
+  // W20-10 (UX_TODO X-04): who changed what, from the persisted audit trail.
+  { to: '/admin/audit', label: 'Audit log' },
   // W11-02. Its own top-level route rather than an /admin child — the setup
   // checklist is what an operator opens when something is not working yet, and
   // burying it under a tab group they are already lost in helps nobody. The

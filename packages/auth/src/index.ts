@@ -14,3 +14,5 @@ export * from './identity-provider/index.js';
 // production import must not be able to reach it through the barrel.
 export * as local from './local/index.js';
 export * as oidc from './oidc/index.js';
+// W20-10 (UX_TODO INS-50): who may join through single sign-on.
+export * as admission from './admission/index.js';

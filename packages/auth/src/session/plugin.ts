@@ -40,6 +40,9 @@ async function sessionPlugin(app: FastifyInstance, opts: SessionPluginOptions): 
     app.log.warn({ err }, 'session redis connection error');
   });
   const store = new RedisSessionStore({ redis, absoluteLifetimeMs: opts.absoluteLifetimeMs });
+  // W20-10 (UX_TODO ADM-78): routes need the store itself to end a user's
+  // OTHER sessions; @fastify/session only exposes the current one.
+  app.decorate('sessionStore', store);
 
   await app.register(fastifyCookie, { secret: opts.sessionSecret });
   await app.register(fastifySession, {

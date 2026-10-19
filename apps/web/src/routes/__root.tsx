@@ -29,6 +29,7 @@ import { filterScopeFor } from '../api/filterScope.js';
 import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
 import { SignedOut } from '../widgets/auth/SignedOut.js';
 import { ForgeLinkBanner } from '../widgets/auth/ForgeLinkBanner.js';
+import { Inbox, useInbox } from '../widgets/me/Inbox.js';
 import { mergeGlobalSearch, validateGlobalSearch, type GlobalSearch } from '../api/urlState.js';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 
@@ -97,6 +98,7 @@ const SUBPAGE_LABELS: Record<string, string> = {
   patches: 'Verified fixes',
   settings: 'Settings',
   setup: 'Setup',
+  audit: 'Audit log',
 };
 
 /** Minimal breadcrumb from the path; deeper drill-down crumbs come with screens. */
@@ -301,6 +303,116 @@ function OutageGate() {
   );
 }
 
+/** True for a failure that could mean the server lost a dependency: a 5xx, or no answer at all. */
+export function isServerSideFailure(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null | undefined)?.status;
+  return typeof status === 'number' ? status >= 500 : error instanceof Error;
+}
+
+const MID_SESSION_HEALTH_KEY = ['healthz', 'mid-session'] as const;
+
+/**
+ * An outage that starts MID-SESSION (W20-10, UX_TODO ADM-43 remainder).
+ *
+ * OutageGate only runs when the very first session probe fails. When Postgres
+ * or Redis goes away while someone is already using the app, every card on the
+ * screen showed its own "Internal Server Error" and nothing said why. Any
+ * query that fails server-side now makes the shell ask /healthz once; if the
+ * server says a dependency is down, ONE banner says so and the page under it
+ * is hidden (kept mounted, so nothing typed is lost) until it recovers. If
+ * /healthz is fine, nothing changes: the cards report their own errors.
+ */
+function useMidSessionOutage(): { down: string[]; checking: boolean; recheck: () => void } {
+  const queryClient = useQueryClient();
+  const [suspect, setSuspect] = useState(false);
+
+  useEffect(
+    () =>
+      queryClient.getQueryCache().subscribe((event) => {
+        if (event.type !== 'updated') return;
+        const { query } = event;
+        if (query.queryKey[0] === 'healthz') return;
+        if (query.state.status === 'error' && isServerSideFailure(query.state.error)) {
+          setSuspect(true);
+        }
+      }),
+    [queryClient],
+  );
+
+  const {
+    data: down,
+    refetch,
+    isFetching,
+  } = useQuery<string[]>({
+    queryKey: MID_SESSION_HEALTH_KEY,
+    queryFn: () =>
+      apiFetch<unknown>('/healthz').then(
+        () => [],
+        (err: unknown) => downFromHealthDetail(errorDetailOf(err)),
+      ),
+    enabled: suspect,
+    retry: false,
+    staleTime: 0,
+    refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 ? OUTAGE_POLL_MS : false),
+  });
+
+  const isDown = suspect && (down?.length ?? 0) > 0;
+  const wasDown = useRef(false);
+  useEffect(() => {
+    if (isDown) {
+      wasDown.current = true;
+      return;
+    }
+    if (suspect && down !== undefined && down.length === 0) {
+      // Healthy: stand down. Coming back from an outage, ask again for
+      // everything that failed during it, so the page is current.
+      setSuspect(false);
+      queryClient.removeQueries({ queryKey: MID_SESSION_HEALTH_KEY });
+      if (wasDown.current) {
+        wasDown.current = false;
+        void queryClient.invalidateQueries({ predicate: (q) => q.state.status === 'error' });
+      }
+    }
+  }, [isDown, suspect, down, queryClient]);
+
+  return { down: isDown ? (down ?? []) : [], checking: isFetching, recheck: () => void refetch() };
+}
+
+function OutageBanner({
+  down,
+  checking,
+  recheck,
+}: {
+  down: string[];
+  checking: boolean;
+  recheck: () => void;
+}) {
+  const names = down.map((d) => (d === 'postgres' ? 'its database' : d === 'redis' ? 'Redis' : d));
+  return (
+    <div
+      role="alert"
+      className="m-4 rounded-md border border-crit/40 bg-crit/10 p-4 text-sm text-fg"
+      data-testid="outage-banner"
+    >
+      <p className="font-medium">RepoPulse can’t reach {names.join(' or ')}.</p>
+      <p className="mt-1 text-fg-muted">
+        Your admin needs to check the server. Nothing you would see right now is current, so the
+        page is hidden until it recovers — anything you had typed is kept. This checks again every{' '}
+        {OUTAGE_POLL_MS / 1000} seconds.
+      </p>
+      <button
+        type="button"
+        onClick={recheck}
+        disabled={checking}
+        className="mt-2 rounded-sm border border-border px-2 py-1 text-xs text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        data-testid="outage-banner-retry"
+      >
+        {checking ? 'Checking…' : 'Check again'}
+      </button>
+    </div>
+  );
+}
+
 /**
  * Quiet placeholder for the one round-trip it takes to answer "who is this?".
  *
@@ -398,19 +510,23 @@ function AppShell({ inert = false }: { inert?: boolean }) {
 
   // The single app-wide sync stream (SSE) — cache-bust + chip + toasts.
   useSyncStream();
+  const outage = useMidSessionOutage();
 
   // Rail badge counts (UX_SPEC §3.1, R-A4). The review queue reuses the exact
   // query My Focus makes, so react-query serves both from one request rather
   // than adding a count endpoint that could disagree with the list.
   //
-  // The Findings badge is deliberately ABSENT rather than 0: there are no
-  // findings rows and no lastSeenAt until W6, and a badge stuck at 0 is
-  // indistinguishable from a working one. Tracked in W4-21.
+  // The Reviews badge (W20-10, UX_TODO X-03) counts NEW serious findings
+  // since this person last looked — the same request as the top-bar Inbox, so
+  // the two cannot disagree. Absent until it has answered, never a fake 0.
   const { data: reviewQueue } = useApiQuery<{ items: unknown[] }>({
     endpoint: '/me/review-queue',
   });
-  const railBadges =
-    reviewQueue === undefined ? {} : { '/pull-requests': reviewQueue.items.length };
+  const { data: inbox } = useInbox();
+  const railBadges: Record<string, number> = {
+    ...(reviewQueue === undefined ? {} : { '/pull-requests': reviewQueue.items.length }),
+    ...(inbox === undefined ? {} : { '/findings': inbox.findings_count }),
+  };
 
   // WHICH FILTERS THIS SCREEN APPLIES, and the options for the one that needs
   // them (W16-50). FilterBar has accepted `repoOptions` since it was written
@@ -503,9 +619,21 @@ function AppShell({ inert = false }: { inert?: boolean }) {
         <ForgeLinkBanner />
         {/* Global: ⌘K works from every screen (UX_SPEC §3.3). */}
         <CommandPalette />
-        <Topbar value={search} onChange={onFilterChange} scope={scope} repoOptions={repoOptions} />
+        <Topbar
+          value={search}
+          onChange={onFilterChange}
+          scope={scope}
+          repoOptions={repoOptions}
+          actions={<Inbox />}
+        />
         <Breadcrumb crumbs={crumbs} search={preservedSearch} />
-        <main className="min-h-0 flex-1 overflow-auto p-5" data-testid="main">
+        {outage.down.length > 0 ? <OutageBanner {...outage} /> : null}
+        {/* Hidden, not unmounted, during an outage: drafts survive (ADM-43). */}
+        <main
+          className="min-h-0 flex-1 overflow-auto p-5"
+          data-testid="main"
+          hidden={outage.down.length > 0}
+        >
           <Outlet />
         </main>
       </div>

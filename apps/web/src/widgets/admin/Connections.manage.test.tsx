@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
+import { useUiStore } from '../../components/store/uiStore.js';
 import {
   Connections,
   OPTIONAL_SCOPES,
@@ -38,13 +39,20 @@ beforeEach(() => {
       const method = init?.method ?? 'GET';
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       const body =
-        method === 'PATCH'
-          ? { id: 5, status: 'active', fingerprint: 'y' }
-          : method === 'DELETE'
-            ? { id: 5, outcome: 'disconnected', paused_repos: 3 }
-            : url.includes('available-repos')
-              ? { items: [], total: 0, truncated: false }
-              : CONNECTIONS;
+        method === 'POST' && url.includes('/webhooks')
+          ? {
+              url: 'https://new.example/webhooks/gitea',
+              repos: 3,
+              registered: 2,
+              failed: [{ repo: 'acme/c', error: 'forbidden' }],
+            }
+          : method === 'PATCH'
+            ? { id: 5, status: 'active', fingerprint: 'y' }
+            : method === 'DELETE'
+              ? { id: 5, outcome: 'disconnected', paused_repos: 3 }
+              : url.includes('available-repos')
+                ? { items: [], total: 0, truncated: false }
+                : CONNECTIONS;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -133,5 +141,23 @@ describe('managing a connection (W20-07, INS-08)', () => {
   it('describes an empty connection as deleted outright', () => {
     expect(removeConsequence(0)).toMatch(/deleted outright/);
     expect(removeConsequence(1)).toMatch(/1 tracked repository stops syncing and is paused/);
+  });
+
+  // W20-10 (UX_TODO ADM-77): after the install moves, hooks still point at the
+  // old address; this button re-registers them and says which ones failed.
+  it('re-registers webhooks and names the repositories it could not', async () => {
+    useUiStore.setState({ toasts: [] });
+    const user = userEvent.setup();
+    renderConnections();
+    await user.click(await screen.findByTestId('connection-rehook-5'));
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.method === 'POST' && c.url.endsWith('/connections/5/webhooks')),
+      ).toBeDefined(),
+    );
+    await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
+    const toast = useUiStore.getState().toasts[0]!;
+    expect(toast.tone).toBe('warn');
+    expect(toast.message).toMatch(/2 of 3; not for acme\/c \(forbidden\)/);
   });
 });

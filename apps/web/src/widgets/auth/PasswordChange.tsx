@@ -109,7 +109,10 @@ export function PasswordChange({ variant = 'forced' }: PasswordChangeProps = {})
           <h2 className="text-base font-medium">Change your password</h2>
           <p className="mt-2 text-sm text-fg-muted">
             For accounts that sign in with an email and password. A single sign-on or GitHub account
-            changes its password with that provider instead.
+            changes its password with that provider instead.{' '}
+            {/* W20-10 (UX_TODO ADM-78): it now does, so it says so. */}
+            Changing it signs out every other browser and device signed in to this account; this one
+            stays signed in.
           </p>
           {saved ? (
             <p className="mt-3 text-sm text-ok" role="status" data-testid="password-change-saved">
@@ -122,7 +125,8 @@ export function PasswordChange({ variant = 'forced' }: PasswordChangeProps = {})
           <h1 className="text-base font-medium">Choose a new password</h1>
           <p className="mt-2 text-sm text-fg-muted">
             This account was created with a password someone else chose. Until it is replaced, this
-            is the only screen it can reach.
+            is the only screen it can reach. Any other device still signed in to it is signed out
+            when you save.
           </p>
         </>
       )}

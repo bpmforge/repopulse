@@ -1,9 +1,10 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { auditLog, type Database } from '@repopulse/shared';
-import { oauth, session as sessionModule } from '@repopulse/auth';
+import { admission, oauth, session as sessionModule } from '@repopulse/auth';
 import { redirectToSignIn, sendProblem } from './problem.js';
 import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
+import { postLoginUrl, RETURN_TO_COOKIE, safeReturnTo } from './return-to.js';
 
 export interface AuthRoutesOptions extends sessionModule.SessionPluginOptions {
   db: Database;
@@ -19,6 +20,8 @@ export interface AuthRoutesOptions extends sessionModule.SessionPluginOptions {
   githubEndpoints?: oauth.GithubOAuthEndpoints;
   /** Where to send the browser after a successful login (the SPA). */
   loginRedirectUrl: string;
+  /** Who may join through GitHub sign-in (W20-10, UX_TODO INS-50). Unset = anyone. */
+  admission?: admission.AdmissionPolicy | undefined;
 }
 
 const OAUTH_STATE_COOKIE = 'oauth_state';
@@ -29,6 +32,14 @@ const OAUTH_STATE_MAX_AGE_SECONDS = 600;
 // apiV1's preHandler (W1-04), not in these auth routes.
 function auditContext(request: FastifyRequest) {
   return { ip: request.ip, ua: request.headers['user-agent'] ?? null, workspaceId: null };
+}
+
+/** The vetted return path from the signed cookie, re-checked; null when absent or tampered. */
+function signedReturnTo(request: FastifyRequest): string | null {
+  const raw = request.cookies[RETURN_TO_COOKIE];
+  if (!raw) return null;
+  const unsigned = request.unsignCookie(raw);
+  return unsigned.valid ? safeReturnTo(unsigned.value) : null;
 }
 
 async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promise<void> {
@@ -43,7 +54,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
   if (!opts.githubOAuth) return;
   const githubOAuth = opts.githubOAuth;
 
-  app.get(
+  app.get<{ Querystring: { return_to?: string } }>(
     '/auth/login',
     { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
     async (request, reply) => {
@@ -56,6 +67,21 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
         path: '/auth/callback',
         maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
       });
+      // W20-10 (UX_TODO X-01): the deep link the sign-in started from. Signed,
+      // so the callback only ever follows a path this route already vetted.
+      const returnTo = safeReturnTo(request.query.return_to);
+      if (returnTo) {
+        reply.setCookie(RETURN_TO_COOKIE, returnTo, {
+          signed: true,
+          httpOnly: true,
+          secure: opts.cookieSecure,
+          sameSite: 'lax',
+          path: '/auth/callback',
+          maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
+        });
+      } else {
+        reply.clearCookie(RETURN_TO_COOKIE, { path: '/auth/callback' });
+      }
       const authorizeUrl = oauth.buildAuthorizeUrl(githubOAuth, state, opts.githubEndpoints);
       return reply.redirect(authorizeUrl);
     },
@@ -81,6 +107,8 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
 
       const cookieValue = request.cookies[OAUTH_STATE_COOKIE];
       reply.clearCookie(OAUTH_STATE_COOKIE, { path: '/auth/callback' });
+      const returnTo = signedReturnTo(request);
+      reply.clearCookie(RETURN_TO_COOKIE, { path: '/auth/callback' });
       if (!cookieValue) {
         auditLog(request.log, {
           event: 'auth.login.failure',
@@ -129,6 +157,37 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
         return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'identity_fetch_failed');
       }
 
+      // W20-10 (UX_TODO INS-50): with an org allowlist set, a GitHub account
+      // outside it is refused BEFORE a user row exists, so it never becomes a
+      // member. Checked on every sign-in, so leaving the org ends access.
+      if (opts.admission && admission.needsGithubOrgs(opts.admission)) {
+        let orgs: string[];
+        try {
+          orgs = await oauth.fetchGithubOrgLogins(accessToken, opts.githubEndpoints);
+        } catch (err) {
+          request.log.warn({ err }, 'GitHub org membership fetch failed');
+          auditLog(request.log, {
+            event: 'auth.login.failure',
+            actorUserId: null,
+            reason: 'org_check_failed',
+            login: identity.login,
+            ...auditContext(request),
+          });
+          return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'org_check_failed');
+        }
+        const admitted = admission.admitGithub(opts.admission, orgs);
+        if (!admitted.ok) {
+          auditLog(request.log, {
+            event: 'auth.login.failure',
+            actorUserId: null,
+            reason: admitted.reason,
+            login: identity.login,
+            ...auditContext(request),
+          });
+          return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'not_allowed');
+        }
+      }
+
       const user = await oauth.findOrCreateUser(opts.db, identity);
 
       request.session.set('userId', user.id);
@@ -141,7 +200,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
         ...auditContext(request),
       });
 
-      return reply.redirect(opts.loginRedirectUrl);
+      return reply.redirect(postLoginUrl(opts.loginRedirectUrl, returnTo));
     },
   );
 

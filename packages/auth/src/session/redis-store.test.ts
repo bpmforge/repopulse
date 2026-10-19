@@ -95,4 +95,35 @@ describeIfRedis('RedisSessionStore (live Redis)', () => {
     );
     expect(fetched).toBeNull();
   });
+  // W20-10 (UX_TODO ADM-78): a per-user index, so a password change and
+  // "Sign out everywhere" can end the account's other sessions.
+  it('indexes sessions by owner and ends all but the kept one', async () => {
+    const put = (id: string, fields: Record<string, unknown>) =>
+      new Promise<void>((resolve, reject) =>
+        store.set(
+          id,
+          {
+            cookie: { originalMaxAge: 60_000 },
+            createdAt: Date.now(),
+            ...fields,
+          } as unknown as Session,
+          (err) => (err ? reject(err) : resolve()),
+        ),
+      );
+    await put('u1-a', { userId: 41 });
+    await put('u1-b', { userId: 41 });
+    // A pending password change belongs to its account too.
+    await put('u1-c', { pendingPasswordChangeUserId: 41 });
+    await put('u2-a', { userId: 42 });
+    await put('anon', {});
+
+    expect(await store.countUserSessions(41)).toBe(3);
+    expect(await store.destroyUserSessions(41, 'u1-a')).toBe(2);
+    expect(await store.countUserSessions(41)).toBe(1);
+    expect(await redis.exists(`${keyPrefix}u1-a`)).toBe(1);
+    expect(await redis.exists(`${keyPrefix}u1-b`)).toBe(0);
+    expect(await store.countUserSessions(42)).toBe(1);
+    expect(await store.destroyUserSessions(41)).toBe(1);
+    expect(await store.destroyUserSessions(41)).toBe(0);
+  });
 });

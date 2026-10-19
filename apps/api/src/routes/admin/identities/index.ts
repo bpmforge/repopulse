@@ -1,6 +1,7 @@
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, type Database } from '@repopulse/shared';
+import { linkForgeIdentity } from '@repopulse/auth';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
 
@@ -142,6 +143,127 @@ export default async function identityRoutes(
       });
 
       return reply.send({ id, is_bot: isBot });
+    },
+  );
+
+  /**
+   * POST /admin/identities/:id/link — this identity is that member (W20-10,
+   * UX_TODO INS-51). `{ user_id: null }` unlinks it.
+   *
+   * A local or OIDC account has no forge account of its own, so its My Focus,
+   * "my PRs" and review load stayed empty for good: the banner said "ask an
+   * administrator to link your forge identity" and nothing could. This links
+   * the person to the committer, through `linkForgeIdentity` (which refuses a
+   * forge id another account already holds) plus `identities.user_id`, the
+   * link the personalised screens resolve through.
+   *
+   * Admin-only, workspace-filtered on both sides (Law 5), audited.
+   */
+  app.post<{ Params: { id: string }; Body: { user_id?: unknown } }>(
+    '/admin/identities/:id/link',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid identity id');
+      const rawUserId = request.body?.user_id;
+      if (rawUserId !== null && !Number.isInteger(rawUserId)) {
+        return fail(request, reply, 400, 'Invalid body', 'user_id must be a member id or null');
+      }
+      const userId = rawUserId as number | null;
+
+      const [identity] = await db
+        .select({
+          login: core.identities.forgeLogin,
+          forgeUserId: core.identities.forgeUserId,
+          userId: core.identities.userId,
+        })
+        .from(core.identities)
+        .where(and(eq(core.identities.id, id), eq(core.identities.workspaceId, workspaceId)))
+        .limit(1);
+      if (!identity) return fail(request, reply, 404, 'Identity not found');
+
+      const audit = (extra: Record<string, unknown>) =>
+        auditLog(request.log, {
+          event: 'identity.linked',
+          actorUserId: request.session.get('userId') ?? null,
+          workspaceId,
+          ip: request.ip,
+          ua: request.headers['user-agent'] ?? null,
+          identityId: id,
+          login: identity.login,
+          fromUserId: identity.userId,
+          ...extra,
+        });
+
+      if (userId === null) {
+        await db
+          .update(core.identities)
+          .set({ userId: null })
+          .where(and(eq(core.identities.id, id), eq(core.identities.workspaceId, workspaceId)));
+        audit({ toUserId: null });
+        return reply.send({ id, user_id: null });
+      }
+
+      // The member must belong to THIS workspace; another tenant's user is a 404.
+      const [member] = await db
+        .select({
+          authProvider: core.users.authProvider,
+          forgeUserId: core.users.forgeUserId,
+        })
+        .from(core.workspaceMembers)
+        .innerJoin(core.users, eq(core.users.id, core.workspaceMembers.userId))
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, workspaceId),
+            eq(core.workspaceMembers.userId, userId),
+          ),
+        )
+        .limit(1);
+      if (!member) return fail(request, reply, 404, 'Member not found');
+
+      if (identity.forgeUserId) {
+        // A GitHub sign-in IS a forge account; re-pointing it at someone else's
+        // committer would make its own work disappear from its own screens.
+        if (
+          member.authProvider === 'github' &&
+          member.forgeUserId !== null &&
+          member.forgeUserId !== identity.forgeUserId
+        ) {
+          return fail(
+            request,
+            reply,
+            409,
+            'This member signs in with GitHub',
+            'Their forge account is the one they sign in with, so it cannot be linked to a different committer. Merge the two identities instead.',
+          );
+        }
+        const linked = await linkForgeIdentity(db, userId, identity.forgeUserId);
+        if (!linked.ok) {
+          return fail(
+            request,
+            reply,
+            409,
+            'Another account is already linked to this forge identity',
+            'Unlink it from that account first, so nobody loses their history without being told.',
+          );
+        }
+      }
+
+      // One identity per person per workspace for the personalised screens:
+      // drop this member's previous link here, then set the new one.
+      await db
+        .update(core.identities)
+        .set({ userId: null })
+        .where(and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.userId, userId)));
+      await db
+        .update(core.identities)
+        .set({ userId })
+        .where(and(eq(core.identities.id, id), eq(core.identities.workspaceId, workspaceId)));
+
+      audit({ toUserId: userId });
+      return reply.send({ id, user_id: userId });
     },
   );
 

@@ -139,6 +139,32 @@ function ConnectionActions({ row, onToast }: { row: Row; onToast: (toasts: Toast
   const provider = (
     ['github', 'gitlab', 'gitea'].includes(row.provider) ? row.provider : 'github'
   ) as 'github' | 'gitlab' | 'gitea';
+  // W20-10 (UX_TODO ADM-77). Hooks point at the address the install had when
+  // each repository was first tracked; after moving it, this points them here.
+  const rehook = useApiMutation<
+    undefined,
+    { url: string; repos: number; registered: number; failed: { repo: string; error: string }[] }
+  >({ endpoint: '/connections/{id}/webhooks', path: { id: row.id }, method: 'POST' });
+  const reRegister = () =>
+    rehook.mutate(undefined, {
+      onError: (err: Error) => onToast([errorToast(`conn-hook-${row.id}-err`, err)]),
+      onSuccess: (res) =>
+        onToast([
+          {
+            id: `conn-hook-${row.id}`,
+            tone: res.failed.length === 0 ? 'ok' : 'warn',
+            message:
+              res.failed.length === 0
+                ? `Webhooks re-registered at ${res.url} for ${res.registered} repositor${res.registered === 1 ? 'y' : 'ies'}`
+                : `Webhooks re-registered for ${res.registered} of ${res.repos}; not for ${res.failed
+                    .slice(0, 3)
+                    .map((f) => `${f.repo} (${f.error})`)
+                    .join(
+                      ', ',
+                    )}${res.failed.length > 3 ? ` and ${res.failed.length - 3} more` : ''}`,
+          },
+        ]),
+    });
 
   if (mode === 'rekey') {
     return (
@@ -258,6 +284,18 @@ function ConnectionActions({ row, onToast }: { row: Row; onToast: (toasts: Toast
       >
         {row.status === 'removed' ? 'Reconnect…' : 'Replace token…'}
       </button>
+      {row.status === 'active' && row.repo_count > 0 && (
+        <button
+          type="button"
+          disabled={rehook.isPending}
+          title="After changing this install's address (PUBLIC_BASE_URL): point every tracked repository's webhook at the current address. See RUNBOOK → Change the install's address."
+          className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50"
+          data-testid={`connection-rehook-${row.id}`}
+          onClick={reRegister}
+        >
+          {rehook.isPending ? 'Re-registering…' : 'Re-register webhooks'}
+        </button>
+      )}
       {row.status !== 'removed' && (
         <button
           type="button"

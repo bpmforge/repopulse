@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, ne, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { core, facts, read, type Database } from '@repopulse/shared';
+import { core, facts, read, security, type Database } from '@repopulse/shared';
 import { identity, workspace as workspaceModule } from '@repopulse/auth';
 import { prSizeBucket } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
@@ -35,6 +35,11 @@ export const PERSONA_HOME: Record<Persona, string> = {
   security: '/findings', // P3 → Findings Explorer
   exec: '/reports', // P4 → Exec rollup lives under Reports until W5's views
 };
+
+/** A first look at the inbox shows a week, not every finding ever recorded. */
+const INBOX_FIRST_LOOK_MS = 7 * 24 * 60 * 60 * 1000;
+/** The panel lists the newest few of each kind; the counts carry the rest. */
+const INBOX_ITEMS = 20;
 
 function fail(
   req: FastifyRequest,
@@ -421,5 +426,130 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       prs_advanced: advanced?.n ?? 0,
       findings_on_my_prs: findingsOnMine?.n ?? 0,
     });
+  });
+
+  /**
+   * GET /me/inbox — what needs a human, since this user last looked (W20-10,
+   * UX_TODO X-03).
+   *
+   * A leaked secret, a new KEV dependency or a critical finding waited until
+   * someone happened to open the right tab: there was no inbox and no unread
+   * badge, and email/Slack are out of scope (D7), so in-app is the only
+   * channel. This answers "what is new and serious": open findings of high or
+   * critical severity, any KEV or secrets finding, and scans that failed.
+   *
+   * "Since" is the user's own `prefs.inboxSeenAt`, moved by POST
+   * /me/inbox/seen. Never looked = the last 7 days, said as such, so a first
+   * visit is not a decade of backlog. Workspace-filtered (Law 5).
+   */
+  app.get('/me/inbox', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const me = await readUser(request);
+    const raw = me?.prefs?.['inboxSeenAt'];
+    const seen = typeof raw === 'string' ? new Date(raw) : null;
+    const firstLook = seen === null || Number.isNaN(seen.getTime());
+    const since = firstLook || seen === null ? new Date(Date.now() - INBOX_FIRST_LOOK_MS) : seen;
+
+    const serious = or(
+      gte(read.findings.severity, 4),
+      eq(read.findings.dimension, 'secrets'),
+      sql`${read.findings.yields} ->> 'kev' = 'true'`,
+    );
+    const findingWhere = and(
+      eq(read.findings.workspaceId, workspaceId),
+      eq(read.findings.status, 'open'),
+      gt(read.findings.firstSeenAt, since),
+      serious,
+    );
+    const [findingCount] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(read.findings)
+      .where(findingWhere);
+    const findings = await db
+      .select({
+        id: read.findings.id,
+        title: read.findings.title,
+        severity: read.findings.severity,
+        dimension: read.findings.dimension,
+        kev: sql<boolean>`coalesce(${read.findings.yields} ->> 'kev' = 'true', false)`,
+        repoId: read.findings.repoId,
+        org: core.repos.org,
+        name: core.repos.name,
+        at: read.findings.firstSeenAt,
+      })
+      .from(read.findings)
+      .innerJoin(core.repos, eq(core.repos.id, read.findings.repoId))
+      .where(findingWhere)
+      .orderBy(desc(read.findings.severity), desc(read.findings.firstSeenAt))
+      .limit(INBOX_ITEMS);
+
+    const scanWhere = and(
+      eq(security.scanRuns.workspaceId, workspaceId),
+      eq(security.scanRuns.status, 'failed'),
+      gt(security.scanRuns.startedAt, since),
+    );
+    const [scanCount] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(security.scanRuns)
+      .where(scanWhere);
+    const scans = await db
+      .select({
+        id: security.scanRuns.id,
+        scanner: security.scanRuns.scannerKey,
+        error: security.scanRuns.error,
+        repoId: security.scanRuns.repoId,
+        org: core.repos.org,
+        name: core.repos.name,
+        at: security.scanRuns.startedAt,
+      })
+      .from(security.scanRuns)
+      .innerJoin(
+        core.repos,
+        and(eq(core.repos.id, security.scanRuns.repoId), eq(core.repos.workspaceId, workspaceId)),
+      )
+      .where(scanWhere)
+      .orderBy(desc(security.scanRuns.startedAt))
+      .limit(INBOX_ITEMS);
+
+    return reply.send({
+      since: since.toISOString(),
+      first_look: firstLook,
+      unread: (findingCount?.n ?? 0) + (scanCount?.n ?? 0),
+      findings_count: findingCount?.n ?? 0,
+      failed_scans_count: scanCount?.n ?? 0,
+      findings: findings.map((f) => ({
+        id: f.id,
+        title: f.title,
+        severity: f.severity,
+        dimension: f.dimension,
+        kev: f.kev,
+        repo_id: f.repoId,
+        repo: `${f.org}/${f.name}`,
+        at: f.at.toISOString(),
+      })),
+      failed_scans: scans.map((r) => ({
+        id: r.id,
+        scanner: r.scanner,
+        // The first line only: a scanner's stderr can run to pages.
+        error: r.error === null ? null : (r.error.split('\n')[0] ?? '').slice(0, 200),
+        repo_id: r.repoId,
+        repo: `${r.org}/${r.name}`,
+        at: r.at.toISOString(),
+      })),
+    });
+  });
+
+  /** POST /me/inbox/seen — "I have looked": the badge counts from now. */
+  app.post('/me/inbox/seen', async (request, reply) => {
+    const userId = request.session.get('userId');
+    if (userId === undefined) return fail(request, reply, 401, 'No active session');
+    const at = new Date().toISOString();
+    // jsonb merge in SQL, so a concurrent PATCH /me/prefs cannot be lost.
+    await db
+      .update(core.users)
+      .set({ prefs: sql`${core.users.prefs} || ${JSON.stringify({ inboxSeenAt: at })}::jsonb` })
+      .where(eq(core.users.id, userId));
+    return reply.send({ seen_at: at });
   });
 }

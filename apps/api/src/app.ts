@@ -27,6 +27,7 @@ import csrfHeaderPlugin from './plugins/csrf-header.js';
 import metricsPlugin from './plugins/metrics/index.js';
 import apiV1 from './plugins/api-v1.js';
 import webhookRoutes from './routes/webhooks/index.js';
+import { installAuditStore } from './lib/audit-store.js';
 
 export interface BuildAppOptions {
   db: Database;
@@ -71,6 +72,8 @@ export interface BuildAppOptions {
    * shipped stack has. See lib/trust-proxy.ts.
    */
   trustProxy?: import('./lib/trust-proxy.js').TrustProxy | undefined;
+  /** Who may join through GitHub/OIDC sign-in (W20-10, UX_TODO INS-50). Unset = anyone. */
+  admission?: import('@repopulse/auth').admission.AdmissionPolicy | undefined;
 }
 
 export function buildApp(opts: BuildAppOptions) {
@@ -93,6 +96,14 @@ export function buildApp(opts: BuildAppOptions) {
     // so the sign-in rate limit and the audit log saw one client for everyone.
     ...(opts.trustProxy !== undefined ? { trustProxy: opts.trustProxy } : {}),
   });
+
+  // W20-10 (UX_TODO X-04): every auditLog() call now also lands in
+  // audit_events, which Settings → Audit log reads. Before this the log line
+  // was the only record and nobody could see it from the app.
+  const auditStore = installAuditStore(opts.db, (err) =>
+    app.log.warn({ err }, 'audit event not persisted'),
+  );
+  app.addHook('onClose', () => auditStore.flush());
 
   app.register(errorEnvelopePlugin);
   app.register(securityHeadersPlugin);
@@ -120,6 +131,7 @@ export function buildApp(opts: BuildAppOptions) {
     ...(opts.githubOAuth ? { githubOAuth: opts.githubOAuth } : {}),
     loginRedirectUrl: opts.loginRedirectUrl,
     ...(opts.githubEndpoints ? { githubEndpoints: opts.githubEndpoints } : {}),
+    ...(opts.admission ? { admission: opts.admission } : {}),
   });
 
   // Local accounts are always available: they are what makes this product
@@ -146,6 +158,7 @@ export function buildApp(opts: BuildAppOptions) {
       config: opts.oidc,
       loginRedirectUrl: opts.loginRedirectUrl,
       cookieSecure: opts.cookieSecure,
+      ...(opts.admission ? { admission: opts.admission } : {}),
     });
   }
 

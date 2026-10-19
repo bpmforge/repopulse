@@ -522,6 +522,101 @@ export default async function connectionsRoutes(
     },
   );
 
+  // POST /connections/{id}/webhooks — re-register every tracked repository's
+  // push webhook at the CURRENT address (👑) (W20-10, UX_TODO ADM-77).
+  //
+  // A hook is registered once, when its repository is first tracked, pointing
+  // at PUBLIC_BASE_URL as it was then. After moving the install (a new server,
+  // a new domain, http → https) every forge kept delivering to the old address
+  // and live updates stopped with no warning; only the nightly reconcile still
+  // ran. This registers a hook at today's URL, signed with the connection's
+  // existing secret, for each repository that is not paused. Hooks at the OLD
+  // address are not deleted (no provider can delete a hook yet); they fail
+  // against a host that no longer answers, and the RUNBOOK says to remove them
+  // in the forge. A forge that already has a hook at this exact URL refuses a
+  // duplicate, which is reported per repository and is harmless.
+  typedApp.post<{ Params: { id: string } }>(
+    '/connections/:id/webhooks',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid connection id');
+      const row = await loadConnection(id, ctx.workspaceId);
+      if (!row) return fail(request, reply, 404, 'Not Found');
+      if (row.status !== 'active') return removedConnection(request, reply);
+
+      let secret: string | null = null;
+      if (row.webhookSecretCiphertext) {
+        try {
+          secret = credentials.openSecret(row.webhookSecretCiphertext, tokenKey);
+        } catch {
+          secret = null;
+        }
+      }
+      if (secret === null) {
+        return fail(
+          request,
+          reply,
+          409,
+          'This connection has no webhook secret to sign with',
+          'Track a repository on it first (that creates the secret), or replace its token if TOKEN_ENC_KEY changed.',
+        );
+      }
+
+      const repos = await db
+        .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
+        .from(core.repos)
+        .where(
+          and(
+            eq(core.repos.workspaceId, ctx.workspaceId),
+            eq(core.repos.connectionId, row.id),
+            sql`${core.repos.syncStatus} <> 'paused'`,
+          ),
+        );
+
+      const forge = await providerForConnection(row);
+      const url = webhookUrlFor(opts.webhookUrl, forge.capabilities.webhookScheme);
+      const failed: { repo_id: number; repo: string; error: string }[] = [];
+      let registered = 0;
+      // One at a time, through the budgeted provider (Law 7): a burst of hook
+      // creations is exactly what a secondary rate limit punishes.
+      for (const repo of repos) {
+        const fullName = `${repo.org}/${repo.name}`;
+        try {
+          await forge.registerWebhook(CTX, fullName, url, secret, WEBHOOK_EVENTS);
+          registered += 1;
+          // Clears only the note an earlier failed registration left.
+          await db
+            .update(core.repos)
+            .set({ lastError: null })
+            .where(
+              and(
+                eq(core.repos.id, repo.id),
+                eq(core.repos.workspaceId, ctx.workspaceId),
+                sql`${core.repos.lastError} like 'live updates unavailable%'`,
+              ),
+            );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          failed.push({ repo_id: repo.id, repo: fullName, error: message.slice(0, 300) });
+        }
+      }
+
+      auditLog(request.log, {
+        event: 'connection.webhooks_reregistered',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        connectionId: row.id,
+        url,
+        registered,
+        failed: failed.length,
+      });
+      return reply.send({ url, repos: repos.length, registered, failed });
+    },
+  );
+
   // DELETE /connections/{id} — remove a connection (👑) (W20-07, UX_TODO INS-08).
   //
   // What happens to the tracked repositories is the whole question, so the

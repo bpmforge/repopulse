@@ -185,4 +185,17 @@ describe('SystemStatus (W17-08)', () => {
       expect(document.activeElement).toBe(el);
     }
   });
+
+  // W20-10 (UX_TODO ADM-13): which release this is, and the last backup.
+  it('names the release and when the last backup was recorded', async () => {
+    respond({
+      ...ready,
+      about: { version: 'v1.4.0', lastBackupAt: null, backupKeyFingerprint: null },
+    });
+    renderWidget();
+    await waitFor(() => expect(screen.getByTestId('system-status-about')).toBeInTheDocument());
+    expect(screen.getByTestId('system-status-about')).toHaveTextContent(
+      'RepoPulse v1.4.0 · last backup never',
+    );
+  });
 });
