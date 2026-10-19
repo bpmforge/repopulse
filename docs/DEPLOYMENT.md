@@ -48,6 +48,8 @@ internal `scan` network between `worker` and `scan-runner`.
 - **Not published:** Postgres, Redis, the API, the worker and the scan-runner.
   The API is reached only through nginx in `web`.
 - **Volumes:** `<project>_pgdata`, `<project>_redisdata` (durable),
+  `<project>_reportdata` (durable: generated report PDFs and their data,
+  mounted at `/app/.data` in both api and worker, not in `backup.sh`),
   `<project>_scan-scratch` (a tmpfs-backed scratch for one snapshot at a time,
   `SCAN_SCRATCH_SIZE`, default 2 GB). The compose project defaults to
   `repopulse`; `REPOPULSE_PROJECT` changes it, which is how a disposable copy
