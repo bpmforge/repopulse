@@ -65,9 +65,20 @@ function decideAndRefetch(
   rerender(<TriageQueue findings={remaining} onExit={vi.fn()} invalidate={[]} />);
 }
 
+/**
+ * W20-03 (FND-08): the queue starts with an empty note and no dismiss reason,
+ * and refuses to decide until both are given. Every test here is about what
+ * happens AFTER a decision, so it writes them first.
+ */
+function prepare() {
+  fireEvent.change(screen.getByTestId('triage-note'), { target: { value: 'reviewed' } });
+  fireEvent.change(screen.getByTestId('triage-reason'), { target: { value: 'not_applicable' } });
+}
+
 describe('the triage stepper (W16-52)', () => {
   it('moves to the NEXT finding after a decision, never past it', () => {
     const { rerender } = render(<TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />);
+    prepare();
     expect(screen.getByTestId('triage-position').textContent).toBe('1 of 3');
 
     decideAndRefetch(rerender, 'c', [THREE[1]!, THREE[2]!]);
@@ -82,6 +93,7 @@ describe('the triage stepper (W16-52)', () => {
     // what makes a stepper feel untrustworthy even before anyone notices a
     // finding was missed.
     const { rerender } = render(<TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />);
+    prepare();
     decideAndRefetch(rerender, 'c', [THREE[1]!, THREE[2]!]);
     expect(screen.getByTestId('triage-position').textContent).toBe('2 of 3');
     decideAndRefetch(rerender, 'd', [THREE[2]!]);
@@ -92,6 +104,7 @@ describe('the triage stepper (W16-52)', () => {
     // Decided items stay in the run: someone who confirms by mistake has to be
     // able to return to it, and a queue that drops them cannot offer that.
     const { rerender } = render(<TriageQueue findings={THREE} onExit={vi.fn()} invalidate={[]} />);
+    prepare();
     decideAndRefetch(rerender, 'c', [THREE[1]!, THREE[2]!]);
     fireEvent.keyDown(window, { key: 'k' });
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('first');

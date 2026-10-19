@@ -60,9 +60,20 @@ function settle(i: number, outcome: 'ok' | { error: unknown }) {
   cb.onSettled?.();
 }
 
+/**
+ * W20-03 (FND-08): the queue starts with an empty note and no dismiss reason,
+ * and refuses to decide until both are given. Every test here is about what
+ * happens AFTER a decision, so it writes them first.
+ */
+function prepare() {
+  fireEvent.change(screen.getByTestId('triage-note'), { target: { value: 'reviewed' } });
+  fireEvent.change(screen.getByTestId('triage-reason'), { target: { value: 'not_applicable' } });
+}
+
 describe('the triage counters move on the server’s answer, not the keypress', () => {
   it('a refused decision counts nothing, shows why, and holds the cursor', () => {
     render(<TriageQueue findings={TWO} onExit={vi.fn()} invalidate={[]} />);
+    prepare();
     fireEvent.keyDown(window, { key: 'c' });
     expect(mutate).toHaveBeenCalledTimes(1);
     // Nothing yet: the request is in flight.
@@ -82,6 +93,7 @@ describe('the triage counters move on the server’s answer, not the keypress', 
 
   it('a successful decision counts once and advances', () => {
     render(<TriageQueue findings={TWO} onExit={vi.fn()} invalidate={[]} />);
+    prepare();
     fireEvent.keyDown(window, { key: 'd' });
     act(() => settle(0, 'ok'));
     expect(screen.getByTestId('triage-summary').textContent).toMatch(/^0 confirmed · 1 dismissed/);
@@ -90,6 +102,7 @@ describe('the triage counters move on the server’s answer, not the keypress', 
 
   it('holds back only the same decision on the same finding while it is pending', () => {
     render(<TriageQueue findings={TWO} onExit={vi.fn()} invalidate={[]} />);
+    prepare();
     fireEvent.keyDown(window, { key: 'c' });
     // A second c is a duplicate write and is dropped.
     fireEvent.keyDown(window, { key: 'c' });

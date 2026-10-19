@@ -297,3 +297,51 @@ describe('Security tab — the empty states are different sentences', () => {
     expect(screen.getByTestId('cves-empty')).toHaveTextContent(/running now/i);
   });
 });
+
+// W20-03 (UX_TODO FND-04, FND-06).
+describe('Security tab — drill-downs and exports', () => {
+  it('every link to Reviews carries this repository, and the secrets one its dimension', async () => {
+    security = base({
+      open_total: 3,
+      scanners: [scanner({ state: 'ok', open_findings: 3 })],
+      top_findings: [
+        {
+          id: 4711,
+          title: 'x',
+          severity: 5,
+          dimension: 'security',
+          scanner_key: null,
+          file: null,
+          line: null,
+        },
+      ],
+    });
+    renderSecurity();
+    const secrets = await screen.findByTestId('secrets-drill');
+    // The router writes a numeric-looking string quoted (%227%22); either way
+    // it parses back to repos "7".
+    expect(secrets.getAttribute('href')).toMatch(/repos=(%22)?7/);
+    expect(secrets.getAttribute('href')).toMatch(/dimension=secrets/);
+    expect(screen.getByTestId('security-finding-link-4711').getAttribute('href')).toMatch(
+      /repos=(%22)?7/,
+    );
+    expect(screen.getByTestId('security-findings-all').getAttribute('href')).toMatch(
+      /repos=(%22)?7/,
+    );
+  });
+
+  it('offers the VEX and attribution downloads at the API paths that serve them', async () => {
+    renderSecurity();
+    await screen.findByTestId('cves-empty');
+    expect(await screen.findByTestId('download-vex')).toHaveAttribute(
+      'href',
+      '/api/v1/repos/7/vex.json',
+    );
+    expect(screen.getByTestId('download-attribution')).toHaveAttribute(
+      'href',
+      '/api/v1/repos/7/attribution',
+    );
+    // No SBOM yet, and the link says so before the click rather than after.
+    expect(screen.getByTestId('security-exports')).toHaveTextContent(/has not completed a run/);
+  });
+});

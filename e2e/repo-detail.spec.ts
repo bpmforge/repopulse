@@ -13,7 +13,11 @@ import { SEED_REPO_NAMES } from '@repopulse/shared';
 // repos to this same workspace which — now that they reach `live` — can render
 // ahead of the seeded ones. Position is not identity.
 function seededTile(page: import('@playwright/test').Page) {
-  return page.getByTestId('health-tile-grid').locator('a').filter({ hasText: SEED_REPO_NAMES[0] }).first();
+  return page
+    .getByTestId('health-tile-grid')
+    .locator('a')
+    .filter({ hasText: SEED_REPO_NAMES[0] })
+    .first();
 }
 
 async function firstRepoHref(page: import('@playwright/test').Page): Promise<string> {
@@ -182,7 +186,7 @@ test('the PR Flow tab shows review load built from REVIEWER data (W4-15)', async
 // canvas per tab and this tab has no chart, so the one screen a reader reaches
 // by drilling into a repository kept telling them the feature did not exist
 // while the explorer listed the very same rows.
-test('the repo Findings tab lists that repo\'s findings and opens one in place', async ({
+test("the repo Findings tab lists that repo's findings and opens one in place", async ({
   page,
 }) => {
   await loginAsFixture(page);
@@ -193,7 +197,9 @@ test('the repo Findings tab lists that repo\'s findings and opens one in place',
   const repoId = (await firstRepoHref(page)).match(/\/repos\/(\d+)/)?.[1];
   expect(repoId).toBeDefined();
 
-  await page.goto(`/repos/${repoId}/findings?window=90d`);
+  // status=any: since W20-03 (FND-14) the tab defaults to OPEN findings, and
+  // other specs triage seeded ones; this test is about all three rows.
+  await page.goto(`/repos/${repoId}/findings?window=90d&status=any`);
   await expect(page.getByTestId('repo-findings')).toBeVisible();
 
   // ROWS, not just a visible container: the teaser was "visible" too. The

@@ -1,13 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { ErrorNote } from '../../components/primitives/ErrorNote.js';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { apiFetch, buildUrl } from '../../api/client.js';
 import {
-  RULE_NEXT_STATUS,
-  RULE_NEXT_STEP,
   RULE_STATUS_LABEL,
+  RULE_TRANSITIONS,
+  ruleAction,
+  type RuleLifecycleStatus,
   type RuleRow,
 } from '../../widgets/rules/contracts.js';
 import { RulePrecisionTable } from '../../widgets/trust/RulePrecision.js';
@@ -25,6 +27,16 @@ export const Route = createFileRoute('/admin/rules')({ component: RuleWorkbench 
 
 const LIST = { endpoint: '/rules' } as const;
 
+// W20-03 (UX_TODO FND-15): Deprecate was drawn as the primary (accent) action.
+// A forward step keeps the accent; a destructive one is neutral, so the
+// visually suggested button is never the one that stops a rule.
+const FORWARD =
+  'rounded-md border border-accent bg-accent/10 px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
+const NEUTRAL =
+  'rounded-md border border-border px-2 py-1 text-xs hover:border-fg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50';
+
+type Move = { ruleId: string; from: RuleLifecycleStatus; to: RuleLifecycleStatus };
+
 export function RuleWorkbench() {
   const { data, isLoading, isError, error } = useApiQuery<{ items: RuleRow[] }>(LIST);
   const queryClient = useQueryClient();
@@ -32,16 +44,32 @@ export function RuleWorkbench() {
   // `/rules/{ruleId}/transition` and the id only in the body, so every press
   // hit the literal `{ruleId}` URL and 404'd — silently, since nothing showed
   // the error. The id goes in the PATH now, per row, and failures are shown.
-  const transition = useMutation<unknown, Error, { ruleId: string; to: string }>({
+  /**
+   * The move waiting for a yes, and what the last one did (W20-03, FND-15).
+   * Promote and every destructive step acted on one click, with nothing said
+   * afterwards; a rule going live or stopping changes what every later scan
+   * says about someone's code, which deserves a second look and a receipt.
+   */
+  const [confirming, setConfirming] = useState<Move | null>(null);
+  const [message, setMessage] = useState<{ ruleId: string; text: string } | null>(null);
+  const transition = useMutation<unknown, Error, Move>({
     mutationFn: ({ ruleId, to }) =>
       apiFetch<unknown>(buildUrl('/rules/{ruleId}/transition', { path: { ruleId } }), {
         method: 'POST',
         body: JSON.stringify({ to }),
       }),
-    onSuccess: async () => {
+    onSuccess: async (_result, move) => {
+      setMessage({ ruleId: move.ruleId, text: ruleAction(move.from, move.to).done });
       await queryClient.invalidateQueries({ queryKey: queryKeyFor(LIST) });
     },
   });
+
+  /** Ask first where the move says to; otherwise send it. */
+  const request = (move: Move) => {
+    setMessage(null);
+    if (ruleAction(move.from, move.to).confirm) setConfirming(move);
+    else transition.mutate(move);
+  };
 
   const items = data?.items ?? [];
   const state = frameState({ isLoading, isError, isEmpty: items.length === 0 });
@@ -62,6 +90,11 @@ export function RuleWorkbench() {
         emptyMessage="No candidate rules yet. This registry holds rules DRAFTED from your own findings, which run in shadow before they are allowed to raise anything — the rules that ship in the scanners' packs are always on and are not listed here."
         testId="rules-frame"
       >
+        {message && (
+          <p className="mb-2 text-sm" role="status" data-testid="rule-status-message">
+            <span className="font-mono">{message.ruleId}</span>: {message.text}
+          </p>
+        )}
         <table className="table-plain w-full text-sm" data-testid="rules-table">
           <caption className="sr-only">Rule lifecycle and promotion evidence</caption>
           <thead>
@@ -91,6 +124,21 @@ export function RuleWorkbench() {
                   {rule.demotion_candidate && (
                     <span className="ml-2 text-xs" data-testid={`rule-demote-${rule.rule_id}`}>
                       ! demotion candidate
+                      {/* The demotion action beside the flag (FND-16). §8.2
+                          makes demotion an admin-confirmed deprecation. */}
+                      {rule.status === 'active' && (
+                        <button
+                          type="button"
+                          className={`${NEUTRAL} ml-2`}
+                          data-testid={`rule-demote-action-${rule.rule_id}`}
+                          disabled={transition.isPending}
+                          onClick={() =>
+                            request({ ruleId: rule.rule_id, from: 'active', to: 'deprecated' })
+                          }
+                        >
+                          Demote (deprecate)
+                        </button>
+                      )}
                     </span>
                   )}
                 </th>
@@ -107,23 +155,57 @@ export function RuleWorkbench() {
                     : `${Math.round(rule.evidence.fpRate * 100)}%`}
                 </td>
                 <td className="py-2">
-                  <button
-                    type="button"
-                    className="rounded-md border border-accent bg-accent/10 px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
-                    data-testid={`rule-advance-${rule.rule_id}`}
-                    disabled={
-                      transition.isPending ||
-                      (rule.status === 'candidate' && !rule.promotion.eligible)
-                    }
-                    onClick={() =>
-                      transition.mutate({
-                        ruleId: rule.rule_id,
-                        to: RULE_NEXT_STATUS[rule.status],
-                      })
-                    }
-                  >
-                    {RULE_NEXT_STEP[rule.status]}
-                  </button>
+                  {/* Every move the lifecycle allows from here (FND-16), not
+                      one forward step: a proposed or shadow rule can now be
+                      rejected or retired. */}
+                  <div className="flex flex-wrap gap-1">
+                    {RULE_TRANSITIONS[rule.status].map((to) => {
+                      const action = ruleAction(rule.status, to);
+                      return (
+                        <button
+                          key={to}
+                          type="button"
+                          className={action.destructive ? NEUTRAL : FORWARD}
+                          data-testid={`rule-move-${to}-${rule.rule_id}`}
+                          disabled={
+                            transition.isPending || (to === 'active' && !rule.promotion.eligible)
+                          }
+                          onClick={() => request({ ruleId: rule.rule_id, from: rule.status, to })}
+                        >
+                          {action.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {confirming?.ruleId === rule.rule_id && (
+                    <div
+                      className="mt-1 flex flex-wrap items-center gap-1 text-xs"
+                      role="alertdialog"
+                      aria-label={`Confirm: ${ruleAction(confirming.from, confirming.to).label}`}
+                      data-testid={`rule-confirm-${rule.rule_id}`}
+                    >
+                      <span>{ruleAction(confirming.from, confirming.to).confirm}</span>
+                      <button
+                        type="button"
+                        className={NEUTRAL}
+                        data-testid={`rule-confirm-yes-${rule.rule_id}`}
+                        onClick={() => {
+                          transition.mutate(confirming);
+                          setConfirming(null);
+                        }}
+                      >
+                        {ruleAction(confirming.from, confirming.to).label}
+                      </button>
+                      <button
+                        type="button"
+                        className={NEUTRAL}
+                        data-testid={`rule-confirm-no-${rule.rule_id}`}
+                        onClick={() => setConfirming(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                   {transition.variables?.ruleId === rule.rule_id && (
                     <ErrorNote
                       error={transition.error}

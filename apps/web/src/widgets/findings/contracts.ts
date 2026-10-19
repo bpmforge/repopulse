@@ -100,6 +100,8 @@ export interface FindingPage {
   experimental?: ShadowMode;
   /** Shadow findings matching the other filters that the default left out; null when none were held back by construction. */
   shadow_hidden?: number | null;
+  /** Findings matching the filters across every page (W20-03). */
+  total?: number;
 }
 
 /** GET /findings/facets (W18-29). */
@@ -277,4 +279,42 @@ export const FINDING_ACTIONS: Record<
     testId: 'finding-reopen',
     hint: 'Put this finding back in the queue.',
   },
+};
+
+/** Reasons a dismissal may carry; the API's DISMISS_REASONS, in the order offered. */
+export const DISMISS_REASONS = [
+  'false_positive',
+  'accepted_risk',
+  'not_applicable',
+  'duplicate',
+] as const;
+export type DismissReason = (typeof DISMISS_REASONS)[number];
+
+export function isDismissReason(value: string): value is DismissReason {
+  return (DISMISS_REASONS as readonly string[]).includes(value);
+}
+
+/**
+ * The status an Undo would PATCH back to, or null when the lifecycle has no
+ * way back (W20-03, UX_TODO FND-02).
+ *
+ * Undo is not a special power: it is the ordinary reverse transition, offered
+ * only when the lifecycle the API enforces allows it. open → dismissed undoes
+ * (dismissed → open is a reopen); open → confirmed does not, because nothing
+ * goes from confirmed back to open, and offering a button the API will answer
+ * with a 409 is the defect FND-01 removed.
+ */
+export function undoTargetFor(from: string, to: string): FindingLifecycleStatus | null {
+  return allowedFindingTransitions(to).includes(from as FindingLifecycleStatus)
+    ? (from as FindingLifecycleStatus)
+    : null;
+}
+
+/** Past tense for a status message after a change ("Dismissed", "Reopened"). */
+export const FINDING_DONE_LABEL: Record<FindingLifecycleStatus, string> = {
+  confirmed: 'Confirmed',
+  resolved: 'Marked fixed',
+  wont_fix: "Marked won't fix",
+  dismissed: 'Dismissed',
+  open: 'Reopened',
 };

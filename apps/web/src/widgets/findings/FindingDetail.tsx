@@ -3,12 +3,16 @@ import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
   allowedFindingTransitions,
+  DISMISS_REASONS,
   FINDING_ACTIONS,
+  FINDING_DONE_LABEL,
   locationOf,
   reviewSummary,
   SEVERITY_LABEL,
+  undoTargetFor,
   type Finding,
   type FindingEvent,
+  type FindingLifecycleStatus,
 } from './contracts.js';
 import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
@@ -18,8 +22,6 @@ import { RulePrecisionSummary } from '../trust/RulePrecision.js';
 import { SHADOW_EXPLAINER, ShadowBadge } from './ShadowBadge.js';
 
 // Finding detail panel (W6-04, UX_SPEC §4.e).
-
-const DISMISS_REASONS = ['false_positive', 'accepted_risk', 'not_applicable', 'duplicate'] as const;
 
 const ACTION_BUTTON =
   'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
@@ -37,6 +39,19 @@ export function FindingDetail({
   const [reason, setReason] = useState<string>('false_positive');
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle');
   const noteRef = useRef<HTMLInputElement>(null);
+  /**
+   * The last change made from this panel, for the status message and its Undo
+   * (W20-03, UX_TODO FND-02). Held with the finding's id because the explorer
+   * re-renders this same panel for the next finding: a message about #7 must
+   * not appear under #8.
+   */
+  const [lastChange, setLastChange] = useState<{
+    findingId: number;
+    from: string;
+    to: FindingLifecycleStatus;
+    fromReason: string | null;
+    undone: boolean;
+  } | null>(null);
 
   const historyDescriptor = {
     endpoint: '/findings/{id}/history',
@@ -65,6 +80,27 @@ export function FindingDetail({
    */
   const pending = transition.isPending ? transition.variables?.status : undefined;
   const allowed = allowedFindingTransitions(finding.status);
+
+  const change = lastChange?.findingId === finding.id ? lastChange : null;
+  /** PATCH back to where the finding was, with a note that says why (FND-02). */
+  const undo = () => {
+    if (!change) return;
+    const target = undoTargetFor(change.from, change.to);
+    if (!target) return;
+    const undoNote = `Undo of ${FINDING_ACTIONS[change.to].label}`;
+    transition.mutate(
+      target === 'dismissed'
+        ? {
+            status: target,
+            note: undoNote,
+            // Back to the reason it had, not a default: an undo that quietly
+            // turned "duplicate" into "false positive" would move the FP rate.
+            ...(change.fromReason ? { dismiss_reason: change.fromReason } : {}),
+          }
+        : { status: target, note: undoNote },
+      { onSuccess: () => setLastChange({ ...change, undone: true }) },
+    );
+  };
 
   const copySummary = () => {
     const text = reviewSummary(finding, history?.items ?? []);
@@ -258,13 +294,27 @@ export function FindingDetail({
                 title={action.hint}
                 disabled={pending === to || note.trim() === ''}
                 aria-busy={pending === to || undefined}
-                onClick={() =>
+                onClick={() => {
+                  const from = finding.status;
+                  const fromReason = finding.dismiss_reason;
                   transition.mutate(
                     to === 'dismissed'
                       ? { status: to, note, dismiss_reason: reason }
                       : { status: to, note },
-                  )
-                }
+                    {
+                      onSuccess: () => {
+                        setNote('');
+                        setLastChange({
+                          findingId: finding.id,
+                          from,
+                          to,
+                          fromReason,
+                          undone: false,
+                        });
+                      },
+                    },
+                  );
+                }}
               >
                 {pending === to ? action.busy : action.label}
               </button>
@@ -300,6 +350,7 @@ export function FindingDetail({
             409 — someone else triaged it first, or the row is in a state this
             action cannot leave — vanished, and the panel simply did nothing. */}
         <ErrorNote error={transition.error} testId="finding-action-error" />
+        {change && <ChangeMessage change={change} pending={pending} onUndo={undo} />}
         {/* The note is required by the API too — a dismissal with no reason is
             unreviewable six months later, which is exactly when it matters. */}
         {note.trim() === '' && (
@@ -307,5 +358,57 @@ export function FindingDetail({
         )}
       </div>
     </WidgetFrame>
+  );
+}
+
+/**
+ * What the last change did, and how to take it back (W20-03, UX_TODO FND-02).
+ *
+ * A mis-click on Dismiss used to be reversible only through the API. Undo is
+ * offered when the lifecycle has a way back; when it has none (nothing goes
+ * from confirmed back to open) the message says so and names what CAN be done,
+ * rather than offering a button the API would refuse.
+ */
+function ChangeMessage({
+  change,
+  pending,
+  onUndo,
+}: {
+  change: { from: string; to: FindingLifecycleStatus; undone: boolean };
+  pending: string | undefined;
+  onUndo: () => void;
+}) {
+  const target = undoTargetFor(change.from, change.to);
+  const fromLabel = change.from.replace('_', ' ');
+  return (
+    <p className="text-xs" data-testid="finding-change-status" role="status">
+      {change.undone ? (
+        `Undone: the finding is ${fromLabel} again.`
+      ) : (
+        <>
+          {FINDING_DONE_LABEL[change.to]}.{' '}
+          {target ? (
+            <button
+              type="button"
+              className="text-accent underline underline-offset-2 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="finding-undo"
+              disabled={pending === target}
+              onClick={onUndo}
+            >
+              {pending === target ? 'Undoing…' : 'Undo'}
+            </button>
+          ) : (
+            <span className="text-fg-muted" data-testid="finding-no-undo">
+              This cannot be undone: the lifecycle has no way from {change.to.replace('_', ' ')}{' '}
+              back to {fromLabel}. If it was a mistake, use{' '}
+              {allowedFindingTransitions(change.to)
+                .map((t) => FINDING_ACTIONS[t].label)
+                .join(' or ')}{' '}
+              instead.
+            </span>
+          )}
+        </>
+      )}
+    </p>
   );
 }

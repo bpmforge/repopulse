@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ErrorNote, WidgetFrame, frameState, PageHeader } from '../../components/index.js';
-import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
+import { useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
+import { BulkActions } from '../../widgets/findings/BulkActions.js';
 import { useOverlayLayout } from '../../widgets/findings/layout.js';
 import {
   ALL_DIMENSIONS as DIMENSIONS,
@@ -37,10 +38,67 @@ import { ShadowBadge } from '../../widgets/findings/ShadowBadge.js';
  * Lenient, like the root's own validateSearch: a junk value opens nothing
  * rather than white-screening the whole explorer.
  */
-function validateFindingsSearch(search: Record<string, unknown>): { finding?: number } {
+export function validateFindingsSearch(search: Record<string, unknown>): FindingsSearch {
   const raw = search.finding;
   const id = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
-  return Number.isInteger(id) && id > 0 ? { finding: id } : {};
+  return {
+    ...(Number.isInteger(id) && id > 0 ? { finding: id } : {}),
+    ...validateFilterSearch(search),
+  };
+}
+
+/**
+ * The explorer's filters, in the URL (W20-03, UX_TODO FND-03 / FND-04).
+ *
+ * They lived in component state, so a reload, Back, or a shared link lost
+ * them — and because validateSearch REPLACES the search object, a drill-down
+ * sending `?dimension=secrets` (the Security tab's "Open in Findings") had it
+ * stripped and landed on the unfiltered, workspace-wide list. Names match the
+ * API's own query parameters so a link reads the same at both ends.
+ *
+ * Status defaults to open and is left out of the URL when it is; `any` is the
+ * explicit "every status". Lenient, like `finding`: a junk value is dropped
+ * rather than white-screening the screen.
+ */
+export interface FindingsSearch {
+  finding?: number;
+  dimension?: string;
+  status?: string;
+  severity_min?: number;
+  verify_status?: string;
+  scanner_key?: string;
+  in_chain?: boolean;
+  rule_id?: string;
+  experimental?: 'include' | 'only';
+  sort?: 'severity';
+}
+
+const FILTER_STATUSES = ['open', 'confirmed', 'dismissed', 'resolved', 'wont_fix'];
+const VERIFY_STATUSES = ['confirmed', 'unverified', 'contradicted'];
+
+function validateFilterSearch(search: Record<string, unknown>): Omit<FindingsSearch, 'finding'> {
+  const str = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.length <= 200 ? v : '');
+  const out: Omit<FindingsSearch, 'finding'> = {};
+  const dimension = str(search.dimension);
+  if ((DIMENSIONS as readonly string[]).includes(dimension)) out.dimension = dimension;
+  const status = str(search.status);
+  if (status === 'any' || (FILTER_STATUSES.includes(status) && status !== 'open')) {
+    out.status = status;
+  }
+  const sev = Number(search.severity_min);
+  if (Number.isInteger(sev) && sev >= 2 && sev <= 5) out.severity_min = sev;
+  const verify = str(search.verify_status);
+  if (VERIFY_STATUSES.includes(verify)) out.verify_status = verify;
+  const scanner = str(search.scanner_key);
+  if (scanner) out.scanner_key = scanner;
+  if (search.in_chain === true || search.in_chain === 'true') out.in_chain = true;
+  const rule = str(search.rule_id);
+  if (rule) out.rule_id = rule;
+  if (search.experimental === 'include' || search.experimental === 'only') {
+    out.experimental = search.experimental;
+  }
+  if (search.sort === 'severity') out.sort = 'severity';
+  return out;
 }
 
 export const Route = createFileRoute('/findings/')({
@@ -85,36 +143,51 @@ function ruleCounts(r: RuleFacet): string {
   return parts.join(' · ');
 }
 
-/** POST /findings/bulk — applied ids and the ones the lifecycle refused. */
-interface BulkResult {
-  applied: number[];
-  skipped: { id: number; reason: string }[];
-}
-
 /** The HTTP status behind a failed by-id fetch, if the error carries one. */
 function statusOf(error: unknown): number | undefined {
   return (error as { status?: number } | null | undefined)?.status;
 }
 
 function FindingsExplorer() {
-  const [dimension, setDimension] = useState('');
-  const [status, setStatus] = useState('open');
-  const [severityMin, setSeverityMin] = useState('');
-  const [verifyStatus, setVerifyStatus] = useState('');
+  // THE URL IS THE STATE, not a mirror of it (W16-16). Reading it back rather
+  // than keeping a copy in useState is what makes the back button and a pasted
+  // link behave the same as a click. Since W20-03 that is true of the filters
+  // too (UX_TODO FND-03).
+  const navigate = useNavigate({ from: Route.fullPath });
+  const search = Route.useSearch();
+  const openId = search.finding ?? null;
+  const dimension = search.dimension ?? '';
+  const status = search.status === 'any' ? '' : (search.status ?? 'open');
+  const severityMin = search.severity_min ? String(search.severity_min) : '';
+  const verifyStatus = search.verify_status ?? '';
   // W8-10 scanner facets. A secrets finding was storable and countable before
   // this and not FILTERABLE — the API dropped an unknown dimension silently,
   // so asking for the thing you wanted showed you everything instead.
-  const [scannerKey, setScannerKey] = useState('');
-  const [inChain, setInChain] = useState(false);
+  const scannerKey = search.scanner_key ?? '';
+  const inChain = search.in_chain === true;
   // W18-29: the shadow facet and the rule facet.
-  const [shadowMode, setShadowMode] = useState<ShadowMode>('exclude');
-  const [ruleId, setRuleId] = useState('');
-  const [selected, setSelected] = useState<number[]>([]);
-  // THE URL IS THE STATE, not a mirror of it (W16-16). Reading it back rather
-  // than keeping a copy in useState is what makes the back button and a pasted
-  // link behave the same as a click.
-  const navigate = useNavigate({ from: Route.fullPath });
-  const openId = Route.useSearch().finding ?? null;
+  const shadowMode: ShadowMode = search.experimental ?? 'exclude';
+  const ruleId = search.rule_id ?? '';
+  const sort = search.sort;
+  /**
+   * Change filters by writing the URL. Pushed, so Back undoes a filter change;
+   * the other search params (window, repos, the open finding) ride along. An
+   * empty value removes the param, and defaults are never written.
+   */
+  const setFilters = (patch: Partial<Record<keyof FindingsSearch, string | boolean>>) => {
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(patch)) {
+      next[key] = value === '' || value === false ? undefined : value;
+    }
+    if ('status' in patch) {
+      next.status =
+        patch.status === '' ? 'any' : patch.status === 'open' ? undefined : patch.status;
+    }
+    if (patch.experimental === 'exclude') next.experimental = undefined;
+    void navigate({
+      search: (prev: Record<string, unknown>) => ({ ...prev, ...next }) as never,
+    });
+  };
   /**
    * The row control that opened the current finding, so closing can hand
    * focus back to it (W17-22). Set on click, read once on close. Held as an
@@ -190,13 +263,12 @@ function FindingsExplorer() {
     if (overlay) detailRef.current?.focus();
     else detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [openId, overlay]);
-  const [note, setNote] = useState('');
   const [triage, setTriage] = useState(false);
 
   // The global repository filter, at last read by a screen (W16-50). The API
   // has supported repo_id since W6-04; the topbar has serialized `?repos=`
   // since W4-02; nothing joined them.
-  const repos = Route.useSearch().repos;
+  const repos = search.repos;
 
   const filterQuery = {
     ...(repos ? { repo_id: repos } : {}),
@@ -210,6 +282,7 @@ function FindingsExplorer() {
     // Sent only off the default, so the default list keeps the query key (and
     // the cache entry) every other screen of this list already shares.
     ...(shadowMode !== 'exclude' ? { experimental: shadowMode } : {}),
+    ...(sort ? { sort } : {}),
   } as const;
 
   /**
@@ -236,7 +309,8 @@ function FindingsExplorer() {
     query: { ...filterQuery, ...(cursor ? { cursor } : {}) },
   } as const;
 
-  const { data, isLoading, isError, error, refetch } = useApiQuery<FindingPage>(listDescriptor);
+  const { data, isLoading, isError, error, refetch, isPlaceholderData } =
+    useApiQuery<FindingPage>(listDescriptor);
   const { data: stats } = useApiQuery<FindingStats>({ endpoint: '/findings/stats' });
   // The scanner facet is driven by the REGISTRY, not a hard-coded list: a
   // scanner added in a later wave becomes filterable without touching this
@@ -252,24 +326,26 @@ function FindingsExplorer() {
     (key === 'other' ? 'Model review' : key);
   const shadowHidden = data?.shadow_hidden ?? 0;
 
-  /**
-   * What the last bulk action did, kept after the selection clears (W17-23).
-   * The API applies what it can and reports the rest per id, and a bar that
-   * simply emptied read as "all forty done" when three were already resolved.
-   */
-  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
-  const bulk = useApiMutation<{ ids: number[]; status: string; note: string }, BulkResult>(
-    { endpoint: '/findings/bulk', method: 'POST' },
-    {
-      invalidate: [
-        queryKeyFor(listDescriptor),
-        queryKeyFor(LIST),
-        queryKeyFor({ endpoint: '/findings/stats' }),
-      ],
-    },
-  );
-
   const items = data?.items ?? [];
+
+  /**
+   * The selection, held against the list it was made in (W20-03, UX_TODO
+   * FND-12). It survived paging and filter changes, so "12 selected" could
+   * count rows no longer on screen and a bulk Dismiss silently acted on them.
+   * A different page or a different filter is a different list, and starts
+   * with nothing selected.
+   */
+  const selectionKey = `${filterKey}|${cursor ?? ''}`;
+  const [selection, setSelection] = useState<{ key: string; ids: number[] }>({
+    key: selectionKey,
+    ids: [],
+  });
+  const selected = selection.key === selectionKey ? selection.ids : [];
+  const setSelected = (update: (ids: number[]) => number[]) =>
+    setSelection({ key: selectionKey, ids: update(selected) });
+  const selectedFindings = items.filter((f) => selected.includes(f.id));
+  const allOnPage = items.length > 0 && items.every((f) => selected.includes(f.id));
+  const someOnPage = !allOnPage && items.some((f) => selected.includes(f.id));
 
   /**
    * The open finding, fetched by id when the LIST does not hold it (W16-32).
@@ -315,6 +391,9 @@ function FindingsExplorer() {
   const detail =
     openId === null ? null : openFinding ? (
       <FindingDetail
+        // Remounted per finding (W20-03): a note typed for one finding must
+        // not carry over to the next one opened.
+        key={openFinding.id}
         finding={openFinding}
         onClose={close}
         invalidate={[queryKeyFor(listDescriptor), queryKeyFor({ endpoint: '/findings/stats' })]}
@@ -370,6 +449,8 @@ function FindingsExplorer() {
             >
               Sensitive changes
             </Link>
+            {/* W20-03 (UX_TODO FND-10): the queue holds this page, at most
+                fifty, and was labelled as though it were the whole queue. */}
             <button
               type="button"
               className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
@@ -377,7 +458,9 @@ function FindingsExplorer() {
               disabled={items.length === 0}
               onClick={() => setTriage(true)}
             >
-              Triage queue ({items.length})
+              {typeof data?.total === 'number'
+                ? `Triage this page (${items.length} of ${data.total.toLocaleString()})`
+                : `Triage this page (${items.length})`}
             </button>
           </>
         }
@@ -390,7 +473,7 @@ function FindingsExplorer() {
             className="panel px-2 py-1 text-sm"
             data-testid="filter-dimension"
             value={dimension}
-            onChange={(e) => setDimension(e.target.value)}
+            onChange={(e) => setFilters({ dimension: e.target.value })}
           >
             <option value="">Any</option>
             {DIMENSIONS.map((d) => (
@@ -410,7 +493,7 @@ function FindingsExplorer() {
             className="panel px-2 py-1 text-sm"
             data-testid="filter-status"
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={(e) => setFilters({ status: e.target.value })}
           >
             <option value="">Any</option>
             {STATUSES.map((s) => (
@@ -426,7 +509,7 @@ function FindingsExplorer() {
             className="panel px-2 py-1 text-sm"
             data-testid="filter-severity"
             value={severityMin}
-            onChange={(e) => setSeverityMin(e.target.value)}
+            onChange={(e) => setFilters({ severity_min: e.target.value })}
           >
             <option value="">Any</option>
             {[5, 4, 3, 2].map((s) => (
@@ -442,7 +525,7 @@ function FindingsExplorer() {
             className="panel px-2 py-1 text-sm"
             data-testid="filter-scanner"
             value={scannerKey}
-            onChange={(e) => setScannerKey(e.target.value)}
+            onChange={(e) => setFilters({ scanner_key: e.target.value })}
           >
             <option value="">Any source</option>
             {(scanners?.items ?? []).map((s) => (
@@ -457,7 +540,7 @@ function FindingsExplorer() {
             type="checkbox"
             data-testid="filter-in-chain"
             checked={inChain}
-            onChange={(e) => setInChain(e.target.checked)}
+            onChange={(e) => setFilters({ in_chain: e.target.checked })}
           />
           In an attack chain
         </label>
@@ -467,7 +550,7 @@ function FindingsExplorer() {
             className="panel max-w-[18rem] px-2 py-1 text-sm"
             data-testid="filter-rule"
             value={ruleId}
-            onChange={(e) => setRuleId(e.target.value)}
+            onChange={(e) => setFilters({ rule_id: e.target.value })}
           >
             <option value="">Any rule</option>
             {groupRules(facets?.rules ?? []).map(([scanner, rules]) => (
@@ -487,7 +570,7 @@ function FindingsExplorer() {
             className="panel px-2 py-1 text-sm"
             data-testid="filter-shadow"
             value={shadowMode}
-            onChange={(e) => setShadowMode(e.target.value as ShadowMode)}
+            onChange={(e) => setFilters({ experimental: e.target.value })}
           >
             {SHADOW_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -503,7 +586,7 @@ function FindingsExplorer() {
             className="panel px-2 py-1 text-sm"
             data-testid="filter-verify"
             value={verifyStatus}
-            onChange={(e) => setVerifyStatus(e.target.value)}
+            onChange={(e) => setFilters({ verify_status: e.target.value })}
           >
             <option value="">Any</option>
             <option value="confirmed">Verified by a second model</option>
@@ -543,63 +626,15 @@ function FindingsExplorer() {
         </div>
       </WidgetFrame>
 
-      {selected.length > 0 && (
-        <WidgetFrame title={`${selected.length} selected`} state="ready">
-          <div className="flex flex-wrap items-end gap-2" data-testid="bulk-bar">
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Note (required)
-              <input
-                className="w-72 panel px-2 py-1 text-sm"
-                data-testid="bulk-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-            </label>
-            {(['confirmed', 'dismissed'] as const).map((target) => {
-              // Only the button that was pressed waits (W17-23); the other
-              // stays live rather than the whole bar greying out.
-              const pending = bulk.isPending && bulk.variables?.status === target;
-              return (
-                <button
-                  key={target}
-                  type="button"
-                  className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                  data-testid={`bulk-${target}`}
-                  disabled={pending || note.trim() === ''}
-                  aria-busy={pending || undefined}
-                  onClick={() =>
-                    bulk.mutate(
-                      { ids: selected, status: target, note },
-                      {
-                        onSuccess: (result) => {
-                          setSelected([]);
-                          setNote('');
-                          setBulkResult(result);
-                        },
-                      },
-                    )
-                  }
-                >
-                  {pending ? `Marking ${target}…` : `Mark ${target}`}
-                </button>
-              );
-            })}
-          </div>
-          <ErrorNote error={bulk.error} testId="bulk-error" className="mt-2" />
-        </WidgetFrame>
-      )}
-
-      {bulkResult && (
-        <p className="text-xs text-fg-muted" data-testid="bulk-result" role="status">
-          Applied to {bulkResult.applied.length}
-          {bulkResult.skipped.length > 0
-            ? `, skipped ${bulkResult.skipped.length} (${bulkResult.skipped
-                .map((s) => `#${s.id}: ${s.reason}`)
-                .join('; ')})`
-            : ''}
-          .
-        </p>
-      )}
+      <BulkActions
+        selected={selectedFindings}
+        onApplied={() => setSelection({ key: selectionKey, ids: [] })}
+        invalidate={[
+          queryKeyFor(listDescriptor),
+          queryKeyFor(LIST),
+          queryKeyFor({ endpoint: '/findings/stats' }),
+        ]}
+      />
 
       {/* NEVER HIDDEN SILENTLY (W18-29). The default leaves shadow findings out,
           and says so whenever that changed what the list shows. */}
@@ -619,7 +654,7 @@ function FindingsExplorer() {
             type="button"
             className="min-h-6 text-fg underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid="shadow-show"
-            onClick={() => setShadowMode('include')}
+            onClick={() => setFilters({ experimental: 'include' })}
           >
             Show them, marked
           </button>
@@ -658,7 +693,21 @@ function FindingsExplorer() {
             <thead>
               <tr className="text-left text-xs text-fg-muted">
                 <th scope="col">
-                  <span className="sr-only">Select</span>
+                  {/* Select the page (W20-03, UX_TODO FND-12). The page only:
+                      the selection never reaches past what is on screen. */}
+                  <input
+                    type="checkbox"
+                    aria-label="Select all findings on this page"
+                    data-testid="finding-select-page"
+                    checked={allOnPage}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someOnPage;
+                    }}
+                    disabled={items.length === 0}
+                    onChange={(e) =>
+                      setSelected(() => (e.target.checked ? items.map((f) => f.id) : []))
+                    }
+                  />
                 </th>
                 <th scope="col">Severity</th>
                 <th scope="col">Finding</th>
@@ -764,9 +813,16 @@ function FindingsExplorer() {
         )}
       </WidgetFrame>
 
-      {triage && (
+      {/* Mounted only on a settled page, and keyed by it: the queue takes its
+          set when it opens, and "Continue with the next page" must open on
+          the next page's findings, not on the previous page still on screen
+          while the next one loads (W20-03, FND-10). */}
+      {triage && data && !isPlaceholderData && (
         <TriageQueue
+          key={selectionKey}
           findings={items}
+          nextCursor={data.next_cursor}
+          onNextPage={(next) => setPaging({ key: filterKey, cursors: [...cursors, next] })}
           onExit={() => setTriage(false)}
           invalidate={[queryKeyFor(listDescriptor), queryKeyFor({ endpoint: '/findings/stats' })]}
         />

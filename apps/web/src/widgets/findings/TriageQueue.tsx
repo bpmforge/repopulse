@@ -1,25 +1,59 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation } from '../../api/useApiQuery.js';
 import { EvidenceCode } from './EvidenceCode.js';
-import { SEVERITY_LABEL, VERIFY_LABEL, type Finding } from './contracts.js';
+import {
+  DISMISS_REASONS,
+  SEVERITY_LABEL,
+  VERIFY_LABEL,
+  isDismissReason,
+  type DismissReason,
+  type Finding,
+} from './contracts.js';
 
 // Triage queue (W6-06, R-A8). A full-screen stepper over the current filter.
 //
 // Fully keyboard operable is the requirement (NFR-5), and it is also the point:
 // triaging forty findings with a mouse is a job nobody finishes. j/k move,
 // c/d/e act, Esc leaves.
+//
+// W20-03 (UX_TODO FND-08/09/10): the note started prefilled with boilerplate
+// and `d` always dismissed as false_positive, so every queue decision carried
+// the same note and fed the false-positive rate whatever the real reason was.
+// The note now starts empty and must be written, a dismissal needs a reason
+// (picker, or keys 1–4), every key has a visible button for touch screens, and
+// the end of the page says so and offers the next one.
 
 type Decision = 'confirmed' | 'dismissed';
+
+const REASON_LABEL: Record<DismissReason, string> = {
+  false_positive: 'False positive',
+  accepted_risk: 'Accepted risk',
+  not_applicable: 'Not applicable',
+  duplicate: 'Duplicate',
+};
+
+const BUTTON =
+  'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
 
 export function TriageQueue({
   findings,
   onExit,
   invalidate,
+  nextCursor = null,
+  onNextPage,
 }: {
   findings: Finding[];
   onExit: () => void;
   invalidate: readonly (readonly unknown[])[];
+  /**
+   * Where the list goes after this page, as it was when the queue opened
+   * (W20-03, FND-10). Taken at open rather than read live: with the default
+   * `status=open` filter every decision drops a row out of page one, and the
+   * live cursor would then skip the findings that slid up into it.
+   */
+  nextCursor?: string | null;
+  onNextPage?: (cursor: string) => void;
 }) {
   // THE QUEUE YOU STARTED WITH (W16-52).
   //
@@ -34,12 +68,22 @@ export function TriageQueue({
   // in the run so j/k can go back to them, and the count stays still while
   // someone works.
   const [queue] = useState(findings);
+  const [next] = useState(nextCursor);
   const [index, setIndex] = useState(0);
-  const [note, setNote] = useState('Triaged in queue review.');
-  const [done, setDone] = useState<{ confirmed: number; dismissed: number }>({
+  // Empty, and required (FND-08): a note is the record of why, and one typed
+  // for the reviewer by the screen records nothing.
+  const [note, setNote] = useState('');
+  const [reason, setReason] = useState<DismissReason | ''>('');
+  const [hint, setHint] = useState<string | null>(null);
+  /** Past the last finding: the end-of-page summary shows (FND-10). */
+  const [finished, setFinished] = useState(false);
+  const [done, setDone] = useState<{ confirmed: number; dismissed: number; fp: number }>({
     confirmed: 0,
     dismissed: 0,
+    fp: 0,
   });
+  const noteRef = useRef<HTMLInputElement>(null);
+  const reasonRef = useRef<HTMLSelectElement>(null);
   /**
    * The decision in flight, and the last one refused (W17-23).
    *
@@ -54,6 +98,11 @@ export function TriageQueue({
   const [refused, setRefused] = useState<{ id: number; error: unknown } | null>(null);
 
   const current = queue[index];
+  const last = queue.length - 1;
+  // Read by a decision's success callback, which runs after renders the
+  // closure that started it never saw.
+  const indexRef = useRef(index);
+  indexRef.current = index;
 
   const transition = useApiMutation<
     { status: string; note: string; dismiss_reason?: string },
@@ -67,45 +116,93 @@ export function TriageQueue({
     { invalidate },
   );
 
-  useEffect(() => {
-    function decide(status: Decision) {
-      if (!current) return;
-      // Only the SAME decision on the SAME finding is held back while it is
-      // pending (W17-23) — a second `c` would be a duplicate write. Moving on
-      // and deciding the next finding is not, and must not wait.
-      if (inFlight?.id === current.id && inFlight.status === status) return;
-      const id = current.id;
-      const at = index;
-      setInFlight({ id, status });
-      setRefused((r) => (r?.id === id ? null : r));
-      transition.mutate(
-        status === 'confirmed'
-          ? { status, note }
-          : { status, note, dismiss_reason: 'false_positive' },
-        {
-          onSuccess: () => {
-            setDone((d) => ({ ...d, [status]: d[status] + 1 }));
-            // Advance only if the cursor is still on the finding decided:
-            // someone who pressed j while waiting has already moved.
-            setIndex((i) => (i === at ? Math.min(i + 1, queue.length - 1) : i));
-          },
-          onError: (error) => setRefused({ id, error }),
-          onSettled: () => setInFlight((f) => (f?.id === id && f.status === status ? null : f)),
-        },
-      );
+  const goNext = () => {
+    if (index >= last) setFinished(true);
+    else setIndex((i) => Math.min(i + 1, last));
+  };
+  const goPrev = () => {
+    // From the end-of-page summary, back is the last finding itself.
+    if (finished) setFinished(false);
+    else setIndex((i) => Math.max(i - 1, 0));
+  };
+
+  function decide(status: Decision) {
+    if (!current) return;
+    // Refused with a sentence, not silently: a key that does nothing reads as
+    // a broken shortcut. Focus goes where the missing input is.
+    if (note.trim() === '') {
+      setHint('Write a note first. It is recorded with each decision.');
+      noteRef.current?.focus();
+      return;
     }
+    if (status === 'dismissed' && reason === '') {
+      setHint('Choose a dismiss reason first (keys 1–4, or the picker).');
+      reasonRef.current?.focus();
+      return;
+    }
+    setHint(null);
+    // Only the SAME decision on the SAME finding is held back while it is
+    // pending (W17-23) — a second `c` would be a duplicate write. Moving on
+    // and deciding the next finding is not, and must not wait.
+    if (inFlight?.id === current.id && inFlight.status === status) return;
+    const id = current.id;
+    const at = index;
+    const chosen = reason;
+    setInFlight({ id, status });
+    setRefused((r) => (r?.id === id ? null : r));
+    transition.mutate(
+      status === 'confirmed' ? { status, note } : { status, note, dismiss_reason: chosen },
+      {
+        onSuccess: () => {
+          setDone((d) => ({
+            ...d,
+            [status]: d[status] + 1,
+            fp: d.fp + (status === 'dismissed' && chosen === 'false_positive' ? 1 : 0),
+          }));
+          // Advance only if the cursor is still on the finding decided:
+          // someone who pressed j while waiting has already moved. The last
+          // one ends the page rather than sitting on it.
+          if (indexRef.current !== at) return;
+          if (at === last) setFinished(true);
+          else setIndex(at + 1);
+        },
+        onError: (error) => setRefused({ id, error }),
+        onSettled: () => setInFlight((f) => (f?.id === id && f.status === status ? null : f)),
+      },
+    );
+  }
+
+  // The latest handlers, for the one window listener below.
+  const keys = useRef({ decide, goNext, goPrev, onExit });
+  keys.current = { decide, goNext, goPrev, onExit };
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Ignore while typing the note, or every keystroke would triage.
-      if (e.target instanceof HTMLInputElement) return;
-      if (e.key === 'Escape') onExit();
-      if (e.key === 'j') setIndex((i) => Math.min(i + 1, queue.length - 1));
-      if (e.key === 'k') setIndex((i) => Math.max(i - 1, 0));
-      if (e.key === 'c') decide('confirmed');
-      if (e.key === 'd') decide('dismissed');
+      // Ignore while typing the note or using the picker, or every keystroke
+      // would triage.
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        if (e.key === 'Escape') (e.target as HTMLElement).blur();
+        return;
+      }
+      const k = keys.current;
+      if (e.key === 'Escape') k.onExit();
+      if (e.key === 'j') k.goNext();
+      if (e.key === 'k') k.goPrev();
+      if (e.key === 'c') k.decide('confirmed');
+      if (e.key === 'd') k.decide('dismissed');
+      const pick = DISMISS_REASONS[Number(e.key) - 1];
+      if (pick) {
+        setReason(pick);
+        setHint(null);
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [current, index, inFlight, queue.length, note, onExit, transition]);
+  }, []);
 
   if (!current) {
     return (
@@ -123,7 +220,55 @@ export function TriageQueue({
     );
   }
 
+  const summary = `${done.confirmed} confirmed · ${done.dismissed} dismissed (${done.fp} as false positive) this session`;
+
+  if (finished) {
+    // THE END OF THE PAGE SAYS SO (FND-10). After the last item the queue
+    // used to sit on it, with nothing to say the page was done or that the
+    // list had more.
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-bg/95 p-8"
+        data-testid="triage-queue"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Findings triage queue"
+      >
+        <div className="flex max-w-md flex-col items-center gap-3 text-center">
+          <h2 className="text-lg font-semibold">End of this page</h2>
+          <p className="text-sm" data-testid="triage-summary">
+            {summary}
+          </p>
+          <p className="text-xs text-fg-muted" data-testid="triage-end-note">
+            {next && onNextPage
+              ? 'More findings match these filters on the next page.'
+              : 'This was the last page of findings matching these filters.'}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {next && onNextPage && (
+              <button
+                type="button"
+                className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="triage-next-page"
+                onClick={() => onNextPage(next)}
+              >
+                Continue with the next page
+              </button>
+            )}
+            <button type="button" className={BUTTON} data-testid="triage-back" onClick={goPrev}>
+              Back to the last finding
+            </button>
+            <button type="button" className={BUTTON} data-testid="triage-exit" onClick={onExit}>
+              Exit queue
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const pendingHere = inFlight?.id === current.id ? inFlight.status : null;
+  const noteMissing = note.trim() === '';
 
   return (
     <div
@@ -156,24 +301,96 @@ export function TriageQueue({
       <EvidenceCode finding={current} />
       <p className="text-sm">{current.recommendation}</p>
 
-      <label className="flex max-w-lg flex-col gap-1 text-xs text-fg-muted">
-        Note applied to each decision
-        <input
-          className="panel px-2 py-1 text-sm"
-          data-testid="triage-note"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-      </label>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex max-w-lg flex-1 flex-col gap-1 text-xs text-fg-muted">
+          Note applied to each decision (required)
+          <input
+            ref={noteRef}
+            className="panel px-2 py-1 text-sm"
+            data-testid="triage-note"
+            value={note}
+            onChange={(e) => {
+              setNote(e.target.value);
+              setHint(null);
+            }}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Dismiss reason
+          <select
+            ref={reasonRef}
+            className="panel px-2 py-1 text-sm"
+            data-testid="triage-reason"
+            value={reason}
+            onChange={(e) => {
+              setReason(isDismissReason(e.target.value) ? e.target.value : '');
+              setHint(null);
+            }}
+          >
+            <option value="">Choose a reason…</option>
+            {DISMISS_REASONS.map((r, i) => (
+              <option key={r} value={r}>
+                {i + 1}. {REASON_LABEL[r]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {/* Visible buttons that mirror the keys (FND-09). On a phone or tablet
+          there is no keyboard, and the queue was a dead end with Exit as its
+          only control. */}
+      <div className="flex flex-wrap gap-2" data-testid="triage-actions">
+        <button
+          type="button"
+          className={BUTTON}
+          data-testid="triage-prev"
+          disabled={index === 0}
+          onClick={goPrev}
+        >
+          Previous (k)
+        </button>
+        <button type="button" className={BUTTON} data-testid="triage-next" onClick={goNext}>
+          Next (j)
+        </button>
+        <button
+          type="button"
+          className={BUTTON}
+          data-testid="triage-confirm"
+          disabled={noteMissing || pendingHere === 'confirmed'}
+          onClick={() => decide('confirmed')}
+        >
+          Confirm (c)
+        </button>
+        <button
+          type="button"
+          className={BUTTON}
+          data-testid="triage-dismiss"
+          disabled={noteMissing || reason === '' || pendingHere === 'dismissed'}
+          onClick={() => decide('dismissed')}
+        >
+          Dismiss (d)
+        </button>
+        <button type="button" className={BUTTON} data-testid="triage-exit" onClick={onExit}>
+          Exit queue (esc)
+        </button>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
         <kbd className="rounded border border-border px-1">j</kbd> next
         <kbd className="rounded border border-border px-1">k</kbd> previous
         <kbd className="rounded border border-border px-1">c</kbd> confirm
-        <kbd className="rounded border border-border px-1">d</kbd> dismiss as false positive
+        <kbd className="rounded border border-border px-1">1</kbd>–
+        <kbd className="rounded border border-border px-1">4</kbd> dismiss reason
+        <kbd className="rounded border border-border px-1">d</kbd> dismiss
         <kbd className="rounded border border-border px-1">esc</kbd> exit
       </div>
 
+      {hint && (
+        <p className="text-xs" data-testid="triage-hint" role="status">
+          {hint}
+        </p>
+      )}
       {pendingHere && (
         <p className="text-xs text-fg-muted" data-testid="triage-pending" aria-live="polite">
           {pendingHere === 'confirmed' ? 'Confirming…' : 'Dismissing…'}
@@ -185,19 +402,8 @@ export function TriageQueue({
           number the analysis-quality widget reads — triage is where that metric
           actually comes from. */}
       <p className="text-xs text-fg-faint" data-testid="triage-summary">
-        {done.confirmed} confirmed · {done.dismissed} dismissed as false positive this session
+        {summary}
       </p>
-
-      <div className="flex gap-2">
-        <button
-          type="button"
-          className="rounded-md border border-border px-2 py-1 text-xs"
-          data-testid="triage-exit"
-          onClick={onExit}
-        >
-          Exit queue
-        </button>
-      </div>
     </div>
   );
 }

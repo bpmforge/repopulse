@@ -71,10 +71,10 @@ describe('finding actions follow the lifecycle', () => {
     render(<FindingDetail finding={finding('confirmed')} onClose={vi.fn()} invalidate={[]} />);
     fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'fixed in #12' } });
     fireEvent.click(screen.getByTestId('finding-resolve'));
-    expect(mutation.current.mutate).toHaveBeenCalledWith({
-      status: 'resolved',
-      note: 'fixed in #12',
-    });
+    expect(mutation.current.mutate).toHaveBeenCalledWith(
+      { status: 'resolved', note: 'fixed in #12' },
+      expect.anything(),
+    );
   });
 
   it('a dismissed finding can be reopened and offers nothing the API would refuse', () => {
@@ -82,7 +82,10 @@ describe('finding actions follow the lifecycle', () => {
     expect(screen.queryByTestId('finding-confirm')).toBeNull();
     fireEvent.change(screen.getByTestId('finding-note'), { target: { value: 'it is real' } });
     fireEvent.click(screen.getByTestId('finding-reopen'));
-    expect(mutation.current.mutate).toHaveBeenCalledWith({ status: 'open', note: 'it is real' });
+    expect(mutation.current.mutate).toHaveBeenCalledWith(
+      { status: 'open', note: 'it is real' },
+      expect.anything(),
+    );
   });
 });
 
