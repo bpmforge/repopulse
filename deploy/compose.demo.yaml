@@ -97,6 +97,7 @@ services:
       # Read-only, so the Security tab can say whether a vulnerability
       # database is present and how old it is (W17-27).
       - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
+      - demo-reportdata:/app/.data
     environment: &app_env
       DATABASE_URL: postgres://repopulse:demo-only-not-a-secret@postgres:5432/repopulse
       REDIS_URL: redis://:demo-only-not-a-secret@redis:6379
@@ -118,6 +119,9 @@ services:
       ADMIN_PASSWORD: demo-password-change-me
       PORT: '3000'
       SCAN_RULES_DIR: /var/lib/repopulse/scan-rules
+      # Same report-data volume and path in api and worker (W20-02), as in
+      # compose.yaml: the worker writes the PDF, the api serves it.
+      DATA_DIR: /app/.data
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -146,9 +150,12 @@ services:
       # is what joins the scan network (below); the runner is reached by name.
       SCAN_RUNNER_URL: http://scan-runner:3310
       SCAN_RUNNER_TOKEN: demo-only-not-a-secret
+      # The printer loads the internal web service, not the published port.
+      REPORT_PRINT_BASE_URL: http://web:8080
     volumes:
       - ${SCAN_RULES_DIR:-/var/lib/repopulse/scan-rules}:/var/lib/repopulse/scan-rules:ro
       - scan-scratch:/var/tmp/repopulse-scan:z
+      - demo-reportdata:/app/.data
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -210,6 +217,7 @@ services:
 
 volumes:
   demo-pgdata:
+  demo-reportdata:
   # RAM-backed, named, noexec — see deploy/compose.yaml for why (W17-27).
   scan-scratch:
     name: repopulse-demo-scan-scratch

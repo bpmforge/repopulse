@@ -10319,9 +10319,12 @@
           "A packaged-install smoke test generates one report and downloads its PDF; verified on the Mac with a real docker or podman build"
         ],
         "points": 5,
-        "status": "todo",
+        "status": "in_progress",
         "notes": [
-          "From docs/work/UX_TODO.md ADM-42, found by code reading on 2026-10-19 and not yet reproduced in a running install."
+          "From docs/work/UX_TODO.md ADM-42, found by code reading on 2026-10-19 and not yet reproduced in a running install.",
+          "2026-10-19 reproduced on the Mac (podman, compose project rp-w2002, images built from d167bb0): Generate ended failed with browserType.launch: Executable doesn't exist at /home/app/.cache/ms-playwright/chromium_headless_shell-1228; api and worker shared no mount (worker wrote /app/.data in its own filesystem); from the worker, PUBLIC_BASE_URL http://localhost:8311 was ECONNREFUSED while http://web:8080 answered 200.",
+          "Built: worker stage on node:22.23.1-bookworm-slim with its own glibc prod install from a shared manifests stage, Playwright headless shell installed from the tree's playwright 1.61.1 (--with-deps --only-shell) at PLAYWRIGHT_BROWSERS_PATH=/ms-playwright, app user pinned to 100:101 like the Alpine images; scan-runner now FROM api so it stays on Alpine's podman-remote 5.8; api and worker mount one named volume reportdata at /app/.data with DATA_DIR pinned in compose; new REPORT_PRINT_BASE_URL (worker, default http://web:8080, falls back to PUBLIC_BASE_URL) registered in env-registry.ts (outside write_scope, needed by the config-doc gate) and docs/CONFIG.md regenerated; same wiring in compose.demo.yaml; deploy/smoke-report-pdf.sh (shipped in the bundle) and an INSTALL.md section; static drift test apps/api/src/workers/report-packaging.test.ts (8 tests, RED 8/8 against the d167bb0 files).",
+          "Verified 2026-10-19 on the rebuilt stack: smoke-report-pdf.sh PASS, report #3 downloaded through the api as a 45394-byte PDF with 2 pages (/Count 2), first page rendered with real content; GET /reports/3 returns has_pdf=true and the stored data. Worker image 1.14 GB (was 570 MB Alpine, no browser). Not yet run: deploy/bundle.sh and a cross-arch (amd64) build."
         ]
       }
   ]

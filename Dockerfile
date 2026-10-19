@@ -1,8 +1,11 @@
 # RepoPulse — one multi-stage build, four runtime targets (W11-01).
 #
-# Targets: api, worker, migrate, web (+ scan-runner). The runtime targets share
-# one production install (prod-deps); the web target's static assets come from
-# a full install on the BUILD platform (web-build).
+# Targets: api, worker, migrate, web (+ scan-runner). api, migrate and
+# scan-runner share one Alpine production install (prod-deps); the worker has a
+# Debian install of the same lockfile (prod-deps-debian), because it runs the
+# PDF printer's Chromium and Playwright has no Alpine build (W20-02). The web
+# target's static assets come from a full install on the BUILD platform
+# (web-build).
 #
 # Node is pinned to the same version as .nvmrc and pnpm to package.json's
 # packageManager field. A container that silently runs a different Node major
@@ -16,6 +19,23 @@ ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 
+# ---------- manifests ----------
+# Only the files a dependency install reads, so the Alpine and the Debian
+# installs below (W20-02) are fed the same list and cannot drift apart.
+FROM scratch AS manifests
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json /app/
+COPY apps/api/package.json /app/apps/api/
+COPY apps/web/package.json /app/apps/web/
+COPY packages/analysis/package.json /app/packages/analysis/
+COPY packages/auth/package.json /app/packages/auth/
+COPY packages/forge/package.json /app/packages/forge/
+COPY packages/ingest/package.json /app/packages/ingest/
+COPY packages/insights/package.json /app/packages/insights/
+COPY packages/metrics/package.json /app/packages/metrics/
+COPY packages/reports/package.json /app/packages/reports/
+COPY packages/security/package.json /app/packages/security/
+COPY packages/shared/package.json /app/packages/shared/
+
 # ---------- prod-deps ----------
 # The runtime stages must NOT carry the full dev install (only the web-build
 # stage below has it): that is the dev toolchain (vitest, playwright, eslint,
@@ -28,18 +48,7 @@ WORKDIR /app
 # It is pinned to the same version the repo uses; drizzle-kit is added only in
 # the migrate stage, which is the one place it actually runs.
 FROM base AS prod-deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/api/package.json apps/api/
-COPY apps/web/package.json apps/web/
-COPY packages/analysis/package.json packages/analysis/
-COPY packages/auth/package.json packages/auth/
-COPY packages/forge/package.json packages/forge/
-COPY packages/ingest/package.json packages/ingest/
-COPY packages/insights/package.json packages/insights/
-COPY packages/metrics/package.json packages/metrics/
-COPY packages/reports/package.json packages/reports/
-COPY packages/security/package.json packages/security/
-COPY packages/shared/package.json packages/shared/
+COPY --from=manifests /app ./
 RUN pnpm install --frozen-lockfile --prod \
  && pnpm store prune || true
 
@@ -112,36 +121,73 @@ COPY --from=runtime-src /app ./
 # package's bin path, and invoking pnpm at runtime makes corepack try to fetch
 # itself from the network on every container start.
 RUN npm install -g tsx@4.23.1 && npm cache clean --force
-RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
+RUN addgroup -S app && adduser -S -G app app \
+ && mkdir -p /app/.data && chown -R app:app /app
 USER app
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["tsx", "apps/api/src/index.ts"]
 
+# ---------- prod-deps on Debian (W20-02) ----------
+# The worker prints report PDFs with Playwright's Chromium, and Playwright ships
+# no browser for Alpine/musl: on the Alpine worker every Generate ended
+# "failed" with "Executable doesn't exist at .../chromium_headless_shell-1228"
+# (reproduced on a packaged install). So the worker is the one runtime on
+# Debian, with its own glibc install of the same lockfile from the same
+# manifests. Node stays the same pinned version.
+FROM node:22.23.1-bookworm-slim AS base-debian
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+WORKDIR /app
+
+FROM base-debian AS prod-deps-debian
+COPY --from=manifests /app ./
+RUN pnpm install --frozen-lockfile --prod \
+ && pnpm store prune || true
+
 # ---------- runtime: worker ----------
-FROM base AS worker
+FROM base-debian AS worker
 ENV NODE_ENV=production
 # The app binds loopback unless LISTEN_HOST says otherwise (W17-37). In a container
 # the web proxy reaches it over the compose network, so bind every interface
 # INSIDE the container; compose publishes no host port for api or worker.
 ENV LISTEN_HOST=0.0.0.0
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=prod-deps /app/apps/api/node_modules ./apps/api/node_modules
-# pnpm isolates workspace package deps — copy each package's node_modules
-# or ERR_MODULE_NOT_FOUND fires at runtime (postgres, drizzle-orm, etc.).
-COPY --from=prod-deps /app/packages/analysis/node_modules ./packages/analysis/node_modules
-COPY --from=prod-deps /app/packages/auth/node_modules ./packages/auth/node_modules
-COPY --from=prod-deps /app/packages/forge/node_modules ./packages/forge/node_modules
-COPY --from=prod-deps /app/packages/ingest/node_modules ./packages/ingest/node_modules
-COPY --from=prod-deps /app/packages/insights/node_modules ./packages/insights/node_modules
-COPY --from=prod-deps /app/packages/metrics/node_modules ./packages/metrics/node_modules
-COPY --from=prod-deps /app/packages/reports/node_modules ./packages/reports/node_modules
-COPY --from=prod-deps /app/packages/security/node_modules ./packages/security/node_modules
-COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=runtime-src /app ./
+# A fixed path, not the default ~/.cache: the browser is installed as root at
+# build time and launched as `app` at run time, and those homes differ.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# Same uid/gid as the Alpine stages' `adduser -S app` (100:101), so files the
+# worker writes into the shared report-data volume are owned the way the api
+# expects. Created first so the trees below are COPIED as app: a `chown -R`
+# afterwards rewrites every file into a new layer and doubled this image.
+RUN groupadd --system --gid 101 app \
+ && useradd --system --uid 100 --gid app --home-dir /home/app --create-home app
+# The whole tree, node_modules per package included: pnpm isolates workspace
+# package deps, and the api stage's per-package copies exist for that reason.
+COPY --chown=app:app --from=prod-deps-debian /app ./
+# The browser comes from the playwright package IN THIS TREE, so its build
+# always matches the lockfile's playwright (a separately pinned browser drifts
+# and fails at launch with the same "Executable doesn't exist" as no browser).
+# Headless shell only: the printer never opens a window, and the full browser
+# would add ~300 MB. --with-deps installs the shared libraries and fonts the
+# shell needs.
+#
+# SANDBOX. Playwright launches Chromium with --no-sandbox unless the caller
+# asks for chromiumSandbox: true (checked in playwright-core 1.61.1), and the
+# printer does not ask. Chromium's own sandbox needs either a setuid helper or
+# user namespaces, and compose runs this container with cap_drop ALL and
+# no-new-privileges, which rule out both. That is acceptable here because of
+# what is printed: only this install's own /print/reports/:id page, served by
+# the internal web service, rendering ReportData the worker injects. It never
+# loads a URL a user supplied.
+RUN cd packages/reports \
+ && ./node_modules/.bin/playwright install --with-deps --only-shell chromium \
+ && rm -rf /var/lib/apt/lists/* /root/.npm
 RUN npm install -g tsx@4.23.1 && npm cache clean --force
-RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
+COPY --chown=app:app --from=runtime-src /app ./
+# /app/.data exists in the image so a fresh named volume mounted over it takes
+# app's ownership instead of root's.
+RUN mkdir -p /app/.data && chown app:app /app /app/.data
 USER app
 # W17-06. Uses `node`, which this image HAS (verified in-image; `curl` is NOT
 # installed here, so a curl-based probe would report every worker unhealthy).
@@ -163,7 +209,7 @@ CMD ["tsx", "apps/api/src/workers/index.ts"]
 # The worker above deliberately has no runtime binary, no socket, no
 # privilege: it holds forge credentials and the database, so it must not be
 # able to start containers. But a scan IS a container. This image is the same
-# runtime tree as the worker plus two CLIENTS — podman-remote and docker-cli —
+# Alpine runtime tree as the api plus two CLIENTS — podman-remote and docker-cli —
 # that speak to whichever daemon socket compose mounts at /run/container.sock.
 # It contains no daemon, no conmon, no crun and no storage: it cannot run a
 # container by itself, only ask the host's runtime to. What it asks for is
@@ -174,7 +220,7 @@ CMD ["tsx", "apps/api/src/workers/index.ts"]
 # Alpine 3.24 (this node base) ships podman-remote 5.8 and docker-cli 29 —
 # checked in-image, because Alpine 3.20's podman-remote 5.2 client rejected
 # mount options the 5.8 server accepts and the failure read as a bad profile.
-FROM worker AS scan-runner
+FROM api AS scan-runner
 USER root
 RUN apk add --no-cache podman-remote docker-cli && rm -rf /var/cache/apk/*
 USER app

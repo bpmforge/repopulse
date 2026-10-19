@@ -78,6 +78,9 @@ services:
     env_file: [.env]
     environment:
       PORT: 3000
+      # Fixed, overriding any DATA_DIR in .env on purpose: it must be the path
+      # the reportdata volume is mounted at, in this service AND the worker.
+      DATA_DIR: /app/.data
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -95,6 +98,14 @@ services:
       # empty by up.sh) is mounted read-only; nothing reads it unless .env sets
       # NODE_EXTRA_CA_CERTS=/etc/repopulse/ca/<file>.pem. See docs/INSTALL.md.
       - ${EXTRA_CA_DIR:-/var/lib/repopulse/ca}:/etc/repopulse/ca:ro
+      # REPORT DATA (W20-02). The worker writes each report's report.json and
+      # report.pdf here; the api reads them back for the viewer and the
+      # download. One named volume at the SAME path in both services, because
+      # the database stores the absolute file:// path the worker wrote. Without
+      # it the files landed in the worker's own filesystem and every ready
+      # report read "PDF no longer on disk". backup.sh does not include it: a
+      # report whose files are gone keeps its row and can be generated again.
+      - reportdata:/app/.data
 
   # SC-24 deployment note (W6-08): the LLM VLAN must be reachable from the
   # WORKER network only. The worker is the only service that calls a Tier-2
@@ -151,6 +162,8 @@ services:
       # empty by up.sh) is mounted read-only; nothing reads it unless .env sets
       # NODE_EXTRA_CA_CERTS=/etc/repopulse/ca/<file>.pem. See docs/INSTALL.md.
       - ${EXTRA_CA_DIR:-/var/lib/repopulse/ca}:/etc/repopulse/ca:ro
+      # Shared with the api at the same path; see the api's note.
+      - reportdata:/app/.data
     # The scan network is where the runner listens; only the worker joins it
     # besides the runner. SCAN_RUNNER_TOKEN comes from .env (env_file above).
     networks: [default, scan]
@@ -161,6 +174,14 @@ services:
       # Set, so runInSandbox hands the profile to the runner instead of
       # spawning a runtime this image does not have (packages/security/sandbox).
       SCAN_RUNNER_URL: http://scan-runner:3310
+      # Must match the api (the reportdata mount point).
+      DATA_DIR: /app/.data
+      # The report printer loads /print/reports/:id from the web service on the
+      # internal network (W20-02), not from PUBLIC_BASE_URL: that is the users'
+      # address, and from inside this container localhost:<port> is the worker
+      # itself (measured: ECONNREFUSED). The page only renders data the worker
+      # injects, so it needs no session and no route out of the network.
+      REPORT_PRINT_BASE_URL: ${REPORT_PRINT_BASE_URL:-http://web:8080}
 
   # THE ONE SERVICE WITH THE CONTAINER SOCKET (W17-27).
   #
@@ -274,6 +295,8 @@ services:
 volumes:
   pgdata:
   redisdata:
+  # Generated reports (W20-02): written by the worker, read by the api.
+  reportdata:
   # RAM, not disk: a tmpfs volume (W17-27). Fixed `name`s, because the runner
   # addresses the scratch volume by name and a compose project prefix would
   # make that name depend on how the stack was started. mode=1777 so the
