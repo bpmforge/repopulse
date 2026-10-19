@@ -641,3 +641,50 @@ suggestion, and the drawer prints it ("From a pass over ...").
 model automatically, which needs the owner's own opt-in design. *A commit graph walk* and
 *a true base..head compare* (the forge interface has no compare call). *Re-basing a
 rule finding's line onto the reviewed head.*
+
+## W19-12 as built (2026-10-19): scheduled passes
+
+**The owner's opt-in.** A schedule is per repository and **off** until an admin
+turns it on (`ai_pass_schedules`, migration 0046). Turning it on, or letting a
+local-only schedule reach hosted models, requires the acknowledgement: the
+screen shows the server's wording (`AI_SCHEDULE_ACK_TEXT`, version
+`w19-12/1`) and the PUT carries that version, or it is refused with 400. Who
+acknowledged, when and which version are stored on the row, and a database check
+makes an enabled schedule without them impossible. Changes are audited as
+`ai_pass.schedule_changed`. Editing an enabled schedule (cap, cadence, paths)
+needs no second acknowledgement; turning it off needs none.
+
+**What it reviews.** Either fixed paths every time, or the commits ingested since
+the last scheduled pass, as an ordinary commit-range pass. More new commits than
+a pass reviews (10): the newest 10 are taken and the run says how many older ones
+were left. The base is the newest ingested commit before the oldest reviewed one;
+`last_head_sha` moves to the reviewed head when the pass is started.
+
+**The sweep.** An hourly repeatable job on the `ai.pass` queue
+(`AI_PASS_SCHEDULE_CRON`, default `19 * * * *`, `off` disables it for the install;
+the e2e configs set it off). A schedule is due a day or a week (less an hour of
+slack) after the sweep last acted on it, and the sweep claims it with a
+compare-and-set on `last_scheduled_at`, so two worker replicas act once. It only
+**starts ordinary passes** (`ai_pass_runs.trigger = 'schedule'`, `schedule_id`),
+so every W19-09/W19-11 cap, tenancy rule, the routing chain, local-only, the call
+cap and D9a apply unchanged, and the processor is the same code.
+
+**Every due schedule leaves a record.** One that does not start a pass writes a
+`skipped` run with a reason code and a sentence: `no_gateway`, `not_local` (names
+each connection a pass could reach that is off the network: every role's chain,
+plus the default pool as the gateway filters it), `monthly_cap` (default 4,
+1-31; counts scheduled passes that *started* this UTC month), `daily_limit` (the
+workspace's 10 a day, by hand and by schedule together; a schedule's skips do
+not use it up), `already_running`, `nothing_new`, `no_paths`.
+
+**Shown.** The pass and the schedule moved from the Security tab to an **AI
+Review** tab (the W19 UX review found the panel buried; Security keeps a line
+pointing to it). The schedule panel shows on/off, who turned it on and when, the
+next due time, and this month's count against the cap; a run started by the
+schedule says so. e2e covers the tab and the acknowledgement in both themes with
+axe.
+
+**Not built.** A pass on every new pull request (a third trigger, which needs its
+own opt-in), per-schedule budgets beyond the monthly cap, and a real-model run of
+a scheduled pass: the sweep is tested against the real tables with a scripted
+gateway, and the pass it starts is the W19-09/W19-11 processor unchanged.

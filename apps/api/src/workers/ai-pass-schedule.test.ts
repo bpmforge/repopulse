@@ -387,6 +387,32 @@ describeIfLiveInfra('the schedule sweep (W19-12)', () => {
     expect(out[0]).toMatchObject({ status: 'skipped', code: 'daily_limit' });
   });
 
+  it('a schedule that breaks after it was claimed leaves a failed run, and the others still run', async () => {
+    await schedule();
+    await db.insert(read.aiPassSchedules).values({
+      workspaceId: OTHER,
+      repoId: OTHER_REPO,
+      enabled: true,
+      scope: 'paths',
+      paths: ['app'],
+      acknowledgedBy: USER,
+      acknowledgedAt: NOW,
+      ackVersion: AI_SCHEDULE_ACK_VERSION,
+    });
+    const out = await sweepSchedules(
+      deps({
+        gatewayFor: async (w) => {
+          if (w === WS) throw new Error('model registry unreachable');
+          return { hosts: [lan] };
+        },
+      }),
+    );
+    expect(out.map((o) => o.code ?? o.status).sort()).toEqual(['schedule_error', 'started']);
+    const [failed] = await runsOf(WS);
+    expect(failed).toMatchObject({ status: 'failed', reasonCode: 'schedule_error' });
+    expect(failed!.reason).toContain('model registry unreachable');
+  });
+
   describe('new commits', () => {
     async function commit(sha: string, minutesAgo: number, isMerge = false) {
       const at = new Date(NOW.getTime() - minutesAgo * 60_000);

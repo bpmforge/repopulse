@@ -1,6 +1,12 @@
 import { and, desc, eq, gt, gte, lt, ne, or, sql } from 'drizzle-orm';
 import type { Job } from 'bullmq';
-import { facts, isConstraintViolation, read, type Database } from '@repopulse/shared';
+import {
+  facts,
+  isConstraintViolation,
+  read,
+  safeErrorText,
+  type Database,
+} from '@repopulse/shared';
 import {
   LLM_ROLES,
   defaultPool,
@@ -262,7 +268,37 @@ export async function sweepSchedules(deps: ScheduleSweepDeps): Promise<SweepOutc
       )
       .returning({ id: read.aiPassSchedules.id });
     if (claimed.length === 0) continue;
-    out.push(await actOn(deps, s, now));
+    try {
+      out.push(await actOn(deps, s, now));
+    } catch (err) {
+      // Claimed for this period and then broke (the database, the queue): the
+      // run row says so, and the other schedules still get their turn.
+      const [row] = await db
+        .insert(read.aiPassRuns)
+        .values({
+          workspaceId: s.workspaceId,
+          repoId: s.repoId,
+          trigger: 'schedule',
+          scheduleId: s.id,
+          paths: [],
+          mode: s.scope === 'paths' ? 'paths' : 'commit_range',
+          status: 'failed',
+          reasonCode: 'schedule_error',
+          reason: `The scheduled pass could not be started: ${safeErrorText(err)}`.slice(0, 2000),
+          createdAt: now,
+          finishedAt: now,
+        })
+        .returning({ id: read.aiPassRuns.id })
+        .catch(() => []);
+      out.push({
+        scheduleId: s.id,
+        workspaceId: s.workspaceId,
+        repoId: s.repoId,
+        runId: row?.id ?? null,
+        status: 'skipped',
+        code: 'schedule_error',
+      });
+    }
   }
   return out;
 }

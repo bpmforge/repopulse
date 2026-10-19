@@ -4105,3 +4105,16 @@ osv-scanner no issues; gitleaks clean.
 Merged to `main` 2026-10-15 (#72 then #73) and pushed to GitHub only: the
 Gitea remote is not reachable from this environment, so `origin`/Gitea `main`
 is behind until the next push from the LAN.
+
+### 2026-10-19 — W19-12 scheduled AI passes (cloud gate; Mac real-engine gate pending)
+
+A repository's AI passes can run on a schedule, off by default: an admin turns
+it on only by acknowledging that code is sent to the configured models with
+nobody pressing start (who, when and the wording's version are stored and
+audited). An hourly worker sweep starts ordinary passes (fixed paths, or the
+newest commits since the last scheduled pass) or records a skipped run with the
+reason; local-only is the default and names any hosted connection it refuses;
+monthly cap per repository, the workspace's daily limit and one active pass per
+repository still apply. The pass and its schedule moved to a new AI Review tab
+(W19 UX review). W19-13 filed for the remaining Models-page UX findings. Cloud
+gate: lint 0 · typecheck 0 · vitest 4173 passed / 144 skipped / 0 failed.

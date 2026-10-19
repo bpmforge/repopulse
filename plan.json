@@ -10241,7 +10241,8 @@
         "points": 5,
         "status": "in_progress",
         "notes": [
-          "Filed 2026-10-19 on Brad's go-ahead (thread: scheduled AI passes, the recommended next step after W19-11). Design in docs/design/AI_LAYER.md, W19-12 section."
+          "Filed 2026-10-19 on Brad's go-ahead (thread: scheduled AI passes, the recommended next step after W19-11). Design in docs/design/AI_LAYER.md, W19-12 section.",
+          "Built 2026-10-19: migration 0046 (ai_pass_schedules with an enabled-needs-acknowledgement check; ai_pass_runs.trigger and schedule_id), ai-pass-schedule.ts (hourly sweep on the ai.pass queue, AI_PASS_SCHEDULE_CRON, compare-and-set claim per period, skipped runs with reasons no_gateway / not_local / monthly_cap / daily_limit / already_running / nothing_new / no_paths, failed run on schedule_error), GET/PUT /repos/:id/ai-pass/schedule (acknowledgement version required to turn on or to allow hosted models; audited), AI Review tab with the pass and a Scheduled passes panel. Not built: a pull-request trigger, per-schedule budgets beyond the monthly cap, a real-model run of a scheduled pass."
         ]
       },
       {
