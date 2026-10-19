@@ -59,7 +59,8 @@ function PlansPage() {
   // only plans generated for EXACTLY that scope — a workspace-wide plan is not
   // a plan for the selected repository, and showing it under that heading
   // would say it was.
-  const plans = scopeIds.length === 0 ? allPlans : allPlans.filter((p) => sameScope(p.repo_ids, scopeIds));
+  const plans =
+    scopeIds.length === 0 ? allPlans : allPlans.filter((p) => sameScope(p.repo_ids, scopeIds));
   const hidden = allPlans.length - plans.length;
 
   return (
@@ -67,14 +68,22 @@ function PlansPage() {
       <PageHeader
         title="Improvement plans"
         description="Ranked fixes for the thresholds this workspace is breaching, each with how it will be verified."
-        actions={<GeneratePlanButton window={search.window} repoIds={scopeIds} repoNames={repoNames} />}
+        actions={
+          <GeneratePlanButton window={search.window} repoIds={scopeIds} repoNames={repoNames} />
+        }
       />
       {scopeIds.length > 0 && (
         <p className="text-xs text-fg-muted" data-testid="plans-scope-note">
           Showing plans generated for exactly {planScopeLabel(scopeIds, repoNames)}
-          {hidden > 0 ? ` · ${hidden} plan${hidden === 1 ? '' : 's'} with another scope hidden` : ''}
+          {hidden > 0
+            ? ` · ${hidden} plan${hidden === 1 ? '' : 's'} with another scope hidden`
+            : ''}
           {' · '}
-          <Link to="/plans" search={{ window: search.window }} className="text-accent hover:underline">
+          <Link
+            to="/plans"
+            search={{ window: search.window }}
+            className="text-accent hover:underline"
+          >
             show every scope
           </Link>
         </p>
@@ -82,7 +91,11 @@ function PlansPage() {
 
       <WidgetFrame
         title="Plans"
-        state={frameState({ isLoading, isError, isEmpty: data !== undefined && plans.length === 0 })}
+        state={frameState({
+          isLoading,
+          isError,
+          isEmpty: data !== undefined && plans.length === 0,
+        })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage={
@@ -103,6 +116,11 @@ function PlansPage() {
                 const rb = b.status === 'regressed' ? 0 : 1;
                 return ra - rb || a.rank - b.rank;
               });
+            // Kept, not hidden for good (W20-05, UX_TODO DSH-14): a dismissal
+            // is reversible, so the dismissed items stay one disclosure away.
+            const dismissed = plan.items
+              .filter((i) => i.status === 'dismissed')
+              .sort((a, b) => a.rank - b.rank);
 
             return (
               <section key={plan.id} data-testid={`plan-${plan.id}`}>
@@ -134,7 +152,9 @@ function PlansPage() {
                 >
                   <div
                     className="h-full bg-ok"
-                    style={{ width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%` }}
+                    style={{
+                      width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%`,
+                    }}
                   />
                 </div>
 
@@ -146,8 +166,22 @@ function PlansPage() {
                   </ul>
                 ) : (
                   <p className="text-sm text-fg-muted">
-                    Nothing outstanding in this plan — every threshold in the catalog is currently met.
+                    Nothing outstanding in this plan — every threshold in the catalog is currently
+                    met.
                   </p>
+                )}
+
+                {dismissed.length > 0 && (
+                  <details className="mt-2" data-testid={`plan-dismissed-${plan.id}`}>
+                    <summary className="cursor-pointer text-xs text-fg-muted">
+                      Dismissed ({dismissed.length})
+                    </summary>
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {dismissed.map((item) => (
+                        <PlanItemCard key={item.id} item={item} metricNames={metricNames} />
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </section>
             );

@@ -10439,6 +10439,48 @@
           "AI-13: POST /findings/:id/patch now re-drafts a rejected attempt only with an explicit retry: true, so a double click still cannot spend a second model call.",
           "Found while fixing: the Configured providers 'Off-network' column was also driven by the saved allow_public_host flag (with a special case for the CLI) rather than where the endpoint is; it now uses the server's leaves_network."
         ]
+      },
+      {
+        "id": "W20-05",
+        "title": "Dashboards and saved views UX",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/src/routes/views/**",
+          "apps/api/src/routes/me/**",
+          "apps/api/src/routes/org/**",
+          "apps/api/src/routes/repos/**",
+          "apps/api/src/routes/prs/**",
+          "apps/api/src/routes/plans/**",
+          "apps/api/src/routes/hotspots/**",
+          "packages/shared/src/healthBand.ts",
+          "packages/shared/package.json",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-01"
+        ],
+        "acceptance": [
+          "UX_TODO DSH-93/05/06/04: a saved view is keyed by its id, edits only through Save/Cancel with an unsaved marker and a leave warning, can be renamed, re-scoped and deleted (confirmed), and once shared offers Copy, a confirmed Reset link and Stop sharing",
+          "UX_TODO DSH-03: /me/context returns the caller's default view and persona home, / lands there once on arrival, and a home view can be cleared; DSH-02: the view's window and repositories reach its widgets and the scope is shown on the page",
+          "UX_TODO DSH-08/09/10/X-05: /org/health-tiles, /org/attention and /repos/:id apply the measured guard; the grid is worst first, capped at 12 with See all, labelled org/name; Needs attention bands with the badge's one 3-band function and claims no since-diff",
+          "UX_TODO DSH-13/14/60/07: PR list filters and cursor are in the URL and repo_id takes a CSV; plan dismissals ask a reason and can be restored from Dismissed (n); the trend widget has a metric/window/repository picker, a human title and a unit; the Overview has Save as view",
+          "Every fix has a test; lint, typecheck and the web suite are green"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop).",
+          "DSH-02 partial: window reaches every widget, and the repo scope reaches Repo health, Needs attention, Hotspots, AI governance and widget links. The KPI row, weekly pulse, top actions, plan, security and risk tiles read org-wide rollups (/org/summary, /metrics/series without repo_id, /org/pulse, /org/top-actions, ...) that take no repo set; the view page says so when a view is repo-scoped. Remaining: a repo-set filter on those endpoints.",
+          "DSH-07 partial: Save as view is on the Overview. The repo pages are not WidgetGrid compositions and there are no repo-scoped widget types, so there is nothing to capture there yet. Remaining: repo-scoped widgets, then the same button on the repo Pulse tab.",
+          "DSH-09: chose the honest copy over a since-diff: the card is 'repositories scoring below 75', the API no longer takes `since`, and the feed no longer stamps lastSeenAt. The since-diff (new stale PRs, CI regressions, unreviewed merges) still needs event streams.",
+          "DSH-10: the 3-band cut-offs moved to @repopulse/shared/health-band, imported by HealthBadge and the API attention route.",
+          "DSH-03: the redirect runs once per browser session and only when the page load itself was / (sign-in lands there), so a later click on Overview always reaches the Overview.",
+          "API additions: DELETE /views/:id/share, DELETE /me/default-view, `repos` csv on /org/health-tiles, /org/attention and /hotspots, CSV repo_id on /prs, optional `reason` on PATCH /plans/items/:id (kept in plan_item_events)."
+        ]
       }
   ]
 }

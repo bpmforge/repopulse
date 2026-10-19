@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { WidgetFrame, frameState, PageHeader } from '../components/index.js';
 import { useApiQuery } from '../api/useApiQuery.js';
@@ -12,7 +11,41 @@ import { useApiQuery } from '../api/useApiQuery.js';
 // as repo count grows. W4-16 added GET /prs, so the picker is gone and the
 // screen reads ONE workspace-scoped, cursor-paginated query.
 
+const SIZES = ['XS', 'S', 'M', 'L', 'XL'] as const;
+const STATES = ['open', 'merged', 'closed'] as const;
+
+export interface PrListSearch {
+  state?: (typeof STATES)[number];
+  size?: (typeof SIZES)[number];
+  stale?: true;
+  unreviewed?: true;
+  cursor?: string;
+}
+
+/**
+ * The list's filters and page, in the URL (W20-05, UX_TODO DSH-13; FR-WEB-2).
+ *
+ * They lived in component state, so Back from a pull request reset them and a
+ * filtered list could not be linked. Lenient like the other screens' search
+ * validators: a junk value is dropped, never a white screen.
+ */
+export function validatePrListSearch(search: Record<string, unknown>): PrListSearch {
+  const out: PrListSearch = {};
+  if ((STATES as readonly unknown[]).includes(search.state)) out.state = search.state as never;
+  if ((SIZES as readonly unknown[]).includes(search.size)) out.size = search.size as never;
+  if (search.stale === true || search.stale === 'true') out.stale = true;
+  if (search.unreviewed === true || search.unreviewed === 'true') out.unreviewed = true;
+  if (typeof search.cursor === 'string' && search.cursor.length > 0) out.cursor = search.cursor;
+  return out;
+}
+
+/** The global topbar csv as the API's repo_id csv; `all` means no filter. */
+export function repoIdParam(repos: string | undefined): string | undefined {
+  return repos && repos !== 'all' ? repos : undefined;
+}
+
 export const Route = createFileRoute('/pull-requests')({
+  validateSearch: validatePrListSearch,
   component: PullRequestsIndex,
 });
 
@@ -32,55 +65,51 @@ interface OrgPrPage {
   next_cursor: string | null;
 }
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL'] as const;
-
 function PullRequestsIndex() {
   const search = Route.useSearch();
+  const navigate = useNavigate({ from: '/pull-requests' });
   const preserved = serializeGlobalSearch(search);
+  const { state, size, stale, unreviewed, cursor } = search;
 
-  const [state, setState] = useState('');
-  const [size, setSize] = useState('');
-  const [flags, setFlags] = useState<{ stale: boolean; unreviewed: boolean }>({
-    stale: false,
-    unreviewed: false,
-  });
-  // One cursor of history, not an accumulating list: paging forward replaces
-  // the page. An infinite-append list here would keep growing while the filters
-  // above it changed, so the rows on screen would no longer all match them.
-  const [cursor, setCursor] = useState<string | null>(null);
-  // A cursor from the previous filter set means nothing. The local controls
-  // reset it through applied(); the GLOBAL ones change in the URL without
-  // passing through this component, so they reset it here.
-  useEffect(() => {
-    setCursor(null);
-  }, [search.repos, search.person]);
+  /**
+   * Any filter change drops the cursor — a cursor from the old query means
+   * nothing. One cursor of history, not an accumulating list: paging forward
+   * replaces the page, so every row on screen matches the filters above it.
+   * The topbar's repo/person changes rebuild the search from the global keys
+   * alone (mergeGlobalSearch), so they drop the cursor too.
+   */
+  const setFilter = (patch: { [K in keyof PrListSearch]?: PrListSearch[K] | undefined }) =>
+    void navigate({
+      search: (prev: Record<string, unknown>) => {
+        const next: Record<string, unknown> = { ...prev, ...patch };
+        delete next.cursor;
+        for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
+        return next as never;
+      },
+    });
 
   // REPOSITORY AND PERSON COME FROM THE TOPBAR (W16-50). This screen used to
   // carry its own Author box beside the global person filter — two controls for
   // one question, of which only the local one worked. The global pair now
   // narrows this list, and the duplicate is gone rather than kept in sync.
+  //
+  // `repos` goes over as a CSV (DSH-13): the API parsed it as one integer, so
+  // a two-repository selection was a 400.
+  const repoIds = repoIdParam(search.repos);
   const { data, isLoading, isError, error, refetch } = useApiQuery<OrgPrPage>({
     endpoint: '/prs',
     query: {
-      ...(search.repos ? { repo_id: search.repos } : {}),
+      ...(repoIds ? { repo_id: repoIds } : {}),
       ...(search.person ? { author: search.person } : {}),
       ...(state ? { state } : {}),
       ...(size ? { size_bucket: size } : {}),
-      ...(flags.stale ? { stale: 'true' } : {}),
-      ...(flags.unreviewed ? { unreviewed: 'true' } : {}),
+      ...(stale ? { stale: 'true' } : {}),
+      ...(unreviewed ? { unreviewed: 'true' } : {}),
       ...(cursor ? { cursor } : {}),
     },
   });
 
   const items = data?.items ?? [];
-
-  /** Any filter change resets paging — a cursor from the old query means nothing. */
-  function applied<T>(setter: (v: T) => void) {
-    return (value: T) => {
-      setCursor(null);
-      setter(value);
-    };
-  }
 
   return (
     <div className="flex flex-col gap-4" data-testid="org-pr-list">
@@ -94,8 +123,10 @@ function PullRequestsIndex() {
           <select
             className="panel px-2 py-1 text-sm"
             data-testid="pr-filter-state"
-            value={state}
-            onChange={(e) => applied(setState)(e.target.value)}
+            value={state ?? ''}
+            onChange={(e) =>
+              setFilter({ state: (e.target.value || undefined) as PrListSearch['state'] })
+            }
           >
             <option value="">Any</option>
             <option value="open">Open</option>
@@ -108,8 +139,10 @@ function PullRequestsIndex() {
           <select
             className="panel px-2 py-1 text-sm"
             data-testid="pr-filter-size"
-            value={size}
-            onChange={(e) => applied(setSize)(e.target.value)}
+            value={size ?? ''}
+            onChange={(e) =>
+              setFilter({ size: (e.target.value || undefined) as PrListSearch['size'] })
+            }
           >
             <option value="">Any</option>
             {SIZES.map((s) => (
@@ -123,11 +156,8 @@ function PullRequestsIndex() {
           <input
             type="checkbox"
             data-testid="pr-filter-stale"
-            checked={flags.stale}
-            onChange={(e) => {
-              setCursor(null);
-              setFlags((f) => ({ ...f, stale: e.target.checked }));
-            }}
+            checked={stale === true}
+            onChange={(e) => setFilter({ stale: e.target.checked ? true : undefined })}
           />
           Stale
         </label>
@@ -135,11 +165,8 @@ function PullRequestsIndex() {
           <input
             type="checkbox"
             data-testid="pr-filter-unreviewed"
-            checked={flags.unreviewed}
-            onChange={(e) => {
-              setCursor(null);
-              setFlags((f) => ({ ...f, unreviewed: e.target.checked }));
-            }}
+            checked={unreviewed === true}
+            onChange={(e) => setFilter({ unreviewed: e.target.checked ? true : undefined })}
           />
           Unreviewed
         </label>
@@ -205,7 +232,12 @@ function PullRequestsIndex() {
             type="button"
             className="panel-inset px-3 py-1.5 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid="pr-next-page"
-            onClick={() => setCursor(data.next_cursor)}
+            onClick={() =>
+              void navigate({
+                search: (prev: Record<string, unknown>) =>
+                  ({ ...prev, cursor: data.next_cursor }) as never,
+              })
+            }
           >
             Next page
           </button>

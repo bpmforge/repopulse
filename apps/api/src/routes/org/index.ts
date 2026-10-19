@@ -1,12 +1,13 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { core, plans, read, type Database } from '@repopulse/shared';
 import { buildPulse, computeMetricTrend } from '@repopulse/insights';
 import { computeAiGovernance, readMetricTrend } from '@repopulse/metrics';
+import { healthBand } from '@repopulse/shared/health-band';
 import { sendProblem } from '../../lib/problem.js';
-import { repoHealthMany } from './health.js';
+import { isMeasured, repoHealthMany } from './health.js';
 import { collectTopActions, serializeTopActions } from './top-actions.js';
 
 // Org composites (UX §4.a, FR-INSIGHTS-2/3/4, FR-API-2). Warehouse-only —
@@ -17,16 +18,24 @@ export interface OrgRoutesOptions {
 }
 
 const windowQuery = z.object({ window: z.enum(['7d', '30d', '90d', '365d']).default('30d') });
-const attentionQuery = windowQuery.extend({ since: z.string().optional() });
-// W18-20. `repos` is the global filter's csv. There is deliberately no
-// `person`: the governance view is aggregate-only (N-9), and accepting the
-// global person filter would turn it into a per-developer AI-usage report.
-const governanceQuery = windowQuery.extend({
-  repos: z
-    .string()
-    .regex(/^(all|\d+(,\d+)*)$/)
-    .optional(),
-});
+// The global filter's `repos` csv (or `all`).
+const reposCsv = z
+  .string()
+  .regex(/^(all|\d+(,\d+)*)$/)
+  .optional();
+// W18-20. There is deliberately no `person`: the governance view is
+// aggregate-only (N-9), and accepting the global person filter would turn it
+// into a per-developer AI-usage report.
+const governanceQuery = windowQuery.extend({ repos: reposCsv });
+// W20-05 (UX_TODO DSH-02). The health grid and the attention feed take the
+// same `repos` csv, so a saved view scoped to three repositories shows those
+// three rather than the whole workspace. `since` is gone: the feed never read
+// it (DSH-09), and accepting it implied a diff that did not exist.
+const repoScopedQuery = windowQuery.extend({ repos: reposCsv });
+
+function repoIdsOf(repos: string | undefined): number[] {
+  return repos && repos !== 'all' ? repos.split(',').map(Number) : [];
+}
 
 // The 5 KPI tiles (dashboard landing). Org-rollup series (repoId null).
 const KPI_METRICS = ['M5', 'M9', 'M4', 'M1', 'M10'] as const;
@@ -78,67 +87,112 @@ export default async function orgRoutes(
   // GET /org/health-tiles — per-repo health grid (FR-INSIGHTS-2/3).
   typedApp.get(
     '/org/health-tiles',
-    { schema: { querystring: windowQuery } },
+    { schema: { querystring: repoScopedQuery } },
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
       if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
       const { window } = request.query;
+      const repoIds = repoIdsOf(request.query.repos);
       const nowMs = Date.now();
       const repos = await opts.db
-        .select({ id: core.repos.id, name: core.repos.name, pushedAt: core.repos.pushedAt })
+        .select({
+          id: core.repos.id,
+          org: core.repos.org,
+          name: core.repos.name,
+          pushedAt: core.repos.pushedAt,
+        })
         .from(core.repos)
-        .where(eq(core.repos.workspaceId, workspaceId));
+        .where(
+          and(
+            eq(core.repos.workspaceId, workspaceId),
+            repoIds.length > 0 ? inArray(core.repos.id, repoIds) : undefined,
+          ),
+        );
 
       // One batched read for every repo (W17-32), not one loader call per row.
       const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
       const tiles = repos.map((r) => {
         const health = healths.get(r.id)!;
+        // W20-05 (UX_TODO DSH-08). The same `measured` guard /repos applies
+        // (W17-18): a repository with no sub-scores sums an empty set to 0, and
+        // this grid painted that 0 red as "needs attention" while /repos showed
+        // the same repository as "—".
+        const measured = isMeasured(health);
         return {
           id: r.id,
+          org: r.org,
           name: r.name,
           health: {
-            score: Math.round(health.score),
-            letter: health.letter,
-            basis: health.tier1Only ? 'Tier-1 only' : 'full',
+            score: measured ? Math.round(health.score) : null,
+            letter: measured ? health.letter : null,
+            measured,
+            basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
             // delta needs a prior health snapshot series — a later enrichment.
             delta: null,
           },
         };
       });
+      // WORST FIRST, unmeasured last (W20-05, UX_TODO X-05): at 500 repositories
+      // the card shows the first dozen, and database order put whatever was
+      // inserted first there instead of what needs looking at. Name breaks ties
+      // so two refreshes cannot reshuffle the grid.
+      tiles.sort((a, b) => {
+        const sa = a.health.score;
+        const sb = b.health.score;
+        if (sa === null || sb === null) {
+          if (sa === sb) return a.name.localeCompare(b.name);
+          return sa === null ? 1 : -1;
+        }
+        return sa - sb || a.name.localeCompare(b.name);
+      });
       return reply.send({ items: tiles });
     },
   );
 
-  // GET /org/attention — change items since the client's last visit (UX §4.a).
-  // MVP: repos whose health band would draw attention (C/D/E) at the `since`
-  // point; the full since-diff (new stale PRs, CI regressions, unreviewed
-  // merges) enriches once those event streams exist (W4/W6).
+  // GET /org/attention — repositories below the healthy band (UX §4.a).
+  //
+  // W20-05 (UX_TODO DSH-09/DSH-10). This used to promise "what changed since
+  // your last visit" and ignore `since`, and it banded on the score LETTER
+  // (C/D/E) while the badges beside it used the 3-band ramp. It is now what it
+  // always actually was — every measured repository scoring below healthy —
+  // banded by the same function the badges use. The since-diff (new stale PRs,
+  // CI regressions, unreviewed merges) needs event streams that do not exist
+  // yet, so it is not claimed.
   typedApp.get(
     '/org/attention',
-    { schema: { querystring: attentionQuery } },
+    { schema: { querystring: repoScopedQuery } },
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
       if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
       const { window } = request.query;
+      const repoIds = repoIdsOf(request.query.repos);
       const nowMs = Date.now();
       const repos = await opts.db
-        .select({ id: core.repos.id, name: core.repos.name, pushedAt: core.repos.pushedAt })
+        .select({
+          id: core.repos.id,
+          org: core.repos.org,
+          name: core.repos.name,
+          pushedAt: core.repos.pushedAt,
+        })
         .from(core.repos)
-        .where(eq(core.repos.workspaceId, workspaceId));
+        .where(
+          and(
+            eq(core.repos.workspaceId, workspaceId),
+            repoIds.length > 0 ? inArray(core.repos.id, repoIds) : undefined,
+          ),
+        );
 
       const items = [];
       const healths = await repoHealthMany(opts.db, workspaceId, repos, window, nowMs);
       for (const r of repos) {
         const health = healths.get(r.id)!;
-        if (['C', 'D', 'E'].includes(health.letter)) {
-          items.push({
-            repo_id: r.id,
-            name: r.name,
-            kind: 'health_band',
-            band: health.letter,
-            score: health.score,
-          });
-        }
+        // Unmeasured is not unhealthy (DSH-08): a repository nobody has
+        // ingested yet is not something to "attend now".
+        if (!isMeasured(health)) continue;
+        const score = Math.round(health.score);
+        const band = healthBand(score);
+        if (band === 'good') continue;
+        items.push({ repo_id: r.id, org: r.org, name: r.name, kind: 'health_band', band, score });
       }
 
       // WORST FIRST (W16-23).
@@ -172,7 +226,7 @@ export default async function orgRoutes(
       const workspaceId = request.workspace?.id;
       if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
       const { window, repos } = request.query;
-      const repoIds = repos && repos !== 'all' ? repos.split(',').map(Number) : [];
+      const repoIds = repoIdsOf(repos);
       const result = await computeAiGovernance(opts.db, {
         workspaceId,
         repoIds,

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlanItemCard } from './PlanItemCard.js';
 import type { PlanItem, PlanItemStatus } from './contracts.js';
@@ -6,12 +6,14 @@ import type { PlanItem, PlanItemStatus } from './contracts.js';
 // W17-25. The card says WHY an item is where it is, from the evidence the
 // verifier recorded — and offers no control that could move it to done.
 
+const mutate = vi.fn();
 vi.mock('../../api/useApiQuery.js', () => ({
-  useApiMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  useApiMutation: () => ({ mutate, isPending: false, error: null }),
   queryKeyFor: () => [],
 }));
 
 beforeEach(() => {
+  mutate.mockReset();
   vi.stubGlobal('fetch', vi.fn());
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -56,9 +58,42 @@ describe('PlanItemCard has no human path to done (W17-25)', () => {
     for (const b of buttons) {
       expect(b.textContent).not.toMatch(/done|verified|complete/i);
     }
-    expect(buttons.every((b) => ['Accept', 'Dismiss', 'Start'].includes(b.textContent ?? ''))).toBe(
-      true,
+    expect(
+      buttons.every((b) =>
+        ['Accept', 'Dismiss…', 'Start', 'Restore'].includes(b.textContent ?? ''),
+      ),
+    ).toBe(true);
+  });
+});
+
+// W20-05 (UX_TODO DSH-14). Dismiss was one click, with no reason and no undo.
+describe('PlanItemCard dismissal is deliberate and reversible (W20-05)', () => {
+  it('does not dismiss on the first click; it asks why', () => {
+    render(<PlanItemCard item={item('proposed')} metricNames={names} />);
+    fireEvent.click(screen.getByTestId('plan-dismiss-7'));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByTestId('plan-dismiss-form-7')).toBeInTheDocument();
+    // No reason, no dismissal.
+    expect(screen.getByTestId('plan-dismiss-confirm-7')).toBeDisabled();
+  });
+
+  it('sends the reason with the dismissal', () => {
+    render(<PlanItemCard item={item('proposed')} metricNames={names} />);
+    fireEvent.click(screen.getByTestId('plan-dismiss-7'));
+    fireEvent.change(screen.getByTestId('plan-dismiss-reason-7'), {
+      target: { value: 'Owned by platform' },
+    });
+    fireEvent.click(screen.getByTestId('plan-dismiss-confirm-7'));
+    expect(mutate).toHaveBeenCalledWith(
+      { status: 'dismissed', reason: 'Owned by platform' },
+      expect.anything(),
     );
+  });
+
+  it('offers Restore on a dismissed item', () => {
+    render(<PlanItemCard item={item('dismissed')} metricNames={names} />);
+    fireEvent.click(screen.getByTestId('plan-restore-7'));
+    expect(mutate).toHaveBeenCalledWith({ status: 'proposed' });
   });
 });
 

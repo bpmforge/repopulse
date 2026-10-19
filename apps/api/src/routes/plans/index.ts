@@ -1,6 +1,13 @@
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, core, facts, plans as plansSchema, read, type Database } from '@repopulse/shared';
+import {
+  auditLog,
+  core,
+  facts,
+  plans as plansSchema,
+  read,
+  type Database,
+} from '@repopulse/shared';
 import {
   AGREEMENT_CATALOG_ID,
   CATALOG_VERSION,
@@ -116,7 +123,12 @@ async function agreementSourcedItems(
   const rows = await db
     .select()
     .from(plansSchema.agreements)
-    .where(and(eq(plansSchema.agreements.workspaceId, workspaceId), eq(plansSchema.agreements.active, true)));
+    .where(
+      and(
+        eq(plansSchema.agreements.workspaceId, workspaceId),
+        eq(plansSchema.agreements.active, true),
+      ),
+    );
   if (rows.length === 0) return [];
 
   const since = new Date(Date.now() - EXCEPTION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
@@ -133,7 +145,12 @@ async function agreementSourcedItems(
       firstReviewAt: sql<Date | null>`(select min(${facts.prReviews.submittedAt}) from ${facts.prReviews} where ${facts.prReviews.pullRequestId} = ${facts.pullRequests.id})`,
     })
     .from(facts.pullRequests)
-    .where(and(eq(facts.pullRequests.workspaceId, workspaceId), gte(facts.pullRequests.createdAt, since)))
+    .where(
+      and(
+        eq(facts.pullRequests.workspaceId, workspaceId),
+        gte(facts.pullRequests.createdAt, since),
+      ),
+    )
     .limit(500);
 
   const prs = prRows.map((r) => ({
@@ -176,7 +193,9 @@ async function agreementSourcedItems(
         agreementId: agreement.id,
         agreementKind: agreement.kind,
         // PR numbers, never authors — the item points at artifacts (N-9).
-        exceptions: exceptions.slice(0, 20).map((e) => ({ repoId: e.repoId, prNumber: e.prNumber })),
+        exceptions: exceptions
+          .slice(0, 20)
+          .map((e) => ({ repoId: e.repoId, prNumber: e.prNumber })),
       },
       verifyCriterion: entry.verifyCriterion as unknown as Record<string, unknown>,
     });
@@ -280,7 +299,10 @@ export default async function plansRoutes(
         // repositories, same catalog. A plan for the whole workspace is not the
         // plan for one of its repositories.
         const candidates = await tx
-          .select({ id: plansSchema.improvementPlans.id, repoIds: plansSchema.improvementPlans.repoIds })
+          .select({
+            id: plansSchema.improvementPlans.id,
+            repoIds: plansSchema.improvementPlans.repoIds,
+          })
           .from(plansSchema.improvementPlans)
           .where(
             and(
@@ -290,14 +312,22 @@ export default async function plansRoutes(
               eq(plansSchema.improvementPlans.status, 'active'),
             ),
           )
-          .orderBy(desc(plansSchema.improvementPlans.createdAt), desc(plansSchema.improvementPlans.id))
+          .orderBy(
+            desc(plansSchema.improvementPlans.createdAt),
+            desc(plansSchema.improvementPlans.id),
+          )
           .limit(50);
         const existing = candidates.find(
-          (c) => planScopeKey(workspaceId, window, c.repoIds) === planScopeKey(workspaceId, window, repoIds),
+          (c) =>
+            planScopeKey(workspaceId, window, c.repoIds) ===
+            planScopeKey(workspaceId, window, repoIds),
         );
         if (existing) {
           const items = await tx
-            .select({ catalogId: plansSchema.planItems.catalogId, status: plansSchema.planItems.status })
+            .select({
+              catalogId: plansSchema.planItems.catalogId,
+              status: plansSchema.planItems.status,
+            })
             .from(plansSchema.planItems)
             .where(
               and(
@@ -422,7 +452,7 @@ export default async function plansRoutes(
   });
 
   /** PATCH /plans/items/:id — a human moving an item through its lifecycle. */
-  app.patch<{ Params: { id: string }; Body: { status?: unknown } }>(
+  app.patch<{ Params: { id: string }; Body: { status?: unknown; reason?: unknown } }>(
     '/plans/items/:id',
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
@@ -433,12 +463,30 @@ export default async function plansRoutes(
       const id = Number(request.params.id);
       if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid item id');
       const next = request.body?.status;
-      if (typeof next !== 'string') return fail(request, reply, 400, 'Invalid body', 'status is required');
+      if (typeof next !== 'string')
+        return fail(request, reply, 400, 'Invalid body', 'status is required');
+      // The person's own words, when they gave some (W20-05, UX_TODO DSH-14):
+      // a dismissal now asks why, and the history row is where that answer is
+      // kept. Optional here so older clients still transition.
+      const rawReason = request.body?.reason;
+      if (rawReason !== undefined && (typeof rawReason !== 'string' || rawReason.length > 500)) {
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid body',
+          'reason must be a string of at most 500 characters',
+        );
+      }
+      const reason =
+        typeof rawReason === 'string' && rawReason.trim() ? rawReason.trim() : 'human transition';
 
       const [item] = await db
         .select()
         .from(plansSchema.planItems)
-        .where(and(eq(plansSchema.planItems.id, id), eq(plansSchema.planItems.workspaceId, workspaceId)))
+        .where(
+          and(eq(plansSchema.planItems.id, id), eq(plansSchema.planItems.workspaceId, workspaceId)),
+        )
         .limit(1);
       // Tenancy (Law 5): another workspace's item is a 404, never a 403.
       if (!item) return fail(request, reply, 404, 'Not Found');
@@ -469,7 +517,9 @@ export default async function plansRoutes(
         const updated = await tx
           .update(plansSchema.planItems)
           .set({ status: next, statusChangedBy: userId, statusChangedAt: now })
-          .where(and(eq(plansSchema.planItems.id, id), eq(plansSchema.planItems.status, item.status)))
+          .where(
+            and(eq(plansSchema.planItems.id, id), eq(plansSchema.planItems.status, item.status)),
+          )
           .returning({ id: plansSchema.planItems.id });
         if (updated.length === 0) return false;
         await tx.insert(plansSchema.planItemEvents).values({
@@ -479,7 +529,7 @@ export default async function plansRoutes(
           toStatus: next,
           actorUserId: userId,
           actorLogin,
-          reason: 'human transition',
+          reason,
         });
         return true;
       });

@@ -88,6 +88,25 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       return fail(request, reply, 401, 'No active session');
     }
     const me = await readUser(request);
+    // W20-05 (UX_TODO DSH-03). This was a literal null, so "Set as home"
+    // stored a choice nothing could read back. Workspace- and owner-filtered:
+    // only YOUR default in THIS workspace (Law 5).
+    const userId = request.session.get('userId');
+    const [defaultView] =
+      userId === undefined
+        ? []
+        : await db
+            .select({ id: read.savedViews.id })
+            .from(read.savedViews)
+            .where(
+              and(
+                eq(read.savedViews.workspaceId, request.workspace.id),
+                eq(read.savedViews.ownerUserId, userId),
+                eq(read.savedViews.isDefaultForOwner, true),
+              ),
+            )
+            .limit(1);
+    const persona = (me?.persona ?? null) as Persona | null;
     return reply.send({
       workspace: {
         id: request.workspace.id,
@@ -99,12 +118,16 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       // caller, to warn an admin before they demote themselves.
       user_id: request.session.get('userId'),
       identity_id: ctx.identityId,
-      default_view_id: null, // W5-02 owns saved views.
+      default_view_id: defaultView?.id ?? null,
+      // The persona's home, so the shell can land there after sign-in without
+      // its own copy of PERSONA_HOME (DSH-03: it was applied only once, when
+      // the picker was first answered).
+      home: persona && PERSONAS.includes(persona) ? PERSONA_HOME[persona] : null,
       // W4-10 (UX_SPEC §6). NULL persona = never asked, which is what opens the
       // picker. Sent as part of the context the shell already fetches rather
       // than as its own request: a separate call would make the picker race the
       // first paint and flash the wrong home.
-      persona: me?.persona ?? null,
+      persona,
       prefs: me?.prefs ?? {},
       demo: opts.demo ?? false,
     });

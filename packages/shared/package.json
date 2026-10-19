@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./url-state": "./src/urlState.ts",
-    "./dimensions": "./src/dimensions.ts"
+    "./dimensions": "./src/dimensions.ts",
+    "./health-band": "./src/healthBand.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

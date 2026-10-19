@@ -30,7 +30,6 @@ describeIfLiveInfra('views routes (W5-01)', () => {
   let foreignViewId: number;
   let foreignShareSlug: string;
 
-
   beforeAll(async () => {
     githubMock = createServer((req, res) => {
       const chunks: Buffer[] = [];
@@ -103,7 +102,12 @@ describeIfLiveInfra('views routes (W5-01)', () => {
 
     const [ghost] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: GHOST_FORGE_USER_ID, forgeUserId: GHOST_FORGE_USER_ID, login: GHOST_FORGE_USER_ID })
+      .values({
+        authProvider: 'github',
+        authSubject: GHOST_FORGE_USER_ID,
+        forgeUserId: GHOST_FORGE_USER_ID,
+        login: GHOST_FORGE_USER_ID,
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: GHOST_FORGE_USER_ID } })
       .returning();
     if (!ghost) throw new Error('ghost user upsert returned no row');
@@ -381,6 +385,89 @@ describeIfLiveInfra('views routes (W5-01)', () => {
       const defaults = items.filter((v) => v.is_default);
       expect(defaults).toHaveLength(1);
       expect(defaults[0]?.id).toBe(secondId);
+    });
+
+    it('/me/context reports the default view, and DELETE /me/default-view clears it (W20-05, DSH-03)', async () => {
+      const set = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/me/default-view',
+        cookies: { repopulse_sid: ownerCookie },
+        payload: { view_id: viewId },
+      });
+      expect(set.statusCode).toBe(204);
+
+      const ctx = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me/context',
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      expect(ctx.statusCode).toBe(200);
+      // It was a literal null, so the choice could never be honoured.
+      expect(ctx.json().default_view_id).toBe(viewId);
+      // Someone else's home is not yours.
+      const otherCtx = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me/context',
+        cookies: { repopulse_sid: otherCookie },
+      });
+      expect(otherCtx.json().default_view_id).not.toBe(viewId);
+
+      const clear = await app.inject({
+        method: 'DELETE',
+        url: '/api/v1/me/default-view',
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      expect(clear.statusCode).toBe(204);
+      const after = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me/context',
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      expect(after.json().default_view_id).toBeNull();
+    });
+
+    it('DELETE /views/:id/share stops sharing and kills the link (W20-05, DSH-04)', async () => {
+      const share = await app.inject({
+        method: 'POST',
+        url: `/api/v1/views/${viewId}/share`,
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      const slug = share.json().share_slug as string;
+
+      const notOwner = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/views/${viewId}/share`,
+        cookies: { repopulse_sid: otherCookie },
+      });
+      expect(notOwner.statusCode).toBe(403);
+
+      const stop = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/views/${viewId}/share`,
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      expect(stop.statusCode).toBe(204);
+
+      const view = await app.inject({
+        method: 'GET',
+        url: `/api/v1/views/${viewId}`,
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      expect(view.json()).toMatchObject({ is_shared: false, share_slug: null });
+
+      const dead = await app.inject({
+        method: 'GET',
+        url: `/api/v1/views/shared/${slug}`,
+        cookies: { repopulse_sid: otherCookie },
+      });
+      expect(dead.statusCode).toBe(404);
+
+      const foreign = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/views/${foreignViewId}/share`,
+        cookies: { repopulse_sid: ownerCookie },
+      });
+      expect(foreign.statusCode).toBe(404);
     });
 
     it("cannot default another owner's view -> 403", async () => {

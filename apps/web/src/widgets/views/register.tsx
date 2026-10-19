@@ -10,6 +10,7 @@ import { useApiQuery } from '../../api/useApiQuery.js';
 import { formatAge, type MyPrs, type ReviewQueue } from '../me/contracts.js';
 import { locationOf, type Finding } from '../findings/contracts.js';
 import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
+import { KPI_TILES } from '../org/contracts.js';
 
 // The widget types the VIEW TEMPLATES ask for (W16-55).
 //
@@ -27,12 +28,29 @@ import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 function optionsOf(widget: WidgetComponentProps['widget']): {
   window: string;
   metricKey: string;
+  repoId: string | null;
 } {
   const options = widget.options ?? {};
   return {
     window: typeof options.window === 'string' ? options.window : '30d',
     metricKey: typeof options.metric_key === 'string' ? options.metric_key : 'M5',
+    // One repository's series, or the org rollup when absent (DSH-60).
+    repoId: typeof options.repo_id === 'string' ? options.repo_id : null,
   };
+}
+
+/**
+ * The metrics a trend widget can chart, with a human name and a unit
+ * (W20-05, UX_TODO DSH-60). The same five org-rollup series the KPI row reads:
+ * they are the ones the snapshot job writes with no repository, which is what
+ * /metrics/series returns without a repo_id. The editor's metric picker lists
+ * exactly these.
+ */
+export const TREND_METRICS = KPI_TILES.map(({ key, label, unit }) => ({ key, label, unit }));
+
+/** "Review coverage", never "M5" — and an unknown key degrades to itself. */
+export function trendMetric(key: string): { key: string; label: string; unit: string | undefined } {
+  return TREND_METRICS.find((m) => m.key === key) ?? { key, label: key, unit: undefined };
 }
 
 /** Repo-qualified, because PR numbers restart per repository. */
@@ -218,13 +236,17 @@ registerWidget({
   category: 'metrics',
   defaultSize: { w: 12, h: 2 },
   component: ({ widget }) => {
-    const { window, metricKey } = optionsOf(widget);
+    const { window, metricKey, repoId } = optionsOf(widget);
+    const metric = trendMetric(metricKey);
+    // Ratios are stored 0..1 (METRICS.md); the axis says percent, so the
+    // points are scaled to match it, as the KPI tiles do (formatKpi).
+    const scale = metric.unit === '%' ? 100 : 1;
     const { data, isLoading, isError, error, refetch } = useApiQuery<{
       points: { computed_at: string; value: number | null }[];
       basis_label: string | null;
     }>({
       endpoint: '/metrics/series',
-      query: { metric_key: metricKey, window },
+      query: { metric_key: metricKey, window, ...(repoId ? { repo_id: repoId } : {}) },
     });
     const points = data?.points ?? [];
     // TWO points, not one: a single dot is not a trend, and drawing one as if
@@ -236,7 +258,7 @@ registerWidget({
     });
     return (
       <WidgetFrame
-        title={`${metricKey} trend`}
+        title={`${metric.label} trend`}
         state={state}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
@@ -244,18 +266,32 @@ registerWidget({
       >
         <Chart
           testId="widget-trend"
-          ariaLabel={`${metricKey} trend, last ${window}`}
+          ariaLabel={`${metric.label} trend, last ${window}`}
           height={180}
           tableData={{
-            columns: ['Computed at', 'Value'],
-            rows: points.map((p) => [p.computed_at.slice(0, 10), p.value ?? '—']),
+            columns: [
+              'Computed at',
+              metric.unit ? `${metric.label} (${metric.unit})` : metric.label,
+            ],
+            rows: points.map((p) => [
+              p.computed_at.slice(0, 10),
+              p.value === null ? '—' : Math.round(p.value * scale * 10) / 10,
+            ]),
           }}
           option={{
-            grid: { left: 44, right: 12, top: 16, bottom: 28 },
+            grid: { left: 44, right: 12, top: 24, bottom: 28 },
             xAxis: { type: 'category', data: points.map((p) => p.computed_at.slice(0, 10)) },
-            yAxis: { type: 'value' },
+            // The unit on the axis (DSH-60): a bare 0.8 does not say "80%".
+            yAxis: { type: 'value', ...(metric.unit ? { name: metric.unit } : {}) },
             tooltip: { trigger: 'axis' },
-            series: [{ type: 'line', data: points.map((p) => p.value), smooth: true }],
+            series: [
+              {
+                type: 'line',
+                name: metric.label,
+                data: points.map((p) => (p.value === null ? null : p.value * scale)),
+                smooth: true,
+              },
+            ],
           }}
         />
       </WidgetFrame>

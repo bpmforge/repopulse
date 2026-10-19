@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { prSizeBucket } from '@repopulse/metrics';
-import { SIZE_BUCKET_BOUNDS, decodeCursor, encodeCursor } from './index.js';
+import { SIZE_BUCKET_BOUNDS, decodeCursor, encodeCursor, orgListQuery } from './index.js';
 
 // W4-16. The bucket bounds in routes/prs/index.ts are SQL ranges rather than a
 // per-row prSizeBucket() call, because the filter has to run inside the
@@ -63,5 +63,19 @@ describe('org PR list cursor', () => {
     // over the first page forever without any error to explain why.
     expect(decode('not-a-cursor')).toBeNull();
     expect(decode('123:abc')).toBeNull();
+  });
+});
+
+// W20-05 (UX_TODO DSH-13). The topbar's repository filter is multi-select and
+// sends a CSV; this parsed it as ONE integer, so two repositories were a 400.
+describe('org PR list repo filter', () => {
+  it('accepts one id or a CSV of ids', () => {
+    expect(orgListQuery.parse({ repo_id: '7' }).repo_id).toEqual([7]);
+    expect(orgListQuery.parse({ repo_id: '7,9,12' }).repo_id).toEqual([7, 9, 12]);
+  });
+
+  it('rejects anything that is not a list of ids', () => {
+    expect(orgListQuery.safeParse({ repo_id: '7,abc' }).success).toBe(false);
+    expect(orgListQuery.safeParse({ repo_id: 'all' }).success).toBe(false);
   });
 });

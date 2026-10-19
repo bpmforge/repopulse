@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -27,7 +27,6 @@ export const listQuery = z.object({
   window: z.enum(['7d', '30d', '90d', '365d']).default('30d'),
 });
 
-
 // --- org-wide list (W4-16) ---------------------------------------------------
 
 // METRICS.md §1 M7 bucket bounds on `additions + deletions`. Expressed here as
@@ -47,11 +46,18 @@ export const SIZE_BUCKET_BOUNDS: Record<string, { min: number; max: number | nul
   XL: { min: 1000, max: null },
 };
 
-const orgListQuery = z.object({
+export const orgListQuery = z.object({
   // The GLOBAL repository filter (W16-50). The topbar has serialized `?repos=`
   // since W4-02 and no screen read it; this list is the one where narrowing to
   // a repository is the obvious thing to want, and it had no way to express it.
-  repo_id: z.coerce.number().int().positive().optional(),
+  //
+  // A CSV of ids (W20-05, UX_TODO DSH-13): the topbar's filter is multi-select,
+  // and this was parsed as ONE integer, so picking two repositories was a 400.
+  repo_id: z
+    .string()
+    .regex(/^\d+(,\d+)*$/)
+    .transform((csv) => csv.split(',').map(Number))
+    .optional(),
   state: z.enum(['open', 'closed', 'merged']).optional(),
   stale: z.coerce.boolean().optional(),
   unreviewed: z.coerce.boolean().optional(),
@@ -268,7 +274,7 @@ export default async function prsRoutes(
     // within the tenant; none can widen past it.
     const conds = [eq(facts.pullRequests.workspaceId, workspaceId)];
 
-    if (q.repo_id) conds.push(eq(facts.pullRequests.repoId, q.repo_id));
+    if (q.repo_id) conds.push(inArray(facts.pullRequests.repoId, q.repo_id));
     if (q.state) conds.push(eq(facts.pullRequests.state, q.state));
     if (q.author) conds.push(eq(core.identities.forgeLogin, q.author));
 
@@ -334,8 +340,7 @@ export default async function prsRoutes(
 
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];
-    const nextCursor =
-      rows.length > q.limit && last ? encodeCursor(last.updatedAt, last.id) : null;
+    const nextCursor = rows.length > q.limit && last ? encodeCursor(last.updatedAt, last.id) : null;
 
     return reply.send({
       items: page.map((p) => ({

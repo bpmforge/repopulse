@@ -1,16 +1,14 @@
 // HealthBadge (UX §2.1 health ramp): 3 bands only — good ≥75, watch 50–74,
 // attend <50 (signals, not grades). The numeric score is ALWAYS shown next to
 // the color so the band is never carried by color alone (UX §7 a11y).
+//
+// The cut-offs live in @repopulse/shared/health-band (W20-05, UX_TODO DSH-10)
+// so the API's Needs attention feed bands a score exactly as this badge does.
+import { healthBand, type HealthBand } from '@repopulse/shared/health-band';
 
-export type HealthBand = 'good' | 'watch' | 'attend';
+export { healthBand, type HealthBand };
 
-export function healthBand(score: number): HealthBand {
-  if (score >= 75) return 'good';
-  if (score >= 50) return 'watch';
-  return 'attend';
-}
-
-const BAND_LABEL: Record<HealthBand, string> = {
+export const HEALTH_BAND_LABEL: Record<HealthBand, string> = {
   good: 'healthy',
   watch: 'watch',
   attend: 'needs attention',
@@ -46,7 +44,7 @@ export function HealthBadge({ score, className = '' }: HealthBadgeProps) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-sm font-medium tabular-nums ${BAND_CLASS[band]} ${className}`}
-      aria-label={`health score ${rounded} of 100, ${BAND_LABEL[band]}`}
+      aria-label={`health score ${rounded} of 100, ${HEALTH_BAND_LABEL[band]}`}
       data-testid="health-badge"
       data-band={band}
     >

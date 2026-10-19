@@ -2,7 +2,12 @@ import { createFileRoute } from '@tanstack/react-router';
 import { WidgetFrame, WidgetGrid, frameState } from '../../../components/index.js';
 import { useApiQuery } from '../../../api/useApiQuery.js';
 import { ApiError } from '../../../api/client.js';
-import { toWidgets, type SharedViewResponse } from '../../../views/contracts.js';
+import {
+  scopeLabel,
+  scopeWidgets,
+  toWidgets,
+  type SharedViewResponse,
+} from '../../../views/contracts.js';
 
 // A shared saved view, opened from its share link (W20-01, UX_TODO DSH-01).
 //
@@ -24,7 +29,11 @@ export function SharedViewBody({ slug }: { slug: string }) {
     endpoint: '/views/shared/{slug}',
     path: { slug },
   });
-  const widgets = data ? toWidgets(data.config) : [];
+  // The view's own window and repositories reach its widgets (W20-05, UX_TODO
+  // DSH-02): a colleague opening a shared 90-day view saw 30-day data.
+  const window = data?.config.window ?? '30d';
+  const repoIds = data?.config.repo_ids ?? [];
+  const widgets = data ? scopeWidgets(toWidgets(data.config), window, repoIds) : [];
 
   return (
     <div className="flex flex-col gap-4" data-testid="shared-view">
@@ -35,6 +44,11 @@ export function SharedViewBody({ slug }: { slug: string }) {
         <p className="text-xs text-fg-muted">
           A view a colleague shared with this workspace. It is read-only here.
         </p>
+        {data && (
+          <p className="text-xs text-fg-muted" data-testid="shared-view-scope">
+            {scopeLabel(window, repoIds)}
+          </p>
+        )}
       </div>
       <WidgetFrame
         title="Layout"

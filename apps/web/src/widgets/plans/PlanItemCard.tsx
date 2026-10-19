@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { ErrorNote } from '../../components/primitives/ErrorNote.js';
 import {
   criterionInWords,
   findingIdsOf,
@@ -27,10 +29,16 @@ const STATUS_LABEL: Record<PlanItem['status'], string> = {
 
 export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricNames?: MetricNames }) {
   const findingIds = findingIdsOf(item);
-  const transition = useApiMutation<{ status: string }, unknown>(
+  const transition = useApiMutation<{ status: string; reason?: string }, unknown>(
     { endpoint: '/plans/items/{id}', path: { id: item.id }, method: 'PATCH' },
     { invalidate: [queryKeyFor(LIST)] },
   );
+
+  // W20-05 (UX_TODO DSH-14). Dismiss was one click with no reason and no way
+  // back; a mis-click silently deleted a recommendation. It now asks why, and
+  // the plans page lists dismissed items with Restore.
+  const [dismissing, setDismissing] = useState(false);
+  const [reason, setReason] = useState('');
 
   const regressed = item.status === 'regressed';
   // WHY it is where it is (W17-25): the verifier's last check, in words that
@@ -115,11 +123,23 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
               className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid={`plan-dismiss-${item.id}`}
               disabled={transition.isPending}
-              onClick={() => transition.mutate({ status: 'dismissed' })}
+              aria-expanded={dismissing}
+              onClick={() => setDismissing((v) => !v)}
             >
-              Dismiss
+              Dismiss…
             </button>
           </>
+        )}
+        {item.status === 'dismissed' && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid={`plan-restore-${item.id}`}
+            disabled={transition.isPending}
+            onClick={() => transition.mutate({ status: 'proposed' })}
+          >
+            Restore
+          </button>
         )}
         {item.status === 'accepted' && (
           <button
@@ -140,6 +160,50 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
           <span className="text-xs text-fg-faint">Closes automatically once the metric holds.</span>
         )}
       </div>
+
+      {dismissing && item.status === 'proposed' && (
+        <form
+          className="mt-2 flex flex-wrap items-end gap-2"
+          data-testid={`plan-dismiss-form-${item.id}`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (reason.trim().length === 0) return;
+            transition.mutate(
+              { status: 'dismissed', reason: reason.trim() },
+              { onSuccess: () => setDismissing(false) },
+            );
+          }}
+        >
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-fg-muted">
+            Why dismiss it? Kept in the item&apos;s history; you can restore it later.
+            <input
+              type="text"
+              className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-sm text-fg"
+              data-testid={`plan-dismiss-reason-${item.id}`}
+              value={reason}
+              maxLength={500}
+              required
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-md border border-crit/40 px-2 py-1 text-xs text-crit hover:border-crit focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+            data-testid={`plan-dismiss-confirm-${item.id}`}
+            disabled={transition.isPending || reason.trim().length === 0}
+          >
+            Dismiss
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-1 text-xs"
+            onClick={() => setDismissing(false)}
+          >
+            Keep it
+          </button>
+        </form>
+      )}
+      <ErrorNote error={transition.error} testId={`plan-item-error-${item.id}`} className="mt-2" />
     </li>
   );
 }
