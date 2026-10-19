@@ -134,6 +134,25 @@ export interface ScopedMetricsOptions {
   asOf?: Date;
   /** Restrict to these metric keys; all keys otherwise. */
   keys?: readonly string[];
+  /**
+   * Filled with each ratio metric's pooled sample — the numerator and
+   * denominator behind the value — when every row read carries both
+   * (W20-12, UX_TODO DSH-81: "100% of 1" must not look like "100% of 400").
+   */
+  samples?: Map<string, { numerator: number; denominator: number }>;
+}
+
+function recordSample(
+  out: ScopedMetricsOptions['samples'],
+  key: string,
+  rows: readonly Row[],
+): void {
+  if (!out || rows.length === 0) return;
+  if (!rows.every((r) => r.numerator !== null && r.denominator !== null)) return;
+  out.set(key, {
+    numerator: rows.reduce((s, r) => s + Number(r.numerator), 0),
+    denominator: rows.reduce((s, r) => s + Number(r.denominator), 0),
+  });
 }
 
 /**
@@ -189,9 +208,35 @@ export async function scopedMetrics(
   for (const [key, entry] of byKey) {
     if (repoIds.length === 0 && entry.org) {
       set[key] = { value: Number(entry.org.value), dims: entry.org.dims ?? {} };
+      recordSample(opts.samples, key, [entry.org]);
     } else if (entry.repos.length > 0) {
       set[key] = combineRows(key, entry.repos);
+      recordSample(opts.samples, key, entry.repos);
     }
   }
   return set;
+}
+
+/**
+ * When the newest metric snapshot in scope was computed (W20-12, UX_TODO
+ * DSH-48), as ISO text, or null when nothing has been computed. Workspace-
+ * filtered (Law 5); `repoIds` empty = the whole workspace.
+ */
+export async function latestSnapshotAt(
+  db: Queryable,
+  workspaceId: number,
+  repoIds: readonly number[],
+): Promise<string | null> {
+  const [row] = await db
+    .select({ at: sql<Date | string | null>`max(${read.metricSnapshots.computedAt})` })
+    .from(read.metricSnapshots)
+    .where(
+      and(
+        eq(read.metricSnapshots.workspaceId, workspaceId),
+        repoIds.length > 0 ? inArray(read.metricSnapshots.repoId, [...repoIds]) : undefined,
+      ),
+    );
+  const at = row?.at ?? null;
+  if (at === null) return null;
+  return new Date(at).toISOString();
 }

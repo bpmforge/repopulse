@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -16,6 +16,7 @@ import { sendProblem } from '../../lib/problem.js';
 import { isMeasured, repoHealth, repoHealthMany } from '../org/health.js';
 import { repoCapabilities } from '../../lib/capability.js';
 import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
+import { latestSnapshotAt } from '../../lib/scope-metrics.js';
 
 // Drill-down levels 1–2 (FR-API-5, API_DESIGN §2 'repos'). Warehouse-only.
 // Every level returns `links` to its children so a client can walk
@@ -58,6 +59,7 @@ async function requireRepo(
   name: string;
   syncStatus: string;
   pushedAt: Date | null;
+  lastSyncedAt: Date | null;
 } | null> {
   const [repo] = await db
     .select({
@@ -67,6 +69,7 @@ async function requireRepo(
       syncStatus: core.repos.syncStatus,
       workspaceId: core.repos.workspaceId,
       pushedAt: core.repos.pushedAt,
+      lastSyncedAt: core.repos.lastSyncedAt,
     })
     .from(core.repos)
     .where(eq(core.repos.id, id))
@@ -159,12 +162,21 @@ export default async function reposRoutes(
         org: repo.org,
         name: repo.name,
         sync: repo.syncStatus,
+        // W20-12 (UX_TODO DSH-24/48): when the forge was last read and when
+        // the numbers on this page were computed — stale data looked current.
+        last_synced_at: repo.lastSyncedAt?.toISOString() ?? null,
+        as_of: await latestSnapshotAt(db, workspaceId, [repo.id]),
         health: {
           score: measured ? Math.round(health.score) : null,
           letter: measured ? health.letter : null,
           measured,
           basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
           breakdown: health.subScores,
+          // W20-12 (UX_TODO DSH-80): the dropped sub-scores with the weight
+          // each would have carried, and whether the rest were rescaled to
+          // fill the gap — computed all along and never sent.
+          not_measured: health.notMeasured,
+          renormalized: health.renormalized,
         },
         links: repoLinks(repo.id),
       });
@@ -186,10 +198,54 @@ export default async function reposRoutes(
         windowDays: WINDOW_DAYS[request.query.window] ?? 30,
         topN: 50,
       });
+      // W20-12 (UX_TODO DSH-20): each hot file's top owner — the spec's
+      // "hotspot 91 · bus factor 1" row — read as the file page reads owners
+      // (non-merge lines changed, all history), in one grouped statement for
+      // the ranked paths rather than one per file.
+      const paths = ranked.map((h) => h.path);
+      const ownerRows =
+        paths.length === 0
+          ? []
+          : await db
+              .select({
+                path: facts.commitFiles.path,
+                login: core.identities.forgeLogin,
+                lines: sql<number>`sum(${facts.commitFiles.additions} + ${facts.commitFiles.deletions})::int`,
+              })
+              .from(facts.commitFiles)
+              .innerJoin(facts.commits, eq(facts.commitFiles.commitId, facts.commits.id))
+              .innerJoin(core.identities, eq(facts.commits.authorIdentityId, core.identities.id))
+              .where(
+                and(
+                  eq(facts.commitFiles.workspaceId, workspaceId),
+                  eq(facts.commitFiles.repoId, repo.id),
+                  inArray(facts.commitFiles.path, paths),
+                  eq(facts.commits.isMerge, false),
+                ),
+              )
+              .groupBy(facts.commitFiles.path, core.identities.forgeLogin);
+      const owners = new Map<string, { login: string; lines: number; total: number }>();
+      for (const row of ownerRows) {
+        const cur = owners.get(row.path);
+        const lines = row.lines ?? 0;
+        if (!cur) owners.set(row.path, { login: row.login, lines, total: lines });
+        else {
+          cur.total += lines;
+          // Ties break on login so two refreshes cannot name different owners.
+          if (lines > cur.lines || (lines === cur.lines && row.login < cur.login)) {
+            cur.login = row.login;
+            cur.lines = lines;
+          }
+        }
+      }
       return reply.send({
         items: ranked.map((h) => ({
           path: h.path,
           hotspot_score: h.score,
+          top_owner: ((o) =>
+            o ? { login: o.login, share: o.total > 0 ? o.lines / o.total : 0 } : null)(
+            owners.get(h.path),
+          ),
           decomposition: {
             gross: h.gross,
             normChurn: h.normChurn,

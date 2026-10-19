@@ -7,6 +7,7 @@ import {
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { PrList as PrListResponse, PrListItem } from './contracts.js';
+import { formatAge } from '../me/contracts.js';
 
 // Repo PR list (UX_SPEC §4.c). Filters ride the URL so a filtered list is
 // linkable and restores on paste (FR-WEB-2) — the same reason repo tabs are
@@ -19,18 +20,38 @@ interface Props {
   /** URL-synced list filter; undefined = all states. */
   state?: string | undefined;
   onStateChange: (next: string | undefined) => void;
+  /** W20-12 (UX_TODO DSH-46): URL-synced "no review yet" filter. */
+  unreviewed?: boolean;
+  onUnreviewedChange?: (next: boolean) => void;
 }
 
-const STATES = ['open', 'merged', 'closed'] as const;
+// Capitalised labels, lowercase API values (W20-12, UX_TODO DSH-46).
+const STATES = [
+  { value: 'open', label: 'Open' },
+  { value: 'merged', label: 'Merged' },
+  { value: 'closed', label: 'Closed' },
+] as const;
 
-export function PrListScreen({ repoId, window, search, state, onStateChange }: Props) {
+export function PrListScreen({
+  repoId,
+  window,
+  search,
+  state,
+  onStateChange,
+  unreviewed = false,
+  onUnreviewedChange,
+}: Props) {
   const { data, isLoading, isError, error, refetch } = useApiQuery<PrListResponse>({
     endpoint: '/repos/{id}/prs',
     path: { id: repoId },
-    query: { window, ...(state ? { state } : {}) },
+    query: { window, ...(state ? { state } : {}), ...(unreviewed ? { unreviewed: 'true' } : {}) },
   });
 
   const items = data?.items ?? [];
+  const now = Date.now();
+  // W20-12 (UX_TODO DSH-65): say what the list covers. Open means every open
+  // PR; any other filter is the PRs opened in the window.
+  const allOpen = data?.scope === 'all_open' || state === 'open';
 
   const columns: DataTableColumn<PrListItem>[] = [
     {
@@ -48,7 +69,24 @@ export function PrListScreen({ repoId, window, search, state, onStateChange }: P
         </Link>
       ),
     },
-    { id: 'state', header: 'State', cell: (row) => row.state },
+    // W20-12 (UX_TODO DSH-46): the org list's columns — who opened it, and
+    // how long it has been open.
+    { id: 'author', header: 'Author', cell: (row) => row.author ?? '—' },
+    {
+      id: 'state',
+      header: 'State',
+      cell: (row) => (row.is_draft && row.state === 'open' ? 'draft' : row.state),
+    },
+    {
+      id: 'age',
+      header: 'Age',
+      align: 'right',
+      cell: (row) => (
+        <span className="tabular-nums">
+          {row.opened_at && row.state === 'open' ? formatAge(row.opened_at, now) : '—'}
+        </span>
+      ),
+    },
     { id: 'size', header: 'Size', cell: (row) => row.size_bucket },
     {
       id: 'reviewed',
@@ -74,15 +112,26 @@ export function PrListScreen({ repoId, window, search, state, onStateChange }: P
         >
           <option value="">All</option>
           {STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
+            <option key={s.value} value={s.value}>
+              {s.label}
             </option>
           ))}
         </select>
+        {onUnreviewedChange && (
+          <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+            <input
+              type="checkbox"
+              checked={unreviewed}
+              onChange={(e) => onUnreviewedChange(e.target.checked)}
+              data-testid="pr-unreviewed-filter"
+            />
+            No review yet
+          </label>
+        )}
       </div>
 
       <WidgetFrame
-        title="Pull requests"
+        title={allOpen ? 'Pull requests — all open' : `Pull requests opened in the last ${window}`}
         state={frameState({
           isLoading,
           isError,

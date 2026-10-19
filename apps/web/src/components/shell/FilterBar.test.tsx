@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FilterBar } from './FilterBar.js';
 import { buildUrl } from '../../api/client.js';
@@ -42,5 +42,40 @@ describe('custom window range', () => {
     expect(buildUrl('/org/summary', { query: { window: '90d' } })).toBe(
       '/api/v1/org/summary?window=90d',
     );
+  });
+});
+
+// W20-12 (UX_TODO DSH-63): typing is a draft; Enter, blur or a pick applies it.
+describe('person filter applies on Enter, not per keystroke', () => {
+  const personOnly = { window: false, repos: false, person: true };
+
+  it('does not call onChange while typing, and does on Enter', () => {
+    const onChange = vi.fn();
+    render(<FilterBar value={{ window: '30d' } as never} onChange={onChange} scope={personOnly} />);
+    const input = screen.getByTestId('filter-person');
+    fireEvent.change(input, { target: { value: 'al' } });
+    fireEvent.change(input, { target: { value: 'alice' } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith({ person: 'alice' });
+  });
+
+  it('applies a picked suggestion at once, and clears on an emptied box', () => {
+    const onChange = vi.fn();
+    render(
+      <FilterBar
+        value={{ window: '30d', person: 'bob' } as never}
+        onChange={onChange}
+        personOptions={['alice', 'bob']}
+        scope={personOnly}
+      />,
+    );
+    const input = screen.getByTestId('filter-person');
+    fireEvent.change(input, { target: { value: 'alice' } });
+    expect(onChange).toHaveBeenLastCalledWith({ person: 'alice' });
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenLastCalledWith({ person: null });
   });
 });

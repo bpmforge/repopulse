@@ -15,6 +15,10 @@ export interface MyPr {
   size_bucket: string;
   opened_at: string;
   merged_at: string | null;
+  /** W20-12 (UX_TODO DSH-42): the stage chip's inputs. Optional: older API. */
+  is_draft?: boolean;
+  first_review_at?: string | null;
+  first_approval_at?: string | null;
   links: { self: string };
 }
 
@@ -41,6 +45,8 @@ export interface MyHotspot {
   repo: RepoRef;
   path: string;
   my_lines: number;
+  /** W20-12 (UX_TODO DSH-88): the trailing window my_lines is summed over. */
+  window_days?: number;
   links: { file: string };
 }
 
@@ -51,6 +57,21 @@ export interface MyHotspots {
 export interface MyStats {
   merged_prs: number;
   median_size: number | null;
+  /** W20-12 (UX_TODO DSH-40): the period the counts cover. */
+  period?: 'all_time';
+}
+
+/**
+ * Where an open PR of mine is, and since when (W20-12, UX_TODO DSH-42) —
+ * the spec's stage chip. Null for a PR that is no longer open: merged and
+ * closed PRs are history, not a stage.
+ */
+export function prStage(pr: MyPr): { label: string; since: string } | null {
+  if (pr.state !== 'open') return null;
+  if (pr.is_draft) return { label: 'Draft', since: pr.opened_at };
+  if (pr.first_approval_at) return { label: 'Approved — not merged', since: pr.first_approval_at };
+  if (pr.first_review_at) return { label: 'In review', since: pr.first_review_at };
+  return { label: 'Waiting for first review', since: pr.opened_at };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

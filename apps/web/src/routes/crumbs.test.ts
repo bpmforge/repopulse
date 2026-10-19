@@ -15,7 +15,7 @@ const payments = { pathPrefix: '/repos/34083', label: 'payments', to: '/repos/34
 describe('deriveCrumbs', () => {
   it('names the repository between the section and the tab', () => {
     expect(deriveCrumbs('/repos/34083/security', payments).map((c) => c.label)).toEqual([
-      'Org',
+      'Overview',
       'Repositories',
       'payments',
       'Security',
@@ -24,7 +24,7 @@ describe('deriveCrumbs', () => {
 
   it('is unchanged when no screen has published one', () => {
     expect(deriveCrumbs('/repos/34083/security', null).map((c) => c.label)).toEqual([
-      'Org',
+      'Overview',
       'Repositories',
       'Security',
     ]);
@@ -36,11 +36,14 @@ describe('deriveCrumbs', () => {
     // store. A trail that is confidently wrong is worse than a thin one — it
     // tells you that you are looking at something you are not.
     expect(deriveCrumbs('/repos/99999/security', payments).map((c) => c.label)).toEqual([
-      'Org',
+      'Overview',
       'Repositories',
       'Security',
     ]);
-    expect(deriveCrumbs('/findings', payments).map((c) => c.label)).toEqual(['Org', 'Reviews']);
+    expect(deriveCrumbs('/findings', payments).map((c) => c.label)).toEqual([
+      'Overview',
+      'Reviews',
+    ]);
   });
 
   it('links the repository crumb back to the repo, so the trail is navigable', () => {
@@ -53,7 +56,7 @@ describe('deriveCrumbs', () => {
   it('still skips a numeric id when nothing named it', () => {
     // "Org › Repos › 34083" would be worse than saying nothing — the same
     // mistake F11 was about, and the reason this was left unfinished.
-    expect(deriveCrumbs('/repos/34083').map((c) => c.label)).toEqual(['Org', 'Repositories']);
+    expect(deriveCrumbs('/repos/34083').map((c) => c.label)).toEqual(['Overview', 'Repositories']);
   });
 });
 
@@ -71,17 +74,22 @@ describe('trail wording and the document title', () => {
 
   it('names the Activity and Performance tabs like every other tab', () => {
     expect(deriveCrumbs('/repos/34083/activity', payments).at(-1)?.label).toBe('Activity');
-    expect(deriveCrumbs('/repos/34083/performance', payments).at(-1)?.label).toBe('Performance');
+    expect(deriveCrumbs('/repos/34083/performance', payments).at(-1)?.label).toBe(
+      'Performance findings',
+    );
   });
 
   it('names the W18-29 screens (governance, sensitive changes, verified fixes)', () => {
-    expect(deriveCrumbs('/governance').map((c) => c.label)).toEqual(['Org', 'AI-code governance']);
+    expect(deriveCrumbs('/governance').map((c) => c.label)).toEqual([
+      'Overview',
+      'AI-code governance',
+    ]);
     expect(deriveCrumbs('/sensitive-changes').map((c) => c.label)).toEqual([
-      'Org',
+      'Overview',
       'Sensitive changes',
     ]);
     expect(deriveCrumbs('/admin/patches').map((c) => c.label)).toEqual([
-      'Org',
+      'Overview',
       'Settings',
       'Verified fixes',
     ]);
@@ -93,5 +101,30 @@ describe('trail wording and the document title', () => {
     );
     expect(documentTitle(deriveCrumbs('/'))).toBe('Overview · RepoPulse');
     expect(documentTitle(deriveCrumbs('/findings'))).toBe('Reviews · RepoPulse');
+  });
+});
+
+// W20-12 (UX_TODO DSH-34): the trail names the leaf on drill-down pages.
+describe('drill-down leaves', () => {
+  it('ends a file page at the file path, not a dead "Files" crumb', () => {
+    const crumbs = deriveCrumbs('/repos/34083/files/src/pay%20ments/charge.ts', payments);
+    expect(crumbs.map((c) => c.label)).toEqual([
+      'Overview',
+      'Repositories',
+      'payments',
+      'src/pay ments/charge.ts',
+    ]);
+  });
+
+  it('ends PR detail at the number, with Pull Requests linking to the repo list', () => {
+    const crumbs = deriveCrumbs('/repos/34083/prs/412', payments);
+    expect(crumbs.map((c) => c.label)).toEqual([
+      'Overview',
+      'Repositories',
+      'payments',
+      'Pull Requests',
+      '#412',
+    ]);
+    expect(crumbs.find((c) => c.label === 'Pull Requests')?.to).toBe('/repos/34083/prs');
   });
 });

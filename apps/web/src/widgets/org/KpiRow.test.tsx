@@ -45,6 +45,51 @@ describe('org KPI row', () => {
     renderWith({ window: '30d', tiles: [{ metric_key: 'M5', value: null, delta: null }] });
     const tiles = await screen.findAllByTestId('kpi-tile');
     expect(tiles.length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/not measured|no prior window|not compared/i).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/not measured|no prior window|not compared/i).length,
+    ).toBeGreaterThan(0);
+  });
+});
+
+describe('KPI deltas and samples (W20-12)', () => {
+  it('shows a percentage metric change in points, with better/worse in words (DSH-17)', async () => {
+    renderWith({
+      window: '30d',
+      tiles: [{ metric_key: 'M5', value: 0.45, delta: 0.05, previous: 0.4 }],
+    });
+    const tile = (await screen.findAllByTestId('kpi-tile')).find((t) =>
+      t.textContent?.includes('Review coverage'),
+    )!;
+    expect(tile.textContent).toContain('5.0 pts');
+    expect(tile.textContent).toContain('better');
+    expect(tile.textContent).not.toMatch(/12\.5%/);
+  });
+
+  it('shows the change from a zero baseline instead of "no prior window" (DSH-83)', async () => {
+    renderWith({
+      window: '30d',
+      tiles: [{ metric_key: 'M10', value: 5, delta: 5, previous: 0 }],
+    });
+    const tile = (await screen.findAllByTestId('kpi-tile')).find((t) =>
+      t.textContent?.includes('Issue throughput'),
+    )!;
+    expect(tile.textContent).toContain('5 from 0');
+    expect(tile.textContent).not.toMatch(/no prior window/);
+  });
+
+  it('says how many items a ratio rests on, and flags a small sample (DSH-81)', async () => {
+    renderWith({
+      window: '30d',
+      tiles: [
+        {
+          metric_key: 'M5',
+          value: 1,
+          delta: null,
+          previous: null,
+          sample: { numerator: 1, denominator: 1 },
+        },
+      ],
+    });
+    expect(await screen.findByTestId('kpi-sample-M5')).toHaveTextContent('1 of 1 · small sample');
   });
 });

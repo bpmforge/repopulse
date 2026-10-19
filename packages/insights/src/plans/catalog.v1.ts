@@ -131,7 +131,13 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     rankWeight: 55,
     condition: (m) => above(dim(m, 'M7', ['xlShare']), 0.15),
     evidence: (m) => ({ metricKeys: ['M7'], xlShare: dim(m, 'M7', ['xlShare']) }),
-    verifyCriterion: { metricKey: 'M7', op: 'lte', target: 0.15, windowDays: 30, dimPath: ['xlShare'] },
+    verifyCriterion: {
+      metricKey: 'M7',
+      op: 'lte',
+      target: 0.15,
+      windowDays: 30,
+      dimPath: ['xlShare'],
+    },
   },
   {
     id: 'stale-queue',
@@ -151,13 +157,17 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     effort: 'L',
     source: 'metric',
     rankWeight: 90,
-    condition: (m) => above(num(m, 'M2'), 0.5) && dim(m, 'M3', ['busFactor']) === 1,
+    // W20-12: the bus factor IS M3's snapshot value (metrics compute.ts
+    // stores `value: ownership.busFactor`, dims only topShare/singleOwner).
+    // Reading a `busFactor` dim returned null on every real snapshot, so this
+    // entry could never be proposed and an item could never verify.
+    condition: (m) => above(num(m, 'M2'), 0.5) && num(m, 'M3') === 1,
     evidence: (m) => ({
       metricKeys: ['M2', 'M3'],
       hotspot: num(m, 'M2'),
-      busFactor: dim(m, 'M3', ['busFactor']),
+      busFactor: num(m, 'M3'),
     }),
-    verifyCriterion: { metricKey: 'M3', op: 'gte', target: 2, windowDays: 365, dimPath: ['busFactor'] },
+    verifyCriterion: { metricKey: 'M3', op: 'gte', target: 2, windowDays: 365 },
   },
   {
     id: 'flaky-workflow',
@@ -167,7 +177,13 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     rankWeight: 75,
     condition: (m) => above(dim(m, 'M9', ['topFlakiness']), 0.1),
     evidence: (m) => ({ metricKeys: ['M9'], topFlakiness: dim(m, 'M9', ['topFlakiness']) }),
-    verifyCriterion: { metricKey: 'M9', op: 'lte', target: 0.05, windowDays: 30, dimPath: ['topFlakiness'] },
+    verifyCriterion: {
+      metricKey: 'M9',
+      op: 'lte',
+      target: 0.05,
+      windowDays: 30,
+      dimPath: ['topFlakiness'],
+    },
   },
   {
     id: 'ci-slow',
@@ -187,7 +203,13 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
       p90: dim(m, 'M9', ['duration', 'p90']),
       median: dim(m, 'M9', ['duration', 'median']),
     }),
-    verifyCriterion: { metricKey: 'M9', op: 'lte', target: 1.2, windowDays: 30, dimPath: ['duration', 'p90Ratio'] },
+    verifyCriterion: {
+      metricKey: 'M9',
+      op: 'lte',
+      target: 1.2,
+      windowDays: 30,
+      dimPath: ['duration', 'p90Ratio'],
+    },
   },
   {
     id: 'cfr-high',
@@ -197,7 +219,13 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     rankWeight: 80,
     condition: (m) => above(dim(m, 'M12', ['changeFailureRate']), 0.15),
     evidence: (m) => ({ metricKeys: ['M12'], cfr: dim(m, 'M12', ['changeFailureRate']) }),
-    verifyCriterion: { metricKey: 'M12', op: 'lte', target: 0.1, windowDays: 90, dimPath: ['changeFailureRate'] },
+    verifyCriterion: {
+      metricKey: 'M12',
+      op: 'lte',
+      target: 0.1,
+      windowDays: 90,
+      dimPath: ['changeFailureRate'],
+    },
   },
   {
     id: 'release-stale',
@@ -207,7 +235,13 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     rankWeight: 40,
     condition: (m) => above(dim(m, 'M11', ['daysSinceLast']), 60),
     evidence: (m) => ({ metricKeys: ['M11'], daysSinceLast: dim(m, 'M11', ['daysSinceLast']) }),
-    verifyCriterion: { metricKey: 'M11', op: 'lte', target: 30, windowDays: 30, dimPath: ['daysSinceLast'] },
+    verifyCriterion: {
+      metricKey: 'M11',
+      op: 'lte',
+      target: 30,
+      windowDays: 30,
+      dimPath: ['daysSinceLast'],
+    },
   },
   // The three finding-driven entries. Their conditions are false in v1 because
   // findings do not exist until W6 — declared now so the catalog is complete
@@ -220,7 +254,13 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     rankWeight: 95,
     condition: (m) => above(dim(m, 'FINDINGS', ['sevClusterCount']), 2),
     evidence: (m) => ({ findingIds: m.FINDINGS?.dims.clusterFindingIds ?? [] }),
-    verifyCriterion: { metricKey: 'FINDINGS', op: 'lte', target: 0, windowDays: 1, dimPath: ['sevClusterCount'] },
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 1,
+      dimPath: ['sevClusterCount'],
+    },
   },
   {
     id: 'kev-or-chain-open',
@@ -232,7 +272,13 @@ export const CATALOG_V1: readonly CatalogEntry[] = [
     rankWeight: 1000,
     condition: (m) => above(dim(m, 'FINDINGS', ['kevOrChainOpen']), 0),
     evidence: (m) => ({ findingIds: m.FINDINGS?.dims.kevFindingIds ?? [] }),
-    verifyCriterion: { metricKey: 'FINDINGS', op: 'lte', target: 0, windowDays: 1, dimPath: ['kevOrChainOpen'] },
+    verifyCriterion: {
+      metricKey: 'FINDINGS',
+      op: 'lte',
+      target: 0,
+      windowDays: 1,
+      dimPath: ['kevOrChainOpen'],
+    },
   },
   {
     id: 'act-band-cluster',

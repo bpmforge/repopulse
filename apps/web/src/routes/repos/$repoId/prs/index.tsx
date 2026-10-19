@@ -10,7 +10,11 @@ export const Route = createFileRoute('/repos/$repoId/prs/')({
 
 function RepoPrList() {
   const { repoId } = useParams({ from: '/repos/$repoId' });
-  const search = Route.useSearch() as Record<string, string> & { window: string; state?: string };
+  const search = Route.useSearch() as Record<string, string> & {
+    window: string;
+    state?: string;
+    unreviewed?: string | boolean;
+  };
   const navigate = useNavigate();
 
   return (
@@ -19,6 +23,18 @@ function RepoPrList() {
       window={search.window}
       search={serializeGlobalSearch(search)}
       state={search.state}
+      // W20-12 (UX_TODO DSH-46): the org list's "unreviewed" filter, URL-synced.
+      unreviewed={search.unreviewed === true || search.unreviewed === 'true'}
+      onUnreviewedChange={(next) =>
+        void navigate({
+          to: '.',
+          search: (prev: Record<string, unknown>) => {
+            const rest = { ...prev };
+            delete rest.unreviewed;
+            return next ? { ...rest, unreviewed: 'true' } : rest;
+          },
+        } as never)
+      }
       onStateChange={(next) =>
         void navigate({
           to: '.',

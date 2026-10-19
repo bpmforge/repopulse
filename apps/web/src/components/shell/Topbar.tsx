@@ -12,11 +12,21 @@ export interface TopbarProps extends FilterBarProps {
   actions?: ReactNode;
 }
 
-export function Topbar({ value, onChange, repoOptions, personOptions, scope, actions }: TopbarProps) {
+export function Topbar({
+  value,
+  onChange,
+  repoOptions,
+  personOptions,
+  scope,
+  actions,
+}: TopbarProps) {
   const sseConnection = useUiStore((s) => s.sseConnection);
   return (
     <header
-      className="flex items-center justify-between gap-3 bg-bg px-4 pt-3 pb-1"
+      // W20-12 (UX_TODO DSH-67): wraps on a phone. A long org/repo option
+      // pushed the filters and the Live chip past the edge, where the shell's
+      // overflow-hidden clipped them out of reach.
+      className="flex flex-wrap items-center justify-between gap-3 bg-bg px-4 pt-3 pb-1"
       data-testid="topbar"
     >
       <FilterBar

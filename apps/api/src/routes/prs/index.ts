@@ -3,8 +3,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { core, facts, type Database } from '@repopulse/shared';
-import { prSizeBucket } from '@repopulse/metrics';
+import { prSizeBucket, readMetricTrend } from '@repopulse/metrics';
+import { rankHotspots } from '@repopulse/insights';
 import { sendProblem } from '../../lib/problem.js';
+import { prForgeUrl, readRepoForge } from '../../lib/forge-links.js';
 import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // PR drill-down (level 3, FR-METRICS-4..8, API_DESIGN §2 'prs'). Warehouse-only.
@@ -132,9 +134,14 @@ export default async function prsRoutes(
       const days = WINDOW_DAYS[request.query.window] ?? 30;
       const windowStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
+      // W20-12 (UX_TODO DSH-65): State = Open lists EVERY open PR, whatever
+      // its age. The oldest still-open PRs are the ones a retro most needs,
+      // and the window hid them at the default 30d. PR Flow never asks for
+      // state=open, so its cohort (and the funnel's nesting) is unchanged.
+      const allOpen = request.query.state === 'open';
       const conds = [
         eq(facts.pullRequests.repoId, request.params.id),
-        gte(facts.pullRequests.createdAt, windowStart),
+        ...(allOpen ? [] : [gte(facts.pullRequests.createdAt, windowStart)]),
       ];
       if (request.query.state) conds.push(eq(facts.pullRequests.state, request.query.state));
       const rows = await db
@@ -170,9 +177,11 @@ export default async function prsRoutes(
           first_approval_at: p.firstApprovalAt?.toISOString() ?? null,
           merged_at: p.mergedAt?.toISOString() ?? null,
           review_covered: p.firstReviewAt !== null,
+          is_draft: p.isDraft,
           links: { self: `/api/v1/repos/${request.params.id}/prs/${p.number}` },
         }));
-      return reply.send({ items });
+      // What the list covers, so the screen can caption it honestly.
+      return reply.send({ items, scope: allOpen ? 'all_open' : 'opened_in_window' });
     },
   );
 
@@ -183,8 +192,10 @@ export default async function prsRoutes(
     async (request, reply) => {
       const workspaceId = request.workspace?.id;
       if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
-      if (!(await ownsRepo(db, workspaceId, request.params.id)))
-        return fail(request, reply, 404, 'Not Found');
+      // Workspace-filtered (Law 5); also the facts the forge link is built
+      // from (W20-12, UX_TODO DSH-38).
+      const forge = await readRepoForge(db, workspaceId, request.params.id);
+      if (!forge) return fail(request, reply, 404, 'Not Found');
 
       const [pr] = await db
         .select()
@@ -230,10 +241,53 @@ export default async function prsRoutes(
         .from(facts.prFiles)
         .where(eq(facts.prFiles.pullRequestId, pr.id));
 
+      // W20-12 (UX_TODO DSH-38): who opened it, the repository's typical stage
+      // times to read this PR's against, and each file's current hotspot score.
+      // All three are warehouse reads (C1) — the author from identities, the
+      // medians from M4's newest 30d snapshot (the same numbers PR Flow and
+      // Pulse show), the scores from the repo Hotspots tab's own ranking.
+      const [author] = await db
+        .select({ login: core.identities.forgeLogin })
+        .from(core.identities)
+        .where(eq(core.identities.id, pr.authorIdentityId))
+        .limit(1);
+      const [m4] = await readMetricTrend(db, {
+        workspaceId,
+        repoId: request.params.id,
+        metricKey: 'M4',
+        window: '30d',
+        limit: 1,
+      });
+      const stages = (m4?.dims as { stages?: Record<string, { median?: number | null }> } | null)
+        ?.stages;
+      const medianOf = (key: string): number | null => {
+        const v = stages?.[key]?.median;
+        return typeof v === 'number' ? v : null;
+      };
+      const hot = new Map(
+        files.length === 0
+          ? []
+          : (
+              await rankHotspots(db, {
+                repoIds: [request.params.id],
+                asOf: new Date(),
+                windowDays: 30,
+              })
+            ).map((h) => [h.path, h.score] as const),
+      );
+
       return reply.send({
         number: pr.number,
         title: pr.title,
         state: pr.state,
+        is_draft: pr.isDraft,
+        author: author?.login ?? null,
+        forge_url: prForgeUrl(forge, pr.number),
+        repo_stage_medians_hours: {
+          open_to_first_review: medianOf('openToFirstReview'),
+          first_review_to_approved: medianOf('firstReviewToApproved'),
+          approved_to_merged: medianOf('approvedToMerged'),
+        },
         size_bucket: prSizeBucket(pr.additions + pr.deletions),
         opened_at: pr.createdAt.toISOString(),
         merged_at: pr.mergedAt?.toISOString() ?? null,
@@ -252,6 +306,7 @@ export default async function prsRoutes(
           additions: f.additions,
           deletions: f.deletions,
           change_type: f.changeType,
+          hotspot_score: hot.get(f.path) ?? null,
           links: { file: `/api/v1/repos/${request.params.id}/files/${encodeURIComponent(f.path)}` },
         })),
       });
@@ -302,6 +357,14 @@ export default async function prsRoutes(
       conds.push(eq(facts.pullRequests.state, 'open'));
       conds.push(lt(facts.pullRequests.lastActivityAt, cutoff));
     }
+
+    // W20-12 (UX_TODO DSH-45): the TOTAL for these filters, before the cursor
+    // narrows to a page — "Next page" alone never said how many there were.
+    const [counted] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(facts.pullRequests)
+      .innerJoin(core.identities, eq(facts.pullRequests.authorIdentityId, core.identities.id))
+      .where(and(...conds));
 
     if (q.cursor) {
       const after = decodeCursor(q.cursor);
@@ -358,6 +421,7 @@ export default async function prsRoutes(
         links: { self: `/api/v1/repos/${p.repoId}/prs/${p.number}` },
       })),
       next_cursor: nextCursor,
+      total: counted?.n ?? 0,
     });
   });
 }

@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, inArray, isNotNull, lte } from 'drizzle-orm';
 import { core, read, type Database } from '@repopulse/shared';
+import { HEALTH_BAND_LABEL, healthBand } from '@repopulse/shared/health-band';
 import type { ReportSection } from '../types/index.js';
 
 // The risk opener (W9-12, RISK_MODEL.md §5, FR-RISK-6).
@@ -210,16 +211,19 @@ async function movementSection(
 }
 
 /**
- * Axis letters for the report header (RISK_MODEL §4).
+ * Risk axes for the report header (RISK_MODEL §4).
  *
  * Takes the sub-scores the caller already computed rather than deriving
- * anything: a letter computed here would be a second scoring system with the
+ * anything: a score computed here would be a second scoring system with the
  * same name as the first. An ABSENT sub-score produces an absent axis with a
  * basis line — never a grade nobody measured (FR-INSIGHTS-3).
+ *
+ * W20-12: each axis prints its 0–100 score and the health band word, as the
+ * dashboard has since W20-09 — never an A–E letter (N-9 "signals, not
+ * grades"; RISK_MODEL §4 presentation note).
  */
 export function axisSection(
   subScores: readonly { key: string; normalized: number }[],
-  letterFor: (score: number) => string,
 ): ReportSection {
   const AXES: { key: string; label: string }[] = [
     { key: 'security', label: 'Security' },
@@ -244,18 +248,18 @@ export function axisSection(
       kind: 'no_data',
       id: 'risk_axes',
       reason:
-        'No sub-score could be computed for this scope, so no axis letters are shown. A letter here would be a grade nobody measured.',
+        'No sub-score could be computed for this scope, so no axis scores are shown. A score here would be a grade nobody measured.',
     };
   }
 
   return {
     kind: 'table',
     id: 'risk_axes',
-    columns: ['Axis', 'Letter', 'Score', 'Basis'],
+    columns: ['Axis', 'Score', 'Band', 'Basis'],
     rows: present.map((p) => [
       p.axis.label,
-      p.sub ? letterFor(p.sub.normalized) : '—',
-      p.sub ? Math.round(p.sub.normalized * 10) / 10 : null,
+      p.sub ? Math.round(p.sub.normalized) : null,
+      p.sub ? HEALTH_BAND_LABEL[healthBand(Math.round(p.sub.normalized))] : '—',
       // The absent case says WHY rather than showing a dash and leaving the
       // reader to guess whether it is bad or unmeasured.
       p.sub ? 'scored' : 'not measured for this scope — no inputs available',

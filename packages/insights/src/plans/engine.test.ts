@@ -77,14 +77,20 @@ describe('generation', () => {
   it('suppresses a dismissed catalog id instead of re-proposing it', () => {
     // FR-PLANS-2: dismissing has to stick, or the next nightly run undoes a
     // human decision and the dismiss button becomes noise.
-    const items = generatePlanItems({ metrics: breaching, dismissedCatalogIds: ['unreviewed-merges'] });
+    const items = generatePlanItems({
+      metrics: breaching,
+      dismissedCatalogIds: ['unreviewed-merges'],
+    });
     expect(items.map((i) => i.catalogId)).not.toContain('unreviewed-merges');
     expect(items[0]?.rank).toBe(1);
   });
 
   it('pins a KEV/chain finding above everything else', () => {
     const items = generatePlanItems({
-      metrics: { ...breaching, FINDINGS: { value: null, dims: { kevOrChainOpen: 2, kevFindingIds: [7] } } },
+      metrics: {
+        ...breaching,
+        FINDINGS: { value: null, dims: { kevOrChainOpen: 2, kevFindingIds: [7] } },
+      },
     });
     expect(items[0]?.catalogId).toBe('kev-or-chain-open');
   });
@@ -92,6 +98,33 @@ describe('generation', () => {
   it('links evidence rather than copying data', () => {
     const [item] = generatePlanItems({ metrics: { M5: { value: 0.4, dims: {} } } });
     expect(item?.evidence).toMatchObject({ metricKeys: ['M5'], value: 0.4 });
+  });
+});
+
+describe('hotspot-bus-factor reads M3 as stored (W20-12)', () => {
+  // packages/metrics compute.ts stores the bus factor as M3's VALUE, with
+  // dims { topShare, singleOwner }. The entry read a `busFactor` dim that no
+  // snapshot carries, so it could neither propose nor verify. The fixture is
+  // shaped exactly like a stored snapshot to keep that from coming back.
+  const stored = (busFactor: number): MetricSet => ({
+    M2: { value: 0.8, dims: { count: 12 } },
+    M3: { value: busFactor, dims: { topShare: 0.7, singleOwner: busFactor === 1 } },
+  });
+
+  it('is proposed for a hot repository with a single owner', () => {
+    const items = generatePlanItems({ metrics: stored(1) });
+    const item = items.find((i) => i.catalogId === 'hotspot-bus-factor');
+    expect(item).toBeDefined();
+    expect(item?.evidence).toMatchObject({ busFactor: 1 });
+  });
+
+  it('is not proposed once a second owner exists, and its criterion then holds', () => {
+    expect(generatePlanItems({ metrics: stored(2) }).map((i) => i.catalogId)).not.toContain(
+      'hotspot-bus-factor',
+    );
+    const entry = CATALOG_V1.find((e) => e.id === 'hotspot-bus-factor')!;
+    expect(evaluateCriterion(stored(2), entry.verifyCriterion)).toBe('holds');
+    expect(evaluateCriterion(stored(1), entry.verifyCriterion)).toBe('broken');
   });
 });
 
@@ -125,7 +158,7 @@ describe('verification', () => {
     expect(verifyTransition('accepted', 'unknown', criterion)).toBeNull();
   });
 
-  it('never accepts or un-dismisses on a human\'s behalf', () => {
+  it("never accepts or un-dismisses on a human's behalf", () => {
     // proposed → accepted is a decision; the verifier does not make it, and it
     // must not resurrect something a person deliberately dismissed.
     expect(verifyTransition('proposed', 'holds', criterion)).toBeNull();
@@ -134,8 +167,19 @@ describe('verification', () => {
   });
 
   it('reads a dim path when the criterion names one', () => {
-    const p90 = { metricKey: 'M4', op: 'lte' as const, target: 24, windowDays: 30, dimPath: ['stages', 'openToFirstReview', 'p90'] };
-    expect(evaluateCriterion({ M4: { value: 99, dims: { stages: { openToFirstReview: { p90: 12 } } } } }, p90)).toBe('holds');
+    const p90 = {
+      metricKey: 'M4',
+      op: 'lte' as const,
+      target: 24,
+      windowDays: 30,
+      dimPath: ['stages', 'openToFirstReview', 'p90'],
+    };
+    expect(
+      evaluateCriterion(
+        { M4: { value: 99, dims: { stages: { openToFirstReview: { p90: 12 } } } } },
+        p90,
+      ),
+    ).toBe('holds');
     // The snapshot VALUE is 99 and would fail; reading the wrong field would
     // regress an item that is actually fine.
     expect(evaluateCriterion({ M4: { value: 1, dims: {} } }, p90)).toBe('unknown');
@@ -286,7 +330,7 @@ describe('one plan per scope (W17-24)', () => {
     ).toBe(true);
   });
 
-  it('ignores the existing plan\'s dismissed items, which generation never re-proposes', () => {
+  it("ignores the existing plan's dismissed items, which generation never re-proposes", () => {
     const fresh = [{ catalogId: 'stale-queue' }];
     expect(
       isSameProposal(fresh, [
@@ -300,7 +344,10 @@ describe('one plan per scope (W17-24)', () => {
     expect(
       isSameProposal(
         [{ catalogId: 'a' }, { catalogId: 'b' }],
-        [{ catalogId: 'b', status: 'proposed' }, { catalogId: 'a', status: 'proposed' }],
+        [
+          { catalogId: 'b', status: 'proposed' },
+          { catalogId: 'a', status: 'proposed' },
+        ],
       ),
     ).toBe(false);
     expect(isSameProposal([{ catalogId: 'a' }], [])).toBe(false);
@@ -378,7 +425,11 @@ describe('explained, evidence-based progress (W17-25)', () => {
   it('reads no verification from evidence that carries none or carries junk', () => {
     expect(lastVerificationOf({ metricKeys: ['M5'] })).toBeNull();
     expect(lastVerificationOf({ lastVerification: 'yes' })).toBeNull();
-    expect(lastVerificationOf({ lastVerification: { outcome: 'fine', checkedAt: 'x' } })).toBeNull();
-    expect(lastVerificationOf({ lastVerification: { outcome: 'holds', observed: 'n', checkedAt: 'x' } })).toBeNull();
+    expect(
+      lastVerificationOf({ lastVerification: { outcome: 'fine', checkedAt: 'x' } }),
+    ).toBeNull();
+    expect(
+      lastVerificationOf({ lastVerification: { outcome: 'holds', observed: 'n', checkedAt: 'x' } }),
+    ).toBeNull();
   });
 });

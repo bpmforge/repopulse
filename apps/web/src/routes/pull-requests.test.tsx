@@ -9,7 +9,13 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { createQueryClient } from '../api/queryClient.js';
-import { Route as PrsRoute, repoIdParam, validatePrListSearch } from './pull-requests.js';
+import {
+  Route as PrsRoute,
+  popPage,
+  pushPage,
+  repoIdParam,
+  validatePrListSearch,
+} from './pull-requests.js';
 
 // W20-05 (UX_TODO DSH-13). The filters and page lived in component state, so
 // Back from a pull request reset them; a multi-repo filter was a 400.
@@ -98,5 +104,21 @@ describe('PR list filters live in the URL', () => {
     fireEvent.change(screen.getByTestId('pr-filter-size'), { target: { value: 'S' } });
     await waitFor(() => expect(router.state.location.search).toMatchObject({ size: 'S' }));
     expect(router.state.location.search).not.toHaveProperty('cursor');
+  });
+});
+
+describe('paging back as well as forward (W20-12, UX_TODO DSH-45)', () => {
+  it('keeps a cursor history and pops it, with ~ for the first page', () => {
+    const afterFirst = pushPage(undefined, undefined);
+    expect(afterFirst).toBe('~');
+    const afterSecond = pushPage(afterFirst, '100:7');
+    expect(afterSecond).toBe('~,100:7');
+    expect(popPage(afterSecond)).toEqual({ cursor: '100:7', prev: '~' });
+    expect(popPage('~')).toEqual({});
+  });
+
+  it('drops a malformed history rather than failing the page', () => {
+    expect(validatePrListSearch({ prev: '~,100:7' })).toEqual({ prev: '~,100:7' });
+    expect(validatePrListSearch({ prev: '<script>' })).toEqual({});
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blobUrl, webBaseUrl } from './blob-url.js';
+import { blobUrl, pullUrl, webBaseUrl } from './blob-url.js';
 
 // W16-41. A finding's detail panel rendered `src/service.ts:15–18` as plain
 // text, so on a triage tool whose entire workflow is "look at this one", the
@@ -100,5 +100,20 @@ describe('the web root behind an API base (W16-41)', () => {
     // null here really is unknown — unlike github/gitlab, where it means the
     // public instance. A guessed host would produce a link that 404s.
     expect(webBaseUrl('gitea', null)).toBeNull();
+  });
+});
+
+describe('a link to a pull request in the forge (W20-12, DSH-38)', () => {
+  const pr = { baseUrl: 'https://example.com/', org: 'acme', repo: 'payments', number: 412 };
+  it("uses each forge's own PR page", () => {
+    expect(pullUrl({ ...pr, kind: 'github' })).toBe('https://example.com/acme/payments/pull/412');
+    expect(pullUrl({ ...pr, kind: 'gitlab' })).toBe(
+      'https://example.com/acme/payments/-/merge_requests/412',
+    );
+    expect(pullUrl({ ...pr, kind: 'gitea' })).toBe('https://example.com/acme/payments/pulls/412');
+  });
+  it('has no link rather than a wrong one', () => {
+    expect(pullUrl({ ...pr, kind: 'github', baseUrl: '' })).toBeNull();
+    expect(pullUrl({ ...pr, kind: 'github', number: 0 })).toBeNull();
   });
 });

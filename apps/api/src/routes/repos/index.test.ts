@@ -264,12 +264,51 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     const prDetail = await g(pr.links.self);
     expect(prDetail.statusCode).toBe(200);
     expect(prDetail.json().number).toBe(1);
+    // W20-12 (DSH-38): author, the forge link and the repo's stage medians.
+    expect(prDetail.json()).toMatchObject({
+      author: FIXTURE,
+      forge_url: 'https://github.com/acme/w401/pull/1',
+    });
+    expect(prDetail.json()).toHaveProperty('repo_stage_medians_hours');
+    // W20-12 (DSH-65): State = Open is every open PR, and says so; the
+    // windowed cohort says that instead.
+    expect(prs.json().scope).toBe('opened_in_window');
+    const open = await g(`${detail.json().links.prs}?state=open`);
+    expect(open.json().scope).toBe('all_open');
+    // W20-12 (DSH-45): the org list carries its total.
+    const org = await g('/api/v1/prs');
+    expect(org.json().total).toBeGreaterThanOrEqual(1);
 
     const file = await g(`/api/v1/repos/${repoId}/files/src/a.ts`);
     expect(file.statusCode).toBe(200);
     expect(file.json().path).toBe('src/a.ts');
     expect(file.json().churn_series).toHaveLength(1);
     expect(file.json().owners[0]).toMatchObject({ login: FIXTURE });
+    // W20-12 (DSH-20): each ranked hotspot names its top owner and share.
+    const hot = await g(`/api/v1/repos/${repoId}/hotspots`);
+    expect(hot.statusCode).toBe(200);
+    const hotA = (hot.json().items as { path: string; top_owner: unknown }[]).find(
+      (h) => h.path === 'src/a.ts',
+    );
+    expect(hotA?.top_owner).toEqual({ login: FIXTURE, share: 1 });
+    // W20-12 (DSH-35): the file page header carries the same current score.
+    expect(file.json().hotspot?.score).toBeGreaterThan(0);
+
+    // W20-12 (DSH-68): the file on the forge, at the default branch; the
+    // connection stores no base, which for GitHub means github.com.
+    expect(file.json().forge_url).toBe('https://github.com/acme/w401/blob/main/src/a.ts');
+
+    // W20-12 (DSH-94): a path with no default-branch commit (new in an open
+    // PR) is an empty answer with a reason, not a 404 the page cannot recover.
+    const fresh = await g(`/api/v1/repos/${repoId}/files/src/new-in-pr.ts`);
+    expect(fresh.statusCode).toBe(200);
+    expect(fresh.json()).toMatchObject({
+      no_commits: true,
+      churn_series: [],
+      owners: [],
+      hotspot_history: [],
+      hotspot: null,
+    });
   });
 
   it("/me/prs returns the logged-in fixture user's ground truth (identity map, FR-AUTH-6)", async () => {
@@ -354,6 +393,21 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     const measuredDetail = await get(`/api/v1/repos/${repoId}`);
     expect(measuredDetail.json().health.measured).toBe(true);
     expect(typeof measuredDetail.json().health.score).toBe('number');
+    // W20-12 (DSH-80): the dropped sub-scores travel with their weights, and
+    // the rescaling is stated. Every sub-score is dropped for the unmeasured
+    // repository; the measured one is scored and missing parts together.
+    const dropped = detail.json().health.not_measured as { key: string; weight: number }[];
+    expect(dropped.map((d) => d.key)).toEqual(
+      expect.arrayContaining(['security', 'codeHealth', 'supplyChain']),
+    );
+    expect(dropped.every((d) => d.weight > 0)).toBe(true);
+    // W20-12 (DSH-24/48): sync time and snapshot time travel with the header.
+    expect(measuredDetail.json()).toHaveProperty('last_synced_at');
+    expect(measuredDetail.json()).toHaveProperty('as_of');
+    expect(detail.json().as_of).toBeNull();
+    const m = measuredDetail.json().health;
+    expect(m.breakdown.length + m.not_measured.length).toBe(dropped.length);
+    expect(m.renormalized).toBe(m.not_measured.length > 0);
 
     // The Overview grid: null score, sorted after every measured repository
     // (X-05: worst first), and the org travels so `api` in two orgs differs.
@@ -366,6 +420,8 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     }[];
     const unmeasured = items.find((t) => t.id === unmeasuredRepoId)!;
     expect(unmeasured.health).toMatchObject({ score: null, measured: false });
+    // W20-12 (DSH-19): the tile names what was not measured.
+    expect((unmeasured.health as { not_measured?: string[] }).not_measured).toContain('security');
     expect(typeof unmeasured.org).toBe('string');
     const firstNull = items.findIndex((t) => t.health.score === null);
     expect(items.slice(firstNull).every((t) => t.health.score === null)).toBe(true);

@@ -45,7 +45,12 @@ describeIfLiveInfra('report assembler', () => {
     workspaceId = ws!.id;
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w5-03-user', forgeUserId: 'w5-03-user', login: 'w5-03-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w5-03-user',
+        forgeUserId: 'w5-03-user',
+        login: 'w5-03-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w5-03-user' } })
       .returning();
     const [conn] = await db
@@ -82,7 +87,15 @@ describeIfLiveInfra('report assembler', () => {
     // Snapshots BEFORE the pin — the ones the report must use.
     const at = new Date('2026-08-09T00:00:00.000Z');
     await db.insert(read.metricSnapshots).values([
-      { workspaceId, repoId, metricKey: 'M5', window: '30d', value: '0.80', dims: {}, computedAt: at },
+      {
+        workspaceId,
+        repoId,
+        metricKey: 'M5',
+        window: '30d',
+        value: '0.80',
+        dims: {},
+        computedAt: at,
+      },
       {
         workspaceId,
         repoId,
@@ -108,7 +121,9 @@ describeIfLiveInfra('report assembler', () => {
   afterAll(async () => {
     await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.repoId, repoId));
     await db.delete(core.repos).where(eq(core.repos.id, repoId));
-    await db.delete(core.forgeConnections).where(eq(core.forgeConnections.credentialFingerprint, FP));
+    await db
+      .delete(core.forgeConnections)
+      .where(eq(core.forgeConnections.credentialFingerprint, FP));
     await db.delete(core.users).where(eq(core.users.forgeUserId, 'w5-03-user'));
     await db.$client.end();
   });
@@ -190,7 +205,7 @@ describeIfLiveInfra('report assembler', () => {
 
     const [run] = await db
       .insert(read.analysisRuns)
-            .values({
+      .values({
         workspaceId,
         repoId,
         tier: 2,
@@ -238,6 +253,15 @@ describeIfLiveInfra('report assembler', () => {
     const data = await createReportAssembler(db).assemble(paramsFor('repo_health'));
     const breakdown = data.sections.find((s) => s.kind === 'score_breakdown');
     expect(breakdown, 'repo health must show its decomposition (FR-INSIGHTS-2)').toBeTruthy();
+
+    // W20-12: the headline prints the 0–100 score and the band word the
+    // dashboard uses — never "score (B)" (N-9 "signals, not grades").
+    const headline =
+      data.sections
+        .map((s) => (s.kind === 'summary' ? s.markdown : ''))
+        .find((md) => md.includes(' scored ')) ?? '';
+    expect(headline).toMatch(/scored \*\*\d+ of 100 \((healthy|watch|needs attention)\)\*\*/);
+    expect(headline).not.toMatch(/\([A-E]\)/);
     if (breakdown?.kind === 'score_breakdown') {
       // 'm5' is the input key buildHealthSubScores uses for review coverage —
       // asserted against the real key rather than a guessed label, so a rename
@@ -296,7 +320,9 @@ describeIfLiveInfra('report assembler', () => {
       // And no row may claim a contribution while contributing nothing.
       for (const row of breakdown.rows) {
         if (row.normalized === 0) {
-          expect(row.contribution, `${row.subScore}/${row.input} scored 0 but was credited`).toBe(0);
+          expect(row.contribution, `${row.subScore}/${row.input} scored 0 but was credited`).toBe(
+            0,
+          );
         }
       }
     }
@@ -354,7 +380,9 @@ describeIfLiveInfra('security posture report (W7-03, FR-REPORTS-4)', () => {
     // mistake "nothing found" for "nothing wrong".
     const data = await createReportAssembler(db2).assemble(securityParams());
 
-    const ids = data.sections.map((s) => (s.kind === 'no_data' || s.kind === 'table' ? s.id : s.kind));
+    const ids = data.sections.map((s) =>
+      s.kind === 'no_data' || s.kind === 'table' ? s.id : s.kind,
+    );
     expect(ids).toContain('open_security_findings');
     expect(ids).toContain('review_bypass');
     expect(ids).toContain('egress_audit');
@@ -371,7 +399,9 @@ describeIfLiveInfra('security posture report (W7-03, FR-REPORTS-4)', () => {
 
   it('never lets an empty findings section read as "clean"', async () => {
     const data = await createReportAssembler(db2).assemble(securityParams());
-    const findings = data.sections.find((s) => s.kind === 'no_data' && s.id === 'open_security_findings');
+    const findings = data.sections.find(
+      (s) => s.kind === 'no_data' && s.id === 'open_security_findings',
+    );
     if (findings?.kind === 'no_data') {
       expect(findings.reason).toMatch(/not yet examined|were RAISED/i);
     }

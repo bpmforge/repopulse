@@ -13,12 +13,9 @@ import {
   totalChurn,
   type PrDetail as PrDetailResponse,
 } from './contracts.js';
-import {
-  VERIFY_LABEL,
-  locationOf,
-  type Finding,
-} from '../findings/contracts.js';
+import { VERIFY_LABEL, locationOf, type Finding } from '../findings/contracts.js';
 import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
+import { forgeNameOf } from '../file/contracts.js';
 
 // PR Detail (UX_SPEC §4.c): stage timeline, review feed, checks summary, and the
 // files list with links into the file drill-down.
@@ -87,6 +84,21 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
       ),
     },
     { id: 'type', header: 'Change', cell: (row) => row.change_type },
+    // W20-12 (UX_TODO DSH-38): which of the touched files are hot right now —
+    // the reviewer's cue for where a change deserves the closest read.
+    {
+      id: 'hotspot',
+      header: 'Hotspot (30d)',
+      align: 'right',
+      cell: (row) =>
+        row.hotspot_score == null ? (
+          <span className="text-fg-faint">—</span>
+        ) : (
+          <span className="tabular-nums" data-testid="pr-file-hotspot">
+            {row.hotspot_score.toFixed(2)}
+          </span>
+        ),
+    },
     {
       id: 'churn',
       header: 'Churn',
@@ -112,6 +124,24 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
         <span className="text-xs text-fg-muted" data-testid="pr-size">
           {data.size_bucket} · {totalChurn(data.files)} lines
         </span>
+        {/* W20-12 (UX_TODO DSH-38): who and when, and the way out to the
+            forge — RepoPulse holds no diff (C1), so reading the change itself
+            means going there. */}
+        <span className="text-xs text-fg-muted" data-testid="pr-byline">
+          {data.author ? `by ${data.author} · ` : ''}opened {data.opened_at.slice(0, 10)}
+          {data.is_draft ? ' · draft' : ''}
+        </span>
+        {data.forge_url && (
+          <a
+            href={data.forge_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-xs text-accent underline-offset-2 hover:underline"
+            data-testid="pr-forge-link"
+          >
+            Open on {forgeNameOf(data.forge_url)} ↗
+          </a>
+        )}
       </header>
 
       <WidgetFrame title="Stage timeline" state="ready">
@@ -128,6 +158,11 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
                 data-testid={stage.elapsed ? 'pr-stage-elapsed' : undefined}
               >
                 {formatHours(stage.hours)}
+                {stage.repoMedian != null && (
+                  <span className="ml-2 text-xs text-fg-muted" data-testid="pr-stage-median">
+                    repo median {formatHours(stage.repoMedian)}
+                  </span>
+                )}
               </span>
             </li>
           ))}
@@ -138,7 +173,13 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
         <WidgetFrame
           title="Review activity"
           state={data.reviews.length === 0 ? 'empty' : 'ready'}
-          emptyMessage="No reviews recorded — this PR was never reviewed."
+          // W20-12 (UX_TODO DSH-38): "never reviewed" was asserted of a PR
+          // opened minutes ago. Only a finished PR can be said to have had none.
+          emptyMessage={
+            data.state === 'open'
+              ? 'No reviews yet.'
+              : 'No reviews recorded — this PR closed without a review.'
+          }
         >
           <ul className="flex flex-col gap-1 text-sm" data-testid="pr-reviews">
             {data.reviews.map((r) => (
@@ -200,12 +241,33 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
         // "not yet analysed". Kept, minus the claim that the feature has not
         // shipped: the reason a given PR has no review is scheduling and opt-in,
         // not the wave it was built in.
-        emptyMessage="No automated review recorded for this pull request. Tier-2 diff review runs on a schedule per repo; Tier-3 deep review is opt-in per repo."
+        // W20-12 (UX_TODO DSH-39): plain words instead of tier numbers, and
+        // the place where it is switched on.
+        emptyMessage="No automated review recorded for this pull request. Your local AI model reviews pull requests on each repository's schedule; cloud review is off unless the repository opts in."
+        drillDown={
+          <Link
+            to="/repos/$repoId/security"
+            params={{ repoId }}
+            search={search as never}
+            className="text-xs text-accent underline-offset-2 hover:underline"
+            data-testid="pr-ai-review-controls"
+          >
+            AI review controls for this repository →
+          </Link>
+        }
       >
         {/* W18-28: scrolls inside its own region at phone width instead of
             squeezing every column until the headers run together. */}
-        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Automated review findings">
-          <table className="table-plain w-full min-w-[40rem] text-sm" data-testid="pr-automated-review">
+        <div
+          className="overflow-x-auto"
+          tabIndex={0}
+          role="region"
+          aria-label="Automated review findings"
+        >
+          <table
+            className="table-plain w-full min-w-[40rem] text-sm"
+            data-testid="pr-automated-review"
+          >
             <caption className="sr-only">Automated review findings for this pull request</caption>
             <thead>
               <tr className="text-left text-xs text-fg-muted">
@@ -237,7 +299,9 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
                   </th>
                   <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
                   <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
-                  <td className="py-1 text-xs whitespace-nowrap">{VERIFY_LABEL[f.verify_status]}</td>
+                  <td className="py-1 text-xs whitespace-nowrap">
+                    {VERIFY_LABEL[f.verify_status]}
+                  </td>
                 </tr>
               ))}
             </tbody>

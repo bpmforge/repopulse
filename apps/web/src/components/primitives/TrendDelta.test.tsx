@@ -42,4 +42,23 @@ describe('TrendDelta', () => {
     rerender(<TrendDelta deltaPct={-8} polarity="down-good" />);
     expect(screen.getByTestId('trend-delta').className).toMatch(/ok/);
   });
+
+  it('says better or worse in words, not colour alone (W20-12, DSH-17)', () => {
+    const { rerender } = render(<TrendDelta deltaPct={-12} polarity="down-good" />);
+    expect(screen.getByTestId('trend-delta')).toHaveTextContent('better');
+    expect(screen.getByTestId('trend-delta')).toHaveAccessibleName(
+      /down 12% versus prior window, better/,
+    );
+    rerender(<TrendDelta deltaPct={-12} polarity="up-good" />);
+    expect(screen.getByTestId('trend-delta')).toHaveTextContent('worse');
+    rerender(<TrendDelta deltaPct={-12} polarity="neutral" />);
+    expect(screen.getByTestId('trend-delta').textContent).not.toMatch(/better|worse/);
+  });
+
+  it('writes points and zero-baseline changes in their own units (DSH-17/83)', () => {
+    const { rerender } = render(<TrendDelta deltaPct={5} kind="pts" />);
+    expect(screen.getByTestId('trend-delta')).toHaveTextContent('5.0 pts');
+    rerender(<TrendDelta deltaPct={5} kind="abs" />);
+    expect(screen.getByTestId('trend-delta')).toHaveTextContent('5 from 0');
+  });
 });

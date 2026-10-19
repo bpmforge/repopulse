@@ -1,4 +1,5 @@
-import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Chart,
   DataTable,
@@ -8,6 +9,7 @@ import {
   type DataTableColumn,
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { docsUrl } from '../../lib/docs.js';
 import { sequentialColor } from '../../components/chart/chartTheme.js';
 import { toTreemap, type RepoHotspots as RepoHotspotsResponse } from './contracts.js';
 
@@ -24,6 +26,16 @@ interface Props {
 
 type Row = RepoHotspotsResponse['items'][number];
 
+/** How many rows "Top files" shows before "Show all" (W20-12, DSH-22). */
+const TOP_FILES = 20;
+
+/**
+ * What the 0–1 score means, said once and reused as the column's tooltip on
+ * every hotspot list (W20-12, UX_TODO DSH-20).
+ */
+export const HOTSPOT_SCALE_HINT =
+  'Hotspot score, 0–1: lines changed relative to the busiest file in this repository, halved for every 30 days since the last change.';
+
 export function RepoHotspotsTab({ repoId, window, search }: Props) {
   const { data, isLoading, isError, error, refetch } = useApiQuery<RepoHotspotsResponse>({
     endpoint: '/repos/{id}/hotspots',
@@ -34,6 +46,9 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
   const items = data?.items ?? [];
   const tree = toTreemap(items);
   useChartThemeKey();
+  const navigate = useNavigate();
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? items : items.slice(0, TOP_FILES);
 
   // A HEAT MAP WITH HEAT (W16-43).
   //
@@ -61,10 +76,11 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
   // survived the switch to dark.
   const painted = tree.map((dir) => ({
     ...dir,
-    itemStyle: { color: sequentialColor(Math.max(...dir.children.map((c) => c.value), 0)) },
+    itemStyle: { color: sequentialColor(Math.max(...dir.children.map((c) => c.score), 0)) },
     children: dir.children.map((leaf) => ({
       ...leaf,
-      itemStyle: { color: sequentialColor(leaf.value) },
+      // Colour is the SCORE; area (value) is churn since W20-12 (DSH-21).
+      itemStyle: { color: sequentialColor(leaf.score) },
     })),
   }));
   const state = frameState({
@@ -95,7 +111,43 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
       sortable: true,
       // M2 is normChurn × decay on 0..1. Two decimals separates neighbouring
       // files without implying precision the formula does not have.
-      cell: (row) => <span className="tabular-nums">{row.hotspot_score.toFixed(2)}</span>,
+      cell: (row) => (
+        <span className="tabular-nums" title={HOTSPOT_SCALE_HINT}>
+          {row.hotspot_score.toFixed(2)}
+        </span>
+      ),
+    },
+    // W20-12 (UX_TODO DSH-20): the score's parts and who holds the file, so
+    // a high number explains itself and names who to talk to.
+    {
+      id: 'churn',
+      header: 'Lines changed',
+      align: 'right',
+      cell: (row) => (
+        <span className="tabular-nums">{row.decomposition ? row.decomposition.gross : '—'}</span>
+      ),
+    },
+    {
+      id: 'since',
+      header: 'Last change',
+      align: 'right',
+      cell: (row) => (
+        <span className="tabular-nums whitespace-nowrap">
+          {row.decomposition ? `${Math.round(row.decomposition.daysSince)}d ago` : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'owner',
+      header: 'Top owner',
+      cell: (row) =>
+        row.top_owner ? (
+          <span className="whitespace-nowrap text-xs text-fg-muted" data-testid="hotspot-owner">
+            {row.top_owner.login} · {Math.round(row.top_owner.share * 100)}%
+          </span>
+        ) : (
+          <span className="text-fg-faint">—</span>
+        ),
     },
   ];
 
@@ -107,16 +159,37 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No churn in this window — nothing is hot."
+        definitionHref={docsUrl('/docs/design/METRICS.md')}
       >
+        <p className="mb-1 text-xs text-fg-faint">
+          Box size is lines changed; colour is the hotspot score. Click a file to open it.
+        </p>
         <Chart
           testId="hotspot-treemap"
-          ariaLabel={`Hotspot treemap by directory, last ${window}`}
+          ariaLabel={`Hotspot treemap by directory, sized by lines changed and coloured by score, last ${window}`}
           height={320}
           // The table fallback is the whole accessibility story for a treemap:
           // size-encoded data is unreadable without one (NFR-5).
           tableData={{
-            columns: ['File', 'Hotspot score'],
-            rows: items.map((i) => [i.path, Number(i.hotspot_score.toFixed(2))]),
+            columns: ['File', 'Hotspot score', 'Lines changed'],
+            rows: items.map((i) => [
+              i.path,
+              Number(i.hotspot_score.toFixed(2)),
+              i.decomposition?.gross ?? '—',
+            ]),
+          }}
+          // W20-12 (UX_TODO DSH-21): a FILE opens its page; a directory still
+          // zooms (ECharts' nodeClick). Only leaves carry a `path`.
+          onEvents={{
+            click: (params: unknown) => {
+              const path = (params as { data?: { path?: string } }).data?.path;
+              if (!path) return;
+              void navigate({
+                to: '/repos/$repoId/files/$',
+                params: { repoId, _splat: path } as never,
+                search: search as never,
+              });
+            },
           }}
           option={{
             tooltip: { trigger: 'item' },
@@ -134,18 +207,37 @@ export function RepoHotspotsTab({ repoId, window, search }: Props) {
       </WidgetFrame>
 
       <WidgetFrame
-        title="Top files"
+        // W20-12 (UX_TODO DSH-22): the cut is stated, and the rest one click away.
+        title={
+          items.length > TOP_FILES && !showAll
+            ? `Top ${TOP_FILES} of ${items.length} files`
+            : `Top files (${items.length})`
+        }
         state={state}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No ranked files yet."
+        drillDown={
+          items.length > TOP_FILES ? (
+            <button
+              type="button"
+              className="text-xs text-accent underline-offset-2 hover:underline"
+              onClick={() => setShowAll((v) => !v)}
+              data-testid="hotspots-show-all"
+            >
+              {showAll ? `Show top ${TOP_FILES}` : `Show all ${items.length}`}
+            </button>
+          ) : undefined
+        }
       >
-        <DataTable
-          name="repo-hotspots"
-          columns={columns}
-          data={items.slice(0, 20)}
-          getRowId={(row) => row.path}
-        />
+        <div className="overflow-x-auto">
+          <DataTable
+            name="repo-hotspots"
+            columns={columns}
+            data={shown}
+            getRowId={(row) => row.path}
+          />
+        </div>
       </WidgetFrame>
     </div>
   );

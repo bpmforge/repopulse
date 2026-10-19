@@ -7,6 +7,8 @@ import {
 } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { spansMultipleRepos, type HotspotItems } from './contracts.js';
+import { docsUrl } from '../../lib/docs.js';
+import { HOTSPOT_SCALE_HINT } from '../repo/RepoHotspots.js';
 
 // UX_SPEC §4.a: cross-repo hotspot leaderboard, click → file drill-down
 // (W4-06's /repos/$repoId/files/$). The file path is a splat param, so it is
@@ -69,12 +71,28 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
       : []),
     {
       id: 'score',
-      header: 'Hotspot score',
+      // W20-12 (UX_TODO DSH-79): each score is normalised within ITS OWN
+      // repository, so the header says so — a quiet repository's busiest file
+      // scores near 1 too, and a cross-repository ranking is not a comparison
+      // of absolute churn. The lines-changed column beside it is.
+      header: 'Hotspot score (within its repository)',
       align: 'right',
       sortable: true,
       // Scores are 0–1 (METRICS M2: normChurn × decay); two decimals keeps
       // neighbouring files distinguishable without implying false precision.
-      cell: (row) => <span className="tabular-nums">{row.score.toFixed(2)}</span>,
+      cell: (row) => (
+        <span className="tabular-nums" title={HOTSPOT_SCALE_HINT}>
+          {row.score.toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      // W20-12 (UX_TODO DSH-20/79): the score's main part in absolute terms,
+      // comparable across repositories where the score is not.
+      id: 'gross',
+      header: 'Lines changed',
+      align: 'right',
+      cell: (row) => <span className="tabular-nums">{row.gross ?? '—'}</span>,
     },
   ];
 
@@ -89,6 +107,7 @@ export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No churn in this window — nothing is hot."
+      definitionHref={docsUrl('/docs/design/METRICS.md')}
     >
       <div data-testid="hotspot-leaderboard">
         {/* The honesty badge (W6-09). Rendered only when something IS hidden,

@@ -1,9 +1,11 @@
 import { KpiTile, Sparkline, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { docsUrl } from '../../lib/docs.js';
 import { withRepos } from '../scopeRepos.js';
 import {
   KPI_TILES,
-  deltaPctOf,
+  SMALL_SAMPLE,
+  deltaOf,
   formatKpi,
   type MetricSeries,
   type OrgSummary,
@@ -33,11 +35,14 @@ function KpiSparkline({
   label,
   window,
   repoId,
+  now,
 }: {
   metricKey: string;
   label: string;
   window: string;
   repoId?: string | undefined;
+  /** The tile's current value, for the label (W20-12, UX_TODO DSH-55). */
+  now: string | null;
 }) {
   const { data } = useApiQuery<MetricSeries>({
     endpoint: '/metrics/series',
@@ -47,7 +52,14 @@ function KpiSparkline({
   // Below two points there is no line to draw — render nothing rather than a
   // flat stub, which reads as "no change" instead of "no history yet".
   if (points.length < 2) return null;
-  return <Sparkline points={points} label={`${label}, last ${window}`} />;
+  // Says what the line IS (W20-12, DSH-75): each point is that night's
+  // rolling-window value, and the series spans one window.
+  return (
+    <Sparkline
+      points={points}
+      label={`${label}, rolling ${window} value by night over the last ${window}${now === null ? '' : `, now ${now}`}`}
+    />
+  );
 }
 
 export function KpiRow({ window, repos, title = 'Delivery KPIs' }: Props) {
@@ -74,19 +86,35 @@ export function KpiRow({ window, repos, title = 'Delivery KPIs' }: Props) {
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
       emptyMessage="No metric snapshots yet for this window."
-      definitionHref="/api/v1/metrics/catalog"
+      // W20-12 (UX_TODO DSH-15): the rendered definitions page, not the raw
+      // JSON catalog endpoint.
+      definitionHref={docsUrl('/docs/design/METRICS.md')}
     >
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5" data-testid="kpi-row">
         {KPI_TILES.map((tile) => {
           const row = byKey.get(tile.key);
+          const value = formatKpi(row?.value ?? null, tile.unit);
+          const delta = deltaOf(row?.delta ?? null, row?.previous ?? null, tile.unit);
+          const sample = row?.sample ?? null;
           return (
             <KpiTile
               key={tile.key}
               label={tile.label}
-              value={formatKpi(row?.value ?? null, tile.unit)}
+              value={value}
               {...(tile.unit ? { unit: tile.unit } : {})}
-              deltaPct={deltaPctOf(row?.delta ?? null, row?.previous ?? null)}
+              deltaPct={delta.value}
+              deltaKind={delta.kind}
               polarity={tile.polarity}
+              caption={
+                // W20-12 (UX_TODO DSH-81): what the ratio rests on. "100%" from
+                // one merged PR looked exactly as solid as 100% from 400.
+                sample && value !== null ? (
+                  <span className="text-xs text-fg-faint" data-testid={`kpi-sample-${tile.key}`}>
+                    {sample.numerator} of {sample.denominator}
+                    {sample.denominator < SMALL_SAMPLE ? ' · small sample' : ''}
+                  </span>
+                ) : undefined
+              }
               aside={
                 repos && !single ? undefined : (
                   <KpiSparkline
@@ -94,6 +122,7 @@ export function KpiRow({ window, repos, title = 'Delivery KPIs' }: Props) {
                     label={tile.label}
                     window={window}
                     repoId={single}
+                    now={value === null ? null : `${value}${tile.unit ? ` ${tile.unit}` : ''}`}
                   />
                 )
               }

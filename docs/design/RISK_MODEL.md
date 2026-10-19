@@ -104,8 +104,10 @@ dashboard shows each axis as its 0–100 score plus the health band word
 the letter chips above, and UX_SPEC already drew numbers. Org-wide the axis
 is the median of the repositories that have the sub-score, with the worst
 repository named and the count measured; Performance is not served until it
-has a sub-score. The letter bands stay in the catalog only for the report
-PDFs, which still print them (an N-9 remainder recorded on W20-09).
+has a sub-score. Since W20-12 the report PDFs follow suit (score of 100 and
+band word in the headline, the per-repository table and the axis table); the
+letter bands above are kept only as the API's legacy `letter` field, which no
+surface prints.
 
 ## 5. Surfaces (FR-RISK-5/6)
 

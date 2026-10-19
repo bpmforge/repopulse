@@ -8,17 +8,38 @@ export interface PrListItem {
   state: string;
   size_bucket: string;
   review_covered: boolean;
+  /** W20-12 (UX_TODO DSH-46): sent all along, now declared and shown. */
+  author?: string;
+  opened_at?: string;
+  merged_at?: string | null;
+  is_draft?: boolean;
   links: { self: string };
 }
 
 export interface PrList {
   items: PrListItem[];
+  /**
+   * W20-12 (UX_TODO DSH-65): `all_open` when State = Open (every open PR,
+   * whatever its age), else PRs opened in the window. Optional: older API.
+   */
+  scope?: 'all_open' | 'opened_in_window';
 }
 
 export interface PrDetail {
   number: number;
   title: string;
   state: string;
+  /** W20-12 (UX_TODO DSH-38). Optional fields: an older API omits them. */
+  is_draft?: boolean;
+  author?: string | null;
+  /** The PR's own page on the forge; null when the forge's web root is unknown. */
+  forge_url?: string | null;
+  /** The repository's median per stage (M4, newest 30d snapshot); null = not measured. */
+  repo_stage_medians_hours?: {
+    open_to_first_review: number | null;
+    first_review_to_approved: number | null;
+    approved_to_merged: number | null;
+  };
   size_bucket: string;
   opened_at: string;
   merged_at: string | null;
@@ -33,6 +54,8 @@ export interface PrDetail {
     additions: number;
     deletions: number;
     change_type: string;
+    /** W20-12 (DSH-38): the file's current hotspot score; null = not a hotspot. */
+    hotspot_score?: number | null;
     links: { file: string };
   }[];
 }
@@ -44,6 +67,11 @@ export interface Stage {
   hours: number | null;
   /** True when the stage is still running (open PR) — drives the pulse. */
   elapsed: boolean;
+  /**
+   * The repository's median for this stage (W20-12, UX_TODO DSH-38), so "18h
+   * to first review" reads against what is normal here. Null = not measured.
+   */
+  repoMedian?: number | null;
 }
 
 const HOUR = 1000 * 60 * 60;
@@ -62,11 +90,13 @@ function hoursBetween(from: string, to: string): number {
  */
 export function toStages(pr: PrDetail, now: number): Stage[] {
   const { first_review_at, first_approval_at } = pr.stage_durations;
+  const medians = pr.repo_stage_medians_hours;
   const stages: Stage[] = [
     {
       label: 'Opened → first review',
       hours: first_review_at ? hoursBetween(pr.opened_at, first_review_at) : null,
       elapsed: false,
+      repoMedian: medians?.open_to_first_review ?? null,
     },
     {
       label: 'First review → approved',
@@ -75,16 +105,20 @@ export function toStages(pr: PrDetail, now: number): Stage[] {
           ? hoursBetween(first_review_at, first_approval_at)
           : null,
       elapsed: false,
+      repoMedian: medians?.first_review_to_approved ?? null,
     },
     {
       label: 'Approved → merged',
       hours:
         first_approval_at && pr.merged_at ? hoursBetween(first_approval_at, pr.merged_at) : null,
       elapsed: false,
+      repoMedian: medians?.approved_to_merged ?? null,
     },
   ];
 
-  if (pr.merged_at === null) {
+  // A closed, unmerged PR is not still running: "Open for" would keep counting
+  // forever and paint an abandoned PR as stalled (W20-12, UX_TODO DSH-41).
+  if (pr.merged_at === null && pr.state === 'open') {
     // Still open: the last milestone reached is where the clock is running.
     const since = first_approval_at ?? first_review_at ?? pr.opened_at;
     stages.push({

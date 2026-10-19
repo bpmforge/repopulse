@@ -10658,6 +10658,67 @@
           "Migration 0048_audit_events (journal idx 45, when 1793000000000). Not 0047: a concurrent W20-08 branch already applied 0047_finding_rationale (when 1792900000000) to the shared dev database.",
           "Bugs noticed, not in UX_TODO: the GitHub and OIDC callbacks do not regenerate the session id after sign-in (session fixation); @fastify/session regenerate() leaves the old session in Redis (the new per-user index now clears it on password change); the RUNBOOK told operators to restart the stack to end sessions, which does nothing because Redis persists them (fixed)."
         ]
+      },
+      {
+        "id": "W20-12",
+        "title": "Dashboards P2 friction and report letter grades",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/src/**",
+          "apps/api/src/routes/files/**",
+          "apps/api/src/routes/prs/**",
+          "apps/api/src/routes/me/**",
+          "apps/api/src/routes/org/**",
+          "apps/api/src/routes/repos/**",
+          "apps/api/src/routes/metrics/**",
+          "apps/api/src/lib/scope-metrics.ts",
+          "apps/api/src/lib/forge-links.ts",
+          "packages/reports/src/**",
+          "packages/insights/src/plans/**",
+          "packages/forge/src/blob-url.ts",
+          "packages/forge/src/blob-url.test.ts",
+          "packages/shared/src/healthBand.ts",
+          "docs/design/RISK_MODEL.md",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-09"
+        ],
+        "acceptance": [
+          "Report PDFs print the 0-100 health score and its band word; no letter grade appears in any report section (N-9)",
+          "The M3 plan criterion reads the stored bus-factor value; a test runs it against the stored snapshot shape",
+          "Every UX_TODO DSH item ticked '-> W20-12' is fixed on screen, with a test for each behaviour change",
+          "pnpm lint, pnpm typecheck and the web test suite are green; changed API/package test files pass"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Fixed: DSH-15 16 17 19 20 21 22 23 24 25 26 27 28 32 34 35 38 39 40 42 43 46 48 65 67 68 75 78 79 80 81 87 88 89 90 94 (P2), DSH-69 83 (P3). Bugs: report letter grades; catalog M3 dimPath busFactor.",
+          "DSH-07 skipped: repo pages are still not WidgetGrid compositions; that is a page rebuild.",
+          "DSH-18 skipped: needs a stored health-score trend series.",
+          "DSH-29 partial: plain column words and an explanation; rows cannot link to runs (no runs page).",
+          "DSH-30 partial: stage durations (median/p90) and a size legend; no per-reviewer drill-down.",
+          "DSH-31 partial: ratios as %, units, Retry on every frame; no trend or target yet.",
+          "DSH-33 partial: Code Health and Top risks open the repo Findings tab; Next actions follows the server href contract and the Reviews/Findings rename belongs to the findings work.",
+          "DSH-36/37 skipped: intent control rework and intent status warnings are a new feature.",
+          "DSH-41 partial: column renamed 'Open for'; review-request times are not ingested.",
+          "DSH-44 partial: in-progress items can go back to accepted; owners and evidence links need schema work.",
+          "DSH-45 partial: total, previous page, org/name and Age; sortable headers need keyset changes.",
+          "DSH-47 skipped: view editor placement and undo is a feature.",
+          "DSH-56/85 (P1) left as W20-09 noted; not ticked.",
+          "DSH-61/62 skipped: per-screen filter scope rework across governance and repo tabs.",
+          "DSH-63 partial: typing is a draft applied on Enter, blur or a pick; no login list feeds the suggestions yet.",
+          "DSH-64 partial: the badge has an accessible label; it still links to the org list.",
+          "DSH-66 skipped: shared-view owner gating is auth/cross-flow work.",
+          "DSH-74 skipped: Pulse trend rework (computeMetricTrend) left for a pulse ticket.",
+          "DSH-76/77 skipped: Security tile basis and shadow-rule counting are the security agent's area.",
+          "DSH-91 skipped: Next actions coverage is insights/API work outside this scope.",
+          "DSH-92 skipped: Performance findings paging is findings-area work.",
+          "Found: /me/stats had no workspace filter (fixed); the file page's 'Hotspot score history' plots repo M2 (the top file), not this file; the API still sends a `letter` field."
+        ]
       }
   ]
 }

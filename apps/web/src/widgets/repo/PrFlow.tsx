@@ -1,6 +1,14 @@
 import { Chart, WidgetFrame, frameState, type ChartProps } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import { SIZE_BUCKETS, type RepoPrs, type RepoReviewLoad } from './contracts.js';
+import {
+  SIZE_BUCKETS,
+  SIZE_BUCKET_RANGE,
+  stagePercentiles,
+  type RepoPrs,
+  type RepoReviewLoad,
+} from './contracts.js';
+import { formatHours } from '../pr/contracts.js';
+import { docsUrl } from '../../lib/docs.js';
 
 // PR Flow tab (UX_SPEC §4.b, FR-WEB-3): the open→reviewed→merged funnel and the
 // XS–XL size histogram, both derived from the PR list rather than a bespoke
@@ -102,8 +110,44 @@ export function PrFlow({ repoId, window }: Props) {
   const merged = items.filter((p) => p.state === 'merged').length;
   const stages: PrStage[] = [
     { name: 'Opened', value: opened },
-    { name: 'Reviewed', value: reviewed },
+    // W20-12 (UX_TODO DSH-78): "Reviewed" here is ANY review on a PR opened
+    // in the window — not M5's review coverage (merged, non-bot PRs reviewed
+    // by someone other than the author). The same word on Pulse and here
+    // gave "18 of 20" beside "40%", so the stage says what it counts.
+    { name: 'Got any review', value: reviewed },
     { name: 'Merged', value: merged },
+  ];
+
+  // W20-12 (UX_TODO DSH-30): how long each stage took for this cohort — the
+  // funnel was three counts with no time in it.
+  const HOUR = 3_600_000;
+  const span = (from?: string | null, to?: string | null): number | null =>
+    from && to ? (Date.parse(to) - Date.parse(from)) / HOUR : null;
+  const durations = [
+    {
+      label: 'Opened → first review',
+      ...stagePercentiles(
+        items
+          .map((p) => span(p.opened_at, p.first_review_at))
+          .filter((h): h is number => h !== null),
+      ),
+    },
+    {
+      label: 'First review → approved',
+      ...stagePercentiles(
+        items
+          .map((p) => span(p.first_review_at, p.first_approval_at))
+          .filter((h): h is number => h !== null),
+      ),
+    },
+    {
+      label: 'Approved → merged',
+      ...stagePercentiles(
+        items
+          .map((p) => span(p.first_approval_at, p.merged_at))
+          .filter((h): h is number => h !== null),
+      ),
+    },
   ];
 
   // A later stage exceeding Opened is impossible while all three are filters of
@@ -125,6 +169,7 @@ export function PrFlow({ repoId, window }: Props) {
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No pull requests in this window."
+        definitionHref={docsUrl('/docs/design/METRICS.md')}
       >
         <Chart
           testId="pr-funnel"
@@ -142,6 +187,41 @@ export function PrFlow({ repoId, window }: Props) {
             counts, not as a flow.
           </p>
         )}
+        <p className="mt-1 text-xs text-fg-faint" data-testid="pr-funnel-review-note">
+          “Got any review” counts PRs opened in the last {window} with at least one review. It is
+          not review coverage, which counts merged PRs reviewed by someone other than the author.
+        </p>
+        <table className="table-plain mt-2 w-full text-sm" data-testid="pr-stage-durations">
+          <caption className="sr-only">
+            Time spent in each stage, PRs opened in the last {window}
+          </caption>
+          <thead>
+            <tr className="text-left text-xs text-fg-muted">
+              <th scope="col">Stage</th>
+              <th scope="col" className="text-right">
+                Median
+              </th>
+              <th scope="col" className="text-right">
+                p90
+              </th>
+              <th scope="col" className="text-right">
+                PRs
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {durations.map((d) => (
+              <tr key={d.label} className="border-t border-border">
+                <th scope="row" className="py-1 text-left font-normal text-fg-muted">
+                  {d.label}
+                </th>
+                <td className="py-1 text-right tabular-nums">{formatHours(d.median)}</td>
+                <td className="py-1 text-right tabular-nums">{formatHours(d.p90)}</td>
+                <td className="py-1 text-right tabular-nums">{d.n}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </WidgetFrame>
 
       <WidgetFrame
@@ -169,6 +249,10 @@ export function PrFlow({ repoId, window }: Props) {
             series: [{ type: 'bar', data: sizeCounts }],
           }}
         />
+        {/* W20-12 (UX_TODO DSH-30): the buckets were never defined on screen. */}
+        <p className="mt-1 text-xs text-fg-faint" data-testid="pr-size-legend">
+          Lines changed: {SIZE_BUCKETS.map((b) => `${b} ${SIZE_BUCKET_RANGE[b]}`).join(' · ')}
+        </p>
       </WidgetFrame>
 
       <WidgetFrame

@@ -77,7 +77,8 @@ const SEGMENT_LABELS: Record<string, string> = {
  */
 const SUBPAGE_LABELS: Record<string, string> = {
   activity: 'Activity',
-  performance: 'Performance',
+  // W20-12 (UX_TODO DSH-25): the tab's new name.
+  performance: 'Performance findings',
   hotspots: 'Hotspots',
   'pr-flow': 'PR Flow',
   'ai-reviewers': 'AI Reviewers',
@@ -103,10 +104,12 @@ const SUBPAGE_LABELS: Record<string, string> = {
 
 /** Minimal breadcrumb from the path; deeper drill-down crumbs come with screens. */
 export function deriveCrumbs(pathname: string, entity?: EntityCrumb | null): Crumb[] {
-  const crumbs: Crumb[] = [{ label: 'Org', to: '/' }];
+  // W20-12 (UX_TODO DSH-34): "Overview", the rail's and the heading's word —
+  // the trail alone said "Org".
+  const crumbs: Crumb[] = [{ label: 'Overview', to: '/' }];
   const segments = pathname.split('/').filter(Boolean);
-  if (segments.length > 0) {
-    const first = segments[0]!;
+  const first = segments[0];
+  if (first !== undefined) {
     crumbs.push({ label: SEGMENT_LABELS[first] ?? first, to: `/${first}` });
   }
   // The named entity, from the screen that loaded it (W16-42) — but ONLY when
@@ -118,7 +121,33 @@ export function deriveCrumbs(pathname: string, entity?: EntityCrumb | null): Cru
   // The first segment that names something rather than identifying it. Numeric
   // ids are skipped deliberately: "Org › Repos › 25152" would be worse than
   // saying nothing, which is the same mistake F11 was about.
-  const sub = segments.slice(1).find((seg) => SUBPAGE_LABELS[seg] !== undefined);
+  const subIndex = segments.findIndex((seg, i) => i > 0 && SUBPAGE_LABELS[seg] !== undefined);
+  const sub = subIndex >= 0 ? segments[subIndex]! : undefined;
+  // W20-12 (UX_TODO DSH-34): the drill-down LEAF, named from the path. The file
+  // page read "… › Files", a crumb that went nowhere and never said which file;
+  // PR detail ended at "Pull Requests" without the number.
+  if (first === 'repos' && sub === 'files' && segments.length > subIndex + 1) {
+    const path = segments
+      .slice(subIndex + 1)
+      .map((seg) => {
+        try {
+          return decodeURIComponent(seg);
+        } catch {
+          return seg;
+        }
+      })
+      .join('/');
+    crumbs.push({ label: path });
+    return crumbs;
+  }
+  if (first === 'repos' && sub === 'prs' && /^\d+$/.test(segments[subIndex + 1] ?? '')) {
+    crumbs.push({
+      label: SUBPAGE_LABELS.prs!,
+      to: `/${segments.slice(0, subIndex + 1).join('/')}`,
+    });
+    crumbs.push({ label: `#${segments[subIndex + 1]}` });
+    return crumbs;
+  }
   if (sub) crumbs.push({ label: SUBPAGE_LABELS[sub]! });
   return crumbs;
 }

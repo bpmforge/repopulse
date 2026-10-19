@@ -49,7 +49,8 @@ describe('health "why?" breakdown', () => {
   it('shows the contribution arithmetic so the score is checkable', () => {
     const panel = open([axis('security', { normalized: 62.4, weight: 0.25, contribution: 15.6 })]);
     expect(panel.textContent).toContain('62 x 0.25 = 15.6');
-    expect(screen.getByTestId('health-basis')).toHaveTextContent('Tier-1 only');
+    // W20-12 (DSH-19): plain words, not "Tier-1 only".
+    expect(screen.getByTestId('health-basis')).toHaveTextContent('Based on delivery data only');
   });
 
   it('opens inward from the right edge of the trigger', () => {
@@ -83,11 +84,13 @@ describe('the measurement behind the score (W16-21)', () => {
   it('shows the raw measurement and both anchors beside the normalised value', () => {
     const panel = open([reviewAxis]);
 
-    // The number the user can also see on the chart.
-    expect(panel).toHaveTextContent('0.4');
-    // And why 0.4 became 0.
-    expect(panel).toHaveTextContent(/best 0\.9/);
-    expect(panel).toHaveTextContent(/worst 0\.4/);
+    // The number the user can also see on the chart, named and with its unit
+    // (W20-12, DSH-23) — "Review coverage 40%", never "m5 0.4".
+    expect(panel).toHaveTextContent('Review coverage 40% → 0');
+    expect(panel).not.toHaveTextContent('m5');
+    // And why 40% became 0.
+    expect(panel).toHaveTextContent(/target 90%/);
+    expect(panel).toHaveTextContent(/worst 40%/);
   });
 
   it('still shows the checkable arithmetic', () => {
@@ -102,6 +105,39 @@ describe('the measurement behind the score (W16-21)', () => {
     const panel = open([axis('activity')]);
     expect(panel).toHaveTextContent('62 x 0.2 = 12.4');
     expect(panel).not.toHaveTextContent('undefined');
-    expect(panel).not.toHaveTextContent(/best/);
+    expect(panel).not.toHaveTextContent(/target/);
+  });
+});
+
+describe('what the score leaves out, and closing (W20-12)', () => {
+  it('lists unmeasured parts with their weight and says the weights were rescaled (DSH-80)', () => {
+    const health: Health = {
+      score: 88,
+      letter: null,
+      basis: 'Tier-1 only',
+      breakdown: [axis('activity'), axis('ciHealth')],
+      not_measured: [
+        { key: 'security', weight: 0.2 },
+        { key: 'codeHealth', weight: 0.15 },
+      ],
+      renormalized: true,
+    };
+    render(<HealthWhy health={health} />);
+    fireEvent.click(screen.getByTestId('health-why-toggle'));
+    expect(screen.getByTestId('health-missing')).toHaveTextContent(
+      'Securitynot measured (would weigh 0.20)',
+    );
+    expect(screen.getByTestId('health-renormalized')).toHaveTextContent(
+      'Weights rescaled because 2 parts are missing.',
+    );
+    expect(screen.getByTestId('health-basis')).toHaveTextContent(
+      'Security, Code Health not measured',
+    );
+  });
+
+  it('closes on Escape (DSH-23)', () => {
+    open([axis('security')]);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('health-why-popover')).toBeNull();
   });
 });

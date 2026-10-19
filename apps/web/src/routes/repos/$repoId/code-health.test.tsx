@@ -9,7 +9,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { createQueryClient } from '../../../api/queryClient.js';
-import { complexityEmptyCopy, Route as codeHealthRoute } from './code-health.js';
+import { complexityEmptyCopy, ruleEmptyCopy, Route as codeHealthRoute } from './code-health.js';
 import type { ScannerState } from '../../../widgets/security/contracts.js';
 
 // The Code Health tab, trustworthy (W17-20).
@@ -200,5 +200,32 @@ describe('complexityEmptyCopy', () => {
     }
     expect(complexityEmptyCopy({ state: 'ok' })).toMatch(/IS a measurement/);
     expect(complexityEmptyCopy(undefined)).toMatch(/never run/);
+  });
+});
+
+// W20-12 (UX_TODO DSH-31/DSH-32).
+describe('Code Health units, rule links and honest empties (W20-12)', () => {
+  it('prints ratios as percentages and links each rule to filtered findings', async () => {
+    payload = base([scanner({ key: 'anti_slop', state: 'ok', open_findings: 3 })], {
+      series: { M14: [{ value: 0.05, at: '2026-10-01T00:00:00.000Z' }] },
+      slop_by_rule: [{ rule: 'slop.empty-catch', count: 3 }],
+    });
+    renderCodeHealth();
+    expect(await screen.findByTestId('ch-headline-Revert rate')).toHaveTextContent('5%');
+    expect(screen.getByTestId('ch-rule-slop.empty-catch')).toHaveAttribute(
+      'href',
+      '/repos/7/findings?rule_id=slop.empty-catch',
+    );
+    // The logging scanner never ran: no claim of a clean result.
+    expect(screen.getByTestId('ch-logging-rules')).toHaveTextContent(
+      'the logging hygiene scanner has never run',
+    );
+  });
+
+  it('only a successful run claims there are none', () => {
+    expect(ruleEmptyCopy('slop', 'anti-slop', { state: 'ok' })).not.toMatch(/not a measurement/);
+    for (const state of ['never_run', 'error', 'running', 'not_enabled'] as const) {
+      expect(ruleEmptyCopy('slop', 'anti-slop', { state })).toMatch(/not a measurement/);
+    }
   });
 });

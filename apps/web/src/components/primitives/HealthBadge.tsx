@@ -4,15 +4,9 @@
 //
 // The cut-offs live in @repopulse/shared/health-band (W20-05, UX_TODO DSH-10)
 // so the API's Needs attention feed bands a score exactly as this badge does.
-import { healthBand, type HealthBand } from '@repopulse/shared/health-band';
+import { HEALTH_BAND_LABEL, healthBand, type HealthBand } from '@repopulse/shared/health-band';
 
-export { healthBand, type HealthBand };
-
-export const HEALTH_BAND_LABEL: Record<HealthBand, string> = {
-  good: 'healthy',
-  watch: 'watch',
-  attend: 'needs attention',
-};
+export { HEALTH_BAND_LABEL, healthBand, type HealthBand };
 
 const BAND_CLASS: Record<HealthBand, string> = {
   good: 'bg-health-good/15 text-health-good',

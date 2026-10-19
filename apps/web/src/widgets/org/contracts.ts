@@ -19,7 +19,28 @@ export interface OrgSummary {
     delta: number | null;
     /** The baseline the delta is against — a percent change needs it (W16-56). */
     previous: number | null;
+    /** W20-12 (UX_TODO DSH-81): the ratio's parts; null/absent for non-ratios. */
+    sample?: { numerator: number; denominator: number } | null;
   }[];
+  /** W20-12 (UX_TODO DSH-48): the newest snapshot in scope; null = none yet. */
+  as_of?: string | null;
+}
+
+/**
+ * "Data as of 19 Oct, 02:10" (W20-12, UX_TODO DSH-48) — the freshness stamp a
+ * lead needs to tell last night's numbers from this morning's. Local time,
+ * because that is the clock the reader knows the nightly run by.
+ */
+export function asOfLabel(iso: string | null | undefined): string {
+  if (!iso) return 'No metrics computed yet';
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return 'No metrics computed yet';
+  return `Data as of ${at.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
 }
 
 /**
@@ -38,6 +59,8 @@ export interface HealthTiles {
       letter: string | null;
       measured: boolean;
       basis: string;
+      /** W20-12 (UX_TODO DSH-19): the sub-score keys not measured. Older API: absent. */
+      not_measured?: string[];
       delta: number | null;
     };
   }[];
@@ -137,7 +160,15 @@ export function spansMultipleRepos(rows: readonly { repo: RepoRef }[]): boolean 
 
 /** GET /hotspots?window=&limit= */
 export interface HotspotItems {
-  items: { repoId: number; repo: RepoRef; path: string; score: number }[];
+  items: {
+    repoId: number;
+    repo: RepoRef;
+    path: string;
+    score: number;
+    /** M2's parts, sent all along (W20-12, DSH-20/79). Optional: older API. */
+    gross?: number;
+    daysSince?: number;
+  }[];
   /**
    * W6-09. Acknowledged files are hidden from the LIST, never from the data —
    * so the count travels with it. A leaderboard that omits rows without saying
@@ -150,7 +181,13 @@ export interface HotspotItems {
 
 /** GET /metrics/series?metric_key=&window= — oldest-first. */
 export interface MetricSeries {
-  points: { computed_at: string; value: number | null }[];
+  points: {
+    computed_at: string;
+    value: number | null;
+    /** A ratio's parts (W20-12, DSH-81); null for a non-ratio metric. */
+    numerator?: number | null;
+    denominator?: number | null;
+  }[];
   basis_label: string | null;
 }
 
@@ -243,6 +280,31 @@ export interface UserPrefs {
 export function deltaPctOf(delta: number | null, previous: number | null): number | null {
   if (delta === null || previous === null || previous === 0) return null;
   return (delta / Math.abs(previous)) * 100;
+}
+
+/** Below this many items a ratio is marked "small sample" (W20-12, UX_TODO DSH-81). */
+export const SMALL_SAMPLE = 5;
+
+/**
+ * The change a KPI tile shows, and in what (W20-12, UX_TODO DSH-17/83).
+ *
+ * - A percentage metric changes in POINTS: review coverage 40% → 45% is
+ *   "+5 pts", where a relative "+12.5%" read as the coverage itself rising
+ *   by 12.5.
+ * - From a zero baseline there is no percentage, but there IS a change: "+5
+ *   from 0" rather than "no prior window", which was false — the window
+ *   existed and measured zero.
+ * - Otherwise the relative percent change, as before.
+ */
+export function deltaOf(
+  delta: number | null,
+  previous: number | null,
+  unit: string | undefined,
+): { value: number | null; kind: 'pct' | 'pts' | 'abs' } {
+  if (delta === null || previous === null) return { value: null, kind: 'pct' };
+  if (unit === '%') return { value: delta * 100, kind: 'pts' };
+  if (previous === 0) return { value: delta, kind: 'abs' };
+  return { value: deltaPctOf(delta, previous), kind: 'pct' };
 }
 
 /** GET /org/ai-governance (W18-20). Aggregate only — no logins, no trailer values. */

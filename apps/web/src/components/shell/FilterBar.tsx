@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { WINDOW_PRESETS, type GlobalSearch } from '../../api/urlState.js';
 import { customRange, presetCovering } from '@repopulse/shared/url-state';
 import type { FilterScope } from '../../api/filterScope.js';
@@ -37,8 +38,21 @@ export function FilterBar({
   // matched and the control showed "7d". The option's value is now the range,
   // labelled with its dates and the preset the cards actually read.
   const range = customRange(value.window);
+
+  // W20-12 (UX_TODO DSH-63): the person box is a DRAFT until Enter, leaving
+  // the box, or picking a suggestion. Every keystroke used to push a history
+  // entry and refetch — "alice" was five queries, "no PRs" flashed for "a" and
+  // "al", and Back stepped out letter by letter. The URL stays the source of
+  // truth: the draft resets whenever it changes.
+  const [personDraft, setPersonDraft] = useState(value.person ?? '');
+  useEffect(() => setPersonDraft(value.person ?? ''), [value.person]);
+  const commitPerson = (next: string) => {
+    const trimmed = next.trim();
+    if (trimmed !== (value.person ?? '')) onChange({ person: trimmed || null });
+  };
+
   return (
-    <div className="flex items-center gap-2" data-testid="filter-bar">
+    <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="filter-bar">
       {/* Nothing at all is a legitimate result: Reports and Views carry their
           own scope, and an empty bar says so more honestly than three dead
           controls did. */}
@@ -69,8 +83,10 @@ export function FilterBar({
       {scope.repos && (
         <label className="flex items-center gap-1 text-xs text-fg-muted">
           <span className="sr-only">Repositories</span>
+          {/* min-w-0 + a max width (DSH-67): a native select is as wide as
+              its longest option. */}
           <select
-            className="h-8 rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong"
+            className="h-8 min-w-0 max-w-[14rem] truncate rounded-md border border-border bg-surface px-2 text-sm text-fg hover:border-border-strong"
             data-testid="filter-repos"
             aria-label="Repositories"
             value={value.repos ?? 'all'}
@@ -95,8 +111,17 @@ export function FilterBar({
             aria-label="Person"
             list="filter-person-options"
             placeholder="Any person"
-            value={value.person ?? ''}
-            onChange={(e) => onChange({ person: e.target.value || null })}
+            value={personDraft}
+            onChange={(e) => {
+              setPersonDraft(e.target.value);
+              // Picking a suggestion applies at once; typing does not.
+              if (personOptions.includes(e.target.value)) commitPerson(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitPerson(personDraft);
+              if (e.key === 'Escape') setPersonDraft(value.person ?? '');
+            }}
+            onBlur={() => commitPerson(personDraft)}
           />
           <datalist id="filter-person-options">
             {personOptions.map((p) => (
