@@ -42,12 +42,23 @@ function AdminLayout() {
   const { data: me, isSuccess } = useApiQuery<MeContext>({ endpoint: '/me/context' });
 
   if (isSuccess && me?.role !== 'admin') {
+    // W20-04 (UX_TODO ADM-04): the rail no longer sends members here, but a
+    // bookmark still can — so the wall points at the page that IS theirs.
     return (
-      <WidgetFrame
-        title="Admin"
-        state="empty"
-        emptyMessage="You need an admin role in this workspace. Ask an admin to connect your organisation or change your role."
-      />
+      <div className="flex flex-col gap-2">
+        <WidgetFrame
+          title="Admin"
+          state="empty"
+          emptyMessage="You need an admin role in this workspace. Ask an admin to connect your organisation or change your role."
+        />
+        <p className="text-sm text-fg-muted">
+          Your own theme, home screen and password are in{' '}
+          <Link to="/account" className="text-accent underline" data-testid="admin-wall-account">
+            Account
+          </Link>
+          .
+        </p>
+      </div>
     );
   }
 

@@ -19,10 +19,27 @@ import {
 // SSE stream degrades to: if the stream is down this page still tells the
 // operator what is happening, which is the whole point of having both.
 
+/**
+ * Poll while something is still moving (W20-04, UX_TODO INS-11).
+ *
+ * This is the page onboarding sends people to ("watch the first sync land"),
+ * and it never changed: no poll, no focus refetch, and SSE never touched this
+ * key. A repository that is `live` has landed; `error` and `paused` wait for a
+ * human, so polling them changes nothing. Everything else — queued, history,
+ * enrichment, and a budget pause that resumes on its own — is in motion.
+ */
+export const SYNC_POLL_MS = 5000;
+const SETTLED_PHASES = new Set(['live', 'error', 'paused']);
+
+export function syncPollInterval(status: OrgSyncStatus | undefined): number | false {
+  return status?.repos.some((r) => !SETTLED_PHASES.has(r.phase)) ? SYNC_POLL_MS : false;
+}
+
 export function SyncOps() {
-  const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSyncStatus>({
-    endpoint: '/sync/status',
-  });
+  const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSyncStatus>(
+    { endpoint: '/sync/status' },
+    { refetchInterval: syncPollInterval },
+  );
 
   const repos = data?.repos ?? [];
 

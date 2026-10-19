@@ -2,7 +2,7 @@ import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { auditLog, type Database } from '@repopulse/shared';
 import { oauth, session as sessionModule } from '@repopulse/auth';
-import { sendProblem } from './problem.js';
+import { redirectToSignIn, sendProblem } from './problem.js';
 import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
 
 export interface AuthRoutesOptions extends sessionModule.SessionPluginOptions {
@@ -61,6 +61,9 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
     },
   );
 
+  // Every failure below ends on the sign-in screen, not a JSON body (W20-04,
+  // UX_TODO INS-14): this is a browser navigation, and the audit line keeps
+  // the precise reason for the operator.
   app.get<{ Querystring: { code?: string; state?: string } }>(
     '/auth/callback',
     { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
@@ -73,7 +76,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
           reason: 'missing_code_or_state',
           ...auditContext(request),
         });
-        return sendProblem(request, reply, 400, 'Missing code or state', undefined);
+        return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'missing_code_or_state');
       }
 
       const cookieValue = request.cookies[OAUTH_STATE_COOKIE];
@@ -85,7 +88,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
           reason: 'missing_state_cookie',
           ...auditContext(request),
         });
-        return sendProblem(request, reply, 400, 'Missing OAuth state cookie');
+        return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'missing_state_cookie');
       }
       const unsigned = request.unsignCookie(cookieValue);
       if (!unsigned.valid || unsigned.value !== state) {
@@ -95,16 +98,12 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
           reason: 'state_mismatch',
           ...auditContext(request),
         });
-        return sendProblem(request, reply, 400, 'OAuth state mismatch');
+        return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'state_mismatch');
       }
 
       let accessToken: string;
       try {
-        accessToken = await oauth.exchangeCodeForToken(
-          githubOAuth,
-          code,
-          opts.githubEndpoints,
-        );
+        accessToken = await oauth.exchangeCodeForToken(githubOAuth, code, opts.githubEndpoints);
       } catch (err) {
         request.log.warn({ err }, 'GitHub OAuth token exchange failed');
         auditLog(request.log, {
@@ -113,7 +112,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
           reason: 'oauth_exchange_failed',
           ...auditContext(request),
         });
-        return sendProblem(request, reply, 502, 'GitHub OAuth token exchange failed');
+        return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'oauth_exchange_failed');
       }
 
       let identity: oauth.GithubIdentity;
@@ -127,7 +126,7 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
           reason: 'identity_fetch_failed',
           ...auditContext(request),
         });
-        return sendProblem(request, reply, 502, 'GitHub identity fetch failed');
+        return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'identity_fetch_failed');
       }
 
       const user = await oauth.findOrCreateUser(opts.db, identity);

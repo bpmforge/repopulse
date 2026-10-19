@@ -18,4 +18,4 @@ export { FilterBar, type FilterBarProps, type RepoOption } from './shell/FilterB
 export { Breadcrumb, type Crumb, type BreadcrumbProps } from './shell/Breadcrumb.js';
 export { ThemeToggle } from './shell/ThemeToggle.js';
 export { Toaster } from './shell/Toaster.js';
-export { useUiStore } from './store/uiStore.js';
+export { useUiStore, errorToast } from './store/uiStore.js';

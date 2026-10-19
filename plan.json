@@ -10358,6 +10358,40 @@
           "FND-16: there is no active -> shadow move. CODE_HEALTH_SUITE section 8.2 makes demotion an admin-confirmed deprecation, and lifecycle.ts brings a deprecated rule back only through a fresh shadow trial, so the flag's action is Demote (deprecate) and the lifecycle was not changed. Reject (proposed) and Retire (shadow) are new on screen; a test pins the web table to ALLOWED in packages/security lifecycle.ts.",
           "GET /findings now returns total (matching rows across pages, one count query) for the triage label. e2e/findings.spec.ts and e2e/repo-detail.spec.ts were updated for the required dismiss reason, the header checkbox and the open default, and were not run here (no seeded stack)."
         ]
+      },
+      {
+        "id": "W20-04",
+        "title": "Settings, admin and error-handling UX",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/src/routes/auth/**",
+          "apps/api/src/routes/admin/system/**",
+          "apps/api/src/routes/me/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-01"
+        ],
+        "acceptance": [
+          "UX_TODO ADM-12, INS-05, INS-06: error toasts and inline errors show the problem title, its detail and the request id; crit toasts are role=alert and stay until dismissed; forge-connect errors name the scopes to add",
+          "UX_TODO ADM-08, ADM-09, ADM-10, ADM-11: report Generate shows its error or a Queued confirmation; the report viewer handles errors and queued/failed rows; identity merge and role changes confirm first, wait for the API and say why they were refused (self-demotion warns about losing Settings)",
+          "UX_TODO ADM-03, ADM-04, ADM-58, INS-11: every System health action href is a real web route (API test against routeTree.gen.ts); members get an Account page instead of Settings; DataTable leaves Enter to the controls inside cells; Settings > Sync polls while repos are moving and SSE refreshes /sync/*",
+          "UX_TODO INS-14, X-02, ADM-43: failed OIDC/GitHub callbacks redirect to sign-in with a reason and request id (API tests); a mid-use 401 opens sign-in OVER the mounted app so drafts survive; a failed session probe with Postgres/Redis down shows one outage screen. Every fix has a test and the workspace gate is green"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). Batch of P1s from docs/work/UX_TODO.md.",
+          "X-02 approach: the sign-in screen now renders in a modal overlay above AppShell, which stays mounted (inert, aria-hidden) at the same tree position, so every in-memory draft, selection and form edit survives the expiry; after signing in, queries that failed are refetched. The refused write is not replayed (the copy says to make the last change again), and drafts do not survive a full reload; sessionStorage drafts keyed by route would cover that and are not built.",
+          "ADM-43 partly done, left unticked: when the FIRST session probe fails and /healthz names postgres or redis as down, one outage screen replaces the app and re-checks every 10s. Remaining: an outage that starts mid-session (session already established) still shows per-card errors, and /admin/system does not catch per-component DB failures (moot while the api-v1 guard needs the DB before any route runs).",
+          "ADM-03: no in-product log viewer exists, so dead postgres/redis/worker components name the `docker compose logs <service>` command in their reason instead of linking to /admin/ops; connections links go to /admin/.",
+          "ADM-04: /me/context now returns user_id (Members uses it for the self-demotion warning). The member's Account page (/account) has theme, home screen, voluntary password change (PasswordChange variant=account) and sign out; the user menu links to it for admins too.",
+          "Found while fixing (not in UX_TODO): DataTable rendered cells through flexRender with a per-render arrow, so React treated every cell as a new component type and remounted it on every parent render: an open Remove... confirm closed itself whenever any query on the screen refetched. Cells now call the column renderer directly."
+        ]
       }
   ]
 }

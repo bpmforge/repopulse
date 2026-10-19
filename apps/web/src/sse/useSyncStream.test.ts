@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createSyncStream,
+  isDirtyQuery,
   type EventSourceLike,
   type SyncStreamCallbacks,
 } from './useSyncStream.js';
@@ -210,5 +211,22 @@ describe('createSyncStream (DASHBOARD §6)', () => {
       expect(calls.firstInsight).toEqual([9]);
       stream.stop();
     });
+  });
+});
+
+// W20-04 (UX_TODO INS-11): sync events refreshed every key EXCEPT the one that
+// reports sync status, so Settings → Sync sat still while the chip moved.
+describe('isDirtyQuery', () => {
+  it('refreshes /sync/status on any sync news', () => {
+    expect(isDirtyQuery(['/sync/status', {}, {}], { repoIds: [3], org: false })).toBe(true);
+    expect(isDirtyQuery(['/sync/status', {}, {}], { repoIds: [], org: true })).toBe(true);
+    expect(isDirtyQuery(['/sync/status', {}, {}], { repoIds: [], org: false })).toBe(false);
+  });
+
+  it('keeps the existing org and per-repo targeting', () => {
+    expect(isDirtyQuery(['/org/summary', {}, {}], { repoIds: [], org: true })).toBe(true);
+    expect(isDirtyQuery(['/repos/{id}', { id: 3 }, {}], { repoIds: [3], org: false })).toBe(true);
+    expect(isDirtyQuery(['/repos/{id}', { id: 4 }, {}], { repoIds: [3], org: false })).toBe(false);
+    expect(isDirtyQuery(['/admin/members', {}, {}], { repoIds: [3], org: true })).toBe(false);
   });
 });

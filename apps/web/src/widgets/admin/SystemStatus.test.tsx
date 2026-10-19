@@ -40,7 +40,7 @@ const ready: SystemStatusResponse = {
       state: 'unavailable',
       reason: 'No worker has published a heartbeat in the last minute.',
       lastSuccessAt: null,
-      action: { label: 'Container logs', href: '/admin/ops' },
+      action: { label: 'Setup checklist', href: '/setup' },
     },
     {
       id: 'models',
@@ -101,7 +101,7 @@ describe('SystemStatus (W17-08)', () => {
     renderWidget();
 
     await waitFor(() => expect(screen.getByTestId('system-action-worker')).toBeInTheDocument());
-    expect(screen.getByTestId('system-action-worker')).toHaveAttribute('href', '/admin/ops');
+    expect(screen.getByTestId('system-action-worker')).toHaveAttribute('href', '/setup');
   });
 
   it('states the reason in plain language', async () => {
@@ -137,9 +137,7 @@ describe('SystemStatus (W17-08)', () => {
     respond({ title: 'Service Unavailable', status: 503 }, false, 503);
     await userEvent.click(screen.getByTestId('system-status-refresh'));
 
-    await waitFor(() =>
-      expect(screen.queryByTestId('system-status-list')).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByTestId('system-status-list')).not.toBeInTheDocument());
     // And nothing green is left behind.
     expect(screen.queryByTestId('system-state-database')).not.toBeInTheDocument();
   });

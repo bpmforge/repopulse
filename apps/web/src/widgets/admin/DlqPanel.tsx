@@ -5,7 +5,7 @@ import {
   useUiStore,
   type DataTableColumn,
 } from '../../components/index.js';
-import type { Toast } from '../../components/store/uiStore.js';
+import { errorToast, type Toast } from '../../components/store/uiStore.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 
 // Admin → Sync → Dead-letter queue (W4-20, NFR-11).
@@ -44,8 +44,8 @@ function ReplayButton({ row, onToast }: { row: DlqRow; onToast: (t: Toast[]) => 
         replay.mutate(
           {},
           {
-            onError: (err: Error) =>
-              onToast([{ id: `dlq-${row.id}-err`, tone: 'crit', message: err.message }]),
+            // W20-04 (UX_TODO ADM-12): title, detail and request id, not the title alone.
+            onError: (err: Error) => onToast([errorToast(`dlq-${row.id}-err`, err)]),
             onSuccess: () =>
               onToast([{ id: `dlq-${row.id}-ok`, tone: 'ok', message: `Replayed ${row.job_id}` }]),
           },
@@ -77,7 +77,11 @@ export function DlqPanel() {
       ),
     },
     { id: 'failed', header: 'Failed', cell: (row) => new Date(row.failed_at).toLocaleString() },
-    { id: 'action', header: 'Replay', cell: (row) => <ReplayButton row={row} onToast={pushToasts} /> },
+    {
+      id: 'action',
+      header: 'Replay',
+      cell: (row) => <ReplayButton row={row} onToast={pushToasts} />,
+    },
   ];
 
   return (
@@ -91,7 +95,12 @@ export function DlqPanel() {
       emptyMessage="No dead-lettered jobs. Anything that exhausts its retries will appear here with the error that caused it."
     >
       <div data-testid="dlq-table">
-        <DataTable name="admin-dlq" columns={columns} data={items} getRowId={(row) => String(row.id)} />
+        <DataTable
+          name="admin-dlq"
+          columns={columns}
+          data={items}
+          getRowId={(row) => String(row.id)}
+        />
       </div>
     </WidgetFrame>
   );

@@ -119,6 +119,27 @@ describe('PasswordChange (W15-04)', () => {
     );
   });
 
+  it('says WHY a new password was rejected, from the API detail (W20-04, INS-06)', async () => {
+    changeAnswer = {
+      status: 400,
+      body: {
+        title: 'Password rejected',
+        status: 400,
+        detail: 'That password appears in a list of commonly used passwords.',
+        request_id: 'req-5',
+      },
+    };
+    renderWith(<PasswordChange />);
+    await fillAndSubmit('bootstrap passphrase', 'a password of my own', 'a password of my own');
+    await waitFor(() =>
+      expect(screen.getByTestId('password-change-detail')).toHaveTextContent(
+        'commonly used passwords',
+      ),
+    );
+    expect(screen.getByTestId('password-change-error')).toHaveTextContent('Password rejected');
+    expect(screen.getByTestId('password-change-error')).toHaveTextContent('req-5');
+  });
+
   it('offers a way out: a pending session can log itself out of /auth/local/logout', async () => {
     const user = userEvent.setup();
     renderWith(<PasswordChange />);

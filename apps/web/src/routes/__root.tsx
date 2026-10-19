@@ -5,7 +5,7 @@ import {
   useRouterState,
   type NavigateOptions,
 } from '@tanstack/react-router';
-import type { QueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Rail } from '../components/shell/Rail.js';
 import { NavDrawer } from '../components/shell/NavDrawer.js';
 import { RepoPulseWordmark } from '../components/brand/RepoPulseMark.js';
@@ -22,7 +22,9 @@ import { Toaster } from '../components/shell/Toaster.js';
 import '../widgets/registerAll.js';
 import { useUiStore } from '../components/store/uiStore.js';
 import { useSyncStream } from '../sse/useSyncStream.js';
-import { useApiQuery, useSession } from '../api/useApiQuery.js';
+import { SESSION_ENDPOINT, queryKeyFor, useApiQuery, useSession } from '../api/useApiQuery.js';
+import { apiFetch, errorDetailOf } from '../api/client.js';
+import type { MeContext } from '../widgets/org/contracts.js';
 import { filterScopeFor } from '../api/filterScope.js';
 import { PersonaPicker } from '../widgets/onboarding/PersonaPicker.js';
 import { SignedOut } from '../widgets/auth/SignedOut.js';
@@ -59,6 +61,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   admin: 'Settings',
   me: 'My Focus',
   setup: 'Setup',
+  account: 'Account',
   // W18-29. Not rail entries: reached from the Overview tile and from Reviews.
   governance: 'AI-code governance',
   'sensitive-changes': 'Sensitive changes',
@@ -160,6 +163,19 @@ function RootShell() {
     if (status === 'authenticated') setHadSession(true);
   }, [status]);
 
+  // Back from a mid-use expiry (W20-04, UX_TODO X-02): everything that failed
+  // with 401 while the session was gone is asked again, so the screen the
+  // person kept is current rather than a column of "No active session" cards.
+  const queryClient = useQueryClient();
+  const recovering = useRef(false);
+  useEffect(() => {
+    if (status === 'anonymous' && hadSession) recovering.current = true;
+    if (status === 'authenticated' && recovering.current) {
+      recovering.current = false;
+      void queryClient.invalidateQueries({ predicate: (q) => q.state.status === 'error' });
+    }
+  }, [status, hadSession, queryClient]);
+
   if (isPrint) return <Outlet />;
   if (status === 'loading') return <SessionProbe />;
   // 'anonymous' covers TWO states the session probe cannot separate: nobody is
@@ -169,12 +185,120 @@ function RootShell() {
   // decided HERE rather than at a /signin URL on purpose — a route can be
   // navigated away from, and "cannot reach anything else until it is done" has
   // to be a property of the shell.
-  if (status === 'anonymous') return <SignedOut expired={hadSession} />;
-  // 'unknown' — the probe itself failed with something that is NOT a 401 (the
-  // API is down, the proxy returned 502). That is not evidence anyone is signed
-  // out, so the app renders and each widget reports its own error honestly,
-  // with a request id, rather than the shell inventing a sign-in wall.
-  return <AppShell />;
+  if (status === 'anonymous' && !hadSession) return <SignedOut expired={false} />;
+  // 'unknown' — the probe itself failed with something that is NOT a 401. That
+  // is not evidence anyone is signed out. If /healthz says the database or
+  // Redis is down, one outage screen says so (W20-04, UX_TODO ADM-43);
+  // otherwise the app renders and each widget reports its own error honestly.
+  if (status === 'unknown') return <OutageGate />;
+
+  // SIGNED OUT MID-USE (W20-04, UX_TODO X-02). The sign-in screen used to
+  // REPLACE the app, unmounting everything in progress — a half-typed triage
+  // note, a bulk selection, unsaved settings — while promising "nothing was
+  // lost". It now opens OVER the app, which stays mounted (inert) underneath,
+  // so all of that is still there after signing in again. The write that hit
+  // the 401 was refused and is not replayed; the sign-in copy says so. Same
+  // element positions in both states, so React keeps AppShell's state.
+  const expired = status === 'anonymous';
+  return (
+    <>
+      <AppShell inert={expired} />
+      {expired ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Sign in again"
+          className="fixed inset-0 z-[60] overflow-auto"
+          data-testid="reauth-overlay"
+        >
+          <SignedOut expired />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** What /healthz says is down, from its `postgres=down redis=ok` detail. */
+export function downFromHealthDetail(detail: string | undefined): string[] {
+  if (!detail) return [];
+  return [...detail.matchAll(/(\w+)=down/g)].map((m) => m[1]!);
+}
+
+const HEALTH_KEY = ['healthz'] as const;
+const OUTAGE_POLL_MS = 10_000;
+
+/**
+ * Asks /healthz why the session probe failed (W20-04, UX_TODO ADM-43).
+ *
+ * With Postgres or Redis down, the probe 500s, the shell rendered the full app
+ * anyway, and every card showed its own "Internal Server Error". Nothing said
+ * the server had lost its database — and the admin's System health panel
+ * could not either, because the api-v1 guard needs the database before any
+ * route answers. /healthz needs no session and already names what is down.
+ *
+ * Anything it cannot establish — /healthz unreachable, a proxy 502 — keeps
+ * the old behaviour: the app renders and the widgets report honestly. Only a
+ * dependency the server itself says is down earns the outage screen.
+ */
+function OutageGate() {
+  const queryClient = useQueryClient();
+  const {
+    data: down,
+    isPending,
+    refetch,
+    isFetching,
+  } = useQuery<string[]>({
+    queryKey: HEALTH_KEY,
+    queryFn: () =>
+      apiFetch<unknown>('/healthz').then(
+        () => [],
+        (err: unknown) => downFromHealthDetail(errorDetailOf(err)),
+      ),
+    retry: false,
+    // Keep asking while it is down, so the screen clears itself on recovery.
+    refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 ? OUTAGE_POLL_MS : false),
+  });
+
+  const healthy = down !== undefined && down.length === 0;
+  useEffect(() => {
+    // Recovered (or never down): re-ask who this is, so the shell can tell a
+    // signed-out visitor from a signed-in one again.
+    if (healthy)
+      void queryClient.invalidateQueries({ queryKey: queryKeyFor({ endpoint: SESSION_ENDPOINT }) });
+  }, [healthy, queryClient]);
+
+  // The probe never throws (a failure IS the answer), so no data means pending.
+  if (isPending || down === undefined) return <SessionProbe />;
+  if (healthy) return <AppShell />;
+
+  const names = down.map((d) => (d === 'postgres' ? 'its database' : d === 'redis' ? 'Redis' : d));
+  return (
+    <div
+      className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-bg p-6 text-fg"
+      data-testid="outage"
+    >
+      <div className="panel max-w-lg p-6" role="alert">
+        <h1 className="text-base font-medium">RepoPulse can’t reach {names.join(' or ')}</h1>
+        <p className="mt-2 text-sm text-fg-muted">
+          Your admin needs to check the server. Nothing you would see right now is current, so
+          nothing is shown. This page checks again every {OUTAGE_POLL_MS / 1000} seconds and opens
+          the app by itself once the server recovers.
+        </p>
+        <p className="mt-2 font-mono text-xs text-fg-faint" data-testid="outage-detail">
+          {down.map((d) => `${d}: down`).join(' · ')}
+        </p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+          className="mt-4 rounded-sm border border-border px-2 py-1 text-xs text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid="outage-retry"
+        >
+          {isFetching ? 'Checking…' : 'Check again'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -212,8 +336,8 @@ function SessionProbe() {
       {slow && (
         <div className="flex flex-col items-center gap-2 text-xs" data-testid="session-probe-stuck">
           <p>
-            This is taking longer than it should. The server may be unreachable, or this session
-            may no longer be valid.
+            This is taking longer than it should. The server may be unreachable, or this session may
+            no longer be valid.
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -254,10 +378,23 @@ function SessionProbe() {
 // The version that used to be inline here offered one hardcoded GitHub link,
 // which since D14 is a button most deployments should not show at all.
 
-function AppShell() {
+function AppShell({ inert = false }: { inert?: boolean }) {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // Under the sign-in overlay the app stays mounted but must not be reachable
+  // (X-02). React 18 does not know the `inert` attribute, so it is set here.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    rootRef.current?.toggleAttribute('inert', inert);
+  }, [inert]);
+
+  // W20-04 (UX_TODO ADM-04). The rail defaulted `isAdmin` to true because the
+  // shell never passed it, so members were shown Settings and then refused it.
+  // Already fetched by the session probe; this reads the same cache entry.
+  const { data: me } = useApiQuery<MeContext>({ endpoint: SESSION_ENDPOINT });
+  const isAdmin = me?.role === 'admin';
 
   // The single app-wide sync stream (SSE) — cache-bust + chip + toasts.
   useSyncStream();
@@ -321,17 +458,22 @@ function AppShell() {
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-bg text-fg">
+    <div
+      ref={rootRef}
+      className="flex h-screen w-screen overflow-hidden bg-bg text-fg"
+      aria-hidden={inert || undefined}
+    >
       {/* W17-14: the rail is DESKTOP only now. Below 768px it used to collapse
           to a column of unlabelled icons that ate 56px of a 390px screen
           permanently; narrow screens get the labelled drawer instead. */}
       <div className="hidden md:flex">
-        <Rail search={preservedSearch} badges={railBadges} />
+        <Rail search={preservedSearch} badges={railBadges} isAdmin={isAdmin} />
       </div>
       <NavDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         badges={railBadges}
+        isAdmin={isAdmin}
         search={preservedSearch}
         returnFocusTo={drawerTriggerRef}
       />

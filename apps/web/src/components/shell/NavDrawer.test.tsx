@@ -60,9 +60,12 @@ describe('NavDrawer (W17-14)', () => {
     }
   });
 
-  it('hides Settings from a non-admin', () => {
+  it('hides Settings from a non-admin, and offers their own Account page instead', () => {
     render(<NavDrawer open onClose={vi.fn()} isAdmin={false} />);
     expect(screen.queryByText('Settings')).toBeNull();
+    // W20-04 (UX_TODO ADM-04): the slot a member clicked to meet an admin wall
+    // now leads somewhere they may go.
+    expect(screen.getByText('Account')).toBeInTheDocument();
     // …while everything a member may use is still there.
     expect(screen.getByText('Overview')).toBeInTheDocument();
   });

@@ -168,17 +168,24 @@ describeIfLiveInfra('auth routes E2E against a mocked GitHub (W1-03)', () => {
       query: { code: 'mock-code', state: 'a-different-state' },
       cookies: { oauth_state: stateCookie.value },
     });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().title).toBe('OAuth state mismatch');
+    // W20-04 (UX_TODO INS-14): back to the sign-in screen with a reason the
+    // SPA can explain and the request id, not a raw JSON page.
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.location as string);
+    expect(location.origin + location.pathname).toBe('http://localhost:5173/');
+    expect(location.searchParams.get('auth_error')).toBe('state_mismatch');
+    expect(location.searchParams.get('request_id')).toBeTruthy();
   });
 
-  it('GET /auth/callback with no state cookie at all is 400', async () => {
+  it('GET /auth/callback with no state cookie at all goes back to sign-in', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/auth/callback',
       query: { code: 'mock-code', state: 'whatever' },
     });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().title).toBe('Missing OAuth state cookie');
+    expect(res.statusCode).toBe(302);
+    expect(new URL(res.headers.location as string).searchParams.get('auth_error')).toBe(
+      'missing_state_cookie',
+    );
   });
 });

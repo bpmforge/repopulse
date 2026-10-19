@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SyncOps } from './SyncOps.js';
+import { SYNC_POLL_MS, SyncOps, syncPollInterval } from './SyncOps.js';
 import type { OrgSyncStatus, RepoSyncStatus } from './contracts.js';
 
 // W17-39 (R-16): a feature switched off on the repository (issues disabled on
@@ -74,5 +74,27 @@ describe('SyncOps — features not enabled on a repo (W17-39)', () => {
     expect(note.className).not.toMatch(/text-crit/);
     const row = note.closest('tr')!;
     expect(within(row).getByText('—')).toBeInTheDocument();
+  });
+});
+
+// W20-04 (UX_TODO INS-11). The page onboarding sends people to — "watch the
+// first sync land" — never updated by itself.
+describe('SyncOps keeps itself current (W20-04)', () => {
+  const status = (...phases: string[]): OrgSyncStatus => ({
+    phase: 'history',
+    repoCount: phases.length,
+    percentComplete: 10,
+    worstLagSeconds: null,
+    repos: phases.map((phase, i) => repo({ repoId: String(i), phase })),
+  });
+
+  it('polls while any repository is still moving, and stops once all have settled', () => {
+    expect(syncPollInterval(status('queued'))).toBe(SYNC_POLL_MS);
+    expect(syncPollInterval(status('live', 'history'))).toBe(SYNC_POLL_MS);
+    expect(syncPollInterval(status('live', 'paused_budget'))).toBe(SYNC_POLL_MS);
+    // Waiting on a human, or done: nothing a poll would change.
+    expect(syncPollInterval(status('live', 'error', 'paused'))).toBe(false);
+    expect(syncPollInterval(status())).toBe(false);
+    expect(syncPollInterval(undefined)).toBe(false);
   });
 });

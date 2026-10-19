@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -105,5 +106,78 @@ describe('DataTable (DASHBOARD §7)', () => {
       />,
     );
     expect(screen.getAllByTestId('row-skeleton').length).toBeGreaterThan(0);
+  });
+});
+
+// W20-04 (UX_TODO ADM-58). Every table swallowed Enter, though no screen used
+// it, so a keyboard user could not press a button or follow a link in a cell.
+describe('DataTable keyboard ownership (W20-04)', () => {
+  const pressed = vi.fn();
+  const WITH_BUTTON: DataTableColumn<Repo>[] = [
+    { id: 'name', header: 'Repo', cell: (r) => r.name },
+    {
+      id: 'act',
+      header: 'Action',
+      cell: (r) => (
+        <button type="button" data-testid={`act-${r.id}`} onClick={() => pressed(r.id)}>
+          Act
+        </button>
+      ),
+    },
+  ];
+
+  it('Enter on a button inside a cell presses the button, not the row', async () => {
+    const user = userEvent.setup();
+    pressed.mockClear();
+    const onActivate = vi.fn();
+    render(
+      <DataTable
+        name="repos"
+        columns={WITH_BUTTON}
+        data={DATA}
+        getRowId={(r) => r.id}
+        onActivate={onActivate}
+      />,
+    );
+    screen.getByTestId('act-r2').focus();
+    await user.keyboard('{Enter}');
+    expect(pressed).toHaveBeenCalledWith('r2');
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it('a table nobody activates rows in has no row highlight, pointer or key handling', async () => {
+    const user = userEvent.setup();
+    pressed.mockClear();
+    render(<DataTable name="repos" columns={WITH_BUTTON} data={DATA} getRowId={(r) => r.id} />);
+    const table = screen.getByTestId('table-repos');
+    expect(table).not.toHaveAttribute('tabindex');
+    expect(screen.getByTestId('row-r1')).toHaveAttribute('data-active', 'false');
+    expect(screen.getByTestId('row-r1').className).not.toContain('cursor-pointer');
+    screen.getByTestId('act-r1').focus();
+    await user.keyboard('{Enter}');
+    expect(pressed).toHaveBeenCalledWith('r1');
+  });
+
+  it('a cell keeps its own state when the table re-renders', async () => {
+    // flexRender used to remount every cell on every parent render, so an open
+    // confirm step closed itself whenever any query on the screen refetched.
+    function Toggle() {
+      const [open, setOpen] = useState(false);
+      return (
+        <button type="button" data-testid="toggle" onClick={() => setOpen(true)}>
+          {open ? 'open' : 'closed'}
+        </button>
+      );
+    }
+    const cols: DataTableColumn<Repo>[] = [{ id: 't', header: 'T', cell: () => <Toggle /> }];
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <DataTable name="repos" columns={cols} data={DATA.slice(0, 1)} getRowId={(r) => r.id} />,
+    );
+    await user.click(screen.getByTestId('toggle'));
+    rerender(
+      <DataTable name="repos" columns={[...cols]} data={DATA.slice(0, 1)} getRowId={(r) => r.id} />,
+    );
+    expect(screen.getByTestId('toggle')).toHaveTextContent('open');
   });
 });

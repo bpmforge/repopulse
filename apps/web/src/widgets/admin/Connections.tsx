@@ -9,6 +9,7 @@ import {
 } from '../../components/index.js';
 import { docsUrl } from '../../lib/docs.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { errorDetailOf, requestIdOf } from '../../api/client.js';
 import type { ConnectionList, ConnectionSummary } from './contracts.js';
 import { RepoPicker } from './RepoPicker.js';
 
@@ -16,6 +17,60 @@ import { RepoPicker } from './RepoPicker.js';
 // operators to, and the only way to connect an organisation.
 
 const LIST = { endpoint: '/connections' } as const;
+
+/** What each forge's token needs, in the words its settings page uses. */
+const SCOPES: Record<'github' | 'gitlab' | 'gitea', string> = {
+  github: 'repo and read:org (or a fine-grained token with read access to the repositories)',
+  gitlab: 'read_api',
+  gitea: 'read:repository, read:organization and read:user',
+};
+
+/**
+ * A plain sentence for each validation failure (W20-04, UX_TODO INS-05).
+ *
+ * The API answers `Credential validation failed: bad_token` — accurate, and a
+ * code rather than a next step. INSTALL.md promises the reason by name, so the
+ * kind maps to what to do about it, and the API's own detail rides underneath.
+ */
+export function connectErrorSentence(
+  title: string,
+  provider: 'github' | 'gitlab' | 'gitea',
+): string | null {
+  const kind = /Credential validation failed: (\w+)/.exec(title)?.[1];
+  switch (kind) {
+    case 'bad_token':
+      return 'The forge rejected this token. It may be mistyped, expired or revoked — create a new one and paste it again.';
+    case 'bad_scope':
+      return `The token works but cannot read enough. Give it these scopes: ${SCOPES[provider]}.`;
+    case 'no_repos':
+      return 'The token works but can see no repositories. Check that its owner is a member of the organisation, or that a fine-grained token includes the repositories.';
+    default:
+      return null;
+  }
+}
+
+function ConnectError({
+  error,
+  provider,
+}: {
+  error: Error;
+  provider: 'github' | 'gitlab' | 'gitea';
+}) {
+  const sentence = connectErrorSentence(error.message, provider);
+  const detail = errorDetailOf(error);
+  const requestId = requestIdOf(error);
+  return (
+    <span className="flex flex-col text-xs text-crit" role="alert" data-testid="connection-error">
+      <span>{sentence ?? error.message}</span>
+      {detail ? (
+        <span className="text-fg-muted" data-testid="connection-error-detail">
+          {detail}
+        </span>
+      ) : null}
+      {requestId ? <span className="font-mono text-fg-faint">(request {requestId})</span> : null}
+    </span>
+  );
+}
 
 type Row = ConnectionSummary;
 
@@ -79,7 +134,11 @@ export function Connections() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="admin-connections">
-      <WidgetFrame title="Connect an organisation" state="ready" definitionHref={docsUrl('/docs/INSTALL.md')}>
+      <WidgetFrame
+        title="Connect an organisation"
+        state="ready"
+        definitionHref={docsUrl('/docs/INSTALL.md')}
+      >
         <form
           className="flex flex-col gap-2"
           onSubmit={(e) => {
@@ -98,9 +157,7 @@ export function Connections() {
                   // the DOM and in any screenshot the operator takes next.
                   setCredential('');
                   setSubmitted(`Connected (${res.status})`);
-                  pushToasts([
-                    { id: `conn-${res.id}`, tone: 'ok', message: 'Connection created' },
-                  ]);
+                  pushToasts([{ id: `conn-${res.id}`, tone: 'ok', message: 'Connection created' }]);
                 },
               },
             );
@@ -135,7 +192,9 @@ export function Connections() {
             // forbids that literal outside packages/forge, and a placeholder is
             // not worth an exemption to the rule that keeps forge hosts in one
             // place.
-            placeholder={provider === 'gitea' ? 'https://git.example.com' : 'leave blank for GitHub'}
+            placeholder={
+              provider === 'gitea' ? 'https://git.example.com' : 'leave blank for GitHub'
+            }
             className="panel px-2 py-1 text-sm"
             data-testid="connection-base-url"
           />
@@ -169,11 +228,7 @@ export function Connections() {
             >
               {create.isPending ? 'Connecting…' : 'Connect'}
             </button>
-            {create.isError && (
-              <span className="text-xs text-crit" role="alert" data-testid="connection-error">
-                {create.error.message}
-              </span>
-            )}
+            {create.isError && <ConnectError error={create.error} provider={provider} />}
             {submitted && !create.isError && (
               <span className="text-xs text-fg-muted" data-testid="connection-result">
                 {submitted}
