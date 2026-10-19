@@ -6,6 +6,7 @@ import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repo
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 import { AI_PASS_MAX_PATHS } from '../../workers/ai-pass-processor.js';
+import scheduleRoutes from './schedule.js';
 
 // The AI pass: start one, watch it, and read what it suggested (W19-09).
 //
@@ -147,10 +148,14 @@ export default async function aiPassRoutes(
     await connection?.quit();
   });
 
+  // Scheduled passes (W19-12): opt-in per repository; the worker starts them.
+  await app.register(scheduleRoutes, { db, now });
+
   const runView = (r: typeof read.aiPassRuns.$inferSelect, requestedBy: string | null) => ({
     id: r.id,
     status: r.status,
     mode: r.mode,
+    trigger: r.trigger,
     paths: r.paths,
     base_ref: r.baseRef,
     head_ref: r.headRef,

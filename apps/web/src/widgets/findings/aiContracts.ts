@@ -94,6 +94,7 @@ export type PassStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipp
 export interface AiPassRun {
   id: number;
   status: PassStatus;
+  trigger?: 'manual' | 'scheduled';
   mode?: PassMode;
   paths: string[];
   base_ref?: string | null;
@@ -138,3 +139,53 @@ export const PASS_CAPS = {
   perDay: 10,
   commits: 10,
 } as const;
+
+// Scheduled passes (W19-12): what GET /repos/:id/ai-pass/schedule sends.
+
+export interface EgressDestination {
+  provider_id: number;
+  provider_name: string;
+  host: string | null;
+  leaves_network: boolean;
+  roles: string[];
+}
+
+export interface PassEgress {
+  local_only: boolean;
+  destinations: EgressDestination[];
+  leaves_network: boolean;
+  /** Sent back with an enable request: proof the admin was shown THESE destinations. */
+  digest: string;
+  sentence: string;
+  sends: string;
+}
+
+export interface ScheduleView {
+  enabled: boolean;
+  frequency: 'daily' | 'weekly';
+  scope: { kind: 'paths' | 'new_pull_requests'; paths: string[] };
+  enabled_by: string | null;
+  enabled_at: string | null;
+  last_run_at: string | null;
+  next_run_at: string | null;
+}
+
+export interface ScheduleResponse {
+  schedule: ScheduleView | null;
+  egress: PassEgress;
+  acknowledgement_stale: boolean;
+  monthly: { cap: number; used: number; remaining: number };
+  limits: { passes_per_day: number; tick_minutes: number };
+  runs: {
+    id: number;
+    status: PassStatus;
+    mode: PassMode;
+    pr_number: number | null;
+    paths: string[];
+    reason_code: string | null;
+    reason: string | null;
+    calls: number | null;
+    created_at: string;
+    finished_at: string | null;
+  }[];
+}

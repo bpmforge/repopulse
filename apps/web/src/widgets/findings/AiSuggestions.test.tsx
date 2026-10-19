@@ -215,4 +215,23 @@ describe('AiSuggestions', () => {
       /From a pass over the commits aaaaaaa1\.\.bbbbbbb5/,
     );
   });
+
+  it('does not double the full stop when the proposed VEX statement already ends with one', () => {
+    respond({
+      raised_by: null,
+      suggestions: [
+        suggestion({
+          vex: {
+            justification: 'inline_mitigations_already_exist',
+            statement: 'Values are bound.',
+          },
+        }),
+      ],
+    });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
+    expect(screen.getByTestId('ai-vex').textContent).toMatch(
+      /Values are bound\. Nothing is recorded/,
+    );
+    expect(screen.getByTestId('ai-vex').textContent).not.toMatch(/\.\./);
+  });
 });

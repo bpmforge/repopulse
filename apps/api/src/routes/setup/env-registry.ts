@@ -335,6 +335,25 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     secret: true,
   },
   {
+    name: 'AI_PASS_SCHEDULER',
+    scope: 'worker',
+    required: false,
+    purpose:
+      "Whether the worker looks for AI-pass schedules that an admin has opted a repository into (W19-12). Nothing is scheduled until an admin enables it per repository and acknowledges where source is sent; 'off' removes the check itself.",
+    ifWrong:
+      "With 'off', schedules an admin enabled never run (each shows as not running). Left on, it does nothing for a repository that has no enabled schedule.",
+    default: 'on',
+  },
+  {
+    name: 'AI_PASS_SCHEDULER_TICK_MS',
+    scope: 'worker',
+    required: false,
+    purpose: 'How often, in milliseconds, the worker looks for due AI-pass schedules.',
+    ifWrong:
+      'Too long and a schedule runs later than its time; too short only adds idle queries - the per-day and monthly caps still apply.',
+    default: '900000',
+  },
+  {
     name: 'RECONCILE_CRON',
     scope: 'worker',
     required: false,

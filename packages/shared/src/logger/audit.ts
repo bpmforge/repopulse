@@ -112,6 +112,15 @@ export type AuditEvent =
   // W19-09. An admin started an AI pass, and a person answered an AI suggestion.
   | 'ai_pass.started'
   | 'ai_verdict.decided'
+  // W19-12. Scheduled AI passes are strictly opt-in: who enabled one (and which
+  // destinations they acknowledged), who turned it off, what a schedule started, and
+  // what it refused to start and why.
+  | 'ai_pass_schedule.enabled'
+  | 'ai_pass_schedule.disabled'
+  | 'ai_pass_schedule.updated'
+  | 'ai_pass.scheduled_started'
+  | 'ai_pass.scheduled_skipped'
+  | 'ai_pass_settings.updated'
   // W16-10. A manual run spends CPU on the host and, for a sync, forge budget
   // that everything else has to share. Who asked for it is the same record a
   // scheduled pass gets from its cron line.

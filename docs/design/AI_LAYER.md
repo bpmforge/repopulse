@@ -641,3 +641,84 @@ suggestion, and the drawer prints it ("From a pass over ...").
 model automatically, which needs the owner's own opt-in design. *A commit graph walk* and
 *a true base..head compare* (the forge interface has no compare call). *Re-basing a
 rule finding's line onto the reviewed head.*
+
+## W19-12 as built (2026-10-19): scheduled passes, strictly opt-in
+
+A pass can start on a schedule. The design rule is that **nothing runs unless an admin
+turned it on for that repository and was shown, and acknowledged, where source would
+be sent**; with nothing enabled the worker's tick reads one empty query and stops.
+
+**Tables (migration 0046).** `ai_pass_schedules` (one per repository: `enabled`
+default false, `frequency` daily/weekly, `scope_kind` paths / new_pull_requests, the
+paths, `egress_digest` + `egress_ack`, who enabled it and when, last/next run; a CHECK
+makes `enabled` impossible without the digest), `ai_pass_settings` (the workspace's
+monthly model-call cap, default 300), and `trigger` (manual/scheduled) + `schedule_id`
+on `ai_pass_runs`. Every table is workspace-scoped and every query filtered.
+
+**What leaves the network.** `apps/api/src/lib/ai-pass-egress.ts` computes, for the
+roles a pass calls (the specialists and triage), which connections would receive code:
+the role's routed chain, or the shared pool (local-only excludes hosted connections
+from it). "Leaves your network" is `describeEndpoint`'s host-based answer, the same as
+the egress audit and local-only; never the connection's name. The sorted destinations
+hash to a **digest**. The enable form shows the sentence and the destinations; PUT
+requires the digest back, so the server knows the admin saw *these* destinations.
+
+**The scheduler** (`workers/ai-pass-scheduler.ts`, a worker interval, first tick one
+interval after boot; `AI_PASS_SCHEDULER=off` disables it, `AI_PASS_SCHEDULER_TICK_MS`
+moves it). For each due, enabled schedule it claims the slot with a compare-and-set
+(two ticks cannot start one schedule twice), then checks, in order: another pass
+running (one active pass per repository), a model exists, **local-only vs a hosted
+link**, **the routing digest still matches the acknowledgement**, the **workspace's
+monthly cap** and the daily pass limit, and for the pull-request scope that something
+new exists. Any refusal is a **recorded `skipped` pass** with a sentence, never a
+silent drop. Transient refusals (active pass, daily limit) look again in three hours;
+the rest wait for their next interval, or for an admin to fix the cause. A pass that
+does start is queued exactly as a click queues one, with its call limit set to
+`min(30, what is left of the month)`; the processor honours that.
+
+**Scopes.** *Paths:* the configured paths at the repository's head. *New pull
+requests:* one open, non-draft pull request per run, oldest first, only if it changed
+since the last run and its **head has not been reviewed**; with more waiting the next
+run is an hour later (within the same caps). It is diff mode (W19-11), so the same
+refusals and limits apply.
+
+**The cap, stated.** The monthly cap counts model calls from *all* the workspace's
+passes this UTC month, and stops *scheduled* passes; a person's own click is counted but
+never blocked by it. 0 stops every schedule.
+
+**Unchanged.** A scheduled pass writes only what a manual one does: findings and
+suggestions, never a status change, a dismissal, a merge or a write to the repository
+(D9a); forge reads go through the same budgeted loaders; the web app reads our Postgres
+through the API.
+
+**Not built.** Time-of-day control (a schedule recurs at its interval from when it was
+enabled); per-repository caps (the cap is the workspace's); notifying anyone when a
+schedule is skipped (the list on the repository's Security tab is where it shows).
+
+### W19-12 UX review (from the pictures)
+
+The AI-layer screens were photographed with realistic stored data (`e2e/ai-ui-tour.spec.ts`,
+pictures in `docs/screenshots/w19/`), looked at in dark, light and at 375 px, and fixed in
+the same ticket. What the first pass of pictures showed:
+
+- **Three stacked "AI" badges** in the drawer (heading, then the card). The heading is now
+  plain text; the badge stays on each suggestion.
+- **A doubled full stop** after a proposed VEX statement that already ended in one.
+- **Monospace on whole sentences** ("Reviewed the files src/payments", "new pull requests
+  since the last run"). Only paths and refs are monospace now.
+- **The monthly cap field** showed the current cap as a faint placeholder (it read as
+  disabled) and sat far from its button. It is pre-filled, labelled "Monthly cap (model
+  calls)", and Save is offered only for a changed value.
+- **Refused scheduled runs appeared twice** (the run list and Scheduled passes). The run
+  list now shows only passes that started; refusals are under Scheduled passes. A repository
+  with only refusals still says "Not yet run", which is true.
+- **"Not yet run" sat below the schedule section**, far from the Start button it
+  answers. The run list now follows the start form; Scheduled passes is last.
+- **Destination lists over-claimed** ("used for" followed by every role). It now says "may
+  receive source for" and "every kind of analysis" when a connection serves the shared pool.
+- **A keyboard-unreachable scrolling block** at 375 px (axe `scrollable-region-focusable`):
+  a cited line's code box scrolled sideways but could not be focused. Cited lines wrap now.
+- Demo-data honesty: the pictures' citations come from the finding they are shown on.
+
+All twelve states pass axe in both themes and neither the schedule form nor the drawer
+scrolls sideways at 375 px.

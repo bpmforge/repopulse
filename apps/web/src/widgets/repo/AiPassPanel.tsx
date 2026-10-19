@@ -9,6 +9,7 @@ import {
   type PassStatus,
 } from '../findings/aiContracts.js';
 import { AiBadge } from '../findings/AiSuggestions.js';
+import { ScheduledPasses } from './ScheduledPasses.js';
 
 // The AI review pass, on the repository's Security tab (W19-10).
 //
@@ -61,14 +62,15 @@ function RunRow({ run }: { run: AiPassRun }) {
         <span data-testid="ai-pass-status">{WORD[run.status]}</span>
         <span className="text-xs text-fg-muted">
           {' '}
-          · {run.created_at.slice(0, 16).replace('T', ' ')}
+          {run.trigger === 'scheduled' ? ' · scheduled' : ''} ·{' '}
+          {run.created_at.slice(0, 16).replace('T', ' ')}
           {run.requested_by ? ` · started by ${run.requested_by}` : ''}
           {run.calls !== null ? ` · ${run.calls} model call${run.calls === 1 ? '' : 's'}` : ''}
         </span>
       </p>
       <p className="text-xs text-fg-faint" data-testid="ai-pass-scope">
         Reviewed{' '}
-        <span className="font-mono">
+        <span>
           {passLabel({
             mode: run.mode ?? 'paths',
             pr_number: run.pr_number ?? null,
@@ -149,8 +151,11 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
     { invalidate: [queryKeyFor(descriptor)] },
   );
 
-  const runs = data?.runs ?? [];
-  const active = runs.some((r) => ACTIVE(r.status));
+  const all = data?.runs ?? [];
+  const active = all.some((r) => ACTIVE(r.status));
+  // A scheduled pass that was REFUSED has no review to show; it is listed, with its
+  // reason, under Scheduled passes. Every pass that actually started stays here.
+  const runs = all.filter((r) => !(r.trigger === 'scheduled' && r.status === 'skipped'));
   const paths = parsePaths(text);
   const prNumber = /^[1-9][0-9]{0,8}$/.test(pr.trim()) ? Number(pr.trim()) : null;
   const sha = /^[0-9a-fA-F]{7,64}$/;
@@ -316,6 +321,8 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
           ))}
         </ol>
       )}
+
+      <ScheduledPasses repoId={repoId} isAdmin={isAdmin} />
     </div>
   );
 }

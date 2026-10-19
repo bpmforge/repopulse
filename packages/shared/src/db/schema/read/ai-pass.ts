@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -30,6 +31,13 @@ import { findings } from './findings.js';
 export const AI_PASS_MODES = ['paths', 'pull_request', 'commit_range'] as const;
 export type AiPassMode = (typeof AI_PASS_MODES)[number];
 
+export const AI_PASS_TRIGGERS = ['manual', 'scheduled'] as const;
+export type AiPassTrigger = (typeof AI_PASS_TRIGGERS)[number];
+export const AI_SCHEDULE_FREQUENCIES = ['daily', 'weekly'] as const;
+export type AiScheduleFrequency = (typeof AI_SCHEDULE_FREQUENCIES)[number];
+export const AI_SCHEDULE_SCOPES = ['paths', 'new_pull_requests'] as const;
+export type AiScheduleScope = (typeof AI_SCHEDULE_SCOPES)[number];
+
 export const AI_PASS_STATUSES = ['pending', 'running', 'succeeded', 'failed', 'skipped'] as const;
 
 /** One pass over one repository. The row a person watches: every failure lands here in words. */
@@ -57,6 +65,11 @@ export const aiPassRuns = pgTable(
     /** Diff modes: the head commit reviewed. */
     headRef: text('head_ref'),
     prNumber: integer('pr_number'),
+    /** Who started it: a person (manual) or a schedule an admin opted a repository into. */
+    trigger: text('trigger').$type<AiPassTrigger>().notNull().default('manual'),
+    scheduleId: bigint('schedule_id', { mode: 'number' }).references(() => aiPassSchedules.id, {
+      onDelete: 'set null',
+    }),
     status: text('status').notNull().default('pending'),
     /** Machine-readable cause of a failure or skip, e.g. no_gateway, too_large, nothing_relevant. */
     reasonCode: text('reason_code'),
@@ -83,6 +96,10 @@ export const aiPassRuns = pgTable(
   },
   (t) => [
     index('ai_pass_runs_workspace_repo_idx').on(t.workspaceId, t.repoId, t.createdAt.desc()),
+    check(
+      'ai_pass_runs_trigger_check',
+      sql`${t.trigger} in (${sql.raw(AI_PASS_TRIGGERS.map((m) => `'${m}'`).join(', '))})`,
+    ),
     check(
       'ai_pass_runs_mode_check',
       sql`${t.mode} in (${sql.raw(AI_PASS_MODES.map((m) => `'${m}'`).join(', '))})`,
@@ -212,3 +229,80 @@ export const aiTriageVerdicts = pgTable(
     ),
   ],
 );
+
+/**
+ * A repository's opt-in to scheduled passes (W19-12). OFF by default: a row exists
+ * only once an admin has saved it, and `enabled` needs the acknowledged egress
+ * digest (the CHECK). The digest is of WHERE code would be sent; if the routing
+ * changes, the digest no longer matches and the schedule skips (recorded) until an
+ * admin acknowledges the new destinations.
+ */
+export const aiPassSchedules = pgTable(
+  'ai_pass_schedules',
+  {
+    id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .notNull()
+      .references(() => workspaces.id),
+    repoId: bigint('repo_id', { mode: 'number' })
+      .notNull()
+      .references(() => repos.id),
+    enabled: boolean('enabled').notNull().default(false),
+    frequency: text('frequency').$type<AiScheduleFrequency>().notNull().default('weekly'),
+    scopeKind: text('scope_kind').$type<AiScheduleScope>().notNull().default('paths'),
+    /** scope 'paths': the repository's configured paths. Empty for new pull requests. */
+    paths: jsonb('paths')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Digest of the destinations acknowledged at enable time. */
+    egressDigest: text('egress_digest'),
+    /** The acknowledged destinations, verbatim, for the audit trail and the screen. */
+    egressAck: jsonb('egress_ack').$type<Record<string, unknown>>(),
+    enabledBy: bigint('enabled_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    enabledAt: timestamp('enabled_at', { withTimezone: true }),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('ai_pass_schedules_workspace_repo_key').on(t.workspaceId, t.repoId),
+    index('ai_pass_schedules_due_idx')
+      .on(t.nextRunAt)
+      .where(sql`enabled`),
+    check(
+      'ai_pass_schedules_frequency_check',
+      sql`${t.frequency} in (${sql.raw(AI_SCHEDULE_FREQUENCIES.map((m) => `'${m}'`).join(', '))})`,
+    ),
+    check(
+      'ai_pass_schedules_scope_check',
+      sql`${t.scopeKind} in (${sql.raw(AI_SCHEDULE_SCOPES.map((m) => `'${m}'`).join(', '))})`,
+    ),
+    check(
+      'ai_pass_schedules_enabled_ack_check',
+      sql`NOT ${t.enabled} OR (${t.egressDigest} IS NOT NULL AND ${t.enabledAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/** The workspace's hard monthly cap on model calls for SCHEDULED passes. */
+export const aiPassSettings = pgTable(
+  'ai_pass_settings',
+  {
+    workspaceId: bigint('workspace_id', { mode: 'number' })
+      .primaryKey()
+      .references(() => workspaces.id),
+    monthlyCallCap: integer('monthly_call_cap').notNull().default(300),
+    updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('ai_pass_settings_cap_check', sql`${t.monthlyCallCap} between 0 and 100000`)],
+);
+
+/** The default monthly cap when a workspace has not set one (about ten full passes). */
+export const AI_PASS_DEFAULT_MONTHLY_CAP = 300;
