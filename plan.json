@@ -10211,6 +10211,64 @@
           "Requested by the coordinator 2026-10-18 after W19-10. See docs/design/AI_LAYER.md.",
           "Built 2026-10-18: migration 0045 (mode, base_ref, head_ref, pr_number), ai-pass-diff.ts (pull request files and a commit range resolved from our own commit table, ten commits at most, refusing over the caps), diff review input and changed-line triage scope, the POST body takes exactly one scope, GET /findings/:id/ai carries the pass, panel mode choice and per-run scope. Not built: scheduling (deliberate), a commit-graph walk or true compare, re-basing rule-finding lines onto the reviewed head."
         ]
+      },
+      {
+        "id": "W19-12",
+        "title": "Scheduled AI passes: an owner opts a repository in, with an acknowledgement, a cadence and a monthly cap",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "apps/api/**",
+          "apps/web/**",
+          "packages/shared/**",
+          "packages/ingest/**",
+          "e2e/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-09",
+          "W19-11"
+        ],
+        "acceptance": [
+          "Scheduling is off by default and per repository: an admin turns it on only by acknowledging, in words on the screen, that code will be sent to the configured models without anyone pressing start; who acknowledged and when is stored and audited, and turning it off needs no acknowledgement",
+          "A schedule reviews either fixed paths or the commits ingested since its last scheduled pass (at most the commit-range cap, newest first), daily or weekly; the worker sweep enqueues ordinary ai.pass runs marked as scheduled, so every W19-09/W19-11 cap, tenancy rule, routing chain, call cap and D9a guarantee applies unchanged",
+          "Local-only is honoured: a schedule that requires local models (the default) is skipped with the named connection when any route the pass could take leaves the network or the repository is opted in to the Claude API",
+          "Bounded: a monthly cap of scheduled passes per repository (default 4), one active pass per repository, and the workspace's daily pass limit; a scheduled run that does not go ahead is recorded as a skipped pass with its reason (monthly cap, already running, nothing new, not local, no model, daily limit), never silently dropped",
+          "The AI review pass and its schedule move from the Security tab to their own AI Review tab; the schedule panel shows the state, the acknowledgement, the next due time and this month's count against the cap, light and dark, axe-clean; full gate green"
+        ],
+        "points": 5,
+        "status": "in_progress",
+        "notes": [
+          "Filed 2026-10-19 on Brad's go-ahead (thread: scheduled AI passes, the recommended next step after W19-11). Design in docs/design/AI_LAYER.md, W19-12 section."
+        ]
+      },
+      {
+        "id": "W19-13",
+        "title": "Models settings clean-up from the W19 UX review: one Models form, readable routing rows, a roomier quality table",
+        "phase": 19,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "e2e/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-07"
+        ],
+        "acceptance": [
+          "Admin → Models shows the setup wizard and the connection list as one flow, not a wizard above a second form that edits the same thing",
+          "Each routing row says in words which role goes to which connection and model, and what happens when it fails, instead of bare ids",
+          "The per-model quality table is readable at laptop width without horizontal page scroll; light and dark, axe-clean; full gate green"
+        ],
+        "points": 3,
+        "status": "todo",
+        "notes": [
+          "Filed 2026-10-19 from the W19 UX review findings (wizard above a duplicate Models form, cryptic routing rows, cramped quality table). The fourth finding, the AI panel buried in the Security tab, is fixed in W19-12."
+        ]
       }
   ]
 }
