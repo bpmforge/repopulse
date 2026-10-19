@@ -26,6 +26,12 @@ vi.mock('../../api/useApiQuery.js', () => ({
   queryKeyFor: () => [],
 }));
 
+// AiSuggestions' "start an AI review pass" link (W20-11) needs no router here.
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  Link: ({ children }: { children?: React.ReactNode }) => <a>{children}</a>,
+}));
+
 function finding(over: Partial<Finding> = {}): Finding {
   return {
     id: 7,
