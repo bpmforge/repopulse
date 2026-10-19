@@ -130,6 +130,8 @@ export interface RepoSecurity {
   repo: { id: number; org: string; name: string };
   open_by_severity: Record<string, number>;
   open_total: number;
+  /** Open security-dimension findings, what top_findings is drawn from (W20-13, FND-73). */
+  security_open_total?: number;
   scanners: ScannerStatus[];
   /**
    * The worst open security findings, newest API only (W17-20). Optional so a
@@ -156,6 +158,8 @@ export interface RepoSecurity {
     severity: number;
     kev: boolean;
     scanner_key?: string | null;
+    /** W20-13 (FND-28): the dependency scanner's reachability tier. */
+    reachability?: string | null;
   }[];
   chains: { id: string; severity: number; nodes: ChainNode[] }[];
   /** false = chain analysis has never run, which is not the same as no chains. */
@@ -283,3 +287,22 @@ export const SCANNER_STATE_LABEL: Record<ScannerState, string> = {
   error: '✕ last run failed',
   partial: '! last run was cut short — findings are incomplete',
 };
+
+/**
+ * A CVE row's "Reachable?" cell (W20-13, UX_TODO FND-28), from the dependency
+ * scanner's tier. Unknown is said as unknown, never as "no".
+ */
+export function reachabilityWord(tier: string | null | undefined): string {
+  switch (tier) {
+    case 'symbol_reachable':
+      return 'Yes, called';
+    case 'imported':
+      return 'Imported';
+    case 'manifest_only':
+      return 'Listed only';
+    case 'proven_unreachable':
+      return 'No';
+    default:
+      return 'Not known';
+  }
+}

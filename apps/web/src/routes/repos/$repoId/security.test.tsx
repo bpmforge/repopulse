@@ -119,7 +119,9 @@ function renderSecurity() {
 }
 
 describe('Security tab — the AI review pass is near the top', () => {
-  it('sits right after the scanner coverage, above the open findings and the lower panels', async () => {
+  // W20-13 (UX_TODO FND-32): the open findings moved up, directly under
+  // Coverage; on a phone they were several screens down.
+  it('sits after the scanner coverage and the open findings, above the lower panels', async () => {
     renderSecurity();
     await screen.findByTestId('security-coverage');
     const order = Array.from(
@@ -129,8 +131,8 @@ describe('Security tab — the AI review pass is near the top', () => {
     ).map((el) => el.getAttribute('data-testid'));
     expect(order).toEqual([
       'security-coverage',
-      'security-ai-pass',
       'security-findings',
+      'security-ai-pass',
       'security-chains',
     ]);
   });
@@ -378,6 +380,13 @@ describe('Security tab — CVE rows and scanner switches (W20-08)', () => {
     const link = await screen.findByTestId('cve-link-91');
     expect(link.getAttribute('href')).toMatch(/finding=91/);
     expect(link).toHaveTextContent('CVE-2026-1');
+  });
+
+  it('a member is told before pressing that a scan needs an admin (W20-13, FND-29)', async () => {
+    me = { role: 'member' };
+    renderSecurity();
+    expect(await screen.findByTestId('run-scan-admin-only')).toHaveTextContent(/admin role/);
+    expect(screen.getByTestId('run-scan-button')).toBeDisabled();
   });
 
   it('a member sees no switches', async () => {

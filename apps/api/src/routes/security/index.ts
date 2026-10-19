@@ -133,6 +133,8 @@ export function cveRows(
   severity: number;
   kev: boolean;
   scanner_key: string | null;
+  /** W20-13 (FND-28): the scanner's reachability tier, or null when unknown. */
+  reachability: string | null;
 }[] {
   return findings
     .filter((f) => f.dimension === 'dependency' && !f.experimental && (f.cveId ?? f.ruleId))
@@ -146,12 +148,19 @@ export function cveRows(
         severity: f.severity,
         kev: f.yields?.['kev'] === true,
         scanner_key: f.scannerKey,
+        reachability:
+          typeof f.yields?.['reachability'] === 'string' ? f.yields['reachability'] : null,
       };
     })
     .sort(
       (a, b) =>
         b.severity - a.severity || Number(b.kev) - Number(a.kev) || a.finding_id - b.finding_id,
     );
+}
+
+/** Whether attack-chain analysis has a completed run to speak for (FND-60). */
+export function chainsComputed(run: { status: string } | undefined): boolean {
+  return run?.status === 'succeeded';
 }
 
 function startedLongAgo(startedAt: Date | null | undefined, now = Date.now()): boolean {
@@ -405,6 +414,13 @@ export default async function securityRoutes(
       repo: { id: repo.id, org: repo.org, name: repo.name },
       open_by_severity: openBySeverity,
       open_total: findings.length,
+      // W20-13 (UX_TODO FND-73): what the Open findings panel lists from.
+      // `open_total` counts every dimension (code health, performance…), so
+      // "All 43 open findings" under a panel of 3 security findings read as
+      // 40 security findings the panel had hidden.
+      security_open_total: findings.filter(
+        (f) => SECURITY_DIMENSIONS.has(f.dimension) && !f.experimental,
+      ).length,
       scanners,
       // THE FINDINGS THEMSELVES, linkable (W17-20). Every count on this tab
       // was a number with no row behind it: a scan that found something
@@ -468,9 +484,11 @@ export default async function securityRoutes(
         by_justification: byJustification,
       },
       chains: [...chains.values()].sort((a, b) => b.severity - a.severity),
-      // Distinguishes "no chains" from "chain analysis has never run" — W8-09
-      // computes chains, and until it lands the empty list means the latter.
-      chains_computed: false,
+      // Distinguishes "no chains" from "chain analysis has never run". W20-13
+      // (UX_TODO FND-60): this was a constant `false` long after the chainer
+      // shipped, so the panel said "has not run" beside a Coverage row that
+      // said it ran clean. Now: the chainer's latest run succeeded.
+      chains_computed: chainsComputed(latestByKey.get('attack_chainer')),
     });
   });
 

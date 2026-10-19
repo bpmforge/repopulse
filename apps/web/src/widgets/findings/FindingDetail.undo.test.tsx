@@ -80,7 +80,9 @@ describe('undo after a status change (FND-02)', () => {
         invalidate={[]}
       />,
     );
-    expect(screen.getByTestId('finding-change-status')).toHaveTextContent('Dismissed.');
+    expect(screen.getByTestId('finding-change-status')).toHaveTextContent(
+      'Dismissed as not applicable.',
+    );
     // The note is cleared once the change landed.
     expect(screen.getByTestId('finding-note')).toHaveValue('');
 

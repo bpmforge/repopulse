@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
-import { core, createDb, facts, type Database } from '@repopulse/shared';
+import { core, createDb, facts, read, type Database } from '@repopulse/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
@@ -224,6 +224,7 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     );
     const [ws] = await db.select().from(core.workspaces).where(eq(core.workspaces.slug, 'default'));
     if (ws) {
+      await db.delete(read.metricSnapshots).where(eq(read.metricSnapshots.repoId, repoId));
       await db.delete(facts.commitFiles).where(eq(facts.commitFiles.workspaceId, ws.id));
       await db.delete(facts.commits).where(eq(facts.commits.workspaceId, ws.id));
       await db.delete(facts.prReviews).where(eq(facts.prReviews.workspaceId, ws.id));
@@ -309,6 +310,48 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
       hotspot_history: [],
       hotspot: null,
     });
+  });
+
+  it("plots the viewed file's hotspot history, not the repo's top file (W20-13)", async () => {
+    const cookie = await loginAs(app, FIXTURE);
+    const [repo] = await db.select().from(core.repos).where(eq(core.repos.id, repoId));
+    const snap = (day: number, aScore: number) => ({
+      workspaceId: repo!.workspaceId,
+      repoId,
+      metricKey: 'M2',
+      window: '30d',
+      value: '0.9',
+      dims: {
+        count: 2,
+        files: [
+          { path: 'src/top.ts', score: 0.9 },
+          { path: 'src/a.ts', score: aScore },
+        ],
+      },
+      computedAt: new Date(RECENT.getTime() + day * DAY_MS),
+    });
+    await db.insert(read.metricSnapshots).values([
+      snap(0, 0.2),
+      snap(1, 0.3),
+      // A snapshot that does not list the file is a gap, never the top score.
+      {
+        workspaceId: repo!.workspaceId,
+        repoId,
+        metricKey: 'M2',
+        window: '30d',
+        value: '0.9',
+        dims: { count: 1 },
+        computedAt: new Date(RECENT.getTime() + 2 * DAY_MS),
+      },
+    ]);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/repos/${repoId}/files/src/a.ts`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const history = res.json().hotspot_history as { score: number }[];
+    expect(history.map((h) => h.score)).toEqual([0.2, 0.3]);
   });
 
   it("/me/prs returns the logged-in fixture user's ground truth (identity map, FR-AUTH-6)", async () => {

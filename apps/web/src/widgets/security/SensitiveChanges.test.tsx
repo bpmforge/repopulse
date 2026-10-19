@@ -171,3 +171,35 @@ describe('SensitiveChanges (W18-29)', () => {
     expect(container.textContent).not.toMatch(/score|grade/i);
   });
 });
+
+describe('Sensitive changes after triage (W20-13)', () => {
+  it('splits confirmed changes from the ones still to review, with counts (FND-54)', () => {
+    renderWith(
+      response({
+        active: [item(1), item(2, { status: 'confirmed' })],
+        totals: { active: 2, shadow: 0 },
+      }),
+    );
+    expect(screen.getByText('Needs human review (1)')).toBeInTheDocument();
+    const confirmed = screen.getByTestId('radar-confirmed');
+    expect(confirmed).toHaveTextContent('Confirmed, awaiting a fix (1)');
+    expect(within(confirmed).getByTestId('radar-item-2')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('radar-active-list')).queryByTestId('radar-item-2'),
+    ).toBeNull();
+  });
+
+  it('links to the rest in Reviews when only the most recent are shown (FND-38)', () => {
+    renderWith(response({ active: [item(1)], totals: { active: 30, shadow: 0 } }));
+    expect(screen.getByTestId('radar-see-all')).toHaveTextContent('See all 30 in Reviews');
+  });
+
+  it('says where the radar is switched back on (FND-39)', () => {
+    renderWith(
+      response({
+        repos: { total: 2, enabled: 1, disabled: [{ id: 3, org: 'acme', name: 'web' }] },
+      }),
+    );
+    expect(screen.getByTestId('radar-disabled-repos')).toHaveTextContent(/under Coverage/);
+  });
+});

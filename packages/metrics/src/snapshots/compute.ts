@@ -31,6 +31,12 @@ import {
 // monorepo with hundreds of workflows would otherwise write a table's worth of
 // JSON per repo per night to serve a "top offenders" list.
 const FLAKINESS_TOP_N = 20;
+/**
+ * Per-file M2 scores kept on each snapshot (W20-13), highest first. Enough for
+ * the file page and the risk percentile; a monorepo with tens of thousands of
+ * touched files would otherwise write that much JSON on every run.
+ */
+const HOTSPOT_FILES_KEPT = 500;
 
 // The nightly metrics.snapshot compute driver (W3-10, FR-METRICS-13). For one
 // repo, computes M1..M12 for every window and writes one snapshot row per
@@ -108,10 +114,10 @@ export async function computeRepoSnapshots(
     // M13/M14 (W9-05): computed from reads already in hand — the touches above
     // and the commit rows the churn read returned.
     const rework14 = computeRework14d(touches);
-    const revertRate = computeRevertRate(
-      await readCommitFlags(db, params.repoId, windowStart),
-    );
-    const hotspots = computeHotspots(touches, asOf, botGlobs);
+    const revertRate = computeRevertRate(await readCommitFlags(db, params.repoId, windowStart));
+    // Highest first. computeHotspots returns paths in first-touch order, so
+    // `hotspots[0]` was an arbitrary file rather than the repo's top hotspot.
+    const hotspots = computeHotspots(touches, asOf, botGlobs).sort((a, b) => b.score - a.score);
     const ownership = computeOwnership(touches, asOf, botGlobs);
 
     // --- PR family (shared read → M4/M5/M6/M7/M8) ---
@@ -158,7 +164,22 @@ export async function computeRepoSnapshots(
 
     const rows: [string, Reduced][] = [
       ['M1', { value: churn.gross, dims: { net: churn.net, rework: churn.rework } }],
-      ['M2', { value: hotspots[0]?.score ?? 0, dims: { count: hotspots.length } }],
+      [
+        'M2',
+        {
+          value: hotspots[0]?.score ?? 0,
+          // W20-13: per-file scores, so the file page can plot the history of
+          // the file being viewed (not the repo's top file) and the risk
+          // repricer's within-repo percentile has the list it already reads.
+          dims: {
+            count: hotspots.length,
+            files: hotspots.slice(0, HOTSPOT_FILES_KEPT).map((h) => ({
+              path: h.path,
+              score: Math.round(h.score * 1e6) / 1e6,
+            })),
+          },
+        },
+      ],
       [
         'M3',
         {

@@ -40,6 +40,12 @@ export interface RunScanButtonProps {
   stalled?: boolean;
   /** Called when the API accepted the start, so the screen can follow it. */
   onStarted?: () => void;
+  /**
+   * W20-13 (UX_TODO FND-29): false for a signed-in non-admin, who used to
+   * learn only after pressing that starting a scan needs the admin role.
+   * Undefined (role not known yet) leaves the button as it was.
+   */
+  canRun?: boolean;
 }
 
 /** Fields read structurally, for the same reason as `requestIdOf` (W16-18). */
@@ -58,6 +64,7 @@ export function RunScanButton({
   awaiting = false,
   stalled = false,
   onStarted,
+  canRun,
 }: RunScanButtonProps) {
   const queryClient = useQueryClient();
   const [result, setResult] = useState<RunResult | null>(null);
@@ -107,7 +114,7 @@ export function RunScanButton({
         // Locked for as long as there is anything to wait for, and for not one
         // moment longer: `pending` is derived from the table, so a terminal
         // state unlocks it without anyone remembering to.
-        disabled={run.isPending || pending}
+        disabled={run.isPending || pending || canRun === false}
         aria-busy={run.isPending || pending ? 'true' : undefined}
         onClick={() => {
           setResult(null);
@@ -119,6 +126,11 @@ export function RunScanButton({
         {label}
       </button>
 
+      {canRun === false && (
+        <span className="text-xs text-fg-muted" data-testid="run-scan-admin-only">
+          Starting a scan needs the admin role. Ask a workspace admin to run it.
+        </span>
+      )}
       {/* W16-18: carries the request id, so "I pressed Run and it failed" is
           findable in the log. */}
       <ErrorNote error={run.error} testId="run-scan-error" />
@@ -165,7 +177,7 @@ export function RunScanButton({
       {stalled && (
         <span className="text-xs text-fg" data-testid="run-scan-stalled" role="status">
           ! The start was accepted, but no worker has picked it up in five minutes. The scan worker
-          is probably not running — see docs/RUNNING.md → Dev stack — and pressing again will only
+          is probably not running: ask your administrator to start it. Pressing again will only
           queue it a second time.
         </span>
       )}

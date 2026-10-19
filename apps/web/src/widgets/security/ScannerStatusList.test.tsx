@@ -126,23 +126,26 @@ describe('scanner coverage table', () => {
     // someone their scan failed and left them to guess. The scanners run in a
     // sandbox image, and one command builds it.
     render(
-      <ScannerStatusList
-        scanners={[scanner({ state: 'error', error: 'spawn podman ENOENT' })]}
-      />,
+      <ScannerStatusList scanners={[scanner({ state: 'error', error: 'spawn podman ENOENT' })]} />,
     );
     const fix = screen.getByTestId('scanner-fix-secrets');
     expect(fix.textContent).toContain('Containerfile.scan');
     expect(fix.textContent).toContain('RUNNING.md');
     // The scanner's own words are still there — the guidance is added, never
     // substituted for the error.
-    expect(screen.getByTestId('scanner-error-secrets').textContent).toContain('spawn podman ENOENT');
+    expect(screen.getByTestId('scanner-error-secrets').textContent).toContain(
+      'spawn podman ENOENT',
+    );
   });
 
   it('recognises the shapes a missing image ACTUALLY produces (W16-11)', () => {
     // Observed by running the demo against SCAN_IMAGE pointed at an image that
     // does not exist. The first heuristic matched neither of these, so the rows
     // that most needed the build command were the ones that did not get it.
-    for (const error of ['dependency_cruiser: exit 125', 'perf pack run failed: opengrep produced no output']) {
+    for (const error of [
+      'dependency_cruiser: exit 125',
+      'perf pack run failed: opengrep produced no output',
+    ]) {
       const { unmount } = render(
         <ScannerStatusList scanners={[scanner({ state: 'error', error })]} />,
       );
@@ -155,9 +158,7 @@ describe('scanner coverage table', () => {
 
   it('does NOT offer the image command for a failure that is not about tools', () => {
     render(
-      <ScannerStatusList
-        scanners={[scanner({ state: 'error', error: 'ciphertext too short' })]}
-      />,
+      <ScannerStatusList scanners={[scanner({ state: 'error', error: 'ciphertext too short' })]} />,
     );
     expect(screen.queryByTestId('scanner-fix-secrets')).toBeNull();
   });
@@ -250,7 +251,14 @@ describe('scan tooling note', () => {
       <ScanToolingNote
         tooling={{
           ...tooling,
-          vuln_db: { ...tooling.vuln_db, present: false, stale: null, ageDays: null, builtAt: null, reason: 'no vulnerability database at /x — run deploy/scan-db-sync.sh' },
+          vuln_db: {
+            ...tooling.vuln_db,
+            present: false,
+            stale: null,
+            ageDays: null,
+            builtAt: null,
+            reason: 'no vulnerability database at /x — run deploy/scan-db-sync.sh',
+          },
         }}
       />,
     );
@@ -264,5 +272,27 @@ describe('scan tooling note', () => {
     const list = screen.getByTestId('unsupported-tools');
     expect(list.textContent).toContain('govulncheck');
     expect(screen.getByTitle('Not in the scan image.').textContent).toBe('govulncheck');
+  });
+});
+
+describe('coverage order (W20-13, FND-31)', () => {
+  it('lists problem states first, then alphabetically, and counts them', () => {
+    render(
+      <ScannerStatusList
+        scanners={[
+          scanner({ key: 'a', display_name: 'Alpha', state: 'ok' }),
+          scanner({ key: 'b', display_name: 'Beta', state: 'never_run' }),
+          scanner({ key: 'c', display_name: 'Gamma', state: 'error', error: 'boom' }),
+          scanner({ key: 'd', display_name: 'Delta', state: 'not_enabled', enabled: false }),
+        ]}
+      />,
+    );
+    const keys = [...document.querySelectorAll('[data-testid^="scanner-row-"]')].map((r) =>
+      r.getAttribute('data-testid'),
+    );
+    expect(keys).toEqual(['scanner-row-c', 'scanner-row-b', 'scanner-row-d', 'scanner-row-a']);
+    expect(screen.getByTestId('scanner-status-caption')).toHaveTextContent(
+      '1 of 4 scanners need attention',
+    );
   });
 });

@@ -112,8 +112,8 @@ describe('a failed mutation does not falsely change the status (W17-23, acceptan
       /Transition not allowed/,
     );
     // The chip is the server's answer, not the button's intent.
-    expect(screen.getByTestId('finding-status').textContent).toBe('status open');
-    expect(screen.queryByText(/status confirmed/)).toBeNull();
+    expect(screen.getByTestId('finding-status').textContent).toBe('Status: Open');
+    expect(screen.queryByText(/Status: Confirmed/)).toBeNull();
   });
 
   it('sends the note and dismiss reason the person entered, nothing optimistic', () => {
@@ -132,7 +132,7 @@ describe('a failed mutation does not falsely change the status (W17-23, acceptan
       expect.anything(),
     );
     // Still open on screen: nothing changes until the list is re-read.
-    expect(screen.getByTestId('finding-status').textContent).toBe('status open');
+    expect(screen.getByTestId('finding-status').textContent).toBe('Status: Open');
   });
 });
 
@@ -176,7 +176,7 @@ describe('Copy review summary (W17-23, acceptance 3)', () => {
     expect(text).toContain('Finding #7: Unvalidated redirect');
     expect(text).toContain('Repository: acme/payments');
     expect(text).toContain('Location: src/auth.ts:10–12');
-    expect(text).toContain('Status: confirmed');
+    expect(text).toContain('Status: Confirmed');
     expect(text).toContain('https://github.com/acme/payments/blob/abc/src/auth.ts#L10-L12');
     expect(text).toContain('res.redirect(req.query.next)');
     expect(text).toContain('Allow-list the destination.');

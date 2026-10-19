@@ -13,7 +13,7 @@ import {
   totalChurn,
   type PrDetail as PrDetailResponse,
 } from './contracts.js';
-import { VERIFY_LABEL, locationOf, type Finding } from '../findings/contracts.js';
+import { VERIFY_LABEL, locationOf, statusLabel, type Finding } from '../findings/contracts.js';
 import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
 import { forgeNameOf } from '../file/contracts.js';
 
@@ -298,7 +298,7 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
                     </Link>
                   </th>
                   <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
-                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs">{statusLabel(f.status)}</td>
                   <td className="py-1 text-xs whitespace-nowrap">
                     {VERIFY_LABEL[f.verify_status]}
                   </td>

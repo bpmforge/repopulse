@@ -329,11 +329,15 @@ export async function persistFindings(db: Database, params: PersistParams): Prom
     (params.sweepDimensions !== undefined && params.sweepDimensions.length > 0);
   // W20-08: a full sweep must name what it owns (see PersistParams.fullSweep).
   const sweepFull = full !== undefined && scoped;
-  if (reviewed.size > 0 || sweepFull) {
+  const sweepDimensions = params.sweepDimensions ?? [
+    ...new Set(params.findings.map((f) => f.dimension)),
+  ];
+  // W20-13: a pass that reported nothing and named no scanner or dimension has
+  // no scope at all. Without this guard the query below dropped its dimension
+  // filter and closed every other pass's findings on the files it reviewed.
+  const hasScope = scoped || sweepDimensions.length > 0;
+  if (hasScope && (reviewed.size > 0 || sweepFull)) {
     const seenKeys = new Set(deduped.map((k) => k.key));
-    const sweepDimensions = params.sweepDimensions ?? [
-      ...new Set(params.findings.map((f) => f.dimension)),
-    ];
     // Filtered here rather than with `file IN (...)`: a full run's file list is
     // the whole tree, and a monorepo's runs past Postgres's bind-parameter
     // limit. The candidates are this repo's open findings in the sweep scope,
@@ -428,7 +432,12 @@ export async function falsePositiveRate(
   db: Database,
   workspaceId: number,
   dimension?: string,
-): Promise<{ dismissedFalsePositive: number; total: number; rate: number | null }> {
+): Promise<{
+  dismissedFalsePositive: number;
+  total: number;
+  triaged: number;
+  rate: number | null;
+}> {
   const where = dimension
     ? and(eq(read.findings.workspaceId, workspaceId), eq(read.findings.dimension, dimension))
     : eq(read.findings.workspaceId, workspaceId);
@@ -437,13 +446,26 @@ export async function falsePositiveRate(
     .select({
       total: sql<number>`count(*)::int`,
       fp: sql<number>`count(*) filter (where ${read.findings.status} = 'dismissed' and ${read.findings.dismissReason} = 'false_positive')::int`,
+      // W20-13 (UX_TODO FND-71): the denominator is what a PERSON has judged.
+      // Dividing by every finding made 500 untriaged findings read as "0%
+      // dismissed as false positive", a flawless analysis nobody had checked.
+      // A closed status a person sets, or any status change by a person (a
+      // removed account keeps its login, W16-59).
+      triaged: sql<number>`count(*) filter (where ${read.findings.status} in ('confirmed', 'dismissed', 'wont_fix') or exists (select 1 from ${read.findingEvents} fe where fe.finding_id = ${read.findings.id} and fe.workspace_id = ${read.findings.workspaceId} and (fe.actor is not null or fe.actor_login is not null)))::int`,
     })
     .from(read.findings)
     .where(where);
 
   const total = row?.total ?? 0;
   const fp = row?.fp ?? 0;
+  const triaged = row?.triaged ?? 0;
   // null, not 0, when nothing has been reviewed: a 0% false-positive rate over
-  // zero findings reads as "the model is perfect" rather than "we have no data".
-  return { dismissedFalsePositive: fp, total, rate: total === 0 ? null : fp / total };
+  // zero triaged findings reads as "the model is perfect" rather than "we have
+  // no data".
+  return {
+    dismissedFalsePositive: fp,
+    total,
+    triaged,
+    rate: triaged === 0 ? null : fp / triaged,
+  };
 }

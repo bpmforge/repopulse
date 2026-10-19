@@ -11,7 +11,7 @@ import { serializeGlobalSearch, type GlobalSearch } from '@repopulse/shared/url-
 import { docsUrl } from '../../lib/docs.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import { IntentControl } from './IntentControl.js';
-import { VERIFY_LABEL, locationOf, type Finding } from '../findings/contracts.js';
+import { VERIFY_LABEL, locationOf, statusLabel, type Finding } from '../findings/contracts.js';
 import {
   SINGLE_OWNER_THRESHOLD,
   STALE_FILE_DAYS,
@@ -295,7 +295,7 @@ export function FileDetailScreen({ repoId, path }: Props) {
                   <td className="py-1 font-mono text-xs">
                     {locationOf(f).replace(`${f.file}:`, '')}
                   </td>
-                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs">{statusLabel(f.status)}</td>
                   <td className="py-1 text-xs whitespace-nowrap">
                     {VERIFY_LABEL[f.verify_status]}
                   </td>

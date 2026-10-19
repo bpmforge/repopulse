@@ -97,6 +97,75 @@ export interface Finding {
   dismiss_requires_admin?: boolean;
   /** W20-08 (FND-57): what the dependency scanner worked out, or null. */
   dependency?: DependencyEvidence | null;
+  /** W9-11 risk engine: the price the list is sorted by, null when unpriced. */
+  effective_risk?: number | null;
+  /** act | schedule | track, null when unpriced. */
+  risk_band?: string | null;
+}
+
+/**
+ * Statuses and dimensions as words (W20-13, UX_TODO FND-26). Built with
+ * `replace('_', ' ')` they read as code: "wont fix", "code health",
+ * "dependency_health" (only the first underscore went).
+ */
+export const STATUS_LABEL: Record<string, string> = {
+  open: 'Open',
+  confirmed: 'Confirmed',
+  dismissed: 'Dismissed',
+  resolved: 'Resolved',
+  wont_fix: "Won't fix",
+};
+
+export function statusLabel(status: string): string {
+  return STATUS_LABEL[status] ?? status.replace(/_/g, ' ');
+}
+
+export const DIMENSION_LABEL: Record<string, string> = {
+  code_health: 'Code health',
+  security: 'Security',
+  performance: 'Performance',
+  test_coverage: 'Test coverage',
+  best_practices: 'Best practices',
+  ai_slop: 'AI slop (model review)',
+  secrets: 'Secrets',
+  dependency: 'Dependencies',
+  sast: 'Static analysis (SAST)',
+  iac: 'Infrastructure as code',
+  chain: 'Attack chain',
+  compound: 'Compound',
+  logging: 'Logging',
+  slop: 'AI slop (scanner)',
+  knowledge: 'Knowledge',
+  dependency_health: 'Dependency health',
+  architecture: 'Architecture',
+  test_gap: 'Test gap',
+};
+
+export function dimensionLabel(dimension: string): string {
+  const known = DIMENSION_LABEL[dimension];
+  if (known) return known;
+  const words = dimension.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Risk bands in words (W20-13, FND-19 / FND-64). */
+export const RISK_BAND_LABEL: Record<string, string> = {
+  act: 'Act now',
+  schedule: 'Schedule',
+  track: 'Track',
+};
+
+/**
+ * Age since first seen, in the largest whole unit ("3d", "5w", "4mo").
+ * W20-13 (FND-19): the list had no age column.
+ */
+export function ageOf(firstSeenAt: string, now: number = Date.now()): string {
+  const days = Math.floor((now - new Date(firstSeenAt).getTime()) / 86_400_000);
+  if (!Number.isFinite(days) || days < 1) return 'today';
+  if (days < 14) return `${days}d`;
+  if (days < 60) return `${Math.floor(days / 7)}w`;
+  if (days < 730) return `${Math.floor(days / 30)}mo`;
+  return `${Math.floor(days / 365)}y`;
 }
 
 /** GET /findings/:id `dependency` (W20-08, UX_TODO FND-57). */
@@ -129,12 +198,15 @@ export const REACHABILITY_LABEL: Record<string, string> = {
  */
 export const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: 'active', label: 'Still to fix (open + confirmed)' },
-  { value: 'open', label: 'open' },
-  { value: 'confirmed', label: 'confirmed' },
-  { value: 'dismissed', label: 'dismissed' },
-  { value: 'resolved', label: 'resolved' },
-  { value: 'wont_fix', label: "won't fix" },
+  { value: 'open', label: 'Open' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'dismissed', label: 'Dismissed' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'wont_fix', label: "Won't fix" },
 ];
+
+/** Rows per page of GET /findings (the API's PAGE_SIZE). */
+export const FINDINGS_PAGE_SIZE = 50;
 
 /** The default status filter, left out of the URL (W20-08). */
 export const DEFAULT_STATUS_FILTER = 'active';
@@ -234,6 +306,8 @@ export interface FindingStats {
   false_positive_rate: number | null;
   false_positive_count: number;
   total: number;
+  /** Findings a person has judged: the rate's denominator (W20-13, FND-71). */
+  triaged?: number;
 }
 
 export interface FindingEvent {
@@ -276,9 +350,9 @@ export function reviewSummary(finding: Finding, history: readonly FindingEvent[]
     `Repository: ${finding.repo.org}/${finding.repo.name}`,
     `Location: ${locationOf(finding)}`,
     `Severity: ${(SEVERITY_LABEL[finding.severity] ?? String(finding.severity)).replace(/^[●○] /, '')}` +
-      ` · confidence ${finding.confidence}/5 · ${finding.dimension.replace('_', ' ')}`,
-    `Status: ${finding.status.replace('_', ' ')}` +
-      (finding.dismiss_reason ? ` (${finding.dismiss_reason.replace('_', ' ')})` : ''),
+      ` · confidence ${finding.confidence}/5 · ${dimensionLabel(finding.dimension)}`,
+    `Status: ${statusLabel(finding.status)}` +
+      (finding.dismiss_reason ? ` (${dismissReasonLabel(finding.dismiss_reason)})` : ''),
     `Verification: ${(VERIFY_LABEL[finding.verify_status] ?? finding.verify_status).replace(/^[✓✕·]+ /, '')}`,
     ...(finding.forge ? [`Link: ${finding.forge.url}`] : []),
     '',
@@ -392,6 +466,34 @@ export const DISMISS_REASONS = [
   'duplicate',
 ] as const;
 export type DismissReason = (typeof DISMISS_REASONS)[number];
+
+/**
+ * Dismiss reasons in words, with what each one means (W20-13, UX_TODO
+ * FND-25). The raw enums ("not applicable") left a reviewer guessing which one
+ * the false-positive rate counts.
+ */
+export const DISMISS_REASON_LABEL: Record<DismissReason, { label: string; help: string }> = {
+  false_positive: {
+    label: 'False positive',
+    help: 'The rule is wrong here: the code does not have this problem. Counts toward the rule’s false-positive rate.',
+  },
+  accepted_risk: {
+    label: 'Accepted risk',
+    help: 'The problem is real and the team accepts it. Say in the note who accepted it and when to look again.',
+  },
+  not_applicable: {
+    label: 'Not applicable',
+    help: 'Real in general, but not in this context (test code, dead path, not shipped).',
+  },
+  duplicate: {
+    label: 'Duplicate',
+    help: 'Another finding already covers this. Name it in the note.',
+  },
+};
+
+export function dismissReasonLabel(reason: string): string {
+  return isDismissReason(reason) ? DISMISS_REASON_LABEL[reason].label : reason.replace(/_/g, ' ');
+}
 
 export function isDismissReason(value: string): value is DismissReason {
   return (DISMISS_REASONS as readonly string[]).includes(value);

@@ -1,5 +1,6 @@
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { RuleFindingsLink } from '../rules/RuleFindingsLink.js';
 import {
   benchmarkText,
   isPrecisionReport,
@@ -182,7 +183,8 @@ export function RulePrecisionTable() {
                     data-lifecycle={rule.lifecycle}
                   >
                     <th scope="row" className="py-2 pr-2 text-left font-mono text-xs font-normal">
-                      {rule.ruleId}
+                      {/* W20-13 (FND-40): to the findings this rule raised. */}
+                      <RuleFindingsLink ruleId={rule.ruleId} />
                     </th>
                     <td className="py-2 pr-2 text-xs">
                       {LIFECYCLE_LABEL[rule.lifecycle]}

@@ -8,14 +8,20 @@ import { FindingDetail } from '../../widgets/findings/FindingDetail.js';
 import { TriageQueue } from '../../widgets/findings/TriageQueue.js';
 import { BulkActions } from '../../widgets/findings/BulkActions.js';
 import { useOverlayLayout } from '../../widgets/findings/layout.js';
+import { trapTab } from '../../widgets/findings/focusTrap.js';
 import {
   ALL_DIMENSIONS as DIMENSIONS,
   DIMENSIONS_AWAITING_PRODUCER,
   awaitingProducer,
   DEFAULT_STATUS_FILTER,
+  FINDINGS_PAGE_SIZE,
+  RISK_BAND_LABEL,
   SEVERITY_LABEL,
   STATUS_FILTERS,
+  ageOf,
+  dimensionLabel,
   locationOf,
+  statusLabel,
   VERIFY_LABEL,
   type Finding,
   type FindingFacets,
@@ -76,6 +82,18 @@ export interface FindingsSearch {
   rule_id?: string;
   experimental?: 'include' | 'only';
   sort?: 'severity';
+  /** W20-13 (FND-20): free text over title, file, CVE id and rule id. */
+  q?: string;
+  /** W20-13 (FND-64): known exploited only. */
+  kev?: boolean;
+  /** W20-13 (FND-64): act | schedule | track. */
+  risk_band?: string;
+  /** W20-13 (FND-64): one CVE, exactly (links from the Security tab). */
+  cve_id?: string;
+  /** W20-13 (FND-19): the API's confidence floor, 2–5. */
+  confidence_min?: number;
+  /** W20-13 (FND-46): one attack chain's findings. */
+  chain_id?: string;
 }
 
 const FILTER_STATUSES = STATUS_FILTERS.map((s) => s.value);
@@ -103,6 +121,17 @@ function validateFilterSearch(search: Record<string, unknown>): Omit<FindingsSea
     out.experimental = search.experimental;
   }
   if (search.sort === 'severity') out.sort = 'severity';
+  const q = str(search.q);
+  if (q) out.q = q;
+  if (search.kev === true || search.kev === 'true') out.kev = true;
+  const band = str(search.risk_band);
+  if (band in RISK_BAND_LABEL) out.risk_band = band;
+  const cve = str(search.cve_id);
+  if (cve) out.cve_id = cve;
+  const conf = Number(search.confidence_min);
+  if (Number.isInteger(conf) && conf >= 2 && conf <= 5) out.confidence_min = conf;
+  const chain = str(search.chain_id);
+  if (chain) out.chain_id = chain;
   return out;
 }
 
@@ -175,6 +204,15 @@ function FindingsExplorer() {
   const shadowMode: ShadowMode = search.experimental ?? 'exclude';
   const ruleId = search.rule_id ?? '';
   const sort = search.sort;
+  const text = search.q ?? '';
+  const kev = search.kev === true;
+  const riskBand = search.risk_band ?? '';
+  const cveId = search.cve_id ?? '';
+  const confidenceMin = search.confidence_min ? String(search.confidence_min) : '';
+  const chainId = search.chain_id ?? '';
+  // The search box's draft: the URL changes on Enter or Search, not per key.
+  const [draft, setDraft] = useState(text);
+  useEffect(() => setDraft(text), [text]);
   /**
    * Change filters by writing the URL. Pushed, so Back undoes a filter change;
    * the other search params (window, repos, the open finding) ride along. An
@@ -293,6 +331,12 @@ function FindingsExplorer() {
     // the cache entry) every other screen of this list already shares.
     ...(shadowMode !== 'exclude' ? { experimental: shadowMode } : {}),
     ...(sort ? { sort } : {}),
+    ...(text ? { q: text } : {}),
+    ...(kev ? { kev: 'true' } : {}),
+    ...(riskBand ? { risk_band: riskBand } : {}),
+    ...(cveId ? { cve_id: cveId } : {}),
+    ...(confidenceMin ? { confidence_min: confidenceMin } : {}),
+    ...(chainId ? { chain_id: chainId } : {}),
   } as const;
 
   /**
@@ -508,6 +552,34 @@ function FindingsExplorer() {
       />
 
       <div className="flex flex-wrap items-end gap-3" data-testid="finding-filters">
+        {/* W20-13 (UX_TODO FND-20): "find the lodash one" without paging. */}
+        <form
+          role="search"
+          className="flex items-end gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setFilters({ q: draft.trim() });
+          }}
+        >
+          <label className="flex flex-col gap-1 text-xs text-fg-muted">
+            Search
+            <input
+              type="search"
+              className="panel w-56 px-2 py-1 text-sm"
+              data-testid="filter-q"
+              placeholder="Title, file, CVE or rule"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-md border border-border px-2 py-1 text-sm hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="filter-q-submit"
+          >
+            Search
+          </button>
+        </form>
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           Dimension
           <select
@@ -522,7 +594,7 @@ function FindingsExplorer() {
                 {/* Marked in the option itself, so the cost of choosing it is
                     visible BEFORE the click rather than as an empty table
                     afterwards (W9-14). */}
-                {d.replace('_', ' ')}
+                {dimensionLabel(d)}
                 {awaitingProducer(d) ? ' — not yet produced' : ''}
               </option>
             ))}
@@ -575,6 +647,59 @@ function FindingsExplorer() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Risk
+          <select
+            className="panel px-2 py-1 text-sm"
+            data-testid="filter-risk-band"
+            value={riskBand}
+            onChange={(e) => setFilters({ risk_band: e.target.value })}
+          >
+            <option value="">Any</option>
+            {Object.entries(RISK_BAND_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Min confidence
+          <select
+            className="panel px-2 py-1 text-sm"
+            data-testid="filter-confidence"
+            value={confidenceMin}
+            onChange={(e) => setFilters({ confidence_min: e.target.value })}
+          >
+            <option value="">Any</option>
+            {[5, 4, 3, 2].map((c) => (
+              <option key={c} value={c}>
+                {c}/5 and above
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          Sort
+          <select
+            className="panel px-2 py-1 text-sm"
+            data-testid="filter-sort"
+            value={sort ?? ''}
+            onChange={(e) => setFilters({ sort: e.target.value })}
+          >
+            <option value="">Risk (highest first)</option>
+            <option value="severity">Severity (highest first)</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-fg-muted">
+          <input
+            type="checkbox"
+            data-testid="filter-kev"
+            checked={kev}
+            onChange={(e) => setFilters({ kev: e.target.checked })}
+          />
+          Known exploited (KEV)
         </label>
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           <input
@@ -636,6 +761,37 @@ function FindingsExplorer() {
           </select>
         </label>
       </div>
+      {/* Filters that only arrive by link are said, and can be removed. */}
+      {(cveId || chainId) && (
+        <p className="flex flex-wrap items-center gap-2 text-xs" data-testid="link-filters">
+          {cveId && (
+            <span>
+              CVE <span className="font-mono">{cveId}</span>{' '}
+              <button
+                type="button"
+                className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="clear-cve"
+                onClick={() => setFilters({ cve_id: '' })}
+              >
+                remove
+              </button>
+            </span>
+          )}
+          {chainId && (
+            <span>
+              One attack chain{' '}
+              <button
+                type="button"
+                className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="clear-chain"
+                onClick={() => setFilters({ chain_id: '' })}
+              >
+                remove
+              </button>
+            </span>
+          )}
+        </p>
+      )}
 
       {/* ACROSS THE WORKSPACE, and it now says so (W16-50). The moment the
           repository filter started working, this card read "3 findings total"
@@ -654,10 +810,13 @@ function FindingsExplorer() {
                 ? '—'
                 : `${Math.round(stats.false_positive_rate * 100)}%`}
             </p>
-            <p className="text-xs text-fg-muted">
+            <p className="text-xs text-fg-muted" data-testid="fp-basis">
               {stats?.false_positive_rate === null
                 ? 'no findings triaged yet'
-                : 'dismissed as false positive'}
+                : typeof stats?.triaged === 'number'
+                  ? // W20-13 (FND-71): of what a person judged, not of everything.
+                    `dismissed as false positive, of ${stats.triaged.toLocaleString()} triaged`
+                  : 'dismissed as false positive'}
             </p>
           </div>
           <div>
@@ -766,7 +925,7 @@ function FindingsExplorer() {
         // as though one more run would fix it. Name the actual reason instead.
         emptyMessage={
           awaitingProducer(dimension)
-            ? `Nothing writes ${dimension.replace('_', ' ')} findings yet, so this filter cannot return anything. ${DIMENSIONS_AWAITING_PRODUCER[dimension]}`
+            ? `Nothing writes ${dimensionLabel(dimension).toLowerCase()} findings yet, so this filter cannot return anything. ${DIMENSIONS_AWAITING_PRODUCER[dimension]}`
             : shadowMode === 'only'
               ? 'No shadow findings match these filters. Shadow findings come from rules still being measured; an admin promotes or retires them under Settings → Rules.'
               : shadowHidden > 0
@@ -801,10 +960,16 @@ function FindingsExplorer() {
                   />
                 </th>
                 <th scope="col">Severity</th>
+                {/* W20-13 (FND-19): the list is sorted by risk by default, and
+                    no column showed it, so the order looked random. */}
+                <th scope="col" aria-sort={sort ? undefined : 'descending'}>
+                  Risk
+                </th>
                 <th scope="col">Finding</th>
                 <th scope="col">Repository</th>
                 <th scope="col">File</th>
                 <th scope="col">Status</th>
+                <th scope="col">Age</th>
                 <th scope="col">Verification</th>
               </tr>
             </thead>
@@ -841,6 +1006,13 @@ function FindingsExplorer() {
                   <td className="py-1 whitespace-nowrap">
                     <FindingSeverityBadge severity={f.severity} />
                   </td>
+                  <td
+                    className="py-1 text-xs whitespace-nowrap"
+                    data-testid={`finding-risk-${f.id}`}
+                  >
+                    {f.risk_band ? (RISK_BAND_LABEL[f.risk_band] ?? f.risk_band) : 'Not priced'}
+                    {f.kev ? ' · KEV' : ''}
+                  </td>
                   <th scope="row" className="py-1 text-left font-normal">
                     <button
                       type="button"
@@ -863,7 +1035,13 @@ function FindingsExplorer() {
                   <td className="py-1 font-mono text-xs" data-testid={`finding-file-${f.id}`}>
                     {locationOf(f)}
                   </td>
-                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs">{statusLabel(f.status)}</td>
+                  <td
+                    className="py-1 text-xs whitespace-nowrap tabular-nums"
+                    title={`First seen ${f.first_seen_at.slice(0, 10)}`}
+                  >
+                    {ageOf(f.first_seen_at)}
+                  </td>
                   <td
                     className="py-1 text-xs whitespace-nowrap"
                     data-testid={`finding-verify-${f.id}`}
@@ -886,7 +1064,15 @@ function FindingsExplorer() {
             >
               Previous page
             </button>
-            <span className="text-fg-muted">Page {cursors.length + 1}</span>
+            {/* W20-13 (FND-21): where this page sits in the whole list. */}
+            <span className="text-fg-muted" data-testid="findings-range">
+              {items.length > 0 && typeof data?.total === 'number'
+                ? `${(cursors.length * FINDINGS_PAGE_SIZE + 1).toLocaleString()}–${(
+                    cursors.length * FINDINGS_PAGE_SIZE +
+                    items.length
+                  ).toLocaleString()} of ${data.total.toLocaleString()} matching`
+                : `Page ${cursors.length + 1}`}
+            </span>
             <button
               type="button"
               className="rounded-md border border-border px-2 py-1 hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
@@ -933,12 +1119,14 @@ function FindingsExplorer() {
               // Reaches here only from the loading / not-found / forbidden
               // states — the panel itself handles (and stops) its own Escape.
               if (e.key === 'Escape') close();
+              // W20-13 (FND-42): Tab stays inside the modal dialog.
+              trapTab(e);
             }}
           >
             <div className="mb-2 flex justify-end">
               <button
                 type="button"
-                className="text-xs text-fg-muted underline underline-offset-2"
+                className="text-xs text-fg-muted underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid="finding-overlay-close"
                 onClick={close}
               >

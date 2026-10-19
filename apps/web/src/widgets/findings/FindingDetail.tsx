@@ -1,23 +1,30 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ErrorNote, WidgetFrame } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
   allowedFindingTransitions,
   autoCloseNote,
   DISMISS_NOTE_MIN,
+  DISMISS_REASON_LABEL,
   DISMISS_REASONS,
+  dimensionLabel,
+  dismissReasonLabel,
   FINDING_ACTIONS,
   FINDING_DONE_LABEL,
   locationOf,
   reviewSummary,
+  RISK_BAND_LABEL,
   SEVERITY_LABEL,
+  statusLabel,
   undoTargetFor,
+  isDismissReason,
   type Finding,
   type FindingEvent,
   type FindingLifecycleStatus,
 } from './contracts.js';
 import { EvidenceCode } from './EvidenceCode.js';
 import { PlanForRepoLink } from '../plans/PlanForRepoLink.js';
+import { InternalLink } from '../plans/InternalLink.js';
 import { VerifiedFix } from './VerifiedFix.js';
 import { AiSuggestions } from './AiSuggestions.js';
 import { RulePrecisionSummary } from '../trust/RulePrecision.js';
@@ -26,6 +33,9 @@ import { DependencyWhy } from './DependencyWhy.js';
 import { VexForm } from './VexForm.js';
 import { ProposeRuleForm } from '../rules/ProposeRuleForm.js';
 
+/** The by-id query's endpoint; its key prefix covers every finding's copy. */
+const FINDING_BY_ID_ENDPOINT = '/findings/{id}';
+
 /** Moves that close a finding without a fix (W20-08, UX_TODO FND-66). */
 const CLOSING: readonly string[] = ['dismissed', 'wont_fix'];
 
@@ -33,6 +43,14 @@ const CLOSING: readonly string[] = ['dismissed', 'wont_fix'];
 
 const ACTION_BUTTON =
   'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+
+const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+
+/** A date as the reader's calendar day. */
+function day(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleDateString();
+}
 
 export function FindingDetail({
   finding,
@@ -69,6 +87,8 @@ export function FindingDetail({
     from: string;
     to: FindingLifecycleStatus;
     fromReason: string | null;
+    /** The reason this change recorded, for "Dismissed as false positive". */
+    reason: string | null;
     undone: boolean;
   } | null>(null);
 
@@ -86,7 +106,13 @@ export function FindingDetail({
     // The panel's OWN history query is invalidated too. Without it the audit
     // trail the user just added to keeps showing the previous state — the
     // change looks like it did not happen.
-    { invalidate: [...invalidate, queryKeyFor(historyDescriptor)] },
+    //
+    // W20-13 (UX_TODO FND-74): every by-id copy of a finding too. A finding
+    // opened from a link and not on the list's current page is the by-id
+    // fetch's copy, and invalidating only the list left its status stale.
+    {
+      invalidate: [...invalidate, queryKeyFor(historyDescriptor), [FINDING_BY_ID_ENDPOINT]],
+    },
   );
 
   /**
@@ -155,18 +181,85 @@ export function FindingDetail({
         <div className="flex flex-wrap gap-3 text-xs text-fg-muted">
           <span>{SEVERITY_LABEL[finding.severity]}</span>
           <span>confidence {finding.confidence}/5</span>
-          <span>{finding.dimension.replace('_', ' ')}</span>
+          <span>{dimensionLabel(finding.dimension)}</span>
           <span>seen {finding.occurrence_count}×</span>
           <span>Tier {finding.tier}</span>
           {/* The status, from the server's copy of the finding — never from
               the button that was just pressed (W17-23). */}
-          <span data-testid="finding-status">status {finding.status.replace('_', ' ')}</span>
+          <span data-testid="finding-status">
+            Status: {statusLabel(finding.status)}
+            {finding.dismiss_reason && finding.status === 'dismissed'
+              ? ` (${dismissReasonLabel(finding.dismiss_reason)})`
+              : ''}
+          </span>
           {finding.rule_id ? (
             <span className="font-mono" data-testid="finding-rule">
               rule {finding.rule_id}
             </span>
           ) : null}
         </div>
+
+        {/* W20-13 (UX_TODO FND-23): what a list row would have said around
+            it. A link from Chains or Sensitive changes opens this panel with
+            no list, and the repository, CVE, KEV, risk and dates were nowhere. */}
+        <dl
+          className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs sm:grid-cols-[auto_1fr_auto_1fr]"
+          data-testid="finding-meta"
+        >
+          <dt className="text-fg-muted">Repository</dt>
+          <dd data-testid="finding-meta-repo">
+            {finding.repo.org}/{finding.repo.name}
+          </dd>
+          {finding.cve_id ? (
+            <>
+              <dt className="text-fg-muted">CVE</dt>
+              <dd className="font-mono" data-testid="finding-meta-cve">
+                {finding.cve_id}
+                {finding.kev ? (
+                  <span className="ml-1 font-sans" data-testid="finding-meta-kev">
+                    ! known exploited (CISA KEV)
+                  </span>
+                ) : null}
+              </dd>
+            </>
+          ) : null}
+          {finding.risk_band ? (
+            <>
+              <dt className="text-fg-muted">Risk</dt>
+              <dd data-testid="finding-meta-risk">
+                {RISK_BAND_LABEL[finding.risk_band] ?? finding.risk_band}
+                {typeof finding.effective_risk === 'number'
+                  ? ` · ${finding.effective_risk.toFixed(1)}`
+                  : ''}
+              </dd>
+            </>
+          ) : null}
+          <dt className="text-fg-muted">First seen</dt>
+          <dd data-testid="finding-meta-first-seen">{day(finding.first_seen_at)}</dd>
+          {/* W20-13 (FND-51, part): when a scan last saw it, the evidence a
+              resolved finding has for being gone. */}
+          <dt className="text-fg-muted">Last seen</dt>
+          <dd data-testid="finding-meta-last-seen">{day(finding.last_seen_at)}</dd>
+          {finding.file ? (
+            <>
+              <dt className="text-fg-muted">File</dt>
+              <dd>
+                {/* W20-13 (FND-70, part): RepoPulse's own page for the file,
+                    with its owners, hotspot history and intent. */}
+                <InternalLink
+                  to={`/repos/${finding.repo.id}/files/${finding.file
+                    .split('/')
+                    .map(encodeURIComponent)
+                    .join('/')}`}
+                  className={`text-accent underline-offset-2 hover:underline ${FOCUS_RING}`}
+                  testId="finding-file-page"
+                >
+                  Owners and history of this file
+                </InternalLink>
+              </dd>
+            </>
+          ) : null}
+        </dl>
 
         {/* W18-29: said in the panel, not only as a chip in the list — the
             panel is what a shared link opens, with no list around it. */}
@@ -317,10 +410,14 @@ export function FindingDetail({
               >
                 {DISMISS_REASONS.map((r) => (
                   <option key={r} value={r}>
-                    {r.replace('_', ' ')}
+                    {DISMISS_REASON_LABEL[r].label}
                   </option>
                 ))}
               </select>
+              {/* W20-13 (UX_TODO FND-25): what the chosen reason means. */}
+              <span className="max-w-72 text-fg-faint" data-testid="finding-dismiss-reason-help">
+                {isDismissReason(reason) ? DISMISS_REASON_LABEL[reason].help : ''}
+              </span>
             </label>
           )}
           {allowed.map((to) => {
@@ -357,6 +454,7 @@ export function FindingDetail({
                           from,
                           to,
                           fromReason,
+                          reason: to === 'dismissed' ? reason : null,
                           undone: false,
                         });
                       },
@@ -400,7 +498,7 @@ export function FindingDetail({
           )}
           <button
             type="button"
-            className="text-xs text-fg-muted underline underline-offset-2"
+            className={`text-xs text-fg-muted underline underline-offset-2 ${FOCUS_RING}`}
             onClick={onClose}
           >
             Close
@@ -464,19 +562,32 @@ function ChangeMessage({
   pending,
   onUndo,
 }: {
-  change: { from: string; to: FindingLifecycleStatus; undone: boolean };
+  change: { from: string; to: FindingLifecycleStatus; reason: string | null; undone: boolean };
   pending: string | undefined;
   onUndo: () => void;
 }) {
   const target = undoTargetFor(change.from, change.to);
-  const fromLabel = change.from.replace('_', ' ');
+  const fromLabel = statusLabel(change.from).toLowerCase();
+  // W20-13 (UX_TODO FND-24): focus moves to the message, so a keyboard or
+  // screen-reader user hears what happened and lands next to Undo.
+  const ref = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, [change.to, change.undone]);
   return (
-    <p className="text-xs" data-testid="finding-change-status" role="status">
+    <p
+      ref={ref}
+      tabIndex={-1}
+      className={`text-xs ${FOCUS_RING}`}
+      data-testid="finding-change-status"
+      role="status"
+    >
       {change.undone ? (
         `Undone: the finding is ${fromLabel} again.`
       ) : (
         <>
-          {FINDING_DONE_LABEL[change.to]}.{' '}
+          {FINDING_DONE_LABEL[change.to]}
+          {change.reason ? ` as ${dismissReasonLabel(change.reason).toLowerCase()}` : ''}.{' '}
           {target ? (
             <button
               type="button"
@@ -489,8 +600,8 @@ function ChangeMessage({
             </button>
           ) : (
             <span className="text-fg-muted" data-testid="finding-no-undo">
-              This cannot be undone: the lifecycle has no way from {change.to.replace('_', ' ')}{' '}
-              back to {fromLabel}. If it was a mistake, use{' '}
+              This cannot be undone: the lifecycle has no way from{' '}
+              {statusLabel(change.to).toLowerCase()} back to {fromLabel}. If it was a mistake, use{' '}
               {allowedFindingTransitions(change.to)
                 .map((t) => FINDING_ACTIONS[t].label)
                 .join(' or ')}{' '}

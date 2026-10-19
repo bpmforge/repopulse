@@ -8,6 +8,7 @@ import {
   FINDING_DONE_LABEL,
   allowedFindingTransitions,
   isDismissReason,
+  statusLabel,
   undoTargetFor,
   type DismissReason,
   type Finding,
@@ -67,6 +68,21 @@ interface LastBulk {
  * The moves the bar offers: those the lifecycle allows for at least one
  * selected finding. The API still decides per row and reports the rest.
  */
+/**
+ * Skipped rows, counted by reason (W20-13, UX_TODO FND-22). Listing every id
+ * with its reason inline turned a bulk action over hundreds of rows into a
+ * wall of text. Most common reason first.
+ */
+export function skippedByReason(
+  skipped: readonly { id: number; reason: string }[],
+): { reason: string; ids: number[] }[] {
+  const groups = new Map<string, number[]>();
+  for (const s of skipped) groups.set(s.reason, [...(groups.get(s.reason) ?? []), s.id]);
+  return [...groups.entries()]
+    .map(([reason, ids]) => ({ reason, ids }))
+    .sort((a, b) => b.ids.length - a.ids.length || a.reason.localeCompare(b.reason));
+}
+
 export function bulkMoves(selected: readonly Finding[]): FindingLifecycleStatus[] {
   const allowed = new Set(selected.flatMap((f) => allowedFindingTransitions(f.status)));
   return ORDER.filter((s) => allowed.has(s));
@@ -335,16 +351,17 @@ function LastBulkNote({
 }) {
   const { result, to } = last;
   const reversible = groups.groups.reduce((n, g) => n + g.ids.length, 0);
+  const skipped = skippedByReason(result.skipped);
   return (
-    <p className="text-xs text-fg-muted" data-testid="bulk-result" role="status">
+    <div className="text-xs text-fg-muted" data-testid="bulk-result" role="status">
       {last.undone !== null ? (
         `Undone: ${last.undone} ${last.undone === 1 ? 'finding is' : 'findings are'} back where ${last.undone === 1 ? 'it was' : 'they were'}.`
       ) : (
         <>
           {FINDING_DONE_LABEL[to]}: applied to {result.applied.length}
           {result.skipped.length > 0
-            ? `, skipped ${result.skipped.length} (${result.skipped
-                .map((s) => `#${s.id}: ${s.reason}`)
+            ? `, skipped ${result.skipped.length} (${skipped
+                .map((g) => `${g.ids.length}: ${g.reason}`)
                 .join('; ')})`
             : ''}
           .{' '}
@@ -362,8 +379,9 @@ function LastBulkNote({
           {groups.stuck > 0 && (
             <span data-testid="bulk-no-undo">
               {' '}
-              {groups.stuck} cannot be undone: the lifecycle has no way from {to.replace('_', ' ')}{' '}
-              back to where {groups.stuck === 1 ? 'it was' : 'they were'}.
+              {groups.stuck} cannot be undone: the lifecycle has no way from{' '}
+              {statusLabel(to).toLowerCase()} back to where{' '}
+              {groups.stuck === 1 ? 'it was' : 'they were'}.
             </span>
           )}
           {groups.unknown > 0 && (
@@ -373,8 +391,25 @@ function LastBulkNote({
               own panels.
             </span>
           )}
+          {skipped.length > 0 && (
+            <details className="mt-1" data-testid="bulk-skipped">
+              <summary className="cursor-pointer">Which were skipped</summary>
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {skipped.map((g) => (
+                  <li key={g.reason}>
+                    {g.reason}:{' '}
+                    {g.ids
+                      .slice(0, 50)
+                      .map((id) => `#${id}`)
+                      .join(', ')}
+                    {g.ids.length > 50 ? ` and ${g.ids.length - 50} more` : ''}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </>
       )}
-    </p>
+    </div>
   );
 }

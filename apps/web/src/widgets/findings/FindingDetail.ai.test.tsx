@@ -89,7 +89,7 @@ describe('accepting an AI false-positive suggestion', () => {
     // Nothing was sent: not a status change, not a decision.
     expect(transition).not.toHaveBeenCalled();
     expect(decide).not.toHaveBeenCalled();
-    expect(screen.getByTestId('finding-status').textContent).toBe('status open');
+    expect(screen.getByTestId('finding-status').textContent).toBe('Status: Open');
     // And Dismiss still needs the person's note.
     expect(screen.getByTestId('finding-dismiss')).toBeDisabled();
   });

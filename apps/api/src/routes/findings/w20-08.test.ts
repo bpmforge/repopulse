@@ -80,6 +80,7 @@ describe('cveRows (FND-56)', () => {
       severity: 5,
       kev: true,
       scanner_key: 'container_image',
+      reachability: null,
     });
     expect(rows[1]!.package).toBe('lodash 4.17.20');
     expect(rows[2]!.cve_id).toBe('GHSA-x');

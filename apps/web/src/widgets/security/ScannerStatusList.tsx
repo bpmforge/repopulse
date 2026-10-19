@@ -4,6 +4,7 @@ import { useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import {
   hasMeasuredCount,
   scannerStateLabel,
+  type ScannerState,
   type ScannerStatus,
   type SecurityTooling,
 } from './contracts.js';
@@ -85,10 +86,52 @@ export function looksLikeStaleVulnDb(error: string): boolean {
   return /vulnerability database|vulnerability db|scan-db-sync/i.test(error);
 }
 
+/**
+ * Problem states first (W20-13, UX_TODO FND-31). Alphabetical, 18 rows buried
+ * a failed or switched-off scanner among "enabled, has never run". Within a
+ * state the order stays alphabetical.
+ */
+const STATE_ORDER: Record<ScannerState, number> = {
+  error: 0,
+  stale: 1,
+  partial: 2,
+  all_rejected: 3,
+  nothing_scanned: 4,
+  running: 5,
+  never_run: 6,
+  not_enabled: 7,
+  ok: 8,
+};
+
+export function sortScanners(scanners: readonly ScannerStatus[]): ScannerStatus[] {
+  return [...scanners].sort(
+    (a, b) =>
+      (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9) ||
+      a.display_name.localeCompare(b.display_name),
+  );
+}
+
+/** States where re-running one scanner on its own is the next step (FND-30). */
+const RERUN_STATES: readonly ScannerState[] = [
+  'error',
+  'stale',
+  'partial',
+  'never_run',
+  'nothing_scanned',
+];
+
 export function ScannerStatusList({ scanners, manage = null }: Props) {
+  const problems = scanners.filter((s) => (STATE_ORDER[s.state] ?? 9) <= 4).length;
   return (
     <table className="table-plain w-full text-sm" data-testid="scanner-status">
-      <caption className="sr-only">Scanner coverage for this repository</caption>
+      <caption
+        className="pb-1 text-left text-xs text-fg-muted"
+        data-testid="scanner-status-caption"
+      >
+        {problems > 0
+          ? `${problems} of ${scanners.length} scanners need attention; they are listed first.`
+          : `${scanners.length} scanners.`}
+      </caption>
       <thead>
         <tr className="text-left text-xs text-fg-muted">
           <th scope="col" className="py-1">
@@ -111,7 +154,7 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
         </tr>
       </thead>
       <tbody>
-        {scanners.map((scanner) => (
+        {sortScanners(scanners).map((scanner) => (
           <tr
             key={scanner.key}
             className="border-t border-border"
@@ -163,6 +206,12 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
               {scanner.error && (
                 <ScannerErrorDetail scannerKey={scanner.key} error={scanner.error} />
               )}
+              {manage &&
+                scanner.registered &&
+                scanner.enabled &&
+                RERUN_STATES.includes(scanner.state) && (
+                  <RerunScanner scanner={scanner} manage={manage} />
+                )}
             </td>
             <td className="py-1.5">{when(scanner.last_run_at)}</td>
             <td className="py-1.5 text-right tabular-nums">
@@ -182,6 +231,46 @@ export function ScannerStatusList({ scanners, manage = null }: Props) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * Re-run this one scanner (W20-13, UX_TODO FND-30). "Run scans now" always
+ * runs every enabled scanner; a single one that failed after a database sync
+ * could not be retried on its own, although the API takes `scanner_key`.
+ */
+function RerunScanner({
+  scanner,
+  manage,
+}: {
+  scanner: ScannerStatus;
+  manage: { repoId: string; invalidate: readonly (readonly unknown[])[] };
+}) {
+  const run = useApiMutation<
+    { scanner_key: string },
+    { started: string[]; already_running: string[] }
+  >(
+    { endpoint: '/repos/{id}/scan', path: { id: manage.repoId }, method: 'POST' },
+    { invalidate: manage.invalidate },
+  );
+  return (
+    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+      <button
+        type="button"
+        className="text-accent underline underline-offset-2 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        data-testid={`scanner-rerun-${scanner.key}`}
+        disabled={run.isPending}
+        onClick={() => run.mutate({ scanner_key: scanner.key })}
+      >
+        {run.isPending ? 'Starting…' : scanner.state === 'never_run' ? 'Run it now' : 'Re-run'}
+      </button>
+      {run.isSuccess && (
+        <span role="status" className="text-fg-muted">
+          {run.data.started.length > 0 ? 'Started.' : 'Already running.'}
+        </span>
+      )}
+      <ErrorNote error={run.error} testId={`scanner-rerun-error-${scanner.key}`} />
+    </div>
   );
 }
 

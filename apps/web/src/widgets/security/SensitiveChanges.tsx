@@ -72,6 +72,13 @@ const LIFECYCLE_LABEL: Record<RadarRule['lifecycle'], string> = {
 
 const PREFIX = 'Needs human review: ';
 
+/** The radar's scanner key, for the Reviews drill-down (W20-13, FND-38). */
+export const RADAR_SCANNER_KEY = 'sensitive_change';
+
+/** Where the radar is switched on and off, said in words (FND-39). */
+const RADAR_TOGGLE_WHERE =
+  'An admin switches it back on in the repository’s Security tab, under Coverage, on the Sensitive-change radar row.';
+
 /** The change itself; the "needs human review" prefix is the section heading here. */
 function changeOf(title: string): string {
   const t = title.startsWith(PREFIX) ? title.slice(PREFIX.length) : title;
@@ -93,7 +100,7 @@ export function radarBlankReason(data: SensitiveChangesResponse): string | null 
   if (data.repos.enabled === 0) {
     return `The radar is switched off for ${
       data.repos.total === 1 ? 'this repository' : `all ${data.repos.total} selected repositories`
-    }, so nothing is being checked. An admin switched it off, and only an admin can switch it back on.`;
+    }, so nothing is being checked. ${RADAR_TOGGLE_WHERE}`;
   }
   if (data.runs.ever === 0) {
     return 'The radar has not read a change yet. It checks each pull request and push as it arrives — never past history — so this fills in from the next push to a repository with the radar on.';
@@ -101,9 +108,20 @@ export function radarBlankReason(data: SensitiveChangesResponse): string | null 
   return null;
 }
 
-function ItemList({ items, shadow }: { items: RadarItem[]; shadow: boolean }) {
+function ItemList({
+  items,
+  shadow,
+  testId,
+}: {
+  items: RadarItem[];
+  shadow: boolean;
+  testId?: string;
+}) {
   return (
-    <ul className="flex flex-col" data-testid={shadow ? 'radar-shadow-list' : 'radar-active-list'}>
+    <ul
+      className="flex flex-col"
+      data-testid={testId ?? (shadow ? 'radar-shadow-list' : 'radar-active-list')}
+    >
       {items.map((it) => (
         <li
           key={it.id}
@@ -134,7 +152,6 @@ function ItemList({ items, shadow }: { items: RadarItem[]; shadow: boolean }) {
               </>
             ) : null}
             {` · first seen ${day(it.first_seen_at)}`}
-            {it.status === 'confirmed' ? ' · confirmed' : ''}
           </p>
         </li>
       ))}
@@ -165,6 +182,9 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
           data?.runs.recent === 1 ? 'change' : 'changes'
         } in the last ${data?.runs.window_days ?? 30} days and raised no open signal.`);
 
+  const toReview = (data?.active ?? []).filter((i) => i.status !== 'confirmed');
+  const confirmed = (data?.active ?? []).filter((i) => i.status === 'confirmed');
+
   const grouped = new Map<RadarRule['category'], RadarRule[]>();
   for (const r of data?.rules ?? [])
     grouped.set(r.category, [...(grouped.get(r.category) ?? []), r]);
@@ -183,7 +203,11 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
       )}
 
       <WidgetFrame
-        title="Needs human review"
+        title={
+          data && data.active.length > 0
+            ? `Needs human review (${toReview.length})`
+            : 'Needs human review'
+        }
         state={state}
         onRetry={() => void refetch()}
         {...(error ? { errorMessage: error.message, error } : {})}
@@ -192,10 +216,41 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
       >
         {data && data.active.length > 0 && (
           <div className="flex flex-col gap-2">
-            <ItemList items={data.active} shadow={false} />
+            {/* W20-13 (UX_TODO FND-54): a change someone already confirmed is
+                reviewed, and waits for a fix; it no longer reads as unreviewed
+                with a small "· confirmed" suffix. */}
+            {toReview.length > 0 ? (
+              <ItemList items={toReview} shadow={false} />
+            ) : (
+              <p className="text-sm text-fg-muted" data-testid="radar-none-to-review">
+                Every listed change has been reviewed; the confirmed ones are below.
+              </p>
+            )}
+            {confirmed.length > 0 && (
+              <div data-testid="radar-confirmed">
+                <h3 className="mt-2 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+                  Confirmed, awaiting a fix ({confirmed.length})
+                </h3>
+                <ItemList items={confirmed} shadow={false} testId="radar-confirmed-list" />
+              </div>
+            )}
             {data.totals.active > data.active.length && (
-              <p className="text-xs text-fg-muted">
-                Showing the {data.active.length} most recent of {data.totals.active}.
+              <p className="text-xs text-fg-muted" data-testid="radar-more">
+                Showing the {data.active.length} most recent of {data.totals.active}.{' '}
+                {/* W20-13 (UX_TODO FND-38): the rest, in Reviews. */}
+                <Link
+                  to="/findings"
+                  search={
+                    {
+                      scanner_key: RADAR_SCANNER_KEY,
+                      ...(search.repos ? { repos: search.repos } : {}),
+                    } as never
+                  }
+                  className="text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  data-testid="radar-see-all"
+                >
+                  See all {data.totals.active} in Reviews
+                </Link>
               </p>
             )}
           </div>
@@ -204,7 +259,7 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
 
       {data && data.repos.disabled.length > 0 && data.repos.enabled > 0 && (
         <p className="text-xs text-fg-muted" data-testid="radar-disabled-repos">
-          Not checked — the radar is off for{' '}
+          Not checked: the radar is off for{' '}
           {data.repos.disabled.map((r, i) => (
             <span key={r.id}>
               {i > 0 ? ', ' : ''}
@@ -218,7 +273,7 @@ export function SensitiveChanges({ search }: { search: Record<string, string> })
               </Link>
             </span>
           ))}
-          .
+          . {RADAR_TOGGLE_WHERE}
         </p>
       )}
 

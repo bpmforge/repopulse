@@ -14,6 +14,7 @@ import {
 } from '../../widgets/rules/contracts.js';
 import { RulePrecisionTable } from '../../widgets/trust/RulePrecision.js';
 import { ProposeRuleForm } from '../../widgets/rules/ProposeRuleForm.js';
+import { RuleFindingsLink } from '../../widgets/rules/RuleFindingsLink.js';
 
 // Rule workbench (W9-07, CODE_HEALTH_SUITE.md §8, FR-CH-8, FR-AUTH-4).
 //
@@ -127,7 +128,8 @@ export function RuleWorkbench() {
                 data-status={rule.status}
               >
                 <th scope="row" className="py-2 text-left font-normal">
-                  {rule.rule_id}
+                  {/* W20-13 (FND-40): to the findings this rule raised. */}
+                  <RuleFindingsLink ruleId={rule.rule_id} />
                   {rule.demotion_candidate && (
                     <span className="ml-2 text-xs" data-testid={`rule-demote-${rule.rule_id}`}>
                       ! demotion candidate
