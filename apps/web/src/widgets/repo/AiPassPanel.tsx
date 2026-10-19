@@ -7,6 +7,7 @@ import {
   type AiPassRun,
   type PassMode,
   type PassStatus,
+  type ScheduleResponse,
 } from '../findings/aiContracts.js';
 import { AiBadge } from '../findings/AiSuggestions.js';
 import { ScheduledPasses } from './ScheduledPasses.js';
@@ -52,6 +53,14 @@ function RunRow({ run }: { run: AiPassRun }) {
   const usage = run.specialists?.usage ?? {};
   const raised = Object.entries(usage).filter(([, u]) => (u.findings ?? 0) > 0);
   const dropped = run.specialists?.droppedForBudget ?? [];
+  // W20-06 (UX_TODO AI-59): answers that could not be used were stored but never
+  // shown, so a pass where every specialist failed read "✓ finished, no finding".
+  const failures = run.specialists?.failures ?? [];
+  const failedBy = new Map<string, string[]>();
+  for (const f of failures) {
+    failedBy.set(f.specialist, [...(failedBy.get(f.specialist) ?? []), ...f.paths]);
+  }
+  const rejectedCount = run.specialists?.rejected ?? 0;
   return (
     <li
       className="flex flex-col gap-1 border-t border-border pt-2"
@@ -86,12 +95,39 @@ function RunRow({ run }: { run: AiPassRun }) {
           {run.reason}
         </p>
       ) : null}
+      {failedBy.size > 0 ? (
+        <div className="text-xs text-fg" data-testid="ai-pass-failures">
+          <p>
+            <span className="font-semibold">Could not use the answer of:</span> the model&apos;s
+            reply was malformed even after a retry. This pass says nothing about these.
+          </p>
+          <ul className="ml-4 list-disc">
+            {[...failedBy.entries()].map(([id, paths]) => (
+              <li key={id}>
+                {id.replace(/_/g, ' ')}: {[...new Set(paths)].slice(0, 5).join(', ')}
+                {new Set(paths).size > 5 ? ', …' : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {rejectedCount > 0 ? (
+        <p className="text-xs text-fg-muted" data-testid="ai-pass-rejected">
+          {rejectedCount} suggested finding{rejectedCount === 1 ? ' was' : 's were'} discarded
+          because the evidence did not match the source.
+        </p>
+      ) : null}
       {run.status === 'succeeded' || run.status === 'skipped' ? (
         <ul className="flex flex-col gap-0.5 text-xs text-fg-muted">
           {raised.length > 0 ? (
             <li data-testid="ai-pass-raised">
               Specialists raised:{' '}
               {raised.map(([id, u]) => `${id.replace(/_/g, ' ')} ${u.findings}`).join(', ')}.
+            </li>
+          ) : failedBy.size > 0 ? (
+            <li data-testid="ai-pass-raised">
+              No usable answer raised a finding; see above for the specialists that could not be
+              used.
             </li>
           ) : (
             <li data-testid="ai-pass-raised">No specialist raised a finding in this pass.</li>
@@ -127,6 +163,61 @@ function RunRow({ run }: { run: AiPassRun }) {
         </ul>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * Where the code would go, said BEFORE a pass is started (W20-06, UX_TODO AI-11).
+ *
+ * The scheduled form already showed the server's destinations and asked for an
+ * acknowledgement; the manual Start, the more common path, showed nothing. This
+ * reads the same server statement (the schedule route's `egress`, built from the
+ * stored routing and each endpoint's host by the egress audit's rule), so the
+ * two can never disagree. Shared query key: no second request.
+ */
+export function PassDestinations({ repoId }: { repoId: string }) {
+  const { data, isLoading, isError } = useApiQuery<ScheduleResponse>({
+    endpoint: '/repos/{id}/ai-pass/schedule',
+    path: { id: repoId },
+  });
+  if (isLoading) return null;
+  const egress = data?.egress;
+  if (isError || !egress) {
+    return (
+      <p className="text-xs text-fg-muted" data-testid="ai-pass-egress-unknown">
+        Where the code would be sent could not be loaded. Check Admin → Models → Routing before
+        starting.
+      </p>
+    );
+  }
+  return (
+    <div
+      className={`rounded-sm border px-2 py-1.5 text-xs ${egress.leaves_network || egress.destinations.length === 0 ? 'border-warn/40 bg-warn/10' : 'border-ok/40 bg-ok/10'}`}
+      data-testid="ai-pass-egress"
+      data-leaves={egress.leaves_network ? 'true' : 'false'}
+    >
+      <p data-testid="ai-pass-egress-sentence">
+        <span className="font-semibold">Where the code goes:</span> {egress.sentence}
+      </p>
+      {egress.destinations.length > 0 ? (
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {egress.destinations.map((d) => (
+            <li key={d.provider_id} data-testid={`ai-pass-dest-${d.provider_id}`}>
+              <span className="font-medium">{d.provider_name}</span>{' '}
+              <span className="font-mono">{d.host ?? 'unknown host'}</span> —{' '}
+              {d.leaves_network ? 'off your network' : 'on your network'}
+              {d.models && d.models.length > 0 ? (
+                <>
+                  {' '}
+                  · model <span className="font-mono">{d.models.join(', ')}</span>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="mt-1 text-fg-muted">Sent: {egress.sends}.</p>
+    </div>
   );
 }
 
@@ -283,6 +374,7 @@ export function AiPassPanel({ repoId }: { repoId: string }) {
               </p>
             </div>
           )}
+          <PassDestinations repoId={repoId} />
           <div>
             <button
               type="submit"

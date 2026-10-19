@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
+import { describeEndpoint } from '../../../lib/llm-routing.js';
 
 // Admin → Analysis (W7-08, UX_SPEC §4.i).
 //
@@ -88,18 +89,29 @@ export default async function analysisAdminRoutes(
     const providers = await db
       .select({
         name: core.llmProviders.name,
+        kind: core.llmProviders.kind,
+        baseUrl: core.llmProviders.baseUrl,
         model: core.llmProviders.model,
         enabled: core.llmProviders.enabled,
-        allowPublicHost: core.llmProviders.allowPublicHost,
       })
       .from(core.llmProviders)
       .where(eq(core.llmProviders.workspaceId, workspaceId));
 
     const usable = providers.filter((p) => p.enabled);
+    // W20-06 (UX_TODO AI-86): decided by WHERE each endpoint is, with the rule
+    // the egress audit, local-only and scheduled passes use (describeEndpoint),
+    // not by the allow_public_host flag. The flag is false for a Claude Code CLI
+    // connection that sends source to Anthropic, so the old line told such a
+    // workspace "all on your own network".
+    const offNetwork = usable
+      .filter((p) => describeEndpoint(p.kind, p.baseUrl).leavesNetwork)
+      .map((p) => p.name)
+      .sort();
     const gateway = {
       configured: usable.length > 0,
       provider_count: usable.length,
-      off_network: usable.some((p) => p.allowPublicHost),
+      off_network: offNetwork.length > 0,
+      off_network_names: offNetwork,
       // The same sentence the worker logs, so the two cannot describe the same
       // state differently.
       reason:
@@ -152,7 +164,11 @@ export default async function analysisAdminRoutes(
       if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid repo id');
 
       const [repo] = await db
-        .select({ id: core.repos.id, tier3OptIn: core.repos.tier3OptIn, tier2Auto: core.repos.tier2Auto })
+        .select({
+          id: core.repos.id,
+          tier3OptIn: core.repos.tier3OptIn,
+          tier2Auto: core.repos.tier2Auto,
+        })
         .from(core.repos)
         .where(and(eq(core.repos.id, id), eq(core.repos.workspaceId, workspaceId)))
         .limit(1);
@@ -160,7 +176,8 @@ export default async function analysisAdminRoutes(
       if (!repo) return fail(request, reply, 404, 'Not Found');
 
       const patch: { tier3OptIn?: boolean; tier2Auto?: boolean } = {};
-      if (typeof request.body?.tier3_opt_in === 'boolean') patch.tier3OptIn = request.body.tier3_opt_in;
+      if (typeof request.body?.tier3_opt_in === 'boolean')
+        patch.tier3OptIn = request.body.tier3_opt_in;
       if (typeof request.body?.tier2_auto === 'boolean') patch.tier2Auto = request.body.tier2_auto;
       if (Object.keys(patch).length === 0) {
         return fail(request, reply, 400, 'Invalid body', 'tier3_opt_in or tier2_auto is required');

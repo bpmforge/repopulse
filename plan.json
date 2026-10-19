@@ -10392,6 +10392,53 @@
           "ADM-04: /me/context now returns user_id (Members uses it for the self-demotion warning). The member's Account page (/account) has theme, home screen, voluntary password change (PasswordChange variant=account) and sign out; the user menu links to it for admins too.",
           "Found while fixing (not in UX_TODO): DataTable rendered cells through flexRender with a per-render arrow, so React treated every cell as a new component type and remounted it on every parent render: an open Remove... confirm closed itself whenever any query on the screen refetched. Cells now call the column renderer directly."
         ]
+      },
+      {
+        "id": "W20-06",
+        "title": "AI layer UX: connections, routing egress, opt-ins, AI pass and fix disclosure",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/src/widgets/admin/LlmProviders*",
+          "apps/web/src/widgets/admin/LlmRouting*",
+          "apps/web/src/widgets/admin/ModelsWizard*",
+          "apps/web/src/widgets/admin/AnalysisPolicy*",
+          "apps/web/src/widgets/admin/egress*",
+          "apps/web/src/widgets/repo/AiPassPanel*",
+          "apps/web/src/widgets/findings/VerifiedFix*",
+          "apps/web/src/widgets/findings/aiContracts.ts",
+          "apps/web/src/routes/admin/models.tsx",
+          "apps/api/src/routes/admin/llm-providers/**",
+          "apps/api/src/routes/admin/analysis/**",
+          "apps/api/src/routes/patches/**",
+          "apps/api/src/lib/ai-pass-egress.ts",
+          "apps/api/src/workers/ai-pass-processor*",
+          "packages/shared/src/logger/audit.ts",
+          "e2e/admin.spec.ts",
+          "e2e/journey/journey.spec.ts",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-01"
+        ],
+        "acceptance": [
+          "UX_TODO AI-01, AI-02, AI-03, AI-04: a connection row shows its own Test result and errors, can be edited and switched off (PATCH /admin/llm-providers/:id, workspace-filtered, audited), and Remove confirms by naming the routing chains it drops",
+          "UX_TODO AI-05, AI-06, AI-09, AI-57, AI-58, AI-86: Routing, the wizard and Admin > Analysis say whether code leaves the network from the server's host rule (a gateway is on your network only if it does not forward; Local only marks blocked links), and the off-network names come from describeEndpoint",
+          "UX_TODO AI-07, AI-10, AI-71, AI-72: hosted and gateway connections start with no roles ticked; the Tier-3 opt-in asks for confirmation, states what would be sent where, shows its error and says Tier 3 is not available yet; the unwired Tier-2 auto switch is replaced with honest copy",
+          "UX_TODO AI-11, AI-12, AI-13, AI-59: the AI pass and Draft a verified fix name their destinations before starting; a rejected draft keeps the section with Try again; unusable specialist answers are listed on the run row and an all-failed pass is failed, not finished"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). AI-08, AI-14, AI-15, AI-16, AI-73, AI-74 and AI-85 are larger features and stay open.",
+          "AI-71 and AI-72 are fixed with honest copy, not by building the feature: the Tier-2 auto box is replaced by text (tier2_auto stays in the schema, unread), and the Tier-3 opt-in still records a choice but says it sends nothing because no Tier-3 transport exists. Building automatic per-PR review and Tier 3 remain separate work.",
+          "AI-06: a connection is known to be a gateway only when it was added through the wizard's 'a gateway I run' path in the same session; there is no stored is-gateway flag, so Routing still reads a LAN gateway as on-network. A persisted flag would close that.",
+          "AI-57: the wizard's presets use a <machine-ip> placeholder when the server detects a container (/.dockerenv or /run/.containerenv); the Advanced form's presets still fill localhost, and the server's Test reply explains a localhost failure in a container for both.",
+          "AI-13: POST /findings/:id/patch now re-drafts a rejected attempt only with an explicit retry: true, so a double click still cannot spend a second model call.",
+          "Found while fixing: the Configured providers 'Off-network' column was also driven by the saved allow_public_host flag (with a special case for the CLI) rather than where the endpoint is; it now uses the server's leaves_network."
+        ]
       }
   ]
 }

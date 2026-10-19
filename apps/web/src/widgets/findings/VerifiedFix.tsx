@@ -10,9 +10,15 @@ import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.
 // themselves — nothing is written to the repository (D9a), which is why the
 // actions are Copy and Download and there is no "open a PR".
 //
-// A rejected attempt shows a developer nothing. The API does not send its diff
-// or reason to a non-admin at all; an admin gets the reason, rendered here as
-// a muted note so it reads as diagnostics rather than as a result.
+// A rejected attempt shows nobody its diff. The API does not send the diff or
+// the reason to a non-admin at all; an admin gets the reason, rendered here as
+// a muted note so it reads as diagnostics rather than as a result. W20-06 (UX_TODO
+// AI-13): the section used to vanish on a rejection, so a member who asked got
+// no "it did not pass" and no way to ask again. It now says so, with Try again.
+//
+// W20-06 (UX_TODO AI-12): before the button, which connection drafts the fix and
+// whether the file leaves the network. The `patch` role can be routed to a
+// hosted vendor; "your configured model" did not say so.
 
 export interface PatchView {
   id: number;
@@ -30,11 +36,59 @@ export interface PatchView {
   reason_code?: string | null;
 }
 
+/** Where a draft would be sent: the server's routing for the `patch` role. */
+export interface Drafter {
+  local_only: boolean;
+  leaves_network: boolean;
+  destinations: {
+    provider_name: string;
+    host: string | null;
+    leaves_network: boolean;
+    models: string[];
+  }[];
+}
+
 export interface PatchResponse {
   eligible: boolean;
   reason?: string;
   commit_sha?: string;
   patch: PatchView | null;
+  drafter?: Drafter;
+}
+
+/** "Drafted by X (model) · stays on your network", said before anyone asks. */
+function DrafterNote({ drafter }: { drafter: Drafter | undefined }) {
+  if (!drafter) return null;
+  if (drafter.destinations.length === 0) {
+    return (
+      <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-drafter">
+        No model is set up to draft fixes, so a request will fail and say so. An admin adds one in
+        Admin → Models.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs text-fg" data-testid="verified-fix-drafter">
+      Drafted by{' '}
+      {drafter.destinations.map((d, i) => (
+        <span key={`${d.provider_name}-${i}`}>
+          {i > 0 ? ', or if it is down, ' : ''}
+          <span className="font-medium">{d.provider_name}</span>
+          {d.models.length > 0 ? (
+            <>
+              {' '}
+              (<span className="font-mono">{d.models.join(', ')}</span>)
+            </>
+          ) : null}
+          {' · '}
+          {d.leaves_network
+            ? `leaves your network: the file is sent to ${d.host ?? 'an endpoint we could not read'}`
+            : 'stays on your network'}
+        </span>
+      ))}
+      .
+    </p>
+  );
 }
 
 const ACTION_BUTTON =
@@ -75,7 +129,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
     // Poll only while a draft is in flight; a decided answer does not change.
     refetchInterval: (d) => (d?.patch?.status === 'pending' ? 3000 : false),
   });
-  const request = useApiMutation<{ tier: 't2' }, { patch: PatchView }>(
+  const request = useApiMutation<{ tier: 't2'; retry?: boolean }, { patch: PatchView }>(
     { endpoint: '/findings/{id}/patch', path: { id: findingId }, method: 'POST' },
     { invalidate: [queryKeyFor(descriptor)] },
   );
@@ -86,16 +140,36 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
   if (!data || data.eligible !== true) return null;
   const patch = data.patch;
 
-  if (patch?.status === 'rejected') {
-    if (!patch.reason) return null;
+  const heading = <h3 className="text-xs tracking-wide text-fg-muted uppercase">Verified fix</h3>;
+
+  if (patch?.status === 'rejected' && !request.isPending) {
     return (
-      <p className="text-xs text-fg-faint" data-testid="verified-fix-admin-reason">
-        Admin only: a drafted fix was rejected by the re-scan — {patch.reason}
-      </p>
+      <div data-testid="verified-fix-rejected">
+        {heading}
+        <p className="mt-1 text-xs text-fg-muted">
+          A drafted fix did not pass the re-scan: applied to commit{' '}
+          <span className="font-mono">{patch.commit_sha.slice(0, 7)}</span>, it did not clear this
+          finding or it raised a new one. It is not shown, because Repo Pulse does not stand behind
+          it. You can ask the model again.
+        </p>
+        {patch.reason ? (
+          <p className="mt-1 text-xs text-fg-faint" data-testid="verified-fix-admin-reason">
+            Admin only: {patch.reason}
+          </p>
+        ) : null}
+        <DrafterNote drafter={data.drafter} />
+        <button
+          type="button"
+          className={`mt-2 ${ACTION_BUTTON}`}
+          data-testid="verified-fix-retry"
+          onClick={() => request.mutate({ tier: 't2', retry: true })}
+        >
+          Try again
+        </button>
+        <ErrorNote error={request.error} testId="verified-fix-error" className="mt-1" />
+      </div>
     );
   }
-
-  const heading = <h3 className="text-xs tracking-wide text-fg-muted uppercase">Verified fix</h3>;
 
   if (patch?.status === 'verified' && patch.diff) {
     const diff = patch.diff;
@@ -186,6 +260,7 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
           is written to your repository.
         </p>
       )}
+      <DrafterNote drafter={data.drafter} />
       <button
         type="button"
         className={`mt-2 ${ACTION_BUTTON}`}

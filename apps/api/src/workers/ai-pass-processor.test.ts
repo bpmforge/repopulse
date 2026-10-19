@@ -585,6 +585,28 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     expect(r).toMatchObject({ status: 'skipped', code: 'nothing_relevant' });
   });
 
+  it('W20-06 (UX_TODO AI-59): a pass where every specialist answered malformed JSON is FAILED with the reason, and the failures are kept', async () => {
+    const base = scripted();
+    const garbage: AnalysisGateway = {
+      ...base.gateway,
+      async complete(prompt: string, o: CompleteOpts): Promise<CompleteResult> {
+        const r = await base.gateway.complete(prompt, o);
+        return { ...r, text: 'Sure! Here is my review: it looks fine.' };
+      },
+    };
+    const runId = await newRun();
+    const r = await aiPassProcessor(deps({}, { gateway: garbage, calls: base.calls }).d)(
+      job(runId),
+    );
+    expect(r).toMatchObject({ status: 'failed', code: 'specialists_unusable' });
+    const run = await runOf(runId);
+    expect(run.reason).toMatch(/reviewed nothing/);
+    const failures = (run.specialists as { failures: { specialist: string; paths: string[] }[] })
+      .failures;
+    expect(failures.length).toBeGreaterThan(0);
+    expect(failures[0]!.paths).toContain('src/routes/users.ts');
+  });
+
   // ----- W19-11: diff modes -------------------------------------------------
 
   const PATCH = [

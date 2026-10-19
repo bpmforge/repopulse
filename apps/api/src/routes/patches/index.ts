@@ -5,6 +5,7 @@ import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection, type QueueName } from '@repopulse/ingest';
 import { resolvePatchTarget } from '@repopulse/security';
 import { sendProblem } from '../../lib/problem.js';
+import { passEgress } from '../../lib/ai-pass-egress.js';
 
 // Verified patches (W18-19, D16 "Verified + CI pull", API_DESIGN.md §2).
 //
@@ -156,15 +157,30 @@ export default async function patchRoutes(
     }
 
     const row = await rowFor(workspaceId, id, target.commitSha);
+    // W20-06 (UX_TODO AI-12): which connection drafts the fix and whether the
+    // file leaves the network, said BEFORE the button is pressed. The `patch`
+    // role can be routed to a hosted vendor, and the drawer used to say only
+    // "your configured model". Host and name only, never a credential.
+    const egress = await passEgress(db, workspaceId, ['patch']);
     return reply.send({
       eligible: true,
       commit_sha: target.commitSha,
       patch: row ? patchView(row, target.file, isAdmin) : null,
+      drafter: {
+        local_only: egress.local_only,
+        leaves_network: egress.leaves_network,
+        destinations: egress.destinations.map((d) => ({
+          provider_name: d.provider_name,
+          host: d.host,
+          leaves_network: d.leaves_network,
+          models: d.models ?? [],
+        })),
+      },
     });
   });
 
   /** POST /findings/:id/patch — draft and verify a fix. Nothing is written to the forge. */
-  app.post<{ Params: { id: string }; Body: { tier?: unknown } | undefined }>(
+  app.post<{ Params: { id: string }; Body: { tier?: unknown; retry?: unknown } | undefined }>(
     '/findings/:id/patch',
     { config: { rateLimit: PATCH_DRAFT_RATE_LIMIT } },
     async (request, reply) => {
@@ -214,8 +230,13 @@ export default async function patchRoutes(
 
       // IDEMPOTENT per finding and snapshot. A decided answer is returned, not
       // re-asked; an attempt that could not be made (`failed`) may be retried.
+      // A REJECTED draft is re-asked only on an explicit `retry: true` (W20-06,
+      // UX_TODO AI-13): the drawer's Try again sends it, so a double click still
+      // cannot spend a second model call, but a person who saw "did not pass the
+      // re-scan" can ask the model again.
       const existing = await rowFor(workspaceId, id, target.commitSha);
-      if (existing && existing.status !== 'failed') {
+      const retryRejected = existing?.status === 'rejected' && request.body?.retry === true;
+      if (existing && existing.status !== 'failed' && !retryRejected) {
         return reply
           .code(existing.status === 'pending' ? 202 : 200)
           .send({ patch: patchView(existing, target.file, isAdmin) });

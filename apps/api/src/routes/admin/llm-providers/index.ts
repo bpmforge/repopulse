@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { and, asc, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, isConstraintViolation, type Database } from '@repopulse/shared';
@@ -49,6 +50,28 @@ export interface LlmProviderRoutesOptions {
   fetchImpl?: typeof fetch;
   /** Injectable so tests need no real Claude Code CLI (W19-08). */
   cli?: CliDeps;
+  /**
+   * Whether this server runs in a container (W20-06, UX_TODO AI-57). Injectable
+   * for tests; detected from the marker files Docker and Podman write.
+   */
+  inContainer?: boolean;
+}
+
+/**
+ * The plain-words reason a test to "localhost" failed in a container (W20-06,
+ * UX_TODO AI-57): there, localhost is the container itself, so a model running
+ * on the host machine is not at that address. Null when it does not apply.
+ */
+export function localhostHint(baseUrl: string | null, inContainer: boolean): string | null {
+  if (!inContainer || !baseUrl) return null;
+  let host: string;
+  try {
+    host = new URL(baseUrl).hostname;
+  } catch {
+    return null;
+  }
+  if (host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]') return null;
+  return 'RepoPulse runs in a container, so "localhost" here means the container itself, not the machine your model runs on. Use that machine\'s network address instead, such as http://192.168.1.50:1234/v1.';
 }
 
 interface ProviderBody {
@@ -125,6 +148,8 @@ export default async function llmProviderRoutes(
 ): Promise<void> {
   const { db, tokenKey } = opts;
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+  const inContainer =
+    opts.inContainer ?? (existsSync('/.dockerenv') || existsSync('/run/.containerenv'));
 
   /** The catalogue the UI renders its form from — one source for both. */
   app.get('/admin/llm-providers/kinds', { preHandler: requireAdmin }, async (_request, reply) => {
@@ -143,6 +168,9 @@ export default async function llmProviderRoutes(
         requires_acceptance: s.requiresAcceptance === true,
       })),
       presets: PROVIDER_PRESETS,
+      // W20-06 (UX_TODO AI-57): the presets' localhost addresses cannot work
+      // from inside a container, so the wizard needs to know which install it is.
+      in_container: inContainer,
     });
   });
 
@@ -396,6 +424,165 @@ export default async function llmProviderRoutes(
   });
 
   /**
+   * Edit or switch off a saved connection (W20-06, UX_TODO AI-03).
+   *
+   * Before this a connection could only be added, tested or deleted, so fixing a
+   * typo'd model or rotating a key meant deleting it — which cascades it out of
+   * every routing chain — and adding it again. Absent fields are left as they
+   * are; `api_key` replaces the stored key (it is still never returned).
+   *
+   * An edit that leaves the connection ENABLED is resolved before it is written,
+   * exactly as a create is: a connection that cannot produce a callable host
+   * fails here, on the screen of the person editing it, not in a scheduled pass.
+   */
+  app.patch('/admin/llm-providers/:id', { preHandler: requireAdmin }, async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    const userId = request.session?.get('userId');
+    if (workspaceId === undefined || userId === undefined) {
+      return fail(request, reply, 401, 'No active session');
+    }
+    const id = Number((request.params as { id: string }).id);
+    if (!Number.isInteger(id)) return fail(request, reply, 400, 'Invalid id');
+
+    // Workspace-filtered (Law 5): another workspace's connection is a 404.
+    const [row] = await db
+      .select()
+      .from(core.llmProviders)
+      .where(and(eq(core.llmProviders.id, id), eq(core.llmProviders.workspaceId, workspaceId)))
+      .limit(1);
+    if (!row) return fail(request, reply, 404, 'No such provider');
+
+    const body = (request.body ?? {}) as ProviderBody;
+    const isCli = row.kind === 'claude_cli';
+    if (body.name !== undefined && !str(body.name)) {
+      return fail(request, reply, 400, 'A name is required');
+    }
+    if (body.model !== undefined && !str(body.model)) {
+      return fail(request, reply, 400, 'A model id is required');
+    }
+    if (body.enabled !== undefined && typeof body.enabled !== 'boolean') {
+      return fail(request, reply, 400, 'enabled must be true or false');
+    }
+    if (body.allow_public_host !== undefined && typeof body.allow_public_host !== 'boolean') {
+      return fail(request, reply, 400, 'allow_public_host must be true or false');
+    }
+    if (isCli && (str(body.api_key) || body.base_url !== undefined)) {
+      return fail(
+        request,
+        reply,
+        400,
+        'This option takes no API key or address',
+        'The Claude Code CLI keeps its own login and has a fixed destination.',
+      );
+    }
+
+    const name = str(body.name) ?? row.name;
+    const model = str(body.model) ?? row.model;
+    const baseUrl = body.base_url !== undefined ? str(body.base_url) : row.baseUrl;
+    const newKey = str(body.api_key);
+    const allowPublicHost =
+      typeof body.allow_public_host === 'boolean' ? body.allow_public_host : row.allowPublicHost;
+    const enabled = typeof body.enabled === 'boolean' ? body.enabled : row.enabled;
+
+    if (enabled) {
+      const apiKey =
+        newKey ??
+        (row.credentialCiphertext && row.credentialIv && row.keyVersion !== null
+          ? credentials.decryptCredential(
+              {
+                ciphertext: row.credentialCiphertext,
+                iv: row.credentialIv,
+                keyVersion: row.keyVersion,
+              },
+              tokenKey,
+            )
+          : null);
+      try {
+        await resolveProviderAsync({
+          id: row.id,
+          name,
+          kind: row.kind as LlmProviderKind,
+          baseUrl,
+          model,
+          ...(apiKey ? { apiKey } : {}),
+          ...(row.headers ? { headers: row.headers as Record<string, string> } : {}),
+          allowPublicHost,
+          cliAccepted: isCli ? await isClaudeCliAccepted(db, workspaceId) : false,
+        });
+      } catch (err) {
+        if (err instanceof ProviderConfigError || err instanceof HostPolicyError) {
+          return fail(request, reply, 400, 'This provider cannot be used', err.message);
+        }
+        throw err;
+      }
+    }
+
+    const enc = newKey ? credentials.encryptCredential(newKey, tokenKey) : null;
+    try {
+      await db
+        .update(core.llmProviders)
+        .set({
+          name,
+          model,
+          baseUrl,
+          allowPublicHost,
+          enabled,
+          ...(enc
+            ? {
+                credentialCiphertext: enc.ciphertext,
+                credentialIv: enc.iv,
+                keyVersion: enc.keyVersion,
+                credentialFingerprint: enc.fingerprint,
+              }
+            : {}),
+          // A probe describes the model it ran against; a new model or address
+          // makes it stale, so it is cleared rather than left to mislead.
+          ...(model !== row.model || baseUrl !== row.baseUrl
+            ? { capabilities: null, probedAt: null }
+            : {}),
+        })
+        .where(and(eq(core.llmProviders.id, id), eq(core.llmProviders.workspaceId, workspaceId)));
+    } catch (err) {
+      if (isConstraintViolation(err, 'llm_providers_workspace_name_key')) {
+        return fail(request, reply, 409, 'A provider with that name already exists');
+      }
+      throw err;
+    }
+
+    // The roles whose chains name it, so switching it off can say what changes.
+    const routes = await db
+      .select({ role: core.llmRoleRoutes.role })
+      .from(core.llmRoleRoutes)
+      .where(
+        and(eq(core.llmRoleRoutes.workspaceId, workspaceId), eq(core.llmRoleRoutes.providerId, id)),
+      );
+
+    // Audited like a create: this can change where diffs go. Never the key.
+    auditLog(request.log, {
+      event: 'llm_provider.updated',
+      actorUserId: userId,
+      workspaceId,
+      ip: request.ip,
+      ua: request.headers['user-agent'] ?? null,
+      detail: {
+        provider: name,
+        kind: row.kind,
+        base_url: baseUrl,
+        model,
+        allow_public_host: allowPublicHost,
+        enabled,
+        key_rotated: enc !== null,
+      },
+    });
+
+    return reply.send({
+      id,
+      enabled,
+      routed_roles: [...new Set(routes.map((r) => r.role))].sort(),
+    });
+  });
+
+  /**
    * A REAL round trip, before anything is saved.
    *
    * The failure this exists to prevent: a provider that looks configured, and
@@ -565,7 +752,13 @@ export default async function llmProviderRoutes(
         sample: (parsed.choices?.[0]?.message?.content ?? '').slice(0, 120),
       });
     } catch (err) {
-      return reply.send({ ok: false, stage: 'transport', detail: transportDetail(err) });
+      const hint = localhostHint(baseUrl, inContainer);
+      return reply.send({
+        ok: false,
+        stage: 'transport',
+        detail: transportDetail(err),
+        ...(hint ? { hint } : {}),
+      });
     }
   });
 }

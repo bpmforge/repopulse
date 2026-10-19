@@ -109,4 +109,45 @@ describe('summarizeRole', () => {
     expect(s.tone).toBe('leaves');
     expect(s.text).toContain('an endpoint we could not read');
   });
+
+  // W20-06 (UX_TODO AI-06): a gateway on a LAN IP is on the network, but may
+  // forward what it receives; the host alone cannot say "stays home".
+  it('never calls a gateway "stays": it stays on your network only if the gateway does', () => {
+    const gw: EgressProvider = { ...lan, id: 4, name: 'LiteLLM', host: '10.0.0.7:4000' };
+    const s = summarizeRole({
+      chain: [link(gw)],
+      providers: [gw],
+      localOnly: false,
+      gatewayIds: new Set([4]),
+    });
+    expect(s.tone).toBe('gateway');
+    expect(s.text).toMatch(
+      /LiteLLM is a gateway: your code stays on your network only if the gateway does not forward it/,
+    );
+    expect(s.text).not.toMatch(/^Stays on your network/);
+    // Without the gateway mark, the same LAN host still reads as staying.
+    expect(summarizeRole({ chain: [link(gw)], providers: [gw], localOnly: false }).tone).toBe(
+      'stays',
+    );
+  });
+
+  // W20-06 (UX_TODO AI-58): under Local only an off-network link is blocked, so
+  // the review must not say "Leaves your network" beneath "Local only is on".
+  it('under Local only marks off-network chain links as blocked, never as leaving', () => {
+    const first = summarizeRole({ chain: [link(cloud)], providers: [lan, cloud], localOnly: true });
+    expect(first.tone).toBe('unavailable');
+    expect(first.text).toMatch(
+      /^Blocked by Local only: Gemini \(generativelanguage.googleapis.com\)/,
+    );
+    expect(first.text).not.toMatch(/Leaves your network/);
+
+    const fallback = summarizeRole({
+      chain: [link(lan), link(cloud)],
+      providers: [lan, cloud],
+      localOnly: true,
+    });
+    expect(fallback.tone).toBe('stays');
+    expect(fallback.text).toMatch(/Uses LM Studio\. Local only blocks Gemini/);
+    expect(fallback.text).toMatch(/refuses instead of falling back/);
+  });
 });

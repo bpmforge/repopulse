@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { core, createDb } from '@repopulse/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import llmProviderRoutes from './index.js';
+import llmProviderRoutes, { localhostHint } from './index.js';
 import errorEnvelopePlugin from '../../../plugins/error-envelope.js';
 
 // W16-07 (D-LLM-1). The configuration surface for bring-your-own-LLM.
@@ -55,6 +55,7 @@ describeIfLiveInfra('admin LLM providers (W16-07)', () => {
       db,
       tokenKey: TOKEN_KEY,
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      inContainer: true,
     });
     await app.ready();
   });
@@ -399,6 +400,136 @@ describeIfLiveInfra('admin LLM providers (W16-07)', () => {
       const sent = fetchImpl.mock.calls[0]?.[1] as { headers: Record<string, string> };
       expect(sent.headers.authorization).toBe('Bearer sk-vaulted-key');
     });
+  });
+
+  describe('edit and switch off (W20-06, UX_TODO AI-03)', () => {
+    const patch = (id: number, payload: Record<string, unknown>) =>
+      app.inject({
+        method: 'PATCH',
+        url: `/admin/llm-providers/${id}`,
+        headers: CSRF,
+        payload,
+      });
+
+    it('edits the model and address, rotates the key without ever returning it, and clears a stale probe', async () => {
+      const made = await create({
+        name: 'Gateway',
+        kind: 'openai_compatible',
+        base_url: 'http://10.0.0.5:4000/v1',
+        model: 'old-model',
+        api_key: 'sk-first-key-0000',
+      });
+      const id = made.json().id as number;
+      const before = (await app.inject({ method: 'GET', url: '/admin/llm-providers' })).json()
+        .items[0].credential as string;
+      await db
+        .update(core.llmProviders)
+        .set({ capabilities: { contextWindow: 1 }, probedAt: new Date() })
+        .where(eq(core.llmProviders.id, id));
+
+      const res = await patch(id, {
+        model: 'new-model',
+        base_url: 'http://10.0.0.6:4000/v1',
+        api_key: 'sk-rotated-key-9999',
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).not.toContain('sk-rotated');
+
+      const item = (await app.inject({ method: 'GET', url: '/admin/llm-providers' })).json()
+        .items[0];
+      expect(item).toMatchObject({
+        model: 'new-model',
+        base_url: 'http://10.0.0.6:4000/v1',
+        capabilities: null,
+      });
+      // A new key has a new fingerprint; the key itself is never in the body.
+      expect(item.credential).toBeTruthy();
+      expect(item.credential).not.toBe(before);
+    });
+
+    it('switches a connection off and names the roles whose chains use it', async () => {
+      const made = await create({
+        name: 'LAN',
+        kind: 'openai_compatible',
+        base_url: 'http://10.0.0.5:1234/v1',
+        model: 'm',
+      });
+      const id = made.json().id as number;
+      await db.insert(core.llmRoleRoutes).values([
+        { workspaceId: WORKSPACE_ID, role: 'security', position: 0, providerId: id },
+        { workspaceId: WORKSPACE_ID, role: 'patch', position: 0, providerId: id },
+      ]);
+      const res = await patch(id, { enabled: false });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ id, enabled: false, routed_roles: ['patch', 'security'] });
+      const item = (await app.inject({ method: 'GET', url: '/admin/llm-providers' })).json()
+        .items[0];
+      expect(item.enabled).toBe(false);
+    });
+
+    it('refuses an edit that cannot work, with the sentence, and changes nothing', async () => {
+      const made = await create({
+        name: 'LAN',
+        kind: 'openai_compatible',
+        base_url: 'http://10.0.0.5:1234/v1',
+        model: 'm',
+      });
+      const id = made.json().id as number;
+      // A public address without the opt-in is refused, exactly as on create.
+      const res = await patch(id, { base_url: 'https://api.example-llm.com/v1' });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().detail).toBeTruthy();
+      const item = (await app.inject({ method: 'GET', url: '/admin/llm-providers' })).json()
+        .items[0];
+      expect(item.base_url).toBe('http://10.0.0.5:1234/v1');
+    });
+
+    it("is workspace-filtered: another workspace's connection is a 404 (Law 5)", async () => {
+      const [other] = await db
+        .insert(core.workspaces)
+        .values({ slug: `w20-06-other-${Date.now()}`, name: 'other' })
+        .returning({ id: core.workspaces.id });
+      try {
+        const [row] = await db
+          .insert(core.llmProviders)
+          .values({
+            workspaceId: other!.id,
+            name: 'Theirs',
+            kind: 'openai_compatible',
+            baseUrl: 'http://10.0.0.9:1234/v1',
+            model: 'm',
+            allowPublicHost: false,
+            enabled: true,
+          })
+          .returning({ id: core.llmProviders.id });
+        const res = await patch(row!.id, { enabled: false });
+        expect(res.statusCode).toBe(404);
+        const [still] = await db
+          .select({ enabled: core.llmProviders.enabled })
+          .from(core.llmProviders)
+          .where(eq(core.llmProviders.id, row!.id));
+        expect(still!.enabled).toBe(true);
+      } finally {
+        await db.delete(core.llmProviders).where(eq(core.llmProviders.workspaceId, other!.id));
+        await db.delete(core.workspaces).where(eq(core.workspaces.id, other!.id));
+      }
+    });
+  });
+
+  it('W20-06 (UX_TODO AI-57): a failed test to localhost in a container says what localhost means there', async () => {
+    fetchImpl.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:1234'));
+    const res = await app.inject({
+      method: 'POST',
+      url: '/admin/llm-providers/test',
+      headers: CSRF,
+      payload: { kind: 'openai_compatible', base_url: 'http://localhost:1234/v1', model: 'm' },
+    });
+    expect(res.json()).toMatchObject({ ok: false, stage: 'transport' });
+    expect(res.json().hint).toMatch(/"localhost" here means the container itself/);
+    expect(localhostHint('http://192.168.1.5:1234/v1', true)).toBeNull();
+    expect(localhostHint('http://localhost:1234/v1', false)).toBeNull();
+    const kinds = (await app.inject({ method: 'GET', url: '/admin/llm-providers/kinds' })).json();
+    expect(kinds.in_container).toBe(true);
   });
 
   it('deletes only within the workspace', async () => {

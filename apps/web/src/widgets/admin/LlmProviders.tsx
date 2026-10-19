@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
-import { apiFetch, buildUrl } from '../../api/client.js';
 
 // Admin → Models (W16-07, D-LLM-1).
 //
@@ -25,6 +24,28 @@ import { apiFetch, buildUrl } from '../../api/client.js';
 
 const LIST = { endpoint: '/admin/llm-providers' } as const;
 const KINDS = { endpoint: '/admin/llm-providers/kinds' } as const;
+const ROUTING = { endpoint: '/admin/llm-routing' } as const;
+
+const ROLE_WORD: Record<string, string> = {
+  security: 'Security',
+  performance: 'Performance',
+  code_health: 'Code health',
+  best_practices: 'Best practices',
+  ai_slop: 'AI slop',
+  test_coverage: 'Test coverage',
+  triage: 'Triage',
+  patch: 'Patch',
+};
+
+/** The roles whose routing chain names a connection, as words. */
+export function rolesUsing(
+  roles: readonly { role: string; chain: readonly { provider_id: number }[] }[],
+  id: number,
+): string[] {
+  return roles
+    .filter((r) => r.chain.some((l) => l.provider_id === id))
+    .map((r) => ROLE_WORD[r.role] ?? r.role);
+}
 
 interface ProviderRow {
   id: number;
@@ -97,6 +118,8 @@ interface TestResult {
   stage?: string;
   status?: number;
   detail?: string;
+  /** W20-06 (UX_TODO AI-57): why a localhost test failed in a container, in plain words. */
+  hint?: string;
   latency_ms?: number;
   model?: string;
   sample?: string;
@@ -141,6 +164,51 @@ export function CapabilityList({ c }: { c: Capabilities }) {
           {n}
         </p>
       ))}
+    </div>
+  );
+}
+
+/** One test result, in the endpoint's own words. Shared by the form and each row. */
+function TestResultNote({ result, testId }: { result: TestResult; testId: string }) {
+  return (
+    <div
+      className={`rounded-sm border px-2 py-1.5 text-xs ${
+        result.ok ? 'border-ok/40 bg-ok/10' : 'border-crit/40 bg-crit/10'
+      }`}
+      data-testid={testId}
+      role="status"
+    >
+      {result.ok ? (
+        <>
+          <strong>Reached it.</strong> {result.latency_ms}ms, answered as{' '}
+          <code className="font-mono">{result.model}</code>
+          {result.sample ? <> — “{result.sample}”</> : null}
+        </>
+      ) : (
+        <>
+          <strong>
+            {result.stage === 'config'
+              ? 'Configuration'
+              : result.stage === 'transport'
+                ? 'Could not connect'
+                : `Endpoint replied ${result.status ?? ''}`}
+            .
+          </strong>{' '}
+          {/* The endpoint's own words, not ours. */}
+          <span className="font-mono">{result.detail}</span>
+          {result.hint ? <span className="mt-1 block">{result.hint}</span> : null}
+        </>
+      )}
+      {result.capabilities ? (
+        <div className="mt-2">
+          <CapabilityList c={result.capabilities} />
+          {(result.problems ?? []).map((pr) => (
+            <p key={pr} className="mt-1 font-semibold text-crit" data-testid="capability-problem">
+              {pr}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -290,14 +358,11 @@ export function LlmProviders() {
     { endpoint: '/admin/llm-providers', method: 'POST' },
     { invalidate: [queryKeyFor(LIST)] },
   );
-  // Not useApiMutation: its descriptor is fixed when the hook is created, and
-  // this needs the row's id in the PATH at call time.
-  const queryClient = useQueryClient();
-  const remove = useMutation<unknown, Error, number>({
-    mutationFn: (id) =>
-      apiFetch(buildUrl('/admin/llm-providers/{id}', { path: { id } }), { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeyFor(LIST) }),
-  });
+  // Which roles route to each connection, so Remove and Switch off can say what
+  // they change (W20-06, UX_TODO AI-04).
+  const routing = useApiQuery<{
+    roles: { role: string; chain: { provider_id: number }[] }[];
+  }>(ROUTING);
   const test = useApiMutation<Record<string, unknown>, TestResult>({
     endpoint: '/admin/llm-providers/test',
     method: 'POST',
@@ -518,50 +583,8 @@ export function LlmProviders() {
               with nothing to quote and the operator nothing to grep. */}
         <ErrorNote error={create.error} testId="provider-error" />
 
-        {result ? (
-          <div
-            className={`rounded-sm border px-2 py-1.5 text-xs ${
-              result.ok ? 'border-ok/40 bg-ok/10' : 'border-crit/40 bg-crit/10'
-            }`}
-            data-testid="provider-test-result"
-            role="status"
-          >
-            {result.ok ? (
-              <>
-                <strong>Reached it.</strong> {result.latency_ms}ms, answered as{' '}
-                <code className="font-mono">{result.model}</code>
-                {result.sample ? <> — “{result.sample}”</> : null}
-              </>
-            ) : (
-              <>
-                <strong>
-                  {result.stage === 'config'
-                    ? 'Configuration'
-                    : result.stage === 'transport'
-                      ? 'Could not connect'
-                      : `Endpoint replied ${result.status ?? ''}`}
-                  .
-                </strong>{' '}
-                {/* The endpoint's own words, not ours. */}
-                <span className="font-mono">{result.detail}</span>
-              </>
-            )}
-            {result.capabilities ? (
-              <div className="mt-2">
-                <CapabilityList c={result.capabilities} />
-                {(result.problems ?? []).map((pr) => (
-                  <p
-                    key={pr}
-                    className="mt-1 font-semibold text-crit"
-                    data-testid="capability-problem"
-                  >
-                    {pr}
-                  </p>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <ErrorNote error={test.error} testId="provider-test-error" />
+        {result ? <TestResultNote result={result} testId="provider-test-result" /> : null}
       </form>
     </WidgetFrame>
   );
@@ -605,78 +628,311 @@ export function LlmProviders() {
           </thead>
           <tbody>
             {items.map((p) => (
-              <tr
+              <ProviderTableRow
                 key={p.id}
-                className="border-t border-border"
-                data-testid={`provider-row-${p.id}`}
-              >
-                <td>
-                  {p.name}
-                  {p.kind === 'claude_cli' ? (
-                    <span
-                      className="block text-xs text-fg-muted"
-                      data-testid={`provider-customer-supplied-${p.id}`}
-                    >
-                      Claude Code CLI · customer-supplied
-                    </span>
-                  ) : null}
-                </td>
-                <td className="font-mono text-xs">
-                  {p.kind === 'claude_cli' ? 'your Claude Code CLI' : (p.base_url ?? '—')}
-                  {p.host_is_name ? (
-                    <span
-                      className="mt-1 block font-sans text-fg-muted"
-                      data-testid={`provider-name-host-${p.id}`}
-                    >
-                      Reached by a host name, so it counts as leaving your network: its calls are
-                      audited and Local only refuses it. Use the machine&apos;s IP address to keep
-                      it on your network.
-                    </span>
-                  ) : null}
-                </td>
-                <td className="font-mono text-xs">{p.model}</td>
-                <td className="text-xs" data-testid={`provider-capabilities-${p.id}`}>
-                  {p.capabilities ? (
-                    <CapabilityList c={p.capabilities} />
-                  ) : (
-                    <span className="text-fg-faint">not probed</span>
-                  )}
-                </td>
-                {/* A fingerprint, never the key. */}
-                <td className="font-mono text-xs">
-                  {p.kind === 'claude_cli'
-                    ? 'the CLI keeps its own login'
-                    : (p.credential ?? 'none')}
-                </td>
-                <td>{p.allow_public_host || p.kind === 'claude_cli' ? '⚠ yes' : 'no'}</td>
-                <td className="text-right">
-                  <button
-                    type="button"
-                    data-testid={`provider-test-${p.id}`}
-                    onClick={() => {
-                      setResult(null);
-                      // By id: the key lives in the vault and the browser has
-                      // never had it.
-                      test.mutate({ id: p.id, probe: true }, { onSuccess: (r) => setResult(r) });
-                    }}
-                    className="mr-2 underline"
-                  >
-                    Test
-                  </button>
-                  <button
-                    type="button"
-                    data-testid={`provider-delete-${p.id}`}
-                    onClick={() => remove.mutate(p.id)}
-                    className="underline"
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
+                p={p}
+                routedRoles={rolesUsing(routing.data?.roles ?? [], p.id)}
+              />
             ))}
           </tbody>
         </table>
       </WidgetFrame>
     </div>
+  );
+}
+
+/**
+ * One configured connection (W20-06, UX_TODO AI-01 to AI-04).
+ *
+ * Its own component so each row owns its Test result, its errors and its
+ * confirmations. The row Test used to write into the by-hand form, which sits
+ * folded behind Advanced once a connection exists, so pressing it looked like
+ * nothing happened; a failed request showed nothing at all.
+ */
+function ProviderTableRow({ p, routedRoles }: { p: ProviderRow; routedRoles: string[] }) {
+  const queryClient = useQueryClient();
+  const one = { endpoint: '/admin/llm-providers/{id}', path: { id: p.id } } as const;
+  const invalidate = { invalidate: [queryKeyFor(LIST), queryKeyFor(ROUTING)] };
+  const test = useApiMutation<Record<string, unknown>, TestResult>({
+    endpoint: '/admin/llm-providers/test',
+    method: 'POST',
+  });
+  const remove = useApiMutation<undefined, unknown>({ ...one, method: 'DELETE' }, invalidate);
+  const patch = useApiMutation<Record<string, unknown>, { routed_roles: string[] }>(
+    { ...one, method: 'PATCH' },
+    invalidate,
+  );
+  const [result, setResult] = useState<TestResult | null>(null);
+  const [confirm, setConfirm] = useState<'remove' | 'off' | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(p.name);
+  const [model, setModel] = useState(p.model);
+  const [baseUrl, setBaseUrl] = useState(p.base_url ?? '');
+  const [apiKey, setApiKey] = useState('');
+  const isCli = p.kind === 'claude_cli';
+  // A fixed-endpoint vendor (Gemini, Anthropic) has no address to edit.
+  const hasAddress = !isCli && p.base_url !== null;
+  const roleList = routedRoles.join(', ');
+
+  const startEdit = () => {
+    setName(p.name);
+    setModel(p.model);
+    setBaseUrl(p.base_url ?? '');
+    setApiKey('');
+    setEditing(true);
+  };
+
+  return (
+    <>
+      <tr className="border-t border-border align-top" data-testid={`provider-row-${p.id}`}>
+        <td>
+          {p.name}
+          {p.kind === 'claude_cli' ? (
+            <span
+              className="block text-xs text-fg-muted"
+              data-testid={`provider-customer-supplied-${p.id}`}
+            >
+              Claude Code CLI · customer-supplied
+            </span>
+          ) : null}
+          {p.enabled ? null : (
+            <span className="block text-xs text-fg-muted" data-testid={`provider-off-${p.id}`}>
+              Switched off: not used by any role or pass
+            </span>
+          )}
+        </td>
+        <td className="font-mono text-xs">
+          {p.kind === 'claude_cli' ? 'your Claude Code CLI' : (p.base_url ?? '—')}
+          {p.host_is_name ? (
+            <span
+              className="mt-1 block font-sans text-fg-muted"
+              data-testid={`provider-name-host-${p.id}`}
+            >
+              Reached by a host name, so it counts as leaving your network: its calls are audited
+              and Local only refuses it. Use the machine&apos;s IP address to keep it on your
+              network.
+            </span>
+          ) : null}
+        </td>
+        <td className="font-mono text-xs">{p.model}</td>
+        <td className="text-xs" data-testid={`provider-capabilities-${p.id}`}>
+          {p.capabilities ? (
+            <CapabilityList c={p.capabilities} />
+          ) : (
+            <span className="text-fg-faint">not probed</span>
+          )}
+        </td>
+        {/* A fingerprint, never the key. */}
+        <td className="font-mono text-xs">
+          {p.kind === 'claude_cli' ? 'the CLI keeps its own login' : (p.credential ?? 'none')}
+        </td>
+        {/* W20-06 (UX_TODO AI-86): where the endpoint IS, by the server's
+            host rule, not the allow_public_host flag the form saved. */}
+        <td data-testid={`provider-off-network-${p.id}`}>
+          {(p.leaves_network ?? (p.allow_public_host || isCli)) ? '⚠ yes' : 'no'}
+        </td>
+        <td className="text-right whitespace-nowrap">
+          <button
+            type="button"
+            data-testid={`provider-test-${p.id}`}
+            disabled={test.isPending}
+            onClick={() => {
+              setResult(null);
+              // By id: the key lives in the vault and the browser has never had it.
+              test.mutate({ id: p.id, probe: true }, { onSuccess: (r) => setResult(r) });
+            }}
+            className="mr-2 underline disabled:opacity-50"
+          >
+            {test.isPending ? 'Testing…' : 'Test'}
+          </button>
+          <button
+            type="button"
+            data-testid={`provider-edit-${p.id}`}
+            onClick={startEdit}
+            className="mr-2 underline"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            data-testid={`provider-toggle-${p.id}`}
+            disabled={patch.isPending}
+            onClick={() => {
+              // Switching on changes no route; switching off can, so it asks.
+              if (p.enabled) setConfirm('off');
+              else patch.mutate({ enabled: true });
+            }}
+            className="mr-2 underline disabled:opacity-50"
+          >
+            {p.enabled ? 'Switch off' : 'Switch on'}
+          </button>
+          <button
+            type="button"
+            data-testid={`provider-delete-${p.id}`}
+            onClick={() => setConfirm('remove')}
+            className="underline"
+          >
+            Remove…
+          </button>
+        </td>
+      </tr>
+      {confirm || editing || result || test.error || remove.error || patch.error ? (
+        <tr data-testid={`provider-row-detail-${p.id}`}>
+          <td colSpan={7} className="pb-2">
+            <div className="flex flex-col gap-2">
+              {result ? (
+                <TestResultNote result={result} testId={`provider-row-test-result-${p.id}`} />
+              ) : null}
+              <ErrorNote error={test.error} testId={`provider-row-test-error-${p.id}`} />
+
+              {confirm ? (
+                <div
+                  className="flex flex-col gap-1 rounded-sm border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs"
+                  data-testid={`provider-confirm-${p.id}`}
+                >
+                  <p>
+                    {confirm === 'remove' ? (
+                      <>
+                        Remove <strong>{p.name}</strong>? This cannot be undone.{' '}
+                      </>
+                    ) : (
+                      <>
+                        Switch off <strong>{p.name}</strong>?{' '}
+                      </>
+                    )}
+                    {routedRoles.length === 0
+                      ? 'No routing chain names it; roles without a chain stop using it.'
+                      : `${confirm === 'remove' ? 'It is removed from' : 'It stops serving'} ${routedRoles.length} role${routedRoles.length === 1 ? '' : 's'}: ${roleList}. Each moves to the next connection in its chain, and a role with no other connection refuses and says so.`}
+                  </p>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      data-testid={`provider-confirm-do-${p.id}`}
+                      disabled={remove.isPending || patch.isPending}
+                      onClick={() => {
+                        const done = { onSuccess: () => setConfirm(null) };
+                        if (confirm === 'remove') remove.mutate(undefined, done);
+                        else patch.mutate({ enabled: false }, done);
+                      }}
+                      className="rounded-md border border-crit px-2 py-1 text-xs text-crit hover:bg-crit/10 disabled:opacity-50"
+                    >
+                      {confirm === 'remove' ? `Remove ${p.name}` : `Switch off ${p.name}`}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`provider-confirm-cancel-${p.id}`}
+                      onClick={() => setConfirm(null)}
+                      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <ErrorNote error={remove.error} testId={`provider-remove-error-${p.id}`} />
+
+              {editing ? (
+                <form
+                  className="flex flex-col gap-2 rounded-sm border border-border p-2 text-xs"
+                  data-testid={`provider-edit-form-${p.id}`}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    patch.mutate(
+                      {
+                        name,
+                        model,
+                        ...(hasAddress ? { base_url: baseUrl } : {}),
+                        // Blank keeps the stored key; it is never shown.
+                        ...(apiKey.trim() !== '' ? { api_key: apiKey } : {}),
+                      },
+                      {
+                        onSuccess: () => {
+                          setEditing(false);
+                          setApiKey('');
+                          void queryClient.invalidateQueries({ queryKey: queryKeyFor(LIST) });
+                        },
+                      },
+                    );
+                  }}
+                >
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-fg-muted">
+                      Name
+                      <input
+                        data-testid={`provider-edit-name-${p.id}`}
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-sm text-fg"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-fg-muted">
+                      Model
+                      <input
+                        data-testid={`provider-edit-model-${p.id}`}
+                        required
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="rounded-sm border border-border bg-surface-2 px-2 py-1 font-mono text-sm text-fg"
+                      />
+                    </label>
+                    {hasAddress ? (
+                      <label className="flex flex-col gap-1 text-fg-muted">
+                        Address
+                        <input
+                          data-testid={`provider-edit-base-url-${p.id}`}
+                          value={baseUrl}
+                          onChange={(e) => setBaseUrl(e.target.value)}
+                          className="rounded-sm border border-border bg-surface-2 px-2 py-1 font-mono text-sm text-fg"
+                        />
+                      </label>
+                    ) : null}
+                    {isCli ? null : (
+                      <label className="flex flex-col gap-1 text-fg-muted">
+                        New API key
+                        <input
+                          data-testid={`provider-edit-api-key-${p.id}`}
+                          type="password"
+                          autoComplete="off"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-sm text-fg"
+                        />
+                        <span className="text-fg-faint">Leave blank to keep the current key.</span>
+                      </label>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="submit"
+                      data-testid={`provider-edit-save-${p.id}`}
+                      disabled={patch.isPending}
+                      className="rounded-md border border-border bg-accent-strong px-2 py-1 text-xs text-accent-fg disabled:opacity-50"
+                    >
+                      {patch.isPending ? 'Saving…' : 'Save changes'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditing(false)}
+                      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+              {/* The server's own sentence: a public address without the opt-in,
+                  a duplicate name, a model that cannot be resolved. */}
+              <ErrorNote error={patch.error} testId={`provider-patch-error-${p.id}`} />
+              {(patch.error as { detail?: string } | null)?.detail ? (
+                <p className="text-xs text-crit" data-testid={`provider-patch-detail-${p.id}`}>
+                  {(patch.error as { detail?: string }).detail}
+                </p>
+              ) : null}
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }

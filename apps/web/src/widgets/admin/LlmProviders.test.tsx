@@ -514,4 +514,179 @@ describe('Admin → Models (W16-07)', () => {
     );
     expect(screen.queryByTestId('provider-name-host-12')).toBeNull();
   });
+
+  // W20-06 (UX_TODO AI-01 to AI-04): each saved connection owns its Test result,
+  // its errors, an Edit, a switch, and a Remove that says what it drops.
+  describe('a saved connection row (W20-06)', () => {
+    const row7 = {
+      id: 7,
+      name: 'LM Studio',
+      kind: 'openai_compatible',
+      base_url: 'http://10.0.0.5:1234/v1',
+      model: 'm',
+      credential: null,
+      headers: null,
+      allow_public_host: false,
+      enabled: true,
+      capabilities: null,
+      probed_at: null,
+      host: '10.0.0.5:1234',
+      leaves_network: false,
+    };
+    const ROUTING = {
+      local_only: false,
+      roles: [
+        { role: 'security', chain: [{ provider_id: 7 }] },
+        { role: 'patch', chain: [{ provider_id: 7 }, { provider_id: 9 }] },
+        { role: 'triage', chain: [] },
+      ],
+      providers: [],
+    };
+    let failing: { method: string; status: number; body: unknown } | null = null;
+
+    beforeEach(() => {
+      failing = null;
+      listBody = { items: [row7] };
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: unknown, init?: RequestInit) => {
+          const url = String(input);
+          requests.push({ url, init });
+          const method = init?.method ?? 'GET';
+          if (failing && failing.method === method) {
+            return Promise.resolve(
+              new Response(JSON.stringify(failing.body), {
+                status: failing.status,
+                headers: { 'content-type': 'application/problem+json' },
+              }),
+            );
+          }
+          const body = url.includes('/llm-routing')
+            ? ROUTING
+            : url.includes('/kinds')
+              ? KINDS
+              : url.includes('/test')
+                ? testBody
+                : method === 'PATCH'
+                  ? { id: 7, enabled: false, routed_roles: ['patch', 'security'] }
+                  : method === 'DELETE'
+                    ? null
+                    : listBody;
+          return Promise.resolve(
+            body === null
+              ? new Response(null, { status: 204 })
+              : new Response(JSON.stringify(body), {
+                  status: 200,
+                  headers: { 'content-type': 'application/json' },
+                }),
+          );
+        }),
+      );
+    });
+
+    it('AI-01: shows the row Test result next to the row, not inside the folded form', async () => {
+      testBody = { ok: false, stage: 'transport', detail: 'connect ECONNREFUSED 10.0.0.5:1234' };
+      renderScreen();
+      await userEvent.click(await screen.findByTestId('provider-test-7'));
+      const result = await screen.findByTestId('provider-row-test-result-7');
+      expect(result).toHaveTextContent(/Could not connect\..*ECONNREFUSED/s);
+      expect(screen.getByTestId('provider-row-detail-7')).toContainElement(result);
+      expect(screen.getByTestId('llm-advanced')).not.toContainElement(result);
+    });
+
+    it('AI-02: a failed Test request is shown beside the row', async () => {
+      failing = {
+        method: 'POST',
+        status: 500,
+        body: { title: 'Internal Server Error', status: 500 },
+      };
+      renderScreen();
+      await userEvent.click(await screen.findByTestId('provider-test-7'));
+      expect(await screen.findByTestId('provider-row-test-error-7')).toBeInTheDocument();
+    });
+
+    it('AI-04: Remove asks first, names the roles it drops, and shows a refusal', async () => {
+      renderScreen();
+      await userEvent.click(await screen.findByTestId('provider-delete-7'));
+      expect(requests.some((r) => r.init?.method === 'DELETE')).toBe(false);
+      expect(screen.getByTestId('provider-confirm-7')).toHaveTextContent(
+        /Remove LM Studio\? This cannot be undone\. It is removed from 2 roles: Security, Patch/,
+      );
+      failing = { method: 'DELETE', status: 409, body: { title: 'Conflict', status: 409 } };
+      await userEvent.click(screen.getByTestId('provider-confirm-do-7'));
+      expect(await screen.findByTestId('provider-remove-error-7')).toBeInTheDocument();
+
+      failing = null;
+      await userEvent.click(screen.getByTestId('provider-confirm-do-7'));
+      await waitFor(() =>
+        expect(
+          requests.filter(
+            (r) => r.init?.method === 'DELETE' && r.url.endsWith('/admin/llm-providers/7'),
+          ),
+        ).toHaveLength(2),
+      );
+    });
+
+    it('AI-03: Switch off confirms with the roles affected, then PATCHes enabled=false', async () => {
+      renderScreen();
+      await userEvent.click(await screen.findByTestId('provider-toggle-7'));
+      expect(screen.getByTestId('provider-confirm-7')).toHaveTextContent(
+        /Switch off LM Studio\? It stops serving 2 roles: Security, Patch/,
+      );
+      await userEvent.click(screen.getByTestId('provider-confirm-do-7'));
+      await waitFor(() => {
+        const call = requests.find((r) => r.init?.method === 'PATCH');
+        expect(call?.url).toMatch(/\/admin\/llm-providers\/7$/);
+        expect(JSON.parse(String(call?.init?.body))).toEqual({ enabled: false });
+      });
+    });
+
+    it('AI-03: Edit changes model and address, keeps the key unless a new one is typed, and shows a refusal', async () => {
+      renderScreen();
+      await userEvent.click(await screen.findByTestId('provider-edit-7'));
+      const model = screen.getByTestId('provider-edit-model-7');
+      await userEvent.clear(model);
+      await userEvent.type(model, 'qwen3-coder');
+      const url = screen.getByTestId('provider-edit-base-url-7');
+      await userEvent.clear(url);
+      await userEvent.type(url, 'http://10.0.0.6:1234/v1');
+      await userEvent.click(screen.getByTestId('provider-edit-save-7'));
+      await waitFor(() => {
+        const call = requests.find((r) => r.init?.method === 'PATCH');
+        expect(JSON.parse(String(call?.init?.body))).toEqual({
+          name: 'LM Studio',
+          model: 'qwen3-coder',
+          base_url: 'http://10.0.0.6:1234/v1',
+        });
+      });
+
+      failing = {
+        method: 'PATCH',
+        status: 400,
+        body: {
+          title: 'This provider cannot be used',
+          detail: 'api.example.com is a public host.',
+          status: 400,
+        },
+      };
+      await userEvent.click(screen.getByTestId('provider-edit-7'));
+      await userEvent.type(screen.getByTestId('provider-edit-api-key-7'), 'sk-new');
+      await userEvent.click(screen.getByTestId('provider-edit-save-7'));
+      expect(await screen.findByTestId('provider-patch-detail-7')).toHaveTextContent(
+        'api.example.com is a public host.',
+      );
+      const last = requests.filter((r) => r.init?.method === 'PATCH').at(-1);
+      expect(JSON.parse(String(last?.init?.body))).toMatchObject({ api_key: 'sk-new' });
+    });
+
+    it('AI-86: Off-network follows where the endpoint is, so a CLI or host-name row says yes', async () => {
+      listBody = {
+        items: [
+          { ...row7, id: 8, name: 'CLI', kind: 'claude_cli', base_url: null, leaves_network: true },
+        ],
+      };
+      renderScreen();
+      expect(await screen.findByTestId('provider-off-network-8')).toHaveTextContent('yes');
+    });
+  });
 });
