@@ -10307,6 +10307,7 @@
           "Dockerfile",
           "deploy/**",
           "apps/api/src/workers/**",
+          "apps/api/src/routes/setup/env-registry.ts",
           "packages/reports/**",
           "docs/**",
           "plan.json"

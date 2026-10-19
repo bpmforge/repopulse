@@ -282,7 +282,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     required: false,
     purpose: 'Writable directory for generated reports.',
     ifWrong: 'Report generation fails at write time, after doing all the work.',
-    default: './data',
+    default: './.data',
   },
   {
     // Read by Node itself at process start, not by our code. Registered so the
