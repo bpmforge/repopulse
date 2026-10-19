@@ -86,7 +86,12 @@ function Suggestion({
                 <span className="font-mono text-xs text-fg-faint">
                   {c.file}:{c.line}
                 </span>
-                <pre className="panel-inset overflow-auto p-1 font-mono text-xs">{c.text}</pre>
+                {/* Wraps rather than scrolls: a scrollable block must be keyboard-reachable
+                    (axe scrollable-region-focusable, caught at 375px), and a one-line
+                    citation is better read whole than panned. */}
+                <pre className="panel-inset p-1 font-mono text-xs break-words whitespace-pre-wrap">
+                  {c.text}
+                </pre>
               </li>
             ))}
           </ul>
@@ -98,8 +103,8 @@ function Suggestion({
       {s.vex ? (
         <p className="text-xs text-fg-muted" data-testid="ai-vex">
           Proposed VEX justification: <span className="font-mono">{s.vex.justification}</span>
-          {s.vex.statement ? ` — ${s.vex.statement}` : ''}. Nothing is recorded as VEX until a
-          person does it.
+          {s.vex.statement ? ` — ${s.vex.statement.replace(/[.\s]+$/, '')}` : ''}. Nothing is
+          recorded as VEX until a person does it.
         </p>
       ) : null}
 
@@ -195,9 +200,7 @@ export function AiSuggestions({
   const suggestions = data.suggestions ?? [];
   return (
     <div data-testid="ai-section">
-      <h3 className="flex items-center gap-2 text-xs tracking-wide text-fg-muted uppercase">
-        <AiBadge /> AI review
-      </h3>
+      <h3 className="text-xs tracking-wide text-fg-muted uppercase">AI review</h3>
       {raisedBy ? (
         <p className="mt-1 text-xs text-fg-muted" data-testid="ai-raised-by">
           This finding was raised by an AI specialist ({raisedBy.specialist.replace(/_/g, ' ')}),{' '}

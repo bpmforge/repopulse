@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { and, desc, eq } from 'drizzle-orm';
-import { core, createDb, createLogger, facts, metricsRegistry } from '@repopulse/shared';
+import { auditLog, core, createDb, createLogger, facts, metricsRegistry } from '@repopulse/shared';
 import { credentials, workspace as workspaceModule } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
@@ -23,6 +23,7 @@ import { patchProcessor } from './patch-processor.js';
 import { aiPassProcessor } from './ai-pass-processor.js';
 import { snapshotSources } from './ai-pass-sources.js';
 import { forgeDiffSources } from './ai-pass-diff.js';
+import { SCHEDULER_TICK_MS, runScheduleTick } from './ai-pass-scheduler.js';
 import { providerForRepo } from './forge-provider.js';
 import { runKnowledgeRegister, runTestGapRegister } from '@repopulse/insights';
 import { createGatewayResolver, reportGatewayHealth } from './gateway.js';
@@ -1048,11 +1049,53 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
     onError: (err) => log.warn({ err }, '[worker] heartbeat write failed'),
   });
 
+  // The AI-pass scheduler (W19-12). Strictly opt-in: it only ever acts on a
+  // schedule an admin enabled for a repository AFTER acknowledging where source
+  // is sent, so with nothing enabled a tick reads one empty query and does
+  // nothing. AI_PASS_SCHEDULER=off removes even that. The first tick is one
+  // interval after boot, never at boot.
+  const schedulerOn = (process.env.AI_PASS_SCHEDULER ?? 'on') !== 'off';
+  const tickMs = Number(process.env.AI_PASS_SCHEDULER_TICK_MS ?? SCHEDULER_TICK_MS);
+  const aiPassQueue = createQueue(QUEUE.aiPass, connection);
+  let schedulerRunning = false;
+  const schedulerTimer = schedulerOn
+    ? setInterval(() => {
+        if (schedulerRunning) return;
+        schedulerRunning = true;
+        runScheduleTick({
+          db,
+          enqueue: async (data) => {
+            await aiPassQueue.add('ai.pass', data, { jobId: `ai-pass-${data.runId}` });
+          },
+          audit: (event, detail, workspaceId) =>
+            auditLog(log, {
+              event,
+              actorUserId: null,
+              workspaceId,
+              ip: 'worker',
+              ua: null,
+              detail,
+            }),
+        })
+          .then((r) => {
+            if (r.started + r.skipped > 0) log.info(r, '[worker] ai-pass scheduler tick');
+          })
+          .catch((err: unknown) => log.warn({ err }, '[worker] ai-pass scheduler tick failed'))
+          .finally(() => {
+            schedulerRunning = false;
+          });
+      }, tickMs)
+    : null;
+  schedulerTimer?.unref();
+  log.info(`[worker] ai-pass scheduler: ${schedulerOn ? `every ${tickMs} ms` : 'disabled'}`);
+
   runtime.coordinator.installSignalHandlers({
     onTimeout: () =>
       log.warn('[worker] drain timed out — forcing close, jobs resume from cursor'),
   });
   process.once('SIGTERM', () => {
+    if (schedulerTimer) clearInterval(schedulerTimer);
+    void aiPassQueue.close().catch(() => {});
     sweeper.stop();
     healthServer.close();
     // Remove the heartbeat BEFORE dropping the connection it needs, so a clean

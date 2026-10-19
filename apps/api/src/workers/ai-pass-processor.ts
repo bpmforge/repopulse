@@ -42,6 +42,8 @@ export interface AiPassJobData {
   workspaceId: number;
   runId: number;
   requestId?: string;
+  /** A lower call cap for this pass (a scheduled pass is limited by what is left of the month). */
+  maxCalls?: number;
 }
 
 export interface PassFile {
@@ -88,10 +90,11 @@ const stripPatchPrefix = (s: string): string => s.replace(/^\+/gm, '');
 
 export function aiPassProcessor(deps: AiPassDeps) {
   const now = deps.now ?? (() => new Date());
-  const maxCalls = deps.maxCalls ?? AI_PASS_MAX_CALLS;
+  const baseMaxCalls = deps.maxCalls ?? AI_PASS_MAX_CALLS;
 
   return async function process(job: Job<AiPassJobData>): Promise<AiPassResult> {
     const { workspaceId, runId } = job.data;
+    const maxCalls = Math.max(1, Math.min(baseMaxCalls, job.data.maxCalls ?? baseMaxCalls));
     const { db } = deps;
 
     // Always workspace-filtered (Law 5).

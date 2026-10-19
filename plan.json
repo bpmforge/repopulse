@@ -10211,6 +10211,38 @@
           "Requested by the coordinator 2026-10-18 after W19-10. See docs/design/AI_LAYER.md.",
           "Built 2026-10-18: migration 0045 (mode, base_ref, head_ref, pr_number), ai-pass-diff.ts (pull request files and a commit range resolved from our own commit table, ten commits at most, refusing over the caps), diff review input and changed-line triage scope, the POST body takes exactly one scope, GET /findings/:id/ai carries the pass, panel mode choice and per-run scope. Not built: scheduling (deliberate), a commit-graph walk or true compare, re-basing rule-finding lines onto the reviewed head."
         ]
+      },
+      {
+        "id": "W19-12",
+        "title": "Scheduled AI passes, strictly opt-in, with a visual UX review of the AI-layer screens",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "apps/api/**",
+          "apps/web/**",
+          "packages/shared/**",
+          "e2e/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-09",
+          "W19-10",
+          "W19-11"
+        ],
+        "acceptance": [
+          "Off by default per repository: a schedule exists only once an admin enables it and acknowledges, on screen, where source would be sent (the server's own host-based statement, the same definition as the egress audit); the acknowledgement is a digest of the destinations, so a later routing change stops the schedule until it is acknowledged again",
+          "Daily or weekly, scoped to configured paths or to the diff of new pull requests since the last run; a hard per-workspace monthly model-call cap and the existing per-pass caps; one active pass per repository; local-only and the routing chain honoured (a schedule is refused with a named reason, never run through a hosted link, if local-only forbids it)",
+          "Every refused scheduled run is recorded as a skipped pass with its reason; the scheduler runs in the worker only, forge reads go through the budgeted loaders, tenancy on every query; nothing auto-suppresses, auto-merges or writes to the repository",
+          "A Scheduled passes section in the AI review pass panel (enable acknowledgement, schedule, cap, last runs including skipped), axe-clean in light and dark and without sideways scroll at 375px; Playwright screenshots of each new or changed AI-layer screen saved under docs/screenshots/w19/, with the UX problems found fixed in the same ticket; full gate green"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested by the coordinator 2026-10-19 on Brad's go-ahead. See docs/design/AI_LAYER.md.",
+          "Built 2026-10-19: migration 0046 (ai_pass_schedules, ai_pass_settings, trigger and schedule_id on ai_pass_runs), the egress summary and digest (lib/ai-pass-egress.ts), the scheduler tick (workers/ai-pass-scheduler.ts, AI_PASS_SCHEDULER and AI_PASS_SCHEDULER_TICK_MS), schedule and cap routes, the Scheduled passes section, and e2e/ai-ui-tour.spec.ts (opt-in) which seeds data, photographs 12 states in dark and light and asserts axe and no sideways scroll. UX problems found from the pictures and fixed: three stacked AI badges, a doubled full stop in the VEX line, monospace on whole sentences, a cap field that read as disabled and sat far from its button, refused scheduled runs listed twice, the not-yet-run statement far below the start form, destination lists that over-claimed with long role lists, and a keyboard-unreachable scrolling code block at 375px (axe scrollable-region-focusable). Not built: time-of-day control, per-repository caps, notifications for skipped runs. Diff mode was not run against a real forge and model."
+        ]
       }
   ]
 }

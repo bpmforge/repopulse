@@ -560,6 +560,17 @@ describeIfLiveInfra('the AI pass processor (W19-09)', () => {
     expect(run.triageSkipped).toMatch(/call cap was used up/);
   });
 
+  it("honours a lower call cap carried by the job (what is left of the scheduler's month)", async () => {
+    await ruleFinding();
+    const runId = await newRun(['src']);
+    const { d, gw } = deps();
+    await aiPassProcessor(d)({
+      data: { workspaceId: WS, runId, maxCalls: 2 },
+    } as Job<AiPassJobData>);
+    expect(gw.calls.length).toBeLessThanOrEqual(2);
+    expect((await runOf(runId)).calls).toBeLessThanOrEqual(2);
+  });
+
   it('a docs-only scope is "skipped: nothing relevant", not a clean success', async () => {
     const runId = await newRun(['docs']);
     const r = await aiPassProcessor(

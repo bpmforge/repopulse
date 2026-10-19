@@ -192,4 +192,32 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-2').textContent).toMatch(/the commits aaaaaaa1\.\.bbbbbbb5/);
     expect(screen.getByTestId('ai-pass-1').textContent).toMatch(/the files src\/payments/);
   });
+
+  it('a refused scheduled pass is listed under Scheduled passes, not as a review; scheduled passes that ran stay, tagged', () => {
+    state.runs = [
+      run({
+        id: 5,
+        trigger: 'scheduled',
+        status: 'skipped',
+        reason: 'The monthly cap is used up.',
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    // Only a refusal exists: no review was ever run, and the panel says so.
+    expect(screen.queryByTestId('ai-pass-5')).toBeNull();
+    expect(screen.getByTestId('ai-pass-not-run').textContent).toMatch(/Not yet run/);
+
+    state.runs = [
+      run({ id: 6, trigger: 'scheduled' }),
+      run({
+        id: 5,
+        trigger: 'scheduled',
+        status: 'skipped',
+        reason: 'The monthly cap is used up.',
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-6').textContent).toMatch(/scheduled/);
+    expect(screen.queryByTestId('ai-pass-5')).toBeNull();
+  });
 });
