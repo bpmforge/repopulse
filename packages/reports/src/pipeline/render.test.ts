@@ -72,8 +72,16 @@ describe('report artifact pipeline', () => {
     // separately by the print route pinning Date to snapshotAt and waiting on
     // __REPORT_READY instead of a timer.
     const print = (url: string) => Promise.resolve(Buffer.from(`%PDF-1.4 ${url}`));
-    const a = await renderReport(DATA, 101, { dataDir: dir, printBaseUrl: 'http://x', printToPdf: print });
-    const b = await renderReport(DATA, 101, { dataDir: dir, printBaseUrl: 'http://x', printToPdf: print });
+    const a = await renderReport(DATA, 101, {
+      dataDir: dir,
+      printBaseUrl: 'http://x',
+      printToPdf: print,
+    });
+    const b = await renderReport(DATA, 101, {
+      dataDir: dir,
+      printBaseUrl: 'http://x',
+      printToPdf: print,
+    });
     expect(a.bytes).toBe(b.bytes);
 
     const firstJson = await readFile(uriToPath(a.jsonUri), 'utf8');
@@ -159,5 +167,27 @@ describe('artifact integrity across a re-render (W17-26)', () => {
     // truncated write leaves — and must not count as present.
     await writeFile(uriToPath(result.pdfUri), '');
     expect(await artifactPresent(result.pdfUri)).toBe(false);
+  });
+
+  it('hands the printer the PUBLIC link base, not the internal print address (W20-15)', async () => {
+    const seen: string[] = [];
+    await renderReport(DATA, 102, {
+      dataDir: dir,
+      printBaseUrl: 'http://web:8080',
+      linkBaseUrl: 'https://pulse.example.com/',
+      printToPdf: (_url, _data, linkBase) => {
+        seen.push(linkBase);
+        return Promise.resolve(Buffer.from('%PDF-1.4 fake'));
+      },
+    });
+    await renderReport(DATA, 103, {
+      dataDir: dir,
+      printBaseUrl: 'http://web:8080/',
+      printToPdf: (_url, _data, linkBase) => {
+        seen.push(linkBase);
+        return Promise.resolve(Buffer.from('%PDF-1.4 fake'));
+      },
+    });
+    expect(seen).toEqual(['https://pulse.example.com', 'http://web:8080']);
   });
 });

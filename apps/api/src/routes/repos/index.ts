@@ -12,6 +12,7 @@ import {
   readReviewBotInputs,
   type RatioResult,
 } from '@repopulse/metrics';
+import { connectionHost } from '@repopulse/ingest';
 import { sendProblem } from '../../lib/problem.js';
 import { isMeasured, repoHealth, repoHealthMany } from '../org/health.js';
 import { repoCapabilities } from '../../lib/capability.js';
@@ -38,6 +39,45 @@ function fail(
 ): FastifyReply {
   sendProblem(req, reply, status, title);
   return reply;
+}
+
+/**
+ * Which forge and host a repository comes from (W20-15, UX_TODO X-16). With
+ * GitHub, GitLab and Gitea connected at once, `org/name` alone could not say,
+ * and a repository mirrored on two of them showed as two identical rows.
+ */
+async function forgeOf(
+  db: Database,
+  workspaceId: number,
+  repoIds: number[],
+): Promise<Map<number, { provider: string; host: string | null; connection_id: number }>> {
+  if (repoIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      repoId: core.repos.id,
+      connectionId: core.forgeConnections.id,
+      provider: core.forgeConnections.provider,
+      baseUrl: core.forgeConnections.baseUrl,
+    })
+    .from(core.repos)
+    .innerJoin(
+      core.forgeConnections,
+      and(
+        eq(core.forgeConnections.id, core.repos.connectionId),
+        eq(core.forgeConnections.workspaceId, workspaceId),
+      ),
+    )
+    .where(and(eq(core.repos.workspaceId, workspaceId), inArray(core.repos.id, repoIds)));
+  return new Map(
+    rows.map((r) => [
+      r.repoId,
+      {
+        provider: r.provider,
+        host: connectionHost(r.provider, r.baseUrl),
+        connection_id: r.connectionId,
+      },
+    ]),
+  );
 }
 
 function repoLinks(id: number): Record<string, string> {
@@ -103,6 +143,18 @@ export default async function reposRoutes(
       .where(eq(core.repos.workspaceId, workspaceId));
     // One batched read for every repo (W17-32), not one loader call per row.
     const healths = await repoHealthMany(db, workspaceId, repos, window, nowMs);
+    const forges = await forgeOf(
+      db,
+      workspaceId,
+      repos.map((r) => r.id),
+    );
+    // The same org/name tracked through two connections (a Gitea mirror of a
+    // GitHub repository) is counted twice in every org metric (X-16).
+    const nameCount = new Map<string, number>();
+    for (const r of repos) {
+      const key = `${r.org}/${r.name}`.toLowerCase();
+      nameCount.set(key, (nameCount.get(key) ?? 0) + 1);
+    }
     const items = repos.map((r) => {
       const health = healths.get(r.id)!;
       // UNKNOWN is a third state, not a low number (W17-18).
@@ -119,6 +171,8 @@ export default async function reposRoutes(
         id: r.id,
         org: r.org,
         name: r.name,
+        forge: forges.get(r.id) ?? null,
+        tracked_twice: (nameCount.get(`${r.org}/${r.name}`.toLowerCase()) ?? 0) > 1,
         sync: r.syncStatus,
         health: {
           score: measured ? Math.round(health.score) : null,
@@ -157,10 +211,12 @@ export default async function reposRoutes(
       // repo header painted an unmeasured repository's empty-set 0 red while
       // /repos showed the same repository as "—".
       const measured = isMeasured(health);
+      const forge = (await forgeOf(db, workspaceId, [repo.id])).get(repo.id) ?? null;
       return reply.send({
         id: repo.id,
         org: repo.org,
         name: repo.name,
+        forge,
         sync: repo.syncStatus,
         // W20-12 (UX_TODO DSH-24/48): when the forge was last read and when
         // the numbers on this page were computed — stale data looked current.

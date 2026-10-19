@@ -70,6 +70,7 @@ deploy/backup.sh                  # dump the database to a file (+ a .manifest)
 deploy/restore.sh --project=repopulse --production <dump>   # restore it over the live install
 deploy/scan-db-sync.sh            # refresh scan rules + fetch the CVE database (nightly cron)
 deploy/rotate-token-key.sh        # re-seal stored credentials under a new TOKEN_ENC_KEY
+deploy/uninstall.sh               # remove RepoPulse: its forge webhooks first, then the stack and data
 ```
 
 `restore.sh` needs the target named on purpose (`--project=`, and
@@ -110,6 +111,16 @@ must start with the **old** `TOKEN_ENC_KEY`, or the restore is refused.
    `RUNBOOK.md`.
 6. Check the repositories are back and a forge sync works. A new hostname
    also needs the steps in `RUNBOOK.md` → *Change the install's address*.
+
+## Uninstalling
+
+`podman compose … down -v` deletes the data but leaves a push webhook on every
+repository you tracked, and each one keeps sending deliveries to a server that
+is gone. Run `deploy/uninstall.sh` instead, **while the stack is still up**: it
+removes those webhooks first, offers a last backup, runs `down -v`, removes the
+scan scratch and Claude CLI volumes and the scan-rules and CA folders, and
+then lists what only you can do (cron lines, forge tokens, CI secrets). Full
+steps: `INSTALL.md` → *Uninstall*.
 
 ## Upgrading
 

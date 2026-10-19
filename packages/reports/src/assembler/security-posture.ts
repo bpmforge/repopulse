@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { core, read, security, type Database } from '@repopulse/shared';
+import { SECURITY_DIMENSIONS } from '@repopulse/insights';
 import type { ReportSection } from '../types/index.js';
 import type { ChainAppendixEntry, ScannerPosture } from '../types/security-posture.js';
 
@@ -26,6 +27,18 @@ const AGE_BUCKETS = [
   { label: 'over 90 days', maxDays: Number.POSITIVE_INFINITY },
 ] as const;
 
+/** Severity in words (W20-15, UX_TODO X-23): a bare "4" means nothing to an auditor. */
+export function severityWord(severity: number): string {
+  return SEVERITY_WORDS[severity] ?? String(severity);
+}
+const SEVERITY_WORDS: Record<number, string> = {
+  5: 'critical',
+  4: 'high',
+  3: 'medium',
+  2: 'low',
+  1: 'info',
+};
+
 function ageBucket(firstSeen: Date, asOf: Date): string {
   const days = (asOf.getTime() - firstSeen.getTime()) / 86_400_000;
   return (AGE_BUCKETS.find((b) => days <= b.maxDays) ?? AGE_BUCKETS[3]).label;
@@ -51,10 +64,22 @@ export async function securityPostureSections(
   const repoName = new Map(repos.map((r) => [r.id, `${r.org}/${r.name}`]));
 
   // 1. Open security findings by severity × repo × age.
+  //
+  // W20-15 (UX_TODO X-21): every SECURITY dimension, the same set the Security
+  // tab and the Security sub-score use. Filtering on the literal 'security'
+  // left out leaked secrets, dependency CVEs, SAST, IaC and attack chains, so
+  // a repository with a live leaked token could read "No open security
+  // findings". Shadow-rule findings stay out, as in the risk report.
   const findings = await db
     .select({
+      id: read.findings.id,
       repoId: read.findings.repoId,
       severity: read.findings.severity,
+      dimension: read.findings.dimension,
+      title: read.findings.title,
+      file: read.findings.file,
+      lineStart: read.findings.lineStart,
+      ruleId: read.findings.ruleId,
       status: read.findings.status,
       firstSeenAt: read.findings.firstSeenAt,
       verifyStatus: read.findings.verifyStatus,
@@ -63,7 +88,8 @@ export async function securityPostureSections(
     .where(
       and(
         repoFilter,
-        eq(read.findings.dimension, 'security'),
+        inArray(read.findings.dimension, SECURITY_DIMENSIONS),
+        eq(read.findings.experimental, false),
         inArray(read.findings.status, ['open', 'confirmed']),
         // Only findings that existed when the report was pinned — a finding
         // raised after the snapshot did not inform this report.
@@ -76,12 +102,37 @@ export async function securityPostureSections(
       ? {
           kind: 'table',
           id: 'open_security_findings',
-          columns: ['Repository', 'Severity', 'Age', 'Verification'],
+          // W20-15 (UX_TODO X-23): which finding each row is. Four columns
+          // (repository, a bare severity number, age, verification) did not
+          // let a reader tell rows apart or find one in RepoPulse.
+          columns: [
+            'Finding #',
+            'Repository',
+            'Severity',
+            'Dimension',
+            'Finding',
+            'Location',
+            'Rule',
+            'Age',
+            'Verification',
+          ],
+          findingIdColumn: 0,
           rows: findings
-            .sort((a, b) => b.severity - a.severity)
+            // Severity, then id: a tie broken by insertion order would reorder
+            // between two runs over identical data (FR-REPORTS-6).
+            .sort((a, b) => b.severity - a.severity || a.id - b.id)
             .map((f) => [
+              f.id,
               repoName.get(f.repoId) ?? String(f.repoId),
-              f.severity,
+              severityWord(f.severity),
+              f.dimension,
+              f.title,
+              f.file === null
+                ? 'whole repository'
+                : f.lineStart === null
+                  ? f.file
+                  : `${f.file}:${f.lineStart}`,
+              f.ruleId,
               ageBucket(f.firstSeenAt, params.snapshotAt),
               // Carried into the report because an UNVERIFIED critical finding
               // and one a second model confirmed are different claims, and a
@@ -296,6 +347,7 @@ export async function scannerPostures(
 
   const findings = await db
     .select({
+      id: read.findings.id,
       scannerKey: read.findings.scannerKey,
       severity: read.findings.severity,
       title: read.findings.title,
@@ -348,14 +400,21 @@ export async function scannerPostures(
       scannerVersion: last?.scannerVersion ?? null,
       bySeverity,
       openTotal: mine.length,
-      newSincePreviousRun: cutoff === null ? null : mine.filter((f) => f.firstSeenAt > cutoff).length,
+      newSincePreviousRun:
+        cutoff === null ? null : mine.filter((f) => f.firstSeenAt > cutoff).length,
       topFindings: mine
         // Severity first, then title: a tie broken by insertion order would
         // reorder between two runs over identical data and break the
         // byte-identical guarantee.
-        .sort((a, b) => b.severity - a.severity || a.title.localeCompare(b.title))
+        .sort((a, b) => b.severity - a.severity || a.title.localeCompare(b.title) || a.id - b.id)
         .slice(0, 5)
-        .map((f) => ({ severity: f.severity, title: f.title, file: f.file, ruleId: f.ruleId })),
+        .map((f) => ({
+          id: f.id,
+          severity: f.severity,
+          title: f.title,
+          file: f.file,
+          ruleId: f.ruleId,
+        })),
     };
   });
 }
@@ -469,7 +528,8 @@ export async function scannerSections(
       sections.push({
         kind: 'table',
         id: `${id}_top`,
-        columns: ['Severity', 'Finding', 'Location', 'Rule'],
+        columns: ['Severity', 'Finding', 'Location', 'Rule', 'Finding #'],
+        findingIdColumn: 4,
         rows: posture.topFindings.map((f) => [
           f.severity,
           f.title,
@@ -477,6 +537,7 @@ export async function scannerSections(
           // would render as a blank cell that looks like missing data.
           f.file ?? 'repository-level',
           f.ruleId,
+          f.id,
         ]),
       });
     }
@@ -499,7 +560,7 @@ export async function scannerSections(
           kind: 'no_data',
           id: 'chains_appendix',
           reason:
-            'No attack chains are recorded for these repositories. Chain analysis correlates one finding\'s yields with another\'s preconditions; until it has run, the correct reading is that no chains have been LOOKED for, not that none exist.',
+            "No attack chains are recorded for these repositories. Chain analysis correlates one finding's yields with another's preconditions; until it has run, the correct reading is that no chains have been LOOKED for, not that none exist.",
         },
   );
 

@@ -82,13 +82,16 @@ export async function riskSections(
           id: 'top_risks',
           // Band AND raw severity, both in the PDF: the composite never
           // appears without the number a reader already understands.
-          columns: ['Band', 'Risk', 'Severity', 'Finding', 'Where'],
+          columns: ['Band', 'Risk', 'Severity', 'Finding', 'Where', 'Finding #'],
+          // W20-15 (UX_TODO X-23): the id, linked back to the finding.
+          findingIdColumn: 5,
           rows: top.map((f) => [
             f.riskBand ?? 'not priced',
             f.effectiveRisk === null ? null : Number(f.effectiveRisk),
             f.severity,
             f.title,
             `${repoName.get(f.repoId) ?? f.repoId}${f.file ? ` · ${f.file}` : ''}`,
+            f.id,
           ]),
         }
       : {

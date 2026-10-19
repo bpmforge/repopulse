@@ -9,7 +9,7 @@ import { HealthWhy } from '../../../widgets/repo/HealthWhy.js';
 // Widened out of the ticket's write_scope on purpose — a widget nobody mounts
 // is the defect class this codebase keeps rediscovering.
 import { RiskAxisStrip } from '../../../widgets/risk/RiskAxisStrip.js';
-import type { RepoDetail } from '../../../widgets/repo/contracts.js';
+import { forgeLabel, type RepoDetail } from '../../../widgets/repo/contracts.js';
 import { asOfLabel } from '../../../widgets/org/contracts.js';
 
 /**
@@ -271,6 +271,15 @@ function RepoLayout() {
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="repo-name">
             {fresh ? `${fresh.org}/${fresh.name}` : 'Loading…'}
+            {/* Which forge and host (W20-15, UX_TODO X-16). */}
+            {fresh?.forge && (
+              <span
+                className="ml-2 align-middle text-sm font-normal text-fg-muted"
+                data-testid="repo-forge"
+              >
+                {forgeLabel(fresh.forge)}
+              </span>
+            )}
           </h1>
           {fresh && (
             // W20-12 (UX_TODO DSH-24/48): sync state and data freshness.

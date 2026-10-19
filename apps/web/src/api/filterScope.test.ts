@@ -59,3 +59,15 @@ describe('which global filters a screen applies (W16-50)', () => {
     });
   });
 });
+
+describe('sensitive changes (W20-15, UX_TODO X-26)', () => {
+  it('shows the repository picker, because the page honours ?repos=', () => {
+    // Reviews carries ?repos= across; without the picker the narrowing was
+    // invisible and could not be cleared.
+    expect(filterScopeFor('/sensitive-changes')).toEqual({
+      window: false,
+      repos: true,
+      person: false,
+    });
+  });
+});

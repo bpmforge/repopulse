@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ageOf, dimensionLabel, reviewSummary, statusLabel, type Finding } from './contracts.js';
+import {
+  ageOf,
+  dimensionLabel,
+  findingUrl,
+  foundByText,
+  reviewSummary,
+  statusLabel,
+  type Finding,
+} from './contracts.js';
 
 describe('reviewSummary (W17-23)', () => {
   const base: Finding = {
@@ -125,5 +133,61 @@ describe('labels (W20-13, FND-26 / FND-19)', () => {
     expect(ageOf('2026-10-18T00:00:00Z', now)).toBe('1d');
     expect(ageOf('2026-09-19T00:00:00Z', now)).toBe('4w');
     expect(ageOf('2026-01-19T00:00:00Z', now)).toBe('9mo');
+  });
+});
+
+describe('findingUrl (W20-15, UX_TODO X-07)', () => {
+  it('is absolute and opens the finding panel', () => {
+    expect(findingUrl(812, 'https://pulse.example.com/')).toBe(
+      'https://pulse.example.com/findings?finding=812',
+    );
+  });
+
+  it('is in the review summary', () => {
+    expect(
+      reviewSummary(
+        {
+          id: 9,
+          repo: { id: 1, org: 'acme', name: 'payments' },
+          dimension: 'test_gap',
+          severity: 3,
+          confidence: 2,
+          title: 'No tests for refunds',
+          file: null,
+          line_range: [null, null],
+          evidence: 'e',
+          recommendation: 'r',
+          status: 'open',
+          dismiss_reason: null,
+          verify_status: 'unverified',
+          forge: null,
+        } as unknown as Finding,
+        [],
+        'https://pulse.example.com',
+      ).split('\n')[1],
+    ).toBe('In RepoPulse: https://pulse.example.com/findings?finding=9');
+  });
+});
+
+describe('foundByText (W20-15, UX_TODO X-10)', () => {
+  it('says whether a rule, the customer’s model or another tool raised it', () => {
+    expect(
+      foundByText({
+        tier: 1,
+        rule_id: 'bpm-sql-injection',
+        found_by: { kind: 'scanner', scanner: 'semgrep', version: 'v3' },
+      }),
+    ).toBe('Found by: the semgrep scanner v3, rule bpm-sql-injection');
+    expect(foundByText({ tier: 2, found_by: { kind: 'model', model: 'qwen3-coder' } })).toBe(
+      'Found by: your AI model qwen3-coder',
+    );
+    expect(
+      foundByText({
+        tier: 1,
+        found_by: { kind: 'imported', tool: 'CodeQL', source: 'sarif', tool_version: '2.19.0' },
+      }),
+    ).toBe('Found by: imported from CodeQL v2.19.0 (a SARIF upload)');
+    // An older API without found_by still says something true.
+    expect(foundByText({ tier: 2 })).toBe('Tier 2');
   });
 });

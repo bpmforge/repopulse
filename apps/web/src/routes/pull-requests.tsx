@@ -100,8 +100,8 @@ function PullRequestsIndex() {
    * Any filter change drops the cursor — a cursor from the old query means
    * nothing. One cursor of history, not an accumulating list: paging forward
    * replaces the page, so every row on screen matches the filters above it.
-   * The topbar's repo/person changes rebuild the search from the global keys
-   * alone (mergeGlobalSearch), so they drop the cursor too.
+   * The topbar's repo/person changes keep these page filters but drop the
+   * cursor too (mergeGlobalSearch, W20-15).
    */
   const setFilter = (patch: { [K in keyof PrListSearch]?: PrListSearch[K] | undefined }) =>
     void navigate({

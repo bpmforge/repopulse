@@ -23,8 +23,15 @@ export interface RenderDeps {
   dataDir: string;
   /** Base URL of the web app serving /print/reports/:id. */
   printBaseUrl: string;
+  /**
+   * Where a reader opens RepoPulse (PUBLIC_BASE_URL). Finding rows in the PDF
+   * link here (W20-15, UX_TODO X-23): the print base is usually an internal
+   * address, e.g. http://web:8080, that nobody reading the PDF can reach.
+   * Defaults to the print base.
+   */
+  linkBaseUrl?: string;
   /** Injectable so tests can drive the pipeline without a browser. */
-  printToPdf?: (url: string, data: ReportData) => Promise<Buffer>;
+  printToPdf?: (url: string, data: ReportData, linkBaseUrl: string) => Promise<Buffer>;
 }
 
 export interface RenderResult {
@@ -38,7 +45,11 @@ export interface RenderResult {
  * a pinned viewport, no animations, and a wait for the page to say it is
  * ready rather than a timeout race (REPORTS.md §3 byte-stability).
  */
-async function playwrightPrint(url: string, data: ReportData): Promise<Buffer> {
+async function playwrightPrint(
+  url: string,
+  data: ReportData,
+  linkBaseUrl: string,
+): Promise<Buffer> {
   const { chromium } = await import('playwright');
   const browser = await chromium.launch();
   try {
@@ -50,9 +61,17 @@ async function playwrightPrint(url: string, data: ReportData): Promise<Buffer> {
     // guarantees rather than merely intends.
     // `globalThis`, not `window`: this callback is serialized and run in the
     // browser, but it is TYPE-CHECKED here, where no DOM lib is configured.
-    await page.addInitScript((payload) => {
-      (globalThis as unknown as { __REPORT_DATA?: unknown }).__REPORT_DATA = payload;
-    }, data as unknown);
+    await page.addInitScript(
+      (payload) => {
+        const g = globalThis as unknown as {
+          __REPORT_DATA?: unknown;
+          __REPORT_LINK_BASE?: unknown;
+        };
+        g.__REPORT_DATA = payload.data;
+        g.__REPORT_LINK_BASE = payload.linkBaseUrl;
+      },
+      { data: data as unknown, linkBaseUrl },
+    );
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     // The print route sets this once every chart has rendered. Printing on a
     // timer instead produces a PDF whose contents depend on how busy the
@@ -118,7 +137,8 @@ export async function renderReport(
   await writeAtomic(jsonPath, JSON.stringify(data, null, 2));
 
   const url = `${deps.printBaseUrl.replace(/\/$/, '')}/print/reports/${reportId}`;
-  const pdf = await (deps.printToPdf ?? playwrightPrint)(url, data);
+  const linkBaseUrl = (deps.linkBaseUrl || deps.printBaseUrl).replace(/\/$/, '');
+  const pdf = await (deps.printToPdf ?? playwrightPrint)(url, data, linkBaseUrl);
   const pdfPath = join(dir, 'report.pdf');
   await writeAtomic(pdfPath, pdf);
 

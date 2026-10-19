@@ -129,9 +129,7 @@ async function main(): Promise<void> {
     .where(eq(core.workspaces.slug, workspaceModule.DEFAULT_WORKSPACE_SLUG))
     .limit(1);
   const bootGateway = defaultWorkspace ? await gateways.for(defaultWorkspace.id) : null;
-  log.info(
-    `[worker] default workspace — ${await reportGatewayHealth(bootGateway)}`,
-  );
+  log.info(`[worker] default workspace — ${await reportGatewayHealth(bootGateway)}`);
 
   const connection = createRedisConnection(redisUrl);
   const healthRedis = createRedisConnection(redisUrl);
@@ -302,7 +300,8 @@ async function main(): Promise<void> {
             const resolved = await providerForRepo(scanForgeDeps, workspaceId, repoId);
             // No active connection: nothing to fetch patches with. Reported as
             // zero work, not as a failure — the repo simply is not connected.
-            if (!resolved) return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
+            if (!resolved)
+              return { scanned: 0, findingsCreated: 0, deferred: 0, skipped: 'no_connection' };
             return runSecretsHistoryScan({
               db,
               provider: resolved.provider,
@@ -581,7 +580,9 @@ async function main(): Promise<void> {
             const [sbom] = await db
               .select({ document: security.sboms.document })
               .from(security.sboms)
-              .where(and(eq(security.sboms.workspaceId, workspaceId), eq(security.sboms.repoId, repoId)))
+              .where(
+                and(eq(security.sboms.workspaceId, workspaceId), eq(security.sboms.repoId, repoId)),
+              )
               .orderBy(desc(security.sboms.createdAt))
               .limit(1);
             // No SBOM means W8-06 has not run — it is blocked for missing
@@ -591,7 +592,10 @@ async function main(): Promise<void> {
 
             const fetchJson = jsonFetcher();
             const components = readComponents(sbom.document);
-            const byPackage = new Map<string, { ecosystem: 'npm' | 'pypi'; name: string; installedVersions: string[] }>();
+            const byPackage = new Map<
+              string,
+              { ecosystem: 'npm' | 'pypi'; name: string; installedVersions: string[] }
+            >();
             for (const component of components) {
               const key = `${component.ecosystem}:${component.name}`;
               const entry = byPackage.get(key) ?? {
@@ -633,7 +637,11 @@ async function main(): Promise<void> {
             const result =
               resolved && head?.sha
                 ? await snapshotForScan(
-                    { provider: resolved.provider, repo: resolved.repoFullName, commitSha: head.sha },
+                    {
+                      provider: resolved.provider,
+                      repo: resolved.repoFullName,
+                      commitSha: head.sha,
+                    },
                     async (snapshot) => run(snapshot.dir),
                   )
                 : await run();
@@ -892,6 +900,8 @@ async function main(): Promise<void> {
         printBaseUrl:
           process.env.REPORT_PRINT_BASE_URL ||
           (process.env.PUBLIC_BASE_URL ?? 'http://localhost:5273'),
+        // Finding rows in the PDF link to where readers open RepoPulse (W20-15).
+        ...(process.env.PUBLIC_BASE_URL ? { linkBaseUrl: process.env.PUBLIC_BASE_URL } : {}),
       }),
       // W18-19. A verified patch: this workspace's model drafts, the sandbox
       // re-scans. The forge is read through the same scan-lane config as every
@@ -909,7 +919,11 @@ async function main(): Promise<void> {
         gatewayFor: async (workspaceId) => {
           const built = await gateways.for(workspaceId);
           return built
-            ? { gateway: built.gateway, hosts: built.hosts, ...(built.routing ? { routing: built.routing } : {}) }
+            ? {
+                gateway: built.gateway,
+                hosts: built.hosts,
+                ...(built.routing ? { routing: built.routing } : {}),
+              }
             : null;
         },
         loadSources: snapshotSources({
@@ -965,7 +979,9 @@ async function main(): Promise<void> {
     ...(process.env.SNAPSHOT_ROOT ? { root: process.env.SNAPSHOT_ROOT } : {}),
   });
   const sweptOnBoot = await sweeper.ran;
-  log.info(`[worker] snapshot sweep on boot: removed ${sweptOnBoot.removed.length}, in flight ${sweptOnBoot.keptInFlight}`);
+  log.info(
+    `[worker] snapshot sweep on boot: removed ${sweptOnBoot.removed.length}, in flight ${sweptOnBoot.keptInFlight}`,
+  );
 
   // Secrets history sweep (W8-05, SECURITY_SUITE §4: "secrets(history,
   // monthly)"). Stream mode only sees diffs arriving now, so without this a
@@ -988,7 +1004,9 @@ async function main(): Promise<void> {
       { repeat: { pattern: historyCron }, jobId: 'secrets-history-monthly-sweep' },
     );
   }
-  log.info(`[worker] monthly secrets history sweep: ${historyCron === 'off' ? 'disabled' : historyCron}`);
+  log.info(
+    `[worker] monthly secrets history sweep: ${historyCron === 'off' ? 'disabled' : historyCron}`,
+  );
 
   // The weekly security pass (SECURITY_SUITE §4): a full semgrep scan and a
   // chain recompute, per repo. Two scanners, ONE schedule — a chain built from
@@ -1044,8 +1062,8 @@ async function main(): Promise<void> {
   );
 
   // 3301 — see the note beside the API port; 3001 is the neighbour every 3000
-// picks and was already taken on this machine.
-const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
+  // picks and was already taken on this machine.
+  const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
   const healthServer = startWorkerHealthServer({
     db,
     redis: healthRedis,
@@ -1105,8 +1123,7 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
   log.info(`[worker] ai-pass scheduler: ${schedulerOn ? `every ${tickMs} ms` : 'disabled'}`);
 
   runtime.coordinator.installSignalHandlers({
-    onTimeout: () =>
-      log.warn('[worker] drain timed out — forcing close, jobs resume from cursor'),
+    onTimeout: () => log.warn('[worker] drain timed out — forcing close, jobs resume from cursor'),
   });
   process.once('SIGTERM', () => {
     if (schedulerTimer) clearInterval(schedulerTimer);
@@ -1125,9 +1142,7 @@ const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 3301);
       });
   });
 
-  log.info(
-    `[worker] runtime up; healthz on :${healthPort}; heartbeat ${heartbeat.instanceId}`,
-  );
+  log.info(`[worker] runtime up; healthz on :${healthPort}; heartbeat ${heartbeat.instanceId}`);
 }
 
 // Only run when executed directly (not when imported by tests).

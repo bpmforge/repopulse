@@ -6,7 +6,7 @@ import {
   securityInputsMany,
   type SecurityInputs,
 } from '@repopulse/insights';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
 import { HEALTH_BAND_LABEL, healthBand } from '@repopulse/shared/health-band';
 import type {
@@ -321,8 +321,15 @@ export function createReportAssembler(db: Database): ReportAssembler {
     // same report opens by counting them: a reader saw "3 open findings" on the
     // first page and "no analysis data" on the last. Nothing here is Tier-1
     // only; the sentence had simply outlived its wave.
+    //
+    // OPEN findings only, at the pin (W20-15, UX_TODO X-22): the query had no
+    // status filter, no shadow-rule filter and no snapshot bound, so dismissed
+    // false positives, resolved and trial-rule findings pushed open ones out of
+    // a document sent to others, and a re-print picked up findings raised
+    // after the pin. Same scope as the risk opener.
     const openFindings = await db
       .select({
+        id: read.findings.id,
         severity: read.findings.severity,
         dimension: read.findings.dimension,
         title: read.findings.title,
@@ -331,7 +338,15 @@ export function createReportAssembler(db: Database): ReportAssembler {
         status: read.findings.status,
       })
       .from(read.findings)
-      .where(and(eq(read.findings.workspaceId, workspaceId), eq(read.findings.repoId, repo.id)))
+      .where(
+        and(
+          eq(read.findings.workspaceId, workspaceId),
+          eq(read.findings.repoId, repo.id),
+          inArray(read.findings.status, ['open', 'confirmed']),
+          eq(read.findings.experimental, false),
+          lte(read.findings.firstSeenAt, snapshotAt),
+        ),
+      )
       .orderBy(desc(read.findings.severity), desc(read.findings.id))
       .limit(25);
     sections.push(
@@ -339,7 +354,8 @@ export function createReportAssembler(db: Database): ReportAssembler {
         ? {
             kind: 'table',
             id: 'findings',
-            columns: ['Severity', 'Dimension', 'Finding', 'Where', 'Status'],
+            columns: ['Severity', 'Dimension', 'Finding', 'Where', 'Status', 'Finding #'],
+            findingIdColumn: 5,
             rows: openFindings.map((f) => [
               f.severity,
               f.dimension,
@@ -353,11 +369,12 @@ export function createReportAssembler(db: Database): ReportAssembler {
                   ? f.file
                   : `${f.file}:${f.lineStart}`,
               f.status,
+              f.id,
             ]),
           }
         : noData(
             'findings',
-            'No findings recorded for this repository at this snapshot. Findings are written by the analysis and scanner passes, so an empty section means nothing has run or nothing was found — the scanner coverage table on the repository screen says which.',
+            'No open findings for this repository at this snapshot. Findings are written by the analysis and scanner passes, so an empty section means nothing has run or nothing was found — the scanner coverage table on the repository screen says which.',
           ),
     );
     return sections;

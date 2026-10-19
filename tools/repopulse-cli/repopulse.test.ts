@@ -5,6 +5,7 @@ import {
   evaluate,
   main,
   parseArgs,
+  PR_NOT_SYNCED_PROBLEM,
   sarifLevel,
   toMarkdown,
   toSarif,
@@ -293,6 +294,18 @@ describe('toMarkdown', () => {
     expect(md).toMatch(/dismiss it with a reason.*next run of this check clears it/);
   });
 
+  // W20-15 (UX_TODO X-13): a verdict reached without some scanners says so.
+  it('names the scanners still running and the ones that failed at the head', () => {
+    const r = result([], { scanned: false });
+    const md = toMarkdown(
+      { ...r, head: { ...r.head, pending: ['sensitive_change'], failed: ['secrets'] } },
+      evaluate(r, config()),
+      config(),
+    );
+    expect(md).toContain('Still scanning: sensitive_change.');
+    expect(md).toContain('Failed at this head (their findings are missing): secrets.');
+  });
+
   it('says plainly when there is nothing new', () => {
     const r = result([]);
     expect(toMarkdown(r, evaluate(r, config()), config())).toContain('No new findings.');
@@ -370,6 +383,64 @@ describe('main', () => {
     const h = harness([{ title: 'Invalid, expired or revoked token', status: 401 }], 401);
     expect(await main(BASE, ENV, h.io)).toBe(EXIT.SERVER);
     expect(h.err()).toMatch(/HTTP 401: Invalid, expired or revoked token.*REPOPULSE_TOKEN/);
+  });
+
+  // W20-15 (UX_TODO X-14). CI starts the moment the forge sends the webhook,
+  // so the first ask usually finds the PR not ingested yet. That 404 is "not
+  // ready": --wait keeps polling, and running out of wait is exit 4, not 3.
+  describe('a PR RepoPulse has not ingested yet', () => {
+    const notSynced = () =>
+      new Response(
+        JSON.stringify({
+          type: PR_NOT_SYNCED_PROBLEM,
+          title: 'Pull request not found',
+          status: 404,
+          detail: 'retry once its webhook has been processed',
+        }),
+        { status: 404, headers: { 'content-type': 'application/problem+json' } },
+      );
+
+    function io(responses: (() => Response)[]) {
+      let clock = 0;
+      let i = 0;
+      let err = '';
+      return {
+        calls: () => i,
+        err: () => err,
+        io: {
+          out: () => undefined,
+          err: (t: string) => void (err += t),
+          fetch: (async () => responses[Math.min(i++, responses.length - 1)]!()) as typeof fetch,
+          writeFile: async () => undefined,
+          sleep: async (ms: number) => void (clock += ms),
+          now: () => clock,
+        },
+      };
+    }
+
+    it('keeps waiting through it and judges the PR once it appears', async () => {
+      const ok = () =>
+        new Response(JSON.stringify({ ...result([]), next_cursor: null }), { status: 200 });
+      const h = io([notSynced, notSynced, ok]);
+      expect(await main([...BASE, '--wait', '600'], ENV, h.io)).toBe(EXIT.PASS);
+      expect(h.calls()).toBe(3);
+    });
+
+    it('exits NOT READY (4), not SERVER (3), when the wait runs out', async () => {
+      const h = io([notSynced]);
+      expect(await main([...BASE, '--wait', '30'], ENV, h.io)).toBe(EXIT.NOT_READY);
+      expect(h.err()).toMatch(/has not ingested PR #7 yet/);
+    });
+
+    it('still treats any other 404 as a refusal', async () => {
+      const other = () =>
+        new Response(JSON.stringify({ type: 'about:blank', title: 'Not Found', status: 404 }), {
+          status: 404,
+        });
+      const h = io([other]);
+      expect(await main([...BASE, '--wait', '600'], ENV, h.io)).toBe(EXIT.SERVER);
+      expect(h.calls()).toBe(1);
+    });
   });
 
   it('exits 2 with usage on bad arguments', async () => {

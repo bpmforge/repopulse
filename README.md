@@ -1,11 +1,16 @@
 # RepoPulse
 
-Repository health, code quality and delivery monitoring for the repositories
-you already have, installed on a host you control. RepoPulse reads your forge
-(GitHub, Gitea or GitLab) through its API, **never clones**, keeps only metrics
-and findings in its own database, and shows them as a drill-down dashboard
+A self-hosted code security and quality platform for teams shipping
+AI-written code, with delivery metrics as context ([VISION](docs/VISION.md)).
+It checks code with rules first and your own model second, proves each
+finding and fix, ranks them by real risk and tracks them until they are gone —
+without your code leaving your network. RepoPulse reads your forge (GitHub,
+Gitea or GitLab) through its API, **never clones**, keeps only metrics and
+findings in its own database, and shows them as a drill-down dashboard
 (organisation → repository → pull request → file → finding) with saved views
-and a report center.
+and a report center. At PR time, your own CI pulls the results with
+`repopulse check` ([CI_INTEGRATION](docs/CI_INTEGRATION.md)); RepoPulse never
+writes to your repositories.
 
 It is customer-hosted. There is no hosted service, no account with us, and no
 image registry: you receive one install bundle per CPU architecture and run it
@@ -101,6 +106,7 @@ amd64 are untested, not unsupported.
 | Tier-3 hosted model (API key) | Settings → Models, plus per-repository opt-in; writes an egress audit row | unit tests | Supported | not exercised in release evidence; API-key auth only (Vertex, Bedrock, Copilot absent) |
 | Sandboxed scanners: in-house Semgrep rules, secrets, code-health tools, dependency CVEs | `deploy/scan-db-sync.sh` for CVE data | packaged-stack proof (W17-27) and journey (W17-30) | **Tested** on Podman | CVE scanning reports itself unavailable until the sync has run; Docker path unit-tested only |
 | OWASP web and LLM checklist reviews (model-driven) | a Tier-2 model; enabled per repository, off by default | journey step: one checklist finding through the validator (W17-30) | **Tested** for the web checklist against the fixture model | no screen enables a per-repository scanner yet; the journey used the API route |
+| CI pull: `repopulse check` fails a PR on new findings, writes SARIF and a markdown summary | a CI token (Settings → CI tokens) in `REPOPULSE_TOKEN`; see [CI_INTEGRATION.md](docs/CI_INTEGRATION.md) | API integration tests and CLI unit tests (W18-18, W20-15) | Supported | not run against a real forge pipeline in release evidence; on a PR push only the secrets stream and the sensitive-change radar scan the head — the other scanners' findings come from their scheduled runs |
 | Reports and PDF export | none | unit tests (W17-26) | Supported | not part of the recorded journey |
 | Backup, restore, upgrade, rollback | `deploy/backup.sh`, `deploy/restore.sh`, `deploy/up.sh` | recorded drill, 44 checks (W17-29) | **Tested** | same-version upgrade only; migrations are forward-only; a restarted `api` alone is invisible to `web` (restart the stack) |
 | Health and metrics endpoints | none | unit tests | Supported | `/metrics` is unauthenticated; keep it off the public vhost |
@@ -118,6 +124,7 @@ amd64 are untested, not unsupported.
 | [docs/CONFIG.md](docs/CONFIG.md) | the same person, later | every environment variable, its default, and what breaks when it is wrong |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | whoever owns the host | topology, network exposure, TLS, webhook ingress, monitoring, the scan sandbox |
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | the on-call admin | backup, restore, upgrade, rollback, and the things that bit us |
+| [docs/CI_INTEGRATION.md](docs/CI_INTEGRATION.md) | whoever owns your pipelines | CI tokens, `repopulse check`, exit codes, SARIF and PR-comment recipes for GitHub, GitLab and Gitea |
 | [docs/RUNNING.md](docs/RUNNING.md) | developers | demo container, seeded demo mode, dev stack, tests |
 | `docs/ARCHITECTURE.md`, `docs/SRS.md`, `docs/STATUS.md` | contributors | design, requirements, progress ledger |
 

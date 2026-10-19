@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, lt, max, ne, or, sql, type SQL } from 'drizzle-orm';
 import { facts, read, security, type Database } from '@repopulse/shared';
+import { BUILTIN_SCANNERS, isEnabled } from '@repopulse/security';
 
 // "What is new on this PR?" (W18-18) — the question a customer's CI asks.
 //
@@ -71,12 +72,50 @@ export interface PrFindingsResult {
   pull: { number: number; title: string; state: string; head_sha: string; base_ref: string };
   head: {
     sha: string;
-    /** True once at least one scanner has finished a run at the head commit. */
+    /**
+     * True once EVERY scanner that runs on a PR push for this repository has
+     * finished a run (succeeded or failed) at the head commit (W20-15, UX_TODO
+     * X-13). It used to turn true when any one scanner had, so a CI that asked
+     * while only the fastest had finished judged the PR on a partial scan.
+     */
     scanned: boolean;
     scanners: { scanner_key: string; scanned_at: string }[];
+    /** PR scanners enabled here with no finished run at the head yet. */
+    pending: string[];
+    /** PR scanners whose latest finished run at the head did not succeed. */
+    failed: string[];
   };
   items: PrFindingItem[];
   next_cursor: string | null;
+}
+
+/** Run states that mean the scanner is done with a commit, whatever it found. */
+const FINISHED_RUN_STATUSES = ['succeeded', 'failed', 'budget_exceeded'] as const;
+
+/** The scanners that run when a PR is pushed (catalogue triggers). */
+export const PR_SCANNER_KEYS: readonly string[] = BUILTIN_SCANNERS.filter((s) =>
+  s.triggers.includes('pr_synced'),
+).map((s) => s.key);
+
+/**
+ * Which PR scanners are still to finish at the head, and which failed there
+ * (W20-15, UX_TODO X-13). Pure so the rule is unit-tested without a database.
+ */
+export function headScanState(
+  expected: readonly string[],
+  finished: ReadonlyMap<string, string>,
+  succeeded: ReadonlySet<string>,
+): { scanned: boolean; pending: string[]; failed: string[] } {
+  const pending = expected.filter((k) => !finished.has(k)).sort();
+  const failed = [...finished]
+    .filter(([key, status]) => status !== 'succeeded' && expected.includes(key))
+    .map(([key]) => key)
+    .sort();
+  // With no PR scanner enabled here, any finished run at the head is all the
+  // evidence there will ever be, as before.
+  const scanned =
+    expected.length > 0 ? pending.length === 0 : succeeded.size > 0 || finished.size > 0;
+  return { scanned, pending, failed };
 }
 
 /** The canonical 1-5 scale (ANALYSIS_TIERS.md §4), named the way the UI names it. */
@@ -142,6 +181,33 @@ export async function prFindings(
     .groupBy(security.scanRuns.scannerKey);
   const scannedAt = new Map<string, Date>();
   for (const r of headRuns) if (r.startedAt) scannedAt.set(r.scannerKey, r.startedAt);
+
+  // W20-15 (UX_TODO X-13): which PR scanners are enabled for this repository,
+  // and which of them have FINISHED at the head (latest run per scanner).
+  const configRows = await db
+    .select({
+      scannerKey: security.repoScannerConfig.scannerKey,
+      enabled: security.repoScannerConfig.enabled,
+    })
+    .from(security.repoScannerConfig)
+    .where(
+      and(
+        eq(security.repoScannerConfig.workspaceId, q.workspaceId),
+        eq(security.repoScannerConfig.repoId, q.repoId),
+        inArray(security.repoScannerConfig.scannerKey, [...PR_SCANNER_KEYS]),
+      ),
+    );
+  const config = new Map(configRows.map((r) => [r.scannerKey, { enabled: r.enabled }]));
+  const expected = PR_SCANNER_KEYS.filter((k) => isEnabled(k, config.get(k)));
+  const finishedRuns = await db
+    .select({ scannerKey: security.scanRuns.scannerKey, status: security.scanRuns.status })
+    .from(security.scanRuns)
+    .where(and(atHead, inArray(security.scanRuns.status, [...FINISHED_RUN_STATUSES])))
+    .orderBy(desc(security.scanRuns.startedAt), desc(security.scanRuns.id));
+  const finished = new Map<string, string>();
+  for (const r of finishedRuns)
+    if (!finished.has(r.scannerKey)) finished.set(r.scannerKey, r.status);
+  const headState = headScanState(expected, finished, new Set(scannedAt.keys()));
 
   // Every PR-triggered run at the head, any outcome: attribution rule 2 above.
   const prRunIds = (
@@ -240,10 +306,12 @@ export async function prFindings(
     },
     head: {
       sha: pr.headSha,
-      scanned: scannedAt.size > 0,
+      scanned: headState.scanned,
       scanners: [...scannedAt]
         .map(([scanner_key, at]) => ({ scanner_key, scanned_at: at.toISOString() }))
         .sort((a, b) => a.scanner_key.localeCompare(b.scanner_key)),
+      pending: headState.pending,
+      failed: headState.failed,
     },
     items: page.map((r) => {
       const headRun = r.scannerKey === null ? undefined : scannedAt.get(r.scannerKey);

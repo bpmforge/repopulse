@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   DataTable,
   SeverityBadge,
@@ -42,6 +43,43 @@ export function syncPollInterval(status: OrgSyncStatus | undefined): number | fa
 }
 
 const STATUS = { endpoint: '/sync/status' } as const;
+
+/**
+ * Problem phases first (W20-15, UX_TODO X-18). At 500 repositories, finding the
+ * three in `error` meant reading every row in database order.
+ */
+const PHASE_ORDER: Record<string, number> = {
+  error: 0,
+  paused_budget: 1,
+  paused: 2,
+  queued: 3,
+  history: 4,
+  enrichment: 5,
+  live: 6,
+};
+
+export function sortProblemsFirst(repos: readonly RepoSyncStatus[]): RepoSyncStatus[] {
+  return [...repos].sort(
+    (a, b) =>
+      (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) ||
+      (a.repoName ?? a.repoId).localeCompare(b.repoName ?? b.repoId),
+  );
+}
+
+/** How many repositories are in each phase, problem phases first. */
+export function phaseCounts(repos: readonly RepoSyncStatus[]): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const r of repos) counts.set(r.phase, (counts.get(r.phase) ?? 0) + 1);
+  return [...counts].sort((a, b) => (PHASE_ORDER[a[0]] ?? 9) - (PHASE_ORDER[b[0]] ?? 9));
+}
+
+/** "github · github.com" — the connection a row syncs through. */
+export function connectionLabel(c: RepoSyncStatus['connection']): string {
+  // Absent: an older API that does not say. Null: the connection row is gone.
+  if (c === undefined) return '';
+  if (c === null) return 'connection removed';
+  return c.host ? `${c.provider} · ${c.host}` : c.provider;
+}
 
 /**
  * Pause / Resume one repository (W20-07, UX_TODO INS-09).
@@ -150,12 +188,18 @@ export function SyncOps() {
     refetchInterval: syncPollInterval,
   });
 
-  const repos = data?.repos ?? [];
+  // A phase picked from the summary narrows the table ("3 errors").
+  const [phaseFilter, setPhaseFilter] = useState<string | null>(null);
+  const allRepos = data?.repos ?? [];
+  const repos = sortProblemsFirst(
+    phaseFilter ? allRepos.filter((r) => r.phase === phaseFilter) : allRepos,
+  );
+  const counts = phaseCounts(allRepos);
   const { data: connections } = useApiQuery<ConnectionList>({ endpoint: '/connections' });
   const connectionCount = connections?.items?.filter((c) => c.status !== 'removed').length;
   // INS-32: the status endpoint has no real budget reading yet (every row is
   // 0/0), so the column is shown only once one is recorded.
-  const budgetRecorded = repos.some((r) => r.budget.limit > 0);
+  const budgetRecorded = allRepos.some((r) => r.budget.limit > 0);
 
   const budgetColumn: DataTableColumn<RepoSyncStatus> = {
     id: 'budget',
@@ -178,6 +222,12 @@ export function SyncOps() {
     // W16-05 (F11): this showed the numeric id. Falls back to it only if an
     // older API is answering, rather than rendering `undefined`.
     { id: 'repo', header: 'Repo', cell: (row) => row.repoName ?? row.repoId },
+    {
+      // W20-15 (UX_TODO X-18): which of several connections is the one failing.
+      id: 'connection',
+      header: 'Connection',
+      cell: (row) => <span className="text-xs">{connectionLabel(row.connection)}</span>,
+    },
     {
       id: 'phase',
       header: 'Phase',
@@ -289,6 +339,40 @@ export function SyncOps() {
             </div>
           </dl>
         )}
+        {counts.length > 0 && (
+          // Counts per phase that filter the table below (W20-15, X-18).
+          <div
+            className="mt-3 flex flex-wrap items-center gap-2 text-xs"
+            role="group"
+            aria-label="Filter by phase"
+            data-testid="sync-phase-counts"
+          >
+            {counts.map(([phase, n]) => (
+              <button
+                key={phase}
+                type="button"
+                aria-pressed={phaseFilter === phase}
+                onClick={() => setPhaseFilter(phaseFilter === phase ? null : phase)}
+                className={`rounded-md border px-2 py-0.5 ${
+                  phaseFilter === phase ? 'border-accent text-fg' : 'border-border text-fg-muted'
+                } hover:border-accent`}
+                data-testid={`sync-phase-filter-${phase}`}
+              >
+                {n} {phase.replace(/_/g, ' ')}
+              </button>
+            ))}
+            {phaseFilter && (
+              <button
+                type="button"
+                onClick={() => setPhaseFilter(null)}
+                className="text-fg-muted underline"
+                data-testid="sync-phase-filter-clear"
+              >
+                Show all
+              </button>
+            )}
+          </div>
+        )}
       </WidgetFrame>
 
       <WidgetFrame
@@ -296,7 +380,7 @@ export function SyncOps() {
         state={frameState({
           isLoading,
           isError,
-          isEmpty: data !== undefined && repos.length === 0,
+          isEmpty: data !== undefined && allRepos.length === 0,
         })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}

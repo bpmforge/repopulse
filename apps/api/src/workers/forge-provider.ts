@@ -14,7 +14,7 @@ import {
 } from '../routes/connections/provider-factory.js';
 import { credentials } from '@repopulse/auth';
 import { core, type Database } from '@repopulse/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 // Builds the ForgeProvider ingestion runs against (W12-03).
 //
@@ -57,6 +57,8 @@ export async function providerForRepo(
   deps: WorkerProviderDeps,
   workspaceId: number,
   repoId: number,
+  /** Uninstall (W20-15, X-27) still removes a paused repository's hook. */
+  opts: { includePaused?: boolean } = {},
 ): Promise<{ provider: ForgeProvider; repoFullName: string } | null> {
   const [repo] = await deps.db
     .select({
@@ -67,7 +69,8 @@ export async function providerForRepo(
       syncStatus: core.repos.syncStatus,
     })
     .from(core.repos)
-    .where(eq(core.repos.id, repoId))
+    // Workspace-filtered like every tenant query (Law 5); it read by id alone.
+    .where(and(eq(core.repos.id, repoId), eq(core.repos.workspaceId, workspaceId)))
     .limit(1);
   if (!repo) return null;
   // W20-07 (UX_TODO INS-09): a PAUSED repo makes no forge calls. Every
@@ -75,7 +78,7 @@ export async function providerForRepo(
   // in-flight backfill pages, webhook deltas and scans alike; they end
   // quietly like a purged connection's would, and Resume re-plans from the
   // cursors they left.
-  if (repo.syncStatus === 'paused') return null;
+  if (repo.syncStatus === 'paused' && !opts.includePaused) return null;
 
   const [conn] = await deps.db
     .select()

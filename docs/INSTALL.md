@@ -103,6 +103,7 @@ podman compose -f deploy/compose.yaml down     # stop; data stays in the volumes
 deploy/backup.sh                               # dump the database beside a manifest
 deploy/scan-db-sync.sh                         # refresh scan rules + fetch the CVE database
 deploy/smoke-report-pdf.sh                     # generate one report and download its PDF
+deploy/uninstall.sh                            # remove RepoPulse (webhooks first) — see Uninstall
 ```
 
 ### Start on boot
@@ -713,6 +714,40 @@ RepoPulse publishes one plain-HTTP port. Your terminator should:
   rate limits and audit lines are per person rather than shared by everyone.
 
 [DEPLOYMENT.md](DEPLOYMENT.md) has the topology, ports and monitoring detail.
+
+## Uninstall
+
+`down -v` deletes the data but is not an uninstall. Tracking a repository
+registers a push webhook on it; left behind, every one of them keeps sending
+deliveries that fail to a server that no longer exists. Run, **while the stack
+is still up** (step 1 reads the database):
+
+```bash
+deploy/uninstall.sh                     # asks before each step; --yes to skip the questions
+```
+
+In order, it:
+
+1. removes every webhook RepoPulse registered, on every tracked repository of
+   every active connection (the hooks pointing at `PUBLIC_BASE_URL`; a hook
+   another service registered is never touched). It runs
+   `pnpm remove:webhooks` inside the api image, through the budgeted forge
+   client. Any repository it could not clean up is named — remove that hook in
+   the forge's repository *Settings → Webhooks*. Already lost the forge or the
+   database? `--keep-webhooks` skips this step;
+2. offers a final `deploy/backup.sh`. Keep `TOKEN_ENC_KEY` with it, or it can
+   never be restored;
+3. runs `down -v`, which deletes `repopulse_pgdata`, `repopulse_redisdata` and
+   `repopulse_reportdata`, and removes the fixed-name `repopulse-scan-scratch`
+   volume and the Claude CLI volume, if you added one;
+4. deletes `SCAN_RULES_DIR` and `EXTRA_CA_DIR` (it asks for each);
+5. prints what only you can do: delete the nightly `backup.sh` and
+   `scan-db-sync.sh` cron lines, revoke the forge tokens (or uninstall the
+   GitHub App) on the forge, and remove the `REPOPULSE_TOKEN` secrets from
+   your pipelines.
+
+Backups you took are not touched. Delete `deploy/.env` last, once no backup
+needs its `TOKEN_ENC_KEY`.
 
 ## Troubleshooting
 

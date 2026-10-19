@@ -447,6 +447,34 @@ describe('GitHubProvider contract (W1-06, zero network)', () => {
     expect(client.calls[0]?.method).toBe('POST');
   });
 
+  // W20-15 (UX_TODO X-27): uninstall removes OUR hooks, found by URL, and
+  // never a hook another service registered on the same repository.
+  it('deleteWebhooks removes only the hooks that deliver to our URL', async () => {
+    const client = makeStubClient([
+      {
+        method: 'GET',
+        url: `${API}/repos/${REPO}/hooks?per_page=100`,
+        response: {
+          status: 200,
+          body: [
+            { id: 1, config: { url: 'https://rp.example/api/v1/webhooks/github' } },
+            { id: 2, config: { url: 'https://ci.example/hook' } },
+          ],
+        },
+      },
+      {
+        method: 'DELETE',
+        url: `${API}/repos/${REPO}/hooks/1`,
+        response: { status: 204, body: null },
+      },
+    ]);
+    const p = new GitHubProvider({ client, auth });
+    expect(await p.deleteWebhooks(ctx, REPO, 'https://rp.example/api/v1/webhooks/github')).toBe(1);
+    expect(client.calls.filter((c) => c.method === 'DELETE').map((c) => c.url)).toEqual([
+      `${API}/repos/${REPO}/hooks/1`,
+    ]);
+  });
+
   it('an unrouted call throws (no live github.com escape)', async () => {
     const p = provider([]);
     await expect(p.getRepo(ctx, 'acme/nope')).rejects.toThrow(/would hit network/);

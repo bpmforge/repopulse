@@ -396,6 +396,30 @@ describe('GiteaProvider contract (W7-02, zero network)', () => {
     );
   });
 
+  it('deleteWebhooks removes only the hooks that deliver to our URL (W20-15, X-27)', async () => {
+    const client = makeStubClient([
+      {
+        method: 'GET',
+        url: `${API}/repos/${REPO}/hooks?limit=50`,
+        response: {
+          status: 200,
+          body: [
+            { id: 7, config: { url: 'https://other.example/hook' } },
+            { id: 8, config: { url: 'https://rp.example/hook' } },
+          ],
+        },
+      },
+      {
+        method: 'DELETE',
+        url: `${API}/repos/${REPO}/hooks/8`,
+        response: { status: 204, body: null },
+      },
+    ]);
+    const p = new GiteaProvider({ client, auth, baseUrl: HOST });
+    expect(await p.deleteWebhooks(ctx, REPO, 'https://rp.example/hook')).toBe(1);
+    expect(client.calls.map((c) => c.method)).toEqual(['GET', 'DELETE']);
+  });
+
   describe('verifyWebhook — X-Gitea-Signature is a BARE hex digest', () => {
     const body = Buffer.from('{"action":"opened"}');
     const secret = 'whsec';

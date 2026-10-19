@@ -15,6 +15,7 @@ import {
 } from './contracts.js';
 import { VERIFY_LABEL, locationOf, statusLabel, type Finding } from '../findings/contracts.js';
 import { FindingSeverityBadge } from '../findings/FindingSeverity.js';
+import { PrCiFindingsPanel } from './PrCiFindings.js';
 import { forgeNameOf } from '../file/contracts.js';
 
 // PR Detail (UX_SPEC §4.c): stage timeline, review feed, checks summary, and the
@@ -226,6 +227,9 @@ export function PrDetailScreen({ repoId, number, search }: Props) {
           />
         </div>
       </WidgetFrame>
+
+      {/* W20-15 (UX_TODO X-15): the same new-on-this-PR list the CI pulls. */}
+      <PrCiFindingsPanel repoId={repoId} number={number} />
 
       <WidgetFrame
         title="Automated review"

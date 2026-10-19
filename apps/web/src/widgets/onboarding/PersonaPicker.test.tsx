@@ -5,6 +5,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
 import { PersonaPicker } from './PersonaPicker.js';
 
+const navigateSpy = vi.fn();
+vi.mock('@tanstack/react-router', async (orig) => ({
+  ...(await orig<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => navigateSpy,
+}));
+
 // W16-26. The picker was mandatory and it intercepted the one action a first
 // run sends you to: the welcome state says "Connect your organization to start
 // ingesting history", and clicking that button raised this dialog instead.
@@ -41,9 +47,13 @@ beforeEach(() => {
   // "Not now" is remembered for the SESSION, so it has to be cleared between
   // tests or the second one renders nothing and passes for the wrong reason.
   window.sessionStorage.clear();
+  navigateSpy.mockReset();
   stubFetch(ME_NO_PERSONA);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  window.history.replaceState(null, '', '/');
+});
 
 describe('PersonaPicker (W16-26)', () => {
   it('offers a way past itself', async () => {
@@ -93,5 +103,36 @@ describe('PersonaPicker (W16-26)', () => {
     renderPicker();
 
     await waitFor(() => expect(screen.queryByTestId('persona-picker')).toBeNull());
+  });
+
+  // W20-15 (UX_TODO X-25). The dialog opens over every route, so a colleague
+  // who followed a shared link lost it the moment they picked a persona.
+  it('stays on a deep-linked page when a persona is picked there', async () => {
+    window.history.replaceState(null, '', '/findings?finding=812');
+    stubFetch({ ...ME_NO_PERSONA, home: '/me' });
+    renderPicker();
+    await userEvent.click(await screen.findByTestId('persona-security'));
+    await waitFor(() =>
+      expect(
+        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+          ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
+        ),
+      ).toBe(true),
+    );
+    // Give the mutation's onSuccess a chance to run.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('goes to the persona home when picked from the landing page', async () => {
+    stubFetch({ ...ME_NO_PERSONA, home: '/me' });
+    renderPicker();
+    await userEvent.click(await screen.findByTestId('persona-developer'));
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith({ to: '/me' }));
+  });
+
+  it('words the defer button for anyone, not just the admin doing setup', async () => {
+    renderPicker();
+    expect(await screen.findByTestId('persona-defer')).toHaveTextContent(/^Not now$/);
   });
 });

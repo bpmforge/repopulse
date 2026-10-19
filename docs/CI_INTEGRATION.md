@@ -80,7 +80,7 @@ RepoPulse distribution.
 | `--max-new N` | fail when more than N new findings remain |
 | `--include-experimental` | also count findings from rules still in shadow mode (excluded by default) |
 | `--sha SHA` | the PR head commit this pipeline tests; RepoPulse must have scanned exactly this commit |
-| `--wait SECONDS` | poll (every 15 s at most) until that scan exists |
+| `--wait SECONDS` | poll (every 15 s at most) until every PR scanner has finished on that commit — and, on a PR's first pipeline, until RepoPulse has ingested the PR at all |
 | `--allow-unscanned` | do not fail when the head has not been scanned yet |
 | `--sarif PATH` / `--markdown PATH` / `--json PATH` | write SARIF 2.1.0, a markdown summary, the raw findings |
 
@@ -92,8 +92,15 @@ line, because arguments end up in process lists and CI logs.
 | 0 | passed |
 | 1 | a threshold was breached (`--fail-on` / `--max-new`) |
 | 2 | usage error |
-| 3 | RepoPulse refused or could not be reached (bad token, unknown repo or PR) |
-| 4 | not ready: RepoPulse has not scanned the PR head yet (or holds a different head than `--sha`) |
+| 3 | RepoPulse refused or could not be reached (bad token, a token that does not name the repository) |
+| 4 | not ready: RepoPulse has not ingested the PR yet, has not finished scanning its head, or holds a different head than `--sha` |
+
+The head counts as scanned only once **every** scanner that runs on a PR push for
+that repository has finished a run on it, succeeded or failed (W20-15). The answer
+names the ones still running (`head.pending`) and the ones that failed there
+(`head.failed`), and the markdown summary repeats both. A PR the forge's webhook
+has not reached RepoPulse with yet answers 404 with the problem type
+`urn:repopulse:problem:pr-not-synced`; `--wait` keeps polling through it.
 
 The reports are written for codes 0, 1 and 4, so a comment step can run after a
 failed check.

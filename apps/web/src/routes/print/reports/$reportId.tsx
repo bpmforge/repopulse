@@ -28,6 +28,8 @@ const SECTION_TITLE: Record<string, string> = {
   ci: 'CI',
   pr_flow: 'PR flow',
   top_risks: 'Top risks',
+  // W20-15 (UX_TODO X-22): open findings only, so the heading says so.
+  findings: 'Open findings',
   risk_counts: 'Risk counts',
   score_breakdown: 'Health score breakdown',
   sbom: 'SBOM',
@@ -56,7 +58,31 @@ interface ReportSection {
   reason?: string;
   columns?: string[];
   rows?: unknown[][];
+  /** The column holding each row's finding id (W20-15, UX_TODO X-23). */
+  findingIdColumn?: number;
   subScore?: string;
+}
+
+/**
+ * Where a report's finding links point (W20-15, UX_TODO X-23).
+ *
+ * In the app, this page's own origin. In the PDF, the printing browser loads
+ * the page from an internal address (REPORT_PRINT_BASE_URL, e.g.
+ * http://web:8080) that a reader cannot open, so the pipeline injects the
+ * public address as window.__REPORT_LINK_BASE and the links use that.
+ */
+export function reportLinkBase(): string {
+  const injected = (window as unknown as { __REPORT_LINK_BASE?: unknown }).__REPORT_LINK_BASE;
+  const base =
+    typeof injected === 'string' && injected.length > 0 ? injected : window.location.origin;
+  return base.replace(/\/+$/, '');
+}
+
+/** The absolute link to a finding in RepoPulse, or null if `v` is not an id. */
+export function findingHref(v: unknown, base: string = reportLinkBase()): string | null {
+  const id = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return `${base}/findings?finding=${id}`;
 }
 
 interface ReportDataShape {
@@ -362,11 +388,25 @@ function PrintReport() {
                 <tbody>
                   {(section.rows ?? []).map((row, ri) => (
                     <tr key={ri} className={ROW}>
-                      {row.map((v, ci) => (
-                        <td key={ci} className={CELL}>
-                          {cell(v)}
-                        </td>
-                      ))}
+                      {row.map((v, ci) => {
+                        // A finding row links back to the finding (X-23).
+                        const href = ci === section.findingIdColumn ? findingHref(v) : null;
+                        return (
+                          <td key={ci} className={CELL}>
+                            {href ? (
+                              <a
+                                href={href}
+                                className="text-accent underline"
+                                data-testid="report-finding-link"
+                              >
+                                #{cell(v)}
+                              </a>
+                            ) : (
+                              cell(v)
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

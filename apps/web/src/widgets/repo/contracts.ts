@@ -3,11 +3,19 @@
 // no response schemas, so schema.gen.ts gives typed paths with no body. The
 // handlers in apps/api/src/routes/{repos,prs,metrics} are the contract.
 
+/** "github.com" or "gitea · git.corp.example" (W20-15, UX_TODO X-16). */
+export function forgeLabel(forge: { provider: string; host: string | null }): string {
+  if (!forge.host) return forge.provider;
+  return forge.host.includes(forge.provider) ? forge.host : `${forge.provider} · ${forge.host}`;
+}
+
 /** GET /repos/{id}?window= */
 export interface RepoDetail {
   id: number;
   org: string;
   name: string;
+  /** Which forge and host (W20-15, UX_TODO X-16). Optional for an older API. */
+  forge?: { provider: string; host: string | null } | null;
   sync: string;
   /** W20-12 (UX_TODO DSH-24): when the forge was last read. Optional: older API. */
   last_synced_at?: string | null;

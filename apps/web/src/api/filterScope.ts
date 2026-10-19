@@ -50,6 +50,11 @@ export function filterScopeFor(pathname: string): FilterScope {
   // it, and a window would quietly hide the oldest ones, which are the ones
   // that matter most.
   if (pathname.startsWith('/findings')) return { window: false, repos: true, person: false };
+  // Sensitive changes honours ?repos= (Reviews carries it across), so the
+  // picker must show there or the narrowing is invisible and cannot be
+  // cleared (W20-15, UX_TODO X-26). Like findings, it has no window.
+  if (pathname.startsWith('/sensitive-changes'))
+    return { window: false, repos: true, person: false };
   // Plans are generated FOR a window and a repository set and then keep them;
   // the controls pick the scope the next one is generated over, and the list
   // narrows to plans with exactly that scope (W17-24).

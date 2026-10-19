@@ -402,6 +402,29 @@ export class GitLabProvider implements ForgeProvider {
     return String(body.id ?? '');
   }
 
+  async deleteWebhooks(ctx: CallCtx, repo: string, url: string): Promise<number> {
+    // GitLab project hooks carry the URL at the top level, not under config.
+    const res = await this.client.request(ctx, {
+      method: 'GET',
+      url: `${this.base}/projects/${projectPath(repo)}/hooks?per_page=100`,
+      family: 'commits',
+      getHeaders: this.getHeaders,
+    });
+    const hooks = (res.body as { id: number; url?: string }[] | null) ?? [];
+    let removed = 0;
+    for (const hook of hooks) {
+      if (hook.url !== url) continue;
+      await this.client.request(ctx, {
+        method: 'DELETE',
+        url: `${this.base}/projects/${projectPath(repo)}/hooks/${hook.id}`,
+        family: 'commits',
+        getHeaders: this.getHeaders,
+      });
+      removed += 1;
+    }
+    return removed;
+  }
+
   /**
    * GitLab sends the SECRET ITSELF in X-Gitlab-Token — no HMAC, no signature
    * over the body. The `rawBody` parameter is therefore unused here, which is

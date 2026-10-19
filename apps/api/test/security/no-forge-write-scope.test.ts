@@ -75,7 +75,8 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
   it('the forge port has no write operation beyond the pre-existing push-webhook registration', () => {
     const src = read('packages/forge/src/provider.ts');
     const body = src.slice(src.indexOf('export interface ForgeProvider'));
-    const methods = [...body.matchAll(/^ {2}([a-zA-Z]+)\(/gm)].map((m) => m[1]);
+    // Optional methods (`name?(`) count too, so none can slip in unlisted.
+    const methods = [...body.matchAll(/^ {2}([a-zA-Z]+)\??\(/gm)].map((m) => m[1]);
     expect(methods).toEqual([
       'listRepos',
       'getRepo',
@@ -85,26 +86,34 @@ describe('D9a: RepoPulse holds no forge write scope (W18-18)', () => {
       'getPullRequest',
       'getPullRequestFiles',
       'listReviews',
+      'listReviewComments', // optional, a read
       'listCheckRuns',
       'listReleases',
       'listDeployments',
       'listIssues',
       'getFileContent',
       'getTarball',
+      'listCodeScanningAlerts', // optional, a read
       'registerWebhook',
+      // W20-15 (UX_TODO X-27): uninstall removes the push hook RepoPulse itself
+      // registered, matched by its delivery URL. Same hook scope as
+      // registration; it undoes the one pre-existing write, adds no new one.
+      'deleteWebhooks',
       'verifyWebhook',
     ]);
   });
 
-  it('the forge clients send a non-GET only to GraphQL (a read) or to register the push webhook', () => {
+  it('the forge clients send a non-GET only to GraphQL (a read) or to register or remove the push webhook', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles(path.join(ROOT, 'packages/forge/src'))) {
       const lines = readFileSync(file, 'utf8').split('\n');
       lines.forEach((line, i) => {
         if (!/method:\s*['"](POST|PUT|PATCH|DELETE)['"]/.test(line)) return;
         const near = lines.slice(i, i + 3).join('\n');
-        if (!/\/graphql`|\/hooks`/.test(near))
-          offenders.push(`${path.relative(ROOT, file)}:${i + 1}`);
+        // W20-15 (X-27): DELETE is allowed only on one hook by id (uninstall).
+        const isDelete = /method:\s*['"]DELETE['"]/.test(line);
+        const allowed = isDelete ? /\/hooks\/\$\{hook\.id\}`/ : /\/graphql`|\/hooks`/;
+        if (!allowed.test(near)) offenders.push(`${path.relative(ROOT, file)}:${i + 1}`);
       });
     }
     expect(offenders).toEqual([]);

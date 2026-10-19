@@ -97,5 +97,13 @@ export interface ForgeProvider {
     secret: string,
     events: string[],
   ): Promise<string>;
+  /**
+   * Remove every hook on `repo` that delivers to `url`, and say how many
+   * (W20-15, UX_TODO X-27: uninstall). Matched by delivery URL rather than a
+   * stored hook id, so hooks registered before ids were kept are found too,
+   * and a hook someone else added for another service is never touched.
+   * Optional: an adapter without it cannot clean up and says so.
+   */
+  deleteWebhooks?(ctx: CallCtx, repo: string, url: string): Promise<number>;
   verifyWebhook(rawBody: Buffer, signatureHeader: string, secret: string): boolean; // timingSafeEqual, sync
 }

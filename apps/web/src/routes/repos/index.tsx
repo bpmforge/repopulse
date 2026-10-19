@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { serializeGlobalSearch } from '@repopulse/shared/url-state';
 import { HealthBadge, PageHeader, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { forgeLabel } from '../../widgets/repo/contracts.js';
 
 // Repo list — the breadcrumb's middle rung. Org Overview links straight to a
 // repo, but a pasted /repos URL has to land somewhere real rather than the
@@ -24,6 +25,10 @@ interface RepoRow {
   id: number;
   org: string;
   name: string;
+  /** Which forge and host (W20-15, UX_TODO X-16). Optional for an older API. */
+  forge?: { provider: string; host: string | null } | null;
+  /** The same org/name is tracked through another connection too. */
+  tracked_twice?: boolean;
   sync: string;
   health: {
     /** null when nothing has been measured — NOT a zero (W17-18, API side). */
@@ -242,6 +247,24 @@ function RepoList() {
             <span>Health score (0–100)</span>
           </div>
 
+          {/* W20-15 (UX_TODO X-16): a repository mirrored on two forges is
+              tracked twice, and its commits, PRs and findings count twice in
+              every org number. Said once, here, with the way out. */}
+          {items.some((r) => r.tracked_twice) && (
+            <p
+              role="status"
+              className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg"
+              data-testid="repo-list-duplicates"
+            >
+              Tracked through more than one connection:{' '}
+              {[...new Set(items.filter((r) => r.tracked_twice).map((r) => `${r.org}/${r.name}`))]
+                .slice(0, 5)
+                .join(', ')}
+              . Each one&apos;s activity is counted twice in organisation numbers; an admin can
+              pause the copy you do not want in Settings → Sync.
+            </p>
+          )}
+
           <ul className="flex flex-col gap-2" data-testid="repo-list">
             {items.map((repo) => (
               <li key={repo.id}>
@@ -261,6 +284,12 @@ function RepoList() {
                       name must not share a line with anything. */}
                     <span className="truncate text-xs text-fg-muted" data-testid="repo-row-org">
                       {repo.org}
+                      {repo.forge && (
+                        <span data-testid="repo-row-forge">
+                          {' · '}
+                          {forgeLabel(repo.forge)}
+                        </span>
+                      )}
                     </span>
                     <span className="truncate" data-testid="repo-row-name">
                       {repo.name}
