@@ -411,48 +411,6 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     default: 'unset',
   },
   {
-    name: 'REPOPULSE_VERSION',
-    scope: 'shared',
-    required: false,
-    default: 'dev',
-    purpose:
-      'The release tag of the images to run. install.sh pins it in deploy/.env, compose uses it to pick the images, and the api shows it in Settings → System health and the rail (W20-14) so an operator knows which release they are upgrading from.',
-    ifWrong:
-      'up.sh refuses dev/latest when the images are pre-built. A value that does not match the loaded images makes compose look for images that are not there.',
-  },
-  // INS-63: the outbound proxy group. Read by Node itself (fetch and Octokit go
-  // through undici's EnvHttpProxyAgent only when NODE_USE_ENV_PROXY=1), not by
-  // our code; registered so CONFIG.md and the setup screen name them.
-  {
-    name: 'HTTPS_PROXY',
-    scope: 'shared',
-    required: false,
-    purpose:
-      'Outbound proxy for every HTTPS call the api and worker make (forge API, repository tarballs, hosted models, the OIDC issuer), e.g. http://proxy.corp.example:3128. Only used when NODE_USE_ENV_PROXY=1 is also set. A TLS-inspecting proxy also needs its CA in NODE_EXTRA_CA_CERTS.',
-    ifWrong:
-      'Unset behind a proxy that is the only way out: connecting to the forge times out and is reported as "could not reach". Set without NODE_USE_ENV_PROXY=1: Node ignores it.',
-    default: 'unset',
-  },
-  {
-    name: 'NO_PROXY',
-    scope: 'shared',
-    required: false,
-    purpose:
-      'Comma-separated hosts that bypass HTTPS_PROXY. Keep the stack’s own service names in it (api,web,postgres,redis,scan-runner,localhost,127.0.0.1) and add an internal forge or model host the proxy cannot reach.',
-    ifWrong:
-      'Missing the service names: calls between containers (such as http://scan-runner:3310) are sent to the proxy and fail.',
-    default: 'unset',
-  },
-  {
-    name: 'NODE_USE_ENV_PROXY',
-    scope: 'shared',
-    required: false,
-    purpose:
-      'Set to 1 to make Node honour HTTPS_PROXY and NO_PROXY for fetch and Octokit (Node 22.21+, which the images ship). Harmless when no proxy is set.',
-    ifWrong: 'Unset: HTTPS_PROXY and NO_PROXY are ignored, and every outbound call goes direct.',
-    default: 'unset',
-  },
-  {
     name: 'SNAPSHOT_ROOT',
     scope: 'worker',
     required: false,
