@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
-import { SignIn } from './SignIn.js';
+import { SignIn, callbackErrorFrom } from './SignIn.js';
 import type { AuthProviders } from './contracts.js';
 
 // The defect this screen exists to prevent is a button for a provider nobody
@@ -183,5 +183,47 @@ describe('demo mode (W16-02)', () => {
     expect(screen.queryByTestId('signin-demo-banner')).toBeNull();
     expect(screen.getByTestId('signin-email')).toHaveValue('');
     expect(screen.getByTestId('signin-password')).toHaveValue('');
+  });
+});
+
+// W20-04 (UX_TODO INS-14). A failed OIDC or GitHub callback is a full-page
+// navigation; it used to end on raw JSON. The API now sends the browser back
+// here with a reason code and the request id.
+describe('SignIn after a failed federated callback (W20-04)', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('says what happened, with the request id, and drops the params from the URL', async () => {
+    window.history.replaceState(null, '', '/?auth_error=state_mismatch&request_id=req-cb1');
+    renderSignIn({ oidc: { display_name: 'Okta' } });
+    const alert = await screen.findByTestId('signin-callback-error');
+    expect(alert).toHaveTextContent(/started in another tab/);
+    expect(screen.getByTestId('signin-callback-request-id')).toHaveTextContent('req-cb1');
+    await waitFor(() => expect(window.location.search).toBe(''));
+  });
+
+  it('maps every code the API sends, and still says something for an unknown one', () => {
+    for (const code of [
+      'missing_code_or_state',
+      'missing_state_cookie',
+      'state_mismatch',
+      'oidc_provider_error',
+      'oidc_discovery_failed',
+      'oidc_exchange_failed',
+      'oauth_exchange_failed',
+      'identity_fetch_failed',
+      'oidc_id_token_invalid',
+    ]) {
+      expect(callbackErrorFrom(`?auth_error=${code}`)?.message, code).not.toMatch(
+        /did not complete/,
+      );
+    }
+    expect(callbackErrorFrom('?auth_error=new_thing')?.message).toMatch(/did not complete/);
+    expect(callbackErrorFrom('')).toBeNull();
+  });
+
+  it('shows nothing on an ordinary visit', async () => {
+    renderSignIn();
+    await screen.findByTestId('signin-local');
+    expect(screen.queryByTestId('signin-callback-error')).toBeNull();
   });
 });

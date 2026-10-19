@@ -43,6 +43,9 @@ export default defineConfig({
     proxy: {
       '/api': { target: apiProxyTarget, changeOrigin: true },
       '/auth': { target: apiProxyTarget, changeOrigin: true },
+      // W20-04 (UX_TODO ADM-43): the shell asks /healthz what is down when the
+      // session probe fails. nginx already routes it in the packaged install.
+      '/healthz': { target: apiProxyTarget, changeOrigin: true },
     },
   },
 });

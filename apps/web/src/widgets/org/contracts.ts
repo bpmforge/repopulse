@@ -167,6 +167,11 @@ export function formatKpi(value: number | null, unit?: string): string | null {
 export interface MeContext {
   workspace: { id: number; slug: string; name: string };
   role: 'admin' | 'member';
+  /**
+   * W20-04 (UX_TODO ADM-11). The signed-in user's own id, so Members can warn
+   * before an admin demotes themselves. Optional: an older API omits it.
+   */
+  user_id?: number;
   identity_id: number | null;
   default_view_id: number | null;
   /** W4-10 (UX_SPEC §6). null = never asked, which is what opens the picker. */

@@ -1,9 +1,9 @@
 import fp from 'fastify-plugin';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, type Database } from '@repopulse/shared';
 import { findOrCreateUserForSubject } from '@repopulse/auth';
 import { oidc } from '@repopulse/auth';
-import { sendProblem } from './problem.js';
+import { redirectToSignIn } from './problem.js';
 import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
 
 // Generic OIDC login (W15-03, D14).
@@ -77,63 +77,70 @@ function decodeTx(value: string): LoginTransaction | null {
 async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promise<void> {
   const { config } = opts;
 
-  app.get('/auth/oidc/login', { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } }, async (request, reply) => {
-    let metadata: oidc.OidcProviderMetadata;
-    try {
-      metadata = await oidc.discover(config.issuer);
-    } catch (err) {
-      request.log.error({ err }, 'OIDC discovery failed');
-      auditLog(request.log, {
-        event: 'auth.login.failure',
-        actorUserId: null,
-        reason: 'oidc_discovery_failed',
-        ...auditContext(request),
+  app.get(
+    '/auth/oidc/login',
+    { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
+    async (request, reply) => {
+      let metadata: oidc.OidcProviderMetadata;
+      try {
+        metadata = await oidc.discover(config.issuer);
+      } catch (err) {
+        request.log.error({ err }, 'OIDC discovery failed');
+        auditLog(request.log, {
+          event: 'auth.login.failure',
+          actorUserId: null,
+          reason: 'oidc_discovery_failed',
+          ...auditContext(request),
+        });
+        // A full-page navigation from the sign-in screen: send it back there with
+        // the reason rather than strand it on JSON (W20-04, UX_TODO INS-14).
+        return redirectToSignIn(request, reply, opts.loginRedirectUrl, 'oidc_discovery_failed');
+      }
+
+      const tx: LoginTransaction = {
+        state: oidc.generateState(),
+        nonce: oidc.generateNonce(),
+        verifier: oidc.createPkcePair().verifier,
+      };
+      // The cookie is SIGNED, so a callback cannot arrive carrying a state the
+      // attacker chose — that is the classic OIDC CSRF, and it is why state has
+      // to be compared against something the browser could not have forged.
+      reply.setCookie(TX_COOKIE, encodeTx(tx), {
+        signed: true,
+        httpOnly: true,
+        secure: opts.cookieSecure,
+        sameSite: 'lax',
+        path: CALLBACK_PATH,
+        maxAge: TX_MAX_AGE_SECONDS,
       });
-      return sendProblem(request, reply, 502, 'Identity provider discovery failed');
-    }
 
-    const tx: LoginTransaction = {
-      state: oidc.generateState(),
-      nonce: oidc.generateNonce(),
-      verifier: oidc.createPkcePair().verifier,
-    };
-    // The cookie is SIGNED, so a callback cannot arrive carrying a state the
-    // attacker chose — that is the classic OIDC CSRF, and it is why state has
-    // to be compared against something the browser could not have forged.
-    reply.setCookie(TX_COOKIE, encodeTx(tx), {
-      signed: true,
-      httpOnly: true,
-      secure: opts.cookieSecure,
-      sameSite: 'lax',
-      path: CALLBACK_PATH,
-      maxAge: TX_MAX_AGE_SECONDS,
-    });
-
-    return reply.redirect(
-      oidc.buildAuthorizationUrl(config, metadata, {
-        state: tx.state,
-        nonce: tx.nonce,
-        codeChallenge: oidc.deriveChallenge(tx.verifier),
-      }),
-    );
-  });
+      return reply.redirect(
+        oidc.buildAuthorizationUrl(config, metadata, {
+          state: tx.state,
+          nonce: tx.nonce,
+          codeChallenge: oidc.deriveChallenge(tx.verifier),
+        }),
+      );
+    },
+  );
 
   app.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
     CALLBACK_PATH,
     { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
     async (request, reply) => {
-      const fail = (
-        status: number,
-        reason: string,
-        title: string,
-      ): void => {
+      // Audited with the precise reason; the BROWSER goes back to the sign-in
+      // screen with a code it can explain (W20-04, UX_TODO INS-14). It used to
+      // end on a raw problem+json page with no way back. `title` stays as the
+      // log message, which is where an operator reads it.
+      const fail = (reason: string, title: string, code: string = reason): FastifyReply => {
         auditLog(request.log, {
           event: 'auth.login.failure',
           actorUserId: null,
           reason,
           ...auditContext(request),
         });
-        return sendProblem(request, reply, status, title);
+        request.log.info({ reason }, title);
+        return redirectToSignIn(request, reply, opts.loginRedirectUrl, code);
       };
 
       const cookieValue = request.cookies[TX_COOKIE];
@@ -146,18 +153,18 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
         // The provider refused (consent denied, account disabled). Its message
         // is not echoed back — it is attacker-influenceable text.
         request.log.info({ oidcError: error }, 'OIDC provider returned an error');
-        return fail(400, 'oidc_provider_error', 'Sign-in was refused by the identity provider');
+        return fail('oidc_provider_error', 'Sign-in was refused by the identity provider');
       }
-      if (!code || !state) return fail(400, 'missing_code_or_state', 'Missing code or state');
-      if (!cookieValue) return fail(400, 'missing_state_cookie', 'Missing OIDC login cookie');
+      if (!code || !state) return fail('missing_code_or_state', 'Missing code or state');
+      if (!cookieValue) return fail('missing_state_cookie', 'Missing OIDC login cookie');
 
       const unsigned = request.unsignCookie(cookieValue);
       if (!unsigned.valid || unsigned.value === null) {
-        return fail(400, 'state_mismatch', 'OIDC login cookie is not valid');
+        return fail('state_mismatch', 'OIDC login cookie is not valid');
       }
       const tx = decodeTx(unsigned.value);
       if (!tx || tx.state !== state) {
-        return fail(400, 'state_mismatch', 'OIDC state mismatch');
+        return fail('state_mismatch', 'OIDC state mismatch');
       }
 
       let metadata: oidc.OidcProviderMetadata;
@@ -165,7 +172,7 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
         metadata = await oidc.discover(config.issuer);
       } catch (err) {
         request.log.error({ err }, 'OIDC discovery failed');
-        return fail(502, 'oidc_discovery_failed', 'Identity provider discovery failed');
+        return fail('oidc_discovery_failed', 'Identity provider discovery failed');
       }
 
       let tokens: oidc.TokenResponse;
@@ -173,7 +180,7 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
         tokens = await oidc.exchangeCodeForTokens(config, metadata, code, tx.verifier);
       } catch (err) {
         request.log.warn({ err }, 'OIDC token exchange failed');
-        return fail(502, 'oidc_exchange_failed', 'Identity provider token exchange failed');
+        return fail('oidc_exchange_failed', 'Identity provider token exchange failed');
       }
 
       let claims: oidc.OidcClaims;
@@ -191,9 +198,9 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
       } catch (err) {
         request.log.warn({ err }, 'OIDC ID token verification failed');
         const reason = err instanceof oidc.OidcError ? err.code : 'oidc_id_token_invalid';
-        // 401, not 502: the provider answered, and what it said did not
-        // authenticate anyone.
-        return fail(401, reason, 'ID token verification failed');
+        // The provider answered, and what it said did not authenticate anyone.
+        // The specific check that failed is audited; the browser gets one code.
+        return fail(reason, 'ID token verification failed', 'oidc_id_token_invalid');
       }
 
       // The subject is the IdP's `sub` and never the email (acceptance 3):

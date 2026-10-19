@@ -74,6 +74,19 @@ export function UserMenu() {
           {/* W20-01 (UX_TODO ADM-02): there was no way to sign out of the app
               short of clearing cookies. */}
           <div className="mt-1 border-t border-border pt-1">
+            {/* W20-04 (UX_TODO ADM-04): theme, home screen and password in one
+                place, for everyone. A plain link rather than the router's:
+                this menu also renders outside a router in its tests, and a
+                full load of a settings page costs nothing anyone would notice. */}
+            <a
+              href="/account"
+              role="menuitem"
+              data-testid="user-menu-account"
+              className="flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg"
+            >
+              <span aria-hidden="true" className="w-3" />
+              Your account
+            </a>
             <button
               type="button"
               role="menuitem"

@@ -95,6 +95,9 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
         name: request.workspace.name,
       },
       role: request.role,
+      // W20-04 (UX_TODO ADM-11): Members needs to know which row is the
+      // caller, to warn an admin before they demote themselves.
+      user_id: request.session.get('userId'),
       identity_id: ctx.identityId,
       default_view_id: null, // W5-02 owns saved views.
       // W4-10 (UX_SPEC §6). NULL persona = never asked, which is what opens the

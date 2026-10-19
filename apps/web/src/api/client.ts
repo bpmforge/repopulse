@@ -57,6 +57,16 @@ export function errorMessageOf(error: unknown): string | undefined {
   return typeof message === 'string' && message !== '' ? message : undefined;
 }
 
+/**
+ * The problem's `detail` off any error, structurally (W20-04, UX_TODO ADM-12).
+ * The title says what failed; the detail is usually what to do about it, and
+ * every surface that showed only `message` dropped exactly that half.
+ */
+export function errorDetailOf(error: unknown): string | undefined {
+  const detail = (error as { detail?: unknown } | null | undefined)?.detail;
+  return typeof detail === 'string' && detail !== '' ? detail : undefined;
+}
+
 /** Any string key of the generated `paths` — i.e. a real API route template. */
 export type ApiPath = keyof paths;
 

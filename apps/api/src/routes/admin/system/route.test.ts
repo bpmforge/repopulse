@@ -216,7 +216,10 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
     const deadWorker = dead.body.components.find((c) => c.id === 'worker');
     expect(deadWorker?.state).toBe('unavailable');
     expect(deadWorker?.reason).toMatch(/heartbeat/i);
-    expect(deadWorker?.action?.href).toBeTruthy();
+    // W20-04 (UX_TODO ADM-03): no log page exists, so the reason names the
+    // container to read rather than linking to a route that 404s.
+    expect(deadWorker?.action).toBeNull();
+    expect(deadWorker?.reason).toMatch(/docker compose logs worker/);
 
     const hb = startWorkerHeartbeat({ redis, queues: ['backfill'], instanceId: 'w17-07-live' });
     await hb.beat();

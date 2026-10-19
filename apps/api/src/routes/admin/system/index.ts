@@ -92,6 +92,28 @@ function withDeadline<T>(probe: Promise<T>, ms: number): Promise<T | null> {
  */
 export const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Every in-product link this endpoint can hand out (W20-04, UX_TODO ADM-03).
+ *
+ * In one place so a test can hold each `href` against the web app's real
+ * route list: three of them pointed at /admin/ops and /admin/connections,
+ * which never existed, so the links shown when something is BROKEN were the
+ * ones that led to "Page not found". There is no in-product log viewer, so a
+ * dead dependency names the container whose logs to read in its reason
+ * instead of offering a link to nowhere.
+ */
+export const SYSTEM_ACTIONS = {
+  connections: { label: 'Connections', href: '/admin/' },
+  connect: { label: 'Connect a forge', href: '/admin/' },
+  analysis: { label: 'Analysis settings', href: '/admin/analysis' },
+  models: { label: 'Models', href: '/admin/models' },
+} as const satisfies Record<string, { label: string; href: string }>;
+
+/** Where to look when a container is the problem — no page exists for it. */
+function logsHint(service: string): string {
+  return ` On the server, \`docker compose logs ${service}\` (or podman) shows why.`;
+}
+
 const RANK: Record<ComponentState, number> = {
   ready: 0,
   setup_needed: 1,
@@ -144,10 +166,10 @@ export default async function systemRoutes(
       state: dbOk === null ? 'unavailable' : 'ready',
       reason:
         dbOk === null
-          ? `Postgres did not answer within ${PROBE_TIMEOUT_MS / 1000}s. Nothing can be read or stored until it does.`
+          ? `Postgres did not answer within ${PROBE_TIMEOUT_MS / 1000}s. Nothing can be read or stored until it does.${logsHint('postgres')}`
           : 'Postgres is answering.',
       lastSuccessAt: dbOk === null ? null : at.toISOString(),
-      action: dbOk === null ? { label: 'Container logs', href: '/admin/ops' } : null,
+      action: null,
     });
 
     // ---- cache / queue transport ------------------------------------------
@@ -158,10 +180,10 @@ export default async function systemRoutes(
       state: redisOk === null ? 'unavailable' : 'ready',
       reason:
         redisOk === null
-          ? `Redis did not answer within ${PROBE_TIMEOUT_MS / 1000}s. Sessions and every background job stop with it.`
+          ? `Redis did not answer within ${PROBE_TIMEOUT_MS / 1000}s. Sessions and every background job stop with it.${logsHint('redis')}`
           : 'Redis is answering.',
       lastSuccessAt: redisOk === null ? null : at.toISOString(),
-      action: redisOk === null ? { label: 'Container logs', href: '/admin/ops' } : null,
+      action: null,
     });
 
     // ---- worker -----------------------------------------------------------
@@ -181,10 +203,9 @@ export default async function systemRoutes(
           ? 'Cannot tell: the heartbeat lives in Redis, which is not answering.'
           : beats.length > 0
             ? `${beats.length} worker ${beats.length === 1 ? 'instance is' : 'instances are'} running and consuming queues.`
-            : 'No worker has published a heartbeat in the last minute. Ingestion, scans and reports will queue up and never run.',
+            : `No worker has published a heartbeat in the last minute. Ingestion, scans and reports will queue up and never run.${logsHint('worker')}`,
       lastSuccessAt: beats[0]?.lastBeatAt ?? null,
-      action:
-        workerState === 'unavailable' ? { label: 'Container logs', href: '/admin/ops' } : null,
+      action: null,
     });
 
     // ---- forge sync -------------------------------------------------------
@@ -214,7 +235,7 @@ export default async function systemRoutes(
         reason:
           'No forge is connected yet, so there is nothing to measure. Sign-in and administration work without one.',
         lastSuccessAt: null,
-        action: { label: 'Connect a forge', href: '/admin/connections' },
+        action: SYSTEM_ACTIONS.connect,
       });
     } else {
       const broken = connections.filter((c) => c.status !== 'active');
@@ -259,7 +280,7 @@ export default async function systemRoutes(
         // phase and a lag, not a last-success timestamp, and inventing one
         // here would be a number nothing measured.
         lastSuccessAt: null,
-        action: { label: 'Connections', href: '/admin/connections' },
+        action: SYSTEM_ACTIONS.connections,
       });
     }
 
@@ -297,7 +318,7 @@ export default async function systemRoutes(
               ? `Some scans are failing (${scanAgg?.failed} of ${scanAgg?.total}). Earlier successful results are still shown and are still real.`
               : 'Scans are completing.',
       lastSuccessAt: scanLastSuccess ? new Date(scanLastSuccess).toISOString() : null,
-      action: { label: 'Analysis settings', href: '/admin/analysis' },
+      action: SYSTEM_ACTIONS.analysis,
     });
 
     // ---- models -----------------------------------------------------------
@@ -327,7 +348,7 @@ export default async function systemRoutes(
             ? `${providers.length} configured, none enabled. AI review will not run.`
             : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).`,
       lastSuccessAt: null,
-      action: { label: 'Models', href: '/admin/models' },
+      action: SYSTEM_ACTIONS.models,
     });
 
     const body: SystemStatusResponse = {

@@ -247,19 +247,29 @@ export function createSyncStream(
   };
 }
 
+/**
+ * Whether a cached query is stale after a debounced dirty-set (exported for
+ * its test).
+ *
+ * `/sync/*` on ANY sync news (W20-04, UX_TODO INS-11): Settings → Sync and the
+ * setup checklist read it, the events are literally about sync progress, and
+ * it was the one key they never refreshed.
+ */
+export function isDirtyQuery(
+  queryKey: readonly unknown[],
+  dirty: { repoIds: number[]; org: boolean },
+): boolean {
+  const [endpoint, path] = queryKey as [string, { id?: number | string }?];
+  if (typeof endpoint !== 'string') return false;
+  if (endpoint.startsWith('/sync') && (dirty.org || dirty.repoIds.length > 0)) return true;
+  if (dirty.org && (endpoint.startsWith('/org') || endpoint.startsWith('/metrics'))) return true;
+  const id = path?.id;
+  return id !== undefined && dirty.repoIds.includes(Number(id));
+}
+
 /** Map a debounced dirty-set to targeted TanStack Query invalidations. */
 function invalidateQueries(queryClient: QueryClient, dirty: { repoIds: number[]; org: boolean }) {
-  const repoIds = new Set(dirty.repoIds);
-  void queryClient.invalidateQueries({
-    predicate: (query) => {
-      const [endpoint, path] = query.queryKey as [string, { id?: number | string }?];
-      if (typeof endpoint !== 'string') return false;
-      if (dirty.org && (endpoint.startsWith('/org') || endpoint.startsWith('/metrics')))
-        return true;
-      const id = path?.id;
-      return id !== undefined && repoIds.has(Number(id));
-    },
-  });
+  void queryClient.invalidateQueries({ predicate: (query) => isDirtyQuery(query.queryKey, dirty) });
 }
 
 /**

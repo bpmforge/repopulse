@@ -26,6 +26,68 @@ import { RepoPulseMark } from '../../components/brand/RepoPulseMark.js';
 // it is a form whose answer is JSON, after which the shell's session query is
 // invalidated and the app mounts in place.
 
+/**
+ * Why a federated sign-in came back without a session (W20-04, UX_TODO INS-14).
+ *
+ * The OIDC and GitHub callbacks are full-page navigations; when one failed it
+ * used to end on a raw JSON problem body. The API now redirects here with one
+ * of its own reason codes and the request id, and this is the sentence for
+ * each — what happened, in words, and what to try.
+ */
+const CALLBACK_ERRORS: Record<string, string> = {
+  missing_code_or_state:
+    'That sign-in could not be completed — it took too long, or was started in another tab. Please try again.',
+  missing_state_cookie:
+    'That sign-in could not be completed — it took too long, or was started in another tab. Please try again.',
+  state_mismatch:
+    'That sign-in could not be completed — it took too long, or was started in another tab. Please try again.',
+  oidc_provider_error:
+    'Your identity provider refused the sign-in. If you expected it to work, ask your administrator to check your access.',
+  oidc_discovery_failed:
+    'RepoPulse could not reach your identity provider. Try again; if it keeps happening, tell your administrator.',
+  oidc_exchange_failed:
+    'RepoPulse could not finish signing you in with your identity provider. Try again; if it keeps happening, tell your administrator.',
+  oauth_exchange_failed:
+    'RepoPulse could not finish signing you in with GitHub. Try again; if it keeps happening, tell your administrator.',
+  identity_fetch_failed:
+    'GitHub did not say who you are, so you were not signed in. Try again; if it keeps happening, tell your administrator.',
+  oidc_id_token_invalid:
+    'Your identity provider’s answer could not be verified, so you were not signed in. Tell your administrator.',
+};
+
+export interface CallbackError {
+  message: string;
+  requestId: string | null;
+}
+
+/** Reads `?auth_error=&request_id=` (exported for its test). */
+export function callbackErrorFrom(search: string): CallbackError | null {
+  const params = new URLSearchParams(search);
+  const code = params.get('auth_error');
+  if (!code) return null;
+  return {
+    // Unknown codes still say SOMETHING true, rather than nothing.
+    message: CALLBACK_ERRORS[code] ?? 'Sign-in did not complete. Please try again.',
+    requestId: params.get('request_id'),
+  };
+}
+
+/** Read once, then drop the params so a reload does not repeat a stale error. */
+function useCallbackError(): CallbackError | null {
+  const [error] = useState(() =>
+    typeof window === 'undefined' ? null : callbackErrorFrom(window.location.search),
+  );
+  useEffect(() => {
+    if (!error || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('auth_error');
+    url.searchParams.delete('request_id');
+    // history.state is kept: the router keys its entries on it.
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, [error]);
+  return error;
+}
+
 export interface SignInProps {
   /** True when this browser HAD a session — a different sentence, same screen. */
   expired: boolean;
@@ -40,6 +102,7 @@ export function SignIn({ expired }: SignInProps) {
   const errorRef = useRef<HTMLParagraphElement | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const callbackError = useCallbackError();
 
   // Prefill the demo credentials once the providers response arrives, and only
   // while the visitor has not typed: filling a field someone is editing is a
@@ -80,10 +143,7 @@ export function SignIn({ expired }: SignInProps) {
 
   return (
     <div className="flex min-h-screen w-screen items-center justify-center bg-bg bg-[radial-gradient(70%_45%_at_50%_0%,var(--glow),transparent)] p-6 text-fg">
-      <main
-        className="panel panel-hero w-full max-w-sm p-7"
-        data-testid="signin"
-      >
+      <main className="panel panel-hero w-full max-w-sm p-7" data-testid="signin">
         {/* W16-02 (F2). The demo banner is in the shell, which only mounts
             AFTER sign-in — so the one screen where a visitor needs to be told
             "this is fake, and here is how to get in" was the one screen that
@@ -109,9 +169,30 @@ export function SignIn({ expired }: SignInProps) {
         </h1>
         <p className="mt-2 text-sm text-fg-muted">
           {expired
-            ? 'Your session ended. Sign in again to pick up where you left off — nothing was lost.'
+            ? // W20-04 (UX_TODO X-02): this screen now opens OVER the app, which
+              // stays mounted, so what was typed is still there — but the write
+              // that hit the expired session was refused and is not retried.
+              'Your session ended. Sign in again to carry on — the page behind this stays as you left it, but the last change you made was not saved; make it again.'
             : 'Sign in to see your organisation’s delivery, code health, and risk.'}
         </p>
+
+        {callbackError && !login.error ? (
+          <p
+            role="alert"
+            data-testid="signin-callback-error"
+            className="mt-4 rounded-sm border border-crit/40 bg-crit/10 px-3 py-2 text-sm text-fg"
+          >
+            {callbackError.message}
+            {callbackError.requestId ? (
+              <span
+                className="ml-1 font-mono text-xs text-fg-faint"
+                data-testid="signin-callback-request-id"
+              >
+                (request {callbackError.requestId})
+              </span>
+            ) : null}
+          </p>
+        ) : null}
 
         {/* One live region for the whole screen. Rendered always, empty when
             there is nothing to say: a region inserted at the moment of the
@@ -138,7 +219,10 @@ export function SignIn({ expired }: SignInProps) {
             <>
               {errorMessageOf(login.error) ?? 'Sign-in failed.'}
               {requestIdOf(login.error) ? (
-                <span className="ml-1 font-mono text-xs text-fg-faint" data-testid="signin-request-id">
+                <span
+                  className="ml-1 font-mono text-xs text-fg-faint"
+                  data-testid="signin-request-id"
+                >
                   (request {requestIdOf(login.error)})
                 </span>
               ) : null}

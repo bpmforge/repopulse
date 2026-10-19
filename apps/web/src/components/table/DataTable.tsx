@@ -1,5 +1,5 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import type { Density } from '../store/uiStore.js';
 
 // One DataTable for every list (findings, PRs, hotspots, reports — DASHBOARD §7).
@@ -36,6 +36,9 @@ export interface DataTableProps<T> {
   hasMore?: boolean;
   onLoadMore?: () => void;
 }
+
+/** Elements that own their own click and Enter (W20-04, UX_TODO ADM-58). */
+const CONTROLS = 'a, button, input, select, textarea, label, summary';
 
 function nextSort(current: string | undefined, col: string): string {
   const [curCol, curDir] = (current ?? '').split(':');
@@ -81,7 +84,17 @@ export function DataTable<T>(props: DataTableProps<T>) {
   const [sortCol, sortDir] = (sort ?? '').split(':');
   const rowHeight = density === 'compact' ? 'h-8' : 'h-10';
 
+  // W20-04 (UX_TODO ADM-58). Row navigation is a feature of tables that DO
+  // something with a row. Every table used to grab j/k/arrows/Enter, and no
+  // screen passed onActivate, so Enter on a button or link inside a cell was
+  // cancelled and then went nowhere — keyboard users could not follow a link
+  // in a table at all, and the arrow keys stopped the page from scrolling.
+  const interactive = onActivate !== undefined || onToggleSelect !== undefined;
+
   function onKeyDown(e: KeyboardEvent<HTMLTableElement>) {
+    // Only keys pressed ON THE TABLE ITSELF. A key that bubbled up from a
+    // button, link or input inside a cell belongs to that control.
+    if (!interactive || e.target !== e.currentTarget) return;
     const max = rows.length - 1;
     if (e.key === 'j' || e.key === 'ArrowDown') {
       e.preventDefault();
@@ -105,8 +118,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
       <table
         className="w-full border-collapse text-sm tabular-nums"
         data-testid={`table-${name}`}
-        tabIndex={0}
-        onKeyDown={onKeyDown}
+        {...(interactive ? { tabIndex: 0, onKeyDown } : {})}
         aria-rowcount={data.length}
       >
         <thead>
@@ -161,23 +173,41 @@ export function DataTable<T>(props: DataTableProps<T>) {
                 return (
                   <tr
                     key={id}
-                    className={`${rowHeight} cursor-pointer border-b border-border/60 ${
-                      index === activeIndex ? 'bg-surface-2' : 'hover:bg-surface-2/50'
+                    // A highlight and a pointer promise that the row does
+                    // something; only an interactive table makes that promise.
+                    className={`${rowHeight} border-b border-border/60 ${
+                      interactive
+                        ? `cursor-pointer ${index === activeIndex ? 'bg-surface-2' : 'hover:bg-surface-2/50'}`
+                        : ''
                     }`}
                     data-testid={`row-${id}`}
-                    data-active={index === activeIndex}
+                    data-active={interactive && index === activeIndex}
                     aria-selected={selected}
-                    onClick={() => {
-                      setActiveIndex(index);
-                      onActivate?.(row.original);
-                    }}
+                    {...(interactive
+                      ? {
+                          onClick: (e: MouseEvent<HTMLTableRowElement>) => {
+                            // A control inside the row handles its own click;
+                            // activating the row as well would do two things.
+                            if ((e.target as Element).closest(CONTROLS)) return;
+                            setActiveIndex(index);
+                            onActivate?.(row.original);
+                          },
+                        }
+                      : {})}
                   >
                     {row.getVisibleCells().map((cell, i) => (
                       <td
                         key={cell.id}
                         className={`px-3 ${columns[i]!.align === 'right' ? 'text-right' : 'text-left'}`}
                       >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {/* The column's own renderer, called directly (W20-04).
+                            flexRender treats the per-render arrow in
+                            `tableColumns` as a component TYPE, so every parent
+                            render remounted every cell and threw away its state
+                            — an open "Remove…" or "Make admin…" confirm closed
+                            itself the moment any query under the screen
+                            refetched. */}
+                        {columns[i]!.cell(row.original)}
                       </td>
                     ))}
                   </tr>

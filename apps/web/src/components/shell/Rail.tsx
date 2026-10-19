@@ -12,15 +12,7 @@ import { RepoPulseWordmark } from '../brand/RepoPulseMark.js';
 // the global search params so navigation preserves window/repos/person.
 
 type IconName =
-  | 'overview'
-  | 'repos'
-  | 'prs'
-  | 'focus'
-  | 'findings'
-  | 'plans'
-  | 'reports'
-  | 'views'
-  | 'admin';
+  'overview' | 'repos' | 'prs' | 'focus' | 'findings' | 'plans' | 'reports' | 'views' | 'admin';
 
 /**
  * Rail icons: stroke paths on a 24px grid, drawn at 16px in currentColor so
@@ -118,10 +110,21 @@ const SECONDARY_NAV: NavItem[] = [
   { to: '/views', label: 'Saved Views', icon: 'views' },
 ];
 
+/**
+ * A member's own settings (W20-04, UX_TODO ADM-04). "Settings" reads as
+ * personal — theme, password — so a member who clicked it and met "You need an
+ * admin role" had been promised something and refused it. Members get THEIR
+ * page in that slot; the workspace's Settings stays with admins.
+ */
+const ACCOUNT_ITEM: NavItem = { to: '/account', label: 'Account', icon: 'admin' };
+
 /** Every destination, in render order. Exported for the narrow-screen drawer. */
 export function navGroups(isAdmin: boolean): { label: string | null; items: NavItem[] }[] {
   return [
-    { label: null, items: NAV.filter((i) => i.to !== '/admin' || isAdmin) },
+    {
+      label: null,
+      items: NAV.map((i) => (i.to === '/admin' && !isAdmin ? ACCOUNT_ITEM : i)),
+    },
     { label: 'Workspace', items: SECONDARY_NAV },
   ];
 }
@@ -221,55 +224,52 @@ export function Rail({ badges = {}, isAdmin = true, search }: RailProps) {
       </div>
 
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
-      {groups.map((group) => (
-      <ul key={group.label ?? 'primary'} className="flex flex-col gap-0.5 px-2">
-        {group.label && !collapsed ? (
-          <li
-            className="px-2.5 pt-3 pb-1 text-xs font-medium text-fg-faint"
-            aria-hidden="true"
-          >
-            {group.label}
-          </li>
-        ) : null}
-        {group.label && collapsed ? (
-          // Collapsed, a text heading has nowhere to go, so the groups are
-          // separated by a rule instead — the grouping still reads.
-          <li className="mx-2 my-1 border-t border-border" aria-hidden="true" />
-        ) : null}
-        {group.items.map((item) => {
-          const active = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
-          const badge = badges[item.to];
-          return (
-            <li key={item.to}>
-              <Link
-                to={item.to}
-                search={search}
-                className={`group relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm ${
-                  active
-                    ? 'bg-surface-2 font-medium text-fg'
-                    : 'text-fg-muted hover:bg-surface-2/60 hover:text-fg'
-                }`}
-                data-testid={`rail-${navTestId(item.to)}`}
-                aria-current={active ? 'page' : undefined}
-                title={collapsed ? item.label : undefined}
-              >
-                <span
-                  className={`flex w-4 shrink-0 items-center justify-center ${active ? 'text-accent' : 'text-fg-faint group-hover:text-fg-muted'}`}
-                >
-                  <RailIcon name={item.icon} />
-                </span>
-                {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                {!collapsed && badge !== undefined && badge > 0 && (
-                  <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent">
-                    {badge}
-                  </span>
-                )}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-      ))}
+        {groups.map((group) => (
+          <ul key={group.label ?? 'primary'} className="flex flex-col gap-0.5 px-2">
+            {group.label && !collapsed ? (
+              <li className="px-2.5 pt-3 pb-1 text-xs font-medium text-fg-faint" aria-hidden="true">
+                {group.label}
+              </li>
+            ) : null}
+            {group.label && collapsed ? (
+              // Collapsed, a text heading has nowhere to go, so the groups are
+              // separated by a rule instead — the grouping still reads.
+              <li className="mx-2 my-1 border-t border-border" aria-hidden="true" />
+            ) : null}
+            {group.items.map((item) => {
+              const active = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
+              const badge = badges[item.to];
+              return (
+                <li key={item.to}>
+                  <Link
+                    to={item.to}
+                    search={search}
+                    className={`group relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm ${
+                      active
+                        ? 'bg-surface-2 font-medium text-fg'
+                        : 'text-fg-muted hover:bg-surface-2/60 hover:text-fg'
+                    }`}
+                    data-testid={`rail-${navTestId(item.to)}`}
+                    aria-current={active ? 'page' : undefined}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <span
+                      className={`flex w-4 shrink-0 items-center justify-center ${active ? 'text-accent' : 'text-fg-faint group-hover:text-fg-muted'}`}
+                    >
+                      <RailIcon name={item.icon} />
+                    </span>
+                    {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                    {!collapsed && badge !== undefined && badge > 0 && (
+                      <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium tabular-nums text-accent">
+                        {badge}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
       </div>
 
       <div className="flex flex-col gap-1 border-t border-border px-3 py-2">

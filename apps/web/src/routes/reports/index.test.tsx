@@ -93,8 +93,11 @@ describe('poll lifecycle (pure)', () => {
 let listResponse: { items: ReportRow[] };
 let requests: { method: string; url: string }[];
 
+let generateResponse: { status: number; body: unknown };
+
 beforeEach(() => {
   listResponse = { items: [] };
+  generateResponse = { status: 202, body: { id: 99 } };
   requests = [];
   vi.stubGlobal(
     'fetch',
@@ -102,6 +105,14 @@ beforeEach(() => {
       const url = String(input);
       const method = init?.method ?? 'GET';
       requests.push({ method, url });
+      if (method === 'POST' && /\/reports$/.test(url)) {
+        return Promise.resolve(
+          new Response(JSON.stringify(generateResponse.body), {
+            status: generateResponse.status,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }
       const body = /\/reports\/\d+\/retry$/.test(url)
         ? { id: 1, status: 'queued' }
         : /\/reports(\?|$)/.test(url)
@@ -145,6 +156,27 @@ function renderCenter() {
     </QueryClientProvider>,
   );
 }
+
+describe('Generate feedback (W20-04, UX_TODO ADM-08)', () => {
+  it('a refused Generate says why, with the request id', async () => {
+    generateResponse = {
+      status: 400,
+      body: { title: 'Invalid window_days', status: 400, request_id: 'req-r1' },
+    };
+    renderCenter();
+    await userEvent.click(await screen.findByTestId('generate-report'));
+    expect(await screen.findByTestId('generate-error')).toHaveTextContent('Invalid window_days');
+    expect(screen.getByTestId('generate-error-request-id')).toHaveTextContent('req-r1');
+    expect(screen.queryByTestId('generate-queued')).toBeNull();
+  });
+
+  it('an accepted Generate confirms it was queued', async () => {
+    renderCenter();
+    await userEvent.click(await screen.findByTestId('generate-report'));
+    expect(await screen.findByTestId('generate-queued')).toHaveTextContent(/Queued/);
+    expect(screen.queryByTestId('generate-error')).toBeNull();
+  });
+});
 
 describe('Report Center rows (W17-26)', () => {
   it('a failed row shows its reason and a Retry that queues the SAME report', async () => {

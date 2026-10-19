@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useApiQuery } from '../../../api/useApiQuery.js';
-import { ReportMarkdown } from '../../../components/index.js';
+import { ErrorNote, ReportMarkdown } from '../../../components/index.js';
 
 // Print route (W5-04, REPORTS.md §3).
 //
@@ -59,7 +59,13 @@ interface ReportSection {
 }
 
 interface ReportDataShape {
-  params: { type: string; windowDays: number; snapshotAt: string; windowEnd: string; annotation?: string };
+  params: {
+    type: string;
+    windowDays: number;
+    snapshotAt: string;
+    windowEnd: string;
+    annotation?: string;
+  };
   sections: ReportSection[];
   appendix: { definitions: { id: string; name: string; formula: string; unit: string }[] };
   dataQuality: {
@@ -75,7 +81,13 @@ interface ReportResponse {
   id: number;
   type: string;
   status: string;
+  error?: string | null;
   data: ReportDataShape | null;
+}
+
+/** Still being made: the viewer polls these rather than calling them empty. */
+function inFlight(status: string | undefined): boolean {
+  return status === 'queued' || status === 'running';
 }
 
 const TITLES: Record<string, string> = {
@@ -124,9 +136,14 @@ function PrintReport() {
 
   // The same route doubles as the in-app viewer for a human with a session,
   // which is why the fetch still exists — disabled when data was injected.
-  const { data, isSuccess } = useApiQuery<ReportResponse>(
+  const { data, isSuccess, isError, error } = useApiQuery<ReportResponse>(
     { endpoint: '/reports/{id}', path: { id: reportId } },
-    { enabled: injected === null },
+    {
+      enabled: injected === null,
+      // W20-04 (UX_TODO ADM-09): "this page will update" has to be true. Polls
+      // only while the row is queued or running, and stops once it settles.
+      refetchInterval: (r) => (inFlight(r?.status) ? 3000 : false),
+    },
   );
 
   const report = injected ?? data?.data ?? null;
@@ -142,9 +159,33 @@ function PrintReport() {
   }, [report]);
 
   if (!report) {
+    // W20-04 (UX_TODO ADM-09). Only success was ever checked, so a 403, a 404
+    // or an outage read "Loading…" for ever; and a report that was still
+    // generating, or had failed, was described as having "no stored data".
     return (
-      <div className="p-8 text-sm" data-testid="print-report-pending">
-        {isSuccess ? 'This report has no stored data.' : 'Loading…'}
+      <div className="flex flex-col gap-3 p-8 text-sm" data-testid="print-report-pending">
+        <Link to="/reports" data-testid="print-back" className="text-xs underline print:hidden">
+          ← Back to Report Center
+        </Link>
+        {isError ? (
+          <ErrorNote error={error} testId="print-report-error" className="text-sm" />
+        ) : !isSuccess ? (
+          <p>Loading…</p>
+        ) : inFlight(data?.status) ? (
+          <p data-testid="print-report-generating">
+            This report is still generating. This page will update when it is ready.
+          </p>
+        ) : data?.status === 'failed' ? (
+          <p data-testid="print-report-failed">
+            This report failed{data.error ? `: ${data.error}` : '.'} Retry it from the Report
+            Center.
+          </p>
+        ) : (
+          <p>
+            This report has no stored data — its file is no longer on disk. Retry it from the Report
+            Center to rebuild it.
+          </p>
+        )}
       </div>
     );
   }
@@ -153,10 +194,16 @@ function PrintReport() {
   // "generated at" that reads Date.now() would change the bytes on every
   // re-print of the same stored report.
   const generatedAt = new Date(report.params.windowEnd).toISOString().slice(0, 10);
-  const snapshotAt = new Date(report.params.snapshotAt).toISOString().slice(0, 19).replace('T', ' ');
+  const snapshotAt = new Date(report.params.snapshotAt)
+    .toISOString()
+    .slice(0, 19)
+    .replace('T', ' ');
 
   return (
-    <div className="mx-auto max-w-[900px] bg-bg p-8 text-fg print:max-w-none print:p-0" data-testid="print-report">
+    <div
+      className="mx-auto max-w-[900px] bg-bg p-8 text-fg print:max-w-none print:p-0"
+      data-testid="print-report"
+    >
       {/*
         W16-05 (F13). This route renders no shell — no rail, no topbar — because
         it is printed by a headless browser and every live subscription is one
@@ -193,7 +240,10 @@ function PrintReport() {
       </header>
 
       {/* Basis box (§5.2): what the numbers are and are not built from. */}
-      <section className="mb-6 rounded-md border border-border p-3 break-inside-avoid" data-testid="print-basis">
+      <section
+        className="mb-6 rounded-md border border-border p-3 break-inside-avoid"
+        data-testid="print-basis"
+      >
         <h2 className="text-sm font-medium">Basis</h2>
         <p className="mt-1 text-xs text-fg-muted">
           All figures read metric snapshots computed at or before {snapshotAt}. Regenerating this
@@ -227,7 +277,11 @@ function PrintReport() {
       </section>
 
       {report.sections.map((section, i) => (
-        <section key={`${section.kind}-${section.id ?? i}`} className="mb-6" data-testid={`print-section-${section.id ?? section.kind}`}>
+        <section
+          key={`${section.kind}-${section.id ?? i}`}
+          className="mb-6"
+          data-testid={`print-section-${section.id ?? section.kind}`}
+        >
           {section.kind === 'summary' && section.id && SECTION_TITLE[section.id] && (
             <h2 className={HEADING}>{SECTION_TITLE[section.id]}</h2>
           )}
@@ -264,7 +318,9 @@ function PrintReport() {
                   {(section.rows ?? []).map((row, ri) => (
                     <tr key={ri} className={ROW}>
                       {row.map((v, ci) => (
-                        <td key={ci} className={CELL}>{cell(v)}</td>
+                        <td key={ci} className={CELL}>
+                          {cell(v)}
+                        </td>
                       ))}
                     </tr>
                   ))}
@@ -288,16 +344,18 @@ function PrintReport() {
                   </tr>
                 </thead>
                 <tbody>
-                  {((section as unknown as { rows: Record<string, unknown>[] }).rows ?? []).map((r, ri) => (
-                    <tr key={ri} className={ROW}>
-                      <td className={CELL}>{cell(r.subScore)}</td>
-                      <td className={CELL}>{cell(r.input)}</td>
-                      <td className={CELL}>{cell(r.rawValue)}</td>
-                      <td className={CELL}>{cell(r.normalized)}</td>
-                      <td className={CELL}>{cell(r.weight)}</td>
-                      <td className={CELL}>{cell(r.contribution)}</td>
-                    </tr>
-                  ))}
+                  {((section as unknown as { rows: Record<string, unknown>[] }).rows ?? []).map(
+                    (r, ri) => (
+                      <tr key={ri} className={ROW}>
+                        <td className={CELL}>{cell(r.subScore)}</td>
+                        <td className={CELL}>{cell(r.input)}</td>
+                        <td className={CELL}>{cell(r.rawValue)}</td>
+                        <td className={CELL}>{cell(r.normalized)}</td>
+                        <td className={CELL}>{cell(r.weight)}</td>
+                        <td className={CELL}>{cell(r.contribution)}</td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </>

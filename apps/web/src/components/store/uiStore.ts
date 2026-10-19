@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { errorDetailOf, errorMessageOf, requestIdOf } from '../../api/client.js';
 
 // Ephemeral UI state ONLY (DASHBOARD §2): rail/palette/density/lastSeenAt,
 // active toasts, and the live sync-chip state fed by the SSE stream. Nothing
@@ -16,6 +17,30 @@ export interface Toast {
   id: string;
   message: string;
   tone: ToastTone;
+  /**
+   * W20-04 (UX_TODO ADM-12). The problem's `detail` — the half that says what
+   * to DO. Error toasts showed only the title, so "Cannot remove the last
+   * admin" arrived without "Promote another member to admin first".
+   */
+  detail?: string;
+  /** Rendered selectable, like ErrorNote: it is what someone quotes to support. */
+  requestId?: string;
+}
+
+/**
+ * A crit toast built from whatever a mutation threw (W20-04, UX_TODO ADM-12).
+ * One builder so no call site can go back to `err.message` alone.
+ */
+export function errorToast(id: string, error: unknown, fallback = 'Something went wrong.'): Toast {
+  const detail = errorDetailOf(error);
+  const requestId = requestIdOf(error);
+  return {
+    id,
+    tone: 'crit',
+    message: errorMessageOf(error) ?? fallback,
+    ...(detail ? { detail } : {}),
+    ...(requestId ? { requestId } : {}),
+  };
 }
 
 export interface RepoSyncProgress {

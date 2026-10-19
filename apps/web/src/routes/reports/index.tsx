@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { WidgetFrame, frameState, PageHeader } from '../../components/index.js';
+import { ErrorNote, WidgetFrame, frameState, PageHeader } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 
 // Report Center (W5-04, UX_SPEC §4.h). The rail has linked to /reports since
@@ -173,9 +173,18 @@ function ReportCenter() {
               )
             }
           >
-            Generate
+            {generate.isPending ? 'Queuing…' : 'Generate'}
           </button>
+          {/* W20-04 (UX_TODO ADM-08). A refused Generate showed nothing at all,
+              so the button simply seemed broken; and a successful one gave no
+              sign either until the row appeared in History. */}
+          {generate.isSuccess && !generate.isPending ? (
+            <span className="text-xs text-fg-muted" role="status" data-testid="generate-queued">
+              Queued — it appears in History below and updates when it is ready.
+            </span>
+          ) : null}
         </div>
+        <ErrorNote error={generate.error} testId="generate-error" className="mt-2" />
         <p className="mt-2 text-xs text-fg-muted">
           The window and the snapshot high-watermark are pinned when you press Generate, so
           regenerating this report later reproduces the same numbers.

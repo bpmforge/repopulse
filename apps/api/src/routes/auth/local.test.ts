@@ -26,7 +26,6 @@ describeIfLiveInfra('local sign-in routes (W15-02)', () => {
   let adminCookie: string;
   const db = createDb(databaseUrl as string);
 
-
   beforeAll(async () => {
     await deleteAllLocalUsers(db);
 
@@ -413,5 +412,8 @@ describeIfLiveInfra('local sign-in routes (W15-02)', () => {
       cookies: { repopulse_sid: sid(res) },
     });
     expect(guarded.statusCode).toBe(200);
+    // W20-04 (UX_TODO ADM-11): the context names the caller, so Members can
+    // tell an admin they are about to demote themselves.
+    expect(guarded.json().user_id).toBe(res.json().user.id);
   });
 });

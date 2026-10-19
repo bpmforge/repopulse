@@ -85,6 +85,22 @@ describeIfLiveInfra('OIDC login routes against a fixture IdP (W15-03)', () => {
     };
   }
 
+  /**
+   * W20-04 (UX_TODO INS-14): a failed callback is a browser navigation, so it
+   * lands on the sign-in screen with a code and the request id — never on a
+   * raw problem+json page with no way back.
+   */
+  function expectBackAtSignIn(
+    res: { statusCode: number; headers: Record<string, unknown> },
+    code: string,
+  ) {
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.location as string);
+    expect(location.origin + location.pathname).toBe('http://localhost:5173/');
+    expect(location.searchParams.get('auth_error')).toBe(code);
+    expect(location.searchParams.get('request_id')).toBeTruthy();
+  }
+
   it('completes discovery → redirect → exchange → verification → session → user row', async () => {
     const { authorizeUrl, state, cookie } = await startLogin();
 
@@ -139,8 +155,8 @@ describeIfLiveInfra('OIDC login routes against a fixture IdP (W15-03)', () => {
       query: { code, state: 'state-the-attacker-chose' },
       cookies: { oidc_tx: cookie },
     });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().title).toContain('state mismatch');
+    expectBackAtSignIn(res, 'state_mismatch');
+    expect(res.cookies.find((c) => c.name === 'repopulse_sid')).toBeUndefined();
   });
 
   it('rejects a callback with no transaction cookie at all', async () => {
@@ -151,7 +167,7 @@ describeIfLiveInfra('OIDC login routes against a fixture IdP (W15-03)', () => {
       url: '/auth/oidc/callback',
       query: { code, state },
     });
-    expect(res.statusCode).toBe(400);
+    expectBackAtSignIn(res, 'missing_state_cookie');
   });
 
   it('rejects an UNSIGNED transaction cookie the caller minted themselves', async () => {
@@ -170,7 +186,7 @@ describeIfLiveInfra('OIDC login routes against a fixture IdP (W15-03)', () => {
       query: { code, state },
       cookies: { oidc_tx: forged },
     });
-    expect(res.statusCode).toBe(400);
+    expectBackAtSignIn(res, 'state_mismatch');
   });
 
   it('does not start a session when the provider reports an error', async () => {
@@ -181,7 +197,9 @@ describeIfLiveInfra('OIDC login routes against a fixture IdP (W15-03)', () => {
       query: { error: 'access_denied', state: 'whatever' },
       cookies: { oidc_tx: cookie },
     });
-    expect(res.statusCode).toBe(400);
+    expectBackAtSignIn(res, 'oidc_provider_error');
+    // The provider's own error text is never echoed into the URL.
+    expect(res.headers.location).not.toContain('access_denied');
     expect(res.cookies.find((c) => c.name === 'repopulse_sid')).toBeUndefined();
   });
 });

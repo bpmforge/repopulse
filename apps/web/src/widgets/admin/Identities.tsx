@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { WidgetFrame, frameState } from '../../components/index.js';
+import {
+  ErrorNote,
+  WidgetFrame,
+  errorToast,
+  frameState,
+  useUiStore,
+} from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 
 // Identity admin (W5-05, FR-AUTH-4 / FR-METRICS-3).
@@ -49,6 +55,10 @@ function IdentityRow({
     { endpoint: '/admin/identities/{id}/merge', path: { id: identity.id }, method: 'POST' },
     { invalidate: [queryKeyFor(LIST)] },
   );
+  // W20-04 (UX_TODO ADM-10): a refused bot flag or undo used to fail in
+  // silence — the checkbox just sprang back.
+  const pushToasts = useUiStore((s) => s.pushToasts);
+  const onError = (err: Error) => pushToasts([errorToast(`identity-${identity.id}-err`, err)]);
 
   return (
     <tr className="border-t border-border" data-testid={`identity-${identity.id}`}>
@@ -56,7 +66,10 @@ function IdentityRow({
         {identity.login}
         {/* Paired mark + text, never colour alone (UX_SPEC §7). */}
         {identity.email_fallback && (
-          <span className="ml-1.5 text-xs text-fg-muted" title="No forge account resolved for this author">
+          <span
+            className="ml-1.5 text-xs text-fg-muted"
+            title="No forge account resolved for this author"
+          >
             ✉ email-only
           </span>
         )}
@@ -70,7 +83,7 @@ function IdentityRow({
             checked={identity.is_bot}
             disabled={setBot.isPending}
             data-testid={`identity-bot-${identity.id}`}
-            onChange={(e) => setBot.mutate({ is_bot: e.target.checked })}
+            onChange={(e) => setBot.mutate({ is_bot: e.target.checked }, { onError })}
           />
           <span className="sr-only">Flag {identity.login} as a bot</span>
         </label>
@@ -100,7 +113,7 @@ function IdentityRow({
             className="rounded-md border border-border px-2 py-0.5 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             data-testid={`identity-unmerge-${identity.id}`}
             disabled={unmerge.isPending}
-            onClick={() => unmerge.mutate({ into_id: null })}
+            onClick={() => unmerge.mutate({ into_id: null }, { onError })}
           >
             Undo merge
           </button>
@@ -110,7 +123,15 @@ function IdentityRow({
   );
 }
 
-/** The merge action for one chosen source identity. */
+/**
+ * The merge action for one chosen source identity.
+ *
+ * Pick, then CONFIRM (W20-04, UX_TODO ADM-10). A merge rewrites authorship on
+ * every screen, and it applied on a single click while the picker closed
+ * before the request had even been answered — so a refused merge vanished
+ * without a word and a mis-click was already live. The picker now stays open
+ * until the API says yes, and says why when it says no.
+ */
 function MergePicker({
   source,
   targets,
@@ -120,6 +141,7 @@ function MergePicker({
   targets: Identity[];
   onDone: () => void;
 }) {
+  const [target, setTarget] = useState<Identity | null>(null);
   const merge = useApiMutation<{ into_id: number }, unknown>(
     { endpoint: '/admin/identities/{id}/merge', path: { id: source.id }, method: 'POST' },
     { invalidate: [queryKeyFor(LIST)] },
@@ -132,24 +154,59 @@ function MergePicker({
           The merged identity keeps its commits — they are re-attributed to the survivor, and the
           merge can be undone.
         </p>
-        <div className="flex flex-wrap gap-1.5">
-          {targets.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-              data-testid={`merge-into-${t.id}`}
-              onClick={() => {
-                merge.mutate({ into_id: t.id });
-                onDone();
-              }}
-            >
-              {t.login}
-            </button>
-          ))}
-        </div>
+        {target === null ? (
+          <div className="flex flex-wrap gap-1.5">
+            {targets.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid={`merge-into-${t.id}`}
+                onClick={() => setTarget(t)}
+              >
+                {t.login}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5" data-testid="merge-confirm">
+            <p className="text-sm">
+              Merge <span className="font-medium">{source.login}</span> into{' '}
+              <span className="font-medium">{target.login}</span>? Its {source.commits} commits and{' '}
+              {source.prs} pull requests are re-attributed on every screen.
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                className="rounded-md border border-accent px-2 py-1 text-xs hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="merge-confirm-do"
+                disabled={merge.isPending}
+                onClick={() => merge.mutate({ into_id: target.id }, { onSuccess: onDone })}
+              >
+                {merge.isPending ? 'Merging…' : `Merge into ${target.login}`}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent"
+                data-testid="merge-confirm-back"
+                disabled={merge.isPending}
+                onClick={() => {
+                  merge.reset();
+                  setTarget(null);
+                }}
+              >
+                Choose another
+              </button>
+            </div>
+            <ErrorNote error={merge.error} testId="merge-error" />
+          </div>
+        )}
         <div>
-          <button type="button" className="text-xs text-fg-muted underline underline-offset-2" onClick={onDone}>
+          <button
+            type="button"
+            className="text-xs text-fg-muted underline underline-offset-2"
+            onClick={onDone}
+          >
             Cancel
           </button>
         </div>
@@ -170,16 +227,27 @@ export function Identities() {
     <div className="flex flex-col gap-4" data-testid="identities">
       <WidgetFrame
         title="Identities"
-        state={frameState({ isLoading, isError, isEmpty: data !== undefined && items.length === 0 })}
+        state={frameState({
+          isLoading,
+          isError,
+          isEmpty: data !== undefined && items.length === 0,
+        })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
         emptyMessage="No identities yet — they appear as commits and pull requests are ingested."
       >
         {/* W18-28: scrolls in its own region at phone width; padded cells
             no longer fit 390px, and the page must not scroll sideways. */}
-        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Workspace identities">
+        <div
+          className="overflow-x-auto"
+          tabIndex={0}
+          role="region"
+          aria-label="Workspace identities"
+        >
           <table className="table-plain w-full text-sm">
-            <caption className="sr-only">Workspace identities, their weight, and merge state</caption>
+            <caption className="sr-only">
+              Workspace identities, their weight, and merge state
+            </caption>
             <thead>
               <tr className="text-left text-xs text-fg-muted">
                 <th scope="col">Identity</th>
@@ -195,7 +263,9 @@ export function Identities() {
                 <IdentityRow
                   key={i.id}
                   identity={i}
-                  targetLogin={i.merged_into_id === null ? null : (byId.get(i.merged_into_id)?.login ?? null)}
+                  targetLogin={
+                    i.merged_into_id === null ? null : (byId.get(i.merged_into_id)?.login ?? null)
+                  }
                   onMergeClick={() => setMergeSource(i.id)}
                 />
               ))}

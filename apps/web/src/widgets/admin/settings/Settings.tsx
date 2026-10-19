@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { WidgetFrame, frameState, useUiStore } from '../../../components/index.js';
+import { WidgetFrame, errorToast, frameState, useUiStore } from '../../../components/index.js';
 import { docsUrl } from '../../../lib/docs.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../../api/useApiQuery.js';
 import {
@@ -59,7 +59,8 @@ export function Settings() {
     pushToasts([{ id: `settings-${Date.now()}`, tone: 'ok', message }]);
   }
   function onFailed(err: Error) {
-    pushToasts([{ id: `settings-err-${Date.now()}`, tone: 'crit', message: err.message }]);
+    // W20-04 (UX_TODO ADM-12): the detail says WHICH value was refused and why.
+    pushToasts([errorToast(`settings-err-${Date.now()}`, err)]);
   }
 
   return (
@@ -139,7 +140,10 @@ export function Settings() {
         )}
       </WidgetFrame>
 
-      <WidgetFrame title="What counts as activity" state={frameState({ isLoading, isError, isEmpty: false })}>
+      <WidgetFrame
+        title="What counts as activity"
+        state={frameState({ isLoading, isError, isEmpty: false })}
+      >
         <form
           className="flex flex-col gap-3"
           onSubmit={(e) => {

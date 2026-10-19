@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRootRouteWithContext } from '@tanstack/react-router';
 import { createRoute, createRouter, RouterProvider } from '@tanstack/react-router';
-import { Route as rootRoute, type RouterContext } from './__root.js';
+import { downFromHealthDetail, Route as rootRoute, type RouterContext } from './__root.js';
 import { createQueryClient } from '../api/queryClient.js';
 import { queryKeyFor, useApiQuery } from '../api/useApiQuery.js';
 
@@ -33,6 +33,11 @@ function signedIn(url: string) {
   // the quiet answer, so these tests see no forge banner.
   if (url.includes('/auth/identity')) {
     return { status: 200, body: { state: 'linked', identity_id: 7 } };
+  }
+  // The shell reads the provider list while signed in too, and caches it for
+  // good — so the sign-in screen that opens over the app (X-02) uses this one.
+  if (url.includes('/auth/providers')) {
+    return { status: 200, body: { local: true, oidc: null, github: false } };
   }
   return { status: 200, body: {} };
 }
@@ -123,7 +128,6 @@ describe('app shell (__root) — W4-02', () => {
     expect(await screen.findByTestId('filter-window')).toBeInTheDocument();
     expect(screen.queryByTestId('filter-person')).not.toBeInTheDocument();
     expect(screen.queryByTestId('filter-repos')).not.toBeInTheDocument();
-
   });
 
   it('shows a filter again on a screen that DOES apply it, with its value', async () => {
@@ -263,7 +267,48 @@ describe('unauthenticated visitor (W-FIX)', () => {
 
     const signin = await screen.findByTestId('signin');
     expect(signin).toHaveTextContent(/session ended/i);
-    expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
+    // W20-04 (UX_TODO X-02): OVER the app, not instead of it — and the app
+    // underneath cannot be reached until the person signs in again.
+    expect(screen.getByTestId('reauth-overlay')).toContainElement(signin);
+    expect(screen.getByTestId('rail').closest('[inert]')).not.toBeNull();
+    // It no longer promises what it cannot keep.
+    expect(signin).not.toHaveTextContent(/nothing was lost/i);
+  });
+
+  it('keeps what was typed through a mid-use expiry and sign-in (W20-04, X-02)', async () => {
+    const user = userEvent.setup();
+    function Draft() {
+      const { isError } = useApiQuery<Record<string, never>>({ endpoint: '/org/summary' });
+      return (
+        <div data-testid="home">
+          <textarea data-testid="draft" aria-label="Triage note" />
+          {isError ? 'failed' : 'ok'}
+        </div>
+      );
+    }
+    const { queryClient } = renderAt('/', <Draft />);
+    await user.type(await screen.findByTestId('draft'), 'half a triage note');
+
+    let authenticated = false;
+    respond = (url: string) => {
+      if (url.includes('/auth/local/login')) {
+        authenticated = true;
+        return { status: 200, body: { must_change_password: false } };
+      }
+      return authenticated ? signedIn(url) : signedOut(url);
+    };
+    await queryClient.invalidateQueries({ queryKey: queryKeyFor({ endpoint: '/org/summary' }) });
+    await screen.findByTestId('reauth-overlay');
+
+    await user.type(await screen.findByTestId('signin-email'), 'admin@example.com');
+    await user.type(screen.getByTestId('signin-password'), 'a good long password');
+    await user.click(screen.getByTestId('signin-submit'));
+
+    await waitFor(() => expect(screen.queryByTestId('reauth-overlay')).not.toBeInTheDocument());
+    expect(screen.getByTestId('draft')).toHaveValue('half a triage note');
+    expect(screen.getByTestId('rail').closest('[inert]')).toBeNull();
+    // What failed while signed out is asked again, not left as an error card.
+    await waitFor(() => expect(screen.getByTestId('home')).toHaveTextContent('ok'));
   });
 
   it('keeps the shell when the API fails with something that is NOT a 401', async () => {
@@ -275,6 +320,51 @@ describe('unauthenticated visitor (W-FIX)', () => {
     expect(await screen.findByTestId('rail', undefined, { timeout: 8000 })).toBeInTheDocument();
     expect(screen.queryByTestId('signin')).not.toBeInTheDocument();
   }, 15000);
+});
+
+// W20-04 (UX_TODO ADM-43). With Postgres or Redis down every card showed its
+// own "Internal Server Error" and nothing said the server had lost its database.
+describe('database or Redis down (W20-04)', () => {
+  it('shows one outage screen naming what is down, instead of the app', async () => {
+    respond = (url: string) =>
+      url.includes('/healthz')
+        ? {
+            status: 503,
+            body: { title: 'Service Unavailable', status: 503, detail: 'postgres=down redis=ok' },
+          }
+        : { status: 500, body: { title: 'Internal Server Error', status: 500 } };
+    renderAt('/');
+    const outage = await screen.findByTestId('outage', undefined, { timeout: 8000 });
+    expect(outage).toHaveTextContent(/can’t reach its database/);
+    expect(screen.getByTestId('outage-detail')).toHaveTextContent('postgres: down');
+    expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
+  }, 15000);
+
+  it('reads what is down from the /healthz detail', () => {
+    expect(downFromHealthDetail('postgres=down redis=down')).toEqual(['postgres', 'redis']);
+    expect(downFromHealthDetail('postgres=ok redis=down')).toEqual(['redis']);
+    expect(downFromHealthDetail(undefined)).toEqual([]);
+  });
+});
+
+// W20-04 (UX_TODO ADM-04). The shell never passed isAdmin, so the rail showed
+// members "Settings" and the page behind it refused them.
+describe('rail by role (W20-04)', () => {
+  it('a member gets their Account page where an admin gets Settings', async () => {
+    respond = (url: string) =>
+      url.includes('/me/context')
+        ? { status: 200, body: { ...ME_CONTEXT, role: 'member' } }
+        : signedIn(url);
+    renderAt('/');
+    expect(await screen.findByTestId('rail-account')).toHaveTextContent('Account');
+    expect(screen.queryByTestId('rail-admin')).not.toBeInTheDocument();
+  });
+
+  it('an admin still gets Settings', async () => {
+    renderAt('/');
+    expect(await screen.findByTestId('rail-admin')).toHaveTextContent('Settings');
+    expect(screen.queryByTestId('rail-account')).not.toBeInTheDocument();
+  });
 });
 
 // W16-05 (F19). The trail described a screen nobody was on: `/repos/25152/security`
@@ -318,7 +408,10 @@ describe('the session probe cannot strand you (W16-15)', () => {
 
   it('offers a retry and a sign-out once it has waited too long', async () => {
     // A request that never settles: exactly the state that produced the strand.
-    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    );
     renderAt('/');
 
     expect(await screen.findByTestId('session-probe')).toBeInTheDocument();
@@ -335,7 +428,10 @@ describe('the session probe cannot strand you (W16-15)', () => {
   it('stops advertising itself as busy once it gives up waiting', async () => {
     // aria-busy on a spinner that will never finish tells a screen-reader user
     // to keep waiting for something that is not coming.
-    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    );
     renderAt('/');
 
     const probe = await screen.findByTestId('session-probe');

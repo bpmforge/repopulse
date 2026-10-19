@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as GovernanceRouteImport } from './routes/governance'
 import { Route as MeRouteImport } from './routes/me'
@@ -52,6 +53,11 @@ import { Route as ReposRepoIdPrsNumberRouteImport } from './routes/repos/$repoId
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRouteRoute = AdminRouteRouteImport.update({
@@ -248,6 +254,7 @@ const ReposRepoIdPrsNumberRoute = ReposRepoIdPrsNumberRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/account': typeof AccountRoute
   '/governance': typeof GovernanceRoute
   '/me': typeof MeRoute
   '/pull-requests': typeof PullRequestsRoute
@@ -288,6 +295,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/governance': typeof GovernanceRoute
   '/me': typeof MeRoute
   '/pull-requests': typeof PullRequestsRoute
@@ -329,6 +337,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/account': typeof AccountRoute
   '/governance': typeof GovernanceRoute
   '/me': typeof MeRoute
   '/pull-requests': typeof PullRequestsRoute
@@ -372,6 +381,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/account'
     | '/governance'
     | '/me'
     | '/pull-requests'
@@ -412,6 +422,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/account'
     | '/governance'
     | '/me'
     | '/pull-requests'
@@ -452,6 +463,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/account'
     | '/governance'
     | '/me'
     | '/pull-requests'
@@ -494,6 +506,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  AccountRoute: typeof AccountRoute
   GovernanceRoute: typeof GovernanceRoute
   MeRoute: typeof MeRoute
   PullRequestsRoute: typeof PullRequestsRoute
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -856,6 +876,7 @@ const ReposRepoIdRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
+  AccountRoute: AccountRoute,
   GovernanceRoute: GovernanceRoute,
   MeRoute: MeRoute,
   PullRequestsRoute: PullRequestsRoute,

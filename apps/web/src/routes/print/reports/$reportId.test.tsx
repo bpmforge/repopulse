@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
 import { Route as rootRoute, type RouterContext } from '../../__root.js';
@@ -119,5 +119,57 @@ describe('print route layout (W17-26)', () => {
     (window as unknown as { __REPORT_DATA: unknown }).__REPORT_DATA = DATA;
     renderPrint();
     expect(screen.queryByText(/\[object Object\]/)).toBeNull();
+  });
+});
+
+// W20-04 (UX_TODO ADM-09). The in-app viewer checked only success: any error
+// read "Loading…" for ever, and a queued or failed report claimed to have "no
+// stored data".
+describe('in-app viewer states (W20-04)', () => {
+  function answer(status: number, body: unknown) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      ),
+    );
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('an error says so, with the request id and a way back, instead of Loading for ever', async () => {
+    answer(404, { title: 'Not Found', status: 404, request_id: 'req-404' });
+    renderPrint();
+    expect(await screen.findByTestId('print-report-error')).toHaveTextContent('Not Found');
+    expect(screen.getByTestId('print-report-error-request-id')).toHaveTextContent('req-404');
+    expect(screen.getByTestId('print-back')).toBeInTheDocument();
+    expect(screen.queryByText('Loading…')).toBeNull();
+  });
+
+  it('a report still generating says it will update, not that it has no data', async () => {
+    answer(200, { id: 5, type: 'code_health', status: 'running', error: null, data: null });
+    renderPrint();
+    expect(await screen.findByTestId('print-report-generating')).toHaveTextContent(
+      /still generating/,
+    );
+    expect(screen.queryByText(/no stored data/)).toBeNull();
+  });
+
+  it('a failed report gives its reason', async () => {
+    answer(200, {
+      id: 5,
+      type: 'code_health',
+      status: 'failed',
+      error: 'chromium exploded',
+      data: null,
+    });
+    renderPrint();
+    expect(await screen.findByTestId('print-report-failed')).toHaveTextContent(
+      'This report failed: chromium exploded',
+    );
   });
 });
