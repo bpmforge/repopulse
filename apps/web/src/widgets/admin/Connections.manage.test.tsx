@@ -8,7 +8,10 @@ import {
   Connections,
   OPTIONAL_SCOPES,
   connectErrorSentence,
+  connectionHost,
+  connectionStatusText,
   removeConsequence,
+  tokenCreateUrl,
 } from './Connections.js';
 
 // W20-07 (UX_TODO INS-07, INS-08, INS-64, INS-73).
@@ -46,7 +49,7 @@ beforeEach(() => {
               registered: 2,
               failed: [{ repo: 'acme/c', error: 'forbidden' }],
             }
-          : method === 'PATCH'
+          : method === 'PATCH' || method === 'POST'
             ? { id: 5, status: 'active', fingerprint: 'y' }
             : method === 'DELETE'
               ? { id: 5, outcome: 'disconnected', paused_repos: 3 }
@@ -95,6 +98,32 @@ describe('connection guidance (W20-07)', () => {
     expect(screen.queryByText(/server default\)/)).toBeNull();
   });
 
+  it('INS-25 / INS-26 / INS-43: Gitea needs an address, and each forge links to its token page', async () => {
+    const user = userEvent.setup();
+    renderConnections();
+    expect(screen.getByTestId('connection-token-link')).toHaveAttribute(
+      'href',
+      'https://github.com/settings/tokens/new?scopes=repo,read:org&description=RepoPulse',
+    );
+    expect(screen.getByTestId('connection-fine-grained')).toHaveTextContent(/Pull requests/);
+    await user.selectOptions(screen.getByTestId('connection-provider'), 'gitea');
+    expect(screen.getByTestId('connection-base-url')).toBeRequired();
+    expect(screen.queryByTestId('connection-token-link')).toBeNull();
+    expect(screen.getByTestId('connection-credential')).toHaveAttribute(
+      'placeholder',
+      expect.not.stringContaining('ghp_'),
+    );
+    await user.type(screen.getByTestId('connection-base-url'), 'https://git.example.com');
+    expect(screen.getByTestId('connection-token-link')).toHaveAttribute(
+      'href',
+      'https://git.example.com/user/settings/applications',
+    );
+    expect(tokenCreateUrl('gitlab', '')).toContain('https://gitlab.com/-/user_settings/');
+    expect(tokenCreateUrl('github', 'https://ghe.example.com/api/v3')).toMatch(
+      /^https:\/\/ghe\.example\.com\/settings\/tokens\/new/,
+    );
+  });
+
   it('INS-64: unreachable, TLS and wrong-URL failures never tell the admin to replace the token', () => {
     for (const kind of ['cannot_reach', 'tls_untrusted', 'wrong_url']) {
       const sentence = connectErrorSentence(`Credential validation failed: ${kind}`, 'gitea');
@@ -136,6 +165,42 @@ describe('managing a connection (W20-07, INS-08)', () => {
     await waitFor(() =>
       expect(calls.find((c) => c.method === 'DELETE')?.url).toBe('/api/v1/connections/5'),
     );
+  });
+
+  it('INS-75: lists the forge repositories only when the admin opens the picker', async () => {
+    const user = userEvent.setup();
+    renderConnections();
+    const pick = await screen.findByTestId('connection-pick-5');
+    expect(calls.some((c) => c.url.includes('available-repos'))).toBe(false);
+    expect(screen.queryByTestId('repo-picker')).toBeNull();
+    await user.click(pick);
+    await waitFor(() => expect(calls.some((c) => c.url.includes('available-repos'))).toBe(true));
+    // INS-28: the picker names its forge and host.
+    expect(
+      screen.getByText('Select repositories to track — Gitea · git.example.com'),
+    ).toBeInTheDocument();
+    expect(pick).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('INS-27: a successful connect says what is next, opens that picker and focuses it', async () => {
+    const user = userEvent.setup();
+    renderConnections();
+    await user.type(screen.getByTestId('connection-credential'), 'not-a-real-token');
+    await user.click(screen.getByTestId('connection-submit'));
+    expect(await screen.findByTestId('connection-result')).toHaveTextContent(
+      'Now choose which repositories to track',
+    );
+    const picker = await screen.findByTestId('repo-picker-panel');
+    await waitFor(() => expect(picker).toHaveFocus());
+  });
+
+  it('ADM-41 / INS-43: plain status words and the real host', async () => {
+    renderConnections();
+    expect(await screen.findByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('git.example.com')).toBeInTheDocument();
+    expect(connectionStatusText('removed')).toMatch(/token wiped/);
+    expect(connectionHost('github', null)).toBe('github.com');
+    expect(connectionHost('gitlab', null)).toBe('gitlab.com');
   });
 
   it('describes an empty connection as deleted outright', () => {

@@ -5,13 +5,18 @@ import {
   frameState,
   type DataTableColumn,
 } from '../../components/index.js';
+import { Link } from '@tanstack/react-router';
 import { DlqPanel } from './DlqPanel.js';
+import { ErrorDetails } from './ErrorDetails.js';
+import { relativeTime } from '../../lib/time.js';
 import { queryKeyFor, useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
 import { errorToast, useUiStore } from '../../components/store/uiStore.js';
 import {
   formatLag,
   notEnabledText,
+  phaseLabel,
   phaseSeverity,
+  type ConnectionList,
   type OrgSyncStatus,
   type RepoSyncStatus,
 } from './contracts.js';
@@ -89,12 +94,85 @@ export function TrackingButton({ row }: { row: RepoSyncStatus }) {
   );
 }
 
+/**
+ * Retry an errored repository now (W20-14, UX_TODO INS-30): a fresh plan from
+ * its cursors, the same thing the nightly sweep does for it at 03:17.
+ */
+export function RetryButton({ row }: { row: RepoSyncStatus }) {
+  const pushToasts = useUiStore((s) => s.pushToasts);
+  const retry = useApiMutation<{ paused: boolean }, { repo_id: number; sync_status: string }>(
+    { endpoint: '/repos/{id}/tracking', path: { id: row.repoId }, method: 'PUT' },
+    { invalidate: [queryKeyFor(STATUS)] },
+  );
+  const name = row.repoName ?? row.repoId;
+  return (
+    <button
+      type="button"
+      disabled={retry.isPending}
+      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      data-testid={`sync-retry-${row.repoId}`}
+      title="Plan this repository's sync again now, from where it stopped"
+      onClick={() =>
+        retry.mutate(
+          { paused: false },
+          {
+            onError: (err: Error) => pushToasts([errorToast(`retry-${row.repoId}-err`, err)]),
+            onSuccess: () =>
+              pushToasts([
+                {
+                  id: `retry-${row.repoId}-ok`,
+                  tone: 'ok',
+                  message: `${name} queued to sync again`,
+                },
+              ]),
+          },
+        )
+      }
+    >
+      {retry.isPending ? 'Retrying…' : 'Retry'}
+    </button>
+  );
+}
+
+/**
+ * The empty state names which step is missing (W20-14, UX_TODO INS-31): it
+ * said "connect an organisation first" even with a connection in place.
+ */
+export function syncEmptyMessage(connectionCount: number | undefined): string {
+  if (connectionCount === undefined || connectionCount === 0) {
+    return 'No forge is connected yet, so nothing is syncing.';
+  }
+  return 'A forge is connected, but no repositories are selected yet.';
+}
+
 export function SyncOps() {
   const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSyncStatus>(STATUS, {
     refetchInterval: syncPollInterval,
   });
 
   const repos = data?.repos ?? [];
+  const { data: connections } = useApiQuery<ConnectionList>({ endpoint: '/connections' });
+  const connectionCount = connections?.items?.filter((c) => c.status !== 'removed').length;
+  // INS-32: the status endpoint has no real budget reading yet (every row is
+  // 0/0), so the column is shown only once one is recorded.
+  const budgetRecorded = repos.some((r) => r.budget.limit > 0);
+
+  const budgetColumn: DataTableColumn<RepoSyncStatus> = {
+    id: 'budget',
+    header: 'Budget left',
+    align: 'right',
+    // Rate-limit budget is law (Law 7); an operator needs to see it before a
+    // repo goes paused_budget, not after. A ZERO LIMIT IS NOT A BUDGET
+    // (W16-57): 0/0 reads as exhausted, so such a row says so in words.
+    cell: (row) =>
+      row.budget.limit === 0 ? (
+        <span className="text-xs text-fg-muted">not recorded</span>
+      ) : (
+        <span className="tabular-nums">
+          {row.budget.remaining}/{row.budget.limit}
+        </span>
+      ),
+  };
 
   const columns: DataTableColumn<RepoSyncStatus>[] = [
     // W16-05 (F11): this showed the numeric id. Falls back to it only if an
@@ -104,7 +182,7 @@ export function SyncOps() {
       id: 'phase',
       header: 'Phase',
       cell: (row) => (
-        <SeverityBadge severity={phaseSeverity(row.phase)} label={row.phase.replace(/_/g, ' ')} />
+        <SeverityBadge severity={phaseSeverity(row.phase)} label={phaseLabel(row.phase)} />
       ),
     },
     {
@@ -114,30 +192,22 @@ export function SyncOps() {
       // repository that is fully caught up and phase `live` still reads 9% on a
       // fixture holding 40 days. Under a column called Progress that says the
       // sync is stuck, next to a phase saying it is finished.
-      header: 'History of 1y',
+      header: 'History loaded (of 1 year)',
       align: 'right',
       cell: (row) => <span className="tabular-nums">{Math.round(row.percentComplete)}%</span>,
     },
+    ...(budgetRecorded ? [budgetColumn] : []),
     {
-      id: 'budget',
-      header: 'Budget left',
-      align: 'right',
-      // Rate-limit budget is law (Law 7); an operator needs to see it before a
-      // repo goes paused_budget, not after.
-      //
-      // A ZERO LIMIT IS NOT A BUDGET (W16-57). The status endpoint documents
-      // its budget as a placeholder — a runtime gauge that no table warehouses
-      // yet — and served { remaining: 0, limit: 0 }, which rendered as "0/0":
-      // indistinguishable from a repository that has exhausted its rate limit,
-      // which is the one state this column exists to warn about.
-      cell: (row) =>
-        row.budget.limit === 0 ? (
-          <span className="text-xs text-fg-muted">not recorded</span>
-        ) : (
-          <span className="tabular-nums">
-            {row.budget.remaining}/{row.budget.limit}
-          </span>
-        ),
+      // UX_SPEC §4.i (INS-32): when the forge last told us about a change.
+      // "never" is normal for a repo tracked minutes ago, or one whose forge
+      // cannot reach this install (it then updates with the nightly sync).
+      id: 'webhook',
+      header: 'Last webhook',
+      cell: (row) => (
+        <span className="text-xs text-fg-muted" data-testid={`sync-webhook-${row.repoId}`}>
+          {row.lastWebhookAt === undefined ? '—' : relativeTime(row.lastWebhookAt)}
+        </span>
+      ),
     },
     {
       id: 'lag',
@@ -165,13 +235,15 @@ export function SyncOps() {
     {
       id: 'error',
       header: 'Last error',
+      // ADM-16: the whole line, expandable, not a 60-character cut with the
+      // rest in a mouse-only tooltip.
       cell: (row) =>
         row.lastError ? (
-          // The cell truncates; the full line (several fragments joined by
-          // " · " — refusals, a stalled sync) is one hover away.
-          <span className="text-crit" title={`${row.lastError.message}\n${row.lastError.at}`}>
-            {row.lastError.message.slice(0, 60)}
-          </span>
+          <ErrorDetails
+            message={row.lastError.message}
+            at={row.lastError.at}
+            testId={`sync-error-${row.repoId}`}
+          />
         ) : (
           '—'
         ),
@@ -179,7 +251,12 @@ export function SyncOps() {
     {
       id: 'tracking',
       header: 'Tracking',
-      cell: (row) => <TrackingButton row={row} />,
+      cell: (row) => (
+        <div className="flex gap-1.5">
+          {row.phase === 'error' && <RetryButton row={row} />}
+          <TrackingButton row={row} />
+        </div>
+      ),
     },
   ];
 
@@ -195,7 +272,7 @@ export function SyncOps() {
           <dl className="flex flex-wrap gap-6 text-sm" data-testid="sync-summary">
             <div>
               <dt className="text-xs text-fg-muted">Phase</dt>
-              <dd data-testid="sync-phase">{data.phase.replace(/_/g, ' ')}</dd>
+              <dd data-testid="sync-phase">{phaseLabel(data.phase)}</dd>
             </div>
             <div>
               <dt className="text-xs text-fg-muted">Repos</dt>
@@ -203,7 +280,7 @@ export function SyncOps() {
             </div>
             <div>
               {/* Same measure, same honesty as the column below (W16-57). */}
-              <dt className="text-xs text-fg-muted">History of 1y</dt>
+              <dt className="text-xs text-fg-muted">History loaded (of 1 year)</dt>
               <dd className="tabular-nums">{Math.round(data.percentComplete)}%</dd>
             </div>
             <div>
@@ -223,7 +300,16 @@ export function SyncOps() {
         })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
-        emptyMessage="No repositories are syncing — connect an organisation first."
+        emptyMessage={syncEmptyMessage(connectionCount)}
+        emptyAction={
+          <Link
+            to="/admin/"
+            className="text-xs text-accent underline-offset-2 hover:underline"
+            data-testid="sync-empty-action"
+          >
+            {connectionCount ? 'Choose repositories in Connections →' : 'Connect a forge →'}
+          </Link>
+        }
       >
         <div data-testid="sync-repo-table">
           <DataTable

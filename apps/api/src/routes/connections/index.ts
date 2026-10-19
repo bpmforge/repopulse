@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, like, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { auditLog, core, type Database } from '@repopulse/shared';
@@ -225,8 +225,9 @@ export default async function connectionsRoutes(
           request,
           reply,
           400,
-          'base_url is required for Gitea',
-          'Gitea is self-hosted, so there is no default instance to connect to. Give the connection its own base URL (or set FORGE_BASE_URL as the server-wide default).',
+          // INS-25: in the form's words, not the API field name.
+          'Enter your Gitea address',
+          'Gitea is self-hosted, so there is no default instance to connect to. Enter its address in Instance URL, e.g. https://git.example.com (or set FORGE_BASE_URL as the server-wide default).',
         );
       }
 
@@ -446,7 +447,26 @@ export default async function connectionsRoutes(
           },
         },
       );
-      return reply.send({ repo_ids: repoIds });
+      // INS-29: name the repos whose webhook the forge refused. activateRepos
+      // records that on the row rather than failing the batch, so the screen
+      // used to report success with no hint that live updates were missing.
+      const refused =
+        repoIds.length === 0
+          ? []
+          : await db
+              .select({ org: core.repos.org, name: core.repos.name })
+              .from(core.repos)
+              .where(
+                and(
+                  eq(core.repos.workspaceId, ctx.workspaceId),
+                  inArray(core.repos.id, repoIds),
+                  like(core.repos.lastError, 'live updates unavailable%'),
+                ),
+              );
+      return reply.send({
+        repo_ids: repoIds,
+        webhook_failed: refused.map((r) => `${r.org}/${r.name}`),
+      });
     },
   );
 
@@ -742,7 +762,10 @@ export default async function connectionsRoutes(
         return reply.send({ repo_id: repo.id, sync_status: 'paused' });
       }
 
-      if (repo.syncStatus !== 'paused') {
+      // W20-14 (UX_TODO INS-30): an `error` repo is retried the same way — a
+      // fresh plan from its cursors, what the nightly sweep does for it —
+      // instead of waiting for 03:17.
+      if (repo.syncStatus !== 'paused' && repo.syncStatus !== 'error') {
         // Nothing to resume; say what it is rather than re-queue a live repo.
         return reply.send({ repo_id: repo.id, sync_status: repo.syncStatus });
       }

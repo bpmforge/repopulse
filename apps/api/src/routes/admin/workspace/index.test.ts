@@ -436,6 +436,60 @@ describeIfLiveInfra('admin workspace settings (W4-09)', () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  // W20-14: a hand-written legacy `licensePolicy` (camel case) and keys the
+  // schema does not own were stripped by the next unrelated save.
+  it('migrates a legacy licensePolicy and keeps unknown keys across an unrelated save', async () => {
+    const cookie = await adminSession();
+    await db
+      .update(core.workspaces)
+      .set({
+        settings: {
+          licensePolicy: { flagCategories: ['strong-copyleft'], flagUnknown: false, flag: ['X-1'] },
+          lm_hosts: ['http://lm.local:1234'],
+        },
+      })
+      .where(eq(core.workspaces.id, workspaceId));
+
+    // Read path: the legacy policy shows as stored (not "default") before any save.
+    const before = (await get(cookie)).json() as {
+      stored: { license_policy?: unknown };
+      effective: { licensePolicy: { flagCategories: string[]; flagUnknown: boolean } };
+    };
+    expect(before.stored.license_policy).toEqual({
+      flag_categories: ['strong-copyleft'],
+      flag_unknown: false,
+      flag: ['X-1'],
+    });
+    expect(before.effective.licensePolicy.flagCategories).toEqual(['strong-copyleft']);
+
+    expect((await patch(cookie, { stale_pr_days: 11 })).statusCode).toBe(200);
+
+    const [row] = await db
+      .select({ settings: core.workspaces.settings })
+      .from(core.workspaces)
+      .where(eq(core.workspaces.id, workspaceId));
+    const saved = row!.settings as Record<string, unknown>;
+    expect(saved['licensePolicy']).toBeUndefined();
+    expect(saved['license_policy']).toEqual({
+      flag_categories: ['strong-copyleft'],
+      flag_unknown: false,
+      flag: ['X-1'],
+    });
+    expect(saved['lm_hosts']).toEqual(['http://lm.local:1234']);
+    expect(saved['stale_pr_days']).toBe(11);
+
+    const after = (await get(cookie)).json() as {
+      effective: { licensePolicy: { flagUnknown: boolean; flag: string[] } };
+    };
+    expect(after.effective.licensePolicy.flagUnknown).toBe(false);
+    expect(after.effective.licensePolicy.flag).toEqual(['X-1']);
+
+    await db
+      .update(core.workspaces)
+      .set({ settings: {} })
+      .where(eq(core.workspaces.id, workspaceId));
+  });
+
   it('GET /org/ai-governance is aggregate-only and validates its repo filter', async () => {
     const cookie = await adminSession();
     const res = await app.inject({

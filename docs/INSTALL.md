@@ -345,8 +345,9 @@ file sets for both services; a process started some other way logs a warning
 at startup when a proxy is set without it. A proxy that re-signs TLS also
 needs its CA added as in the section above. Without the proxy setting,
 connecting a forge from such a server fails with a timeout ("cannot reach"),
-not a bad-token error. `deploy/scan-db-sync.sh` runs on the host and uses the
-host's own `HTTPS_PROXY`.
+not a bad-token error. `deploy/scan-db-sync.sh` passes `HTTPS_PROXY` and
+`NO_PROXY` from `.env` to the containers that download the vulnerability
+database.
 
 ### The GitHub App variables are for sign-in, not for data
 
@@ -590,8 +591,10 @@ deploy/scan-db-sync.sh
 
 Rootless Podman (the default, and the tested setup) gives every user their own
 images and containers. A root cron job cannot see the scan image you loaded,
-leaves root-owned files in the scan-data directory, and fails every night. The
-job also needs that user to linger — see *Start on boot*.
+leaves root-owned files in the scan-data directory, and fails every night, so
+the script refuses to run as root when `deploy/.env` belongs to another user
+(`REPOPULSE_ALLOW_ROOT=1` overrides that for a deliberately rootful install).
+The job also needs that user to linger — see *Start on boot*.
 
 > **Provision 5 GB of disk under the scan-data directory** (`deploy/scan-rules`
 > beside the compose file unless you set `SCAN_RULES_DIR`). The vulnerability
@@ -696,7 +699,8 @@ RepoPulse publishes one plain-HTTP port. Your terminator should:
 
 - forward `/` to that port, including `/api/` and the server-sent events stream
   at `/api/v1/events` (buffering off, long read timeout);
-- expose `POST /api/v1/webhooks/github` on the public vhost if your forge is on
+- expose `POST /api/v1/webhooks/github` (GitHub and Gitea) and
+  `POST /api/v1/webhooks/gitlab` (GitLab) on the public vhost if your forge is on
   the internet, and everything else only where your users are — the webhook
   handler authenticates every delivery by signature and does nothing but verify
   and enqueue, so the worst case for an attacker is a rejected 401;

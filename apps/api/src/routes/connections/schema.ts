@@ -102,6 +102,11 @@ export const selectReposBodySchema = z
 
 export const selectReposResponseSchema = z.object({
   repo_ids: z.array(z.number()),
+  /**
+   * INS-29: `org/name` of each newly tracked repo whose webhook the forge
+   * refused. They still backfill; they just get no live updates.
+   */
+  webhook_failed: z.array(z.string()).optional(),
 });
 
 export const connectionIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });

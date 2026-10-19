@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Button, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { relativeTime } from '../../lib/time.js';
+import { docsUrl } from '../../lib/docs.js';
 
 // Settings → system health (W17-08, consumes W17-07's /admin/system).
 //
@@ -51,17 +53,7 @@ const PRESENTATION: Record<ComponentState, { dot: string; text: string; label: s
 /** Modest interval: this is a status panel, not a live console. */
 const POLL_MS = 30_000;
 
-function relative(iso: string | null): string {
-  if (!iso) return 'never';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return 'unknown';
-  const mins = Math.round(ms / 60_000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} d ago`;
-}
+const relative = relativeTime;
 
 export function SystemStatus() {
   const [showDetail, setShowDetail] = useState(false);
@@ -105,6 +97,26 @@ export function SystemStatus() {
                   {relative(data.about.lastBackupAt)}
                 </span>
               ) : null}
+              {' · '}
+              <a
+                href={docsUrl('docs/RUNBOOK.md#backup')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline-offset-2 hover:underline"
+                data-testid="system-runbook-backup"
+              >
+                Backup ↗
+              </a>
+              {' · '}
+              <a
+                href={docsUrl('docs/RUNBOOK.md#upgrade')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline-offset-2 hover:underline"
+                data-testid="system-runbook-upgrade"
+              >
+                Upgrade ↗
+              </a>
             </p>
             <Button size="sm" onClick={() => void refetch()} data-testid="system-status-refresh">
               Refresh
@@ -137,8 +149,13 @@ export function SystemStatus() {
                     <p className="mt-1 text-xs text-fg-muted">{c.reason}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3 text-xs">
-                    <span className="text-fg-muted" title={c.lastSuccessAt ?? 'never'}>
-                      {c.lastSuccessAt ? relative(c.lastSuccessAt) : '—'}
+                    {/* ADM-67: labelled, not a bare "5 min ago". */}
+                    <span
+                      className="text-fg-muted"
+                      title={c.lastSuccessAt ?? 'never'}
+                      data-testid={`system-last-${c.id}`}
+                    >
+                      {c.lastSuccessAt ? `Last worked ${relative(c.lastSuccessAt)}` : '—'}
                     </span>
                     {c.action ? (
                       <Link
@@ -170,8 +187,12 @@ export function SystemStatus() {
               {showDetail ? 'Hide diagnostics' : 'Show diagnostics'}
             </Button>
             {showDetail ? (
+              // ADM-67: a scrolling block keyboard users can reach and read.
               <pre
-                className="mt-2 max-h-64 overflow-auto rounded-md border border-border p-2 text-[11px] leading-relaxed"
+                tabIndex={0}
+                role="region"
+                aria-label="Diagnostics (raw status response)"
+                className="mt-2 max-h-64 overflow-auto rounded-md border border-border p-2 text-[11px] leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 data-testid="system-status-diagnostics"
               >
                 {JSON.stringify(data, null, 2)}

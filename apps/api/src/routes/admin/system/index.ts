@@ -338,6 +338,11 @@ export default async function systemRoutes(
     });
 
     // ---- scanners ---------------------------------------------------------
+    //
+    // W20-14 (UX_TODO ADM-75): judged on each repository's LATEST run of each
+    // scanner, not on every failure ever recorded. One failed first CVE scan
+    // (before scan-db-sync.sh had run) used to keep this row degraded for good,
+    // and the row never said which repository or scanner it meant.
     await guarded(
       'scanners',
       'Security and code-health scanners',
@@ -348,11 +353,30 @@ export default async function systemRoutes(
             lastSuccess: sql<
               string | null
             >`max(${security.scanRuns.finishedAt}) filter (where ${security.scanRuns.status} = 'succeeded')`,
-            failed: sql<number>`count(*) filter (where ${security.scanRuns.status} = 'failed')::int`,
             total: sql<number>`count(*)::int`,
           })
           .from(security.scanRuns)
           .where(eq(security.scanRuns.workspaceId, workspaceId));
+
+        const failing = [
+          ...(await db.execute<{
+            repo_id: number | string;
+            scanner_key: string;
+            org: string;
+            name: string;
+          }>(sql`
+        select latest.repo_id, latest.scanner_key, r.org, r.name
+        from (
+          select distinct on (repo_id, scanner_key) repo_id, scanner_key, status
+          from ${security.scanRuns}
+          where workspace_id = ${workspaceId}
+          order by repo_id, scanner_key, started_at desc
+        ) latest
+        join ${core.repos} r on r.id = latest.repo_id and r.workspace_id = ${workspaceId}
+        where latest.status = 'failed'
+        order by r.org, r.name, latest.scanner_key
+      `)),
+        ];
 
         const scanLastSuccess = scanAgg?.lastSuccess ?? null;
         const scanState: ComponentState =
@@ -360,9 +384,15 @@ export default async function systemRoutes(
             ? 'setup_needed'
             : scanLastSuccess === null
               ? 'unavailable'
-              : (scanAgg?.failed ?? 0) > 0
+              : failing.length > 0
                 ? 'degraded'
                 : 'ready';
+        const named = failing
+          .slice(0, 3)
+          .map((f) => `${f.org}/${f.name} (${f.scanner_key})`)
+          .join(', ');
+        const more = failing.length > 3 ? ` and ${failing.length - 3} more` : '';
+        const first = failing[0];
         components.push({
           id: 'scanners',
           label: 'Security and code-health scanners',
@@ -373,10 +403,14 @@ export default async function systemRoutes(
               : scanState === 'unavailable'
                 ? `${scanAgg?.total ?? 0} scan runs recorded and not one has succeeded.`
                 : scanState === 'degraded'
-                  ? `Some scans are failing (${scanAgg?.failed} of ${scanAgg?.total}). Earlier successful results are still shown and are still real.`
-                  : 'Scans are completing.',
+                  ? `${failing.length} scanner${failing.length === 1 ? '' : 's'} failed on their latest run: ${named}${more}. Earlier successful results are still shown and are still real.`
+                  : 'Every scanner’s latest run completed.',
           lastSuccessAt: scanLastSuccess ? new Date(scanLastSuccess).toISOString() : null,
-          action: SYSTEM_ACTIONS.analysis,
+          // The failing repository's Security tab (its Coverage table says why),
+          // not the AI tier page, which has nothing about scanners.
+          action: first
+            ? { label: 'Open its Security tab', href: `/repos/${first.repo_id}/security` }
+            : null,
         });
       },
     );

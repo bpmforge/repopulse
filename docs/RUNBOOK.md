@@ -31,6 +31,13 @@ looks like a broken product rather than a missing key. **Store the key
 somewhere other than beside the dump**, or you have put the lock and the key in
 the same envelope.
 
+**What a backup does not hold.** Report *schedules* are stored only in Redis
+(as repeatable jobs), not in Postgres, so a restore onto a new server, or a
+lost Redis volume, brings back every report but none of the schedules. Write
+down your schedules (Reports → Schedules) and create them again after a
+restore. Generated report files live in the `reportdata` volume and are not in
+the dump either; their history rows are, and each can be generated again.
+
 ---
 
 ## Backup
@@ -61,7 +68,10 @@ Backing up is non-destructive, so the project defaults to the live install
 Nightly, from cron — in the crontab of **the user who ran `install.sh`**
 (`crontab -e` as that user), not root's. Rootless Podman keeps a separate
 image store and container set per user: run as root, `backup.sh` finds no
-postgres container and fails every night into a log nobody reads.
+postgres container and fails every night into a log nobody reads. So
+`backup.sh` and `scan-db-sync.sh` refuse to run as root when `deploy/.env`
+belongs to another user, and say whose crontab to use; set
+`REPOPULSE_ALLOW_ROOT=1` only for a deliberately rootful install.
 
 ```
 30 2 * * *  OUT_DIR=$HOME/repopulse-backups /opt/repopulse/deploy/backup.sh >> $HOME/repopulse-backup.log 2>&1
@@ -263,6 +273,51 @@ After a restore, check two things:
 
 1. your repository list is back, and
 2. a forge sync still works — which is the end-to-end test of the key.
+
+### Restore onto a new server (the old one is gone)
+
+The order matters: the new install must start with the **old** key, or
+`restore.sh` refuses the dump ("TOKEN_ENC_KEY in .env is not the key this dump
+was taken under"). You need the dump, its `.manifest`, and either the old
+`deploy/.env` or at least the `TOKEN_ENC_KEY` you saved from it.
+
+1. On the new server, as the user who will run it, extract the bundle of the
+   **same version** the dump was taken on (`RepoPulse <version>` at the top of
+   Settings → System health, or `REPOPULSE_VERSION` in the old `.env`).
+   Restore first, upgrade after.
+2. **Before `install.sh`**, put the old `.env` at `deploy/.env` in the new
+   directory. `install.sh` keeps an existing `.env` and never regenerates its
+   secrets. Then check the values that name the old machine:
+   `PUBLIC_BASE_URL` (a new hostname: see *Change the install's address*),
+   and `SCAN_RULES_DIR` / `EXTRA_CA_DIR` if they were absolute paths there.
+   Copy your internal-CA PEM back into `deploy/ca` (or `EXTRA_CA_DIR`).
+   Only the key was saved? Run `install.sh` normally, then replace the
+   `TOKEN_ENC_KEY=` line in the new `deploy/.env` with the saved value.
+3. `./install.sh` — loads the images and starts an empty stack.
+4. `./deploy/restore.sh --project=repopulse --production <dump>` — reloads the
+   data and restarts the stack with the key now in `.env`.
+5. `./deploy/scan-db-sync.sh` — the vulnerability database is not in the dump.
+6. Install the two cron lines (*Backup*, and INSTALL → *Scan data*) for this
+   user, enable lingering (INSTALL → *Start on boot*), and recreate any report
+   schedules (*What a backup does not hold*).
+7. Check that the repository list is back and a forge sync works.
+
+### Change the install's address
+
+`PUBLIC_BASE_URL` is where browsers, sign-in callbacks and forge webhooks reach
+the install. To change it (a new domain, http to https, a restore onto a
+server with another name):
+
+1. Edit `PUBLIC_BASE_URL` (and `API_BASE_URL` if it was set to the same value)
+   in `deploy/.env`, then `./deploy/up.sh`.
+2. Update the callback URL registered with your identity provider (OIDC) and
+   with the GitHub OAuth app if you use "Sign in with GitHub"; both name the
+   old host until you do.
+3. **Webhooks still point at the old address.** Each one is registered once,
+   when its repository is first tracked, and nothing re-registers it yet.
+   Until you edit them on the forge (each repository's webhook settings: change
+   the host in the payload URL, keep the path), live updates stop, and data
+   arrives only with the nightly sync.
 
 ### The drill (how the above was proven)
 
@@ -495,6 +550,67 @@ command line does not, but the forced password change it leads to does.
 **Check the worker from Settings.** "Background worker — Not working" means no
 heartbeat in the last minute; `./deploy/up.sh` brings it back and reports what
 it found.
+
+---
+
+## When the app is down
+
+Everything below runs as the user who ran `install.sh`, from the bundle
+directory. Start every case with the same two checks:
+
+```sh
+curl -s http://127.0.0.1:${REPOPULSE_PORT:-8099}/healthz; echo   # names what is down: postgres=down redis=ok
+podman compose -f deploy/compose.yaml ps                         # which containers are up, restarting or exited
+```
+
+**What people see.** With Postgres or Redis down, a browser that opens
+RepoPulse gets one screen, "RepoPulse can’t reach its database" (or Redis),
+which re-checks every 10 seconds and opens the app by itself when the server
+recovers. Someone already in the app gets the same message as a banner over
+the page. Nothing they see is current until it clears. Settings → System health
+needs the database itself, so while it is down that screen cannot load either:
+use the two commands above.
+
+### The disk is full
+
+Settings → System health has a **Disk space** row: *Degraded* under 10 % or
+5 GB free, *Not working* under 3 % or 1 GB. Postgres, report files (the
+`reportdata` volume), backups (`OUT_DIR`, the bundle directory unless you
+moved it) and scan data usually share one disk, and none of them has a
+retention limit. When the disk fills, writes fail first: syncs stop, reports
+end failed, and sign-in can fail because sessions cannot be stored.
+
+1. See what is using it: `df -h`, then `du -sh deploy/scan-rules
+   ~/repopulse-backups` (or wherever `OUT_DIR` points) and
+   `podman system df`.
+2. Free space, safest first: delete old backups you have copied elsewhere;
+   `podman image prune` (old release images after an upgrade);
+   `deploy/scan-rules/vuln-db.old` if a sync left one.
+3. Run `./deploy/up.sh`. Postgres recovers by itself once it can write again;
+   it does not need a restore.
+
+### Postgres is not answering
+
+1. `podman compose -f deploy/compose.yaml logs --tail=100 postgres`. A full
+   disk ("No space left on device") is the usual cause: see above.
+2. `./deploy/up.sh` restarts whatever is stopped and waits for it to be
+   healthy.
+3. If Postgres starts and immediately exits with a data-directory error, stop
+   here and restore the last backup (*Restore* above). Do not delete the
+   volume to "start fresh": that is the data.
+
+### Redis is not answering
+
+1. `podman compose -f deploy/compose.yaml logs --tail=100 redis`.
+2. `./deploy/up.sh`.
+3. What can be lost: sessions live in Redis, so everyone may have to sign in
+   again. If Redis came back *empty* (its volume was lost, not just the
+   container restarted), jobs that were queued but not started are gone: the
+   nightly sweeps are registered again when the worker starts, but report
+   schedules exist only in Redis and must be created again in Reports, and a
+   repository stuck mid-backfill is restarted from Settings → Sync (Pause,
+   then Resume). Warehouse data is not affected; none of it is stored in
+   Redis.
 
 ---
 

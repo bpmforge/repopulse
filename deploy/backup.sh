@@ -43,6 +43,25 @@ done
 [ -n "$PROJECT" ] || { echo "--project= must not be empty" >&2; exit 1; }
 
 [ -f "$ENV_FILE" ] || { echo "no env file at $ENV_FILE" >&2; exit 1; }
+
+# INS-65: refuse to run as root against a rootless install. Rootless Podman
+# keeps one image store and one container set per user, so root's podman sees
+# none of the stack and every nightly run from root's crontab fails with "postgres
+# container is not running" into a log nobody reads. The install belongs to the
+# user who owns deploy/.env. REPOPULSE_ALLOW_ROOT=1 is for a deliberately
+# rootful install (podman run as root by its owner, or docker).
+if [ "$(id -u)" = 0 ] && [ "$RUNTIME" = podman ] && [ "${REPOPULSE_ALLOW_ROOT:-0}" != 1 ]; then
+  env_owner_uid="$(ls -ldn "$ENV_FILE" | awk '{print $3}')"
+  if [ -n "$env_owner_uid" ] && [ "$env_owner_uid" != 0 ]; then
+    env_owner="$(ls -ld "$ENV_FILE" | awk '{print $3}')"
+    echo "BACKUP REFUSED: running as root, but this install belongs to $env_owner (the owner of $ENV_FILE)." >&2
+    echo "Rootless Podman gives each user their own containers; root cannot see this stack." >&2
+    echo "Run it as $env_owner instead: put the cron line in $env_owner's crontab (crontab -e as $env_owner)" >&2
+    echo "and enable lingering (sudo loginctl enable-linger $env_owner). See docs/RUNBOOK.md -> Backup." >&2
+    echo "For a deliberately rootful install, set REPOPULSE_ALLOW_ROOT=1." >&2
+    exit 1
+  fi
+fi
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 

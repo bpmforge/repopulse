@@ -96,6 +96,20 @@ describe('SystemStatus (W17-08)', () => {
     expect(screen.getByTestId('system-state-models')).toHaveTextContent('Setup needed');
   });
 
+  // W20-14 (UX_TODO ADM-13, ADM-67).
+  it('names the release, links the runbook, and labels the last success', async () => {
+    respond({
+      ...ready,
+      about: { version: '1.4.0', lastBackupAt: null, backupKeyFingerprint: null },
+    });
+    renderWidget();
+    expect(await screen.findByTestId('system-status-about')).toHaveTextContent('RepoPulse 1.4.0');
+    expect(screen.getByTestId('system-runbook-upgrade').getAttribute('href')).toMatch(
+      /RUNBOOK\.md#upgrade$/,
+    );
+    expect(screen.getByTestId('system-last-database')).toHaveTextContent(/^Last worked /);
+  });
+
   it('shows the recovery link for a failed component', async () => {
     respond(ready);
     renderWidget();
@@ -155,6 +169,9 @@ describe('SystemStatus (W17-08)', () => {
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByTestId('system-status-diagnostics')).toBeInTheDocument();
+    // ADM-67: the scrolling block can take keyboard focus and is named.
+    expect(screen.getByTestId('system-status-diagnostics')).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('region', { name: /Diagnostics/ })).toBeInTheDocument();
   });
 
   it('offers a manual refresh', async () => {

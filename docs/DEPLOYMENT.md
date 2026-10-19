@@ -106,12 +106,14 @@ balancer in front of the published port:
 
 - `/` → the published port, including `/api/` and the server-sent events
   stream at `/api/v1/events` (proxy buffering off, long read timeout).
-- **Split exposure if your forge is on the internet.** GitHub must reach the
-  webhook receiver, so route `POST /api/v1/webhooks/github` on the public
-  vhost and everything else only where your users are (LAN, VPN, or an
-  allowlist). The receiver authenticates every delivery by an HMAC over the
-  raw body with a per-connection secret and does nothing but verify and
-  enqueue; a tampered or unsigned delivery is a 401 and a log line. A private
+- **Split exposure if your forge is on the internet.** The forge must reach
+  the webhook receiver, so route `POST /api/v1/webhooks/github` (GitHub and
+  Gitea) and `POST /api/v1/webhooks/gitlab` (GitLab) on the public vhost and
+  everything else only where your users are (LAN, VPN, or an allowlist). The
+  GitHub/Gitea receiver authenticates every delivery by an HMAC over the raw
+  body with a per-connection secret, GitLab's by the shared token it sends;
+  both do nothing but verify and enqueue, and a tampered or unsigned delivery
+  is a 401 and a log line. A private
   install that cannot receive webhooks still ingests on the nightly reconcile.
 - Add HSTS and the usual security headers at the proxy. Set
   `NODE_ENV=production` (the default the scripts write) so session cookies

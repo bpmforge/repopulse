@@ -50,9 +50,9 @@ export interface SupplyChainRunResult {
  *
  * W20-08 (UX_TODO FND-18): read from `license_policy` (snake case, what
  * Settings now writes through the admin API) and, failing that, the older
- * hand-written `licensePolicy` (camel case). The camel key only survives until
- * the next Settings save, which re-parses the blob through the schema; it is
- * read so a policy written by hand before W20-08 still applies until then.
+ * hand-written `licensePolicy` (camel case). Since W20-14 the settings reader
+ * converts the camel key to `license_policy` and the next Settings save stores
+ * it that way; it is still read here so a row nobody has saved since applies.
  */
 export function policyFrom(settings: Record<string, unknown> | null): LicensePolicy {
   const snake = settings?.['license_policy'];

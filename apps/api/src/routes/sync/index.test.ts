@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import authRoutes from '../auth/index.js';
 import errorEnvelopePlugin from '../../plugins/error-envelope.js';
 import apiV1 from '../../plugins/api-v1.js';
+import { lastWebhookByRepo } from './index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -125,5 +126,80 @@ describeIfLiveInfra('GET /sync/status (W2-05, FR-INGEST-8)', () => {
     expect(body).toHaveProperty('phase');
     expect(body).toHaveProperty('repoCount');
     expect(Array.isArray(body.repos)).toBe(true);
+  });
+
+  // W20-14 (UX_TODO INS-32): the "last webhook" column's data.
+  it('reports the newest webhook delivery per repo, matched on connection and full name', async () => {
+    const [ws] = await db
+      .select({ id: core.workspaces.id })
+      .from(core.workspaces)
+      .where(eq(core.workspaces.slug, 'default'));
+    const workspaceId = ws!.id;
+    const [conn] = await db
+      .insert(core.forgeConnections)
+      .values({
+        workspaceId,
+        provider: 'github',
+        authKind: 'pat',
+        credentialCiphertext: Buffer.alloc(8),
+        credentialIv: Buffer.alloc(12),
+        keyVersion: 1,
+        credentialFingerprint: 'w20-14-sync-fp',
+        status: 'active',
+      })
+      .returning();
+    const [repo] = await db
+      .insert(core.repos)
+      .values({
+        workspaceId,
+        connectionId: conn!.id,
+        forgeRepoId: 'w20-14-sync-repo',
+        org: 'w20-14',
+        name: 'hooked',
+        defaultBranch: 'main',
+        isPrivate: false,
+        isArchived: false,
+        syncStatus: 'live',
+        tier2Auto: false,
+      })
+      .returning();
+    const newest = new Date('2026-10-01T10:00:00Z');
+    await db.insert(core.webhookDelivery).values([
+      {
+        workspaceId,
+        connectionId: conn!.id,
+        deliveryId: 'w20-14-d1',
+        event: 'push',
+        repoFullName: 'w20-14/hooked',
+        receivedAt: new Date('2026-09-30T10:00:00Z'),
+        payloadDigest: 'x',
+      },
+      {
+        workspaceId,
+        connectionId: conn!.id,
+        deliveryId: 'w20-14-d2',
+        event: 'push',
+        repoFullName: 'w20-14/hooked',
+        receivedAt: newest,
+        payloadDigest: 'y',
+      },
+      {
+        workspaceId,
+        connectionId: conn!.id,
+        deliveryId: 'w20-14-d3',
+        event: 'push',
+        repoFullName: 'w20-14/other',
+        receivedAt: new Date('2026-10-05T10:00:00Z'),
+        payloadDigest: 'z',
+      },
+    ]);
+    try {
+      const hooks = await lastWebhookByRepo(db, workspaceId);
+      expect(hooks.get(String(repo!.id))).toBe(newest.toISOString());
+    } finally {
+      await db.delete(core.webhookDelivery).where(eq(core.webhookDelivery.connectionId, conn!.id));
+      await db.delete(core.repos).where(eq(core.repos.id, repo!.id));
+      await db.delete(core.forgeConnections).where(eq(core.forgeConnections.id, conn!.id));
+    }
   });
 });
