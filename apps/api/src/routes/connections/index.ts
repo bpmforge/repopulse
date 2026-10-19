@@ -1,26 +1,44 @@
 import { randomBytes } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { core, type Database } from '@repopulse/shared';
+import { auditLog, core, type Database } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
-import { activateRepos, createConnection, ConnectValidationError } from '@repopulse/ingest';
+import {
+  activateRepos,
+  collectAllPages,
+  createConnection,
+  replaceConnectionCredential,
+  ConnectValidationError,
+} from '@repopulse/ingest';
 import {
   ForgeHttpError,
   splitRepoFullName,
   type CallCtx,
+  type ForgeCursor,
   type ForgeProvider,
+  type ForgeRepo,
   type GitHubAuth,
 } from '@repopulse/forge';
 import { sendProblem } from '../../lib/problem.js';
 import { requireAdmin } from '../../lib/rbac.js';
-import { buildDiscoveryProvider, type ForgeKind } from './provider-factory.js';
+import {
+  buildDiscoveryProvider,
+  isMisresolvedGitlabRow,
+  resolveConnectionBaseUrl,
+  type ForgeKind,
+} from './provider-factory.js';
 import {
   availableReposResponseSchema,
   connectionIdParamsSchema,
   connectionListResponseSchema,
   createConnectionBodySchema,
   createConnectionResponseSchema,
+  removeConnectionResponseSchema,
+  replaceCredentialBodySchema,
+  replaceCredentialResponseSchema,
+  repoTrackingBodySchema,
+  repoTrackingResponseSchema,
   selectReposBodySchema,
   selectReposResponseSchema,
 } from './schema.js';
@@ -63,6 +81,25 @@ export interface ConnectionsRoutesOptions {
   ) => ForgeProvider;
   /** Forge API base URL — GitHub Enterprise Server, or a fake in e2e. */
   forgeBaseUrl?: string;
+}
+
+/** Every repository the token can see, across every page (W20-07, INS-52). */
+function listAllRepos(forge: ForgeProvider): Promise<{ items: ForgeRepo[]; truncated: boolean }> {
+  return collectAllPages<ForgeRepo, ForgeCursor>((cursor) => forge.listRepos(CTX, cursor));
+}
+
+function hostOf(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).host;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Same audit envelope every admin action writes (W12-09). */
+function auditContext(request: FastifyRequest, workspaceId: number) {
+  return { ip: request.ip, ua: request.headers['user-agent'] ?? null, workspaceId };
 }
 
 function ctxOf(request: FastifyRequest): { userId: number; workspaceId: number } | undefined {
@@ -124,11 +161,42 @@ export default async function connectionsRoutes(
       { ciphertext: row.credentialCiphertext, iv: row.credentialIv, keyVersion: row.keyVersion },
       tokenKey,
     );
+    // W20-07 (UX_TODO INS-73): by kind, through the same resolver the worker
+    // uses, and with a GitLab row the old worker fallback broke read as gitlab.com.
+    const kind = row.provider as ForgeKind;
+    const baseUrl = resolveConnectionBaseUrl(
+      kind,
+      isMisresolvedGitlabRow(row.provider, row.baseUrl) ? null : row.baseUrl,
+      opts.forgeBaseUrl,
+    );
     return buildProvider(
       authFor(row.authKind as 'pat' | 'app', credential, row.appInstallationId ?? undefined),
-      row.provider as ForgeKind,
-      row.baseUrl ?? undefined,
+      kind,
+      baseUrl,
     );
+  }
+
+  /** A removed connection holds no credential to call the forge with. */
+  function removedConnection(request: FastifyRequest, reply: FastifyReply): FastifyReply {
+    return fail(
+      request,
+      reply,
+      409,
+      'This connection was removed',
+      'It holds no token any more. Replace its token in Settings → Connections to reconnect it.',
+    );
+  }
+
+  /** The stored row, workspace-checked; 404 for another tenant's id (Law 5). */
+  async function loadConnection(id: number, workspaceId: number) {
+    const [row] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(
+        and(eq(core.forgeConnections.id, id), eq(core.forgeConnections.workspaceId, workspaceId)),
+      )
+      .limit(1);
+    return row;
   }
 
   // POST /connections — smoke-test the credential, persist encrypted (👑).
@@ -149,7 +217,9 @@ export default async function connectionsRoutes(
       // Gitea is self-hosted and has no host worth guessing. Refusing here, by
       // name, beats the alternative: a connection that stores fine and then
       // 404s on every call, which reads as a bad token.
-      const baseUrl = base_url ?? opts.forgeBaseUrl;
+      // W20-07 (UX_TODO INS-73): decided by forge kind in ONE place and stored
+      // on the row, so the worker never fills a blank in differently.
+      const baseUrl = resolveConnectionBaseUrl(provider, base_url, opts.forgeBaseUrl);
       if (provider === 'gitea' && !baseUrl) {
         return fail(
           request,
@@ -174,6 +244,7 @@ export default async function connectionsRoutes(
             db,
             encrypt: (pt) => credentials.encryptCredential(pt, tokenKey),
             smokeListRepos: () => forge.listRepos(CTX).then((p) => p.items),
+            host: hostOf(baseUrl),
           },
           {
             workspaceId: ctx.workspaceId,
@@ -195,7 +266,8 @@ export default async function connectionsRoutes(
         });
       } catch (err) {
         if (err instanceof ConnectValidationError) {
-          // Distinct, actionable: bad_token / bad_scope / no_repos.
+          // Distinct, actionable: bad_token / bad_scope / no_repos, and since
+          // W20-07 (INS-64) wrong_url / tls_untrusted / cannot_reach.
           return fail(
             request,
             reply,
@@ -234,7 +306,8 @@ export default async function connectionsRoutes(
           provider: r.provider,
           auth_kind: r.authKind,
           fingerprint: r.fingerprint,
-          last4: credentials.fingerprintLast4(r.fingerprint),
+          // A removed connection's credential was wiped (W20-07, INS-08).
+          last4: r.status === 'removed' ? '' : credentials.fingerprintLast4(r.fingerprint),
           status: r.status,
           repo_count: r.repoCount,
           base_url: r.baseUrl,
@@ -253,18 +326,14 @@ export default async function connectionsRoutes(
     async (request, reply) => {
       const ctx = ctxOf(request);
       if (!ctx) return fail(request, reply, 401, 'No active session');
-      const [row] = await db
-        .select()
-        .from(core.forgeConnections)
-        .where(eq(core.forgeConnections.id, request.params.id))
-        .limit(1);
-      if (!row || row.workspaceId !== ctx.workspaceId)
-        return fail(request, reply, 404, 'Not Found');
+      const row = await loadConnection(request.params.id, ctx.workspaceId);
+      if (!row) return fail(request, reply, 404, 'Not Found');
+      if (row.status !== 'active') return removedConnection(request, reply);
 
       const forge = await providerForConnection(row);
-      let repos: Awaited<ReturnType<typeof forge.listRepos>>;
+      let repos: Awaited<ReturnType<typeof listAllRepos>>;
       try {
-        repos = await forge.listRepos(CTX);
+        repos = await listAllRepos(forge);
       } catch (err) {
         // W17-35: the adapters reject on an HTTP error rather than returning an
         // empty list, so say what the forge answered instead of a bare 500.
@@ -273,6 +342,19 @@ export default async function connectionsRoutes(
         }
         throw err;
       }
+
+      // W20-07 (UX_TODO INS-10): which of these this connection already
+      // tracks, and in what state. The picker listed everything the token
+      // could see every time, so an admin could not tell what they had
+      // already picked — and re-picking is what broke webhooks (INS-72).
+      const trackedRows = await db
+        .select({ forgeRepoId: core.repos.forgeRepoId, syncStatus: core.repos.syncStatus })
+        .from(core.repos)
+        .where(
+          and(eq(core.repos.workspaceId, ctx.workspaceId), eq(core.repos.connectionId, row.id)),
+        );
+      const tracked = new Map(trackedRows.map((r) => [r.forgeRepoId, r.syncStatus]));
+
       return reply.send({
         items: repos.items.map((r) => {
           const { org, name } = splitRepoFullName(r.fullName, r.name);
@@ -282,8 +364,12 @@ export default async function connectionsRoutes(
             name,
             is_private: r.isPrivate,
             is_archived: r.isArchived,
+            tracked: tracked.has(r.externalId),
+            sync_status: tracked.get(r.externalId) ?? null,
           };
         }),
+        total: repos.items.length,
+        truncated: repos.truncated,
       });
     },
   );
@@ -302,18 +388,16 @@ export default async function connectionsRoutes(
     async (request, reply) => {
       const ctx = ctxOf(request);
       if (!ctx) return fail(request, reply, 401, 'No active session');
-      const [row] = await db
-        .select()
-        .from(core.forgeConnections)
-        .where(eq(core.forgeConnections.id, request.params.id))
-        .limit(1);
-      if (!row || row.workspaceId !== ctx.workspaceId)
-        return fail(request, reply, 404, 'Not Found');
+      const row = await loadConnection(request.params.id, ctx.workspaceId);
+      if (!row) return fail(request, reply, 404, 'Not Found');
+      if (row.status !== 'active') return removedConnection(request, reply);
 
       const forge = await providerForConnection(row);
-      let listed: Awaited<ReturnType<typeof forge.listRepos>>;
+      let listed: Awaited<ReturnType<typeof listAllRepos>>;
       try {
-        listed = await forge.listRepos(CTX);
+        // Every page (W20-07, INS-52): a repo past the first page must be
+        // trackable, or the picker offers what this call then ignores.
+        listed = await listAllRepos(forge);
       } catch (err) {
         if (err instanceof ForgeHttpError) {
           return fail(request, reply, 502, 'The forge refused the repository listing', err.message);
@@ -348,6 +432,9 @@ export default async function connectionsRoutes(
           enqueuePlan: (repoId) =>
             opts.enqueueBackfillPlan({ workspaceId: ctx.workspaceId, repoId }),
           generateSecret: () => randomBytes(32).toString('hex'),
+          // W20-07 (UX_TODO INS-72): reuse the connection's secret, so a second
+          // batch does not orphan the hooks of the first.
+          openSecret: (sealed) => credentials.openSecret(sealed, tokenKey),
         },
         {
           workspaceId: ctx.workspaceId,
@@ -360,6 +447,233 @@ export default async function connectionsRoutes(
         },
       );
       return reply.send({ repo_ids: repoIds });
+    },
+  );
+
+  // PATCH /connections/{id} — replace the credential (👑) (W20-07, UX_TODO INS-08).
+  //
+  // The row stays, so every repo, cursor and webhook keeps pointing at it. Also
+  // the way back for a REMOVED connection: a working token makes it active
+  // again (its repos stay paused until someone resumes them).
+  typedApp.patch(
+    '/connections/:id',
+    {
+      preHandler: requireAdmin,
+      schema: {
+        params: connectionIdParamsSchema,
+        body: replaceCredentialBodySchema,
+        response: { 200: replaceCredentialResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const row = await loadConnection(request.params.id, ctx.workspaceId);
+      if (!row) return fail(request, reply, 404, 'Not Found');
+      const { credential } = request.body;
+
+      const kind = row.provider as ForgeKind;
+      const baseUrl = resolveConnectionBaseUrl(kind, row.baseUrl, opts.forgeBaseUrl);
+      let forge: ForgeProvider;
+      try {
+        forge = buildProvider(
+          authFor(row.authKind as 'pat' | 'app', credential, row.appInstallationId ?? undefined),
+          kind,
+          baseUrl,
+        );
+      } catch (err) {
+        return fail(request, reply, 400, 'Invalid credential', (err as Error).message);
+      }
+      try {
+        const found = await replaceConnectionCredential(
+          {
+            db,
+            encrypt: (pt) => credentials.encryptCredential(pt, tokenKey),
+            smokeListRepos: () => forge.listRepos(CTX).then((p) => p.items),
+            host: hostOf(baseUrl),
+          },
+          { workspaceId: ctx.workspaceId, connectionId: row.id, credential },
+        );
+        if (!found) return fail(request, reply, 404, 'Not Found');
+      } catch (err) {
+        if (err instanceof ConnectValidationError) {
+          // The old credential is untouched: a bad replacement never
+          // overwrites a working token.
+          return fail(
+            request,
+            reply,
+            400,
+            `Credential validation failed: ${err.kind}`,
+            err.message,
+          );
+        }
+        throw err;
+      }
+      const fingerprint = credentials.credentialFingerprint(credential);
+      auditLog(request.log, {
+        event: 'connection.credential_replaced',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        connectionId: row.id,
+        // The fingerprint, never the credential (FR-AUTH-5).
+        fingerprint,
+      });
+      return reply.send({ id: row.id, status: 'active', fingerprint });
+    },
+  );
+
+  // DELETE /connections/{id} — remove a connection (👑) (W20-07, UX_TODO INS-08).
+  //
+  // What happens to the tracked repositories is the whole question, so the
+  // answer is in the response and on the confirm step:
+  //  - tracked nothing → the row is deleted outright;
+  //  - tracked something → DISCONNECTED: the credential and the webhook secret
+  //    are wiped, every repo is paused, and their history stays on every
+  //    dashboard. Deleting the row would take `repos` and the whole warehouse
+  //    with it (W16-59), which is a purge, not a disconnect, and is not offered.
+  // Webhooks are not deregistered on the forge (no provider can delete a hook
+  // yet); with the secret gone every delivery they send is refused with 401.
+  typedApp.delete(
+    '/connections/:id',
+    {
+      preHandler: requireAdmin,
+      schema: {
+        params: connectionIdParamsSchema,
+        response: { 200: removeConnectionResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const row = await loadConnection(request.params.id, ctx.workspaceId);
+      if (!row) return fail(request, reply, 404, 'Not Found');
+
+      const outcome = await db.transaction(async (tx) => {
+        const paused = await tx
+          .update(core.repos)
+          .set({ syncStatus: 'paused' })
+          .where(
+            and(eq(core.repos.workspaceId, ctx.workspaceId), eq(core.repos.connectionId, row.id)),
+          )
+          .returning({ id: core.repos.id });
+        const [anyRepo] = await tx
+          .select({ id: core.repos.id })
+          .from(core.repos)
+          .where(eq(core.repos.connectionId, row.id))
+          .limit(1);
+        const scope = and(
+          eq(core.forgeConnections.id, row.id),
+          eq(core.forgeConnections.workspaceId, ctx.workspaceId),
+        );
+        if (!anyRepo) {
+          await tx.delete(core.forgeConnections).where(scope);
+          return { outcome: 'deleted' as const, paused: 0 };
+        }
+        await tx
+          .update(core.forgeConnections)
+          .set({
+            status: 'removed',
+            // Wiped, not kept "just in case": a removed connection must not
+            // hold a working token.
+            credentialCiphertext: Buffer.alloc(0),
+            credentialIv: Buffer.alloc(0),
+            credentialFingerprint: 'removed',
+            webhookSecretCiphertext: null,
+          })
+          .where(scope);
+        return { outcome: 'disconnected' as const, paused: paused.length };
+      });
+
+      auditLog(request.log, {
+        event: 'connection.removed',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        connectionId: row.id,
+        outcome: outcome.outcome,
+        pausedRepos: outcome.paused,
+      });
+      return reply.send({
+        id: row.id,
+        outcome: outcome.outcome,
+        paused_repos: outcome.paused,
+      });
+    },
+  );
+
+  // PUT /repos/{id}/tracking — pause or resume one repo (👑) (W20-07, UX_TODO INS-09).
+  //
+  // Here rather than under routes/repos because resuming re-plans the backfill,
+  // and this plugin owns that queue. Pausing stops every forge call for the
+  // repo (the worker resolves no provider for it) and keeps its history.
+  typedApp.put(
+    '/repos/:id/tracking',
+    {
+      preHandler: requireAdmin,
+      schema: {
+        params: connectionIdParamsSchema,
+        body: repoTrackingBodySchema,
+        response: { 200: repoTrackingResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = ctxOf(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+      const [repo] = await db
+        .select({
+          id: core.repos.id,
+          syncStatus: core.repos.syncStatus,
+          connectionStatus: core.forgeConnections.status,
+        })
+        .from(core.repos)
+        .innerJoin(core.forgeConnections, eq(core.forgeConnections.id, core.repos.connectionId))
+        .where(
+          and(eq(core.repos.id, request.params.id), eq(core.repos.workspaceId, ctx.workspaceId)),
+        )
+        .limit(1);
+      if (!repo) return fail(request, reply, 404, 'Not Found');
+
+      if (request.body.paused) {
+        await db
+          .update(core.repos)
+          .set({ syncStatus: 'paused' })
+          .where(and(eq(core.repos.id, repo.id), eq(core.repos.workspaceId, ctx.workspaceId)));
+        auditLog(request.log, {
+          event: 'repo.tracking_paused',
+          actorUserId: ctx.userId,
+          ...auditContext(request, ctx.workspaceId),
+          repoId: repo.id,
+          fromStatus: repo.syncStatus,
+        });
+        return reply.send({ repo_id: repo.id, sync_status: 'paused' });
+      }
+
+      if (repo.syncStatus !== 'paused') {
+        // Nothing to resume; say what it is rather than re-queue a live repo.
+        return reply.send({ repo_id: repo.id, sync_status: repo.syncStatus });
+      }
+      if (repo.connectionStatus !== 'active') {
+        return fail(
+          request,
+          reply,
+          409,
+          'Its connection was removed',
+          'Replace the connection’s token in Settings → Connections first, then resume this repository.',
+        );
+      }
+      // Re-planned from the cursors it stopped at: the plan job moves it on to
+      // backfilling, and from there to live, exactly as a new repo goes.
+      await db
+        .update(core.repos)
+        .set({ syncStatus: 'pending_backfill' })
+        .where(and(eq(core.repos.id, repo.id), eq(core.repos.workspaceId, ctx.workspaceId)));
+      await opts.enqueueBackfillPlan({ workspaceId: ctx.workspaceId, repoId: repo.id });
+      auditLog(request.log, {
+        event: 'repo.tracking_resumed',
+        actorUserId: ctx.userId,
+        ...auditContext(request, ctx.workspaceId),
+        repoId: repo.id,
+      });
+      return reply.send({ repo_id: repo.id, sync_status: 'pending_backfill' });
     },
   );
 }

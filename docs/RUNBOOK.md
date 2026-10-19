@@ -56,11 +56,18 @@ or a malformed one: a dump taken then is a dump no key will ever open.
 Backing up is non-destructive, so the project defaults to the live install
 (`repopulse`); `--project=<name>` backs up another one.
 
-Nightly, from cron:
+Nightly, from cron — in the crontab of **the user who ran `install.sh`**
+(`crontab -e` as that user), not root's. Rootless Podman keeps a separate
+image store and container set per user: run as root, `backup.sh` finds no
+postgres container and fails every night into a log nobody reads.
 
 ```
-30 2 * * *  OUT_DIR=/backups /opt/repopulse/deploy/backup.sh >> /var/log/repopulse-backup.log 2>&1
+30 2 * * *  OUT_DIR=$HOME/repopulse-backups /opt/repopulse/deploy/backup.sh >> $HOME/repopulse-backup.log 2>&1
 ```
+
+The jobs only run while that user's session manager is alive, which after a
+reboot needs lingering: `sudo loginctl enable-linger <user>` (INSTALL →
+*Start on boot*).
 
 ### Verify a backup (do this occasionally, not never)
 
@@ -98,6 +105,13 @@ To check only the key against a running project, without restoring:
 1. Extract the new bundle **beside** the old one; do not overwrite it.
 2. Take a backup: `./deploy/backup.sh` in the old directory.
 3. Copy `deploy/.env` from the old directory into the new one.
+   Also carry over what lives **inside** the old directory unless you set an
+   absolute path for it: `deploy/scan-rules` (or your `SCAN_RULES_DIR`) — the
+   vulnerability database and rulepacks; `deploy/ca` (or `EXTRA_CA_DIR`) —
+   your internal-CA PEM, without which TLS to a self-hosted forge fails; and
+   your backups. Then point the cron lines at the new directory. Setting
+   `SCAN_RULES_DIR` and `EXTRA_CA_DIR` to absolute paths outside any bundle
+   (for example `/srv/repopulse/scan-rules`) makes later upgrades skip this.
 4. In the new `deploy/.env`, set `REPOPULSE_VERSION` and `SCAN_IMAGE` to the
    new version (the last lines of the file; `install.sh` tells you if they
    disagree with the bundle).
@@ -275,7 +289,24 @@ after five days — loudly, naming its age, which is the better failure.
 down && ./deploy/up.sh`, about ten seconds on a warm image cache. See below
 for why.
 
-**Check the worker from Admin.** "Background worker — Not working" means no
+**Reset a forgotten password.** An administrator resets any member who signs
+in with a password from **Settings → Members → Reset password…**: a one-time
+password is shown once and the member must change it at their next sign-in.
+Members who sign in with SSO or GitHub have no password here; their identity
+provider handles it. If the locked-out person *is* the only administrator,
+reset from the host instead (prints the one-time password, writes an audit
+line):
+
+```sh
+pnpm reset:password --email you@example.com                     # from a checkout
+podman compose -f deploy/compose.yaml exec api \
+  tsx apps/api/src/cli/reset-password.ts --email you@example.com  # a bundle install
+```
+
+Existing sessions of that account are not signed out by a reset; restart the
+stack if that matters.
+
+**Check the worker from Settings.** "Background worker — Not working" means no
 heartbeat in the last minute; `./deploy/up.sh` brings it back and reports what
 it found.
 

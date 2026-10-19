@@ -23,10 +23,18 @@ export interface AvailableRepo {
   name: string;
   is_private: boolean;
   is_archived: boolean;
+  /** Already tracked on this connection (W20-07, UX_TODO INS-10). */
+  tracked?: boolean;
+  /** The tracked repo's sync status; null when untracked. */
+  sync_status?: string | null;
 }
 
 export interface AvailableRepos {
   items: AvailableRepo[];
+  /** Every page, counted (W20-07, UX_TODO INS-52). */
+  total?: number;
+  /** True when the forge kept paging past the server's safety cap. */
+  truncated?: boolean;
 }
 
 export type SyncPhase =

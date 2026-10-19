@@ -12,8 +12,9 @@ export const createConnectionBodySchema = z.object({
    * This connection's forge base URL (W14-02).
    *
    * Required for Gitea, which is self-hosted and has no default host worth
-   * guessing. Optional elsewhere: absent means api.github.com, or whatever
-   * FORGE_BASE_URL says for a GitHub Enterprise install.
+   * guessing. Optional elsewhere: absent means gitlab.com for GitLab, and
+   * api.github.com (or whatever FORGE_BASE_URL says for a GitHub Enterprise
+   * install) for GitHub. Resolved and STORED at creation (W20-07, INS-73).
    */
   base_url: z.string().url().optional(),
 });
@@ -48,8 +49,46 @@ export const availableRepoSchema = z.object({
   is_archived: z.boolean(),
 });
 
+export const availableRepoWithStateSchema = availableRepoSchema.extend({
+  /** Already tracked on this connection (W20-07, UX_TODO INS-10). */
+  tracked: z.boolean(),
+  /** The tracked repo's sync status (`live`, `paused`, …); null when untracked. */
+  sync_status: z.string().nullable(),
+});
+
 export const availableReposResponseSchema = z.object({
-  items: z.array(availableRepoSchema),
+  items: z.array(availableRepoWithStateSchema),
+  /** Every page, counted (W20-07, UX_TODO INS-52). */
+  total: z.number(),
+  /** True when the forge kept paging past the runaway guard. */
+  truncated: z.boolean(),
+});
+
+/** PATCH /connections/{id} — replace the credential (W20-07, UX_TODO INS-08). */
+export const replaceCredentialBodySchema = z.object({
+  credential: z.string().min(1),
+});
+
+export const replaceCredentialResponseSchema = z.object({
+  id: z.number(),
+  status: z.string(),
+  fingerprint: z.string(),
+});
+
+/** DELETE /connections/{id} — what happened to the repos it tracked. */
+export const removeConnectionResponseSchema = z.object({
+  id: z.number(),
+  /** `deleted` (it tracked nothing) or `disconnected` (history kept, repos paused). */
+  outcome: z.enum(['deleted', 'disconnected']),
+  paused_repos: z.number(),
+});
+
+/** PUT /repos/{id}/tracking — pause or resume one repo (W20-07, UX_TODO INS-09). */
+export const repoTrackingBodySchema = z.object({ paused: z.boolean() });
+
+export const repoTrackingResponseSchema = z.object({
+  repo_id: z.number(),
+  sync_status: z.string(),
 });
 
 export const selectReposBodySchema = z

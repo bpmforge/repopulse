@@ -103,14 +103,20 @@ export function OrgOverview({ search }: Props) {
     // member wording — briefly under-promising beats offering an action the
     // viewer may not be permitted to take.
     const isAdmin = me?.role === 'admin';
-    return (
+    // W20-07 (UX_TODO INS-74): a federated sign-in no longer makes itself
+    // admin, so on an install with no admin configured "ask an admin" points
+    // at nobody. Say who can fix it, and how.
+    const noAdmin = me !== undefined && !isAdmin && me.has_admin === false;
+    const welcome = (
       <WidgetFrame
         title="Welcome to RepoPulse"
         state="empty"
         emptyMessage={
           isAdmin
             ? 'No repositories are connected yet. Connect your organization to start ingesting history.'
-            : 'No repositories are connected yet. Ask an admin to connect your organization.'
+            : noAdmin
+              ? 'This install has no administrator yet, so nobody can connect your organization. Whoever runs the server must set ADMIN_EMAIL and ADMIN_PASSWORD in deploy/.env and restart; that account can then make you an admin in Settings → Members.'
+              : 'No repositories are connected yet. Ask an admin to connect your organization.'
         }
         // W16-18. The comment above calls this a "role-appropriate CTA", and
         // until now it was only ever role-appropriate COPY: the admin was told
@@ -133,6 +139,18 @@ export function OrgOverview({ search }: Props) {
             }
           : {})}
       />
+    );
+    // W20-07 (UX_TODO INS-12): the admin checklist at ZERO repos too, above
+    // the welcome. It only rendered once repos existed, so "Connect your
+    // organisation" was always already ticked whenever anyone could see it,
+    // and the checklist never guided the one step that matters first.
+    return isAdmin ? (
+      <div className="flex flex-col gap-4" data-testid="org-overview-first-run">
+        <OnboardingChecklist hasRepos={false} />
+        {welcome}
+      </div>
+    ) : (
+      welcome
     );
   }
 

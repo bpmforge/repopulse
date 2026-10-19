@@ -23,7 +23,8 @@
     "dev": "node scripts/dev.mjs",
     "bootstrap": "node scripts/setup.mjs",
     "check:bundle": "pnpm --filter @repopulse/web build && node scripts/check-bundle-size.mjs",
-    "connect:forge": "tsx apps/api/src/cli/connect-forge.ts"
+    "connect:forge": "tsx apps/api/src/cli/connect-forge.ts",
+    "reset:password": "tsx apps/api/src/cli/reset-password.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4",

@@ -88,7 +88,7 @@ describe('risk axes card', () => {
     expect(summary).toHaveTextContent(/neither a grade nor a zero/);
 
     // The route out of "not measured" is stated, not just the fact.
-    expect(screen.getByTestId('axis-unmeasured-next')).toHaveTextContent(/Admin → Connections/);
+    expect(screen.getByTestId('axis-unmeasured-next')).toHaveTextContent(/Settings → Connections/);
 
     // The four reasons start collapsed but are genuinely reachable.
     const details = summary.closest('details');

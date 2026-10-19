@@ -3,6 +3,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { auditLog, core, type Database } from '@repopulse/shared';
 import { QUEUE, createQueue, createRedisConnection } from '@repopulse/ingest';
 import type { Queue } from 'bullmq';
+import { local } from '@repopulse/auth';
 import { requireAdmin } from '../../lib/rbac.js';
 import { sendProblem } from '../../lib/problem.js';
 
@@ -84,6 +85,7 @@ export default async function adminRoutes(
         userId: core.workspaceMembers.userId,
         role: core.workspaceMembers.role,
         login: core.users.login,
+        authProvider: core.users.authProvider,
         createdAt: core.workspaceMembers.createdAt,
       })
       .from(core.workspaceMembers)
@@ -96,6 +98,9 @@ export default async function adminRoutes(
         user_id: r.userId,
         login: r.login,
         role: r.role,
+        // W20-07 (UX_TODO INS-03): only a local account has a password here
+        // to reset; GitHub and SSO users reset theirs with their provider.
+        auth_provider: r.authProvider,
         joined_at: r.createdAt,
       })),
     });
@@ -198,6 +203,73 @@ export default async function adminRoutes(
       });
 
       return reply.send({ user_id: updated[0]!.userId, role: updated[0]!.role });
+    },
+  );
+
+  /**
+   * POST /admin/members/:userId/reset-password — a one-time temporary password
+   * (W20-07, UX_TODO INS-03).
+   *
+   * Admin only, workspace-scoped, local accounts only, and audited. The
+   * password is in this one response and nowhere else; the account must
+   * replace it at its next sign-in. Sessions the account already has are left
+   * alone (they live in Redis, keyed by session id, not by user) — so this is
+   * a recovery path for a FORGOTTEN password; for a compromised one, also
+   * remove and re-add the member.
+   */
+  app.post<{ Params: { userId: string } }>(
+    '/admin/members/:userId/reset-password',
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      const callerId = request.session.get('userId');
+      if (workspaceId === undefined || callerId === undefined) {
+        return problem(request, reply, 401, 'No active session');
+      }
+      const userId = Number(request.params.userId);
+      if (!Number.isFinite(userId)) return problem(request, reply, 400, 'Invalid user id');
+
+      // Tenancy (Law 5): only a member of THIS workspace, and another
+      // workspace's user is a 404 rather than a 403.
+      const [member] = await opts.db
+        .select({ userId: core.workspaceMembers.userId })
+        .from(core.workspaceMembers)
+        .where(
+          and(
+            eq(core.workspaceMembers.workspaceId, workspaceId),
+            eq(core.workspaceMembers.userId, userId),
+          ),
+        )
+        .limit(1);
+      if (!member) return problem(request, reply, 404, 'Member not found');
+
+      const reset = await local.resetLocalPassword(opts.db, userId);
+      if (!reset.ok) {
+        if (reset.reason === 'not_found') return problem(request, reply, 404, 'Member not found');
+        return problem(
+          request,
+          reply,
+          409,
+          'This member signs in with GitHub or single sign-on',
+          'They have no RepoPulse password to reset; their password is managed by that provider.',
+        );
+      }
+
+      auditLog(request.log, {
+        event: 'auth.password_reset',
+        actorUserId: callerId,
+        workspaceId,
+        ip: request.ip,
+        ua: request.headers['user-agent'] ?? null,
+        targetUserId: userId,
+        // Never the password: the audit stream is read far more widely.
+      });
+      return reply.send({
+        user_id: userId,
+        login: reset.user.login,
+        temporary_password: reset.temporaryPassword,
+        must_change_password: true,
+      });
     },
   );
 

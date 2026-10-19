@@ -1,12 +1,17 @@
 import {
   BudgetedClient,
-  DEFAULT_GITHUB_BASE_URL,
+  DEFAULT_GITLAB_BASE_URL,
   createAuthHeaderProvider,
   createGithubExecutor,
   type ForgeProvider,
   type GitHubAuth,
 } from '@repopulse/forge';
-import { providerForKind, type ForgeKind } from '../routes/connections/provider-factory.js';
+import {
+  isMisresolvedGitlabRow,
+  providerForKind,
+  resolveConnectionBaseUrl,
+  type ForgeKind,
+} from '../routes/connections/provider-factory.js';
 import { credentials } from '@repopulse/auth';
 import { core, type Database } from '@repopulse/shared';
 import { eq } from 'drizzle-orm';
@@ -59,11 +64,18 @@ export async function providerForRepo(
       org: core.repos.org,
       name: core.repos.name,
       connectionId: core.repos.connectionId,
+      syncStatus: core.repos.syncStatus,
     })
     .from(core.repos)
     .where(eq(core.repos.id, repoId))
     .limit(1);
   if (!repo) return null;
+  // W20-07 (UX_TODO INS-09): a PAUSED repo makes no forge calls. Every
+  // forge-calling job resolves its provider here, so this one check stops
+  // in-flight backfill pages, webhook deltas and scans alike; they end
+  // quietly like a purged connection's would, and Resume re-plans from the
+  // cursors they left.
+  if (repo.syncStatus === 'paused') return null;
 
   const [conn] = await deps.db
     .select()
@@ -90,13 +102,25 @@ export async function providerForRepo(
   // when the row has none. FORGE_BASE_URL becomes the default, not the only
   // answer — a self-hosted Gitea and github.com can now be two connections in
   // one workspace, which a server-level env could not express.
-  const base = conn.baseUrl ?? deps.forgeBaseUrl ?? DEFAULT_GITHUB_BASE_URL;
+  //
+  // W20-07 (UX_TODO INS-73): resolved by forge KIND through the same function
+  // the API uses. This line used to be `FORGE_BASE_URL ?? api.github.com` for
+  // every kind, so a gitlab.com connection saved blank was backfilled against
+  // the GitHub API — and that host was then written onto the row below. A row
+  // already broken that way is repaired here, on its next resolve.
+  const repaired = isMisresolvedGitlabRow(conn.provider, conn.baseUrl);
+  const base =
+    (repaired
+      ? DEFAULT_GITLAB_BASE_URL
+      : resolveConnectionBaseUrl(conn.provider as ForgeKind, conn.baseUrl, deps.forgeBaseUrl)) ??
+    '';
+  if (!base) return null;
 
   // LAZY BACKFILL. An existing connection was created under whatever
   // FORGE_BASE_URL said at the time; writing that value onto the row the first
   // time we resolve it means a later change to the env does not silently move
   // connections that were made against a different host.
-  if (!conn.baseUrl) {
+  if (!conn.baseUrl || repaired) {
     await deps.db
       .update(core.forgeConnections)
       .set({ baseUrl: base })

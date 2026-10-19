@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, ne, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { core, facts, read, type Database } from '@repopulse/shared';
-import { identity } from '@repopulse/auth';
+import { identity, workspace as workspaceModule } from '@repopulse/auth';
 import { prSizeBucket } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
 
@@ -130,6 +130,12 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       persona,
       prefs: me?.prefs ?? {},
       demo: opts.demo ?? false,
+      // W20-07 (UX_TODO INS-74): a federated sign-in no longer makes itself
+      // admin, so a member on an install with NO admin needs to be told that
+      // nobody can help them yet, and what the operator has to set.
+      has_admin:
+        request.role === 'admin' ||
+        (await workspaceModule.workspaceHasAdmin(db, request.workspace.id)),
     });
   });
 

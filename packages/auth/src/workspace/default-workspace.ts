@@ -43,10 +43,21 @@ export interface Membership {
 // authenticated request rather than in the OAuth callback (W1-03's scope),
 // since that's where workspace context is actually needed.
 //
-// First member of the workspace becomes admin (undocumented in SRS/UX_SPEC,
-// but UX_SPEC's "Connect your org (admin) / Ask an admin" empty-state copy
-// assumes the setup user is admin and everyone else isn't — bootstrap
-// requires *someone* start as admin or no admin route is ever reachable).
+// The first LOCAL account to join a workspace with no admin becomes admin.
+// UX_SPEC's "Connect your org (admin) / Ask an admin" empty-state copy assumes
+// the setup user is admin and everyone else isn't — bootstrap requires
+// *someone* start as admin or no admin route is ever reachable.
+//
+// W20-07 (UX_TODO INS-74): this used to be the first member of ANY kind. On
+// an install with no ADMIN_EMAIL but with OIDC or "Sign in with GitHub" on,
+// that made whoever signed in first the admin — on a GitHub sign-in install,
+// anyone with a GitHub account who found the URL. That is the "first visitor
+// claims the instance" model D14 rejected. A local account, by contrast, only
+// exists because the operator's ADMIN_EMAIL/ADMIN_PASSWORD bootstrap or an
+// admin created it, so it is the one kind of first member whose admin role
+// was configured rather than claimed. A federated-only install with no admin
+// configured gets members only, and says so (Setup, /me/context `has_admin`,
+// up.sh) until the operator sets ADMIN_EMAIL/ADMIN_PASSWORD and restarts.
 // The count-then-insert below has a narrow race window between two
 // concurrent first-ever logins (both could read zero existing members and
 // both insert as admin) — accepted for a launch-scale single workspace:
@@ -65,6 +76,21 @@ export class UnknownUserError extends Error {
     super(`No user ${userId} — the session names an account that no longer exists`);
     this.name = 'UnknownUserError';
   }
+}
+
+/** Whether the workspace has at least one admin (W20-07, UX_TODO INS-74). */
+export async function workspaceHasAdmin(db: Database, workspaceId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ userId: core.workspaceMembers.userId })
+    .from(core.workspaceMembers)
+    .where(
+      and(
+        eq(core.workspaceMembers.workspaceId, workspaceId),
+        eq(core.workspaceMembers.role, 'admin'),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 export async function ensureMembership(db: Database, userId: number): Promise<Membership> {
@@ -87,7 +113,7 @@ export async function ensureMembership(db: Database, userId: number): Promise<Me
     // routes among them — and fixing one would have left the same 500 reachable
     // from the others.
     const [user] = await tx
-      .select({ id: core.users.id })
+      .select({ id: core.users.id, authProvider: core.users.authProvider })
       .from(core.users)
       .where(eq(core.users.id, userId))
       .limit(1);
@@ -105,12 +131,17 @@ export async function ensureMembership(db: Database, userId: number): Promise<Me
       .limit(1);
     if (existing) return { workspace, role: existing.role as WorkspaceRole };
 
-    const [anyMember] = await tx
+    const [anyAdmin] = await tx
       .select({ userId: core.workspaceMembers.userId })
       .from(core.workspaceMembers)
-      .where(eq(core.workspaceMembers.workspaceId, workspace.id))
+      .where(
+        and(
+          eq(core.workspaceMembers.workspaceId, workspace.id),
+          eq(core.workspaceMembers.role, 'admin'),
+        ),
+      )
       .limit(1);
-    const role: WorkspaceRole = anyMember ? 'member' : 'admin';
+    const role: WorkspaceRole = !anyAdmin && user.authProvider === 'local' ? 'admin' : 'member';
 
     await tx.insert(core.workspaceMembers).values({ workspaceId: workspace.id, userId, role });
     return { workspace, role };

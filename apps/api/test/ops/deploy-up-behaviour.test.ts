@@ -303,6 +303,22 @@ exit 1
     expect(dir).toContain(' ');
   });
 
+  // W20-07 (UX_TODO INS-74): a first SSO sign-in is never made admin, so SSO
+  // with no ADMIN_EMAIL is an install nobody can administer.
+  it('warns when single sign-on is configured but ADMIN_EMAIL is empty', async () => {
+    stubRuntime('podman', { services: allHealthy });
+    const base = 'POSTGRES_USER=x\nSCAN_RUNNER_TOKEN=test-token-not-a-secret\n';
+    const sso = await runUp({}, { envFile: `${base}OIDC_ISSUER=https://idp.example.com\n` });
+    expect(sso.code).toBe(0);
+    expect(sso.out).toContain('single sign-on is configured but ADMIN_EMAIL is empty');
+
+    const withAdmin = await runUp(
+      {},
+      { envFile: `${base}OIDC_ISSUER=https://idp.example.com\nADMIN_EMAIL=a@example.com\n` },
+    );
+    expect(withAdmin.out).not.toContain('ADMIN_EMAIL is empty');
+  });
+
   it('accepts an explicit RUNTIME=docker when docker is the one present', async () => {
     stubRuntime('docker', { services: allHealthy });
     const { code, out } = await runUp({ RUNTIME: 'docker' });

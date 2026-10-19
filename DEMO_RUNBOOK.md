@@ -20,7 +20,7 @@ Fixture forge token for Connections:
 
 `ghp_fake_forge_token_for_e2e_0123456789`
 
-Then: Admin → Connections → Track repos → Admin → Sync → Org Overview fills as warehouse backfills.
+Then: Settings → Connections → Track repos → Settings → Sync → Org Overview fills as warehouse backfills.
 
 ## Dev demo (alternate)
 

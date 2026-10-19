@@ -212,6 +212,12 @@ export interface MeContext {
    * real organisation.
    */
   demo?: boolean;
+  /**
+   * W20-07 (UX_TODO INS-74). False on an install where nobody is admin yet — a
+   * federated sign-in no longer makes itself admin — so a member is told what
+   * the operator has to set instead of "ask an admin". Optional: older API.
+   */
+  has_admin?: boolean;
 }
 
 export const PERSONAS = ['lead', 'developer', 'security', 'exec'] as const;

@@ -51,6 +51,14 @@ export interface AuthProviderRoutesOptions {
    * so a real install cannot emit one even if it wanted to.
    */
   demo?: { email: string; password: string } | undefined;
+  /**
+   * Whether the session cookie is `Secure` (W20-07, UX_TODO INS-01). The
+   * browser drops a Secure cookie on a plain-http page that is not localhost,
+   * so a LAN trial at http://<ip>:8099 signed in "successfully" and landed
+   * straight back on the sign-in form with no error. The screen cannot see the
+   * cookie's flags, so the server says.
+   */
+  secureCookies?: boolean | undefined;
 }
 
 async function authProviderRoutes(
@@ -66,6 +74,7 @@ async function authProviderRoutes(
       oidc: opts.oidc ? { display_name: opts.oidc.displayName } : null,
       github: opts.github === true,
       demo: opts.demo ? { email: opts.demo.email, password: opts.demo.password } : null,
+      secure_cookies: opts.secureCookies === true,
     });
   });
 

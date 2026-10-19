@@ -37,27 +37,42 @@ describe('GET /auth/providers (W15-04)', () => {
     // the one screen with no session, so this anonymous endpoint is how it
     // learns whether it is looking at a demo. A REAL install must always say
     // null here — that is what keeps a credential out of a production response.
-    expect(res.json()).toEqual({ local: true, oidc: null, github: false, demo: null });
+    // secure_cookies (W20-07, UX_TODO INS-01) lets the sign-in screen warn
+    // before a Secure cookie is dropped over plain http; this test app is not
+    // built with cookieSecure.
+    expect(res.json()).toEqual({
+      local: true,
+      oidc: null,
+      github: false,
+      demo: null,
+      secure_cookies: false,
+    });
     await app.close();
   });
 
   it('names the OIDC button the operator configured — "OIDC" means nothing to a user', async () => {
     const app = await appOffering({ oidc: { displayName: 'Acme SSO' } });
-    expect(providersBody(await app.inject({ method: 'GET', url: '/auth/providers' })).oidc).toEqual({
-      display_name: 'Acme SSO',
-    });
+    expect(providersBody(await app.inject({ method: 'GET', url: '/auth/providers' })).oidc).toEqual(
+      {
+        display_name: 'Acme SSO',
+      },
+    );
     await app.close();
   });
 
   it('reports GitHub only when a GitHub App is configured', async () => {
     const withApp = await appOffering({ github: true });
-    expect(providersBody(await withApp.inject({ method: 'GET', url: '/auth/providers' })).github).toBe(true);
+    expect(
+      providersBody(await withApp.inject({ method: 'GET', url: '/auth/providers' })).github,
+    ).toBe(true);
     await withApp.close();
 
     // The defect this endpoint exists to prevent: /auth/login is not registered
     // on a deployment without an App, so a button for it leads to a 404.
     const without = await appOffering({});
-    expect(providersBody(await without.inject({ method: 'GET', url: '/auth/providers' })).github).toBe(false);
+    expect(
+      providersBody(await without.inject({ method: 'GET', url: '/auth/providers' })).github,
+    ).toBe(false);
     await without.close();
   });
 

@@ -88,6 +88,28 @@ function useCallbackError(): CallbackError | null {
   return error;
 }
 
+/**
+ * Why signing in here cannot stick (W20-07, UX_TODO INS-01), or null.
+ *
+ * An install writes NODE_ENV=production, so the session cookie is `Secure`,
+ * and a browser silently drops a Secure cookie on a plain-http page anywhere
+ * but localhost. A LAN trial at http://192.168.x.y:8099 therefore signed in
+ * "successfully" and landed straight back here with no error, forever. This is
+ * the SAFE fix: say so before the attempt. There is deliberately no switch to
+ * send the session cookie over plain http — that would put every session on
+ * the LAN in clear text.
+ *
+ * `isSecureContext` is the browser's own answer (https, or localhost), so no
+ * hostname list can drift from it.
+ */
+export function insecureSessionWarning(
+  secureCookies: boolean | undefined,
+  isSecureContext: boolean | undefined,
+): string | null {
+  if (!secureCookies || isSecureContext !== false) return null;
+  return 'Signing in will not stick on this address. This install only keeps sessions over HTTPS (or on localhost), and this page was opened over plain http — your browser drops the session, so you would land back here. Open RepoPulse through HTTPS, or on the server itself at http://localhost. See Installing → Troubleshooting.';
+}
+
 export interface SignInProps {
   /** True when this browser HAD a session — a different sentence, same screen. */
   expired: boolean;
@@ -103,6 +125,10 @@ export function SignIn({ expired }: SignInProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const callbackError = useCallbackError();
+  const insecure = insecureSessionWarning(
+    providers.secure_cookies,
+    typeof window === 'undefined' ? undefined : window.isSecureContext,
+  );
 
   // Prefill the demo credentials once the providers response arrives, and only
   // while the visitor has not typed: filling a field someone is editing is a
@@ -175,6 +201,16 @@ export function SignIn({ expired }: SignInProps) {
               'Your session ended. Sign in again to carry on — the page behind this stays as you left it, but the last change you made was not saved; make it again.'
             : 'Sign in to see your organisation’s delivery, code health, and risk.'}
         </p>
+
+        {insecure ? (
+          <p
+            role="alert"
+            data-testid="signin-insecure-origin"
+            className="mt-4 rounded-sm border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-fg"
+          >
+            {insecure}
+          </p>
+        ) : null}
 
         {callbackError && !login.error ? (
           <p
@@ -327,7 +363,9 @@ export function SignIn({ expired }: SignInProps) {
                   Accounts come from first boot or from an admin (D14). */}
               {providers.demo
                 ? 'In a real install, accounts are created by your RepoPulse administrator.'
-                : 'Accounts are created by your RepoPulse administrator.'}
+                : // W20-07 (UX_TODO INS-03): the way back from a forgotten
+                  // password now exists, so the screen names it.
+                  'Accounts are created by your RepoPulse administrator. Forgot your password? Ask them to reset it in Settings → Members.'}
             </p>
           </>
         )}

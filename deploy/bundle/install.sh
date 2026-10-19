@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install RepoPulse from this bundle (W17-28). Run from the extracted directory:
 #
-#   ./install.sh --url=https://repopulse.example.com [--port=8099] [--admin-email=you@example.com]
+#   ./install.sh --url=https://repopulse.example.com --admin-email=you@example.com [--port=8099]
 #
 # Needs a container runtime (podman or docker, with `compose`) and nothing else:
 # no Node, no pnpm, no source, no registry access. Everything the product runs

@@ -2,7 +2,12 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { core, createDb } from '@repopulse/shared';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DEFAULT_WORKSPACE_SLUG, UnknownUserError, ensureMembership } from './default-workspace.js';
+import {
+  DEFAULT_WORKSPACE_SLUG,
+  UnknownUserError,
+  ensureMembership,
+  workspaceHasAdmin,
+} from './default-workspace.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeIfDb = databaseUrl ? describe : describe.skip;
@@ -12,10 +17,15 @@ describeIfDb('ensureMembership (live Postgres)', () => {
   const testLoginPrefix = `w1-04-test-${Date.now()}-`;
   const createdUserIds: number[] = [];
 
-  async function makeUser(login: string) {
+  async function makeUser(login: string, authProvider: 'github' | 'oidc' | 'local' = 'github') {
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: `${testLoginPrefix}${login}`, forgeUserId: `${testLoginPrefix}${login}`, login })
+      .values({
+        authProvider,
+        authSubject: `${testLoginPrefix}${login}`,
+        ...(authProvider === 'github' ? { forgeUserId: `${testLoginPrefix}${login}` } : {}),
+        login,
+      })
       .returning();
     if (!user) throw new Error('user insert returned no row');
     createdUserIds.push(user.id);
@@ -39,9 +49,9 @@ describeIfDb('ensureMembership (live Postgres)', () => {
     expect(second.workspace.id).toBe(first.workspace.id);
   });
 
-  it('makes the first member of the workspace admin and later members plain members', async () => {
+  async function emptyDefaultWorkspace() {
     // Clean slate: remove every membership row for the default workspace so
-    // "first member" is well-defined for this assertion.
+    // "first member" is well-defined for the assertion.
     const [workspace] = await db
       .select()
       .from(core.workspaces)
@@ -52,15 +62,38 @@ describeIfDb('ensureMembership (live Postgres)', () => {
         .delete(core.workspaceMembers)
         .where(eq(core.workspaceMembers.workspaceId, workspace.id));
     }
+  }
 
-    const first = await makeUser('first-member');
-    const second = await makeUser('second-member');
+  it('makes the first LOCAL member of the workspace admin and later members plain members', async () => {
+    await emptyDefaultWorkspace();
+    const first = await makeUser('first-member', 'local');
+    const second = await makeUser('second-member', 'local');
 
     const firstMembership = await ensureMembership(db, first.id);
     const secondMembership = await ensureMembership(db, second.id);
 
     expect(firstMembership.role).toBe('admin');
     expect(secondMembership.role).toBe('member');
+    expect(await workspaceHasAdmin(db, firstMembership.workspace.id)).toBe(true);
+  });
+
+  // W20-07 (UX_TODO INS-74). With no ADMIN_EMAIL but OIDC or GitHub sign-in
+  // on, the first person to sign in became the admin — on a GitHub install,
+  // anyone with a GitHub account who found the URL first.
+  it('never makes a first FEDERATED sign-in the admin', async () => {
+    await emptyDefaultWorkspace();
+    const sso = await makeUser('first-sso', 'oidc');
+    const gh = await makeUser('first-github', 'github');
+
+    const ssoMembership = await ensureMembership(db, sso.id);
+    expect(ssoMembership.role).toBe('member');
+    expect((await ensureMembership(db, gh.id)).role).toBe('member');
+    expect(await workspaceHasAdmin(db, ssoMembership.workspace.id)).toBe(false);
+
+    // The configured path still works afterwards: the bootstrap's local admin
+    // joins as admin even though members already exist.
+    const local = await makeUser('bootstrap-later', 'local');
+    expect((await ensureMembership(db, local.id)).role).toBe('admin');
   });
 });
 

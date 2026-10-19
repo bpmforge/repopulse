@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { createCipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { core, createDb, type Database } from '@repopulse/shared';
 import type { ForgeRepo } from '@repopulse/forge';
@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   activateRepos,
   createConnection,
+  replaceConnectionCredential,
   ConnectValidationError,
   type EncryptedBlob,
 } from './connect.js';
@@ -37,6 +38,12 @@ function sealSecret(plaintext: string): Buffer {
   const cipher = createCipheriv('aes-256-gcm', KEY, iv);
   const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), enc]);
+}
+
+function openSecret(blob: Buffer): string {
+  const decipher = createDecipheriv('aes-256-gcm', KEY, blob.subarray(0, 12));
+  decipher.setAuthTag(blob.subarray(12, 28));
+  return Buffer.concat([decipher.update(blob.subarray(28)), decipher.final()]).toString('utf8');
 }
 
 const REPOS: ForgeRepo[] = [
@@ -265,5 +272,124 @@ describeIfLiveInfra('connect flow (W2-01, FR-INGEST-1)', () => {
       },
     );
     expect(repoIds).toHaveLength(3);
+  });
+  // W20-07 (UX_TODO INS-72). Each "Track N repo(s)" minted a new secret and
+  // overwrote the stored one, so every hook from an EARLIER batch kept signing
+  // with a secret nobody held: every delivery from those repos was a 401.
+  it('a second batch reuses the connection secret, so earlier hooks keep verifying', async () => {
+    const created = await createConnection(
+      { db, encrypt, smokeListRepos: () => Promise.resolve(REPOS) },
+      { workspaceId, provider: 'github', authKind: 'pat', credential: TOKEN, createdBy },
+    );
+    connectionIds.push(created.connectionId);
+    let minted = 0;
+    const registerWebhook = vi.fn(async (_repo: string, _secret: string) => 'h');
+    const deps = {
+      db,
+      sealSecret,
+      openSecret,
+      registerWebhook,
+      enqueuePlan: async () => {},
+      generateSecret: () => `batch-secret-${++minted}`,
+    };
+    const base = {
+      workspaceId,
+      connectionId: created.connectionId,
+      candidates: created.candidates,
+    };
+    await activateRepos(deps, { ...base, selection: { forgeRepoIds: ['101'] } });
+    await activateRepos(deps, { ...base, selection: { forgeRepoIds: ['102'] } });
+
+    expect(minted).toBe(1);
+    const secrets = registerWebhook.mock.calls.map((c) => c[1]);
+    expect(secrets).toEqual(['batch-secret-1', 'batch-secret-1']);
+    const [conn] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, created.connectionId));
+    // The secret the receiver verifies against is the one BOTH batches signed with.
+    expect(openSecret(conn!.webhookSecretCiphertext!)).toBe('batch-secret-1');
+  });
+
+  it('leaves an already-tracked repo alone: no duplicate hook, no re-backfill, a pause kept', async () => {
+    const created = await createConnection(
+      { db, encrypt, smokeListRepos: () => Promise.resolve(REPOS) },
+      { workspaceId, provider: 'github', authKind: 'pat', credential: TOKEN, createdBy },
+    );
+    connectionIds.push(created.connectionId);
+    const registerWebhook = vi.fn(async () => 'h');
+    const deps = {
+      db,
+      sealSecret,
+      openSecret,
+      registerWebhook,
+      enqueuePlan: async () => {},
+      generateSecret: () => 's',
+    };
+    const base = {
+      workspaceId,
+      connectionId: created.connectionId,
+      candidates: created.candidates,
+    };
+    const [first] = await activateRepos(deps, { ...base, selection: { forgeRepoIds: ['101'] } });
+    await db.update(core.repos).set({ syncStatus: 'paused' }).where(eq(core.repos.id, first!));
+    const second = await activateRepos(deps, { ...base, selection: { allAutoAdd: true } });
+    expect(second).toHaveLength(2);
+    expect(second).not.toContain(first);
+    const [kept] = await db.select().from(core.repos).where(eq(core.repos.id, first!));
+    // "Track all" must not quietly un-pause a paused repo.
+    expect(kept!.syncStatus).toBe('paused');
+    // 101 once, then 102 and 103 — never 101 a second time.
+    expect(registerWebhook.mock.calls.map((c) => (c as unknown[])[0])).toEqual([
+      'acme/alpha',
+      'acme/beta',
+      'acme/gamma',
+    ]);
+  });
+
+  // W20-07 (UX_TODO INS-08): re-key keeps the row (and its repos), and a bad
+  // replacement never overwrites a working credential.
+  it('replaces a connection credential in place, and refuses a bad one', async () => {
+    const created = await createConnection(
+      { db, encrypt, smokeListRepos: () => Promise.resolve(REPOS) },
+      { workspaceId, provider: 'github', authKind: 'pat', credential: TOKEN, createdBy },
+    );
+    connectionIds.push(created.connectionId);
+    const fresh = ['ghp', 'rotated', 'value', 'WXYZ'].join('_');
+    await expect(
+      replaceConnectionCredential(
+        { db, encrypt, smokeListRepos: () => Promise.reject({ status: 401 }) },
+        { workspaceId, connectionId: created.connectionId, credential: fresh },
+      ),
+    ).rejects.toMatchObject({ kind: 'bad_token' });
+    const [before] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, created.connectionId));
+    expect(before!.credentialFingerprint.startsWith('7890:')).toBe(true);
+
+    const ok = await replaceConnectionCredential(
+      { db, encrypt, smokeListRepos: () => Promise.resolve(REPOS) },
+      { workspaceId, connectionId: created.connectionId, credential: fresh },
+    );
+    expect(ok).toBe(true);
+    const [after] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, created.connectionId));
+    expect(after!.credentialFingerprint.startsWith('WXYZ:')).toBe(true);
+    expect(after!.credentialCiphertext.toString('latin1')).not.toContain(fresh);
+
+    // Another workspace's id is not found, not re-keyed (Law 5).
+    expect(
+      await replaceConnectionCredential(
+        { db, encrypt, smokeListRepos: () => Promise.resolve(REPOS) },
+        {
+          workspaceId: workspaceId + 100000,
+          connectionId: created.connectionId,
+          credential: fresh,
+        },
+      ),
+    ).toBe(false);
   });
 });

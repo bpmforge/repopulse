@@ -36,7 +36,7 @@ forge that can register a GitHub App or mint a Gitea or GitLab token — see
 
 An LLM is **optional**. Tier-1 metrics — health scores, hotspots, PR cycle
 time, review coverage, CI trends, delivery cadence — need no model at all.
-Tiers 2 and 3 are configured later from **Admin → Models** and point at your
+Tiers 2 and 3 are configured later from **Settings → Models** and point at your
 own OpenAI-compatible endpoint (LM Studio, for example) or your own hosted API
 key.
 
@@ -105,6 +105,21 @@ deploy/scan-db-sync.sh                         # refresh scan rules + fetch the 
 deploy/smoke-report-pdf.sh                     # generate one report and download its PDF
 ```
 
+### Start on boot
+
+Compose marks every service `restart: unless-stopped`, but rootless Podman has
+no daemon to do the restarting: after a reboot the stack stays down until
+someone runs `deploy/up.sh`. Once, as the user who ran `install.sh`:
+
+```bash
+sudo loginctl enable-linger "$(id -un)"          # keep your user services running without a login
+systemctl --user enable podman-restart.service   # start unless-stopped containers at boot
+```
+
+`deploy/up.sh` warns while lingering is off. On a Mac, the `podman machine` VM
+has to be running first: `podman machine start` (or add it as a login item),
+then `deploy/up.sh`.
+
 Data lives in three named volumes: `repopulse_pgdata`, `repopulse_redisdata`,
 and `repopulse_reportdata` (generated report PDFs and their data, written by the
 worker and served by the api). `down` keeps them; only `down -v` deletes them.
@@ -167,14 +182,24 @@ email and password form, and nothing else.
 Sign in as `ADMIN_EMAIL`. You are asked to set a new password before anything
 else is reachable, because the one you typed has been sitting in a file on disk
 since then. You are now an administrator of a working install with no data in
-it. **Admin → Setup** lists what is outstanding: which sign-in methods are live,
+it. **Settings → Setup** lists what is outstanding: which sign-in methods are live,
 configuration problems, whether a forge is connected, whether any repositories
 are selected, and whether any webhook delivery has arrived. It reports whether
 each variable is *set*, never its value.
 
-Add further people from **Admin → Members**. The bootstrap is idempotent on "a
+Add further people from **Settings → Members**. The bootstrap is idempotent on "a
 local account with a password exists", so editing `ADMIN_EMAIL` afterwards
 creates nothing.
+
+**`ADMIN_EMAIL` is required even if everyone will use single sign-on.** A first
+OIDC or GitHub sign-in is never made administrator — an identity provider's
+email is not proof of who owns this install — so without the password admin
+nobody can connect a forge. `configure.sh` refuses to run without
+`--admin-email`, and `up.sh` warns when SSO is set and `ADMIN_EMAIL` is not.
+Sign in with the admin account, then promote people in Settings → Members.
+
+A member who forgets their password is reset from Settings → Members; a
+locked-out sole admin is reset from the host — RUNBOOK → *Routine care*.
 
 The other two doors, if you want them:
 
@@ -195,7 +220,7 @@ RepoPulse authenticates as **your** App or token against **your**
 organisation. There is no shared RepoPulse App and nothing hosted by us: your
 source, your tokens and your findings never leave your install.
 
-You do this from **Admin → Connections**, signed in as the administrator you
+You do this from **Settings → Connections**, signed in as the administrator you
 just created. The form takes three things: the forge kind (GitHub, GitLab or
 Gitea), a base URL for a self-hosted instance (blank for github.com), and an
 **access token**. Each connection has its own base URL, so one install can
@@ -237,7 +262,7 @@ repository still backfills and goes live; it just gets no live updates.
 > unavailable — webhook registration failed"* — and the issues fetch is refused
 > too. Creating a webhook is a write in Gitea: add `write:repository` (and
 > `read:issue` for issues) if you want live updates. Any entity the forge
-> refuses is named in **Admin → Sync** (for example *"issues not ingested —
+> refuses is named in **Settings → Sync** (for example *"issues not ingested —
 > HTTP 403: token does not have at least one of required scope(s):
 > [read:issue]"*) instead of looking like a repository with no issues; fix the
 > token and the next sync clears it.
@@ -295,7 +320,7 @@ For an install that is scripted rather than clicked, from a **checkout** (the
 CLI is not in the bundle):
 
 ```bash
-# --dry-run first: connects, lists what the token can see, selects nothing
+# --dry-run first: checks the token, lists every repository it can see, saves nothing
 FORGE_TOKEN=<your token> pnpm connect:forge \
   --provider gitea --base-url https://git.example.com --dry-run
 
@@ -315,9 +340,9 @@ and the nightly reconcile covers the gap.
 
 ## Select repositories
 
-In **Admin → Connections**, connect the organisation, then choose which
+In **Settings → Connections**, connect the organisation, then choose which
 repositories to track — nothing is ingested until you do. Backfill starts
-immediately; **Admin → Sync** shows per-repository progress while it runs, and
+immediately; **Settings → Sync** shows per-repository progress while it runs, and
 the screens fill in as history lands. In the recorded journey three
 repositories went from selected to `live` and every screen showed that run's
 data.
@@ -327,7 +352,7 @@ data.
 Webhook deliveries are how RepoPulse notices a push without polling. Until
 your first push after connecting, "no delivery yet" is expected — it is not
 evidence the webhook is wrong, and not evidence it is right. After a push,
-**Admin → Setup** shows the timestamp of the most recent delivery. If nothing
+**Settings → Setup** shows the timestamp of the most recent delivery. If nothing
 arrives:
 
 - your forge must be able to reach `PUBLIC_BASE_URL` (a private install behind
@@ -360,7 +385,7 @@ nightly reconcile still repairs whatever a missed delivery left behind.
 
 ## Connect a model (optional)
 
-Open **Admin → Models → Set up a model**. It asks four things and says, at each
+Open **Settings → Models → Set up a model**. It asks four things and says, at each
 step, what leaves your network:
 
 1. **Where does your model run?** On this machine or your network (nothing
@@ -428,7 +453,7 @@ shows the vendor's own error text.
    is a data-egress decision, so it is recorded with your name.
 4. **Test connection**, then save and choose roles. The review table will say
    *Leaves* for those roles and name `generativelanguage.googleapis.com`; every
-   request is recorded in **Admin → Analysis** (the egress audit). Hosted calls
+   request is recorded in **Settings → Analysis** (the egress audit). Hosted calls
    cost money on your account.
 
 Other vendors (Anthropic, an OpenAI-compatible service, Vertex with a
@@ -447,7 +472,7 @@ terms allow this use; that responsibility is yours, which is why it is **off
 until an admin reads and accepts a statement**, recorded with their name, the
 time and the exact version of the statement.
 
-1. In **Admin → Models**, choose *Claude Code CLI you installed
+1. In **Settings → Models**, choose *Claude Code CLI you installed
    (customer-supplied)*. The full statement is shown. Tick that you have read
    it and **Accept and turn on**. Anyone with admin rights can **Switch off**
    again; connections that use it then stop and say why.
@@ -498,9 +523,15 @@ Run it once now, then nightly:
 
 ```bash
 deploy/scan-db-sync.sh
-# then, in root's crontab (adjust the path to your bundle directory):
-0 3 * * * /opt/repopulse/deploy/scan-db-sync.sh >> /var/log/repopulse-scan-sync.log 2>&1
+# then, in the crontab of the user who ran install.sh — NOT root's
+# (adjust the path to your bundle directory):
+0 3 * * * /opt/repopulse/deploy/scan-db-sync.sh >> $HOME/repopulse-scan-sync.log 2>&1
 ```
+
+Rootless Podman (the default, and the tested setup) gives every user their own
+images and containers. A root cron job cannot see the scan image you loaded,
+leaves root-owned files in the scan-data directory, and fails every night. The
+job also needs that user to linger — see *Start on boot*.
 
 > **Provision 5 GB of disk under the scan-data directory** (`deploy/scan-rules`
 > beside the compose file unless you set `SCAN_RULES_DIR`). The vulnerability
@@ -611,7 +642,11 @@ RepoPulse publishes one plain-HTTP port. Your terminator should:
   and enqueue, so the worst case for an attacker is a rejected 401;
 - set `REPOPULSE_BIND=0.0.0.0` in `deploy/.env` only once that is in place, and
   `NODE_ENV=production` (the default the scripts write) so session cookies carry
-  the Secure flag.
+  the Secure flag;
+- pass the client address in `X-Forwarded-For`. The API trusts one proxy hop
+  from a private address (the bundled `web` container) by default; with your
+  terminator in front of that, set `TRUST_PROXY=2` in `deploy/.env` so sign-in
+  rate limits and audit lines are per person rather than shared by everyone.
 
 [DEPLOYMENT.md](DEPLOYMENT.md) has the topology, ports and monitoring detail.
 
@@ -645,6 +680,16 @@ this means the browser could not read the API's list of providers — check that
 the web container is reaching the API before looking at anything to do with
 authentication. If you restarted only the `api` container, restart the whole
 stack: `web` resolves the API address once at startup.
+
+**Sign-in accepts the password, then shows the sign-in screen again.** You are
+on plain `http://` at an address other than `localhost`. The session cookie is
+`Secure`, so the browser drops it; the sign-in screen says so in a yellow box.
+Put TLS in front (above) or use an SSH tunnel to `localhost`. There is
+deliberately no switch to make the cookie insecure.
+
+**"Rate limit exceeded" for everyone at once.** The API sees every browser as
+the same proxy address. If you added your own reverse proxy in front of the
+bundled one, set `TRUST_PROXY=2` (see *Put TLS in front*).
 
 **"Invalid email or password" for `ADMIN_EMAIL`.** The account is created on
 the API's first boot, so it does not exist if that boot failed or if a local

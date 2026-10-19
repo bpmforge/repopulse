@@ -4,7 +4,9 @@ import { createServer, type Server } from 'node:http';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { core, createDb, type Database } from '@repopulse/shared';
+import { credentials } from '@repopulse/auth';
 import {
+  DEFAULT_GITLAB_BASE_URL,
   ForgeHttpError,
   type ForgeProvider,
   type ForgeRepo,
@@ -49,6 +51,9 @@ const REPOS: ForgeRepo[] = [
 
 // Fake discovery provider — listRepos returns REPOS unless configured to throw.
 let smokeBehavior: () => Promise<ForgeRepo[]> = () => Promise.resolve(REPOS);
+// W20-07 (INS-52): when set, listRepos pages by cursor instead.
+let pageBehavior:
+  ((cursor?: string) => Promise<{ items: ForgeRepo[]; nextCursor?: string }>) | null = null;
 const registerWebhook = vi.fn(
   (_ctx: unknown, _repo: string, _url: string, _secret: string, _events: string[]) =>
     Promise.resolve('hook-1'),
@@ -64,7 +69,8 @@ function fakeProvider(
 ): ForgeProvider {
   providerBuilds.push({ kind, baseUrl });
   return {
-    listRepos: () => smokeBehavior().then((items) => ({ items })),
+    listRepos: (_ctx: unknown, cursor?: string) =>
+      pageBehavior ? pageBehavior(cursor) : smokeBehavior().then((items) => ({ items })),
     registerWebhook,
     capabilities: { webhookScheme: kind === 'gitlab' ? 'gitlab-token' : 'hub-signature' },
   } as unknown as ForgeProvider;
@@ -129,6 +135,7 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
           redisUrl: redisUrl as string,
           tokenKey,
           webhookUrl: 'https://repopulse.example/webhooks/github',
+          forgeBaseUrl: 'https://ghe.acme.example/api/v3',
           enqueueBackfillPlan,
           buildProvider: fakeProvider,
         });
@@ -387,4 +394,281 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
       );
     });
   }
+  // ---- W20-07 -------------------------------------------------------------
+
+  async function newConnection(cookie: string, extra: Record<string, unknown> = {}) {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { auth_kind: 'pat', credential: TOKEN, ...extra },
+    });
+    expect(res.statusCode).toBe(201);
+    return res.json().id as number;
+  }
+
+  // UX_TODO INS-73: a blank GitLab URL is gitlab.com, stored on the row, and
+  // never FORGE_BASE_URL (set to a GHES host for this suite).
+  it('stores gitlab.com for a GitLab connection saved with no URL', async () => {
+    smokeBehavior = () => Promise.resolve(REPOS);
+    const cookie = await loginAs(app, ADMIN);
+    providerBuilds.length = 0;
+    const connId = await newConnection(cookie, { provider: 'gitlab' });
+    expect(providerBuilds).toEqual([{ kind: 'gitlab', baseUrl: DEFAULT_GITLAB_BASE_URL }]);
+    const [row] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, connId));
+    expect(row!.baseUrl).toBe(DEFAULT_GITLAB_BASE_URL);
+  });
+
+  // UX_TODO INS-64: a TLS failure is not a bad token.
+  it('reports an untrusted CA as tls_untrusted, naming the host', async () => {
+    smokeBehavior = () =>
+      Promise.reject(
+        Object.assign(new Error('unable to get local issuer certificate'), {
+          status: 500,
+          request: {},
+          cause: {
+            code: 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+            message: 'unable to get local issuer certificate',
+          },
+        }),
+      );
+    const cookie = await loginAs(app, ADMIN);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: {
+        provider: 'gitea',
+        auth_kind: 'pat',
+        credential: TOKEN,
+        base_url: 'https://git.internal.example',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().title).toContain('tls_untrusted');
+    expect(res.json().detail).toContain('git.internal.example');
+    smokeBehavior = () => Promise.resolve(REPOS);
+  });
+
+  // UX_TODO INS-52 + INS-10: every page, with the tracked ones marked.
+  it('available-repos pages through every repo and marks the tracked ones', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie);
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_forge_ids: ['201'] },
+    });
+    const quiet: ForgeRepo = {
+      ...REPOS[1]!,
+      externalId: '299',
+      name: 'quiet',
+      fullName: 'acme/quiet',
+    };
+    pageBehavior = (cursor) =>
+      Promise.resolve(cursor === 'p2' ? { items: [quiet] } : { items: REPOS, nextCursor: 'p2' });
+    try {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/connections/${connId}/available-repos`,
+        cookies: { repopulse_sid: cookie },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as {
+        items: { forge_repo_id: string; tracked: boolean; sync_status: string | null }[];
+        total: number;
+        truncated: boolean;
+      };
+      expect(body.total).toBe(3);
+      expect(body.truncated).toBe(false);
+      expect(body.items.map((i) => [i.forge_repo_id, i.tracked, i.sync_status])).toEqual([
+        ['201', true, 'pending_backfill'],
+        ['202', false, null],
+        ['299', false, null],
+      ]);
+
+      // ...and the repo on page two can actually be tracked.
+      const tracked = await app.inject({
+        method: 'POST',
+        url: `/api/v1/connections/${connId}/repos`,
+        cookies: { repopulse_sid: cookie },
+        payload: { repo_forge_ids: ['299'] },
+      });
+      expect(tracked.json().repo_ids).toHaveLength(1);
+    } finally {
+      pageBehavior = null;
+    }
+  });
+
+  // UX_TODO INS-72: the second batch signs with the SAME secret as the first,
+  // and that secret is the one stored for the receiver.
+  it('a second "Track" batch keeps the first batch\'s webhook secret', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie);
+    registerWebhook.mockClear();
+    for (const id of ['201', '202']) {
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/connections/${connId}/repos`,
+        cookies: { repopulse_sid: cookie },
+        payload: { repo_forge_ids: [id] },
+      });
+    }
+    const secrets = registerWebhook.mock.calls.map((c) => c[3]);
+    expect(secrets).toHaveLength(2);
+    expect(secrets[0]).toBe(secrets[1]);
+    const [row] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, connId));
+    expect(credentials.openSecret(row!.webhookSecretCiphertext!, tokenKey)).toBe(secrets[0]);
+  });
+
+  // UX_TODO INS-08: re-key in place.
+  it('PATCH replaces the credential in place; a bad one leaves the old token working', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie);
+    const rotated = ['ghp', 'rotatedRouteToken', 'QRST'].join('_');
+
+    smokeBehavior = () => Promise.reject({ status: 401 });
+    const bad = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/connections/${connId}`,
+      cookies: { repopulse_sid: cookie },
+      payload: { credential: rotated },
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().title).toContain('bad_token');
+    smokeBehavior = () => Promise.resolve(REPOS);
+
+    const ok = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/connections/${connId}`,
+      cookies: { repopulse_sid: cookie },
+      payload: { credential: rotated },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(JSON.stringify(ok.json())).not.toContain(rotated);
+    const [row] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, connId));
+    expect(
+      credentials.decryptCredential(
+        {
+          ciphertext: row!.credentialCiphertext,
+          iv: row!.credentialIv,
+          keyVersion: row!.keyVersion,
+        },
+        tokenKey,
+      ),
+    ).toBe(rotated);
+  });
+
+  it('a member cannot re-key, remove or pause (admin only → 403)', async () => {
+    const admin = await loginAs(app, ADMIN);
+    const connId = await newConnection(admin);
+    const member = await loginAs(app, MEMBER);
+    for (const [method, url, payload] of [
+      ['PATCH', `/api/v1/connections/${connId}`, { credential: TOKEN }],
+      ['DELETE', `/api/v1/connections/${connId}`, undefined],
+      ['PUT', `/api/v1/repos/1/tracking`, { paused: true }],
+    ] as const) {
+      const res = await app.inject({
+        method,
+        url,
+        cookies: { repopulse_sid: member },
+        ...(payload ? { payload } : {}),
+      });
+      expect(res.statusCode, `${method} ${url}`).toBe(403);
+    }
+  });
+
+  // UX_TODO INS-08: removal says what happens to the tracked repos.
+  it('DELETE disconnects a connection with repos (paused, history kept) and deletes an empty one', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const withRepos = await newConnection(cookie);
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${withRepos}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_forge_ids: ['201', '202'] },
+    });
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/connections/${withRepos}`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ id: withRepos, outcome: 'disconnected', paused_repos: 2 });
+    const [row] = await db
+      .select()
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, withRepos));
+    expect(row!.status).toBe('removed');
+    expect(row!.webhookSecretCiphertext).toBeNull();
+    expect(row!.credentialCiphertext.length).toBe(0);
+    const repos = await db.select().from(core.repos).where(eq(core.repos.connectionId, withRepos));
+    expect(repos.map((r) => r.syncStatus)).toEqual(['paused', 'paused']);
+    const listing = await app.inject({
+      method: 'GET',
+      url: `/api/v1/connections/${withRepos}/available-repos`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(listing.statusCode).toBe(409);
+
+    const empty = await newConnection(cookie);
+    const gone = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/connections/${empty}`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(gone.json()).toEqual({ id: empty, outcome: 'deleted', paused_repos: 0 });
+    expect(
+      await db.select().from(core.forgeConnections).where(eq(core.forgeConnections.id, empty)),
+    ).toHaveLength(0);
+  });
+
+  // UX_TODO INS-09.
+  it('pauses a repo and resumes it with a fresh backfill plan', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const connId = await newConnection(cookie);
+    const sel = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_forge_ids: ['201'] },
+    });
+    const repoId = (sel.json().repo_ids as number[])[0]!;
+
+    const paused = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/repos/${repoId}/tracking`,
+      cookies: { repopulse_sid: cookie },
+      payload: { paused: true },
+    });
+    expect(paused.json()).toEqual({ repo_id: repoId, sync_status: 'paused' });
+
+    enqueueBackfillPlan.mockClear();
+    const resumed = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/repos/${repoId}/tracking`,
+      cookies: { repopulse_sid: cookie },
+      payload: { paused: false },
+    });
+    expect(resumed.json()).toEqual({ repo_id: repoId, sync_status: 'pending_backfill' });
+    expect(enqueueBackfillPlan).toHaveBeenCalledTimes(1);
+
+    const missing = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/repos/999999999/tracking`,
+      cookies: { repopulse_sid: cookie },
+      payload: { paused: true },
+    });
+    expect(missing.statusCode).toBe(404);
+  });
 });

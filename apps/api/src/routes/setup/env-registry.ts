@@ -12,6 +12,8 @@
 // describes the two read forms instead of spelling them out: a literal example
 // here would match its own gate.)
 
+import { parseTrustProxy } from '../../lib/trust-proxy.js';
+
 export type EnvScope = 'api' | 'worker' | 'web' | 'shared';
 
 export interface EnvVar {
@@ -144,9 +146,9 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'api',
     required: false,
     purpose:
-      'Fallback forge base URL for a connection saved without one. Each connection stores its own kind and base URL (Admin → Connections), so this is optional. Absent means github.com.',
+      'Default base URL for a GitHub or Gitea connection saved without one (GitHub Enterprise Server, or your one Gitea). Each connection stores its own kind and base URL (Settings → Connections), so this is optional. Absent means github.com. Never used for GitLab: a GitLab connection saved blank means gitlab.com.',
     ifWrong:
-      'Only connections with no stored base URL are affected: they point at the wrong host and every sync fails with 404s.',
+      'Only GitHub/Gitea connections saved with no URL are affected: they point at the wrong host and every sync fails with 404s.',
     validate: isUrl,
   },
   {
@@ -154,9 +156,23 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'api',
     required: false,
     purpose:
-      'Email of the first admin account, created on first boot (D14). Without it — and with no other local account — a fresh install has no way in.',
+      'Email of the first admin account, created on first boot (D14). Without it — and with no other local account — a fresh install has no way in. On an install that signs in with OIDC or GitHub, it is also the ONLY way anyone becomes the first admin: the federated user whose email matches it is made admin on first sign-in, and nobody else is (W20-07).',
     ifWrong:
       'A typo creates an admin nobody can sign in as. The bootstrap is idempotent on "any local account with a password exists", so correcting the value later does NOT create a second admin; use the admin user-creation route instead.',
+  },
+  {
+    name: 'TRUST_PROXY',
+    scope: 'api',
+    required: false,
+    default: '1',
+    purpose:
+      'How many proxies sit in front of the API, so it reads the real client address from X-Forwarded-For (W20-07). 1 is the shipped stack (browser → nginx → api). Use 2 with your own TLS terminator in front of nginx, false when the API is reachable with no proxy, or a comma-separated list of proxy addresses/CIDRs.',
+    ifWrong:
+      'Too low and every person shares the proxy address: one sign-in rate limit (10 a minute) for the whole install, and the proxy IP on every audit line. Too high and a client can choose its own address by sending X-Forwarded-For, and walk past the sign-in limit.',
+    validate: (value) => {
+      const parsed = parseTrustProxy(value);
+      return typeof parsed === 'object' ? parsed.error : null;
+    },
   },
   {
     name: 'ADMIN_PASSWORD',
@@ -421,7 +437,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'worker',
     required: false,
     purpose:
-      'DEPRECATED since W16-08 — configure models in Admin → Models instead, which needs no restart and supports hosted providers as well as LAN ones. Kept so an existing install does not lose its model on upgrade; a configured provider always wins over this. Comma-separated OpenAI-compatible endpoints for Tier-2 analysis (http://host:1234/v1). Absent means no Tier-2: the whole Tier-1 product still works.',
+      'DEPRECATED since W16-08 — configure models in Settings → Models instead, which needs no restart and supports hosted providers as well as LAN ones. Kept so an existing install does not lose its model on upgrade; a configured provider always wins over this. Comma-separated OpenAI-compatible endpoints for Tier-2 analysis (http://host:1234/v1). Absent means no Tier-2: the whole Tier-1 product still works.',
     ifWrong:
       'Scheduled judgement passes skip with reason no_gateway. Pointing at an unreachable host is worse than leaving it unset — the passes then FAIL rather than skip, which is deliberate: a host you configured and cannot reach is a fault, not a choice.',
   },
@@ -430,7 +446,7 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     scope: 'worker',
     required: false,
     purpose:
-      'DEPRECATED since W16-08 — see Admin → Models. The loaded model id to request. Use an INSTRUCT or CODER model, e.g. qwen3-coder-30b-a3b-instruct. Required whenever LMSTUDIO_BASE_URLS is set.',
+      'DEPRECATED since W16-08 — see Settings → Models. The loaded model id to request. Use an INSTRUCT or CODER model, e.g. qwen3-coder-30b-a3b-instruct. Required whenever LMSTUDIO_BASE_URLS is set.',
     ifWrong:
       'LM Studio answers 400 "Invalid model identifier" on every call. There is no default because a guessed model name is a guess about your machine; with it unset the gateway refuses to build and says which variable is missing. A REASONING model is the subtler mistake: measured here, qwen3.5-9b spent an entire 4000-token budget on reasoning and returned no answer at all, and at the tier\'s 45000 cap that is twenty minutes per chunk before the request is abandoned. The scanner now reports that by name rather than as a clean result, but the fix is the model: an instruct model answered the same prompt in 12 seconds.',
   },
