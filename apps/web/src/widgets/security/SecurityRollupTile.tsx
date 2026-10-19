@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState, registerWidget } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { OrgSecurity } from './contracts.js';
+import { reposParam, withRepos } from '../scopeRepos.js';
 
 // Org security rollup (W8-10, SECURITY_SUITE.md §5, FR-INSIGHTS-2).
 //
@@ -19,9 +20,11 @@ const SEVERITY_NAME: Record<number, string> = {
   1: 'info',
 };
 
-export function SecurityRollupTile() {
+export function SecurityRollupTile({ repos }: { repos?: string | undefined } = {}) {
+  // A view's repositories (W20-09, UX_TODO DSH-02); absent = the workspace.
   const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSecurity>({
     endpoint: '/org/security',
+    query: withRepos({}, repos),
   });
 
   const state = frameState({ isLoading, isError, isEmpty: false });
@@ -97,5 +100,9 @@ registerWidget({
   // Its own type, never a reused one: registerWidget overwrites by type, and
   // that silent replacement already cost a panel once (W5-07).
   defaultSize: { w: 4, h: 2 },
-  component: () => <SecurityRollupTile />,
+  component: ({ widget }) => (
+    <SecurityRollupTile
+      repos={reposParam(widget.options?.search as Record<string, string> | undefined)}
+    />
+  ),
 });

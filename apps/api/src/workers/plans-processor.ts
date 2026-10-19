@@ -1,5 +1,5 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
-import { plans as plansSchema, read, type Database } from '@repopulse/shared';
+import { and, eq, inArray } from 'drizzle-orm';
+import { plans as plansSchema, type Database } from '@repopulse/shared';
 import {
   observeCriterion,
   recordVerification,
@@ -8,6 +8,7 @@ import {
   type VerifyCriterion,
 } from '@repopulse/insights';
 import type { Job } from 'bullmq';
+import { scopedMetrics } from '../lib/scope-metrics.js';
 
 // Nightly plans.verify (W5-06, IMPROVEMENT_PLANS.md §3, FR-PLANS-3).
 //
@@ -24,35 +25,6 @@ import type { Job } from 'bullmq';
 
 export interface PlansVerifyDeps {
   db: Database;
-}
-
-async function metricsForPlan(
-  db: Database,
-  workspaceId: number,
-  repoIds: number[],
-  window: string,
-): Promise<MetricSet> {
-  const rows = await db
-    .select()
-    .from(read.metricSnapshots)
-    .where(
-      and(
-        eq(read.metricSnapshots.workspaceId, workspaceId),
-        eq(read.metricSnapshots.window, window),
-        repoIds.length > 0 ? inArray(read.metricSnapshots.repoId, repoIds) : undefined,
-      ),
-    )
-    .orderBy(desc(read.metricSnapshots.computedAt));
-
-  const set: MetricSet = {};
-  for (const r of rows) {
-    if (set[r.metricKey]) continue;
-    set[r.metricKey] = {
-      value: r.value === null ? null : Number(r.value),
-      dims: (r.dims ?? {}) as Record<string, unknown>,
-    };
-  }
-  return set;
 }
 
 export interface VerifySummary {
@@ -88,11 +60,18 @@ export function plansVerifyProcessor(deps: PlansVerifyDeps) {
         .from(plansSchema.improvementPlans)
         .where(eq(plansSchema.improvementPlans.id, item.planId))
         .limit(1);
-      if (!plan) continue;
+      // An archived plan is history (W20-09, UX_TODO DSH-58): a regeneration
+      // carried its decided items into the plan that superseded it, and
+      // verifying both copies would write two histories for one piece of work.
+      if (!plan || plan.status !== 'active') continue;
 
       let metrics = planCache.get(plan.id);
       if (!metrics) {
-        metrics = await metricsForPlan(deps.db, plan.workspaceId, plan.repoIds, plan.window);
+        // The plan's SET of repositories, combined — the same reader
+        // generation uses (W20-09, UX_TODO DSH-86), so the number that raised
+        // an item is the number that closes it. It used to be whichever
+        // repository's row was computed last.
+        metrics = await scopedMetrics(deps.db, plan.workspaceId, plan.repoIds, plan.window);
         planCache.set(plan.id, metrics);
       }
 

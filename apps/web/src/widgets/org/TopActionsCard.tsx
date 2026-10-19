@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { TopActionItem, TopActionsCoverage, TopActionsResponse } from './contracts.js';
+import { reposParam, withRepos } from '../scopeRepos.js';
 
 // Next actions (W17-17) — the card that made the Org Overview about doing
 // something rather than about reading headings.
@@ -138,10 +139,12 @@ function CoverageNote({ coverage }: { coverage: TopActionsCoverage }) {
 }
 
 export function TopActionsCard({ search }: Props) {
-  // No query params: the route declares no querystring schema and
-  // collectTopActions takes no window.
+  // No window: collectTopActions ranks what is open now. The repositories,
+  // though, are the view's (W20-09, UX_TODO DSH-02).
+  const repos = reposParam(search);
   const { data, isLoading, isError, error, refetch } = useApiQuery<TopActionsResponse>({
     endpoint: '/org/top-actions',
+    query: withRepos({}, repos),
   });
 
   const actions = data?.actions ?? [];

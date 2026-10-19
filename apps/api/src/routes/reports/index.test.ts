@@ -44,12 +44,20 @@ describeIfLiveInfra('reports API lifecycle (W17-26)', () => {
   let dataDir: string;
   const enqueued: { reportId: number; params: ReportParams }[] = [];
   const created: number[] = [];
+  const schedules: {
+    key: string;
+    type: string;
+    cadence: string;
+    next: number | null;
+    windowDays?: number | null;
+  }[] = [];
 
   const mount = async (ws: () => number): Promise<FastifyInstance> => {
     const f = Fastify();
     await f.register(errorEnvelopePlugin);
     f.addHook('onRequest', async (request) => {
       request.workspace = { id: ws(), slug: 't', name: 't' };
+      request.role = 'admin';
       (request as unknown as { session: { get: (k: string) => unknown } }).session = {
         get: (k: string) => (k === 'userId' ? userId : undefined),
       };
@@ -58,6 +66,13 @@ describeIfLiveInfra('reports API lifecycle (W17-26)', () => {
       db,
       enqueueReport: async ({ reportId, params }) => {
         enqueued.push({ reportId, params });
+      },
+      schedules: {
+        list: async () => schedules,
+        add: async (_ws, type, cadence, windowDays) => {
+          schedules.push({ key: `k-${type}-${cadence}`, type, cadence, next: null, windowDays });
+        },
+        remove: async () => {},
       },
     });
     await f.ready();
@@ -255,5 +270,40 @@ describeIfLiveInfra('reports API lifecycle (W17-26)', () => {
     } finally {
       await foreign.close();
     }
+  });
+  // W20-09 (UX_TODO ADM-05/06/07/71).
+  it('pins the workspace weights, validates the scope, and names who generated it', async () => {
+    const id = await generate();
+    expect(enqueued.at(-1)?.params.healthWeights).toBeDefined();
+    const weights = enqueued.at(-1)!.params.healthWeights!;
+    expect(Object.keys(weights).length).toBeGreaterThan(0);
+    // The list says who asked for it.
+    const res = await get('/reports');
+    const row = (res.json() as { items: { id: number; generated_by: string | null }[] }).items.find(
+      (i) => i.id === id,
+    );
+    expect(row?.generated_by).toBe(USER);
+    // A repository outside the workspace is a 404, never a silent empty report.
+    const foreign = await app.inject({
+      method: 'POST',
+      url: '/reports',
+      headers: CSRF,
+      payload: { type: 'org_exec', window_days: 30, repo_ids: [2_147_483_000] },
+    });
+    expect(foreign.statusCode).toBe(404);
+  });
+
+  it('a duplicate schedule is refused, and the window is kept (ADM-07)', async () => {
+    const add = () =>
+      app.inject({
+        method: 'POST',
+        url: '/reports/schedules',
+        headers: CSRF,
+        payload: { type: 'org_exec', cadence: 'monthly', window_days: 90 },
+      });
+    expect((await add()).statusCode).toBe(201);
+    expect((await add()).statusCode).toBe(409);
+    expect(schedules).toHaveLength(1);
+    expect(schedules[0]).toMatchObject({ windowDays: 90 });
   });
 });

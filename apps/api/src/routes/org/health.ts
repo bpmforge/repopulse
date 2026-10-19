@@ -5,6 +5,7 @@ import {
   healthInputsFromSnapshots,
   scoreLetter,
   FINDINGS_METRIC_KEY,
+  securityInputsMany,
   type HealthScore,
 } from '@repopulse/insights';
 import { read, type Database } from '@repopulse/shared';
@@ -97,6 +98,11 @@ export async function repoHealthMany(
   // buildHealthSubScores falls back to DEFAULT_WEIGHTS per key, so an unset
   // workspace scores exactly as before.
   const { effective } = await readWorkspaceSettings(db, workspaceId);
+  const securityInputs = await securityInputsMany(
+    db,
+    workspaceId,
+    repos.map((r) => r.id),
+  );
 
   for (const repo of repos) {
     const m = latest.get(repo.id) ?? new Map<string, Latest>();
@@ -121,8 +127,10 @@ export async function repoHealthMany(
       { M4: get('M4'), M5: get('M5'), M8: get('M8'), M9: get('M9'), M11: get('M11') },
       { pushedAt: repo.pushedAt, nowMs },
       {
-        openFindingDensity: null,
-        worstOpenSeverity: null,
+        // W20-09 (UX_TODO DSH-73): measured, or null when nothing has
+        // examined this repository — never a silent null for everyone.
+        openFindingDensity: securityInputs.get(repo.id)?.openFindingDensity ?? null,
+        worstOpenSeverity: securityInputs.get(repo.id)?.worstOpenSeverity ?? null,
         slopDensity: num('slopDensity'),
         supplyChainRisk: num('dependencyHealthRiskSum'),
         eolRuntimeCount: num('eolRuntimeCount'),

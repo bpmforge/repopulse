@@ -28,6 +28,16 @@ export interface ReportParams {
    */
   snapshotAt: string;
   weightsVersion: string;
+  /**
+   * The workspace's health-score weights, read when Generate was pressed and
+   * pinned here (W20-09, UX_TODO ADM-71). The assembler used the code
+   * defaults while Overview and the repo pages used the weights an admin saved
+   * in Settings, so once anyone changed them a report could score a repository
+   * differently from the dashboard for the same window. Optional so a report
+   * stored before this field existed still re-renders, with the defaults it
+   * was generated under.
+   */
+  healthWeights?: Record<string, number>;
   catalogVersion: string;
   /**
    * Optional human context captured AT GENERATION and stored with the params

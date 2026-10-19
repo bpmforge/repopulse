@@ -29,6 +29,34 @@ const windowSchema = z
     { message: 'window must be 7d|30d|90d|365d or an ISO `start..end` range' },
   );
 
+/** A custom `start..end` window, or null for a preset or garbage. */
+export function customRange(window: string): { start: string; end: string } | null {
+  if ((WINDOW_PRESETS as readonly string[]).includes(window)) return null;
+  const parts = window.split('..');
+  if (parts.length !== 2 || !parts.every((d) => ISO_DATE.test(d))) return null;
+  return { start: parts[0]!, end: parts[1]! };
+}
+
+/**
+ * The preset whose snapshots a window is read from (W20-09, UX_TODO DSH-56).
+ *
+ * Metrics are snapshotted per PRESET window (METRICS.md FR-METRICS-13), so a
+ * custom `start..end` has no numbers of its own yet, and every metrics
+ * endpoint answered one with a 400. Until per-range computation exists, a
+ * range is read through the smallest preset at least as long as it, and the
+ * window control says so; a preset passes through unchanged.
+ */
+export function presetCovering(window: string): WindowPreset {
+  if ((WINDOW_PRESETS as readonly string[]).includes(window)) return window as WindowPreset;
+  const range = customRange(window);
+  if (!range) return DEFAULT_WINDOW;
+  const days = Math.max(
+    1,
+    Math.round((Date.parse(range.end) - Date.parse(range.start)) / 86_400_000) + 1,
+  );
+  return WINDOW_PRESETS.find((p) => Number(p.replace('d', '')) >= days) ?? '365d';
+}
+
 export const globalSearchSchema = z.object({
   window: windowSchema.default(DEFAULT_WINDOW),
   // csv of repo ids, or the sentinel 'all' (default → omitted).

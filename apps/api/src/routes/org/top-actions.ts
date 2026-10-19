@@ -82,6 +82,12 @@ export interface TopActionsResult {
 
 export interface TopActionsOptions {
   now?: Date;
+  /**
+   * A view's repositories (W20-09, UX_TODO DSH-02). Empty or absent = the
+   * whole workspace. Findings are those repositories'; plan items are those of
+   * plans made for exactly this set.
+   */
+  repoIds?: readonly number[];
   candidateLimit?: number;
   coverageRepoLimit?: number;
 }
@@ -90,6 +96,7 @@ async function findingCandidates(
   db: Database,
   workspaceId: number,
   limit: number,
+  repoIds: readonly number[],
 ): Promise<FindingActionCandidate[]> {
   const rows = await db
     .select({
@@ -114,6 +121,7 @@ async function findingCandidates(
         // W9-07 shadow mode: a candidate rule's findings are excluded from org
         // banners, and this card is an org banner.
         eq(read.findings.experimental, false),
+        repoIds.length > 0 ? inArray(read.findings.repoId, [...repoIds]) : undefined,
       ),
     )
     // NULLS LAST so an unpriced finding cannot outrank a priced one in SQL and
@@ -152,6 +160,7 @@ async function planItemCandidates(
   db: Database,
   workspaceId: number,
   limit: number,
+  repoIds: readonly number[],
 ): Promise<PlanItemActionCandidate[]> {
   const rows = await db
     .select({
@@ -176,6 +185,10 @@ async function planItemCandidates(
         // decisions a team already closed.
         eq(plansSchema.improvementPlans.status, 'active'),
         inArray(plansSchema.planItems.status, [...ACTIONABLE_PLAN_ITEM_STATUSES]),
+        // Plans for EXACTLY the view's set; repo ids are stored normalised.
+        repoIds.length > 0
+          ? sql`${plansSchema.improvementPlans.repoIds} = ${sql.raw(`ARRAY[${[...repoIds].sort((a, b) => a - b).join(',')}]::bigint[]`)}`
+          : undefined,
       ),
     )
     // The plan's OWN rank — generatePlanItems() produced it from rankInputFor(),
@@ -200,11 +213,17 @@ async function coverageFor(
   workspaceId: number,
   limit: number,
   now: Date,
+  repoIds: readonly number[],
 ): Promise<CoverageState> {
   const repos = await db
     .select({ id: core.repos.id, name: core.repos.name })
     .from(core.repos)
-    .where(eq(core.repos.workspaceId, workspaceId))
+    .where(
+      and(
+        eq(core.repos.workspaceId, workspaceId),
+        repoIds.length > 0 ? inArray(core.repos.id, [...repoIds]) : undefined,
+      ),
+    )
     .orderBy(asc(core.repos.name), asc(core.repos.id))
     .limit(limit);
 
@@ -237,9 +256,11 @@ export async function collectTopActions(
   const now = opts.now ?? new Date();
   const candidateLimit = opts.candidateLimit ?? CANDIDATE_LIMIT;
 
+  const repoIds = (opts.repoIds ?? []).filter((id) => Number.isInteger(id) && id > 0);
+
   const [findings, planItems] = await Promise.all([
-    findingCandidates(db, workspaceId, candidateLimit),
-    planItemCandidates(db, workspaceId, candidateLimit),
+    findingCandidates(db, workspaceId, candidateLimit, repoIds),
+    planItemCandidates(db, workspaceId, candidateLimit, repoIds),
   ]);
 
   const actions = selectTopActions({ findings, planItems });
@@ -248,7 +269,13 @@ export async function collectTopActions(
     actions,
     coverage:
       actions.length === 0
-        ? await coverageFor(db, workspaceId, opts.coverageRepoLimit ?? COVERAGE_REPO_LIMIT, now)
+        ? await coverageFor(
+            db,
+            workspaceId,
+            opts.coverageRepoLimit ?? COVERAGE_REPO_LIMIT,
+            now,
+            repoIds,
+          )
         : null,
     generatedAt: now.toISOString(),
   };

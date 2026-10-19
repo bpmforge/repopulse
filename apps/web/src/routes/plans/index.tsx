@@ -26,7 +26,10 @@ function PlansPage() {
   // a 30-day plan labelled 30d: the control moved nothing and the result
   // quietly disagreed with it.
   const search = Route.useSearch();
-  const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Plan[] }>(LIST);
+  const { data, isLoading, isError, error, refetch } = useApiQuery<{
+    items: Plan[];
+    truncated?: boolean;
+  }>(LIST);
 
   // Metric NAMES for the exit criteria and evidence lines (W16-53). The route
   // serving this catalog says the UI should read it and never hardcode the
@@ -59,9 +62,14 @@ function PlansPage() {
   // only plans generated for EXACTLY that scope — a workspace-wide plan is not
   // a plan for the selected repository, and showing it under that heading
   // would say it was.
-  const plans =
+  const scoped =
     scopeIds.length === 0 ? allPlans : allPlans.filter((p) => sameScope(p.repo_ids, scopeIds));
-  const hidden = allPlans.length - plans.length;
+  const hidden = allPlans.length - scoped.length;
+  // CURRENT PLANS, THEN HISTORY (W20-09, UX_TODO DSH-58). A regeneration now
+  // supersedes the earlier plan for its scope; the superseded ones are
+  // archived and folded away below, so the list says which plan is current.
+  const plans = scoped.filter((p) => p.status === 'active');
+  const archived = scoped.filter((p) => p.status !== 'active');
 
   return (
     <div className="flex flex-col gap-4" data-testid="plans">
@@ -94,7 +102,7 @@ function PlansPage() {
         state={frameState({
           isLoading,
           isError,
-          isEmpty: data !== undefined && plans.length === 0,
+          isEmpty: data !== undefined && scoped.length === 0,
         })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
@@ -105,7 +113,7 @@ function PlansPage() {
         }
       >
         <div className="flex flex-col gap-4">
-          {plans.map((plan) => {
+          {[...plans, ...archived].map((plan) => {
             const progress = planProgress(plan);
             // Regressed first, then rank. Something that came undone outranks
             // new advice: it is work already paid for that is being lost.
@@ -122,13 +130,31 @@ function PlansPage() {
               .filter((i) => i.status === 'dismissed')
               .sort((a, b) => a.rank - b.rank);
 
-            return (
+            const scopeLabel = planScopeLabel(plan.repo_ids, repoNames);
+            const body = (
               <section key={plan.id} data-testid={`plan-${plan.id}`}>
                 <div className="mb-2 flex flex-wrap items-baseline gap-2">
-                  {/* The plan's OWN scope, from its row — never the filter's. */}
+                  {/* The plan's OWN scope, from its row — never the filter's.
+                      With its id and date (DSH-58): two plans for one scope
+                      used to share one heading, and "Plan #N created" named an
+                      id the list never showed. */}
                   <h2 className="text-sm font-medium" data-testid={`plan-scope-${plan.id}`}>
-                    {plan.window} · {planScopeLabel(plan.repo_ids, repoNames)}
+                    Plan #{plan.id} · {plan.window} · {scopeLabel}
                   </h2>
+                  <span className="text-xs text-fg-muted" data-testid={`plan-date-${plan.id}`}>
+                    {plan.status === 'active' ? 'generated' : 'superseded plan from'}{' '}
+                    {plan.created_at.slice(0, 10)}
+                  </span>
+                  {plan.created_from_report_id ? (
+                    <Link
+                      to="/print/reports/$reportId"
+                      params={{ reportId: String(plan.created_from_report_id) }}
+                      className="text-xs text-accent hover:underline"
+                      data-testid={`plan-report-${plan.id}`}
+                    >
+                      from report #{plan.created_from_report_id}
+                    </Link>
+                  ) : null}
                   <span className="text-xs text-fg-muted" data-testid={`plan-progress-${plan.id}`}>
                     {progress.done}/{progress.total} verified
                   </span>
@@ -161,7 +187,12 @@ function PlansPage() {
                 {items.length > 0 ? (
                   <ul className="flex flex-col gap-2" data-testid={`plan-items-${plan.id}`}>
                     {items.map((item) => (
-                      <PlanItemCard key={item.id} item={item} metricNames={metricNames} />
+                      <PlanItemCard
+                        key={item.id}
+                        item={item}
+                        metricNames={metricNames}
+                        scopeLabel={scopeLabel}
+                      />
                     ))}
                   </ul>
                 ) : (
@@ -178,14 +209,35 @@ function PlansPage() {
                     </summary>
                     <ul className="mt-2 flex flex-col gap-2">
                       {dismissed.map((item) => (
-                        <PlanItemCard key={item.id} item={item} metricNames={metricNames} />
+                        <PlanItemCard
+                          key={item.id}
+                          item={item}
+                          metricNames={metricNames}
+                          scopeLabel={scopeLabel}
+                        />
                       ))}
                     </ul>
                   </details>
                 )}
               </section>
             );
+            if (plan.status === 'active') return body;
+            // History, folded: still there, never mistaken for the current plan.
+            return (
+              <details key={plan.id} data-testid={`plan-archived-${plan.id}`}>
+                <summary className="cursor-pointer text-xs text-fg-muted">
+                  Superseded plan #{plan.id} · {plan.window} · {scopeLabel} ·{' '}
+                  {plan.created_at.slice(0, 10)}
+                </summary>
+                <div className="mt-2">{body}</div>
+              </details>
+            );
           })}
+          {data?.truncated ? (
+            <p className="text-xs text-fg-muted" data-testid="plans-truncated">
+              Older plans are not listed here.
+            </p>
+          ) : null}
         </div>
       </WidgetFrame>
     </div>

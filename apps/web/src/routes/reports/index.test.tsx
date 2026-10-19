@@ -91,20 +91,38 @@ describe('poll lifecycle (pure)', () => {
 });
 
 let listResponse: { items: ReportRow[] };
-let requests: { method: string; url: string }[];
+let requests: { method: string; url: string; body?: unknown }[];
+let schedules: { items: unknown[] };
+let role = 'admin';
+const REPOS = {
+  items: [
+    { id: 3, org: 'acme', name: 'api' },
+    { id: 4, org: 'acme', name: 'web' },
+  ],
+};
 
 let generateResponse: { status: number; body: unknown };
 
 beforeEach(() => {
   listResponse = { items: [] };
+  schedules = { items: [] };
+  role = 'admin';
   generateResponse = { status: 202, body: { id: 99 } };
   requests = [];
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: unknown, init?: { method?: string }) => {
+    vi.fn((input: unknown, init?: { method?: string; body?: string }) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
-      requests.push({ method, url });
+      requests.push({ method, url, body: init?.body ? JSON.parse(init.body) : undefined });
+      if (method === 'POST' && /\/plans$/.test(url)) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ id: 12, item_count: 2, reused: false, repo_ids: [3], window: '90d' }),
+            { status: 201, headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      }
       if (method === 'POST' && /\/reports$/.test(url)) {
         return Promise.resolve(
           new Response(JSON.stringify(generateResponse.body), {
@@ -115,13 +133,17 @@ beforeEach(() => {
       }
       const body = /\/reports\/\d+\/retry$/.test(url)
         ? { id: 1, status: 'queued' }
-        : /\/reports(\?|$)/.test(url)
-          ? listResponse
-          : url.includes('/me/review-queue')
-            ? { items: [] }
-            : url.includes('/me/context')
-              ? ME_CONTEXT
-              : {};
+        : /\/reports\/schedules/.test(url)
+          ? schedules
+          : /\/reports(\?|$)/.test(url)
+            ? listResponse
+            : /\/repos(\?|$)/.test(url)
+              ? REPOS
+              : url.includes('/me/review-queue')
+                ? { items: [] }
+                : url.includes('/me/context')
+                  ? { ...ME_CONTEXT, role }
+                  : {};
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -133,7 +155,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function renderCenter() {
+function renderCenter(initial = '/reports') {
   const queryClient = createQueryClient();
   const listRoute = reportsIndexRoute.update({
     id: '/reports/',
@@ -148,7 +170,7 @@ function renderCenter() {
   const router = createRouter({
     routeTree: rootRoute.addChildren([listRoute as never, printRoute as never]),
     context: { queryClient } satisfies RouterContext,
-    history: createMemoryHistory({ initialEntries: ['/reports'] }),
+    history: createMemoryHistory({ initialEntries: [initial] }),
   });
   render(
     <QueryClientProvider client={queryClient}>
@@ -245,5 +267,133 @@ describe('Report Center rows (W17-26)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('Report scope, regenerate, plan and schedules (W20-09)', () => {
+  const posts = (re: RegExp) => requests.filter((r) => r.method === 'POST' && re.test(r.url));
+
+  it('starts from the topbar filter and sends the repository set (ADM-05)', async () => {
+    renderCenter('/reports?repos=4');
+    // One repository in the filter: that repository's health report.
+    expect(await screen.findByTestId('report-repo')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('report-repo')).toHaveValue('4'));
+    await userEvent.click(screen.getByTestId('generate-report'));
+    await waitFor(() => expect(posts(/\/reports$/)).toHaveLength(1));
+    expect(posts(/\/reports$/)[0]!.body).toMatchObject({ type: 'repo_health', repo_ids: [4] });
+  });
+
+  it('a set-scoped report sends the ticked repositories; none = all (ADM-05)', async () => {
+    renderCenter();
+    await screen.findByTestId('report-repos');
+    await userEvent.click(screen.getByTestId('report-repos-summary'));
+    await userEvent.click(await screen.findByTestId('report-repo-3'));
+    expect(screen.getByTestId('report-repos-summary')).toHaveTextContent('acme/api');
+    await userEvent.click(screen.getByTestId('generate-report'));
+    await waitFor(() => expect(posts(/\/reports$/)).toHaveLength(1));
+    expect(posts(/\/reports$/)[0]!.body).toMatchObject({ type: 'org_exec', repo_ids: [3] });
+  });
+
+  it('Repository Health cannot be generated without choosing its repository', async () => {
+    renderCenter();
+    await userEvent.selectOptions(await screen.findByTestId('report-type'), 'repo_health');
+    expect(screen.getByTestId('generate-report')).toBeDisabled();
+  });
+
+  it('history says scope, window and who generated it (ADM-05)', async () => {
+    listResponse = {
+      items: [
+        row({ id: 20, params: { repoIds: ['3'], windowDays: 90 }, generated_by: 'dana' }),
+        row({ id: 21, params: { repoIds: [], windowDays: 30 }, generated_by: null }),
+      ],
+    };
+    renderCenter();
+    await screen.findByTestId('report-20');
+    await waitFor(() =>
+      expect(screen.getByTestId('report-scope-20')).toHaveTextContent('acme/api'),
+    );
+    expect(screen.getByTestId('report-window-20')).toHaveTextContent('90d');
+    expect(screen.getByTestId('report-by-20')).toHaveTextContent('dana');
+    expect(screen.getByTestId('report-scope-21')).toHaveTextContent('All repositories');
+  });
+
+  it('Regenerate queues a NEW report with the same scope (ADM-06)', async () => {
+    listResponse = {
+      items: [
+        row({
+          id: 22,
+          type: 'org_exec',
+          params: { repoIds: ['3', '4'], windowDays: 90, annotation: 'Q3' },
+        }),
+      ],
+    };
+    renderCenter();
+    await userEvent.click(await screen.findByTestId('report-regenerate-22'));
+    await waitFor(() => expect(posts(/\/reports$/)).toHaveLength(1));
+    expect(posts(/\/reports$/)[0]!.body).toEqual({
+      type: 'org_exec',
+      window_days: 90,
+      annotation: 'Q3',
+      repo_ids: [3, 4],
+    });
+    // Never the retry path: regenerate is a new report measured now.
+    expect(posts(/\/retry$/)).toHaveLength(0);
+  });
+
+  it('Make a plan uses the report’s window and repositories (DSH-59)', async () => {
+    listResponse = { items: [row({ id: 23, params: { repoIds: ['3'], windowDays: 90 } })] };
+    renderCenter();
+    await userEvent.click(await screen.findByTestId('report-make-plan-23'));
+    await waitFor(() => expect(posts(/\/plans$/)).toHaveLength(1));
+    expect(posts(/\/plans$/)[0]!.body).toEqual({
+      window: '90d',
+      repo_ids: [3],
+      from_report_id: 23,
+    });
+    expect(await screen.findByTestId('report-plan-link-23')).toHaveTextContent('Plan #12');
+  });
+
+  it('an admin can list, add and remove schedules (ADM-07)', async () => {
+    schedules = {
+      items: [
+        {
+          key: 'k:1',
+          type: 'org_exec',
+          cadence: 'monthly',
+          next: Date.parse('2026-11-01T03:00:00Z'),
+          windowDays: 30,
+        },
+      ],
+    };
+    renderCenter();
+    const existing = await screen.findByTestId('schedule-org_exec-monthly');
+    expect(existing).toHaveTextContent('30 days');
+    expect(existing).toHaveTextContent('2026-11-01 03:00');
+
+    await userEvent.selectOptions(screen.getByTestId('schedule-type'), 'security_posture');
+    await userEvent.selectOptions(screen.getByTestId('schedule-cadence'), 'quarterly');
+    await userEvent.selectOptions(screen.getByTestId('schedule-window'), '90');
+    await userEvent.click(screen.getByTestId('schedule-add'));
+    await waitFor(() => expect(posts(/\/reports\/schedules$/)).toHaveLength(1));
+    expect(posts(/\/reports\/schedules$/)[0]!.body).toEqual({
+      type: 'security_posture',
+      cadence: 'quarterly',
+      window_days: 90,
+    });
+
+    await userEvent.click(screen.getByTestId('schedule-remove-org_exec-monthly'));
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.method === 'DELETE' && r.url.endsWith('/reports/schedules/k%3A1')),
+      ).toBe(true),
+    );
+  });
+
+  it('a member sees no Schedules panel', async () => {
+    role = 'member';
+    renderCenter();
+    await screen.findByTestId('report-center');
+    await waitFor(() => expect(requests.some((r) => r.url.includes('/me/context'))).toBe(true));
+    expect(screen.queryByTestId('report-schedules')).toBeNull();
   });
 });

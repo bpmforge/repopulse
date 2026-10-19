@@ -208,8 +208,17 @@ export function buildApp(opts: BuildAppOptions) {
         return repeatables
           .filter((r) => r.name.startsWith(`schedule:${workspaceId}:`))
           .map((r) => {
-            const [, , type, cadence] = r.name.split(':');
-            return { key: r.key, type: type ?? '', cadence: cadence ?? '', next: r.next ?? null };
+            // The window rides in the name since W20-09 (UX_TODO ADM-07), so
+            // the Schedules panel can show it; older names have none.
+            const [, , type, cadence, window] = r.name.split(':');
+            const windowDays = Number(window);
+            return {
+              key: r.key,
+              type: type ?? '',
+              cadence: cadence ?? '',
+              next: r.next ?? null,
+              windowDays: Number.isInteger(windowDays) ? windowDays : null,
+            };
           });
       },
       add: async (workspaceId, type, cadence, windowDays) => {
@@ -218,7 +227,7 @@ export function buildApp(opts: BuildAppOptions) {
         // reads. Generating before it would report yesterday's warehouse.
         const pattern = cadence === 'monthly' ? '0 3 1 * *' : '0 3 1 1,4,7,10 *';
         await reportsQueue().add(
-          `schedule:${workspaceId}:${type}:${cadence}`,
+          `schedule:${workspaceId}:${type}:${cadence}:${windowDays}`,
           { scheduled: true, workspaceId, type, windowDays },
           { repeat: { pattern } },
         );

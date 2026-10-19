@@ -141,8 +141,10 @@ export interface HealthMetricInputs {
   m11DaysSinceRelease: number | null;
   m12Cfr: number | null; // change-failure rate 0–1, when present
   /**
-   * W6-03 (FR-INSIGHTS-2): open findings weighted by severity, per 1000 lines
-   * changed in the window. NULL until a repository has actually been analysed —
+   * W6-03 (FR-INSIGHTS-2): open security findings weighted by severity (the
+   * sum of their 1-5 severities), METRICS.md §3. W20-09 (UX_TODO DSH-73): the
+   * comment used to say "per 1000 lines changed", which nothing computed — the
+   * input was never fed at all. NULL until a repository has actually been analysed —
    * and null is the whole point: a repo nobody has reviewed must score as
    * "unknown security" and be excluded from the mean, not as "no findings,
    * therefore secure".
@@ -210,8 +212,10 @@ export function buildHealthSubScores(
       key: 'security',
       weight: weights.security ?? DEFAULT_WEIGHTS.security ?? 0.2,
       inputs: [
-        // Fewer findings per 1000 changed lines is better; 0 is good, 5 is bad.
-        { key: 'openFindingDensity', raw: inputs.openFindingDensity, good: 0, bad: 5 },
+        // Severity-weighted open findings: 0 is good, 10 is bad — METRICS.md
+        // §3's ramp(0, 10 sev-weighted). It read bad: 5 against a per-1000-line
+        // density nothing produced (W20-09, UX_TODO DSH-73).
+        { key: 'openFindingDensity', raw: inputs.openFindingDensity, good: 0, bad: 10 },
         // A single critical finding should move the score even when density is
         // low — one exploitable bug is not offset by a tidy codebase.
         { key: 'worstOpenSeverity', raw: inputs.worstOpenSeverity, good: 1, bad: 5 },

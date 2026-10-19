@@ -1,6 +1,10 @@
 import { WidgetFrame, frameState } from '../../components/index.js';
-import { registerWidget, type WidgetComponentProps } from '../../components/widget/WidgetRegistry.js';
+import {
+  registerWidget,
+  type WidgetComponentProps,
+} from '../../components/widget/WidgetRegistry.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { reposParam, withRepos } from '../scopeRepos.js';
 
 // Weekly Pulse card (W6-06, R-A7 / R-D3).
 
@@ -24,13 +28,24 @@ const MARK: Record<PulseBullet['direction'], string> = {
   unknown: '·',
 };
 
-export function PulseCard(_props: WidgetComponentProps) {
-  const { data, isLoading, isError, error, refetch } = useApiQuery<PulseResponse>({ endpoint: '/org/pulse' });
+export function PulseCard({ widget }: WidgetComponentProps) {
+  // The view's window and repositories (W20-09, UX_TODO DSH-02).
+  const options = widget?.options ?? {};
+  const window = typeof options.window === 'string' ? options.window : '30d';
+  const repos = reposParam(options.search as Record<string, string> | undefined);
+  const { data, isLoading, isError, error, refetch } = useApiQuery<PulseResponse>({
+    endpoint: '/org/pulse',
+    query: withRepos({ window }, repos),
+  });
 
   return (
     <WidgetFrame
       title="Weekly pulse"
-      state={frameState({ isLoading, isError, isEmpty: data !== undefined && data.bullets.length === 0 })}
+      state={frameState({
+        isLoading,
+        isError,
+        isEmpty: data !== undefined && data.bullets.length === 0,
+      })}
       // W17-31: every failed frame offers Retry, like the rest of the overview.
       onRetry={() => void refetch()}
       {...(error ? { errorMessage: error.message, error } : {})}
@@ -52,7 +67,9 @@ export function PulseCard(_props: WidgetComponentProps) {
             it when a template did would misrepresent where the words came
             from, which is the one thing an AI-card family must never do. */}
         <p className="text-xs text-fg-muted" data-testid="pulse-provenance">
-          {data?.provenance === 'narrated' ? 'T2 · local — reworded, numbers computed' : 'computed from your warehouse'}
+          {data?.provenance === 'narrated'
+            ? 'T2 · local — reworded, numbers computed'
+            : 'computed from your warehouse'}
         </p>
       </div>
     </WidgetFrame>

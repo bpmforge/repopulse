@@ -1,14 +1,38 @@
 import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
-import { registerWidget, type WidgetComponentProps } from '../../components/widget/WidgetRegistry.js';
+import {
+  registerWidget,
+  type WidgetComponentProps,
+} from '../../components/widget/WidgetRegistry.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
-import { planProgress, planScopeLabel, type Plan } from './contracts.js';
+import {
+  planProgress,
+  planScopeLabel,
+  repoIdsFromFilter,
+  sameScope,
+  type Plan,
+} from './contracts.js';
 
 // Org Overview plan tile (W5-07). Drills to the Plans page.
 
-export function PlanTile(_props: WidgetComponentProps) {
-  const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Plan[] }>({ endpoint: '/plans' });
-  const plan = data?.items[0];
+/**
+ * The plan a tile shows (W20-09, UX_TODO DSH-02/DSH-58): the newest ACTIVE
+ * plan, and in a view scoped to repositories, the newest active plan made for
+ * exactly those repositories — never a superseded plan, and never another
+ * scope's plan under this view's heading.
+ */
+export function planForScope(plans: readonly Plan[], repoIds: readonly number[]): Plan | undefined {
+  const active = plans.filter((p) => p.status === 'active');
+  return repoIds.length === 0 ? active[0] : active.find((p) => sameScope(p.repo_ids, repoIds));
+}
+
+export function PlanTile({ widget }: WidgetComponentProps) {
+  const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Plan[] }>({
+    endpoint: '/plans',
+  });
+  const search = (widget?.options?.search ?? {}) as Record<string, string>;
+  const scopeIds = repoIdsFromFilter(search.repos);
+  const plan = planForScope(data?.items ?? [], scopeIds);
   const progress = plan ? planProgress(plan) : null;
 
   return (
@@ -22,7 +46,12 @@ export function PlanTile(_props: WidgetComponentProps) {
       // A way there, not directions to it (W18-28; UX_SPEC §4: "empty = one
       // line + next action"). The copy used to name the Plans page and stop.
       emptyAction={
-        <Link to="/plans" className="text-sm text-accent hover:underline" data-testid="plan-tile-empty-link">
+        <Link
+          to="/plans"
+          search={(scopeIds.length > 0 ? { repos: scopeIds.join(',') } : {}) as never}
+          className="text-sm text-accent hover:underline"
+          data-testid="plan-tile-empty-link"
+        >
           Generate a plan →
         </Link>
       }
@@ -46,7 +75,11 @@ export function PlanTile(_props: WidgetComponentProps) {
               ⚠ {progress.regressed} regressed
             </p>
           )}
-          <Link to="/plans" className="mt-1 text-xs text-accent hover:underline" data-testid="plan-tile-link">
+          <Link
+            to="/plans"
+            className="mt-1 text-xs text-accent hover:underline"
+            data-testid="plan-tile-link"
+          >
             Open plan →
           </Link>
         </div>

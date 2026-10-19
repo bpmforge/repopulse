@@ -157,12 +157,14 @@ export function ViewDetail({ viewId }: { viewId: string }) {
               {scopeLabel(shown.window, shown.repoIds, repoNames)}
             </p>
           )}
-          {/* Said, not hidden (DSH-02): the KPI row, pulse and risk tiles
-              read org-wide rollups that cannot be narrowed to a repo set yet. */}
-          {shown && shown.repoIds.length > 0 && (
+          {/* W20-09 (UX_TODO DSH-02): every tile now follows the view's
+              repositories. What a set cannot have is said, not hidden: KPI
+              sparklines are per-series, so a multi-repository view shows the
+              values and deltas without the line. */}
+          {shown && shown.repoIds.length > 1 && (
             <p className="text-xs text-fg-faint" data-testid="view-scope-note">
-              Repo health, Needs attention, Hotspots and AI governance follow this scope; KPI,
-              pulse, plan and risk tiles still cover every repository.
+              Every tile follows this scope. KPI tiles show values and changes without sparklines,
+              which exist per repository and for the whole workspace only.
             </p>
           )}
         </div>

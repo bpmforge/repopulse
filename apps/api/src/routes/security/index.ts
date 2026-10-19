@@ -420,10 +420,27 @@ export default async function securityRoutes(
     });
   });
 
-  /** GET /org/security — the org rollup tile (FR-INSIGHTS-2). */
-  app.get('/org/security', async (request, reply) => {
+  /**
+   * GET /org/security — the org rollup tile (FR-INSIGHTS-2).
+   *
+   * `repos` (a csv) narrows every count to a saved view's repositories
+   * (W20-09, UX_TODO DSH-02); without it, the whole workspace as before.
+   */
+  app.get<{ Querystring: { repos?: string } }>('/org/security', async (request, reply) => {
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+    const repoIds =
+      request.query.repos && request.query.repos !== 'all'
+        ? [
+            ...new Set(
+              request.query.repos
+                .split(',')
+                .map(Number)
+                .filter((n) => Number.isInteger(n) && n > 0),
+            ),
+          ]
+        : [];
+    const inScope = repoIds.length > 0 ? inArray(read.findings.repoId, repoIds) : undefined;
 
     const rows = await db
       .select({
@@ -434,6 +451,7 @@ export default async function securityRoutes(
       .where(
         and(
           eq(read.findings.workspaceId, workspaceId),
+          inScope,
           eq(read.findings.dimension, 'secrets'),
           inArray(read.findings.status, ['open', 'confirmed']),
         ),
@@ -446,6 +464,7 @@ export default async function securityRoutes(
       .where(
         and(
           eq(read.findings.workspaceId, workspaceId),
+          inScope,
           inArray(read.findings.dimension, [
             'secrets',
             'dependency',
@@ -465,6 +484,7 @@ export default async function securityRoutes(
       .where(
         and(
           eq(read.findings.workspaceId, workspaceId),
+          inScope,
           inArray(read.findings.status, ['open', 'confirmed']),
           sql`${read.findings.yields} ->> 'kev' = 'true'`,
         ),
@@ -479,6 +499,7 @@ export default async function securityRoutes(
       .where(
         and(
           eq(read.findings.workspaceId, workspaceId),
+          inScope,
           isNotNull(read.findings.chainId),
           inArray(read.findings.status, ['open', 'confirmed']),
         ),

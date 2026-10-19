@@ -172,8 +172,9 @@ describe('saved view detail (W20-05)', () => {
     };
     expect(patch).toMatchObject({ name: 'Platform', config: { window: '365d', repo_ids: [7] } });
     expect(screen.getByTestId('view-scope').textContent).toBe('Last 365 days · acme/web');
-    // Which widgets cannot follow a repo scope yet is said, not hidden.
-    expect(screen.getByTestId('view-scope-note').textContent).toMatch(/every repository/);
+    // W20-09 (UX_TODO DSH-02): every tile now follows a repo scope, so a
+    // one-repository view needs no caveat at all.
+    expect(screen.queryByTestId('view-scope-note')).toBeNull();
   });
 
   it('deletes only after a confirm, then returns to the list (DSH-06)', async () => {

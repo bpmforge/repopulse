@@ -27,7 +27,19 @@ const STATUS_LABEL: Record<PlanItem['status'], string> = {
   dismissed: '– dismissed',
 };
 
-export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricNames?: MetricNames }) {
+export function PlanItemCard({
+  item,
+  metricNames,
+  scopeLabel,
+}: {
+  item: PlanItem;
+  metricNames?: MetricNames;
+  /**
+   * The plan's scope in words (W20-09, UX_TODO DSH-57), so the dismiss form
+   * can say what it will hide BEFORE it hides it.
+   */
+  scopeLabel?: string;
+}) {
   const findingIds = findingIdsOf(item);
   const transition = useApiMutation<{ status: string; reason?: string }, unknown>(
     { endpoint: '/plans/items/{id}', path: { id: item.id }, method: 'PATCH' },
@@ -176,6 +188,13 @@ export function PlanItemCard({ item, metricNames }: { item: PlanItem; metricName
         >
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-fg-muted">
             Why dismiss it? Kept in the item&apos;s history; you can restore it later.
+            <span data-testid={`plan-dismiss-scope-${item.id}`}>
+              {/* DSH-57: a dismissal used to hide the recommendation from every
+                  future plan in the workspace. It now covers this plan's
+                  repositories only, and says so here. */}
+              Future plans for {scopeLabel ?? 'this scope'} will not propose it again; plans for
+              other repositories still can.
+            </span>
             <input
               type="text"
               className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-sm text-fg"
