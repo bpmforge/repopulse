@@ -26,6 +26,7 @@ function identity(id: number, login: string) {
 }
 
 const LIST = { items: [identity(1, 'ada'), identity(2, 'ada-work')] };
+const MEMBERS = { items: [{ user_id: 7, login: 'ada@corp', auth_provider: 'oidc' }] };
 
 let writeResponse: { status: number; body: unknown };
 const writes: { url: string; body: string }[] = [];
@@ -39,7 +40,8 @@ beforeEach(() => {
     vi.fn((input: unknown, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       if (method !== 'GET') writes.push({ url: String(input), body: String(init?.body) });
-      const { status, body } = method === 'GET' ? { status: 200, body: LIST } : writeResponse;
+      const get = String(input).includes('/admin/members') ? MEMBERS : LIST;
+      const { status, body } = method === 'GET' ? { status: 200, body: get } : writeResponse;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status,
@@ -107,5 +109,33 @@ describe('identity merge (W20-04)', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Invalid body');
     expect(alert).toHaveTextContent('is_bot must be a boolean');
+  });
+});
+
+// W20-10 (UX_TODO INS-51): an OIDC/local member had no way to be linked to
+// the committer they are, so their personal screens stayed empty.
+describe('identity link (W20-10)', () => {
+  it('links a committer to a member', async () => {
+    const user = userEvent.setup();
+    renderIdentities();
+    const select = await screen.findByTestId('identity-link-1');
+    await waitFor(() => expect(screen.getAllByText('ada@corp (oidc)').length).toBeGreaterThan(0));
+    await user.selectOptions(select, '7');
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]?.url).toContain('/admin/identities/1/link');
+    expect(JSON.parse(writes[0]!.body)).toEqual({ user_id: 7 });
+  });
+
+  it('a refused link is toasted with the reason', async () => {
+    const user = userEvent.setup();
+    writeResponse = {
+      status: 409,
+      body: { title: 'Another account is already linked to this forge identity', status: 409 },
+    };
+    renderIdentities();
+    await screen.findByTestId('identity-link-1');
+    await waitFor(() => expect(screen.getAllByText('ada@corp (oidc)').length).toBeGreaterThan(0));
+    await user.selectOptions(screen.getByTestId('identity-link-1'), '7');
+    expect(await screen.findByRole('alert')).toHaveTextContent('already linked');
   });
 });

@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRootRouteWithContext } from '@tanstack/react-router';
 import { createRoute, createRouter, RouterProvider } from '@tanstack/react-router';
-import { downFromHealthDetail, Route as rootRoute, type RouterContext } from './__root.js';
+import {
+  downFromHealthDetail,
+  isServerSideFailure,
+  Route as rootRoute,
+  type RouterContext,
+} from './__root.js';
 import { createQueryClient } from '../api/queryClient.js';
 import { queryKeyFor, useApiQuery } from '../api/useApiQuery.js';
 
@@ -339,6 +344,66 @@ describe('database or Redis down (W20-04)', () => {
     expect(screen.getByTestId('outage-detail')).toHaveTextContent('postgres: down');
     expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
   }, 15000);
+
+  // W20-10 (UX_TODO ADM-43 remainder): OutageGate only ran on the first
+  // probe; an outage that began mid-session left every card on its own error.
+  it('an outage that starts mid-session gets one banner, and it clears on recovery', async () => {
+    function Widget() {
+      const q = useApiQuery<{ v?: number }>({ endpoint: '/widget' });
+      return <div data-testid="widget">{q.isError ? 'error' : 'ok'}</div>;
+    }
+    const { queryClient } = renderAt('/', <Widget />);
+    expect(await screen.findByTestId('widget')).toHaveTextContent('ok');
+
+    respond = (url: string) =>
+      url.includes('/healthz')
+        ? {
+            status: 503,
+            body: { title: 'Service Unavailable', status: 503, detail: 'postgres=ok redis=down' },
+          }
+        : url.includes('/widget')
+          ? { status: 500, body: { title: 'Internal Server Error', status: 500 } }
+          : signedIn(url);
+    await queryClient.invalidateQueries({ queryKey: queryKeyFor({ endpoint: '/widget' }) });
+
+    const banner = await screen.findByTestId('outage-banner', undefined, { timeout: 8000 });
+    expect(banner).toHaveTextContent(/can’t reach Redis/);
+    // The page is hidden, not unmounted: anything typed survives.
+    expect(screen.getByTestId('widget')).not.toBeVisible();
+    expect(screen.getByTestId('rail')).toBeInTheDocument();
+
+    respond = signedIn;
+    await userEvent.setup().click(screen.getByTestId('outage-banner-retry'));
+    await waitFor(() => expect(screen.queryByTestId('outage-banner')).not.toBeInTheDocument(), {
+      timeout: 8000,
+    });
+    await waitFor(() => expect(screen.getByTestId('widget')).toHaveTextContent('ok'), {
+      timeout: 8000,
+    });
+  }, 20000);
+
+  it('a single failing card with a healthy server shows no banner', async () => {
+    function Widget() {
+      const q = useApiQuery<{ v?: number }>({ endpoint: '/widget' });
+      return <div data-testid="widget">{q.isError ? 'error' : 'ok'}</div>;
+    }
+    respond = (url: string) =>
+      url.includes('/widget')
+        ? { status: 500, body: { title: 'Internal Server Error', status: 500 } }
+        : signedIn(url);
+    renderAt('/', <Widget />);
+    await waitFor(() => expect(screen.getByTestId('widget')).toHaveTextContent('error'), {
+      timeout: 8000,
+    });
+    expect(screen.queryByTestId('outage-banner')).not.toBeInTheDocument();
+  }, 15000);
+
+  it('only a 5xx or no answer counts as a server-side failure', () => {
+    expect(isServerSideFailure({ status: 503 })).toBe(true);
+    expect(isServerSideFailure(new TypeError('Failed to fetch'))).toBe(true);
+    expect(isServerSideFailure(Object.assign(new Error('x'), { status: 404 }))).toBe(false);
+    expect(isServerSideFailure(Object.assign(new Error('x'), { status: 401 }))).toBe(false);
+  });
 
   it('reads what is down from the /healthz detail', () => {
     expect(downFromHealthDetail('postgres=down redis=down')).toEqual(['postgres', 'redis']);

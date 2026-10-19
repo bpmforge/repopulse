@@ -212,10 +212,9 @@ export default async function adminRoutes(
    *
    * Admin only, workspace-scoped, local accounts only, and audited. The
    * password is in this one response and nowhere else; the account must
-   * replace it at its next sign-in. Sessions the account already has are left
-   * alone (they live in Redis, keyed by session id, not by user) — so this is
-   * a recovery path for a FORGOTTEN password; for a compromised one, also
-   * remove and re-add the member.
+   * replace it at its next sign-in. Every session the account already has is
+   * ended (W20-10, UX_TODO ADM-78), so a reset also locks out whoever knew the
+   * old password.
    */
   app.post<{ Params: { userId: string } }>(
     '/admin/members/:userId/reset-password',
@@ -255,8 +254,12 @@ export default async function adminRoutes(
         );
       }
 
+      // W20-10 (UX_TODO ADM-78): they were indexed per user for exactly this.
+      const signedOut = (await app.sessionStore?.destroyUserSessions(userId)) ?? 0;
+
       auditLog(request.log, {
         event: 'auth.password_reset',
+        sessionsEnded: signedOut,
         actorUserId: callerId,
         workspaceId,
         ip: request.ip,
@@ -269,6 +272,7 @@ export default async function adminRoutes(
         login: reset.user.login,
         temporary_password: reset.temporaryPassword,
         must_change_password: true,
+        sessions_signed_out: signedOut,
       });
     },
   );

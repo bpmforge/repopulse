@@ -121,6 +121,18 @@ export function signOutAndReload(
     .finally(() => go('/'));
 }
 
+/**
+ * "Sign out everywhere" (W20-10, UX_TODO ADM-78): ends every session this
+ * account holds — a laptop left signed in at a client, a lost phone — this one
+ * included, then reloads onto the sign-in screen.
+ */
+export function signOutEverywhereAndReload(
+  go: (url: string) => void = (url) => window.location.assign(url),
+): Promise<void> {
+  // No reload on failure: the caller shows why, and this session is still live.
+  return apiFetch<unknown>('/auth/sessions/revoke-all', { method: 'POST' }).then(() => go('/'));
+}
+
 /** Walks away from a session that cannot do anything else (see local.ts). */
 export function abandonPendingSession(): Promise<unknown> {
   return apiFetch<unknown>('/auth/local/logout', { method: 'POST' });

@@ -281,6 +281,76 @@ describeIfLiveInfra('admin identities (W5-05, FR-AUTH-4 / FR-METRICS-3)', () => 
     expect(chain.statusCode).toBe(409);
   });
 
+  // W20-10 (UX_TODO INS-51): an OIDC/local member has no forge account, so
+  // "my" screens stayed empty for good until an admin could link them.
+  it('links an identity to a member, moves an earlier link, and unlinks', async () => {
+    const cookie = await adminSession();
+    const [person] = await db
+      .insert(core.users)
+      .values({ authProvider: 'oidc', authSubject: 'w20-10-oidc-person', login: 'w20-10-person' })
+      .returning();
+    const personId = person!.id;
+    await db.insert(core.workspaceMembers).values({ workspaceId, userId: personId, role: 'member' });
+    const [withForge] = await db
+      .insert(core.identities)
+      .values({
+        workspaceId,
+        provider: 'github',
+        forgeLogin: 'w20-10-committer',
+        forgeUserId: 'w20-10-fid',
+        displayName: 'Alice Example',
+      })
+      .returning();
+    const link = (identityId: number, userId: number | null | string) =>
+      app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/identities/${identityId}/link`,
+        cookies: { repopulse_sid: cookie },
+        headers: CSRF,
+        payload: { user_id: userId },
+      });
+    const linkedTo = async (identityId: number) =>
+      (
+        await db
+          .select({ userId: core.identities.userId })
+          .from(core.identities)
+          .where(eq(core.identities.id, identityId))
+      )[0]!.userId;
+
+    try {
+      expect((await link(aliceEmailId, personId)).statusCode).toBe(200);
+      expect(await linkedTo(aliceEmailId)).toBe(personId);
+
+      // A forge-backed identity also links the account's forge id; the
+      // member's earlier link moves rather than leaving two.
+      const res = await link(withForge!.id, personId);
+      expect(res.statusCode).toBe(200);
+      expect(await linkedTo(withForge!.id)).toBe(personId);
+      expect(await linkedTo(aliceEmailId)).toBeNull();
+      const [u] = await db
+        .select({ forgeUserId: core.users.forgeUserId })
+        .from(core.users)
+        .where(eq(core.users.id, personId));
+      expect(u!.forgeUserId).toBe('w20-10-fid');
+
+      // Someone who is not a member of this workspace is a 404, bad input a 400.
+      const [stranger] = await db
+        .insert(core.users)
+        .values({ authProvider: 'oidc', authSubject: 'w20-10-stranger', login: 'w20-10-stranger' })
+        .returning();
+      expect((await link(aliceEmailId, stranger!.id)).statusCode).toBe(404);
+      await db.delete(core.users).where(eq(core.users.id, stranger!.id));
+      expect((await link(aliceEmailId, 'bob')).statusCode).toBe(400);
+
+      expect((await link(withForge!.id, null)).statusCode).toBe(200);
+      expect(await linkedTo(withForge!.id)).toBeNull();
+    } finally {
+      await db.delete(core.identities).where(eq(core.identities.id, withForge!.id));
+      await db.delete(core.workspaceMembers).where(eq(core.workspaceMembers.userId, personId));
+      await db.delete(core.users).where(eq(core.users.id, personId));
+    }
+  });
+
   it('flags a bot, and a member cannot', async () => {
     const cookie = await adminSession();
     const ok = await app.inject({

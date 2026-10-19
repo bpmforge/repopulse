@@ -2,9 +2,10 @@ import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, type Database } from '@repopulse/shared';
 import { findOrCreateUserForSubject } from '@repopulse/auth';
-import { oidc } from '@repopulse/auth';
+import { admission, oidc } from '@repopulse/auth';
 import { redirectToSignIn } from './problem.js';
 import { AUTH_FLOW_RATE_LIMIT } from '../../plugins/rate-limits.js';
+import { postLoginUrl, safeReturnTo } from './return-to.js';
 
 // Generic OIDC login (W15-03, D14).
 //
@@ -35,6 +36,8 @@ export interface OidcRoutesOptions {
    * JWKS instead of reaching the provider's `jwks_uri` over a socket.
    */
   keyResolver?: oidc.KeyResolver;
+  /** Who may join through OIDC (W20-10, UX_TODO INS-50). Unset = anyone the IdP accepts. */
+  admission?: admission.AdmissionPolicy | undefined;
 }
 
 // One cookie carries the whole per-login transaction. Three cookies would be
@@ -50,6 +53,8 @@ interface LoginTransaction {
   state: string;
   nonce: string;
   verifier: string;
+  /** The deep link the sign-in started from (W20-10, UX_TODO X-01), already vetted. */
+  returnTo?: string;
 }
 
 function auditContext(request: FastifyRequest) {
@@ -64,11 +69,14 @@ function decodeTx(value: string): LoginTransaction | null {
   try {
     const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as unknown;
     if (typeof parsed !== 'object' || parsed === null) return null;
-    const { state, nonce, verifier } = parsed as Record<string, unknown>;
+    const { state, nonce, verifier, returnTo } = parsed as Record<string, unknown>;
     if (typeof state !== 'string' || typeof nonce !== 'string' || typeof verifier !== 'string') {
       return null;
     }
-    return { state, nonce, verifier };
+    // Re-checked on the way out as well as on the way in: the cookie is signed,
+    // but the rule is cheap and the redirect is the dangerous end.
+    const safe = safeReturnTo(returnTo);
+    return { state, nonce, verifier, ...(safe ? { returnTo: safe } : {}) };
   } catch {
     return null;
   }
@@ -77,7 +85,7 @@ function decodeTx(value: string): LoginTransaction | null {
 async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promise<void> {
   const { config } = opts;
 
-  app.get(
+  app.get<{ Querystring: { return_to?: string } }>(
     '/auth/oidc/login',
     { config: { rateLimit: AUTH_FLOW_RATE_LIMIT } },
     async (request, reply) => {
@@ -102,6 +110,8 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
         nonce: oidc.generateNonce(),
         verifier: oidc.createPkcePair().verifier,
       };
+      const returnTo = safeReturnTo(request.query.return_to);
+      if (returnTo) tx.returnTo = returnTo;
       // The cookie is SIGNED, so a callback cannot arrive carrying a state the
       // attacker chose — that is the classic OIDC CSRF, and it is why state has
       // to be compared against something the browser could not have forged.
@@ -210,6 +220,19 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
       // login says nothing about who commits under which forge account, and
       // guessing from a matching email would attribute someone's commits to
       // whoever registered that address (see identity-provider/index.ts).
+      // W20-10 (UX_TODO INS-50): an IdP often accepts the whole company (or
+      // anyone at all, with self-service signup). With a group or domain
+      // allowlist set, someone outside it is refused before a user row exists.
+      if (opts.admission) {
+        const admitted = admission.admitOidc(opts.admission, {
+          email: claims.email,
+          emailVerified: claims.emailVerified,
+          groups: claims.raw['groups'],
+        });
+        if (!admitted.ok)
+          return fail(admitted.reason, 'Not on the sign-in allowlist', 'not_allowed');
+      }
+
       const user = await findOrCreateUserForSubject(opts.db, {
         provider: 'oidc',
         subject: claims.subject,
@@ -219,6 +242,11 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
         avatarUrl: claims.avatarUrl ?? null,
       });
 
+      // New session id on sign-in, as local login does: a cookie the browser
+      // arrived with (possibly one an attacker planted) must not become the
+      // authenticated session. The OAuth state rides in its own cookies, so
+      // nothing in the old session is needed past this point.
+      await request.session.regenerate();
       request.session.set('userId', user.id);
       request.session.set('createdAt', Date.now());
       await request.session.save();
@@ -230,7 +258,7 @@ async function oidcRoutes(app: FastifyInstance, opts: OidcRoutesOptions): Promis
         ...auditContext(request),
       });
 
-      return reply.redirect(opts.loginRedirectUrl);
+      return reply.redirect(postLoginUrl(opts.loginRedirectUrl, tx.returnTo ?? null));
     },
   );
 }

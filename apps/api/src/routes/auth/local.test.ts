@@ -416,4 +416,82 @@ describeIfLiveInfra('local sign-in routes (W15-02)', () => {
     // tell an admin they are about to demote themselves.
     expect(guarded.json().user_id).toBe(res.json().user.id);
   });
+
+  // W20-10 (UX_TODO ADM-78): a password change and "Sign out everywhere" end
+  // the account's other sessions; before, each only touched the current one.
+  describe('ending other sessions', () => {
+    const EMAIL = 'w20-10-sessions@example.com';
+    const NEW = 'a passphrase nobody else knows';
+
+    async function alive(cookie: string): Promise<boolean> {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me/context',
+        cookies: { repopulse_sid: cookie },
+      });
+      return res.statusCode === 200;
+    }
+
+    it('a password change signs out every other browser of that account', async () => {
+      const admin = sid(await login(ADMIN_EMAIL, ADMIN_NEW_PASSWORD));
+      const created = await app.inject({
+        method: 'POST',
+        url: '/auth/local/users',
+        headers: CSRF,
+        cookies: { repopulse_sid: admin },
+        payload: { email: EMAIL },
+      });
+      const temp = created.json().temporary_password as string;
+      const first = sid(await login(EMAIL, temp));
+      const second = sid(await login(EMAIL, temp));
+
+      const changed = await app.inject({
+        method: 'POST',
+        url: '/auth/local/password',
+        headers: CSRF,
+        cookies: { repopulse_sid: first },
+        payload: { current_password: temp, new_password: NEW },
+      });
+      expect(changed.statusCode).toBe(200);
+      expect(changed.json().other_sessions_signed_out).toBeGreaterThanOrEqual(1);
+      const kept = sid(changed);
+      expect(await alive(kept)).toBe(true);
+      const secondState = await app.inject({
+        method: 'GET',
+        url: '/auth/local/session',
+        cookies: { repopulse_sid: second },
+      });
+      expect(secondState.json()).toEqual({ pending_password_change: false });
+      // The admin's own session is a different account and is untouched.
+      expect(await alive(admin)).toBe(true);
+    });
+
+    it('sign out everywhere ends every session of the caller, this one included', async () => {
+      const a = sid(await login(EMAIL, NEW));
+      const b = sid(await login(EMAIL, NEW));
+      const admin = sid(await login(ADMIN_EMAIL, ADMIN_NEW_PASSWORD));
+      expect(await alive(a)).toBe(true);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/sessions/revoke-all',
+        headers: CSRF,
+        cookies: { repopulse_sid: a },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().sessions_ended).toBeGreaterThanOrEqual(2);
+      expect(await alive(a)).toBe(false);
+      expect(await alive(b)).toBe(false);
+      expect(await alive(admin)).toBe(true);
+    });
+
+    it('refuses an anonymous caller', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/sessions/revoke-all',
+        headers: CSRF,
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
 });

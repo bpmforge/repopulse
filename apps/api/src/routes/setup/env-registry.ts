@@ -99,6 +99,19 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
     validate: isHex32,
     secret: true,
   },
+  // W20-10 (UX_TODO ADM-45). Read only by the rotate:token-key CLI, never by
+  // the running server; supplied on that one command, not kept in .env.
+  {
+    name: 'NEW_TOKEN_ENC_KEY',
+    scope: 'api',
+    required: false,
+    purpose:
+      'The replacement key, for `pnpm rotate:token-key` (deploy/rotate-token-key.sh in a packaged install) only. It re-seals every stored credential from TOKEN_ENC_KEY to this key; then this value becomes TOKEN_ENC_KEY.',
+    ifWrong:
+      'The rotation refuses to start unless it is 32 bytes of hex. Lost after a rotation and before .env was updated: every stored credential is sealed under a key nobody has, and must be re-entered.',
+    validate: isHex32,
+    secret: true,
+  },
   {
     name: 'API_BASE_URL',
     scope: 'api',
@@ -310,6 +323,91 @@ export const ENV_REGISTRY: readonly EnvVar[] = [
       "Path INSIDE the container to a PEM file of extra CA certificates, added to Node's built-in roots. Set it when a self-hosted Gitea, GitLab or GitHub Enterprise (or your OIDC issuer) uses a certificate from an internal CA. In the deploy stack, put the PEM in EXTRA_CA_DIR (default deploy/ca) and set this to /etc/repopulse/ca/<file>.pem.",
     ifWrong:
       'Unset with an internal-CA forge: connecting fails with a TLS error (unable to verify the first certificate / unable to get local issuer certificate). A path that does not exist or is unreadable is only a warning from Node at startup, and the extra CA is silently not trusted.',
+    default: 'unset',
+  },
+  // W20-10 (UX_TODO INS-63). Read by Node's own fetch, not by our code, once
+  // NODE_USE_ENV_PROXY=1 (verified on Node 22.23: a CONNECT reaches the proxy
+  // with it and never without it). Registered so CONFIG.md says how to run
+  // behind a corporate proxy.
+  {
+    name: 'HTTPS_PROXY',
+    scope: 'shared',
+    required: false,
+    purpose:
+      'Outbound proxy for https:// calls from the api and worker (the forge, tarball downloads, hosted models, the OIDC issuer), e.g. http://proxy.corp.example:3128. Honoured only with NODE_USE_ENV_PROXY=1, which the shipped compose file sets.',
+    ifWrong:
+      'Unset on a server that can only reach the internet through a proxy: connecting a forge times out (reported as cannot reach the host). Set without NODE_USE_ENV_PROXY=1: ignored, with a warning at startup.',
+    default: 'unset (direct connections)',
+  },
+  {
+    name: 'HTTP_PROXY',
+    scope: 'shared',
+    required: false,
+    purpose:
+      'Outbound proxy for plain http:// calls, e.g. a LAN model host you reach through the proxy. Usually left unset.',
+    ifWrong:
+      'Set without a matching NO_PROXY entry for the stack itself: internal calls such as http://scan-runner:3310 go to the proxy and fail. Keep the compose default NO_PROXY.',
+    default: 'unset',
+  },
+  {
+    name: 'NO_PROXY',
+    scope: 'shared',
+    required: false,
+    purpose:
+      'Comma-separated hosts that bypass the proxy. The compose default keeps the stack direct: localhost,127.0.0.1,api,web,postgres,redis,scan-runner. Add LAN hosts (a self-hosted Gitea, an LM Studio box) that the proxy cannot reach.',
+    ifWrong:
+      'Missing the stack services while HTTP_PROXY is set: scans fail because the worker cannot reach scan-runner. Missing a LAN forge: it is sent to the proxy, which usually cannot reach it.',
+    default: 'localhost,127.0.0.1,api,web,postgres,redis,scan-runner (compose)',
+  },
+  {
+    name: 'NODE_USE_ENV_PROXY',
+    scope: 'shared',
+    required: false,
+    purpose:
+      "Makes Node's built-in fetch honour HTTPS_PROXY/HTTP_PROXY/NO_PROXY. The shipped compose file sets it to 1 for the api and worker; set it yourself only when running outside that compose file.",
+    ifWrong: 'Not 1 while a proxy is set: every outbound call ignores the proxy and goes direct.',
+    default: '1 (compose)',
+  },
+  // W20-10 (UX_TODO ADM-13).
+  {
+    name: 'REPOPULSE_VERSION',
+    scope: 'api',
+    required: false,
+    purpose:
+      'The release this install runs. The compose file passes the image tag through, and Settings → System health shows it, so you know which release you are on before following an upgrade.',
+    ifWrong:
+      'Cosmetic in the api (it falls back to the package version). In deploy/.env it also picks the image tag, and up.sh refuses dev/latest for pre-built images.',
+    default: 'the package version',
+  },
+  // W20-10 (UX_TODO INS-50).
+  {
+    name: 'SSO_ALLOWED_GITHUB_ORGS',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Comma-separated GitHub organisation logins. When set, "Sign in with GitHub" admits only members of at least one of them, checked at every sign-in (needs the read:org scope the sign-in already asks for).',
+    ifWrong:
+      'Unset on an install with GitHub sign-in: ANY GitHub account can sign in and becomes a member. Set to a wrong org: everyone signing in with GitHub is refused ("not on this install\'s sign-in list"); local accounts still work.',
+    default: 'unset (any GitHub account)',
+  },
+  {
+    name: 'SSO_ALLOWED_OIDC_GROUPS',
+    scope: 'api',
+    required: false,
+    purpose:
+      "Comma-separated values of the ID token's `groups` claim. When this or SSO_ALLOWED_EMAIL_DOMAINS is set, an OIDC sign-in is admitted only if it matches one of them, at every sign-in. Your IdP must be configured to send a groups claim.",
+    ifWrong:
+      'Unset with an IdP that accepts more people than should use RepoPulse: all of them can sign in and become members. Set when the IdP sends no groups claim: only the email-domain rule can admit anyone.',
+    default: 'unset',
+  },
+  {
+    name: 'SSO_ALLOWED_EMAIL_DOMAINS',
+    scope: 'api',
+    required: false,
+    purpose:
+      'Comma-separated email domains (example.com). An OIDC sign-in whose email is in one of them is admitted. An address the IdP marks email_verified=false never matches.',
+    ifWrong:
+      'Too broad (a public mail domain) admits anyone with an address there. Applies to OIDC only: GitHub sign-in carries no email, so use SSO_ALLOWED_GITHUB_ORGS for it.',
     default: 'unset',
   },
   {

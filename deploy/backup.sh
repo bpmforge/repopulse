@@ -139,6 +139,17 @@ SHA="$(sha256_hex < "$OUT")"
   done
 } > "$OUT.manifest"
 
+# Tell the app (W20-10, UX_TODO ADM-13): Settings → System health shows the
+# newest of these as "last backup", and the Audit log lists every one. The api
+# cannot see this host's files, so the database is where it learns. Only
+# values this script made go in (a file name, two hex digests, a number), and
+# a database without the table yet (an older schema) just skips it — the dump
+# above is the backup, this line is a note about it.
+printf "insert into audit_events (workspace_id, event, detail) select id, 'ops.backup.taken', jsonb_build_object('dump', '%s', 'dump_sha256', '%s', 'dump_bytes', %s, 'key_fingerprint', '%s', 'project', '%s') from workspaces;" \
+  "$(basename "$OUT")" "$SHA" "$BYTES" "$KEY_FP" "$(printf '%s' "$PROJECT" | tr -cd 'A-Za-z0-9_.-')" \
+  | psql_in "$CONTAINER" >/dev/null 2>&1 \
+  || echo "note: could not record this backup in the app (System health will not show it); the dump itself is fine" >&2
+
 echo "wrote $OUT ($BYTES bytes, sha256 $SHA)"
 echo "      $OUT.manifest (rows: $COUNTS; migrations: $MIGRATIONS; key fingerprint $KEY_FP)"
 echo

@@ -1,11 +1,12 @@
-import { sql, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { Redis } from 'ioredis';
-import { core, security, type Database } from '@repopulse/shared';
+import { core, read, security, type Database } from '@repopulse/shared';
 import { orgSyncStatus, type SyncStatusPhase } from '@repopulse/ingest';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
 import { readWorkerHeartbeats } from '../../../workers/heartbeat.js';
+import { appVersion, diskSpace, diskState, formatBytes } from '../../../lib/release.js';
 
 // GET /admin/system (W17-06/W17-07) — "is this install actually working?"
 //
@@ -54,6 +55,17 @@ export interface SystemStatusResponse {
   /** Worst state across components — the one thing a badge can show. */
   overall: ComponentState;
   components: SystemComponent[];
+  /**
+   * The install itself (W20-10, UX_TODO ADM-13): which release this is, so an
+   * operator knows before following RUNBOOK §Upgrade, and when the last backup
+   * was recorded (deploy/backup.sh writes an `ops.backup.taken` audit row).
+   */
+  about: {
+    version: string;
+    lastBackupAt: string | null;
+    /** sha256 prefix of the TOKEN_ENC_KEY the last backup was taken under; never the key. */
+    backupKeyFingerprint: string | null;
+  };
 }
 
 export interface SystemRoutesOptions {
@@ -63,7 +75,14 @@ export interface SystemRoutesOptions {
   redis?: Redis;
   /** Injected so a test can drive the clock. */
   now?: () => Date;
+  /** Where the disk-space row measures (ADM-44); defaults to DATA_DIR. */
+  diskPath?: string;
+  /** Injected so a test can supply a full or failing disk. */
+  diskSpace?: typeof diskSpace;
 }
+
+/** A backup older than this is reported as stale (the RUNBOOK cron is nightly). */
+export const BACKUP_STALE_MS = 2 * 24 * 60 * 60 * 1000;
 
 /** Probe deadline. Matches the health routes: a hung socket must not hang this. */
 const PROBE_TIMEOUT_MS = 2_000;
@@ -208,6 +227,34 @@ export default async function systemRoutes(
       action: null,
     });
 
+    // Each section below reads the database. One that throws (the database
+    // went away between the probe and the query) reports ITS row as unknown
+    // instead of failing the whole panel (W20-10, UX_TODO ADM-43): the
+    // Database row above is the one the admin needs to see.
+    const guarded = async (
+      id: string,
+      label: string,
+      action: SystemComponent['action'],
+      section: () => Promise<void>,
+    ): Promise<void> => {
+      try {
+        await section();
+      } catch (err) {
+        request.log.warn({ err, component: id }, 'system status section failed');
+        components.push({
+          id,
+          label,
+          state: 'unknown',
+          reason:
+            dbOk === null
+              ? 'Cannot tell: this is read from the database, which is not answering.'
+              : 'Cannot tell: reading it failed. The api log has the error.',
+          lastSuccessAt: null,
+          action,
+        });
+      }
+    };
+
     // ---- forge sync -------------------------------------------------------
     //
     // Recorded rows only, through the EXISTING producer. Calling the forge here
@@ -215,141 +262,235 @@ export default async function systemRoutes(
     // settings page, and orgSyncStatus is already the one place that decides
     // what "syncing" means — a second opinion here would eventually disagree
     // with the banner the user is looking at.
-    const connections = await db
-      .select({
-        id: core.forgeConnections.id,
-        provider: core.forgeConnections.provider,
-        status: core.forgeConnections.status,
-      })
-      .from(core.forgeConnections)
-      .where(eq(core.forgeConnections.workspaceId, workspaceId))
-      .limit(50);
+    await guarded('forge', 'Forge connection', SYSTEM_ACTIONS.connections, async () => {
+      const connections = await db
+        .select({
+          id: core.forgeConnections.id,
+          provider: core.forgeConnections.provider,
+          status: core.forgeConnections.status,
+        })
+        .from(core.forgeConnections)
+        .where(eq(core.forgeConnections.workspaceId, workspaceId))
+        .limit(50);
 
-    if (connections.length === 0) {
-      components.push({
-        id: 'forge',
-        label: 'Forge connection',
-        // NOT unavailable: a fresh install with nothing connected is working
-        // exactly as intended. It has nothing to show, which is different.
-        state: 'setup_needed',
-        reason:
-          'No forge is connected yet, so there is nothing to measure. Sign-in and administration work without one.',
-        lastSuccessAt: null,
-        action: SYSTEM_ACTIONS.connect,
-      });
-    } else {
-      const broken = connections.filter((c) => c.status !== 'active');
-      const sync = await orgSyncStatus(db, workspaceId).catch(() => null);
+      if (connections.length === 0) {
+        components.push({
+          id: 'forge',
+          label: 'Forge connection',
+          // NOT unavailable: a fresh install with nothing connected is working
+          // exactly as intended. It has nothing to show, which is different.
+          state: 'setup_needed',
+          reason:
+            'No forge is connected yet, so there is nothing to measure. Sign-in and administration work without one.',
+          lastSuccessAt: null,
+          action: SYSTEM_ACTIONS.connect,
+        });
+      } else {
+        const broken = connections.filter((c) => c.status !== 'active');
+        const sync = await orgSyncStatus(db, workspaceId).catch(() => null);
 
-      // Map the sync phase onto a component state. 'queued' and 'history' are a
-      // backfill in progress — normal, not a fault.
-      const PHASE_STATE: Record<SyncStatusPhase, ComponentState> = {
-        live: 'ready',
-        enrichment: 'ready',
-        history: 'ready',
-        queued: 'ready',
-        paused: 'degraded',
-        paused_budget: 'degraded',
-        error: 'unavailable',
-      };
-      const phaseState: ComponentState =
-        sync === null ? 'unknown' : sync.repoCount === 0 ? 'setup_needed' : PHASE_STATE[sync.phase];
+        // Map the sync phase onto a component state. 'queued' and 'history' are a
+        // backfill in progress — normal, not a fault.
+        const PHASE_STATE: Record<SyncStatusPhase, ComponentState> = {
+          live: 'ready',
+          enrichment: 'ready',
+          history: 'ready',
+          queued: 'ready',
+          paused: 'degraded',
+          paused_budget: 'degraded',
+          error: 'unavailable',
+        };
+        const phaseState: ComponentState =
+          sync === null
+            ? 'unknown'
+            : sync.repoCount === 0
+              ? 'setup_needed'
+              : PHASE_STATE[sync.phase];
 
-      const state: ComponentState =
-        broken.length > 0 && RANK['degraded'] > RANK[phaseState] ? 'degraded' : phaseState;
+        const state: ComponentState =
+          broken.length > 0 && RANK['degraded'] > RANK[phaseState] ? 'degraded' : phaseState;
 
-      components.push({
-        id: 'forge',
-        label: 'Forge connection',
-        state,
-        reason:
-          broken.length > 0
-            ? `${broken.length} of ${connections.length} connections are not active (${[...new Set(broken.map((c) => c.status))].join(', ')}). Re-authorise them or the data behind them stops updating.`
-            : sync === null
-              ? 'Connected, but the sync state could not be read.'
-              : sync.repoCount === 0
-                ? 'Connected, but no repositories are selected yet — so there is still nothing to measure.'
-                : sync.phase === 'error'
-                  ? 'Connected, but at least one repository is failing to sync. Its data is frozen at the last success.'
-                  : sync.phase === 'paused_budget'
-                    ? 'Paused against the forge rate-limit budget. This is the budget working, not a fault; it resumes on its own.'
-                    : sync.phase === 'paused'
-                      ? 'Sync is paused.'
-                      : `Connected, ${sync.repoCount} repositories, ${sync.percentComplete}% complete (${sync.phase}).`,
-        // Deliberately null rather than "now": the sync producer reports a
-        // phase and a lag, not a last-success timestamp, and inventing one
-        // here would be a number nothing measured.
-        lastSuccessAt: null,
-        action: SYSTEM_ACTIONS.connections,
-      });
-    }
+        components.push({
+          id: 'forge',
+          label: 'Forge connection',
+          state,
+          reason:
+            broken.length > 0
+              ? `${broken.length} of ${connections.length} connections are not active (${[...new Set(broken.map((c) => c.status))].join(', ')}). Re-authorise them or the data behind them stops updating.`
+              : sync === null
+                ? 'Connected, but the sync state could not be read.'
+                : sync.repoCount === 0
+                  ? 'Connected, but no repositories are selected yet — so there is still nothing to measure.'
+                  : sync.phase === 'error'
+                    ? 'Connected, but at least one repository is failing to sync. Its data is frozen at the last success.'
+                    : sync.phase === 'paused_budget'
+                      ? 'Paused against the forge rate-limit budget. This is the budget working, not a fault; it resumes on its own.'
+                      : sync.phase === 'paused'
+                        ? 'Sync is paused.'
+                        : `Connected, ${sync.repoCount} repositories, ${sync.percentComplete}% complete (${sync.phase}).`,
+          // Deliberately null rather than "now": the sync producer reports a
+          // phase and a lag, not a last-success timestamp, and inventing one
+          // here would be a number nothing measured.
+          lastSuccessAt: null,
+          action: SYSTEM_ACTIONS.connections,
+        });
+      }
+    });
 
     // ---- scanners ---------------------------------------------------------
-    const [scanAgg] = await db
-      .select({
-        lastSuccess: sql<
-          string | null
-        >`max(${security.scanRuns.finishedAt}) filter (where ${security.scanRuns.status} = 'succeeded')`,
-        failed: sql<number>`count(*) filter (where ${security.scanRuns.status} = 'failed')::int`,
-        total: sql<number>`count(*)::int`,
-      })
-      .from(security.scanRuns)
-      .where(eq(security.scanRuns.workspaceId, workspaceId));
+    await guarded(
+      'scanners',
+      'Security and code-health scanners',
+      SYSTEM_ACTIONS.analysis,
+      async () => {
+        const [scanAgg] = await db
+          .select({
+            lastSuccess: sql<
+              string | null
+            >`max(${security.scanRuns.finishedAt}) filter (where ${security.scanRuns.status} = 'succeeded')`,
+            failed: sql<number>`count(*) filter (where ${security.scanRuns.status} = 'failed')::int`,
+            total: sql<number>`count(*)::int`,
+          })
+          .from(security.scanRuns)
+          .where(eq(security.scanRuns.workspaceId, workspaceId));
 
-    const scanLastSuccess = scanAgg?.lastSuccess ?? null;
-    const scanState: ComponentState =
-      (scanAgg?.total ?? 0) === 0
-        ? 'setup_needed'
-        : scanLastSuccess === null
-          ? 'unavailable'
-          : (scanAgg?.failed ?? 0) > 0
-            ? 'degraded'
-            : 'ready';
-    components.push({
-      id: 'scanners',
-      label: 'Security and code-health scanners',
-      state: scanState,
-      reason:
-        scanState === 'setup_needed'
-          ? 'No scan has ever run. A repository with no findings looks exactly like a clean one until a scan has actually completed.'
-          : scanState === 'unavailable'
-            ? `${scanAgg?.total ?? 0} scan runs recorded and not one has succeeded.`
-            : scanState === 'degraded'
-              ? `Some scans are failing (${scanAgg?.failed} of ${scanAgg?.total}). Earlier successful results are still shown and are still real.`
-              : 'Scans are completing.',
-      lastSuccessAt: scanLastSuccess ? new Date(scanLastSuccess).toISOString() : null,
-      action: SYSTEM_ACTIONS.analysis,
-    });
+        const scanLastSuccess = scanAgg?.lastSuccess ?? null;
+        const scanState: ComponentState =
+          (scanAgg?.total ?? 0) === 0
+            ? 'setup_needed'
+            : scanLastSuccess === null
+              ? 'unavailable'
+              : (scanAgg?.failed ?? 0) > 0
+                ? 'degraded'
+                : 'ready';
+        components.push({
+          id: 'scanners',
+          label: 'Security and code-health scanners',
+          state: scanState,
+          reason:
+            scanState === 'setup_needed'
+              ? 'No scan has ever run. A repository with no findings looks exactly like a clean one until a scan has actually completed.'
+              : scanState === 'unavailable'
+                ? `${scanAgg?.total ?? 0} scan runs recorded and not one has succeeded.`
+                : scanState === 'degraded'
+                  ? `Some scans are failing (${scanAgg?.failed} of ${scanAgg?.total}). Earlier successful results are still shown and are still real.`
+                  : 'Scans are completing.',
+          lastSuccessAt: scanLastSuccess ? new Date(scanLastSuccess).toISOString() : null,
+          action: SYSTEM_ACTIONS.analysis,
+        });
+      },
+    );
 
     // ---- models -----------------------------------------------------------
     //
     // Configured is read from the database. Whether the endpoint ANSWERS is not
     // asked here: that is a paid network call on some providers, and this route
     // is polled. The Models screen has an explicit "test" button for that.
-    const providers = await db
-      .select({
-        id: core.llmProviders.id,
-        name: core.llmProviders.name,
-        kind: core.llmProviders.kind,
-        enabled: core.llmProviders.enabled,
-      })
-      .from(core.llmProviders)
-      .where(eq(core.llmProviders.workspaceId, workspaceId));
+    await guarded('models', 'AI review models', SYSTEM_ACTIONS.models, async () => {
+      const providers = await db
+        .select({
+          id: core.llmProviders.id,
+          name: core.llmProviders.name,
+          kind: core.llmProviders.kind,
+          enabled: core.llmProviders.enabled,
+        })
+        .from(core.llmProviders)
+        .where(eq(core.llmProviders.workspaceId, workspaceId));
 
-    const enabled = providers.filter((p) => p.enabled);
-    components.push({
-      id: 'models',
-      label: 'AI review models',
-      state: providers.length === 0 ? 'setup_needed' : enabled.length === 0 ? 'degraded' : 'ready',
-      reason:
-        providers.length === 0
-          ? 'No model configured. This is OPTIONAL — delivery metrics, hotspots and deterministic scanners all work without one. Only AI code review is unavailable.'
-          : enabled.length === 0
-            ? `${providers.length} configured, none enabled. AI review will not run.`
-            : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).`,
-      lastSuccessAt: null,
-      action: SYSTEM_ACTIONS.models,
+      const enabled = providers.filter((p) => p.enabled);
+      components.push({
+        id: 'models',
+        label: 'AI review models',
+        state:
+          providers.length === 0 ? 'setup_needed' : enabled.length === 0 ? 'degraded' : 'ready',
+        reason:
+          providers.length === 0
+            ? 'No model configured. This is OPTIONAL — delivery metrics, hotspots and deterministic scanners all work without one. Only AI code review is unavailable.'
+            : enabled.length === 0
+              ? `${providers.length} configured, none enabled. AI review will not run.`
+              : `${enabled.length} of ${providers.length} enabled (${[...new Set(enabled.map((p) => p.kind))].join(', ')}).`,
+        lastSuccessAt: null,
+        action: SYSTEM_ACTIONS.models,
+      });
     });
+
+    // ---- backups (W20-10, UX_TODO ADM-13) ----------------------------------
+    //
+    // deploy/backup.sh records each successful dump as an `ops.backup.taken`
+    // audit row. The api cannot see the backup files (they are on the host),
+    // so "the last one the database was told about" is the honest answer.
+    let lastBackupAt: string | null = null;
+    let backupKeyFingerprint: string | null = null;
+    await guarded('backups', 'Backups', null, async () => {
+      const [last] = await db
+        .select({ at: read.auditEvents.occurredAt, detail: read.auditEvents.detail })
+        .from(read.auditEvents)
+        .where(
+          and(
+            eq(read.auditEvents.workspaceId, workspaceId),
+            eq(read.auditEvents.event, 'ops.backup.taken'),
+          ),
+        )
+        .orderBy(desc(read.auditEvents.occurredAt))
+        .limit(1);
+      lastBackupAt = last ? last.at.toISOString() : null;
+      const fp = last?.detail['key_fingerprint'];
+      backupKeyFingerprint = typeof fp === 'string' ? fp : null;
+      const KEY_REMINDER =
+        ' A backup is the dump AND TOKEN_ENC_KEY from deploy/.env: keep the key somewhere other than beside the dumps, or the restored connections cannot be decrypted. See docs/RUNBOOK.md → Backup.';
+      const stale = last !== undefined && at.getTime() - last.at.getTime() > BACKUP_STALE_MS;
+      components.push({
+        id: 'backups',
+        label: 'Backups',
+        // No backup is not a fault of the software, but it is the one gap that
+        // turns a lost disk into a lost install, so it is not painted green.
+        state: last === undefined ? 'setup_needed' : stale ? 'degraded' : 'ready',
+        reason:
+          (last === undefined
+            ? 'No backup has been recorded. Schedule deploy/backup.sh (the RUNBOOK has the cron line).'
+            : stale
+              ? `The last recorded backup is more than ${BACKUP_STALE_MS / 86_400_000} days old. Check the backup cron job.`
+              : 'A backup was recorded recently.') +
+          (backupKeyFingerprint ? ` Taken under key ${backupKeyFingerprint}.` : '') +
+          KEY_REMINDER,
+        lastSuccessAt: lastBackupAt,
+        action: null,
+      });
+    });
+
+    // ---- disk (W20-10, UX_TODO ADM-44) -------------------------------------
+    //
+    // Measured where report files are written; in the shipped stack that is a
+    // volume on the same host disk as Postgres and the backups.
+    const diskPath = opts.diskPath ?? process.env.DATA_DIR ?? './.data';
+    const disk =
+      (await (opts.diskSpace ?? diskSpace)(diskPath)) ?? (await (opts.diskSpace ?? diskSpace)('.'));
+    if (disk === null) {
+      components.push({
+        id: 'disk',
+        label: 'Disk space',
+        state: 'unknown',
+        reason: 'Cannot tell: the filesystem could not be measured from the api container.',
+        lastSuccessAt: null,
+        action: null,
+      });
+    } else {
+      const state = diskState(disk);
+      const free = `${formatBytes(disk.freeBytes)} free of ${formatBytes(disk.totalBytes)}`;
+      components.push({
+        id: 'disk',
+        label: 'Disk space',
+        state,
+        reason:
+          state === 'ready'
+            ? `${free}.`
+            : state === 'degraded'
+              ? `${free}. Running low: report files, scan data, backups and the database share this disk. Free space before writes start failing — docs/RUNBOOK.md → When the app is down → Disk full.`
+              : `${free}. Nearly full: saving anything is about to fail with "Internal Server Error". Follow docs/RUNBOOK.md → When the app is down → Disk full now.`,
+        lastSuccessAt: at.toISOString(),
+        action: null,
+      });
+    }
 
     const body: SystemStatusResponse = {
       checkedAt: at.toISOString(),
@@ -358,6 +499,7 @@ export default async function systemRoutes(
       // mean "this is broken".
       overall: worstState(components.map((c) => c.state)),
       components,
+      about: { version: appVersion(), lastBackupAt, backupKeyFingerprint },
     };
     return reply.send(body);
   });

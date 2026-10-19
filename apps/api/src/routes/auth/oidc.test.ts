@@ -2,7 +2,7 @@ import 'dotenv/config';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { core, createDb } from '@repopulse/shared';
-import { session as sessionModule } from '@repopulse/auth';
+import { admission, session as sessionModule } from '@repopulse/auth';
 import { startFixtureIdp, type FixtureIdp } from '@repopulse/auth/src/oidc/fixture-idp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import oidcRoutes from './oidc.js';
@@ -201,5 +201,82 @@ describeIfLiveInfra('OIDC login routes against a fixture IdP (W15-03)', () => {
     // The provider's own error text is never echoed into the URL.
     expect(res.headers.location).not.toContain('access_denied');
     expect(res.cookies.find((c) => c.name === 'repopulse_sid')).toBeUndefined();
+  });
+  // W20-10 (UX_TODO X-01): a shared link survives the round trip to the IdP.
+  it('returns to the page the sign-in started from, and only to our own pages', async () => {
+    for (const [returnTo, expected] of [
+      ['/findings?finding=812', 'http://localhost:5173/findings?finding=812'],
+      ['https://evil.example/', 'http://localhost:5173/'],
+    ] as const) {
+      const login = await app.inject({
+        method: 'GET',
+        url: '/auth/oidc/login',
+        query: { return_to: returnTo },
+      });
+      const location = login.headers.location as string;
+      const callback = await app.inject({
+        method: 'GET',
+        url: '/auth/oidc/callback',
+        query: {
+          code: idp.authorize(location),
+          state: new URL(location).searchParams.get('state') as string,
+        },
+        cookies: { oidc_tx: login.cookies.find((c) => c.name === 'oidc_tx')!.value },
+      });
+      expect(callback.headers.location).toBe(expected);
+    }
+  });
+
+  // W20-10 (UX_TODO INS-50): with an allowlist set, someone the IdP accepts
+  // but who is outside it never becomes a user.
+  it('refuses a person outside the group/domain allowlist before a user row exists', async () => {
+    const guarded = Fastify();
+    await guarded.register(sessionModule.sessionPlugin, {
+      redisUrl: redisUrl as string,
+      sessionSecret: 'test-session-secret-at-least-32-characters-long',
+      idleTimeoutMs: 15 * 60 * 1000,
+      absoluteLifetimeMs: 12 * 60 * 60 * 1000,
+      cookieSecure: false,
+    });
+    await guarded.register(oidcRoutes, {
+      db,
+      config: {
+        issuer: idp.issuer,
+        clientId: CLIENT_ID,
+        clientSecret: CLIENT_SECRET,
+        redirectUri: REDIRECT_URI,
+        scopes: 'openid profile email',
+        displayName: 'Test SSO',
+      },
+      loginRedirectUrl: 'http://localhost:5173/',
+      cookieSecure: false,
+      admission: admission.admissionPolicyFromEnv({ SSO_ALLOWED_EMAIL_DOMAINS: 'allowed.test' }),
+    });
+    await guarded.ready();
+    try {
+      await db
+        .delete(core.users)
+        .where(and(eq(core.users.authProvider, 'oidc'), eq(core.users.authSubject, SUBJECT)));
+      const login = await guarded.inject({ method: 'GET', url: '/auth/oidc/login' });
+      const location = login.headers.location as string;
+      const res = await guarded.inject({
+        method: 'GET',
+        url: '/auth/oidc/callback',
+        query: {
+          code: idp.authorize(location),
+          state: new URL(location).searchParams.get('state') as string,
+        },
+        cookies: { oidc_tx: login.cookies.find((c) => c.name === 'oidc_tx')!.value },
+      });
+      expectBackAtSignIn(res, 'not_allowed');
+      expect(res.cookies.find((c) => c.name === 'repopulse_sid' && c.value !== '')).toBeUndefined();
+      const rows = await db
+        .select({ id: core.users.id })
+        .from(core.users)
+        .where(and(eq(core.users.authProvider, 'oidc'), eq(core.users.authSubject, SUBJECT)));
+      expect(rows).toHaveLength(0);
+    } finally {
+      await guarded.close();
+    }
   });
 });

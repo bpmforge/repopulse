@@ -322,6 +322,13 @@
       "when": 1792900000000,
       "tag": "0047_finding_rationale",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0048_audit_events",
+      "breakpoints": true
     }
   ]
 }

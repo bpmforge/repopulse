@@ -53,7 +53,35 @@ const CALLBACK_ERRORS: Record<string, string> = {
     'GitHub did not say who you are, so you were not signed in. Try again; if it keeps happening, tell your administrator.',
   oidc_id_token_invalid:
     'Your identity provider’s answer could not be verified, so you were not signed in. Tell your administrator.',
+  // W20-10 (UX_TODO INS-50): the SSO allowlist refused this account.
+  not_allowed:
+    'Your account is not on this install’s sign-in list (an allowed organisation, group or email domain). If you should have access, ask your RepoPulse administrator.',
+  org_check_failed:
+    'RepoPulse could not check your GitHub organisations, so you were not signed in. Try again; if it keeps happening, tell your administrator.',
 };
+
+/**
+ * Where a federated sign-in should come back to (W20-10, UX_TODO X-01).
+ *
+ * A colleague who opened a shared link signed out and then signed in with SSO
+ * always landed on Overview: the provider round trip left the SPA and the API
+ * returned to `/`. The page this screen is showing over IS the deep link, so it
+ * goes to the login route as `return_to`; the API only follows a same-origin
+ * path (and tests that guard). Overview needs no parameter, and this screen's
+ * own error parameters are not part of where the person was going.
+ */
+export function federatedHref(
+  base: string,
+  location: { pathname: string; search: string; hash: string },
+): string {
+  const params = new URLSearchParams(location.search);
+  params.delete('auth_error');
+  params.delete('request_id');
+  const query = params.toString();
+  const path = `${location.pathname}${query ? `?${query}` : ''}${location.hash}`;
+  if (path === '/' || !path.startsWith('/') || path.startsWith('//')) return base;
+  return `${base}?return_to=${encodeURIComponent(path)}`;
+}
 
 export interface CallbackError {
   message: string;
@@ -336,7 +364,7 @@ export function SignIn({ expired }: SignInProps) {
 
             {providers.oidc ? (
               <a
-                href="/auth/oidc/login"
+                href={federatedHref('/auth/oidc/login', window.location)}
                 data-testid="signin-oidc"
                 className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               >
@@ -348,7 +376,7 @@ export function SignIn({ expired }: SignInProps) {
 
             {providers.github ? (
               <a
-                href="/auth/login"
+                href={federatedHref('/auth/login', window.location)}
                 data-testid="signin-github"
                 className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               >

@@ -55,6 +55,7 @@ from inside the product after you sign in.
 | `deploy/compose.yaml` | the stack; identical to the source repository's except no `build:` stanzas |
 | `deploy/.env` | written by `install.sh`; **back it up** — `TOKEN_ENC_KEY` decrypts stored forge credentials |
 | `deploy/scan-rules/` | rulepacks for code scanning, pre-installed; `deploy/scan-db-sync.sh` refreshes them and fetches the vulnerability database |
+| `RUNBOOK.md` | how to operate the install: backup, restore onto a new server, upgrade, rotate secrets, change its address, what to do when it is down |
 
 Images are named `localhost/repopulse/<name>:<version>`. No registry is
 involved; `localhost/` is the runtime's name for "loaded here".
@@ -64,10 +65,19 @@ involved; `localhost/` is the runtime's name for "loaded here".
 ```bash
 deploy/up.sh                      # start (or restart) and verify — safe to rerun
 podman compose -f deploy/compose.yaml down     # stop; data stays in the volumes
-deploy/backup.sh                  # dump the database to a file
-deploy/restore.sh <dump>          # restore it
+deploy/backup.sh                  # dump the database to a file (+ a .manifest)
+deploy/restore.sh --project=repopulse --production <dump>   # restore it over the live install
 deploy/scan-db-sync.sh            # refresh scan rules + fetch the CVE database (nightly cron)
+deploy/rotate-token-key.sh        # re-seal stored credentials under a new TOKEN_ENC_KEY
 ```
+
+`restore.sh` needs the target named on purpose (`--project=`, and
+`--production` for the live install): it drops the database it restores
+into. **Restoring onto a NEW server** (the old one is gone) has one step that
+must come first: put the old `deploy/.env` — or at least its `TOKEN_ENC_KEY` —
+in place **before** running `install.sh`, or the new install generates a new
+key and `restore.sh` refuses the dump. The full procedure, in order, is
+`RUNBOOK.md` → *Restore onto a new server*.
 
 Data lives in two named volumes, `repopulse_pgdata` and `repopulse_redisdata`.
 `down` keeps them; only `down -v` deletes them.

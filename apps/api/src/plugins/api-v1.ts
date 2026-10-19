@@ -47,6 +47,7 @@ import workspaceRoutes from '../routes/admin/workspace/index.js';
 import pullsRoutes from '../routes/pulls/index.js';
 import ciTokenRoutes from '../routes/admin/ci-tokens/index.js';
 import systemRoutes from '../routes/admin/system/index.js';
+import auditRoutes from '../routes/admin/audit/index.js';
 
 export interface ApiV1Options {
   db: Database;
@@ -239,6 +240,8 @@ export default async function apiV1(app: FastifyInstance, opts: ApiV1Options): P
   // W17-07: read-only install health. Registered here rather than beside
   // /healthz because it is admin-only and workspace-scoped.
   await app.register(systemRoutes, { db: opts.db, redisUrl: opts.redisUrl });
+  // W20-10 (UX_TODO X-04): Settings → Audit log reads the persisted audit trail.
+  await app.register(auditRoutes, { db: opts.db });
   await app.register(securityRoutes, { db: opts.db });
   // W18-29: the sensitive-change radar's screen.
   await app.register(sensitiveChangesRoutes, { db: opts.db });

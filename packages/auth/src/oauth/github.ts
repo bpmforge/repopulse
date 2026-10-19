@@ -17,6 +17,8 @@ export interface GithubOAuthEndpoints {
   authorizeUrl?: string;
   tokenUrl?: string;
   userUrl?: string;
+  /** W20-10 (INS-50): the user's org memberships, for the org allowlist. */
+  orgsUrl?: string;
 }
 
 export interface GithubIdentity {
@@ -99,4 +101,36 @@ export async function fetchGithubIdentity(
     name: body.name ?? null,
     avatarUrl: body.avatar_url ?? null,
   };
+}
+
+const DEFAULT_ORGS_URL = 'https://api.github.com/user/orgs';
+
+/**
+ * The org logins the signed-in user belongs to (W20-10, UX_TODO INS-50) —
+ * only fetched when an org allowlist is configured. Part of the SIGN-IN flow
+ * like fetchGithubIdentity, with the user's own token and the `read:org` scope
+ * this flow already asks for, not a forge-ingestion call. One page of 100: a
+ * person in more orgs than that who is refused can be admitted by listing a
+ * group or domain instead.
+ */
+export async function fetchGithubOrgLogins(
+  accessToken: string,
+  endpoints: GithubOAuthEndpoints = {},
+): Promise<string[]> {
+  const url = new URL(endpoints.orgsUrl ?? DEFAULT_ORGS_URL);
+  url.searchParams.set('per_page', '100');
+  const res = await fetch(url, {
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      accept: 'application/vnd.github+json',
+      'user-agent': 'repopulse',
+    },
+  });
+  if (!res.ok) {
+    throw new GithubOAuthError(`org membership fetch failed: HTTP ${res.status}`);
+  }
+  const body = (await res.json()) as Array<{ login?: unknown }>;
+  return Array.isArray(body)
+    ? body.map((o) => o.login).filter((l): l is string => typeof l === 'string')
+    : [];
 }

@@ -214,6 +214,28 @@ The other two doors, if you want them:
   the account then carries a forge identity, personalised screens ("my open
   PRs") can find their work without anyone linking it by hand.
 
+**Who can join through single sign-on.** By default, anyone your identity
+provider accepts — and, with GitHub sign-in, anyone with any GitHub account —
+becomes a member at their first sign-in. Restrict it in `deploy/.env` (W20-10):
+
+- `SSO_ALLOWED_GITHUB_ORGS=acme,acme-labs` — GitHub sign-in admits only members
+  of one of these organisations;
+- `SSO_ALLOWED_OIDC_GROUPS=repopulse-users` — OIDC admits only someone whose
+  ID token `groups` claim contains one of these (configure your IdP to send
+  the claim);
+- `SSO_ALLOWED_EMAIL_DOMAINS=example.com` — OIDC also admits a verified email
+  in one of these domains.
+
+The check runs at **every** sign-in, so taking someone out of the org or group
+ends their access. That is also how to keep a removed member out: **Remove**
+in Settings → Members deletes the account, and without an allowlist a
+federated user simply signs in again. Refused sign-ins are written to the audit
+log with the reason. Local accounts are not affected.
+
+People who sign in with a password or OIDC have no forge account of their own,
+so their personalised screens are empty until an admin links them:
+**Settings → Identities → Link to member** on the committer that is them.
+
 ## Connect your forge
 
 RepoPulse authenticates as **your** App or token against **your**
@@ -302,6 +324,29 @@ nothing changes. A path that does not exist inside the container is only a
 startup warning from Node, so if the TLS error persists, check the api log for
 `Warning: Ignoring extra certs`. Outside containers (the dev harness), set
 `NODE_EXTRA_CA_CERTS` to the host path.
+
+### Behind an outbound proxy
+
+If the server reaches the internet only through a corporate proxy, set it in
+`deploy/.env` and restart (W20-10):
+
+```sh
+HTTPS_PROXY=http://proxy.corp.example:3128
+# NO_PROXY blank keeps the compose default:
+#   localhost,127.0.0.1,api,web,postgres,redis,scan-runner
+# If you set it, keep those and add LAN hosts the proxy cannot reach:
+NO_PROXY=localhost,127.0.0.1,api,web,postgres,redis,scan-runner,gitea.lan
+```
+
+The api and worker send every outbound call through it — the forge, tarball
+downloads for scans, hosted models and your OIDC issuer. Node's `fetch`
+ignores `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1`, which the shipped compose
+file sets for both services; a process started some other way logs a warning
+at startup when a proxy is set without it. A proxy that re-signs TLS also
+needs its CA added as in the section above. Without the proxy setting,
+connecting a forge from such a server fails with a timeout ("cannot reach"),
+not a bad-token error. `deploy/scan-db-sync.sh` runs on the host and uses the
+host's own `HTTPS_PROXY`.
 
 ### The GitHub App variables are for sign-in, not for data
 

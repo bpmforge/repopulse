@@ -123,6 +123,44 @@ export async function linkForgeIdentity(
   return { ok: true };
 }
 
+/**
+ * Points a member at the forge account behind a workspace's committer identity
+ * (W20-10, UX_TODO ADM-43), for the admin "link identity" screen.
+ *
+ * Lives here, not in the route, because forge user ids are this module's
+ * business (W15-05): the route deals in members and identities, and asks.
+ * A committer with no forge id has nothing to claim and succeeds as a no-op.
+ * A GitHub sign-in IS a forge account, so it is never re-pointed at a
+ * different committer: its own work would vanish from its own screens.
+ */
+export async function linkMemberToCommitter(
+  db: Database,
+  input: { workspaceId: number; identityId: number; userId: number },
+): Promise<{ ok: true } | { ok: false; reason: 'github_sign_in' | 'taken' }> {
+  const [identity] = await db
+    .select({ forgeUserId: core.identities.forgeUserId })
+    .from(core.identities)
+    .where(
+      and(
+        eq(core.identities.id, input.identityId),
+        eq(core.identities.workspaceId, input.workspaceId),
+      ),
+    )
+    .limit(1);
+  const forgeUserId = identity?.forgeUserId;
+  if (!forgeUserId) return { ok: true };
+
+  const user = await findUserById(db, input.userId);
+  if (
+    user?.authProvider === 'github' &&
+    user.forgeUserId !== null &&
+    user.forgeUserId !== forgeUserId
+  ) {
+    return { ok: false, reason: 'github_sign_in' };
+  }
+  return linkForgeIdentity(db, input.userId, forgeUserId);
+}
+
 /** Looks a local account up by email, for the password path. */
 export async function findLocalUserByEmail(
   db: Database,
@@ -131,7 +169,9 @@ export async function findLocalUserByEmail(
   const [user] = await db
     .select()
     .from(core.users)
-    .where(and(eq(core.users.authProvider, 'local'), eq(core.users.authSubject, email.toLowerCase())))
+    .where(
+      and(eq(core.users.authProvider, 'local'), eq(core.users.authSubject, email.toLowerCase())),
+    )
     .limit(1);
   return user ?? null;
 }

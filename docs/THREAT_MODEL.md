@@ -145,7 +145,7 @@ process it. Repo bytes are attacker-controlled input by definition.
 
 - **AC-1 Stolen credential = read-everything (T-13/T-14/T-25).** RepoPulse concentrates
   read access to every monitored repo behind one row. Kill chain: DB read → ciphertext
-  useless without env key (SC-1/2); env read on worker → key rotation runbook + short-lived
+  useless without env key (SC-1/2); env read on worker → key rotation runbook (RUNBOOK → Hand over the install / rotate secrets, W20-10) + short-lived
   installation tokens (App auth preferred over PAT, SC-25) bound the blast window.
 - **AC-2 Webhook forgery/replay (T-9/T-10).** Unsigned POST must die before parsing
   (raw-body HMAC, timingSafeEqual — SC-3); a signed-but-replayed delivery must be a no-op

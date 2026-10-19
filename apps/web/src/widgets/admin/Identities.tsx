@@ -31,6 +31,63 @@ interface Identity {
   commits: number;
   prs: number;
   email_fallback: boolean;
+  /** The member this committer is (W20-10, UX_TODO INS-51), or null. */
+  user_id?: number | null;
+}
+
+interface MemberOption {
+  user_id: number;
+  login: string;
+  auth_provider?: string;
+}
+
+const MEMBERS = { endpoint: '/admin/members' } as const;
+
+/**
+ * "This committer is that member" (W20-10, UX_TODO INS-51).
+ *
+ * A local or OIDC account has no forge account, so its My Focus and "my PRs"
+ * stayed empty for good while the banner told the person to "ask an
+ * administrator to link your forge identity" — and nothing could. The link is
+ * reversible (choose "not linked"), and the API refuses a forge account that
+ * already belongs to someone else, saying why.
+ */
+function LinkCell({ identity, members }: { identity: Identity; members: MemberOption[] }) {
+  const link = useApiMutation<{ user_id: number | null }, unknown>(
+    { endpoint: '/admin/identities/{id}/link', path: { id: identity.id }, method: 'POST' },
+    // The banner and My Focus read the link through /me/context.
+    { invalidate: [queryKeyFor(LIST), queryKeyFor({ endpoint: '/me/context' })] },
+  );
+  const pushToasts = useUiStore((s) => s.pushToasts);
+  return (
+    <label className="flex items-center gap-1.5">
+      <span className="sr-only">Member who is {identity.login}</span>
+      <select
+        className="rounded-md border border-border bg-surface-1 px-1.5 py-0.5 text-xs"
+        value={identity.user_id ?? ''}
+        disabled={link.isPending}
+        data-testid={`identity-link-${identity.id}`}
+        onChange={(e) => {
+          const value = e.target.value === '' ? null : Number(e.target.value);
+          link.mutate(
+            { user_id: value },
+            {
+              onError: (err: Error) =>
+                pushToasts([errorToast(`identity-${identity.id}-link-err`, err)]),
+            },
+          );
+        }}
+      >
+        <option value="">— not linked —</option>
+        {members.map((m) => (
+          <option key={m.user_id} value={m.user_id}>
+            {m.login}
+            {m.auth_provider && m.auth_provider !== 'github' ? ` (${m.auth_provider})` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 /**
@@ -42,10 +99,12 @@ function IdentityRow({
   identity,
   targetLogin,
   onMergeClick,
+  members,
 }: {
   identity: Identity;
   targetLogin: string | null;
   onMergeClick: () => void;
+  members: MemberOption[];
 }) {
   const setBot = useApiMutation<{ is_bot: boolean }, unknown>(
     { endpoint: '/admin/identities/{id}', path: { id: identity.id }, method: 'PATCH' },
@@ -87,6 +146,9 @@ function IdentityRow({
           />
           <span className="sr-only">Flag {identity.login} as a bot</span>
         </label>
+      </td>
+      <td className="py-1">
+        <LinkCell identity={identity} members={members} />
       </td>
       <td className="py-1">
         {identity.merged_into_id === null ? (
@@ -218,6 +280,8 @@ function MergePicker({
 export function Identities() {
   const { data, isLoading, isError, error, refetch } = useApiQuery<{ items: Identity[] }>(LIST);
   const [mergeSource, setMergeSource] = useState<number | null>(null);
+  const { data: memberData } = useApiQuery<{ items: MemberOption[] }>(MEMBERS);
+  const members = (memberData?.items ?? []).filter((m) => typeof m.user_id === 'number');
 
   const items = data?.items ?? [];
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -246,7 +310,7 @@ export function Identities() {
         >
           <table className="table-plain w-full text-sm">
             <caption className="sr-only">
-              Workspace identities, their weight, and merge state
+              Workspace identities, their weight, the member each one is, and merge state
             </caption>
             <thead>
               <tr className="text-left text-xs text-fg-muted">
@@ -254,6 +318,7 @@ export function Identities() {
                 <th scope="col">Commits</th>
                 <th scope="col">PRs</th>
                 <th scope="col">Bot</th>
+                <th scope="col">Member</th>
                 <th scope="col">Merged into</th>
                 <th scope="col">Actions</th>
               </tr>
@@ -267,6 +332,7 @@ export function Identities() {
                     i.merged_into_id === null ? null : (byId.get(i.merged_into_id)?.login ?? null)
                   }
                   onMergeClick={() => setMergeSource(i.id)}
+                  members={members}
                 />
               ))}
             </tbody>

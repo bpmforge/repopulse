@@ -671,4 +671,75 @@ describeIfLiveInfra('connections routes (W2-01, FR-INGEST-1, FR-AUTH-5)', () => 
     });
     expect(missing.statusCode).toBe(404);
   });
+  // W20-10 (UX_TODO ADM-77): after the install moves, every tracked repo's hook
+  // still points at the old address. This re-registers them at today's URL.
+  it('re-registers webhooks for tracked, unpaused repos; a member cannot', async () => {
+    const cookie = await loginAs(app, ADMIN);
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/connections',
+      cookies: { repopulse_sid: cookie },
+      payload: { auth_kind: 'pat', credential: TOKEN },
+    });
+    const connId = created.json().id as number;
+
+    // No repo tracked yet = no webhook secret to sign with.
+    const early = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/webhooks`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(early.statusCode).toBe(409);
+
+    const sel = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/repos`,
+      cookies: { repopulse_sid: cookie },
+      payload: { repo_forge_ids: ['201', '202'] },
+    });
+    const [alphaId, betaId] = sel.json().repo_ids as number[];
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/repos/${betaId}/tracking`,
+      cookies: { repopulse_sid: cookie },
+      payload: { paused: true },
+    });
+    await db
+      .update(core.repos)
+      .set({ lastError: 'live updates unavailable: hook refused' })
+      .where(eq(core.repos.id, alphaId!));
+
+    registerWebhook.mockClear();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/webhooks`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ repos: 1, registered: 1, failed: [] });
+    expect(registerWebhook).toHaveBeenCalledTimes(1);
+    expect(registerWebhook.mock.calls[0]![1]).toBe('acme/alpha');
+    expect(registerWebhook.mock.calls[0]![2]).toContain('https://repopulse.example/webhooks');
+    const [alpha] = await db.select().from(core.repos).where(eq(core.repos.id, alphaId!));
+    expect(alpha!.lastError).toBeNull();
+
+    // A forge refusal is reported per repository, not as a 500.
+    registerWebhook.mockRejectedValueOnce(new Error('Hook already exists on this repository'));
+    const again = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/webhooks`,
+      cookies: { repopulse_sid: cookie },
+    });
+    expect(again.json().failed).toEqual([
+      expect.objectContaining({ repo: 'acme/alpha', error: expect.stringContaining('already') }),
+    ]);
+
+    const member = await loginAs(app, MEMBER);
+    const denied = await app.inject({
+      method: 'POST',
+      url: `/api/v1/connections/${connId}/webhooks`,
+      cookies: { repopulse_sid: member },
+    });
+    expect(denied.statusCode).toBe(403);
+  });
 });

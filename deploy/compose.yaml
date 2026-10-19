@@ -81,6 +81,14 @@ services:
       # Fixed, overriding any DATA_DIR in .env on purpose: it must be the path
       # the reportdata volume is mounted at, in this service AND the worker.
       DATA_DIR: /app/.data
+      # Shown on Settings → System health (W20-10, UX_TODO ADM-13), so an
+      # operator knows which release they are on before following an upgrade.
+      REPOPULSE_VERSION: ${REPOPULSE_VERSION:-dev}
+      # OUTBOUND PROXY (W20-10, UX_TODO INS-63). Node's fetch ignores
+      # HTTPS_PROXY unless this is set; with it, HTTPS_PROXY/HTTP_PROXY from
+      # .env are honoured and NO_PROXY keeps the internal services direct.
+      NODE_USE_ENV_PROXY: "1"
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,api,web,postgres,redis,scan-runner}
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -182,6 +190,10 @@ services:
       # itself (measured: ECONNREFUSED). The page only renders data the worker
       # injects, so it needs no session and no route out of the network.
       REPORT_PRINT_BASE_URL: ${REPORT_PRINT_BASE_URL:-http://web:8080}
+      # Same outbound-proxy pair as the api (W20-10, UX_TODO INS-63): the worker
+      # makes most forge, tarball and model calls.
+      NODE_USE_ENV_PROXY: "1"
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,api,web,postgres,redis,scan-runner}
 
   # THE ONE SERVICE WITH THE CONTAINER SOCKET (W17-27).
   #

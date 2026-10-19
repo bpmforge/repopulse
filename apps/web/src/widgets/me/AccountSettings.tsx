@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { Button, ErrorNote, PageHeader } from '../../components/index.js';
 import { useUiStore } from '../../components/store/uiStore.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
 import { PERSONAS, type MeContext, type Persona } from '../org/contracts.js';
 import { PasswordChange } from '../auth/PasswordChange.js';
-import { signOutAndReload } from '../auth/contracts.js';
+import { signOutAndReload, signOutEverywhereAndReload } from '../auth/contracts.js';
 
 // Your own settings (W20-04, UX_TODO ADM-04).
 //
@@ -26,6 +27,10 @@ export function AccountSettings() {
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
   const { data: me } = useApiQuery<MeContext>(ME);
+  const [everywhere, setEverywhere] = useState<{ pending: boolean; error: Error | null }>({
+    pending: false,
+    error: null,
+  });
   const setPersona = useApiMutation<{ persona: Persona }, { persona: Persona; home: string }>(
     { endpoint: '/me/persona', method: 'PATCH' },
     { invalidate: [queryKeyFor(ME)] },
@@ -91,11 +96,30 @@ export function AccountSettings() {
         <h2 id="account-signout" className="text-base font-medium">
           Sign out
         </h2>
-        <div>
+        <div className="flex flex-wrap gap-2">
           <Button data-testid="account-signout" onClick={() => void signOutAndReload()}>
             Sign out of RepoPulse
           </Button>
+          {/* W20-10 (UX_TODO ADM-78): logout only ever ended THIS session, so a
+              browser left signed in elsewhere stayed in until it timed out. */}
+          <Button
+            data-testid="account-signout-everywhere"
+            disabled={everywhere.pending}
+            onClick={() => {
+              setEverywhere({ pending: true, error: null });
+              signOutEverywhereAndReload().catch((err: unknown) =>
+                setEverywhere({ pending: false, error: err as Error }),
+              );
+            }}
+          >
+            {everywhere.pending ? 'Signing out…' : 'Sign out everywhere'}
+          </Button>
         </div>
+        <p className="text-xs text-fg-muted">
+          Sign out everywhere ends every session of this account — other browsers, other devices and
+          this one.
+        </p>
+        <ErrorNote error={everywhere.error} testId="account-signout-everywhere-error" />
       </section>
     </div>
   );

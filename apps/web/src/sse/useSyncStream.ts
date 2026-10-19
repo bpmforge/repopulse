@@ -263,6 +263,8 @@ export function isDirtyQuery(
   if (typeof endpoint !== 'string') return false;
   if (endpoint.startsWith('/sync') && (dirty.org || dirty.repoIds.length > 0)) return true;
   if (dirty.org && (endpoint.startsWith('/org') || endpoint.startsWith('/metrics'))) return true;
+  // W20-10 (UX_TODO X-03): a sync that landed may have brought new findings.
+  if (dirty.org && endpoint === '/me/inbox') return true;
   const id = path?.id;
   return id !== undefined && dirty.repoIds.includes(Number(id));
 }

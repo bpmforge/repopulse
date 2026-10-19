@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import { PERSONAS, type MeContext, type Persona } from '../../widgets/org/contracts.js';
-import { signOutAndReload } from '../../widgets/auth/contracts.js';
+import { signOutAndReload, signOutEverywhereAndReload } from '../../widgets/auth/contracts.js';
+import { errorToast, useUiStore } from '../store/uiStore.js';
 
 // User menu (UX_SPEC §3.1 rail bottom). Its one job in W4-10 is making the
 // persona changeable, which §6 promises — a first-login question with no way to
@@ -20,6 +21,7 @@ const LABELS: Record<Persona, string> = {
 
 export function UserMenu() {
   const [open, setOpen] = useState(false);
+  const pushToasts = useUiStore((s) => s.pushToasts);
   const { data: me } = useApiQuery<MeContext>(ME);
   const setPersona = useApiMutation<{ persona: Persona }, { persona: Persona; home: string }>(
     { endpoint: '/me/persona', method: 'PATCH' },
@@ -99,6 +101,23 @@ export function UserMenu() {
             >
               <span aria-hidden="true" className="w-3" />
               Sign out
+            </button>
+            {/* W20-10 (UX_TODO ADM-78): every session of this account, not just
+                this browser's — for the laptop left signed in somewhere else. */}
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="user-menu-signout-everywhere"
+              className="flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg"
+              onClick={() => {
+                setOpen(false);
+                signOutEverywhereAndReload().catch((err: unknown) =>
+                  pushToasts([errorToast('signout-everywhere-err', err)]),
+                );
+              }}
+            >
+              <span aria-hidden="true" className="w-3" />
+              Sign out everywhere
             </button>
           </div>
         </div>

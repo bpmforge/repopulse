@@ -1,13 +1,13 @@
 import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { core, createDb, type Database } from '@repopulse/shared';
+import { core, createDb, read, type Database } from '@repopulse/shared';
 import { buildApp } from '../../../app.js';
 import { loginAs } from '../../../testing/login.js';
 import { HEARTBEAT_PREFIX, startWorkerHeartbeat } from '../../../workers/heartbeat.js';
-import type { SystemStatusResponse } from './index.js';
+import { BACKUP_STALE_MS, type SystemStatusResponse } from './index.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -142,7 +142,8 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
     expect(status).toBe(200);
     expect(new Date(body.checkedAt).toString()).not.toBe('Invalid Date');
     expect(body.components.map((c) => c.id).sort()).toEqual(
-      ['cache', 'database', 'forge', 'models', 'scanners', 'worker'].sort(),
+      // W20-10 (UX_TODO ADM-13, ADM-44): backups and disk space joined the list.
+      ['backups', 'cache', 'database', 'disk', 'forge', 'models', 'scanners', 'worker'].sort(),
     );
     for (const c of body.components) {
       expect(c.reason.length, `${c.id} has no reason`).toBeGreaterThan(10);
@@ -230,6 +231,58 @@ describeIfLiveInfra('GET /admin/system (W17-07)', () => {
     expect(aliveWorker?.lastSuccessAt).toBeTruthy();
 
     await hb.stop();
+  });
+
+  // W20-10 (UX_TODO ADM-13): the version, and whether a backup has been taken
+  // — read from the `ops.backup.taken` row deploy/backup.sh writes.
+  it('reports the release and the last recorded backup', async () => {
+    const backups = () =>
+      db
+        .delete(read.auditEvents)
+        .where(
+          and(
+            eq(read.auditEvents.workspaceId, workspaceId),
+            eq(read.auditEvents.event, 'ops.backup.taken'),
+          ),
+        );
+    await backups();
+    try {
+      const none = await getAs('w17-07-admin');
+      expect(none.body.about.version.length).toBeGreaterThan(0);
+      expect(none.body.about.lastBackupAt).toBeNull();
+      const row = none.body.components.find((c) => c.id === 'backups');
+      expect(row?.state).toBe('setup_needed');
+      expect(row?.reason).toContain('TOKEN_ENC_KEY');
+
+      await db.insert(read.auditEvents).values({
+        workspaceId,
+        event: 'ops.backup.taken',
+        detail: { key_fingerprint: 'abcd1234' },
+        occurredAt: new Date(Date.now() - BACKUP_STALE_MS - 60_000),
+      });
+      const stale = await getAs('w17-07-admin');
+      expect(stale.body.components.find((c) => c.id === 'backups')?.state).toBe('degraded');
+
+      await db.insert(read.auditEvents).values({
+        workspaceId,
+        event: 'ops.backup.taken',
+        detail: { key_fingerprint: 'beef5678' },
+      });
+      const fresh = await getAs('w17-07-admin');
+      expect(fresh.body.components.find((c) => c.id === 'backups')?.state).toBe('ready');
+      expect(fresh.body.about.backupKeyFingerprint).toBe('beef5678');
+      expect(fresh.body.about.lastBackupAt).not.toBeNull();
+    } finally {
+      await backups();
+    }
+  });
+
+  // W20-10 (UX_TODO ADM-44): a full disk was first noticed as every save failing.
+  it('measures disk space', async () => {
+    const { body } = await getAs('w17-07-admin');
+    const disk = body.components.find((c) => c.id === 'disk');
+    expect(['ready', 'degraded', 'unavailable', 'unknown']).toContain(disk?.state);
+    if (disk?.state !== 'unknown') expect(disk?.reason).toMatch(/free of/);
   });
 
   it('exposes no key, connection string or filesystem path', async () => {

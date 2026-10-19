@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { and, desc, eq } from 'drizzle-orm';
 import { auditLog, core, createDb, createLogger, facts, metricsRegistry } from '@repopulse/shared';
+import { installAuditStore } from '../lib/audit-store.js';
+import { outboundProxyNotice } from '../lib/outbound-proxy.js';
 import { credentials, workspace as workspaceModule } from '@repopulse/auth';
 import { QUEUE, createQueue, publishSyncEvent } from '@repopulse/ingest';
 import { createRedisConnection, type SyncStreamEvent } from '@repopulse/ingest';
@@ -95,6 +97,12 @@ async function main(): Promise<void> {
   if (!databaseUrl || !redisUrl) throw new Error('DATABASE_URL and REDIS_URL are required');
 
   const db = createDb(databaseUrl);
+  // W20-10 (UX_TODO X-04): the worker's audit events (scheduled AI passes,
+  // plan verifier transitions) reach Settings → Audit log too.
+  installAuditStore(db, (err) => log.warn({ err }, 'audit event not persisted'));
+  // W20-10 (UX_TODO INS-63): the worker makes most of the outbound calls.
+  const proxyNotice = outboundProxyNotice(process.env);
+  if (proxyNotice) log[proxyNotice.level](proxyNotice.message);
 
   // ONE gateway for the whole worker, built here and passed down. Null when no
   // Tier-2 host is configured, which is a supported deployment rather than a

@@ -2,10 +2,11 @@ import 'dotenv/config';
 import { createDb } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
 import { buildApp } from './app.js';
-import { local, oidc } from '@repopulse/auth';
+import { admission, local, oidc } from '@repopulse/auth';
 import { formatEnvProblems, validateEnv } from './routes/setup/env-registry.js';
 import { listenHost } from './lib/listen-host.js';
 import { parseTrustProxy } from './lib/trust-proxy.js';
+import { outboundProxyNotice } from './lib/outbound-proxy.js';
 
 // W11-02, acceptance 4: wrong or missing config fails HERE, with a message
 // naming every variable at fault — not a stack trace, and not a half-booted
@@ -72,6 +73,8 @@ const app = buildApp({
       }
     : {}),
   loginRedirectUrl: `${publicBaseUrl}/`,
+  // W20-10 (UX_TODO INS-50): SSO_ALLOWED_* — empty means anyone may join, as before.
+  admission: admission.admissionPolicyFromEnv(process.env),
   // Throws here if OIDC is half-configured — deliberately, because the
   // alternative is discovering it at the callback, after a user has already
   // authenticated with their IdP.
@@ -87,6 +90,11 @@ const bootstrap = await local.ensureBootstrapAdmin(createDb(databaseUrl), {
   password: process.env.ADMIN_PASSWORD,
 });
 app.log.info({ bootstrap: bootstrap.status }, 'local admin bootstrap');
+
+// W20-10 (UX_TODO INS-63): a proxy Node's fetch would silently ignore is said
+// here, not discovered later as a forge connection that times out.
+const proxyNotice = outboundProxyNotice(process.env);
+if (proxyNotice) app.log[proxyNotice.level](proxyNotice.message);
 
 // 3300, not 3000: 3000 is what every Node project defaults to, and sharing a
 // machine with one more of them is enough to lose an afternoon. See

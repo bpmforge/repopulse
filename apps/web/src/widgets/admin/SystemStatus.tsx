@@ -25,6 +25,12 @@ export interface SystemStatusResponse {
   checkedAt: string;
   overall: ComponentState;
   components: SystemComponent[];
+  /** W20-10 (UX_TODO ADM-13). Optional: an older API omits it. */
+  about?: {
+    version: string;
+    lastBackupAt: string | null;
+    backupKeyFingerprint: string | null;
+  };
 }
 
 /**
@@ -90,6 +96,15 @@ export function SystemStatus() {
             <p className="text-xs text-fg-muted">
               Checked {relative(data.checkedAt)}
               {isFetching ? ' · refreshing' : ''}
+              {/* W20-10 (UX_TODO ADM-13): which release, before following an
+                  upgrade, and when the last backup was recorded. */}
+              {data.about ? (
+                <span data-testid="system-status-about">
+                  {' '}
+                  · RepoPulse <span className="font-mono">{data.about.version}</span> · last backup{' '}
+                  {relative(data.about.lastBackupAt)}
+                </span>
+              ) : null}
             </p>
             <Button size="sm" onClick={() => void refetch()} data-testid="system-status-refresh">
               Refresh
