@@ -80,6 +80,26 @@ describeIfLiveInfra('auth routes E2E against a mocked GitHub (W1-03)', () => {
     await db.$client.end();
   });
 
+  it('issues a new session id on sign-in rather than authenticating the cookie it arrived with', async () => {
+    // Session fixation: a session id the browser already held (one an attacker
+    // could have planted) must not be the one that becomes signed in.
+    const signIn = async (cookies: Record<string, string>) => {
+      const loginRes = await app.inject({ method: 'GET', url: '/auth/login' });
+      const state = new URL(loginRes.headers.location as string).searchParams.get('state');
+      const stateCookie = loginRes.cookies.find((c) => c.name === 'oauth_state');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/callback',
+        query: { code: 'mock-code', state: state as string },
+        cookies: { ...cookies, oauth_state: stateCookie!.value },
+      });
+      return res.cookies.find((c) => c.name === 'repopulse_sid')!.value;
+    };
+    const first = await signIn({});
+    const second = await signIn({ repopulse_sid: first });
+    expect(second).not.toBe(first);
+  });
+
   it('completes the OAuth round trip to an authenticated session, then /me, then logout revokes it', async () => {
     // 1. GET /auth/login redirects to GitHub's authorize URL and sets a
     // signed, httpOnly state cookie.

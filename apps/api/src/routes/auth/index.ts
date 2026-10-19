@@ -190,6 +190,11 @@ async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions): Promis
 
       const user = await oauth.findOrCreateUser(opts.db, identity);
 
+      // New session id on sign-in, as local login does: a cookie the browser
+      // arrived with (possibly one an attacker planted) must not become the
+      // authenticated session. The OAuth state rides in its own cookies, so
+      // nothing in the old session is needed past this point.
+      await request.session.regenerate();
       request.session.set('userId', user.id);
       request.session.set('createdAt', Date.now());
       await request.session.save();
