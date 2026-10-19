@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, read, security, type Database } from '@repopulse/shared';
 import { canTransition, falsePositiveRate, type FindingStatus } from '@repopulse/insights';
@@ -474,6 +474,15 @@ interface ListQuery {
   risk_band?: string;
   rule_id?: string;
   experimental?: string;
+  /** W20-13 (FND-20): free text over title, file, CVE id, rule id. */
+  q?: string;
+  /** W20-13 (FND-46): the findings of one attack chain. */
+  chain_id?: string;
+}
+
+/** `%` and `_` in a search are literal text, not LIKE wildcards. */
+export function likeContains(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
 /**
@@ -481,7 +490,7 @@ interface ListQuery {
  * select exactly the rows the list counts in `total`, or "select all 240
  * matching" would act on a different 240.
  */
-function listFilters(db: Database, workspaceId: number, q: ListQuery) {
+export function listFilters(db: Database, workspaceId: number, q: ListQuery) {
   const filters = [eq(read.findings.workspaceId, workspaceId)];
   if (q.dimension && DIMENSIONS.includes(q.dimension as (typeof DIMENSIONS)[number])) {
     filters.push(eq(read.findings.dimension, q.dimension));
@@ -538,6 +547,7 @@ function listFilters(db: Database, workspaceId: number, q: ListQuery) {
   if (q.scanner_key) filters.push(eq(read.findings.scannerKey, q.scanner_key));
   if (q.cve_id) filters.push(eq(read.findings.cveId, q.cve_id));
   if (q.in_chain === 'true') filters.push(isNotNull(read.findings.chainId));
+  if (q.chain_id) filters.push(eq(read.findings.chainId, q.chain_id));
   if (q.risk_band && ['act', 'schedule', 'track'].includes(q.risk_band)) {
     filters.push(eq(read.findings.riskBand, q.risk_band));
   }
@@ -549,6 +559,22 @@ function listFilters(db: Database, workspaceId: number, q: ListQuery) {
     // it. Filtering on the payload means this facet works the day W8-06
     // lands and returns nothing — correctly — until then.
     filters.push(sql`${read.findings.yields} ->> 'kev' = 'true'`);
+  }
+
+  // W20-13 (UX_TODO FND-20): "find the lodash one" without paging. Case-blind
+  // substring match on the fields a person remembers a finding by; capped so
+  // a pasted wall of text is not a query plan.
+  const text = typeof q.q === 'string' ? q.q.trim().slice(0, 200) : '';
+  if (text) {
+    const pattern = likeContains(text);
+    filters.push(
+      or(
+        ilike(read.findings.title, pattern),
+        ilike(read.findings.file, pattern),
+        ilike(read.findings.cveId, pattern),
+        ilike(read.findings.ruleId, pattern),
+      )!,
+    );
   }
 
   // SHADOW FINDINGS ARE NEVER MIXED IN SILENTLY (W18-29). A candidate rule's
@@ -601,6 +627,10 @@ export default async function findingsRoutes(
       rule_id?: string;
       /** W18-29: 'exclude' (default) | 'include' | 'only' — shadow-mode findings. */
       experimental?: string;
+      /** W20-13: free-text search (title, file, CVE id, rule id). */
+      q?: string;
+      /** W20-13: one attack chain's findings. */
+      chain_id?: string;
     };
   }>('/findings', async (request, reply) => {
     const workspaceId = request.workspace?.id;
@@ -775,6 +805,8 @@ export default async function findingsRoutes(
       false_positive_rate: fp.rate,
       false_positive_count: fp.dismissedFalsePositive,
       total: fp.total,
+      // W20-13 (FND-71): the rate's denominator, findings a person has judged.
+      triaged: fp.triaged,
       // rate === null means nothing has been reviewed yet. Sent through as null
       // rather than 0 so the UI can say "no data" instead of implying a
       // flawless model (FR-INSIGHTS-1).

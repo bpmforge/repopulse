@@ -10,6 +10,7 @@ import {
 } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
 import { fileForgeUrl, readRepoForge } from '../../lib/forge-links.js';
+import { fileHotspotHistory } from './hotspot-history.js';
 
 // File detail (FR-API-5, API_DESIGN §2): churn series + owners + hotspot
 // history for one path. Path can contain slashes → wildcard route param.
@@ -162,13 +163,21 @@ export default async function filesRoutes(
 
     // Hotspot history: M2's snapshot series, so the sparkline plots the same
     // numbers the repo screen ranks by rather than a second computation.
-    const hotspotHistory = await readMetricTrend(db, {
-      workspaceId,
-      repoId,
-      metricKey: 'M2',
-      window: '30d',
-      limit: 26,
-    });
+    //
+    // W20-13: the snapshot's scalar is the repo's TOP file, so plotting it here
+    // showed another file's history under this file's name. Each snapshot now
+    // carries per-file scores in dims.files; only points that name this path
+    // are plotted, and a snapshot without it is a gap, never a borrowed value.
+    const hotspotHistory = fileHotspotHistory(
+      await readMetricTrend(db, {
+        workspaceId,
+        repoId,
+        metricKey: 'M2',
+        window: '30d',
+        limit: 26,
+      }),
+      path,
+    );
 
     // PRs that touched this file, read from pr_files — the per-PR file list
     // the enrichment lane writes. Matched on the CURRENT path only: pr_files
@@ -233,9 +242,7 @@ export default async function filesRoutes(
         lines_changed: o.lines ?? 0,
         share: totalLines > 0 ? (o.lines ?? 0) / totalLines : 0,
       })),
-      hotspot_history: (noCommits ? [] : hotspotHistory)
-        .map((h) => ({ computed_at: h.computedAt, score: Number(h.value) }))
-        .reverse(),
+      hotspot_history: noCommits ? [] : hotspotHistory.reverse(),
       prs: prRows.map((p) => ({
         number: p.number,
         title: p.title,

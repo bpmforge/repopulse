@@ -4,11 +4,16 @@ import { WidgetFrame, frameState } from '../../../components/index.js';
 import { useApiQuery, queryKeyFor } from '../../../api/useApiQuery.js';
 import { FindingDetail } from '../../../widgets/findings/FindingDetail.js';
 import { FindingSeverityBadge } from '../../../widgets/findings/FindingSeverity.js';
+import { ShadowBadge } from '../../../widgets/findings/ShadowBadge.js';
+import { useOverlayLayout } from '../../../widgets/findings/layout.js';
+import { trapTab } from '../../../widgets/findings/focusTrap.js';
 import {
   DEFAULT_STATUS_FILTER,
   STATUS_FILTERS,
   VERIFY_LABEL,
+  dimensionLabel,
   locationOf,
+  statusLabel,
   type Finding,
   type FindingPage,
 } from '../../../widgets/findings/contracts.js';
@@ -40,6 +45,7 @@ const STATUSES = STATUS_FILTERS.map((s) => s.value);
 function validateFindingsSearch(search: Record<string, unknown>): {
   finding?: number;
   status?: string;
+  experimental?: 'include';
 } {
   const raw = search.finding;
   const id = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
@@ -55,12 +61,14 @@ function validateFindingsSearch(search: Record<string, unknown>): {
   return {
     ...(Number.isInteger(id) && id > 0 ? { finding: id } : {}),
     ...(status ? { status } : {}),
+    // W20-13 (FND-37): shadow-rule findings, shown marked, on request.
+    ...(search.experimental === 'include' ? { experimental: 'include' as const } : {}),
   };
 }
 
 /** A status filter in words: `active` reads as "still to fix". */
 function statusWords(status: string): string {
-  return status === DEFAULT_STATUS_FILTER ? 'still to fix' : status.replace('_', ' ');
+  return status === DEFAULT_STATUS_FILTER ? 'still to fix' : statusLabel(status).toLowerCase();
 }
 
 export const Route = createFileRoute('/repos/$repoId/findings')({
@@ -76,6 +84,15 @@ function RepoFindings() {
   const search = Route.useSearch();
   const openId = search.finding ?? null;
   const status = search.status === 'any' ? '' : (search.status ?? DEFAULT_STATUS_FILTER);
+  const withShadow = search.experimental === 'include';
+  const setShadow = (on: boolean) => {
+    void navigate({
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        experimental: on ? 'include' : undefined,
+      }),
+    });
+  };
   const setOpenId = (id: number | null) => {
     void navigate({
       search: (prev: Record<string, unknown>) => ({
@@ -94,7 +111,11 @@ function RepoFindings() {
     });
   };
 
-  const filterQuery = { repo_id: repoId, ...(status ? { status } : {}) };
+  const filterQuery = {
+    repo_id: repoId,
+    ...(status ? { status } : {}),
+    ...(withShadow ? { experimental: 'include' } : {}),
+  };
   // Keyset paging, the explorer's stack (W17-22): Next pushes the page's
   // cursor, Previous pops, and a status change is a new list.
   const filterKey = JSON.stringify(filterQuery);
@@ -119,15 +140,33 @@ function RepoFindings() {
     isEmpty: data !== undefined && items.length === 0,
   });
 
+  // W20-13 (UX_TODO FND-36): on a phone the panel covers the list as a
+  // dialog, as on Reviews, instead of rendering below a 44rem-wide table.
+  const overlay = useOverlayLayout();
+
   // Scroll the panel into view, for the reason W16-05 records: it renders below
   // the table, so on a laptop a click on a finding looks like it did nothing.
+  // As an overlay it takes focus instead.
   const detailRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (openId === null) return;
-    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [openId]);
+    if (overlay) detailRef.current?.focus();
+    else detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [openId, overlay]);
 
-  const openFinding = items.find((f) => f.id === openId);
+  // A `?finding=` link to a finding not on this page is fetched by id
+  // (FND-36), as the explorer does; it rendered nothing before.
+  const inList = openId !== null ? items.find((f) => f.id === openId) : undefined;
+  const fetched = useApiQuery<Finding>(
+    { endpoint: '/findings/{id}', path: { id: String(openId ?? '') } },
+    { enabled: openId !== null && !inList && !isLoading },
+  );
+  const fetchedNow =
+    fetched.isPlaceholderData || fetched.data?.repo.id !== Number(repoId)
+      ? undefined
+      : fetched.data;
+  const openFinding = inList ?? (openId !== null ? fetchedNow : undefined);
+  const shadowHidden = data?.shadow_hidden ?? 0;
 
   return (
     <div className="flex flex-col gap-4" data-testid="repo-findings">
@@ -164,6 +203,41 @@ function RepoFindings() {
           Open in Reviews, with every filter
         </Link>
       </div>
+      {/* W20-13 (UX_TODO FND-37): never hidden silently, as on Reviews. */}
+      {!withShadow && shadowHidden > 0 && (
+        <p
+          className="flex flex-wrap items-center gap-2 text-xs text-fg-muted"
+          data-testid="repo-shadow-hidden-note"
+          role="status"
+        >
+          <ShadowBadge />
+          <span>
+            {shadowHidden} {shadowHidden === 1 ? 'finding' : 'findings'} from rules still in shadow{' '}
+            {shadowHidden === 1 ? 'is' : 'are'} not listed.
+          </span>
+          <button
+            type="button"
+            className="min-h-6 text-fg underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="repo-shadow-show"
+            onClick={() => setShadow(true)}
+          >
+            Show them, marked
+          </button>
+        </p>
+      )}
+      {withShadow && (
+        <p className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+          <span>Shadow-rule findings are listed, marked.</span>
+          <button
+            type="button"
+            className="min-h-6 text-fg underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="repo-shadow-hide"
+            onClick={() => setShadow(false)}
+          >
+            Hide them
+          </button>
+        </p>
+      )}
       <WidgetFrame
         title={
           typeof data?.total === 'number'
@@ -219,11 +293,12 @@ function RepoFindings() {
                     >
                       {f.title}
                     </button>
+                    {f.experimental ? <ShadowBadge className="ml-2" /> : null}
                   </th>
-                  <td className="py-1 text-xs">{f.dimension.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs">{dimensionLabel(f.dimension)}</td>
                   {/* locationOf, not a bare `file:line` — W16-40. */}
                   <td className="py-1 font-mono text-xs">{locationOf(f)}</td>
-                  <td className="py-1 text-xs">{f.status.replace('_', ' ')}</td>
+                  <td className="py-1 text-xs">{statusLabel(f.status)}</td>
                   <td className="py-1 text-xs whitespace-nowrap">
                     {VERIFY_LABEL[f.verify_status]}
                   </td>
@@ -261,18 +336,46 @@ function RepoFindings() {
         )}
       </WidgetFrame>
 
-      {openId !== null && openFinding && (
-        <div ref={detailRef}>
-          <FindingDetail
-            // Remounted per finding (W20-03): a note typed for one finding must
-            // not carry over to the next one opened.
-            key={openFinding.id}
-            finding={openFinding}
-            onClose={() => setOpenId(null)}
-            invalidate={[queryKeyFor(listDescriptor)]}
-          />
-        </div>
-      )}
+      {openId !== null &&
+        openFinding &&
+        (() => {
+          const panel = (
+            <FindingDetail
+              // Remounted per finding (W20-03): a note typed for one finding
+              // must not carry over to the next one opened.
+              key={openFinding.id}
+              finding={openFinding}
+              onClose={() => setOpenId(null)}
+              invalidate={[queryKeyFor(listDescriptor)]}
+            />
+          );
+          return overlay ? (
+            <div
+              ref={detailRef}
+              className="fixed inset-0 z-40 overflow-auto bg-bg/95 p-4 backdrop-blur"
+              role="dialog"
+              aria-modal="true"
+              aria-label={openFinding.title}
+              tabIndex={-1}
+              data-testid="repo-finding-overlay"
+              onKeyDown={trapTab}
+            >
+              <div className="mb-2 flex justify-end">
+                <button
+                  type="button"
+                  className="text-xs text-fg-muted underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  data-testid="repo-finding-overlay-close"
+                  onClick={() => setOpenId(null)}
+                >
+                  Back to the list
+                </button>
+              </div>
+              {panel}
+            </div>
+          ) : (
+            <div ref={detailRef}>{panel}</div>
+          );
+        })()}
     </div>
   );
 }

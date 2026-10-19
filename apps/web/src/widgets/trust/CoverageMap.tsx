@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { RuleFindingsLink, RuleRegistryLink } from '../rules/RuleFindingsLink.js';
 import {
   isCoverageMap,
   SCANNER_GAP_LABEL,
@@ -197,13 +198,18 @@ export function CoverageMap({ repoId }: { repoId: string | number }) {
               <ul className="mt-1 flex flex-col gap-0.5 text-xs">
                 {items.map((r) => (
                   <li key={r.ruleId} data-testid={`coverage-shadow-${r.ruleId}`}>
-                    <span className="font-mono">{r.ruleId}</span>{' '}
+                    {/* W20-13 (FND-40): to its findings, and to where it is
+                        promoted. */}
+                    <RuleFindingsLink ruleId={r.ruleId} />{' '}
                     <span className="text-fg-muted">
                       · {r.openShadowFindings} open shadow finding
                       {r.openShadowFindings === 1 ? '' : 's'} here · from {r.source}
                     </span>
                   </li>
                 ))}
+                <li className="text-fg-muted">
+                  Promote or retire them in <RuleRegistryLink />.
+                </li>
               </ul>
             )}
           </Section>

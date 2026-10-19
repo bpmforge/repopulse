@@ -10608,7 +10608,7 @@
           "Every fix has a test; lint, typecheck and the web suite are green"
         ],
         "points": 8,
-        "status": "in_progress",
+        "status": "done",
         "notes": [
           "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop), findings batch after W20-03.",
           "Fixed: FND-05, FND-07, FND-12 (remainder: select all N matching via GET /findings/ids, capped at 1000), FND-17, FND-18, FND-48, FND-49, FND-50, FND-56, FND-57, FND-58, FND-59, FND-65, FND-66.",
@@ -10759,6 +10759,72 @@
           "Partial, left open: AI-29 (repository, destination, outcome, initiator columns and caption done; role and pass are not stored in egress_audit, needs a schema change). AI-32 (link to the findings list done; AI marker on list rows belongs to the findings area). AI-40 (15-minute 'Change my answer' done; the optional 'why wrong' note needs a column). AI-43 (VEX justification in words done; 'Record this VEX statement' is FND-05, VEX area). AI-64 (stalled-pending alerts and elapsed time done; calls used are not recorded mid-run). AI-80 (repository filter, cursor paging and total done; no date range or CSV export).",
           "P1 partials, left open: AI-73 (the status line says the check runs in the API container, INSTALL says so; running the check in the worker is not done). AI-85 (supported languages listed beside the paths box and files-read count on each run; skipped-file counts and the exact refusal reason need loader changes in packages/security).",
           "Skipped: AI-20 (model list after Test needs a /v1/models fetch in the test route). AI-31 (path, PR and commit pickers: a feature). AI-33 (cancelling a pass needs worker cooperation). AI-38 (skip notifications are cross-flow). AI-48 (governance of RepoPulse's own AI use: a feature). AI-63 (last success/error per connection needs gateway writes and a column). AI-77 (workspace schedules list and pause-all: a feature). AI-78 (env fallback lives in the gateway, ops). P1 AI-08 (cost and price entry), AI-14 (second opinion), AI-74 (deploy overlay in the bundle and up.sh: ops)."
+        ]
+      },
+      {
+        "id": "W20-13",
+        "title": "Findings P2 polish: Reviews, panel, triage, Security tab",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/src/routes/findings/**",
+          "apps/web/src/routes/repos/$repoId/findings.tsx",
+          "apps/web/src/routes/repos/$repoId/security.tsx",
+          "apps/web/src/routes/repos/$repoId/security.test.tsx",
+          "apps/web/src/routes/admin/rules.tsx",
+          "apps/web/src/widgets/findings/**",
+          "apps/web/src/widgets/security/**",
+          "apps/web/src/widgets/rules/RuleFindingsLink.tsx",
+          "apps/web/src/widgets/trust/CoverageMap.tsx",
+          "apps/web/src/widgets/trust/RulePrecision.tsx",
+          "apps/web/src/widgets/file/FileDetail.tsx",
+          "apps/web/src/widgets/pr/PrDetail.tsx",
+          "apps/api/src/routes/findings/**",
+          "apps/api/src/routes/security/index.ts",
+          "apps/api/src/routes/files/**",
+          "apps/api/src/routes/repos/index.test.ts",
+          "packages/insights/src/findings/store.ts",
+          "packages/insights/src/findings/store-sweep.integration.test.ts",
+          "packages/metrics/src/snapshots/compute.ts",
+          "docs/work/UX_TODO.md",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-08"
+        ],
+        "acceptance": [
+          "UX_TODO FND-19..FND-21, FND-64: Reviews has free-text search (API q over title, file, CVE id and rule id), KEV, risk band, confidence and sort filters in the URL, Risk and Age columns, and '51-100 of N matching'",
+          "UX_TODO FND-23..FND-27, FND-35, FND-72, FND-74: the finding panel shows repo, CVE, KEV, risk and dates; statuses, dimensions and dismiss reasons read as words; the triage queue shows locationOf, shadow and forge link, and a decision it made; a by-id finding refreshes after a change",
+          "UX_TODO FND-29..FND-33, FND-60, FND-73: the Security tab says who may scan before pressing, re-runs one scanner, sorts problem scanners first, lists findings under Coverage, polls in the background, says when chains ran and what open_total counts",
+          "Bugs: an empty persistFindings pass with no scanner key or dimensions closes nothing; the file page's hotspot history is the viewed file's, from per-file scores on the M2 snapshot",
+          "Every fix has a test; lint, typecheck, the web suite and the changed packages' suites are green"
+        ],
+        "points": 8,
+        "status": "done",
+        "notes": [
+          "Requested 2026-10-19: the open FND-* items in UX_TODO after W20-08 (P1 first, then P2, then cheap P3), plus two bugs.",
+          "Fixed: FND-19, FND-20, FND-21, FND-23, FND-24, FND-26, FND-27, FND-29, FND-30, FND-31, FND-32, FND-33, FND-34, FND-35, FND-36, FND-37, FND-38, FND-39, FND-40, FND-41, FND-42, FND-44, FND-45 (end-of-page summary from W20-03 verified), FND-46, FND-54, FND-60, FND-64, FND-67 (W20-03 key remount verified on both screens), FND-71, FND-72, FND-73, FND-74.",
+          "Partial FND-22: skipped rows are summarised by reason with a disclosure listing ids; 'Show these' as a Reviews filter needs an id-list filter on GET /findings.",
+          "Partial FND-25: dismiss reasons have plain labels and help text; a required review date for accepted risk needs a schema column and a re-surfacing job (product decision).",
+          "Partial FND-28: CVE rows link to the finding and show reachability; 'Fixed in' is not stored (the fix versions live only in the recommendation sentence).",
+          "Partial FND-51: the panel shows first and last seen; naming the scan and commit that stopped seeing it, and 'Re-scan to verify', need scan-run ids on finding events.",
+          "Partial FND-70: the panel links to RepoPulse's file page; the findings API sends no PR number, so the PR link is not there.",
+          "Skipped FND-03 remainder (filters in Saved Views): the views schema belongs to the dashboards area.",
+          "Skipped FND-43 (stacked cards and a filter disclosure on phones): a layout redesign, not cheap.",
+          "Skipped FND-47 (assignee): new feature needing a product decision.",
+          "Skipped FND-52 (Runs column): the schedule is an environment variable the API does not expose; needs an API field.",
+          "Skipped FND-53 (mute a pack rule per workspace): new feature needing a product decision.",
+          "Skipped FND-55 (Overview security tile): dashboards area; needs a multi-dimension filter and a since-yesterday count.",
+          "Skipped FND-61 (record a secret as rotated): new lifecycle state, product decision.",
+          "Skipped FND-62 (partial image scan state): scanner run-state change in packages/security, outside this batch.",
+          "Skipped FND-63 (GitHub code-scanning dismissals): forge sync behaviour and write-back, product decision.",
+          "Skipped FND-68 (per-run results after a manual scan): needs per-run created/closed counts from the API.",
+          "Bug fixed: persistFindings with zero findings, no sweepScannerKey and no sweepDimensions dropped its dimension filter and auto-closed every other pass's findings on the files it reviewed; it now closes nothing (store-sweep regression test).",
+          "Bug fixed: the file page's Hotspot score history plotted M2's scalar (the repo's top file). M2 snapshots now carry dims.files ([{path, score}], top 500, highest first) and the file route plots only points naming the viewed path; older snapshots without it are gaps, so the chart stays empty until two new snapshots exist.",
+          "Found and fixed with it: computeHotspots returns paths in first-touch order, so M2's value (hotspots[0]) was an arbitrary file rather than the top one; compute now sorts by score. The risk repricer already read dims.files and was getting nothing.",
+          "FND-71: findings stats now divide false positives by findings a person triaged (confirmed, dismissed, won't fix, or any human status event) and return `triaged`.",
+          "API additions: GET /findings and /findings/ids take q (ILIKE, % and _ escaped) and chain_id; /repos/:id/security returns security_open_total, cves[].reachability and a real chains_computed. openapi.snapshot.json was already stale and was not regenerated."
         ]
       }
   ]

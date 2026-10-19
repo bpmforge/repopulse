@@ -2,11 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation } from '../../api/useApiQuery.js';
 import { EvidenceCode } from './EvidenceCode.js';
+import { ShadowBadge } from './ShadowBadge.js';
+import { trapTab } from './focusTrap.js';
 import {
+  DISMISS_REASON_LABEL,
   DISMISS_REASONS,
   SEVERITY_LABEL,
   VERIFY_LABEL,
+  dimensionLabel,
   isDismissReason,
+  locationOf,
+  statusLabel,
   type DismissReason,
   type Finding,
 } from './contracts.js';
@@ -15,7 +21,12 @@ import {
 //
 // Fully keyboard operable is the requirement (NFR-5), and it is also the point:
 // triaging forty findings with a mouse is a job nobody finishes. j/k move,
-// c/d/e act, Esc leaves.
+// c/d act (1–4 pick the dismiss reason), Esc leaves. W20-13 (FND-44): the
+// comment promised an `e` key that never existed.
+//
+// W20-13 (FND-34): single-letter keys with no modifier collide with screen
+// reader quick keys (WCAG 2.1.4), so they can be switched off from the queue
+// itself; focus starts on the heading and Tab stays inside the dialog.
 //
 // W20-03 (UX_TODO FND-08/09/10): the note started prefilled with boilerplate
 // and `d` always dismissed as false_positive, so every queue decision carried
@@ -26,12 +37,23 @@ import {
 
 type Decision = 'confirmed' | 'dismissed';
 
-const REASON_LABEL: Record<DismissReason, string> = {
-  false_positive: 'False positive',
-  accepted_risk: 'Accepted risk',
-  not_applicable: 'Not applicable',
-  duplicate: 'Duplicate',
-};
+const SHORTCUTS_KEY = 'repopulse.triage.shortcuts';
+
+function readShortcutsPref(): boolean {
+  try {
+    return window.localStorage.getItem(SHORTCUTS_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function writeShortcutsPref(on: boolean): void {
+  try {
+    window.localStorage.setItem(SHORTCUTS_KEY, on ? 'on' : 'off');
+  } catch {
+    // A blocked store only means the choice is not remembered.
+  }
+}
 
 const BUTTON =
   'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
@@ -96,6 +118,16 @@ export function TriageQueue({
    */
   const [inFlight, setInFlight] = useState<{ id: number; status: Decision } | null>(null);
   const [refused, setRefused] = useState<{ id: number; error: unknown } | null>(null);
+  /**
+   * Decisions the server accepted this session, by finding (W20-13, UX_TODO
+   * FND-72). The queue is a frozen copy of the list, so going back to a
+   * finding just confirmed still read "open", and pressing c again earned a
+   * 409. The status shown is the server's answer to OUR request, never the
+   * key pressed.
+   */
+  const [decided, setDecided] = useState<Record<number, Decision>>({});
+  const [shortcuts, setShortcuts] = useState(readShortcutsPref);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   const current = queue[index];
   const last = queue.length - 1;
@@ -145,6 +177,10 @@ export function TriageQueue({
     // pending (W17-23) — a second `c` would be a duplicate write. Moving on
     // and deciding the next finding is not, and must not wait.
     if (inFlight?.id === current.id && inFlight.status === status) return;
+    if (decided[current.id] === status) {
+      setHint(`Already ${status} in this session.`);
+      return;
+    }
     const id = current.id;
     const at = index;
     const chosen = reason;
@@ -154,6 +190,7 @@ export function TriageQueue({
       status === 'confirmed' ? { status, note } : { status, note, dismiss_reason: chosen },
       {
         onSuccess: () => {
+          setDecided((m) => ({ ...m, [id]: status }));
           setDone((d) => ({
             ...d,
             [status]: d[status] + 1,
@@ -173,8 +210,13 @@ export function TriageQueue({
   }
 
   // The latest handlers, for the one window listener below.
-  const keys = useRef({ decide, goNext, goPrev, onExit });
-  keys.current = { decide, goNext, goPrev, onExit };
+  const keys = useRef({ decide, goNext, goPrev, onExit, shortcuts });
+  keys.current = { decide, goNext, goPrev, onExit, shortcuts };
+
+  // Focus starts inside the dialog, on what it is about (FND-34).
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [index, finished]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -190,6 +232,9 @@ export function TriageQueue({
       }
       const k = keys.current;
       if (e.key === 'Escape') k.onExit();
+      // Escape always works; the letters only while shortcuts are on, and
+      // never with a modifier held (that is someone else's shortcut).
+      if (!k.shortcuts || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'j') k.goNext();
       if (e.key === 'k') k.goPrev();
       if (e.key === 'c') k.decide('confirmed');
@@ -233,9 +278,12 @@ export function TriageQueue({
         role="dialog"
         aria-modal="true"
         aria-label="Findings triage queue"
+        onKeyDown={trapTab}
       >
         <div className="flex max-w-md flex-col items-center gap-3 text-center">
-          <h2 className="text-lg font-semibold">End of this page</h2>
+          <h2 ref={headingRef} tabIndex={-1} className="text-lg font-semibold outline-none">
+            End of this page
+          </h2>
           <p className="text-sm" data-testid="triage-summary">
             {summary}
           </p>
@@ -269,6 +317,7 @@ export function TriageQueue({
 
   const pendingHere = inFlight?.id === current.id ? inFlight.status : null;
   const noteMissing = note.trim() === '';
+  const decidedHere = decided[current.id];
 
   return (
     <div
@@ -277,9 +326,13 @@ export function TriageQueue({
       role="dialog"
       aria-modal="true"
       aria-label="Findings triage queue"
+      onKeyDown={trapTab}
     >
       <div className="flex items-baseline gap-3">
-        <h2 className="flex-1 text-lg font-semibold">{current.title}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="flex-1 text-lg font-semibold outline-none">
+          {current.title}
+          {current.experimental ? <ShadowBadge className="ml-2" /> : null}
+        </h2>
         <span className="text-xs text-fg-muted" data-testid="triage-position">
           {index + 1} of {queue.length}
         </span>
@@ -287,13 +340,30 @@ export function TriageQueue({
 
       <div className="flex flex-wrap gap-3 text-xs text-fg-muted">
         <span>{SEVERITY_LABEL[current.severity]}</span>
-        <span>{current.dimension.replace('_', ' ')}</span>
+        <span>{dimensionLabel(current.dimension)}</span>
         <span>{VERIFY_LABEL[current.verify_status]}</span>
-        <span className="font-mono">
-          {current.file}:{current.line_range[0]}
+        {/* W20-13 (FND-35): a repository-level CVE read "null:null". */}
+        <span className="font-mono" data-testid="triage-location">
+          {current.forge ? (
+            <a
+              href={current.forge.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              data-testid="triage-forge-link"
+            >
+              {locationOf(current)}
+            </a>
+          ) : (
+            locationOf(current)
+          )}
         </span>
-        {/* The server's status, never the key just pressed (W17-23). */}
-        <span data-testid="triage-status">status {current.status.replace('_', ' ')}</span>
+        {/* The server's status, never the key just pressed (W17-23); after a
+            decision here, the server's answer to it (FND-72). */}
+        <span data-testid="triage-status">
+          Status: {statusLabel(decidedHere ?? current.status)}
+          {decidedHere ? ' · decided this session' : ''}
+        </span>
       </div>
 
       {/* Evidence inline — the whole reason a stepper beats a list: the thing
@@ -330,7 +400,7 @@ export function TriageQueue({
             <option value="">Choose a reason…</option>
             {DISMISS_REASONS.map((r, i) => (
               <option key={r} value={r}>
-                {i + 1}. {REASON_LABEL[r]}
+                {i + 1}. {DISMISS_REASON_LABEL[r].label}
               </option>
             ))}
           </select>
@@ -357,7 +427,7 @@ export function TriageQueue({
           type="button"
           className={BUTTON}
           data-testid="triage-confirm"
-          disabled={noteMissing || pendingHere === 'confirmed'}
+          disabled={noteMissing || pendingHere === 'confirmed' || decidedHere === 'confirmed'}
           onClick={() => decide('confirmed')}
         >
           Confirm (c)
@@ -366,7 +436,12 @@ export function TriageQueue({
           type="button"
           className={BUTTON}
           data-testid="triage-dismiss"
-          disabled={noteMissing || reason === '' || pendingHere === 'dismissed'}
+          disabled={
+            noteMissing ||
+            reason === '' ||
+            pendingHere === 'dismissed' ||
+            decidedHere === 'dismissed'
+          }
           onClick={() => decide('dismissed')}
         >
           Dismiss (d)
@@ -377,6 +452,18 @@ export function TriageQueue({
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            data-testid="triage-shortcuts"
+            checked={shortcuts}
+            onChange={(e) => {
+              setShortcuts(e.target.checked);
+              writeShortcutsPref(e.target.checked);
+            }}
+          />
+          Single-key shortcuts
+        </label>
         <kbd className="rounded border border-border px-1">j</kbd> next
         <kbd className="rounded border border-border px-1">k</kbd> previous
         <kbd className="rounded border border-border px-1">c</kbd> confirm

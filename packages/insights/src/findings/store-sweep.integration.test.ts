@@ -2,7 +2,12 @@ import 'dotenv/config';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { core, createDb, read, security, type Database } from '@repopulse/shared';
-import { persistFindings, type IncomingFinding, type PersistParams } from './store.js';
+import {
+  falsePositiveRate,
+  persistFindings,
+  type IncomingFinding,
+  type PersistParams,
+} from './store.js';
 
 // The full-run sweep (W20-08, UX_TODO FND-48 / FND-58).
 //
@@ -219,6 +224,33 @@ describeIfLiveInfra('persistFindings full-run sweep (W20-08)', () => {
       fullSweep: { treeFiles: ['src/other.ts'], repoLevel: true },
     });
     expect(await statusOf('src/a.ts')).toBe('open');
+  });
+
+  it('an empty pass with no scanner key or dimensions closes nothing (W20-13)', async () => {
+    await run([hit('src/a.ts'), hit('src/a.ts', 'r.two', { dimension: 'security' })]);
+    const r = await run([], { sweepScannerKey: null, reviewedFiles: ['src/a.ts'] });
+    expect(r.autoResolved).toBe(0);
+    expect(await statusOf('src/a.ts')).toBe('open');
+    expect(await statusOf('src/a.ts', 'r.two')).toBe('open');
+    // Explicitly empty dimensions are no scope either.
+    await run([], { sweepScannerKey: null, sweepDimensions: [], reviewedFiles: ['src/a.ts'] });
+    expect(await statusOf('src/a.ts')).toBe('open');
+  });
+
+  it('divides false positives by what a person triaged, not every finding (W20-13, FND-71)', async () => {
+    const before = await falsePositiveRate(db, workspaceId);
+    await run([hit('src/a.ts'), hit('src/b.ts'), hit('src/c.ts')]);
+    const untriaged = await falsePositiveRate(db, workspaceId);
+    expect(untriaged.total - before.total).toBe(3);
+    expect(untriaged.triaged).toBe(before.triaged);
+    await db
+      .update(read.findings)
+      .set({ status: 'dismissed', dismissReason: 'false_positive' })
+      .where(and(eq(read.findings.repoId, repoId), eq(read.findings.file, 'src/a.ts')));
+    const after = await falsePositiveRate(db, workspaceId);
+    expect(after.triaged - before.triaged).toBe(1);
+    expect(after.dismissedFalsePositive - before.dismissedFalsePositive).toBe(1);
+    if (before.triaged === 0) expect(after.rate).toBe(1);
   });
 
   it('keeps the rationale beside the fix (FND-57)', async () => {

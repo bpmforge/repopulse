@@ -14,8 +14,10 @@ import { AiPassPanel } from '../../../widgets/repo/AiPassPanel.js';
 import { ValidationFunnelPanel } from '../../../widgets/security/ValidationFunnelPanel.js';
 import { useRef } from 'react';
 import { useScanRun, type ScanRun } from '../../../widgets/security/useScanRun.js';
+import { FindingSeverityBadge } from '../../../widgets/findings/FindingSeverity.js';
 import {
   dependencyEmptyCopy,
+  reachabilityWord,
   ranSuccessfully,
   type RepoSecurity,
 } from '../../../widgets/security/contracts.js';
@@ -58,6 +60,11 @@ function SecurityTab() {
   const intervalRef = useRef<ScanRun['refetchInterval']>(() => false);
   const { data, isLoading, isError, error } = useApiQuery<RepoSecurity>(descriptor, {
     refetchInterval: (latest) => intervalRef.current(latest),
+    // W20-13 (UX_TODO FND-33): a scan started before switching tabs kept
+    // reading "Scan running…" after it ended, because TanStack pauses polling
+    // in a hidden tab. Safe to keep on: the interval stops once nothing is
+    // pending.
+    refetchIntervalInBackground: true,
   });
   const scan = useScanRun(data);
   const { data: me } = useApiQuery<{ role?: string }>({ endpoint: '/me/context' });
@@ -73,6 +80,8 @@ function SecurityTab() {
   const dependencyScanner = data?.scanners.find((s) => s.key === 'dependency_cve');
   const findings = data?.top_findings ?? [];
   const successfulRuns = (data?.scanners ?? []).filter(ranSuccessfully);
+  const scannerName = (key: string) =>
+    data?.scanners.find((s) => s.key === key)?.display_name ?? key;
 
   return (
     <div className="flex flex-col gap-4" data-testid="security-tab">
@@ -100,20 +109,14 @@ function SecurityTab() {
             awaiting={scan.awaiting}
             stalled={scan.stalled}
             onStarted={scan.onStarted}
+            {...(me?.role ? { canRun: isAdmin } : {})}
           />
         </div>
       </WidgetFrame>
 
-      {/* W19-10: the AI review pass - start one, watch it, and see what it did
-          and did not cover. Its answers appear on the findings. */}
-      <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
-        <AiPassPanel repoId={repoId} initialPaths={aiPath} />
-      </WidgetFrame>
-
-      {/* W18-22: the holes beside the scanner table — languages, skipped
-          files, absent scanners, shadow rules. */}
-      <CoverageMap repoId={repoId} />
-
+      {/* W20-13 (UX_TODO FND-32): the findings themselves sit right under
+          Coverage. Below the AI pass and the coverage map they were several
+          screens down on a phone. */}
       <WidgetFrame title="Open findings" state={state} testId="security-findings">
         {data &&
           (findings.length === 0 ? (
@@ -146,9 +149,9 @@ function SecurityTab() {
                     >
                       {finding.title}
                     </Link>
-                    <span className="shrink-0 text-xs text-fg-muted">
-                      sev {finding.severity}
-                      {finding.scanner_key ? ` · ${finding.scanner_key}` : ''}
+                    <span className="flex shrink-0 items-center gap-1 text-xs text-fg-muted">
+                      <FindingSeverityBadge severity={finding.severity} />
+                      {finding.scanner_key ? ` · ${scannerName(finding.scanner_key)}` : ''}
                       {finding.file
                         ? ` · ${finding.file}${finding.line ? `:${finding.line}` : ''}`
                         : ''}
@@ -156,6 +159,14 @@ function SecurityTab() {
                   </li>
                 ))}
               </ol>
+              {/* W20-13 (UX_TODO FND-73): `open_total` counts every kind of
+                  finding, this panel only the security ones. Both numbers are
+                  said, each for what it is. */}
+              {(data.security_open_total ?? findings.length) > findings.length && (
+                <p className="mt-2 text-xs text-fg-muted" data-testid="security-findings-shown">
+                  The {findings.length} worst of {data.security_open_total} open security findings.
+                </p>
+              )}
               {data.open_total > findings.length && (
                 <Link
                   to="/findings"
@@ -163,12 +174,22 @@ function SecurityTab() {
                   className="mt-2 inline-block text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   data-testid="security-findings-all"
                 >
-                  All {data.open_total} open findings for this repository
+                  All {data.open_total} open findings for this repository, of every kind
                 </Link>
               )}
             </>
           ))}
       </WidgetFrame>
+
+      {/* W19-10: the AI review pass - start one, watch it, and see what it did
+          and did not cover. Its answers appear on the findings. */}
+      <WidgetFrame title="AI review pass" state="ready" testId="security-ai-pass">
+        <AiPassPanel repoId={repoId} initialPaths={aiPath} />
+      </WidgetFrame>
+
+      {/* W18-22: the holes beside the scanner table — languages, skipped
+          files, absent scanners, shadow rules. */}
+      <CoverageMap repoId={repoId} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <WidgetFrame title="Secrets" state={state} testId="security-secrets">
@@ -246,6 +267,7 @@ function SecurityTab() {
                     <th scope="col">CVE</th>
                     <th scope="col">Package</th>
                     <th scope="col">Severity</th>
+                    <th scope="col">Reachable?</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -276,7 +298,17 @@ function SecurityTab() {
                         )}
                       </th>
                       <td>{cve.package}</td>
-                      <td className="tabular-nums">{cve.severity}</td>
+                      <td>
+                        <FindingSeverityBadge severity={cve.severity} />
+                      </td>
+                      {/* W20-13 (FND-28): the scanner's own reachability tier,
+                          so a row says whether the code can reach it. */}
+                      <td
+                        className="text-xs"
+                        data-testid={`cve-reach-${cve.finding_id ?? cve.cve_id}`}
+                      >
+                        {reachabilityWord(cve.reachability)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -350,7 +382,9 @@ function SecurityTab() {
       </WidgetFrame>
 
       <WidgetFrame title="Attack chains" state={state} testId="security-chains">
-        {data && <ChainsPanel chains={data.chains} computed={data.chains_computed} />}
+        {data && (
+          <ChainsPanel chains={data.chains} computed={data.chains_computed} repoId={repoId} />
+        )}
       </WidgetFrame>
     </div>
   );

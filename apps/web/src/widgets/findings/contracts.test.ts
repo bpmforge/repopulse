@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reviewSummary, type Finding } from './contracts.js';
+import { ageOf, dimensionLabel, reviewSummary, statusLabel, type Finding } from './contracts.js';
 
 describe('reviewSummary (W17-23)', () => {
   const base: Finding = {
@@ -27,8 +27,8 @@ describe('reviewSummary (W17-23)', () => {
     const text = reviewSummary(base);
     expect(text.split('\n')[0]).toBe('Finding #9: No tests for refunds');
     expect(text).toContain('Location: whole repository');
-    expect(text).toContain('Severity: medium · confidence 2/5 · test gap');
-    expect(text).toContain('Status: wont fix');
+    expect(text).toContain('Severity: medium · confidence 2/5 · Test gap');
+    expect(text).toContain("Status: Won't fix");
     expect(text).toContain('Verification: not independently verified');
     // No link line when there is nothing honest to link to.
     expect(text).not.toContain('Link:');
@@ -56,7 +56,7 @@ describe('reviewSummary (W17-23)', () => {
         at: '2026-08-03T00:00:00.000Z',
       },
     ]);
-    expect(text).toContain('Status: dismissed (false positive)');
+    expect(text).toContain('Status: Dismissed (False positive)');
     expect(text).toContain('- 2026-08-01 new → open (automatic)');
     expect(text).toContain('- 2026-08-03 open → dismissed (departed-dev: false_positive: fixture)');
   });
@@ -110,5 +110,20 @@ describe('dimensions awaiting a producer', () => {
     ]) {
       expect(awaitingProducer(dimension), dimension).toBe(false);
     }
+  });
+});
+
+describe('labels (W20-13, FND-26 / FND-19)', () => {
+  it('says statuses and dimensions as words, every underscore included', () => {
+    expect(statusLabel('wont_fix')).toBe("Won't fix");
+    expect(dimensionLabel('dependency_health')).toBe('Dependency health');
+    expect(dimensionLabel('brand_new_kind')).toBe('Brand new kind');
+  });
+
+  it('says age since first seen in the largest whole unit', () => {
+    const now = Date.parse('2026-10-19T00:00:00Z');
+    expect(ageOf('2026-10-18T00:00:00Z', now)).toBe('1d');
+    expect(ageOf('2026-09-19T00:00:00Z', now)).toBe('4w');
+    expect(ageOf('2026-01-19T00:00:00Z', now)).toBe('9mo');
   });
 });

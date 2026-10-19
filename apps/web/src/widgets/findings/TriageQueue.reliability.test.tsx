@@ -88,7 +88,7 @@ describe('the triage counters move on the server’s answer, not the keypress', 
     expect(screen.getByTestId('triage-summary').textContent).toMatch(/^0 confirmed · 0 dismissed/);
     expect(screen.getByTestId('triage-error').textContent).toMatch(/Transition not allowed/);
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('first');
-    expect(screen.getByTestId('triage-status').textContent).toBe('status open');
+    expect(screen.getByTestId('triage-status').textContent).toBe('Status: Open');
   });
 
   it('a successful decision counts once and advances', () => {
