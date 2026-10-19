@@ -1,7 +1,7 @@
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditLog, core, facts, type Database } from '@repopulse/shared';
-import { linkForgeIdentity } from '@repopulse/auth';
+import { linkMemberToCommitter } from '@repopulse/auth';
 import { requireAdmin } from '../../../lib/rbac.js';
 import { sendProblem } from '../../../lib/problem.js';
 
@@ -153,7 +153,7 @@ export default async function identityRoutes(
    * A local or OIDC account has no forge account of its own, so its My Focus,
    * "my PRs" and review load stayed empty for good: the banner said "ask an
    * administrator to link your forge identity" and nothing could. This links
-   * the person to the committer, through `linkForgeIdentity` (which refuses a
+   * the person to the committer, through the auth module's `linkMemberToCommitter` (which refuses a
    * forge id another account already holds) plus `identities.user_id`, the
    * link the personalised screens resolve through.
    *
@@ -176,7 +176,6 @@ export default async function identityRoutes(
       const [identity] = await db
         .select({
           login: core.identities.forgeLogin,
-          forgeUserId: core.identities.forgeUserId,
           userId: core.identities.userId,
         })
         .from(core.identities)
@@ -208,12 +207,8 @@ export default async function identityRoutes(
 
       // The member must belong to THIS workspace; another tenant's user is a 404.
       const [member] = await db
-        .select({
-          authProvider: core.users.authProvider,
-          forgeUserId: core.users.forgeUserId,
-        })
+        .select({ userId: core.workspaceMembers.userId })
         .from(core.workspaceMembers)
-        .innerJoin(core.users, eq(core.users.id, core.workspaceMembers.userId))
         .where(
           and(
             eq(core.workspaceMembers.workspaceId, workspaceId),
@@ -223,32 +218,25 @@ export default async function identityRoutes(
         .limit(1);
       if (!member) return fail(request, reply, 404, 'Member not found');
 
-      if (identity.forgeUserId) {
-        // A GitHub sign-in IS a forge account; re-pointing it at someone else's
-        // committer would make its own work disappear from its own screens.
-        if (
-          member.authProvider === 'github' &&
-          member.forgeUserId !== null &&
-          member.forgeUserId !== identity.forgeUserId
-        ) {
-          return fail(
-            request,
-            reply,
-            409,
-            'This member signs in with GitHub',
-            'Their forge account is the one they sign in with, so it cannot be linked to a different committer. Merge the two identities instead.',
-          );
-        }
-        const linked = await linkForgeIdentity(db, userId, identity.forgeUserId);
-        if (!linked.ok) {
-          return fail(
-            request,
-            reply,
-            409,
-            'Another account is already linked to this forge identity',
-            'Unlink it from that account first, so nobody loses their history without being told.',
-          );
-        }
+      // The forge-account side is the auth module's (W15-05): it refuses to
+      // re-point a GitHub sign-in or to take a forge account someone else holds.
+      const linked = await linkMemberToCommitter(db, { workspaceId, identityId: id, userId });
+      if (!linked.ok) {
+        return linked.reason === 'github_sign_in'
+          ? fail(
+              request,
+              reply,
+              409,
+              'This member signs in with GitHub',
+              'Their forge account is the one they sign in with, so it cannot be linked to a different committer. Merge the two identities instead.',
+            )
+          : fail(
+              request,
+              reply,
+              409,
+              'Another account is already linked to this forge identity',
+              'Unlink it from that account first, so nobody loses their history without being told.',
+            );
       }
 
       // One identity per person per workspace for the personalised screens:
@@ -256,7 +244,9 @@ export default async function identityRoutes(
       await db
         .update(core.identities)
         .set({ userId: null })
-        .where(and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.userId, userId)));
+        .where(
+          and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.userId, userId)),
+        );
       await db
         .update(core.identities)
         .set({ userId })
@@ -284,14 +274,24 @@ export default async function identityRoutes(
       const undo = intoRaw === null;
       const intoId = undo ? null : Number(intoRaw);
       if (!undo && !Number.isInteger(intoId)) {
-        return fail(request, reply, 400, 'Invalid body', 'into_id must be an identity id, or null to undo');
+        return fail(
+          request,
+          reply,
+          400,
+          'Invalid body',
+          'into_id must be an identity id, or null to undo',
+        );
       }
       if (!undo && intoId === id) {
         return fail(request, reply, 400, 'Cannot merge an identity into itself');
       }
 
       const [source] = await db
-        .select({ id: core.identities.id, login: core.identities.forgeLogin, mergedIntoId: core.identities.mergedIntoId })
+        .select({
+          id: core.identities.id,
+          login: core.identities.forgeLogin,
+          mergedIntoId: core.identities.mergedIntoId,
+        })
         .from(core.identities)
         .where(and(eq(core.identities.id, id), eq(core.identities.workspaceId, workspaceId)))
         .limit(1);
@@ -300,9 +300,18 @@ export default async function identityRoutes(
       let target: { id: number; login: string; mergedIntoId: number | null } | undefined;
       if (!undo) {
         [target] = await db
-          .select({ id: core.identities.id, login: core.identities.forgeLogin, mergedIntoId: core.identities.mergedIntoId })
+          .select({
+            id: core.identities.id,
+            login: core.identities.forgeLogin,
+            mergedIntoId: core.identities.mergedIntoId,
+          })
           .from(core.identities)
-          .where(and(eq(core.identities.id, intoId as number), eq(core.identities.workspaceId, workspaceId)))
+          .where(
+            and(
+              eq(core.identities.id, intoId as number),
+              eq(core.identities.workspaceId, workspaceId),
+            ),
+          )
           .limit(1);
         if (!target) return fail(request, reply, 404, 'Target identity not found');
 
@@ -313,7 +322,9 @@ export default async function identityRoutes(
         const [dependent] = await db
           .select({ id: core.identities.id })
           .from(core.identities)
-          .where(and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.mergedIntoId, id)))
+          .where(
+            and(eq(core.identities.workspaceId, workspaceId), eq(core.identities.mergedIntoId, id)),
+          )
           .limit(1);
         if (dependent) {
           return fail(
