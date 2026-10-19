@@ -23,7 +23,12 @@ type Row = HotspotItems['items'][number];
 export function HotspotLeaderboard({ window, search, limit = 10 }: Props) {
   const { data, isLoading, isError, error, refetch } = useApiQuery<HotspotItems>({
     endpoint: '/hotspots',
-    query: { window, limit },
+    // The view's or topbar's repo scope (W20-05, UX_TODO DSH-02).
+    query: {
+      window,
+      limit,
+      ...(search.repos && search.repos !== 'all' ? { repos: search.repos } : {}),
+    },
   });
 
   const items = data?.items ?? [];

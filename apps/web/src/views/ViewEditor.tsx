@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { WidgetFrame } from '../components/index.js';
-import { listWidgets, getWidget, type WidgetCategory } from '../components/widget/WidgetRegistry.js';
+import {
+  listWidgets,
+  getWidget,
+  type WidgetCategory,
+} from '../components/widget/WidgetRegistry.js';
 import type { Widget, WidgetType } from '../components/widget/types.js';
+import { TREND_METRICS } from '../widgets/views/register.js';
+import { WINDOW_PRESETS } from '../api/urlState.js';
 
 // Saved-view edit mode (W5-02, UX_SPEC §4.g / DASHBOARD.md §4).
 //
@@ -23,9 +29,11 @@ const CATEGORY_LABEL: Record<WidgetCategory, string> = {
 export interface ViewEditorProps {
   widgets: Widget[];
   onChange: (widgets: Widget[]) => void;
+  /** For a trend widget's repository picker (DSH-60). */
+  repos?: { id: number; org: string; name: string }[];
 }
 
-export function ViewEditor({ widgets, onChange }: ViewEditorProps) {
+export function ViewEditor({ widgets, onChange, repos = [] }: ViewEditorProps) {
   const [picker, setPicker] = useState(false);
   const available = listWidgets();
   const byCategory = new Map<WidgetCategory, typeof available>();
@@ -35,6 +43,25 @@ export function ViewEditor({ widgets, onChange }: ViewEditorProps) {
 
   const update = (id: string, patch: Partial<Widget['layout']>) =>
     onChange(widgets.map((w) => (w.id === id ? { ...w, layout: { ...w.layout, ...patch } } : w)));
+
+  /**
+   * Per-widget options (W20-05, UX_TODO DSH-60). `undefined` removes the key,
+   * so "use the view's window" is an absent option rather than a stored copy
+   * of today's window that would stop following the view's scope.
+   */
+  const setOption = (id: string, key: string, value: string | undefined) =>
+    onChange(
+      widgets.map((w) => {
+        if (w.id !== id) return w;
+        const options = { ...(w.options ?? {}) };
+        if (value === undefined) delete options[key];
+        else options[key] = value;
+        const next: Widget = { ...w };
+        if (Object.keys(options).length > 0) next.options = options;
+        else delete next.options;
+        return next;
+      }),
+    );
 
   const move = (index: number, delta: number) => {
     const next = [...widgets];
@@ -111,6 +138,66 @@ export function ViewEditor({ widgets, onChange }: ViewEditorProps) {
             <span className="min-w-0 flex-1 truncate text-sm">
               {getWidget(widget.type)?.title ?? widget.type}
             </span>
+
+            {/* The trend widget's options (DSH-60): it always charted M5 and
+                the editor had no way to say otherwise. */}
+            {widget.type === 'trend' && (
+              <>
+                <label className="flex items-center gap-1 text-xs text-fg-muted">
+                  Metric
+                  <select
+                    className="rounded-sm border border-border bg-surface-2 px-1 py-0.5 text-xs"
+                    data-testid={`metric-${widget.id}`}
+                    value={
+                      typeof widget.options?.metric_key === 'string'
+                        ? widget.options.metric_key
+                        : 'M5'
+                    }
+                    onChange={(e) => setOption(widget.id, 'metric_key', e.target.value)}
+                  >
+                    {TREND_METRICS.map((m) => (
+                      <option key={m.key} value={m.key}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-xs text-fg-muted">
+                  Window
+                  <select
+                    className="rounded-sm border border-border bg-surface-2 px-1 py-0.5 text-xs"
+                    data-testid={`window-${widget.id}`}
+                    value={typeof widget.options?.window === 'string' ? widget.options.window : ''}
+                    onChange={(e) => setOption(widget.id, 'window', e.target.value || undefined)}
+                  >
+                    <option value="">View&apos;s window</option>
+                    {WINDOW_PRESETS.map((w) => (
+                      <option key={w} value={w}>
+                        {w}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-xs text-fg-muted">
+                  Repository
+                  <select
+                    className="rounded-sm border border-border bg-surface-2 px-1 py-0.5 text-xs"
+                    data-testid={`repo-${widget.id}`}
+                    value={
+                      typeof widget.options?.repo_id === 'string' ? widget.options.repo_id : ''
+                    }
+                    onChange={(e) => setOption(widget.id, 'repo_id', e.target.value || undefined)}
+                  >
+                    <option value="">Whole organization</option>
+                    {repos.map((r) => (
+                      <option key={r.id} value={String(r.id)}>
+                        {r.org}/{r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
 
             {/* Width in 12-col units. A number input rather than a drag handle
                 so the grid is operable from a keyboard (WCAG 2.2 AA). */}

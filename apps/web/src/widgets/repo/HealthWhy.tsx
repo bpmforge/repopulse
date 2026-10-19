@@ -60,7 +60,13 @@ export function HealthWhy({ health }: Props) {
         aria-expanded={open}
         // The control names what it discloses; "why?" alone is meaningless to a
         // screen reader arriving at it out of context.
-        aria-label={`Why is the health score ${health.score}? Show the formula breakdown`}
+        // An unmeasured repository has no score to explain (W20-05, DSH-08);
+        // "Why is the health score null?" would read the wire format aloud.
+        aria-label={
+          health.score === null
+            ? 'Why is there no health score yet? Show what has been measured'
+            : `Why is the health score ${health.score}? Show the formula breakdown`
+        }
         className="inline-flex min-h-6 items-center rounded-sm px-1 text-xs text-fg-muted underline underline-offset-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         data-testid="health-why-toggle"
       >

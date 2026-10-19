@@ -80,3 +80,38 @@ export function fromWidgets(widgets: Widget[]): Record<string, unknown>[] {
     ...(w.query ? { query: w.query } : {}),
   }));
 }
+
+/**
+ * The view's own scope, handed to every widget (W20-05, UX_TODO DSH-02).
+ *
+ * A saved view stored `config.window` and `config.repo_ids` and no widget ever
+ * received them: every widget fell back to 30d and all repositories, so the
+ * 90-day "Executive rollup" drew 30-day data for everyone who opened it. The
+ * scope goes in as DEFAULTS — a widget's own options (a trend pinned to 365d)
+ * still win — and `search` carries the same scope into the links widgets
+ * render and the `repos` filter the repo-aware endpoints read.
+ */
+export function scopeWidgets(widgets: Widget[], window: ViewWindow, repoIds: number[]): Widget[] {
+  const search: Record<string, string> = { window };
+  if (repoIds.length > 0) search.repos = repoIds.join(',');
+  return widgets.map((w) => ({ ...w, options: { window, search, ...(w.options ?? {}) } }));
+}
+
+const WINDOW_WORDS: Record<ViewWindow, string> = {
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  '365d': 'Last 365 days',
+};
+
+/** "Last 90 days · all repositories" — the scope, said on the page (DSH-02). */
+export function scopeLabel(
+  window: ViewWindow,
+  repoIds: number[],
+  names: Record<number, string> = {},
+): string {
+  const when = WINDOW_WORDS[window] ?? window;
+  if (repoIds.length === 0) return `${when} · all repositories`;
+  if (repoIds.length > 3) return `${when} · ${repoIds.length} repositories`;
+  return `${when} · ${repoIds.map((id) => names[id] ?? `repository ${id}`).join(', ')}`;
+}

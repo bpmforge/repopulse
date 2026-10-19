@@ -10,8 +10,10 @@ export interface RepoDetail {
   name: string;
   sync: string;
   health: {
-    score: number;
-    letter: string;
+    /** null when nothing has been measured (W20-05, UX_TODO DSH-08). */
+    score: number | null;
+    letter: string | null;
+    measured?: boolean;
     /** 'Tier-1 only' until LLM analysis lands — shown, never hidden (UX_SPEC §1.4). */
     basis: string;
     /** Sub-score rows; the "why?" breakdown. Weight x normalized = contribution. */

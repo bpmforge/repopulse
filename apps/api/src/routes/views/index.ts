@@ -146,7 +146,8 @@ export default async function viewsRoutes(
         .from(read.savedViews)
         .where(eq(read.savedViews.id, request.params.id))
         .limit(1);
-      if (!row || row.workspaceId !== ctx.workspaceId) return fail(request, reply, 404, 'Not Found');
+      if (!row || row.workspaceId !== ctx.workspaceId)
+        return fail(request, reply, 404, 'Not Found');
       if (row.ownerUserId !== ctx.userId && !row.isShared) {
         return fail(request, reply, 404, 'Not Found');
       }
@@ -270,6 +271,44 @@ export default async function viewsRoutes(
     },
   );
 
+  // DELETE /views/:id/share — stop sharing (W20-05, UX_TODO DSH-04).
+  //
+  // The only way to kill a sent link used to be re-sharing, which also minted
+  // a new one the owner then had to hand out again. Clearing the slug (not
+  // just the flag) means a later share mints a fresh link rather than
+  // reviving the one that was revoked.
+  typedApp.delete(
+    '/views/:id/share',
+    { schema: { params: viewIdParamsSchema } },
+    async (request, reply) => {
+      const ctx = requireContext(request);
+      if (!ctx) return fail(request, reply, 401, 'No active session');
+
+      const [existing] = await db
+        .select()
+        .from(read.savedViews)
+        .where(eq(read.savedViews.id, request.params.id))
+        .limit(1);
+      if (!existing || existing.workspaceId !== ctx.workspaceId) {
+        return fail(request, reply, 404, 'Not Found');
+      }
+      if (existing.ownerUserId !== ctx.userId) {
+        return fail(request, reply, 403, 'Forbidden — owner only');
+      }
+
+      await db
+        .update(read.savedViews)
+        .set({ shareSlug: null, isShared: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(read.savedViews.id, request.params.id),
+            eq(read.savedViews.workspaceId, ctx.workspaceId),
+          ),
+        );
+      return reply.code(204).send();
+    },
+  );
+
   // Deliberately still inside the guarded /api/v1 scope: a shared view is
   // "any workspace member", not an unauthenticated public link (SC-17).
   typedApp.get(
@@ -334,4 +373,23 @@ export default async function viewsRoutes(
       return reply.code(204).send();
     },
   );
+
+  // DELETE /me/default-view — go back to the persona home (W20-05, UX_TODO
+  // DSH-03). Now that the home view is honoured on sign-in, choosing one has
+  // to be reversible from the same screen that set it.
+  app.delete('/me/default-view', async (request, reply) => {
+    const ctx = requireContext(request);
+    if (!ctx) return fail(request, reply, 401, 'No active session');
+    await db
+      .update(read.savedViews)
+      .set({ isDefaultForOwner: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(read.savedViews.workspaceId, ctx.workspaceId),
+          eq(read.savedViews.ownerUserId, ctx.userId),
+          eq(read.savedViews.isDefaultForOwner, true),
+        ),
+      );
+    return reply.code(204).send();
+  });
 }

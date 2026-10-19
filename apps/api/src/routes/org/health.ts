@@ -23,6 +23,18 @@ const ABSENT: Latest = { value: null, dims: {} };
 export type RepoHealth = HealthScore & { letter: string };
 
 /**
+ * Whether the warehouse measured anything for this repository (W17-18).
+ *
+ * computeHealthScore sums contributions, so a repository whose every sub-score
+ * was dropped for want of inputs sums an EMPTY set to 0 — a verdict nobody
+ * reached. One predicate, so /repos, /repos/:id and the Overview's grid and
+ * attention feed cannot disagree about it again (W20-05, UX_TODO DSH-08).
+ */
+export function isMeasured(health: HealthScore): boolean {
+  return health.subScores.length > 0;
+}
+
+/**
  * Health for MANY repos in a bounded number of statements (W17-32).
  *
  * The per-repo version below used to issue six `readMetricTrend` reads plus a

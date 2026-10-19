@@ -337,6 +337,63 @@ describeIfLiveInfra('drill-down + /me API (W4-01, FR-API-5, FR-AUTH-6)', () => {
     expect(measured!.org).not.toBe(unmeasured!.org);
   });
 
+  it('applies the same unmeasured guard on the repo header, health grid and attention feed (W20-05, DSH-08)', async () => {
+    const cookie = await loginAs(app, FIXTURE);
+    const get = (url: string) =>
+      app.inject({ method: 'GET', url, cookies: { repopulse_sid: cookie } });
+
+    // The repo header: "—", not a red 0.
+    const detail = await get(`/api/v1/repos/${unmeasuredRepoId}`);
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().health).toMatchObject({
+      score: null,
+      letter: null,
+      measured: false,
+      basis: 'not measured',
+    });
+    const measuredDetail = await get(`/api/v1/repos/${repoId}`);
+    expect(measuredDetail.json().health.measured).toBe(true);
+    expect(typeof measuredDetail.json().health.score).toBe('number');
+
+    // The Overview grid: null score, sorted after every measured repository
+    // (X-05: worst first), and the org travels so `api` in two orgs differs.
+    const tiles = await get('/api/v1/org/health-tiles');
+    expect(tiles.statusCode).toBe(200);
+    const items = tiles.json().items as {
+      id: number;
+      org: string;
+      health: { score: number | null; measured: boolean };
+    }[];
+    const unmeasured = items.find((t) => t.id === unmeasuredRepoId)!;
+    expect(unmeasured.health).toMatchObject({ score: null, measured: false });
+    expect(typeof unmeasured.org).toBe('string');
+    const firstNull = items.findIndex((t) => t.health.score === null);
+    expect(items.slice(firstNull).every((t) => t.health.score === null)).toBe(true);
+    const scores = items.slice(0, firstNull).map((t) => t.health.score as number);
+    expect(scores).toEqual([...scores].sort((a, b) => a - b));
+
+    // A saved view's repo scope reaches the grid (DSH-02).
+    const scoped = await get(`/api/v1/org/health-tiles?repos=${repoId}`);
+    expect((scoped.json().items as { id: number }[]).map((t) => t.id)).toEqual([repoId]);
+    const hot = await get(`/api/v1/hotspots?repos=${unmeasuredRepoId}`);
+    expect(hot.statusCode).toBe(200);
+    expect(
+      (hot.json().items as { repo: { id: number } }[]).every((h) => h.repo.id === unmeasuredRepoId),
+    ).toBe(true);
+    expect((await get('/api/v1/org/attention?repos=junk')).statusCode).toBe(400);
+
+    // Needs attention: never lists an unmeasured repository, and bands with
+    // the badge's 3-band words, not score letters (DSH-10).
+    const attention = await get('/api/v1/org/attention');
+    expect(attention.statusCode).toBe(200);
+    const feed = attention.json().items as { repo_id: number; band: string; score: number }[];
+    expect(feed.some((i) => i.repo_id === unmeasuredRepoId)).toBe(false);
+    for (const item of feed) {
+      expect(['watch', 'attend']).toContain(item.band);
+      expect(item.score).toBeLessThan(75);
+    }
+  });
+
   it('/review-bots reports the AI reviewers per tool and keeps them out of review load (W18-23)', async () => {
     const [pr] = await db
       .select({ id: facts.pullRequests.id, workspaceId: facts.pullRequests.workspaceId })

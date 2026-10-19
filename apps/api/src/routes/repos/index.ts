@@ -13,7 +13,7 @@ import {
   type RatioResult,
 } from '@repopulse/metrics';
 import { sendProblem } from '../../lib/problem.js';
-import { repoHealth, repoHealthMany } from '../org/health.js';
+import { isMeasured, repoHealth, repoHealthMany } from '../org/health.js';
 import { repoCapabilities } from '../../lib/capability.js';
 import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
@@ -111,7 +111,7 @@ export default async function reposRoutes(
       // nobody has ingested below every genuinely unhealthy one. Same
       // discipline the sub-scores themselves already follow: unmeasured is
       // excluded, never scored.
-      const measured = health.subScores.length > 0;
+      const measured = isMeasured(health);
       return {
         id: r.id,
         org: r.org,
@@ -150,15 +150,20 @@ export default async function reposRoutes(
         repo.pushedAt,
         Date.now(),
       );
+      // W20-05 (UX_TODO DSH-08): the list's `measured` guard, here too. The
+      // repo header painted an unmeasured repository's empty-set 0 red while
+      // /repos showed the same repository as "—".
+      const measured = isMeasured(health);
       return reply.send({
         id: repo.id,
         org: repo.org,
         name: repo.name,
         sync: repo.syncStatus,
         health: {
-          score: Math.round(health.score),
-          letter: health.letter,
-          basis: health.tier1Only ? 'Tier-1 only' : 'full',
+          score: measured ? Math.round(health.score) : null,
+          letter: measured ? health.letter : null,
+          measured,
+          basis: measured ? (health.tier1Only ? 'Tier-1 only' : 'full') : 'not measured',
           breakdown: health.subScores,
         },
         links: repoLinks(repo.id),

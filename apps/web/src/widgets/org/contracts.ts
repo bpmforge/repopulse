@@ -22,18 +22,40 @@ export interface OrgSummary {
   }[];
 }
 
-/** GET /org/health-tiles?window= */
+/**
+ * GET /org/health-tiles?window=&repos= — worst first, unmeasured last (W20-05).
+ *
+ * `score` is null when nothing was measured (UX_TODO DSH-08): the empty-set 0
+ * the API used to send painted an un-ingested repository red.
+ */
 export interface HealthTiles {
   items: {
     id: number;
+    org: string;
     name: string;
-    health: { score: number; letter: string; basis: string; delta: number | null };
+    health: {
+      score: number | null;
+      letter: string | null;
+      measured: boolean;
+      basis: string;
+      delta: number | null;
+    };
   }[];
 }
 
-/** GET /org/attention?window=&since= */
+/**
+ * GET /org/attention?window=&repos= — measured repositories below the healthy
+ * band, banded by the SAME function as the health badge (W20-05, DSH-10).
+ */
 export interface AttentionItems {
-  items: { repo_id: number; name: string; kind: string; band: string }[];
+  items: {
+    repo_id: number;
+    org: string;
+    name: string;
+    kind: string;
+    band: 'watch' | 'attend';
+    score: number;
+  }[];
 }
 
 /**
@@ -174,6 +196,11 @@ export interface MeContext {
   user_id?: number;
   identity_id: number | null;
   default_view_id: number | null;
+  /**
+   * The persona's home path (W20-05, UX_TODO DSH-03), from the API's own
+   * PERSONA_HOME. null until a persona is chosen.
+   */
+  home?: string | null;
   /** W4-10 (UX_SPEC §6). null = never asked, which is what opens the picker. */
   persona?: Persona | null;
   prefs?: UserPrefs;

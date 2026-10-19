@@ -318,7 +318,12 @@ describeIfLiveInfra('one plan per scope (W17-24)', () => {
     return db
       .select()
       .from(plansSchema.planItemEvents)
-      .where(and(eq(plansSchema.planItemEvents.planItemId, itemId), eq(plansSchema.planItemEvents.toStatus, to)));
+      .where(
+        and(
+          eq(plansSchema.planItemEvents.planItemId, itemId),
+          eq(plansSchema.planItemEvents.toStatus, to),
+        ),
+      );
   }
 
   it('a person cannot set done (or regressed) from ANY state, and no event says they did', async () => {
@@ -335,7 +340,10 @@ describeIfLiveInfra('one plan per scope (W17-24)', () => {
 
     // Even from the verifier's own states.
     for (const state of ['done', 'regressed']) {
-      await db.update(plansSchema.planItems).set({ status: state }).where(eq(plansSchema.planItems.id, item.id));
+      await db
+        .update(plansSchema.planItems)
+        .set({ status: state })
+        .where(eq(plansSchema.planItems.id, item.id));
       expect(await patchItem(item.id, 'done')).toBe(409);
     }
     expect(await eventsTo(item.id, 'done')).toHaveLength(0);
@@ -346,12 +354,50 @@ describeIfLiveInfra('one plan per scope (W17-24)', () => {
   it('two people who both read proposed cannot both accept it', async () => {
     const plan = await generate({ window: WINDOW, repo_ids: [repoId] });
     const item = await firstItemOf(plan.body.id);
-    await db.update(plansSchema.planItems).set({ status: 'proposed' }).where(eq(plansSchema.planItems.id, item.id));
+    await db
+      .update(plansSchema.planItems)
+      .set({ status: 'proposed' })
+      .where(eq(plansSchema.planItems.id, item.id));
     const before = (await eventsTo(item.id, 'accepted')).length;
 
-    const codes = await Promise.all([patchItem(item.id, 'accepted'), patchItem(item.id, 'accepted')]);
+    const codes = await Promise.all([
+      patchItem(item.id, 'accepted'),
+      patchItem(item.id, 'accepted'),
+    ]);
     expect(codes.sort()).toEqual([200, 409]);
     expect((await eventsTo(item.id, 'accepted')).length).toBe(before + 1);
+  });
+
+  it('keeps the reason a person gave for a dismissal, and lets them restore it (W20-05, DSH-14)', async () => {
+    const plan = await generate({ window: WINDOW, repo_ids: [repoId] });
+    const item = await firstItemOf(plan.body.id);
+    await db
+      .update(plansSchema.planItems)
+      .set({ status: 'proposed' })
+      .where(eq(plansSchema.planItems.id, item.id));
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/plans/items/${item.id}`,
+      headers: CSRF,
+      cookies: { repopulse_sid: cookie },
+      payload: { status: 'dismissed', reason: 'Owned by the platform team' },
+    });
+    expect(res.statusCode).toBe(200);
+    const events = await eventsTo(item.id, 'dismissed');
+    expect(events.at(-1)?.reason).toBe('Owned by the platform team');
+
+    // Restore is the dismissal's undo.
+    expect(await patchItem(item.id, 'proposed')).toBe(200);
+
+    const bad = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/plans/items/${item.id}`,
+      headers: CSRF,
+      cookies: { repopulse_sid: cookie },
+      payload: { status: 'dismissed', reason: 42 },
+    });
+    expect(bad.statusCode).toBe(400);
   });
 
   it('listing plans never creates one', async () => {

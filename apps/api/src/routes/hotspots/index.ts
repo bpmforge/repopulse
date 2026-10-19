@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -18,6 +18,12 @@ const WINDOW_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '36
 const hotspotsQuery = z.object({
   window: z.enum(['7d', '30d', '90d', '365d']).default('30d'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  // The global filter's / a saved view's `repos` csv (W20-05, UX_TODO DSH-02):
+  // a view scoped to three repositories ranked hotspots across all of them.
+  repos: z
+    .string()
+    .regex(/^(all|\d+(,\d+)*)$/)
+    .optional(),
 });
 
 function fail(
@@ -40,6 +46,10 @@ export default async function hotspotsRoutes(
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
     const { window, limit } = request.query;
+    const scoped =
+      request.query.repos && request.query.repos !== 'all'
+        ? request.query.repos.split(',').map(Number)
+        : [];
 
     // org/name come back with the id because the leaderboard is CROSS-repo:
     // three repositories can each have a hot src/index.ts, and a row that says
@@ -48,7 +58,12 @@ export default async function hotspotsRoutes(
     const repos = await opts.db
       .select({ id: core.repos.id, org: core.repos.org, name: core.repos.name })
       .from(core.repos)
-      .where(eq(core.repos.workspaceId, workspaceId));
+      .where(
+        and(
+          eq(core.repos.workspaceId, workspaceId),
+          scoped.length > 0 ? inArray(core.repos.id, scoped) : undefined,
+        ),
+      );
     const repoById = new Map(repos.map((r) => [r.id, r]));
 
     const ranked = await rankHotspots(opts.db, {

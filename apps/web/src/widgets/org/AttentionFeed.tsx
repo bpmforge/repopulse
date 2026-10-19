@@ -1,53 +1,46 @@
-import { useEffect } from 'react';
 import { Link } from '@tanstack/react-router';
-import { SeverityBadge, WidgetFrame, frameState, useUiStore } from '../../components/index.js';
+import {
+  HEALTH_BAND_LABEL,
+  SeverityBadge,
+  WidgetFrame,
+  frameState,
+} from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { AttentionItems } from './contracts.js';
 
-// UX_SPEC §4.a: "what changed since you last looked", computed vs last_seen_at.
+// UX_SPEC §4.a "Needs attention": every measured repository scoring below the
+// healthy band, worst first.
 //
-// lastSeenAt is CLIENT state (DASHBOARD §2: zustand + localStorage persist), sent
-// to the API as ?since — there is no per-user column server-side. The stamp is
-// only advanced AFTER a successful fetch: marking on mount would consume the
-// unseen window even when the request failed, silently losing the very changes
-// the feed exists to surface.
+// W20-05 (UX_TODO DSH-09). This used to say "Nothing new since your last
+// visit" and stamp a lastSeenAt on every successful load, but the API never
+// read `since` — it listed every repository in band C/D/E each time. The empty
+// state therefore claimed a diff nobody computed. The since-diff (new stale
+// PRs, CI regressions, unreviewed merges) needs event streams that do not
+// exist yet, so the card now says what it actually shows, and marks nothing
+// seen.
+//
+// W20-05 (UX_TODO DSH-10). The band is the health badge's own 3-band ramp
+// (healthBand in @repopulse/shared/health-band, applied by the API), so a
+// repository at 72 is "watch" here AND on the grid beside it.
 
 interface Props {
   window: string;
   search: Record<string, string>;
 }
 
-/** Health bands the API flags: C/D/E, worst first. */
-const BAND_SEVERITY: Record<string, 'low' | 'medium' | 'high'> = {
-  C: 'low',
-  D: 'medium',
-  E: 'high',
-};
-
-/**
- * What the badge SAYS (W18-28). It used to print the tint's severity word, so
- * every repository in the feed carried "Medium" with nothing saying medium
- * what. These are the health ramp's own band names (UX_SPEC §2.1), worded as
- * the action they route to rather than a grade.
- */
-const BAND_LABEL: Record<string, string> = {
-  C: 'watch',
-  D: 'attend',
-  E: 'attend now',
+/** Severity tint per band — paired with the band's word, never colour alone. */
+const BAND_SEVERITY: Record<AttentionItems['items'][number]['band'], 'medium' | 'high'> = {
+  watch: 'medium',
+  attend: 'high',
 };
 
 export function AttentionFeed({ window, search }: Props) {
-  const lastSeenAt = useUiStore((s) => s.lastSeenAt);
-  const markSeen = useUiStore((s) => s.markSeen);
-
-  const { data, isLoading, isError, error, refetch, isSuccess } = useApiQuery<AttentionItems>({
+  // The saved view's or topbar's repo scope (W20-05, DSH-02).
+  const repos = search.repos && search.repos !== 'all' ? search.repos : undefined;
+  const { data, isLoading, isError, error, refetch } = useApiQuery<AttentionItems>({
     endpoint: '/org/attention',
-    query: { window, ...(lastSeenAt ? { since: lastSeenAt } : {}) },
+    query: { window, ...(repos ? { repos } : {}) },
   });
-
-  useEffect(() => {
-    if (isSuccess) markSeen(new Date().toISOString());
-  }, [isSuccess, markSeen]);
 
   const items = data?.items ?? [];
 
@@ -61,10 +54,11 @@ export function AttentionFeed({ window, search }: Props) {
       })}
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
-      emptyMessage={
-        lastSeenAt ? 'Nothing new since your last visit.' : 'Nothing is asking for attention.'
-      }
+      emptyMessage="Every measured repository is in the healthy band (75 or above)."
     >
+      <p className="mb-2 text-xs text-fg-muted" data-testid="attention-caption">
+        Repositories scoring below 75, lowest first.
+      </p>
       <ul className="flex flex-col gap-2" data-testid="attention-feed">
         {items.map((item) => (
           <li key={`${item.kind}:${item.repo_id}`}>
@@ -75,11 +69,17 @@ export function AttentionFeed({ window, search }: Props) {
               className="flex items-center justify-between gap-2 panel px-3 py-2 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               data-testid={`attention-${item.repo_id}`}
             >
-              <span className="truncate">{item.name}</span>
-              <SeverityBadge
-                severity={BAND_SEVERITY[item.band] ?? 'low'}
-                label={BAND_LABEL[item.band] ?? 'watch'}
-              />
+              <span className="truncate">
+                <span className="text-fg-muted">{item.org}/</span>
+                {item.name}
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="text-xs tabular-nums text-fg-muted">{item.score}</span>
+                <SeverityBadge
+                  severity={BAND_SEVERITY[item.band] ?? 'medium'}
+                  label={HEALTH_BAND_LABEL[item.band] ?? 'watch'}
+                />
+              </span>
             </Link>
           </li>
         ))}
