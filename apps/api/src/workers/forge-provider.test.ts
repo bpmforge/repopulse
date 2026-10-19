@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { core, createDb, type Database } from '@repopulse/shared';
 import { credentials } from '@repopulse/auth';
+import { DEFAULT_GITHUB_BASE_URL, DEFAULT_GITLAB_BASE_URL } from '@repopulse/forge';
 import { providerForRepo } from './forge-provider.js';
 
 // Per-connection forge base URL (W14-02).
@@ -23,10 +24,11 @@ describeIfLiveInfra('providerForRepo', () => {
   const fingerprints: string[] = [];
 
   const connect = async (
-    provider: 'github' | 'gitea',
+    provider: 'github' | 'gitea' | 'gitlab',
     baseUrl: string | null,
     userId: number,
     tag: string,
+    syncStatus = 'live',
   ): Promise<number> => {
     const enc = credentials.encryptCredential(`token-${tag}`, KEY);
     fingerprints.push(enc.fingerprint);
@@ -57,7 +59,7 @@ describeIfLiveInfra('providerForRepo', () => {
         defaultBranch: 'main',
         isPrivate: true,
         isArchived: false,
-        syncStatus: 'live',
+        syncStatus,
         tier2Auto: false,
       })
       .returning();
@@ -75,7 +77,12 @@ describeIfLiveInfra('providerForRepo', () => {
 
     const [user] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w14-02-user', forgeUserId: 'w14-02-user', login: 'w14-02-user' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w14-02-user',
+        forgeUserId: 'w14-02-user',
+        login: 'w14-02-user',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w14-02-user' } })
       .returning();
 
@@ -85,6 +92,12 @@ describeIfLiveInfra('providerForRepo', () => {
     // stamps it, so a shared fixture would already carry the default by the
     // time that test ran and would have proved nothing.
     await connect('github', null, user!.id, 'github-backfill');
+    // W20-07 (UX_TODO INS-73): a gitlab.com connection saved blank, and one the
+    // old fallback already broke by stamping the GitHub API host onto it.
+    await connect('gitlab', null, user!.id, 'gitlab-blank');
+    await connect('gitlab', DEFAULT_GITHUB_BASE_URL, user!.id, 'gitlab-broken');
+    // W20-07 (UX_TODO INS-09).
+    await connect('github', 'https://ghe.acme.example', user!.id, 'paused', 'paused');
   });
 
   afterAll(async () => {
@@ -107,7 +120,11 @@ describeIfLiveInfra('providerForRepo', () => {
   it('builds a GitHub provider for a GitHub connection, in the same workspace', async () => {
     // The acceptance in one assertion: two forges, one workspace, each getting
     // its own adapter.
-    const resolved = await providerForRepo({ db, tokenKey: KEY }, workspaceId, repos['github-legacy']!);
+    const resolved = await providerForRepo(
+      { db, tokenKey: KEY },
+      workspaceId,
+      repos['github-legacy']!,
+    );
     expect(resolved?.provider.constructor.name).toBe('GitHubProvider');
   });
 
@@ -150,5 +167,44 @@ describeIfLiveInfra('providerForRepo', () => {
 
     // The server default must not overwrite what the connection declared.
     expect(conn!.baseUrl).toBe('https://git.example.com');
+  });
+  async function storedBaseUrl(tag: string): Promise<string | null> {
+    const [repo] = await db
+      .select({ connectionId: core.repos.connectionId })
+      .from(core.repos)
+      .where(eq(core.repos.id, repos[tag]!));
+    const [conn] = await db
+      .select({ baseUrl: core.forgeConnections.baseUrl })
+      .from(core.forgeConnections)
+      .where(eq(core.forgeConnections.id, repo!.connectionId));
+    return conn!.baseUrl;
+  }
+
+  // W20-07 (UX_TODO INS-73). The worker filled a blank URL with FORGE_BASE_URL
+  // or the GitHub default whatever the forge, so gitlab.com connections called
+  // the GitHub API and every backfill 404'd.
+  it('resolves a blank GitLab URL to gitlab.com, not FORGE_BASE_URL or GitHub', async () => {
+    const resolved = await providerForRepo(
+      { db, tokenKey: KEY, forgeBaseUrl: 'https://ghe.acme.example' },
+      workspaceId,
+      repos['gitlab-blank']!,
+    );
+    expect(resolved?.provider.constructor.name).toBe('GitLabProvider');
+    expect(await storedBaseUrl('gitlab-blank')).toBe(DEFAULT_GITLAB_BASE_URL);
+  });
+
+  it('repairs a GitLab row the old fallback stamped with the GitHub API host', async () => {
+    const resolved = await providerForRepo(
+      { db, tokenKey: KEY },
+      workspaceId,
+      repos['gitlab-broken']!,
+    );
+    expect(resolved?.provider.constructor.name).toBe('GitLabProvider');
+    expect(await storedBaseUrl('gitlab-broken')).toBe(DEFAULT_GITLAB_BASE_URL);
+  });
+
+  // W20-07 (UX_TODO INS-09): a paused repo makes no forge calls at all.
+  it('resolves no provider for a paused repo', async () => {
+    expect(await providerForRepo({ db, tokenKey: KEY }, workspaceId, repos.paused!)).toBeNull();
   });
 });

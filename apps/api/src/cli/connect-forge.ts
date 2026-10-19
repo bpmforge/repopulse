@@ -11,7 +11,12 @@ import {
   QUEUE,
   createRedisConnection,
 } from '@repopulse/ingest';
-import { buildDiscoveryProvider, type ForgeKind } from '../routes/connections/provider-factory.js';
+import {
+  buildDiscoveryProvider,
+  resolveConnectionBaseUrl,
+  type ForgeKind,
+} from '../routes/connections/provider-factory.js';
+import { runConnectForge } from './connect-forge-run.js';
 
 // Headless forge connect (W14-01).
 //
@@ -98,7 +103,9 @@ if (args.provider === 'gitea' && !args.baseUrl && !process.env.FORGE_BASE_URL) {
   fail('Gitea is self-hosted: pass --base-url https://your-instance, or set FORGE_BASE_URL.');
 }
 if (!args.all && args.repos.length === 0 && !args.dryRun) {
-  fail('Choose repositories with --all, or --repos owner/name,owner/other. Use --dry-run to list them first.');
+  fail(
+    'Choose repositories with --all, or --repos owner/name,owner/other. Use --dry-run to list them first.',
+  );
 }
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -106,99 +113,110 @@ if (!databaseUrl) fail('DATABASE_URL is required (see docs/CONFIG.md).');
 
 const db = createDb(databaseUrl);
 const tokenKey = credentials.loadTokenKey();
-const baseUrl = args.baseUrl ?? process.env.FORGE_BASE_URL;
+// By forge kind, the same way the API decides it (W20-07, UX_TODO INS-73).
+const baseUrl = resolveConnectionBaseUrl(args.provider, args.baseUrl, process.env.FORGE_BASE_URL);
 
 const [workspace] = await db
   .select({ id: core.workspaces.id })
   .from(core.workspaces)
   .where(eq(core.workspaces.slug, args.workspace))
   .limit(1);
-if (!workspace) fail(`No workspace with slug "${args.workspace}". Run the migrations and seed first.`);
+if (!workspace)
+  fail(`No workspace with slug "${args.workspace}". Run the migrations and seed first.`);
 
 // The connection has to be attributed to somebody. A bootstrap run predates
 // any human sign-in, so it records an explicit operator account rather than
 // borrowing a real user's identity — an audit row naming a person who was not
-// there is worse than one naming the process that did it.
-const [operator] = await db
-  .insert(core.users)
-  .values({ authProvider: 'github', authSubject: 'repopulse:bootstrap', forgeUserId: 'repopulse:bootstrap', login: 'repopulse-bootstrap' })
-  .onConflictDoUpdate({
-    target: core.users.forgeUserId,
-    set: { login: 'repopulse-bootstrap' },
-  })
-  .returning();
+// there is worse than one naming the process that did it. Created only when a
+// connection is actually saved: a dry run writes nothing at all (INS-13).
+async function operatorId(): Promise<number> {
+  const [operator] = await db
+    .insert(core.users)
+    .values({
+      authProvider: 'github',
+      authSubject: 'repopulse:bootstrap',
+      forgeUserId: 'repopulse:bootstrap',
+      login: 'repopulse-bootstrap',
+    })
+    .onConflictDoUpdate({
+      target: core.users.forgeUserId,
+      set: { login: 'repopulse-bootstrap' },
+    })
+    .returning();
+  return operator!.id;
+}
 
 const provider = buildDiscoveryProvider({ kind: 'pat', token }, baseUrl, args.provider);
 
+// Opened only when something is actually queued: a dry run never touches Redis.
+let backfill: ReturnType<typeof createQueue> | undefined;
+let redis: ReturnType<typeof createRedisConnection> | undefined;
+
 try {
-  const result = await createConnection(
-    {
-      db,
-      encrypt: (plaintext) => credentials.encryptCredential(plaintext, tokenKey),
-      smokeListRepos: () => provider.listRepos({ lane: 'user' }).then((page) => page.items),
+  const outcome = await runConnectForge(args, {
+    listPage: (cursor) => provider.listRepos({ lane: 'user' }, cursor),
+    host: baseUrl ? new URL(baseUrl).host : undefined,
+    log: (line) => console.log(line),
+    saveConnection: async (smoke) => {
+      const result = await createConnection(
+        {
+          db,
+          encrypt: (plaintext) => credentials.encryptCredential(plaintext, tokenKey),
+          smokeListRepos: smoke,
+        },
+        {
+          workspaceId: workspace.id,
+          provider: args.provider,
+          authKind: 'pat',
+          credential: token,
+          createdBy: await operatorId(),
+          ...(baseUrl ? { baseUrl } : {}),
+        },
+      );
+      console.log(`\nconnected: ${args.provider}${baseUrl ? ` at ${baseUrl}` : ''}`);
+      console.log(`fingerprint ${credentials.credentialFingerprint(token)}`);
+      return result;
     },
-    {
-      workspaceId: workspace.id,
-      provider: args.provider,
-      authKind: 'pat',
-      credential: token,
-      createdBy: operator!.id,
-      ...(baseUrl ? { baseUrl } : {}),
+    activate: async (connectionId, candidates, selection) => {
+      const redisUrl = process.env.REDIS_URL;
+      if (!redisUrl) fail('REDIS_URL is required to enqueue the backfill.');
+      redis = createRedisConnection(redisUrl);
+      const queue = createQueue(QUEUE.backfill, redis);
+      backfill = queue;
+      return activateRepos(
+        {
+          db,
+          sealSecret: (plaintext) => credentials.sealSecret(plaintext, tokenKey),
+          openSecret: (sealed) => credentials.openSecret(sealed, tokenKey),
+          // Webhook registration is best-effort in activateRepos and stays that
+          // way here: a bootstrap from a laptop usually cannot receive
+          // deliveries anyway, and the reconcile cron covers the gap.
+          registerWebhook: async () => '',
+          enqueuePlan: async (repoId) => {
+            await queue.add('plan', { workspaceId: workspace.id, repoId });
+          },
+          // Same construction the connections route uses (32 random bytes, hex).
+          generateSecret: () => randomBytes(32).toString('hex'),
+        },
+        { workspaceId: workspace.id, connectionId, candidates, selection },
+      );
     },
-  );
+  });
 
-  console.log(`\nconnected: ${args.provider}${baseUrl ? ` at ${baseUrl}` : ''}`);
-  console.log(`connection id ${result.connectionId}, fingerprint ${credentials.credentialFingerprint(token)}`);
-  console.log(`the credential can see ${result.candidates.length} repositor${result.candidates.length === 1 ? 'y' : 'ies'}`);
-
-  if (args.dryRun) {
-    console.log('\n--dry-run: nothing was selected. Repositories visible to this token:\n');
-    for (const c of result.candidates) console.log(`  ${c.org}/${c.name}`);
-    console.log('\nRe-run with --all, or --repos owner/name,owner/other');
-    await db.$client.end();
-    process.exit(0);
+  if (outcome.saved) {
+    const n = outcome.repoIds.length;
+    console.log(`\nselected ${n} repositor${n === 1 ? 'y' : 'ies'}; backfill enqueued`);
+    console.log('Watch it land in Settings → Sync.\n');
   }
-
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) fail('REDIS_URL is required to enqueue the backfill.');
-  const connection = createRedisConnection(redisUrl);
-  const backfill = createQueue(QUEUE.backfill, connection);
-
-  const repoIds = await activateRepos(
-    {
-      db,
-      sealSecret: (plaintext) => credentials.sealSecret(plaintext, tokenKey),
-      // Webhook registration is best-effort in activateRepos and stays that
-      // way here: a bootstrap from a laptop usually cannot receive deliveries
-      // anyway, and the reconcile cron covers the gap.
-      registerWebhook: async () => '',
-      enqueuePlan: async (repoId) => {
-        await backfill.add('plan', { workspaceId: workspace.id, repoId });
-      },
-      // Same construction the connections route uses (32 random bytes, hex).
-      generateSecret: () => randomBytes(32).toString('hex'),
-    },
-    {
-      workspaceId: workspace.id,
-      connectionId: result.connectionId,
-      candidates: result.candidates,
-      selection: args.all
-        ? { allAutoAdd: true }
-        : { forgeRepoIds: result.candidates.filter((c) => args.repos.includes(`${c.org}/${c.name}`)).map((c) => c.forgeRepoId) },
-    },
-  );
-
-  console.log(`\nselected ${repoIds.length} repositor${repoIds.length === 1 ? 'y' : 'ies'}; backfill enqueued`);
-  console.log('The worker drains it — watch: podman logs -f repopulse_worker_1\n');
-
-  await backfill.close();
-  await connection.quit();
+  await backfill?.close();
+  await redis?.quit();
   await db.$client.end();
 } catch (error) {
   if (error instanceof ConnectValidationError) {
-    // bad_token / bad_scope / no_repos — the three answers that are actually
-    // actionable, kept distinct here exactly as the API keeps them.
-    fail(`The forge rejected this credential (${error.kind}): ${error.message}`);
+    // Each kind is actionable on its own (bad_token / bad_scope / no_repos,
+    // and since W20-07 wrong_url / tls_untrusted / cannot_reach), kept
+    // distinct here exactly as the API keeps them.
+    fail(`The connection failed (${error.kind}): ${error.message}`);
   }
   throw error;
 }

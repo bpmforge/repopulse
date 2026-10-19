@@ -140,7 +140,7 @@ export default async function setupRoutes(
       status: connection ? 'ok' : 'missing',
       detail: connection
         ? `Connected to ${connection.provider} (status ${connection.status}).`
-        : 'No forge connection yet — so there is nothing to measure, and every dashboard will be empty. It is not needed to sign in or to administer this install. In Admin → Connections, add an access token for your GitHub, GitLab or Gitea (a GitHub App is optional and only adds GitHub sign-in); RepoPulse never uses a shared App.',
+        : 'No forge connection yet — so there is nothing to measure, and every dashboard will be empty. It is not needed to sign in or to administer this install. In Settings → Connections, add an access token for your GitHub, GitLab or Gitea (a GitHub App is optional and only adds GitHub sign-in); RepoPulse never uses a shared App.',
       docs: 'docs/INSTALL.md#connect-your-forge',
       blocking: false,
     });

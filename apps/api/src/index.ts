@@ -5,6 +5,7 @@ import { buildApp } from './app.js';
 import { local, oidc } from '@repopulse/auth';
 import { formatEnvProblems, validateEnv } from './routes/setup/env-registry.js';
 import { listenHost } from './lib/listen-host.js';
+import { parseTrustProxy } from './lib/trust-proxy.js';
 
 // W11-02, acceptance 4: wrong or missing config fails HERE, with a message
 // naming every variable at fault — not a stack trace, and not a half-booted
@@ -16,6 +17,14 @@ import { listenHost } from './lib/listen-host.js';
 const envProblems = validateEnv(process.env, ['api', 'shared']);
 if (envProblems.length > 0) {
   console.error(formatEnvProblems(envProblems));
+  process.exit(1);
+}
+
+// W20-07 (UX_TODO INS-55). Validated by the env registry above, so the error
+// branch is unreachable unless the two drift — in which case, fail loudly.
+const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+if (typeof trustProxy === 'object') {
+  console.error(`TRUST_PROXY ${trustProxy.error}`);
   process.exit(1);
 }
 
@@ -52,6 +61,7 @@ const app = buildApp({
   idleTimeoutMs: 15 * 60 * 1000,
   absoluteLifetimeMs: 12 * 60 * 60 * 1000,
   cookieSecure: process.env.NODE_ENV === 'production',
+  trustProxy,
   ...(githubClientId && githubClientSecret
     ? {
         githubOAuth: {

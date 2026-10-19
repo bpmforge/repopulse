@@ -188,6 +188,32 @@ if [ ! -S "$CONTAINER_SOCKET" ]; then
   fi
 fi
 
+# W20-07 (UX_TODO INS-74). A first single-sign-on or GitHub sign-in is never
+# made administrator (an unverified IdP email must not be able to claim the
+# install), so an install with SSO and no ADMIN_EMAIL has nobody who can
+# connect a forge. A warning, not a refusal: an install whose admin already
+# exists has every right to remove the variables afterwards.
+if [ -z "$(env_value ADMIN_EMAIL)" ] &&
+  { [ -n "$(env_value OIDC_ISSUER)" ] || [ -n "$(env_value GITHUB_APP_CLIENT_ID)" ]; }; then
+  echo "WARNING: single sign-on is configured but ADMIN_EMAIL is empty." >&2
+  echo "         A first SSO/GitHub sign-in is never made administrator. On a new" >&2
+  echo "         install, add ADMIN_EMAIL= and ADMIN_PASSWORD= to deploy/.env and rerun" >&2
+  echo "         deploy/up.sh, sign in with them, then promote people in Settings → Members." >&2
+fi
+
+# W20-07 (UX_TODO INS-66). Rootless podman has no daemon: restart:
+# unless-stopped brings nothing back after a reboot unless the user lingers
+# and podman-restart.service is enabled. Say so while the operator is here,
+# not after the first patch-night reboot.
+if [ "$RT" = podman ] && [ "$(id -u)" != 0 ] && command -v loginctl >/dev/null 2>&1; then
+  if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" = no ]; then
+    echo "WARNING: this stack will not come back after the host reboots." >&2
+    echo "         Rootless podman needs lingering and its restart service:" >&2
+    echo "           sudo loginctl enable-linger $(id -un)" >&2
+    echo "           systemctl --user enable podman-restart.service" >&2
+  fi
+fi
+
 echo "runtime:    $RT (compose project: $REPOPULSE_PROJECT)"
 echo "scan-runner: $SCAN_RUNTIME via $CONTAINER_SOCKET, listening on the internal scan network"
 if ! grep -qE '^SCAN_RUNNER_TOKEN=.+' .env; then

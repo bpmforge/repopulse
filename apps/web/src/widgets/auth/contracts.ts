@@ -30,6 +30,11 @@ export interface AuthProviders {
    * how the one screen that most needs the demo banner gets it.
    */
   demo?: { email: string; password: string } | null;
+  /**
+   * W20-07 (UX_TODO INS-01). True when the session cookie is `Secure`, which a
+   * browser drops on plain http anywhere but localhost. Optional: older API.
+   */
+  secure_cookies?: boolean;
 }
 
 export const AUTH_PROVIDERS_KEY = ['auth', 'providers'] as const;

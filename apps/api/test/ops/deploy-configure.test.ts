@@ -87,7 +87,7 @@ describe('deploy/configure.mjs (W17-05)', () => {
   });
 
   it('writes a complete .env from a clean start', async () => {
-    const { code, out } = await configure(['--url=https://repopulse.example.com']);
+    const { code, out } = await configure(['--url=https://repopulse.example.com', '--no-admin']);
 
     expect(code).toBe(0);
     expect(out).toContain('Wrote deploy/.env');
@@ -107,13 +107,13 @@ describe('deploy/configure.mjs (W17-05)', () => {
   });
 
   it('writes it 0600, because it holds every secret the deployment has', async () => {
-    await configure(['--url=https://repopulse.example.com']);
+    await configure(['--url=https://repopulse.example.com', '--no-admin']);
     const mode = statSync(path.join(dir, '.env')).mode & 0o777;
     expect(mode).toBe(0o600);
   });
 
   it('preserves the example comments so the file stays editable', async () => {
-    await configure(['--url=https://repopulse.example.com']);
+    await configure(['--url=https://repopulse.example.com', '--no-admin']);
     const text = readFileSync(path.join(dir, '.env'), 'utf8');
     expect(text).toContain('# --- the first administrator (D14) ---');
     expect(text).toContain('decrypts stored forge credentials');
@@ -121,10 +121,13 @@ describe('deploy/configure.mjs (W17-05)', () => {
 
   it('rerunning preserves every secret BYTE FOR BYTE', async () => {
     // Rotating TOKEN_ENC_KEY silently orphans every stored forge credential.
-    await configure(['--url=https://repopulse.example.com']);
+    await configure(['--url=https://repopulse.example.com', '--no-admin']);
     const before = readFileSync(path.join(dir, '.env'), 'utf8');
 
-    const { code, out } = await configure(['--url=https://something-else.example.com']);
+    const { code, out } = await configure([
+      '--url=https://something-else.example.com',
+      '--no-admin',
+    ]);
     const after = readFileSync(path.join(dir, '.env'), 'utf8');
 
     expect(code).toBe(0);
@@ -134,7 +137,7 @@ describe('deploy/configure.mjs (W17-05)', () => {
   });
 
   it('never prints a generated secret', async () => {
-    const { out } = await configure(['--url=https://repopulse.example.com']);
+    const { out } = await configure(['--url=https://repopulse.example.com', '--no-admin']);
     const env = readEnv();
     for (const key of ['TOKEN_ENC_KEY', 'SESSION_SECRET', 'WEBHOOK_SECRET', 'POSTGRES_PASSWORD']) {
       expect(out, `${key} leaked into stdout`).not.toContain(env[key]);
@@ -172,6 +175,21 @@ describe('deploy/configure.mjs (W17-05)', () => {
     }
   });
 
+  // W20-07 (UX_TODO INS-02): no --admin-email wrote an install nobody could
+  // sign in to, and a re-run with the flag could not fix it (.env is kept).
+  it('refuses to write an install with no administrator unless told --no-admin', async () => {
+    const { code, out } = await configure(['--url=https://x.example.com']);
+    expect(code).not.toBe(0);
+    expect(out).toContain('--admin-email is required');
+    expect(out).toContain('deploy/admin-password');
+    expect(existsSync(path.join(dir, '.env'))).toBe(false);
+
+    const explicit = await configure(['--url=https://x.example.com', '--no-admin']);
+    expect(explicit.code).toBe(0);
+    expect(explicit.out).toContain('this install has NO administrator');
+    expect(explicit.out).toContain('ADMIN_EMAIL=you@example.com');
+  });
+
   it('refuses an admin email with no password rather than inventing one', async () => {
     // A shipped default password is the same password on every install.
     const { code, out } = await configure([
@@ -205,10 +223,10 @@ describe('deploy/configure.mjs (W17-05)', () => {
   });
 
   it('generates a different key on every fresh install', async () => {
-    await configure(['--url=https://x.example.com']);
+    await configure(['--url=https://x.example.com', '--no-admin']);
     const first = readEnv().TOKEN_ENC_KEY;
     rmSync(path.join(dir, '.env'));
-    await configure(['--url=https://x.example.com']);
+    await configure(['--url=https://x.example.com', '--no-admin']);
     expect(readEnv().TOKEN_ENC_KEY).not.toBe(first);
   });
 });

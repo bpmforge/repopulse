@@ -3,7 +3,12 @@ import { eq } from 'drizzle-orm';
 import { core, createDb, deleteAllLocalUsers } from '@repopulse/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ensureBootstrapAdmin } from './bootstrap.js';
-import { createLocalUser, setLocalPassword, verifyLocalCredentials } from './accounts.js';
+import {
+  createLocalUser,
+  resetLocalPassword,
+  setLocalPassword,
+  verifyLocalCredentials,
+} from './accounts.js';
 import { hashPassword } from './password.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -24,7 +29,10 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
 
   describe('creating an account', () => {
     it('creates a local user who must change the password they were given', async () => {
-      const created = await createLocalUser(db, { email: 'Alice@Example.com', password: GOOD_PASSWORD });
+      const created = await createLocalUser(db, {
+        email: 'Alice@Example.com',
+        password: GOOD_PASSWORD,
+      });
       expect(created.ok).toBe(true);
       if (!created.ok) return;
       // The subject is the NORMALISED email, or the same person typing a
@@ -55,8 +63,12 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
   describe('verifying credentials', () => {
     it('accepts the right password and rejects the wrong one', async () => {
       await createLocalUser(db, { email: 'bob@example.com', password: GOOD_PASSWORD });
-      await expect(verifyLocalCredentials(db, 'BOB@example.com', GOOD_PASSWORD)).resolves.toMatchObject({ ok: true });
-      await expect(verifyLocalCredentials(db, 'bob@example.com', 'wrong password!!')).resolves.toEqual({ ok: false });
+      await expect(
+        verifyLocalCredentials(db, 'BOB@example.com', GOOD_PASSWORD),
+      ).resolves.toMatchObject({ ok: true });
+      await expect(
+        verifyLocalCredentials(db, 'bob@example.com', 'wrong password!!'),
+      ).resolves.toEqual({ ok: false });
     });
 
     it('gives an unknown address, a wrong password and a federated account the SAME answer', async () => {
@@ -108,27 +120,45 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
     });
 
     it('upgrades a hash written with weaker parameters on a successful login', async () => {
-      const created = await createLocalUser(db, { email: 'legacy@example.com', password: GOOD_PASSWORD });
+      const created = await createLocalUser(db, {
+        email: 'legacy@example.com',
+        password: GOOD_PASSWORD,
+      });
       expect(created.ok).toBe(true);
       if (!created.ok) return;
       const { randomBytes, scryptSync } = await import('node:crypto');
       const salt = randomBytes(16);
-      const key = scryptSync(GOOD_PASSWORD, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+      const key = scryptSync(GOOD_PASSWORD, salt, 32, {
+        N: 16384,
+        r: 8,
+        p: 1,
+        maxmem: 64 * 1024 * 1024,
+      });
       const legacy = `scrypt$N=16384,r=8,p=1,keylen=32$${salt.toString('base64')}$${key.toString('base64')}`;
-      await db.update(core.users).set({ passwordHash: legacy }).where(eq(core.users.id, created.user.id));
+      await db
+        .update(core.users)
+        .set({ passwordHash: legacy })
+        .where(eq(core.users.id, created.user.id));
 
-      await expect(verifyLocalCredentials(db, 'legacy@example.com', GOOD_PASSWORD)).resolves.toMatchObject({ ok: true });
+      await expect(
+        verifyLocalCredentials(db, 'legacy@example.com', GOOD_PASSWORD),
+      ).resolves.toMatchObject({ ok: true });
 
       const [after] = await db.select().from(core.users).where(eq(core.users.id, created.user.id));
       expect(after?.passwordHash).not.toBe(legacy);
       expect(after?.passwordHash).toContain('N=32768');
       // Still the same password — the upgrade must be invisible to the user.
-      await expect(verifyLocalCredentials(db, 'legacy@example.com', GOOD_PASSWORD)).resolves.toMatchObject({ ok: true });
+      await expect(
+        verifyLocalCredentials(db, 'legacy@example.com', GOOD_PASSWORD),
+      ).resolves.toMatchObject({ ok: true });
     });
   });
 
   it('clears the forced-change flag only by actually setting a password', async () => {
-    const created = await createLocalUser(db, { email: 'change@example.com', password: GOOD_PASSWORD });
+    const created = await createLocalUser(db, {
+      email: 'change@example.com',
+      password: GOOD_PASSWORD,
+    });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
 
@@ -139,10 +169,14 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
     let [row] = await db.select().from(core.users).where(eq(core.users.id, created.user.id));
     expect(row?.mustChangePassword).toBe(true);
 
-    await expect(setLocalPassword(db, created.user.id, 'a different long passphrase')).resolves.toEqual({ ok: true });
+    await expect(
+      setLocalPassword(db, created.user.id, 'a different long passphrase'),
+    ).resolves.toEqual({ ok: true });
     [row] = await db.select().from(core.users).where(eq(core.users.id, created.user.id));
     expect(row?.mustChangePassword).toBe(false);
-    await expect(verifyLocalCredentials(db, 'change@example.com', 'a different long passphrase')).resolves.toMatchObject({ ok: true });
+    await expect(
+      verifyLocalCredentials(db, 'change@example.com', 'a different long passphrase'),
+    ).resolves.toMatchObject({ ok: true });
   });
 
   describe('first-boot bootstrap', () => {
@@ -160,11 +194,15 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
       // Rebooting must not rewrite the row — in particular it must not restore
       // the env password over one the admin has since changed.
       await setLocalPassword(db, first.userId, 'the admin chose this one');
-      await expect(ensureBootstrapAdmin(db, env)).resolves.toEqual({ status: 'already_bootstrapped' });
+      await expect(ensureBootstrapAdmin(db, env)).resolves.toEqual({
+        status: 'already_bootstrapped',
+      });
       const [again] = await db.select().from(core.users).where(eq(core.users.id, first.userId));
       expect(again?.passwordHash).not.toBe(hash);
       expect(again?.mustChangePassword).toBe(false);
-      await expect(verifyLocalCredentials(db, env.email, env.password)).resolves.toEqual({ ok: false });
+      await expect(verifyLocalCredentials(db, env.email, env.password)).resolves.toEqual({
+        ok: false,
+      });
     });
 
     it('makes the bootstrap admin an actual workspace admin', async () => {
@@ -185,8 +223,13 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
       await createLocalUser(db, { email: 'someone.else@example.com', password: GOOD_PASSWORD });
       // The configured ADMIN_EMAIL has no row: it was offboarded. Recreating it
       // here would silently undo that on the next restart.
-      await expect(ensureBootstrapAdmin(db, env)).resolves.toEqual({ status: 'already_bootstrapped' });
-      const [ghost] = await db.select().from(core.users).where(eq(core.users.authSubject, env.email));
+      await expect(ensureBootstrapAdmin(db, env)).resolves.toEqual({
+        status: 'already_bootstrapped',
+      });
+      const [ghost] = await db
+        .select()
+        .from(core.users)
+        .where(eq(core.users.authSubject, env.email));
       expect(ghost).toBeUndefined();
     });
 
@@ -223,7 +266,9 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
 
     it('does nothing when ADMIN_EMAIL/ADMIN_PASSWORD are not configured', async () => {
       await expect(ensureBootstrapAdmin(db, {})).resolves.toEqual({ status: 'not_configured' });
-      await expect(ensureBootstrapAdmin(db, { email: env.email })).resolves.toEqual({ status: 'not_configured' });
+      await expect(ensureBootstrapAdmin(db, { email: env.email })).resolves.toEqual({
+        status: 'not_configured',
+      });
     });
 
     it('refuses to bring up a fresh install behind a weak ADMIN_PASSWORD, without logging it', async () => {
@@ -242,7 +287,10 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
   });
 
   it('never stores the plaintext anywhere on the row', async () => {
-    const created = await createLocalUser(db, { email: 'nolabels@example.com', password: GOOD_PASSWORD });
+    const created = await createLocalUser(db, {
+      email: 'nolabels@example.com',
+      password: GOOD_PASSWORD,
+    });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
     const [row] = await db.select().from(core.users).where(eq(core.users.id, created.user.id));
@@ -250,5 +298,56 @@ describeIfLiveInfra('local accounts + first-boot bootstrap (W15-02)', () => {
     // And a freshly written hash is verifiable, so "not the plaintext" is not
     // achieved by storing something useless.
     expect(await hashPassword(GOOD_PASSWORD)).not.toContain(GOOD_PASSWORD);
+  });
+  // W20-07 (UX_TODO INS-03): there was no way back from a lost password.
+  describe('resetting a password', () => {
+    it('issues a one-time temporary password that only opens the forced change', async () => {
+      const created = await createLocalUser(db, {
+        email: 'lost@example.com',
+        password: GOOD_PASSWORD,
+      });
+      if (!created.ok) throw new Error('setup');
+      await setLocalPassword(db, created.user.id, 'the one they then forgot');
+
+      const reset = await resetLocalPassword(db, created.user.id);
+      expect(reset.ok).toBe(true);
+      if (!reset.ok) return;
+      expect(reset.temporaryPassword.length).toBeGreaterThanOrEqual(20);
+      expect(reset.user.mustChangePassword).toBe(true);
+      // The old password stops working; the temporary one works.
+      await expect(
+        verifyLocalCredentials(db, 'lost@example.com', 'the one they then forgot'),
+      ).resolves.toEqual({ ok: false });
+      await expect(
+        verifyLocalCredentials(db, 'lost@example.com', reset.temporaryPassword),
+      ).resolves.toMatchObject({ ok: true });
+      const [row] = await db.select().from(core.users).where(eq(core.users.id, created.user.id));
+      expect(JSON.stringify(row)).not.toContain(reset.temporaryPassword);
+    });
+
+    it('refuses a federated account and an unknown id', async () => {
+      const [gh] = await db
+        .insert(core.users)
+        .values({
+          authProvider: 'github',
+          authSubject: 'w20-07-reset-gh',
+          forgeUserId: 'w20-07-reset-gh',
+          login: 'w20-07-reset-gh',
+        })
+        .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w20-07-reset-gh' } })
+        .returning();
+      try {
+        await expect(resetLocalPassword(db, gh!.id)).resolves.toEqual({
+          ok: false,
+          reason: 'not_local',
+        });
+        await expect(resetLocalPassword(db, 2_000_000_000)).resolves.toEqual({
+          ok: false,
+          reason: 'not_found',
+        });
+      } finally {
+        await db.delete(core.users).where(eq(core.users.id, gh!.id));
+      }
+    });
   });
 });

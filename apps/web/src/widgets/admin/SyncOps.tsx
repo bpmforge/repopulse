@@ -6,7 +6,8 @@ import {
   type DataTableColumn,
 } from '../../components/index.js';
 import { DlqPanel } from './DlqPanel.js';
-import { useApiQuery } from '../../api/useApiQuery.js';
+import { queryKeyFor, useApiMutation, useApiQuery } from '../../api/useApiQuery.js';
+import { errorToast, useUiStore } from '../../components/store/uiStore.js';
 import {
   formatLag,
   notEnabledText,
@@ -35,11 +36,63 @@ export function syncPollInterval(status: OrgSyncStatus | undefined): number | fa
   return status?.repos.some((r) => !SETTLED_PHASES.has(r.phase)) ? SYNC_POLL_MS : false;
 }
 
-export function SyncOps() {
-  const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSyncStatus>(
-    { endpoint: '/sync/status' },
-    { refetchInterval: syncPollInterval },
+const STATUS = { endpoint: '/sync/status' } as const;
+
+/**
+ * Pause / Resume one repository (W20-07, UX_TODO INS-09).
+ *
+ * USER_STORIES E1.2/E1.6 and UX_SPEC §4.i promise both, and there was no way
+ * to stop tracking a repository at all. Pausing stops every forge call for it
+ * and keeps its history; resuming re-plans the backfill from where it
+ * stopped. One click each: both are undone by the other.
+ */
+export function TrackingButton({ row }: { row: RepoSyncStatus }) {
+  const pushToasts = useUiStore((s) => s.pushToasts);
+  const paused = row.phase === 'paused';
+  const toggle = useApiMutation<{ paused: boolean }, { repo_id: number; sync_status: string }>(
+    { endpoint: '/repos/{id}/tracking', path: { id: row.repoId }, method: 'PUT' },
+    { invalidate: [queryKeyFor(STATUS)] },
   );
+  const name = row.repoName ?? row.repoId;
+  return (
+    <button
+      type="button"
+      disabled={toggle.isPending}
+      className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50"
+      data-testid={`sync-tracking-${row.repoId}`}
+      title={
+        paused
+          ? 'Start syncing again from where it stopped'
+          : 'Stop all syncing for this repository; its history stays'
+      }
+      onClick={() =>
+        toggle.mutate(
+          { paused: !paused },
+          {
+            onError: (err: Error) => pushToasts([errorToast(`tracking-${row.repoId}-err`, err)]),
+            onSuccess: () =>
+              pushToasts([
+                {
+                  id: `tracking-${row.repoId}-ok`,
+                  tone: 'ok',
+                  message: paused
+                    ? `${name} resumed — the backfill picks up where it stopped`
+                    : `${name} paused — nothing syncs until you resume it`,
+                },
+              ]),
+          },
+        )
+      }
+    >
+      {paused ? 'Resume' : 'Pause'}
+    </button>
+  );
+}
+
+export function SyncOps() {
+  const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSyncStatus>(STATUS, {
+    refetchInterval: syncPollInterval,
+  });
 
   const repos = data?.repos ?? [];
 
@@ -122,6 +175,11 @@ export function SyncOps() {
         ) : (
           '—'
         ),
+    },
+    {
+      id: 'tracking',
+      header: 'Tracking',
+      cell: (row) => <TrackingButton row={row} />,
     },
   ];
 

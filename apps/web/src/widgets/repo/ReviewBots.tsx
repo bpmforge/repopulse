@@ -49,7 +49,7 @@ export function formatHours(h: number | null): string {
 export function lineDataNote(data: RepoReviewBots): string | null {
   const forge = data.forge ? (FORGE_NAMES[data.forge] ?? data.forge) : 'This forge';
   if (data.line_data === 'refused') {
-    return `${forge} refused the review-comment request for this repository, so comments per PR, the code-change share and repeat-after-dismiss are blank. Admin → Sync shows the error.`;
+    return `${forge} refused the review-comment request for this repository, so comments per PR, the code-change share and repeat-after-dismiss are blank. Settings → Sync shows the error.`;
   }
   if (data.line_data === 'not_collected') {
     if (data.forge !== null && data.forge !== 'github') {

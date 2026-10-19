@@ -80,6 +80,13 @@ export interface GitLabProviderOptions {
   baseUrl?: string;
 }
 
+/**
+ * gitlab.com, the instance a GitLab connection with no URL means (W20-07, INS-73).
+ * Exported so the API and the worker resolve a blank URL the same way instead
+ * of each guessing — the worker used to fill it with the GitHub default.
+ */
+export const DEFAULT_GITLAB_BASE_URL = 'https://gitlab.com';
+
 export class GitLabProvider implements ForgeProvider {
   readonly kind = 'gitlab' as const;
   readonly capabilities = GITLAB_CAPABILITIES;
@@ -91,7 +98,7 @@ export class GitLabProvider implements ForgeProvider {
   constructor(opts: GitLabProviderOptions) {
     this.client = opts.client;
     this.auth = opts.auth;
-    const trimmed = (opts.baseUrl ?? 'https://gitlab.com').replace(/\/+$/, '');
+    const trimmed = (opts.baseUrl ?? DEFAULT_GITLAB_BASE_URL).replace(/\/+$/, '');
     this.base = trimmed.endsWith('/api/v4') ? trimmed : `${trimmed}/api/v4`;
   }
 

@@ -30,7 +30,8 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, openSync, readFileSync, writeSync, closeSync } from 'node:fs';
 import path from 'node:path';
 
-const DEPLOY_DIR = process.env.REPOPULSE_DEPLOY_DIR ?? path.dirname(new URL(import.meta.url).pathname);
+const DEPLOY_DIR =
+  process.env.REPOPULSE_DEPLOY_DIR ?? path.dirname(new URL(import.meta.url).pathname);
 const ENV_PATH = path.join(DEPLOY_DIR, '.env');
 const EXAMPLE_PATH = path.join(DEPLOY_DIR, '.env.example');
 
@@ -56,15 +57,19 @@ function parseArgs(argv) {
 
 function usage() {
   return `  Usage:
-    deploy/configure.sh --url=https://repopulse.example.com [--port=8099] [--admin-email=you@example.com]
+    deploy/configure.sh --url=https://repopulse.example.com --admin-email=you@example.com [--port=8099]
 
   Options:
     --url           REQUIRED. The address your users will open.
     --port          Host port the web tier publishes on (default 8099).
     --bind          Host interface to publish on (default 127.0.0.1).
-    --admin-email   First administrator. Their password is read from
-                    ADMIN_PASSWORD in the environment, or from
+    --admin-email   REQUIRED. First administrator. Their password is read
+                    from ADMIN_PASSWORD in the environment, or from
                     deploy/admin-password (deleted after it is read).
+    --no-admin      Write .env with NO administrator, on purpose. Nobody can
+                    sign in until ADMIN_EMAIL/ADMIN_PASSWORD are added to
+                    deploy/.env by hand — even with SSO, a first sign-in is
+                    never made admin.
     --force-regenerate-secrets
                     Refuse-proof: only meaningful with no existing .env.`;
 }
@@ -188,6 +193,36 @@ function main() {
     die('A password was supplied but --admin-email was not.', usage());
   }
 
+  // W20-07 (UX_TODO INS-02, INS-74). With no --admin-email this used to
+  // succeed and write an install NOBODY can sign in to — and because .env is
+  // never rewritten, re-running with the flag did not fix it. Since INS-74 a
+  // first SSO/GitHub sign-in is not made admin either, so there is no install
+  // where leaving it out works. Refuse, and say exactly what to run; the only
+  // way past is an explicit --no-admin.
+  if (!adminEmail && !args['no-admin']) {
+    die(
+      '--admin-email is required.',
+      `  Without it nobody can sign in to this install: there is no first
+  administrator, and a single-sign-on or GitHub sign-in is never made admin
+  on its own. Give the first administrator's email, and their password
+  without putting it in your shell history:
+
+      printf '%s' 'your-password-here' > deploy/admin-password
+      deploy/configure.sh --url=${publicUrl} --admin-email=you@example.com
+
+  (Pass --no-admin to write .env without one on purpose; you will then have
+  to add ADMIN_EMAIL= and ADMIN_PASSWORD= lines to deploy/.env yourself
+  before anyone can sign in.)`,
+    );
+  }
+  if (!adminEmail) {
+    console.error(
+      `\n${red('WARNING: --no-admin — this install has NO administrator.')}\n` +
+        '  Nobody can sign in until you add these lines to deploy/.env and run deploy/up.sh:\n' +
+        dim('      ADMIN_EMAIL=you@example.com\n      ADMIN_PASSWORD=<at least 12 characters>\n'),
+    );
+  }
+
   // ---- build the file ------------------------------------------------------
   const pgPassword = hex24();
   const redisPassword = hex24();
@@ -276,7 +311,9 @@ function main() {
   console.log(`\n${green('Wrote deploy/.env')} ${dim('(mode 0600)')}\n`);
   console.log(`  URL:   ${publicUrl}`);
   console.log(`  Port:  ${bind}:${port}`);
-  console.log(`  Admin: ${adminEmail || dim('not set — see docs/INSTALL.md before first sign-in')}`);
+  console.log(
+    `  Admin: ${adminEmail || dim('not set — see docs/INSTALL.md before first sign-in')}`,
+  );
   console.log(`\n  Generated: POSTGRES_PASSWORD, REDIS_PASSWORD, SESSION_SECRET,`);
   console.log(`             TOKEN_ENC_KEY, WEBHOOK_SECRET ${dim('(values not printed)')}\n`);
   console.log(`  ${red('BACK UP TOKEN_ENC_KEY SEPARATELY FROM YOUR DATABASE DUMP.')}`);

@@ -64,6 +64,13 @@ export interface BuildAppOptions {
   demoAccount?: { email: string; password: string } | undefined;
   /** Test-only override so security tests can capture audit/redaction output. */
   loggerInstance?: Logger;
+  /**
+   * Which proxies to believe about the client address (W20-07, UX_TODO
+   * INS-55). Unset = trust none, which is right for a test or a bare API; the
+   * entrypoint passes TRUST_PROXY, which defaults to the one nginx hop the
+   * shipped stack has. See lib/trust-proxy.ts.
+   */
+  trustProxy?: import('./lib/trust-proxy.js').TrustProxy | undefined;
 }
 
 export function buildApp(opts: BuildAppOptions) {
@@ -82,6 +89,9 @@ export function buildApp(opts: BuildAppOptions) {
   // Fastify 5.x option for a pre-built pino instance, not `logger`).
   const app = Fastify({
     loggerInstance: opts.loggerInstance ?? createLogger({ name: 'repopulse-api' }),
+    // W20-07 (UX_TODO INS-55): without it, `request.ip` behind nginx is nginx,
+    // so the sign-in rate limit and the audit log saw one client for everyone.
+    ...(opts.trustProxy !== undefined ? { trustProxy: opts.trustProxy } : {}),
   });
 
   app.register(errorEnvelopePlugin);
@@ -120,6 +130,7 @@ export function buildApp(opts: BuildAppOptions) {
     db: opts.db,
     ...(opts.oidc ? { oidc: { displayName: opts.oidc.displayName } } : {}),
     github: opts.githubOAuth !== undefined,
+    secureCookies: opts.cookieSecure,
     // W16-02 (F1/F2): only the demo entrypoint passes this, so a production
     // build cannot publish a credential here even by mistake.
     ...(opts.demoAccount ? { demo: opts.demoAccount } : {}),

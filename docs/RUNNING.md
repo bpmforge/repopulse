@@ -39,8 +39,8 @@ password — that is the real first-boot behaviour of an account created from
 
 **It starts EMPTY on purpose.** There is no seeded warehouse, because the point
 is to walk the first run the way a customer does: connect a credential in
-Admin → Connections (the script prints the fixture token to paste), choose
-repositories, watch the backfill land in Admin → Sync, and see the repos go
+Settings → Connections (the script prints the fixture token to paste), choose
+repositories, watch the backfill land in Settings → Sync, and see the repos go
 live. Models, settings, agreements and scanners are all configured from the UI
 too — nothing in this stack needs a file edited.
 
@@ -177,7 +177,7 @@ Same as above against real data instead of the seeded warehouse.
 
 Sign-in itself needs nothing new: set `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`
 (above), run `pnpm dev`, and log in with them. Connecting an organisation to
-pull its data is done from Admin → Connections once you are signed in, with a
+pull its data is done from Settings → Connections once you are signed in, with a
 read-only personal access token for GitHub, GitLab or Gitea (scopes in
 [INSTALL.md](INSTALL.md#connect-your-forge)).
 

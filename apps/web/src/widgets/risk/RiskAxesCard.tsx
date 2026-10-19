@@ -92,8 +92,8 @@ export function RiskAxesCard({ repoId }: { repoId?: string }) {
             {measured.length === 0 ? (
               <p className="text-xs text-fg-muted" data-testid="axis-unmeasured-next">
                 Axis letters come from a repository&rsquo;s health sub-scores; until one exists for
-                this scope there is nothing to grade. Admin → Connections is where repositories are
-                selected and backfilled.
+                this scope there is nothing to grade. Settings → Connections is where repositories
+                are selected and backfilled.
               </p>
             ) : null}
           </li>

@@ -46,7 +46,7 @@ curl -f http://127.0.0.1:8099/healthz && echo OK
 
 Open the URL and sign in as the admin email with the password you set. You are
 asked to change it before anything else is reachable. The install is now
-working and empty: connecting a forge is done from **Admin → Connections**
+working and empty: connecting a forge is done from **Settings → Connections**
 inside the product, with your own GitHub App, Gitea token or GitLab token.
 [docs/INSTALL.md](docs/INSTALL.md) walks through that, the reverse proxy, and
 the scan-data sync that dependency scanning needs.
@@ -90,15 +90,15 @@ amd64 are untested, not unsupported.
 | Capability | Required configuration | Evidence type | Status | Known limits |
 |---|---|---|---|---|
 | Install from bundle; data survives restart | container runtime only | recorded smoke (W17-28); repeated for this document (W17-33) | **Tested** on linux/arm64, rootless Podman | amd64, Docker, rootful Podman, Windows/WSL2 untested; no registry, no download URL |
-| First admin sign-in, forced password change | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | recorded smoke + browser journey (W17-28, W17-30) | **Tested** | one bootstrap admin only; further people from Admin → Members |
+| First admin sign-in, forced password change | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | recorded smoke + browser journey (W17-28, W17-30) | **Tested** | one bootstrap admin only; further people from Settings → Members |
 | Single sign-on (OIDC) | the `OIDC_*` group | unit tests of the callback and half-configuration refusal | Supported | no real identity provider was connected in release evidence |
 | Sign in with GitHub | `GITHUB_APP_CLIENT_ID` / `_SECRET` | e2e with a mocked OAuth boundary | Supported | real GitHub OAuth not run in release evidence |
-| Connect a forge and choose repositories | Admin → Connections; GitHub App, Gitea token or GitLab token | browser journey against a fixture forge (W17-30) | **Tested** against the fixture forge | the real `api.github.com` run is **blocked** (no credential on the evidence host); no real Gitea or GitLab instance connected in release evidence |
+| Connect a forge and choose repositories | Settings → Connections; GitHub App, Gitea token or GitLab token | browser journey against a fixture forge (W17-30) | **Tested** against the fixture forge | the real `api.github.com` run is **blocked** (no credential on the evidence host); no real Gitea or GitLab instance connected in release evidence |
 | Backfill and ingestion to `live` | a connected forge | browser journey (W17-30) | **Tested** against the fixture forge | as above |
 | Webhook deliveries | forge can reach `PUBLIC_BASE_URL`; `WEBHOOK_SECRET` | unit tests of signature verification | Supported for GitHub | one receiver, GitHub signature format; Gitea and GitLab freshness comes from the nightly reconcile |
 | Tier-1 metrics: health, hotspots, PR flow, reviews, CI, DORA-style delivery | none | populated screens (W17-30); bounds measured at 100 repos / 10,000 findings (W17-32) | **Tested** | repository lists are not paged (about 311 bytes per repository per request) |
-| Tier-2 model review (OpenAI-compatible endpoint such as LM Studio) | Admin → Models | browser journey with a fixture model: connection test, checklist finding, timeout, recovery (W17-30) | **Tested** against the fixture model | a real local model was exercised in development, not in release evidence; use an instruct model, not a reasoning model |
-| Tier-3 hosted model (API key) | Admin → Models, plus per-repository opt-in; writes an egress audit row | unit tests | Supported | not exercised in release evidence; API-key auth only (Vertex, Bedrock, Copilot absent) |
+| Tier-2 model review (OpenAI-compatible endpoint such as LM Studio) | Settings → Models | browser journey with a fixture model: connection test, checklist finding, timeout, recovery (W17-30) | **Tested** against the fixture model | a real local model was exercised in development, not in release evidence; use an instruct model, not a reasoning model |
+| Tier-3 hosted model (API key) | Settings → Models, plus per-repository opt-in; writes an egress audit row | unit tests | Supported | not exercised in release evidence; API-key auth only (Vertex, Bedrock, Copilot absent) |
 | Sandboxed scanners: in-house Semgrep rules, secrets, code-health tools, dependency CVEs | `deploy/scan-db-sync.sh` for CVE data | packaged-stack proof (W17-27) and journey (W17-30) | **Tested** on Podman | CVE scanning reports itself unavailable until the sync has run; Docker path unit-tested only |
 | OWASP web and LLM checklist reviews (model-driven) | a Tier-2 model; enabled per repository, off by default | journey step: one checklist finding through the validator (W17-30) | **Tested** for the web checklist against the fixture model | no screen enables a per-repository scanner yet; the journey used the API route |
 | Reports and PDF export | none | unit tests (W17-26) | Supported | not part of the recorded journey |

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { core, type Database } from '@repopulse/shared';
 import { findLocalUserByEmail, findOrCreateUserForSubject } from '../identity-provider/index.js';
@@ -144,7 +145,8 @@ export async function createLocalUser(
   return { ok: true, user: updated ?? user };
 }
 
-export type SetPasswordOutcome = { ok: true } | { ok: false; reason: 'weak_password'; detail: string };
+export type SetPasswordOutcome =
+  { ok: true } | { ok: false; reason: 'weak_password'; detail: string };
 
 /**
  * Replaces a user's password and clears the forced-change flag.
@@ -166,4 +168,41 @@ export async function setLocalPassword(
     .set({ passwordHash: await hashPassword(password), mustChangePassword: false })
     .where(eq(core.users.id, userId));
   return { ok: true };
+}
+
+export type ResetPasswordOutcome =
+  | { ok: true; temporaryPassword: string; user: UserRow }
+  /** No such user, or one that signs in with GitHub/OIDC and has no password here. */
+  | { ok: false; reason: 'not_found' | 'not_local' };
+
+/**
+ * Issues a one-time temporary password (W20-07, UX_TODO INS-03).
+ *
+ * There was no way back from a lost password: no "forgot password", no admin
+ * reset, no CLI — and a locked-out bootstrap admin could not get in at all,
+ * because changing ADMIN_EMAIL creates nothing once any local account exists.
+ * This is the one primitive both the admin action (Members) and the operator
+ * CLI call.
+ *
+ * The password is generated, never chosen: a human-picked "temporary" password
+ * is usually a pattern. It is returned exactly once and stored only as a hash,
+ * and `must_change_password` is set, so the only thing it can do is open the
+ * forced-change screen — the same gate the bootstrap admin goes through.
+ */
+export async function resetLocalPassword(
+  db: Database,
+  userId: number,
+  generate: () => string = () => randomBytes(18).toString('base64url'),
+): Promise<ResetPasswordOutcome> {
+  const [user] = await db.select().from(core.users).where(eq(core.users.id, userId)).limit(1);
+  if (!user) return { ok: false, reason: 'not_found' };
+  if (user.authProvider !== 'local') return { ok: false, reason: 'not_local' };
+
+  const temporaryPassword = generate();
+  const [updated] = await db
+    .update(core.users)
+    .set({ passwordHash: await hashPassword(temporaryPassword), mustChangePassword: true })
+    .where(eq(core.users.id, userId))
+    .returning();
+  return { ok: true, temporaryPassword, user: updated ?? user };
 }

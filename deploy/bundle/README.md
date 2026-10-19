@@ -81,16 +81,34 @@ unavailable rather than pretending a clean result.
 
 ## Upgrading
 
+This is the short form of `docs/RUNBOOK.md` → *Upgrade*; when they differ,
+RUNBOOK wins.
+
 1. Extract the new bundle **beside** the old one, do not overwrite it.
-2. Copy `deploy/.env` from the old directory into the new one.
-3. In the new `deploy/.env`, set `REPOPULSE_VERSION` and `SCAN_IMAGE` to the
-   new version (the last three lines of the file; `install.sh` tells you if
-   they disagree with the bundle).
-4. `./install.sh` in the new directory. Migrations run once, before the API
+2. **Take a backup first:** `./deploy/backup.sh` in the old directory. Migrations
+   only go forward; this dump is your only way back.
+3. Copy `deploy/.env` from the old directory into the new one.
+   Also carry over what lives **inside** the old directory unless you set an
+   absolute path for it: `deploy/scan-rules` (or your `SCAN_RULES_DIR`) — the
+   vulnerability database and rulepacks; `deploy/ca` (or `EXTRA_CA_DIR`) —
+   your internal-CA PEM, without which TLS to a self-hosted forge fails; and
+   your backups. Then point the cron lines at the new directory. Setting
+   `SCAN_RULES_DIR` and `EXTRA_CA_DIR` to absolute paths outside any bundle
+   (for example `/srv/repopulse/scan-rules`) makes later upgrades skip this.
+4. In the new `deploy/.env`, set `REPOPULSE_VERSION` and `SCAN_IMAGE` to the
+   new version (the last lines of the file; `install.sh` tells you if they
+   disagree with the bundle).
+5. `podman compose -f deploy/compose.yaml down` in the **old** directory. Without
+   it the old containers keep running the old code.
+6. `./install.sh` in the new directory. Migrations run once, before the API
    starts; the data volumes are shared by compose project name, so nothing is
    copied.
-5. To roll back: `deploy/up.sh` from the old directory. Its `.env` still pins
-   the old version and the old images are still loaded.
+
+**Rolling back is a restore, not `up.sh` from the old directory.** By then the
+schema has been migrated forward, and old code against a new schema fails in
+ways that are hard to see. Restore the step-2 dump with
+`./deploy/restore.sh --project=repopulse --production --no-migrate <dump>` from
+the old directory, exactly as RUNBOOK → *Rollback* describes.
 
 ## Troubleshooting
 

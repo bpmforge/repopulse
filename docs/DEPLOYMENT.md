@@ -92,11 +92,11 @@ generated and mode `0600`, and never rewrites it, because rotating
 Not read by this release, though older templates mention them: `GITHUB_PAT`,
 `GITHUB_APP_PRIVATE_KEY`, `WEBHOOK_SECRET` (webhook secrets are generated per
 connection and stored encrypted). `LMSTUDIO_*` and `ANTHROPIC_API_KEY` are
-superseded by **Admin → Models**, which needs no restart; the `LMSTUDIO_*`
+superseded by **Settings → Models**, which needs no restart; the `LMSTUDIO_*`
 pair is still honoured so an existing install keeps its model on upgrade.
 
 Startup validates the whole matrix and refuses to boot on a missing or
-malformed value, naming each one. **Admin → Setup** reports whether each
+malformed value, naming each one. **Settings → Setup** reports whether each
 variable is *set*, never its value.
 
 ## 4. Reverse proxy, TLS, webhook ingress
@@ -165,7 +165,7 @@ broken-migration cases, was run as a 44-check drill
   has published a heartbeat in the last minute") and a scan that no worker
   picked up in five minutes says so on the screen. Both were exercised by
   killing the worker in the recorded journey.
-- **Admin → Setup** lists sign-in methods, configuration problems, forge
+- **Settings → Setup** lists sign-in methods, configuration problems, forge
   connection state, selected repositories and the most recent webhook
   delivery.
 - The scan-data sync: a `Built:` date under `deploy/scan-rules/vuln-db` that
@@ -176,7 +176,7 @@ broken-migration cases, was run as a 44-check drill
 
 Suggested thresholds: `/healthz` failing; no worker heartbeat for more than a
 minute; the vulnerability database older than five days (grype refuses it at
-that point and the scan reports the age); sync lag over 24 hours on Admin →
+that point and the scan reports the age); sync lag over 24 hours on Settings →
 Sync.
 
 ## 8. Upgrade and rollback
@@ -203,7 +203,7 @@ reached by a *name* (`lmstudio.local`, `models.internal`) used to count as local
 for the egress audit even though the host policy had always required an explicit
 off-network decision for it. Only IP addresses (loopback and private IPv4) count
 now. After upgrading, such a connection is audited like any off-network call,
-shown as *leaving* in Admin → Models, and refused by **Local only**. Nothing is
+shown as *leaving* in Settings → Models, and refused by **Local only**. Nothing is
 rewritten; to find them:
 
 ```sql
@@ -214,7 +214,7 @@ select name, base_url, allow_public_host from llm_providers
 
 (also check `LMSTUDIO_BASE_URLS` in `deploy/.env`, which does not pass through the
 host policy). To keep one on your network, give it its machine's IP address in
-Admin → Models. If RepoPulse runs in a container, `localhost` is the container
+Settings → Models. If RepoPulse runs in a container, `localhost` is the container
 itself - use the host's network address.
 
 Restart the **stack**, not one service: `web` resolves the `api` address once

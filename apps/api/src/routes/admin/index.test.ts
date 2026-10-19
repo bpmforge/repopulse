@@ -6,6 +6,7 @@ import { Writable } from 'node:stream';
 import pino from 'pino';
 import { core, createDb, redactLine, type Database, type Logger } from '@repopulse/shared';
 import type { Job, Queue } from 'bullmq';
+import { local } from '@repopulse/auth';
 import { buildApp } from '../../app.js';
 import { loginAs } from '../../testing/login.js';
 
@@ -159,7 +160,12 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
 
     const [member] = await db
       .insert(core.users)
-      .values({ authProvider: 'github', authSubject: 'w4-20-member', forgeUserId: 'w4-20-member', login: 'w4-20-member' })
+      .values({
+        authProvider: 'github',
+        authSubject: 'w4-20-member',
+        forgeUserId: 'w4-20-member',
+        login: 'w4-20-member',
+      })
       .onConflictDoUpdate({ target: core.users.forgeUserId, set: { login: 'w4-20-member' } })
       .returning();
     memberUserId = member!.id;
@@ -576,5 +582,76 @@ describeIfLiveInfra('admin routes (W4-20, FR-AUTH-4 / NFR-11)', () => {
     // A 403 would confirm the id exists in some other tenant.
     expect(res.statusCode).toBe(404);
     expect(added.find((a) => a.name === 'other-tenant-job')).toBeUndefined();
+  });
+  // W20-07 (UX_TODO INS-03): no way back from a lost password.
+  describe('reset password (W20-07)', () => {
+    const LOCAL_EMAIL = 'w20-07-reset-member@example.com';
+    let localUserId: number;
+
+    beforeAll(async () => {
+      const [u] = await db
+        .insert(core.users)
+        .values({
+          authProvider: 'local',
+          authSubject: LOCAL_EMAIL,
+          email: LOCAL_EMAIL,
+          login: 'w20-07-reset',
+        })
+        .onConflictDoUpdate({
+          target: [core.users.authProvider, core.users.authSubject],
+          set: { login: 'w20-07-reset' },
+        })
+        .returning();
+      localUserId = u!.id;
+      await db
+        .insert(core.workspaceMembers)
+        .values({ workspaceId, userId: localUserId, role: 'member' })
+        .onConflictDoNothing();
+    });
+
+    afterAll(async () => {
+      await db.delete(core.workspaceMembers).where(eq(core.workspaceMembers.userId, localUserId));
+      await db.delete(core.users).where(eq(core.users.id, localUserId));
+    });
+
+    const reset = (cookie: string, userId: number) =>
+      app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/members/${userId}/reset-password`,
+        cookies: { repopulse_sid: cookie },
+        headers: CSRF,
+      });
+
+    it('issues a one-time temporary password, forces a change, and audits it without the password', async () => {
+      const cookie = await adminSession();
+      audit.reset();
+      const res = await reset(cookie, localUserId);
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { temporary_password: string; must_change_password: boolean };
+      expect(body.must_change_password).toBe(true);
+      await expect(
+        local.verifyLocalCredentials(db, LOCAL_EMAIL, body.temporary_password),
+      ).resolves.toMatchObject({ ok: true, user: { mustChangePassword: true } });
+
+      const line = audit.lines().find((l) => l.event === 'auth.password_reset');
+      expect(line).toMatchObject({ actorUserId: adminUserId, targetUserId: localUserId });
+      expect(JSON.stringify(audit.lines())).not.toContain(body.temporary_password);
+
+      const listed = await app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/members',
+        cookies: { repopulse_sid: cookie },
+      });
+      const rows = (listed.json() as { items: { user_id: number; auth_provider: string }[] }).items;
+      expect(rows.find((r) => r.user_id === localUserId)?.auth_provider).toBe('local');
+    });
+
+    it('refuses a GitHub/SSO member (409), a member caller (403) and an unknown id (404)', async () => {
+      const cookie = await adminSession();
+      expect((await reset(cookie, memberUserId)).statusCode).toBe(409);
+      expect((await reset(cookie, 2_000_000_000)).statusCode).toBe(404);
+      const memberCookie = await loginAs(app, 'w4-20-member');
+      expect((await reset(memberCookie, localUserId)).statusCode).toBe(403);
+    });
   });
 });

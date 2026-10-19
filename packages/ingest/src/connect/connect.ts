@@ -7,7 +7,16 @@ import { splitRepoFullName, type ForgeRepo } from '@repopulse/forge';
 // vault's encrypt and the forge smoke-call are injected. The API route
 // (apps/api) composes auth + forge + this.
 
-export type ConnectFailureKind = 'bad_token' | 'bad_scope' | 'no_repos';
+export type ConnectFailureKind =
+  | 'bad_token'
+  | 'bad_scope'
+  | 'no_repos'
+  /** The forge answered 404: almost always a wrong instance URL (W20-07, INS-64). */
+  | 'wrong_url'
+  /** TLS failed: an internal CA this process does not trust (W20-07, INS-64). */
+  | 'tls_untrusted'
+  /** DNS, refused, timeout, proxy refusal or a 5xx: the token was never judged. */
+  | 'cannot_reach';
 
 export class ConnectValidationError extends Error {
   constructor(
@@ -19,10 +28,61 @@ export class ConnectValidationError extends Error {
   }
 }
 
-// Distinct, actionable errors for the two credential failure modes
-// (INGESTION §1 validation): a rejected token vs. a token lacking read scopes.
-export function classifySmokeError(err: unknown): ConnectValidationError {
+// Node's TLS verification codes that mean "this certificate chain ends at a CA
+// we do not trust" (or is otherwise unverifiable). They arrive through undici
+// as the `cause` of a `fetch failed` TypeError, which octokit wraps again.
+const TLS_CODES = new Set([
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'UNABLE_TO_GET_ISSUER_CERT',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'CERT_HAS_EXPIRED',
+  'CERT_UNTRUSTED',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+]);
+
+/** Every `code` and message down the cause chain (bounded: chains can cycle). */
+function causeChain(err: unknown): { codes: string[]; messages: string[] } {
+  const codes: string[] = [];
+  const messages: string[] = [];
+  let cur: unknown = err;
+  for (let depth = 0; cur && typeof cur === 'object' && depth < 6; depth++) {
+    const e = cur as { code?: unknown; message?: unknown; cause?: unknown };
+    if (typeof e.code === 'string') codes.push(e.code);
+    if (typeof e.message === 'string' && e.message) messages.push(e.message);
+    cur = e.cause;
+  }
+  return { codes, messages };
+}
+
+/**
+ * The underlying reason, made safe to show an admin: the deepest message (the
+ * one that names the real failure, not "fetch failed"), one line, bounded, and
+ * with any userinfo in a URL stripped.
+ */
+function safeReason(messages: string[]): string {
+  const deepest = messages.at(-1) ?? 'unknown error';
+  return deepest
+    .replace(/\/\/[^/@\s]+@/g, '//')
+    .replace(/\s+/g, ' ')
+    .slice(0, 200);
+}
+
+/**
+ * Distinct, actionable errors for each way a connect can fail (INGESTION §1).
+ *
+ * W20-07 (UX_TODO INS-64): everything that was not a 401/403 used to come back
+ * as bad_token, "Could not validate the credential" — so an admin behind an
+ * internal CA, a proxy or a typo'd host was told to replace a token the forge
+ * had never even seen. Only a real 401 says the token is bad now.
+ *
+ * `host` names the forge in the message; it is the admin's own input, so
+ * echoing it back discloses nothing.
+ */
+export function classifySmokeError(err: unknown, host?: string): ConnectValidationError {
   const status = (err as { status?: number } | null)?.status;
+  const where = host ? ` ${host}` : ' the forge';
   if (status === 401) {
     return new ConnectValidationError('bad_token', 'Credential rejected — bad or expired token.');
   }
@@ -32,7 +92,35 @@ export function classifySmokeError(err: unknown): ConnectValidationError {
       'Credential lacks the required read scopes (contents, metadata, pull_requests, checks, deployments, issues).',
     );
   }
-  return new ConnectValidationError('bad_token', 'Could not validate the credential.');
+  if (status === 404) {
+    return new ConnectValidationError(
+      'wrong_url',
+      `Could not find the repository listing at${where} (HTTP 404) — check the instance URL.`,
+    );
+  }
+  const { codes, messages } = causeChain(err);
+  if (codes.some((c) => TLS_CODES.has(c)) || messages.some((m) => /certificate/i.test(m))) {
+    return new ConnectValidationError(
+      'tls_untrusted',
+      `Could not reach${where}: ${safeReason(messages)}. Its certificate is not trusted by RepoPulse — see Installing → "A forge with an internal-CA certificate".`,
+    );
+  }
+  // Octokit reports a TRANSPORT failure as status 500 with a `request` and no
+  // `response`; only an error without that shape is an HTTP answer.
+  const transport =
+    err instanceof Error &&
+    'request' in err &&
+    (err as { response?: unknown }).response === undefined;
+  if (typeof status === 'number' && status >= 400 && !transport) {
+    return new ConnectValidationError(
+      'cannot_reach',
+      `Could not reach${where}: it answered HTTP ${status}. Check the instance URL, or try again if the forge is down.`,
+    );
+  }
+  return new ConnectValidationError(
+    'cannot_reach',
+    `Could not reach${where}: ${safeReason(messages)}. Check the instance URL, DNS, any proxy between RepoPulse and the forge, and that the forge is up.`,
+  );
 }
 
 /** The encrypted-credential shape the vault produces (structural — no auth import). */
@@ -72,6 +160,33 @@ export interface CreateConnectionDeps {
   encrypt: EncryptFn;
   /** Status-aware smoke listing (lane=user) — throws with `.status` on auth failure. */
   smokeListRepos: () => Promise<ForgeRepo[]>;
+  /** The forge's host, named in a cannot-reach message (W20-07, INS-64). */
+  host?: string | undefined;
+}
+
+/**
+ * Every page of a listing, not just the first (W20-07, UX_TODO INS-52).
+ *
+ * The picker, the track call and the CLI all read `items` off ONE page — 100
+ * repositories on GitHub, 50 on Gitea — so in a larger organisation the quiet
+ * repositories could never be selected and nothing said the list was cut. The
+ * page cap is a runaway guard (a forge that keeps handing back a cursor), set
+ * far above any real organisation; `truncated` says when it was hit.
+ */
+export const MAX_LISTING_PAGES = 200;
+
+export async function collectAllPages<T, C>(
+  listPage: (cursor?: C) => Promise<{ items: T[]; nextCursor?: C }>,
+): Promise<{ items: T[]; truncated: boolean }> {
+  const items: T[] = [];
+  let cursor: C | undefined;
+  for (let page = 0; page < MAX_LISTING_PAGES; page++) {
+    const res = await listPage(cursor);
+    items.push(...res.items);
+    if (res.nextCursor === undefined) return { items, truncated: false };
+    cursor = res.nextCursor;
+  }
+  return { items, truncated: true };
 }
 
 export interface CreateConnectionParams {
@@ -102,7 +217,7 @@ export async function createConnection(
   try {
     repos = await deps.smokeListRepos();
   } catch (err) {
-    throw classifySmokeError(err);
+    throw classifySmokeError(err, deps.host);
   }
   if (repos.length === 0) {
     throw new ConnectValidationError('no_repos', 'The credential can see no repositories.');
@@ -130,6 +245,57 @@ export async function createConnection(
   return { connectionId: conn.id, candidates: repos.map(toCandidate) };
 }
 
+export interface ReplaceCredentialParams {
+  workspaceId: number;
+  connectionId: number;
+  credential: string;
+}
+
+/**
+ * Re-key an existing connection (W20-07, UX_TODO INS-08).
+ *
+ * A pasted wrong-but-valid token, a rotated token and a lost TOKEN_ENC_KEY
+ * ("must be re-entered") all had no recovery path: the only write was POST,
+ * which makes a SECOND connection and leaves the tracked repositories on the
+ * first. This keeps the row — and so every repo, cursor and webhook pointing at
+ * it — and swaps only the credential, after the same smoke test a new
+ * connection gets, so a bad replacement never overwrites a working token.
+ *
+ * Returns false when no such connection exists in this workspace.
+ */
+export async function replaceConnectionCredential(
+  deps: CreateConnectionDeps,
+  params: ReplaceCredentialParams,
+): Promise<boolean> {
+  let repos: ForgeRepo[];
+  try {
+    repos = await deps.smokeListRepos();
+  } catch (err) {
+    throw classifySmokeError(err, deps.host);
+  }
+  if (repos.length === 0) {
+    throw new ConnectValidationError('no_repos', 'The credential can see no repositories.');
+  }
+  const enc = deps.encrypt(params.credential);
+  const updated = await deps.db
+    .update(core.forgeConnections)
+    .set({
+      credentialCiphertext: enc.ciphertext,
+      credentialIv: enc.iv,
+      keyVersion: enc.keyVersion,
+      credentialFingerprint: enc.fingerprint,
+      status: 'active',
+    })
+    .where(
+      and(
+        eq(core.forgeConnections.id, params.connectionId),
+        eq(core.forgeConnections.workspaceId, params.workspaceId),
+      ),
+    )
+    .returning({ id: core.forgeConnections.id });
+  return updated.length > 0;
+}
+
 export interface RepoSelection {
   /** Explicit forge repo ids to connect. */
   forgeRepoIds?: string[];
@@ -148,6 +314,11 @@ export interface ActivateReposDeps {
   /** enqueue backfill.plan for a repo (BullMQ, W2-02). */
   enqueuePlan: (repoId: number) => Promise<void>;
   generateSecret: () => string;
+  /**
+   * Opens a sealed secret (the inverse of sealSecret). With it, a connection
+   * that already has a webhook secret keeps it (W20-07, UX_TODO INS-72).
+   */
+  openSecret?: (sealed: Buffer) => string;
 }
 
 export interface ActivateReposParams {
@@ -160,7 +331,14 @@ export interface ActivateReposParams {
 /**
  * Create repo rows (status=pending_backfill), register one per-connection
  * webhook secret on each selected repo, and enqueue a backfill plan per repo.
- * Idempotent on the repo natural key so re-selecting doesn't duplicate.
+ * Returns the ids of the repos it STARTED tracking.
+ *
+ * W20-07 (UX_TODO INS-10, INS-72): a repo this connection already tracks is
+ * left exactly as it is. Re-selecting one used to register a second hook on
+ * the forge (every delivery then arrived twice), reset a live repo to
+ * pending_backfill and re-queue its backfill — and "Track all" would quietly
+ * un-pause every paused repo. Resuming is its own action
+ * (PUT /repos/{id}/tracking).
  */
 export async function activateRepos(
   deps: ActivateReposDeps,
@@ -170,9 +348,25 @@ export async function activateRepos(
     ? params.candidates
     : params.candidates.filter((c) => params.selection.forgeRepoIds?.includes(c.forgeRepoId));
 
-  const secret = deps.generateSecret();
+  const secret = await connectionWebhookSecret(deps, params);
+
+  const already = new Set(
+    (
+      await deps.db
+        .select({ forgeRepoId: core.repos.forgeRepoId })
+        .from(core.repos)
+        .where(
+          and(
+            eq(core.repos.workspaceId, params.workspaceId),
+            eq(core.repos.connectionId, params.connectionId),
+          ),
+        )
+    ).map((r) => r.forgeRepoId),
+  );
+
   const repoIds: number[] = [];
   for (const c of selected) {
+    if (already.has(c.forgeRepoId)) continue;
     const [repo] = await deps.db
       .insert(core.repos)
       .values({
@@ -225,18 +419,50 @@ export async function activateRepos(
     await deps.enqueuePlan(repo.id);
     repoIds.push(repo.id);
   }
+  return repoIds;
+}
 
-  // Store the per-connection webhook secret sealed (iv‖tag‖ct) at rest
-  // (FR-AUTH-5) so the webhook receiver (W2-04) can decrypt it to verify
-  // signatures.
+/**
+ * The ONE webhook secret a connection signs with (W20-07, UX_TODO INS-72).
+ *
+ * Every "Track N repo(s)" used to mint a new secret, register the new hooks
+ * with it and then overwrite the single stored secret — so the hooks on every
+ * EARLIER batch kept signing with a secret nobody held any more, and each of
+ * their deliveries was a 401 from then on. Nothing said so; those repositories
+ * quietly fell back to the nightly reconcile. The receiver verifies against
+ * one secret per connection, so the fix is that there only ever is one: made
+ * on the first track call, reused by every later one.
+ *
+ * A stored secret that cannot be opened (TOKEN_ENC_KEY was lost and the
+ * connection re-keyed) is replaced — the old hooks could not be verified
+ * either way. It is stored sealed (iv‖tag‖ct, FR-AUTH-5) BEFORE any hook is
+ * registered with it, so a crash mid-batch cannot leave hooks on the forge
+ * signing with a secret that was never saved.
+ */
+async function connectionWebhookSecret(
+  deps: ActivateReposDeps,
+  params: ActivateReposParams,
+): Promise<string> {
+  const scope = and(
+    eq(core.forgeConnections.id, params.connectionId),
+    eq(core.forgeConnections.workspaceId, params.workspaceId),
+  );
+  const [conn] = await deps.db
+    .select({ sealed: core.forgeConnections.webhookSecretCiphertext })
+    .from(core.forgeConnections)
+    .where(scope)
+    .limit(1);
+  if (conn?.sealed && deps.openSecret) {
+    try {
+      return deps.openSecret(conn.sealed);
+    } catch {
+      // Unopenable: fall through and replace it.
+    }
+  }
+  const secret = deps.generateSecret();
   await deps.db
     .update(core.forgeConnections)
     .set({ webhookSecretCiphertext: deps.sealSecret(secret) })
-    .where(
-      and(
-        eq(core.forgeConnections.id, params.connectionId),
-        eq(core.forgeConnections.workspaceId, params.workspaceId),
-      ),
-    );
-  return repoIds;
+    .where(scope);
+  return secret;
 }

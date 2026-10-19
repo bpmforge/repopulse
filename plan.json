@@ -10485,6 +10485,48 @@
           "DSH-03: the redirect runs once per browser session and only when the page load itself was / (sign-in lands there), so a later click on Overview always reaches the Overview.",
           "API additions: DELETE /views/:id/share, DELETE /me/default-view, `repos` csv on /org/health-tiles, /org/attention and /hotspots, CSV repo_id on /prs, optional `reason` on PATCH /plans/items/:id (kept in plan_item_events)."
         ]
+      },
+      {
+        "id": "W20-07",
+        "title": "Install, connect and sign-in UX",
+        "phase": 20,
+        "module": "api",
+        "stories": [],
+        "write_scope": [
+          "apps/api/**",
+          "apps/web/**",
+          "packages/ingest/src/connect/**",
+          "packages/auth/src/**",
+          "packages/forge/src/**",
+          "deploy/configure.mjs",
+          "deploy/up.sh",
+          "deploy/bundle/README.md",
+          "deploy/bundle/install.sh",
+          "deploy/demo.sh",
+          "deploy/.env.example",
+          "packages/shared/src/logger/audit.ts",
+          "docs/**",
+          "README.md",
+          "DEMO_RUNBOOK.md",
+          "package.json",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-01"
+        ],
+        "acceptance": [
+          "UX_TODO INS-01, INS-02, INS-03, INS-55, INS-74: http LAN sign-in is explained on the sign-in screen; install without an admin fails loudly; admins reset a member's password to a one-time temporary one (audited) and a CLI resets a locked-out admin; Fastify trusts the shipped nginx so rate limits key on the client; a federated-only install never makes the first sign-in an admin",
+          "UX_TODO INS-08, INS-09, INS-10, INS-52, INS-72, INS-73: connections can be re-keyed and removed (admin-only, audited); repos can be paused; the picker pages through every repo, marks tracked ones and offers track-all; later batches keep earlier webhooks valid; blank GitLab URLs resolve to gitlab.com everywhere",
+          "UX_TODO INS-04, INS-07, INS-12, INS-13, INS-64: docs say Settings; Gitea scope guidance matches INSTALL; the onboarding checklist shows at zero repos; connect:forge --dry-run saves nothing; connect failures say TLS/DNS/timeout instead of bad token. Every code fix has a test and the workspace gate is green"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop). Section 1 install/connect/sign-in P1s from docs/work/UX_TODO.md.",
+          "Decisions: a federated (OIDC/GitHub) first sign-in is NEVER auto-admin (GitHub stores no email, IdP emails may be unverified); ADMIN_EMAIL is required by configure.sh (--no-admin escape hatch) and up.sh warns when SSO is set without it. No COOKIE_SECURE override: the sign-in screen explains http-on-LAN instead. trustProxy is a hop FUNCTION (Fastify 5.12 fails closed on a numeric value), default 1 hop from a private address, TRUST_PROXY env.",
+          "Remove connection: no repos -> row deleted; otherwise status 'removed', credential wiped, repos paused, history kept. Webhooks are NOT deleted on the forge (no provider deleteWebhook yet); deliveries then 401. activateRepos skips already-tracked repos (re-tracking used to reset live repos and register duplicate hooks).",
+          "Left open: INS-09 (no auto-add of FUTURE repos — all_with_auto_add tracks today's repos only — and no purge-data option); INS-72 sub-suggestion 'flag a repo in Sync on signature failures' not done (core secret reuse is); INS-65 docs moved cron to the install user's crontab but backup.sh/scan-db-sync.sh do not yet refuse to run as root. AI/Models code strings still say 'Admin →' (other ticket's area)."
+        ]
       }
   ]
 }

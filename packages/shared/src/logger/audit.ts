@@ -143,7 +143,13 @@ export type AuditEvent =
   // its tool no longer reports — on someone's say-so rather than a scan we ran.
   // Who uploaded what, for which repository, is the provenance a reader of
   // those findings needs. (Outside W18-24's write scope; the union is closed.)
-  | 'external_findings.sarif_uploaded';
+  | 'external_findings.sarif_uploaded'
+  // W20-07 (UX_TODO INS-03, INS-08, INS-09).
+  | 'auth.password_reset'
+  | 'connection.credential_replaced'
+  | 'connection.removed'
+  | 'repo.tracking_paused'
+  | 'repo.tracking_resumed';
 
 export interface AuditEntry {
   event: AuditEvent;

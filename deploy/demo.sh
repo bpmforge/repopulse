@@ -157,16 +157,16 @@ cat <<EOF
        the real first-boot behaviour for an account created from ADMIN_PASSWORD,
        not a demo quirk — an install whose admin keeps the password it was
        handed is one nobody changed.
-    1. Admin → Connections.  Paste the fixture token:
+    1. Settings → Connections.  Paste the fixture token:
          ${FIXTURE_TOKEN}
        Leave the instance URL blank; the stack already points at the fixture.
     2. Select the repositories to track, and press Track.
-    3. Watch Admin → Sync.  The backfill lands, then the repos go live.
+    3. Watch Settings → Sync.  The backfill lands, then the repos go live.
     4. Org Overview and the repo tabs fill in as the warehouse does.
 
   Optional, also in the UI:
-    Admin → Models     point Tier-2 at a local LLM (nothing else needs it)
-    Admin → Settings   bot list, stale-PR window, health weights
+    Settings → Models     point Tier-2 at a local LLM (nothing else needs it)
+    Settings → Settings   bot list, stale-PR window, health weights
     Repo → Security    run the scanners — through the real scan-runner, on
                        ${CONTAINER_SOCKET}. Needs the scan image:
                          podman build -f Containerfile.scan -t localhost/repopulse/scan:dev .
