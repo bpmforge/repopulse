@@ -320,252 +320,264 @@ export function LlmProviders() {
 
   const items = list.data?.items ?? [];
 
-  return (
-    <div className="flex flex-col gap-4" data-testid="llm-providers">
-      <WidgetFrame title="Models" state="ready">
-        <p className="text-xs text-fg-muted">
-          RepoPulse runs its analysis on a model you provide. Anything speaking the OpenAI
-          chat-completions API works — Ollama, LM Studio, vLLM and llama.cpp locally, or OpenRouter,
-          Groq, Together and OpenAI itself over the network.
-        </p>
+  // The by-hand form. The guided setup above it is the way in, so once a connection
+  // exists this sits behind Advanced instead of repeating the wizard at full size.
+  const modelsForm = (
+    <WidgetFrame title="Models" state="ready">
+      <p className="text-xs text-fg-muted">
+        RepoPulse runs its analysis on a model you provide. Anything speaking the OpenAI
+        chat-completions API works — Ollama, LM Studio, vLLM and llama.cpp locally, or OpenRouter,
+        Groq, Together and OpenAI itself over the network.
+      </p>
 
-        <form
-          className="mt-4 flex flex-col gap-3"
-          data-testid="llm-provider-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setResult(null);
-            create.mutate(body(), {
-              onSuccess: () => {
-                setName('');
-                setBaseUrl('');
-                setModel('');
-                setApiKey('');
-                setAllowPublic(false);
-              },
-            });
-          }}
-        >
-          {presets.length > 0 ? (
-            <div
-              className="flex flex-wrap items-center gap-2 text-xs"
-              data-testid="provider-presets"
-            >
-              <span className="text-fg-muted">Start from:</span>
-              {presets.map((pr) => (
-                <button
-                  key={pr.id}
-                  type="button"
-                  data-testid={`preset-${pr.id}`}
-                  title={pr.note}
-                  onClick={() => {
-                    setKind(pr.kind);
-                    setBaseUrl(pr.baseUrl);
-                    if (name === '') setName(pr.label);
-                  }}
-                  className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-fg"
-                >
-                  {pr.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Name
-              <input
-                data-testid="provider-name"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Workstation Ollama"
-                className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Provider
-              <select
-                data-testid="provider-kind"
-                value={kind}
-                onChange={(e) => setKind(e.target.value)}
-                className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
+      <form
+        className="mt-4 flex flex-col gap-3"
+        data-testid="llm-provider-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setResult(null);
+          create.mutate(body(), {
+            onSuccess: () => {
+              setName('');
+              setBaseUrl('');
+              setModel('');
+              setApiKey('');
+              setAllowPublic(false);
+            },
+          });
+        }}
+      >
+        {presets.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="provider-presets">
+            <span className="text-fg-muted">Start from:</span>
+            {presets.map((pr) => (
+              <button
+                key={pr.id}
+                type="button"
+                data-testid={`preset-${pr.id}`}
+                title={pr.note}
+                onClick={() => {
+                  setKind(pr.kind);
+                  setBaseUrl(pr.baseUrl);
+                  if (name === '') setName(pr.label);
+                }}
+                className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-fg"
               >
-                {kinds.map((k) => (
-                  <option key={k.kind} value={k.kind}>
-                    {k.label}
-                    {k.supported ? '' : ' — not supported yet'}
-                  </option>
-                ))}
-              </select>
-            </label>
+                {pr.label}
+              </button>
+            ))}
           </div>
+        ) : null}
 
-          {/* Answered on the screen rather than on submit: a person choosing
-              Vertex should learn why it is unavailable before filling the form. */}
-          {spec && !spec.supported ? (
-            <p
-              className="rounded-sm border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs text-fg"
-              data-testid="provider-unsupported"
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-fg-muted">
+            Name
+            <input
+              data-testid="provider-name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Workstation Ollama"
+              className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1 text-xs text-fg-muted">
+            Provider
+            <select
+              data-testid="provider-kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
             >
-              {spec.unsupported_reason}
-            </p>
-          ) : null}
+              {kinds.map((k) => (
+                <option key={k.kind} value={k.kind}>
+                  {k.label}
+                  {k.supported ? '' : ' — not supported yet'}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-          {spec?.needs_base_url !== false ? (
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Base URL
-              <input
-                data-testid="provider-base-url"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="http://localhost:11434/v1"
-                className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
-              />
-              {spec?.examples?.length ? (
-                <span className="text-fg-faint">e.g. {spec.examples.join(' · ')}</span>
-              ) : null}
-            </label>
-          ) : null}
+        {/* Answered on the screen rather than on submit: a person choosing
+              Vertex should learn why it is unavailable before filling the form. */}
+        {spec && !spec.supported ? (
+          <p
+            className="rounded-sm border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs text-fg"
+            data-testid="provider-unsupported"
+          >
+            {spec.unsupported_reason}
+          </p>
+        ) : null}
 
-          {isCli ? <ClaudeCliPanel onAcceptedChange={setCliAccepted} /> : null}
+        {spec?.needs_base_url !== false ? (
+          <label className="flex flex-col gap-1 text-xs text-fg-muted">
+            Base URL
+            <input
+              data-testid="provider-base-url"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="http://localhost:11434/v1"
+              className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
+            />
+            {spec?.examples?.length ? (
+              <span className="text-fg-faint">e.g. {spec.examples.join(' · ')}</span>
+            ) : null}
+          </label>
+        ) : null}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs text-fg-muted">
-              Model
-              <input
-                data-testid="provider-model"
-                required
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={isCli ? 'sonnet' : 'qwen3-coder'}
-                className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
-              />
-              {/* The failure this prevents: a blank or guessed model is sent as
+        {isCli ? <ClaudeCliPanel onAcceptedChange={setCliAccepted} /> : null}
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-fg-muted">
+            Model
+            <input
+              data-testid="provider-model"
+              required
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={isCli ? 'sonnet' : 'qwen3-coder'}
+              className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-sm text-fg"
+            />
+            {/* The failure this prevents: a blank or guessed model is sent as
                   the identifier and the endpoint 400s every call, which reads as
                   "the model is not loaded" rather than "nobody chose one". */}
-              <span className="text-fg-faint">
-                Exactly as the endpoint names it — a guess produces a 400 on every call.
-              </span>
-            </label>
+            <span className="text-fg-faint">
+              Exactly as the endpoint names it — a guess produces a 400 on every call.
+            </span>
+          </label>
 
-            {isCli ? (
-              <p className="text-xs text-fg-muted" data-testid="claude-cli-no-key">
-                No key or address to enter: the CLI keeps its own login, and nothing is stored here.
-              </p>
-            ) : (
-              <label className="flex flex-col gap-1 text-xs text-fg-muted">
-                {kind === 'vertex' ? 'Service-account key (JSON)' : 'API key'}
-                <input
-                  data-testid="provider-api-key"
-                  type="password"
-                  autoComplete="off"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
-                />
-                <span className="text-fg-faint">
-                  {kind === 'vertex'
-                    ? 'Paste the whole key file. Encrypted at rest and never shown again; only a short-lived access token is sent to Google.'
-                    : 'Encrypted at rest and never shown again. A model on your own network needs none.'}
-                </span>
-              </label>
-            )}
-          </div>
-
-          {isCli ? null : (
-            <label className="flex items-start gap-2 text-xs text-fg">
+          {isCli ? (
+            <p className="text-xs text-fg-muted" data-testid="claude-cli-no-key">
+              No key or address to enter: the CLI keeps its own login, and nothing is stored here.
+            </p>
+          ) : (
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              {kind === 'vertex' ? 'Service-account key (JSON)' : 'API key'}
               <input
-                type="checkbox"
-                data-testid="provider-allow-public"
-                checked={allowPublic}
-                onChange={(e) => setAllowPublic(e.target.checked)}
-                className="mt-0.5"
+                data-testid="provider-api-key"
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg"
               />
-              {/* Deliberately awkward, and deliberately per-provider. Tier 2 sends
-                DIFFS — the most sensitive thing the warehouse holds — so leaving
-                your network with them is a decision worth making explicitly. */}
-              <span>
-                This endpoint is outside my network. Diffs, pull-request descriptions and file paths
-                will be sent to it.
+              <span className="text-fg-faint">
+                {kind === 'vertex'
+                  ? 'Paste the whole key file. Encrypted at rest and never shown again; only a short-lived access token is sent to Google.'
+                  : 'Encrypted at rest and never shown again. A model on your own network needs none.'}
               </span>
             </label>
           )}
+        </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              data-testid="provider-save"
-              disabled={create.isPending || spec?.supported === false || (isCli && !cliAccepted)}
-              className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
-            >
-              {create.isPending ? 'Saving…' : 'Add provider'}
-            </button>
-            <button
-              type="button"
-              data-testid="provider-test"
-              disabled={test.isPending}
-              onClick={() => {
-                setResult(null);
-                test.mutate(body(), { onSuccess: (r) => setResult(r) });
-              }}
-              className="rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-sm text-fg disabled:opacity-50"
-            >
-              {test.isPending ? 'Testing…' : 'Test connection'}
-            </button>
-          </div>
+        {isCli ? null : (
+          <label className="flex items-start gap-2 text-xs text-fg">
+            <input
+              type="checkbox"
+              data-testid="provider-allow-public"
+              checked={allowPublic}
+              onChange={(e) => setAllowPublic(e.target.checked)}
+              className="mt-0.5"
+            />
+            {/* Deliberately awkward, and deliberately per-provider. Tier 2 sends
+                DIFFS — the most sensitive thing the warehouse holds — so leaving
+                your network with them is a decision worth making explicitly. */}
+            <span>
+              This endpoint is outside my network. Diffs, pull-request descriptions and file paths
+              will be sent to it.
+            </span>
+          </label>
+        )}
 
-          {/* W16-18: was error.message alone, so a 500 here left the person
+        <div className="flex items-center gap-2">
+          <button
+            type="submit"
+            data-testid="provider-save"
+            disabled={create.isPending || spec?.supported === false || (isCli && !cliAccepted)}
+            className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
+          >
+            {create.isPending ? 'Saving…' : 'Add provider'}
+          </button>
+          <button
+            type="button"
+            data-testid="provider-test"
+            disabled={test.isPending}
+            onClick={() => {
+              setResult(null);
+              test.mutate(body(), { onSuccess: (r) => setResult(r) });
+            }}
+            className="rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-sm text-fg disabled:opacity-50"
+          >
+            {test.isPending ? 'Testing…' : 'Test connection'}
+          </button>
+        </div>
+
+        {/* W16-18: was error.message alone, so a 500 here left the person
               with nothing to quote and the operator nothing to grep. */}
-          <ErrorNote error={create.error} testId="provider-error" />
+        <ErrorNote error={create.error} testId="provider-error" />
 
-          {result ? (
-            <div
-              className={`rounded-sm border px-2 py-1.5 text-xs ${
-                result.ok ? 'border-ok/40 bg-ok/10' : 'border-crit/40 bg-crit/10'
-              }`}
-              data-testid="provider-test-result"
-              role="status"
-            >
-              {result.ok ? (
-                <>
-                  <strong>Reached it.</strong> {result.latency_ms}ms, answered as{' '}
-                  <code className="font-mono">{result.model}</code>
-                  {result.sample ? <> — “{result.sample}”</> : null}
-                </>
-              ) : (
-                <>
-                  <strong>
-                    {result.stage === 'config'
-                      ? 'Configuration'
-                      : result.stage === 'transport'
-                        ? 'Could not connect'
-                        : `Endpoint replied ${result.status ?? ''}`}
-                    .
-                  </strong>{' '}
-                  {/* The endpoint's own words, not ours. */}
-                  <span className="font-mono">{result.detail}</span>
-                </>
-              )}
-              {result.capabilities ? (
-                <div className="mt-2">
-                  <CapabilityList c={result.capabilities} />
-                  {(result.problems ?? []).map((pr) => (
-                    <p
-                      key={pr}
-                      className="mt-1 font-semibold text-crit"
-                      data-testid="capability-problem"
-                    >
-                      {pr}
-                    </p>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </form>
-      </WidgetFrame>
+        {result ? (
+          <div
+            className={`rounded-sm border px-2 py-1.5 text-xs ${
+              result.ok ? 'border-ok/40 bg-ok/10' : 'border-crit/40 bg-crit/10'
+            }`}
+            data-testid="provider-test-result"
+            role="status"
+          >
+            {result.ok ? (
+              <>
+                <strong>Reached it.</strong> {result.latency_ms}ms, answered as{' '}
+                <code className="font-mono">{result.model}</code>
+                {result.sample ? <> — “{result.sample}”</> : null}
+              </>
+            ) : (
+              <>
+                <strong>
+                  {result.stage === 'config'
+                    ? 'Configuration'
+                    : result.stage === 'transport'
+                      ? 'Could not connect'
+                      : `Endpoint replied ${result.status ?? ''}`}
+                  .
+                </strong>{' '}
+                {/* The endpoint's own words, not ours. */}
+                <span className="font-mono">{result.detail}</span>
+              </>
+            )}
+            {result.capabilities ? (
+              <div className="mt-2">
+                <CapabilityList c={result.capabilities} />
+                {(result.problems ?? []).map((pr) => (
+                  <p
+                    key={pr}
+                    className="mt-1 font-semibold text-crit"
+                    data-testid="capability-problem"
+                  >
+                    {pr}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </form>
+    </WidgetFrame>
+  );
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="llm-providers">
+      {items.length > 0 ? (
+        <details className="rounded-sm border border-border px-3 py-2" data-testid="llm-advanced">
+          <summary className="cursor-pointer text-sm">
+            Advanced: add a connection by hand (the setup above does the same)
+          </summary>
+          <div className="mt-3">{modelsForm}</div>
+        </details>
+      ) : (
+        modelsForm
+      )}
 
       <WidgetFrame
         title="Configured providers"

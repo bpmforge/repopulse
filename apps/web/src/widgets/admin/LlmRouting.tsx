@@ -52,6 +52,36 @@ const ROLE_LABEL: Record<string, string> = {
   patch: 'Patch',
 };
 
+/**
+ * What will actually happen for a role, in one sentence (from what is on screen, not
+ * a promise about a model): the chain in order with the model each link will use, or
+ * the shared pool when no chain is set.
+ */
+export function effectiveChainText(
+  chain: ChainLink[],
+  providers: ProviderOption[],
+  localOnly: boolean,
+): string {
+  if (chain.length === 0) {
+    if (providers.length === 0)
+      return 'No connection is set up, so this role will skip and say so.';
+    return localOnly
+      ? 'Uses the shared pool, limited to connections on your network (local-only is on): ' +
+          providers.map((p) => `${p.name} · ${p.model}`).join(', ') +
+          '.'
+      : 'Uses the shared pool: ' + providers.map((p) => `${p.name} · ${p.model}`).join(', ') + '.';
+  }
+  const label = (l: ChainLink): string => {
+    const known = providers.find((p) => p.id === l.provider_id);
+    const model = l.model || known?.model || 'its own model';
+    return `${l.provider_name ?? `connection ${l.provider_id}`} · ${model}`;
+  };
+  const [first, ...rest] = chain;
+  return rest.length === 0
+    ? `Uses ${label(first!)}. If it is down or refuses, the role skips and says so.`
+    : `Tries ${label(first!)}; if it is down or refuses, then ${rest.map(label).join(', then ')}.`;
+}
+
 export function LlmRouting() {
   const query = useApiQuery<RoutingState>(ROUTING);
   const [localOnly, setLocalOnly] = useState(false);
@@ -149,9 +179,7 @@ export function LlmRouting() {
                     {ROLE_LABEL[role] ?? role}
                   </th>
                   <td className="py-2">
-                    {chain.length === 0 ? (
-                      <span className="text-xs text-fg-faint">shared pool</span>
-                    ) : (
+                    {chain.length === 0 ? null : (
                       <ol className="flex flex-col gap-1">
                         {chain.map((link, i) => (
                           <li
@@ -206,6 +234,12 @@ export function LlmRouting() {
                         ))}
                       </ol>
                     )}
+                    <p
+                      className="mt-1 text-xs text-fg-muted"
+                      data-testid={`routing-effective-${role}`}
+                    >
+                      {effectiveChainText(chain, providers, localOnly)}
+                    </p>
                     <select
                       aria-label={`Add a connection to ${ROLE_LABEL[role] ?? role}`}
                       data-testid={`routing-add-${role}`}

@@ -378,6 +378,56 @@ test.describe('AI layer UI tour', () => {
     await themes(page, '10-drawer-ai-raised', () => page.getByTestId('finding-detail'));
   });
 
+  test('Models page: connections exist (form behind Advanced), routing sentences, quality table', async ({
+    page,
+  }) => {
+    await db.delete(read.aiPassSchedules).where(eq(read.aiPassSchedules.workspaceId, WS));
+    await db.delete(core.llmRoleRoutes).where(eq(core.llmRoleRoutes.workspaceId, WS));
+    await db.delete(core.llmProviders).where(eq(core.llmProviders.workspaceId, WS));
+    const lm = await provider('LM Studio', 'http://10.0.0.5:1234/v1');
+    await provider('Backup (LAN)', 'http://10.0.0.6:1234/v1');
+    await db
+      .insert(core.llmRoleRoutes)
+      .values({ workspaceId: WS, role: 'security', position: 0, providerId: lm });
+    await loginAsFixture(page);
+    await page.goto('/admin/models');
+    await expect(page.getByTestId('llm-advanced')).toBeVisible();
+    await expect(page.getByTestId('routing-effective-security')).toBeVisible();
+    await expect(page.getByTestId('model-eval-table')).toBeVisible();
+    await themes(page, '13-models-page-with-connections', () => page.getByTestId('llm-routing'));
+    await themes(
+      page,
+      '14-models-advanced-collapsed',
+      () => page.getByTestId('llm-advanced'),
+      false,
+    );
+    await themes(page, '15-quality-table-split-columns', () => page.getByTestId('model-eval'));
+  });
+
+  test('model wizard: the buttons that are greyed out say what is missing', async ({ page }) => {
+    await loginAsFixture(page);
+    await page.goto('/admin/models');
+    await page.getByTestId('wizard-where-hosted').check();
+    await page.getByTestId('wizard-next-0').click();
+    await expect(page.getByTestId('wizard-save-hint')).toBeVisible();
+    await themes(page, '16-wizard-disabled-buttons-explain', () =>
+      page.getByTestId('models-wizard'),
+    );
+  });
+
+  test('Security tab: the AI review pass sits right under the scanner coverage', async ({
+    page,
+  }) => {
+    await db.delete(read.aiPassSchedules).where(eq(read.aiPassSchedules.workspaceId, WS));
+    await securityTab(page);
+    await themes(
+      page,
+      '17-security-tab-ai-panel-up',
+      () => page.getByTestId('security-tab'),
+      false,
+    );
+  });
+
   test('phone width: the enable form and a suggestion', async ({ page }) => {
     await db.delete(read.aiPassSchedules).where(eq(read.aiPassSchedules.workspaceId, WS));
     await db.delete(core.llmRoleRoutes).where(eq(core.llmRoleRoutes.workspaceId, WS));

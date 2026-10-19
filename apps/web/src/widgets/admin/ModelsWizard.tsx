@@ -123,6 +123,16 @@ export function ModelsWizard() {
   // A hosted vendor is outside the network by definition; the person must say so.
   const mustAcknowledge = where === 'hosted';
 
+  // Why Test / Save are greyed out, said in words next to them.
+  const saveBlockers = [
+    ...(name.trim() === '' ? ['give the connection a name'] : []),
+    ...(model.trim() === '' ? ['enter the model name'] : []),
+    ...(mustAcknowledge && !outside
+      ? ['tick the box above - sending code to a vendor is a decision, not a default']
+      : []),
+  ];
+  const testBlocker = model.trim() === '' ? 'enter the model name' : null;
+
   const body = (): Record<string, unknown> => ({
     name,
     kind,
@@ -397,6 +407,7 @@ export function ModelsWizard() {
               <button
                 type="button"
                 data-testid="wizard-test"
+                aria-describedby={testBlocker ? 'wizard-test-hint' : undefined}
                 disabled={test.isPending || model.trim() === ''}
                 onClick={() => {
                   setResult(null);
@@ -412,6 +423,7 @@ export function ModelsWizard() {
               <button
                 type="button"
                 data-testid="wizard-save"
+                aria-describedby={saveBlockers.length > 0 ? 'wizard-save-hint' : undefined}
                 disabled={
                   create.isPending ||
                   name.trim() === '' ||
@@ -435,9 +447,25 @@ export function ModelsWizard() {
                 Back
               </button>
             </div>
-            {mustAcknowledge && !outside ? (
-              <p className="text-xs text-fg-muted">
-                Tick the box above to save: sending code to a vendor is a decision, not a default.
+            {/* Why a button is greyed out, in words, next to it (and tied to the buttons
+                with aria-describedby): a disabled control that gives no reason reads
+                as broken. */}
+            {saveBlockers.length > 0 ? (
+              <p
+                id="wizard-save-hint"
+                className="text-xs text-fg-muted"
+                data-testid="wizard-save-hint"
+              >
+                To save: {saveBlockers.join('; ')}.
+              </p>
+            ) : null}
+            {testBlocker ? (
+              <p
+                id="wizard-test-hint"
+                className="text-xs text-fg-muted"
+                data-testid="wizard-test-hint"
+              >
+                To test the connection: {testBlocker}.
               </p>
             ) : null}
 
@@ -529,6 +557,7 @@ export function ModelsWizard() {
               <button
                 type="button"
                 data-testid="wizard-assign"
+                aria-describedby={!routingQuery.data ? 'wizard-assign-hint' : undefined}
                 disabled={saveRouting.isPending || !routingQuery.data}
                 onClick={() => void assignRoles()}
                 className="rounded-sm border border-border bg-accent-strong px-3 py-1.5 text-sm text-accent-fg disabled:opacity-50"
@@ -544,6 +573,15 @@ export function ModelsWizard() {
                 Skip - leave roles as they are
               </button>
             </div>
+            {!routingQuery.data ? (
+              <p
+                id="wizard-assign-hint"
+                className="text-xs text-fg-muted"
+                data-testid="wizard-assign-hint"
+              >
+                Save is waiting for your current routing to load; you can skip this step.
+              </p>
+            ) : null}
             <ErrorNote error={saveRouting.error} testId="wizard-routing-error" />
             {(saveRouting.error as { detail?: string } | null)?.detail ? (
               <p className="text-xs text-crit" data-testid="wizard-routing-detail">

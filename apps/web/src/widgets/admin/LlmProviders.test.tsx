@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -216,6 +216,40 @@ describe('Admin → Models (W16-07)', () => {
       // By id — the browser has no key to send, so the server decrypts it.
       expect(JSON.parse(String(call?.init?.body))).toEqual({ id: 7, probe: true });
     });
+  });
+
+  it('puts the by-hand form behind Advanced once a connection exists, and keeps it open when none does', async () => {
+    // No connection yet: the form IS the way in, so it is not tucked away.
+    renderScreen();
+    await screen.findByTestId('llm-provider-form');
+    expect(screen.queryByTestId('llm-advanced')).toBeNull();
+    cleanup();
+
+    listBody = {
+      items: [
+        {
+          id: 7,
+          name: 'LM Studio',
+          kind: 'openai_compatible',
+          base_url: 'http://10.0.0.5:1234/v1',
+          model: 'm',
+          credential: null,
+          headers: null,
+          allow_public_host: false,
+          enabled: true,
+        },
+      ],
+    };
+    renderScreen();
+    await screen.findByTestId('provider-row-7');
+    const advanced = screen.getByTestId('llm-advanced') as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
+    expect(advanced.querySelector('summary')).toHaveTextContent(
+      'Advanced: add a connection by hand',
+    );
+    // The form is inside it, and the list of connections is not.
+    expect(advanced).toContainElement(screen.getByTestId('llm-provider-form'));
+    expect(advanced).not.toContainElement(screen.getByTestId('provider-table'));
   });
 
   it('says what an empty state means for analysis', async () => {

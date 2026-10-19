@@ -10243,6 +10243,32 @@
           "Requested by the coordinator 2026-10-19 on Brad's go-ahead. See docs/design/AI_LAYER.md.",
           "Built 2026-10-19: migration 0046 (ai_pass_schedules, ai_pass_settings, trigger and schedule_id on ai_pass_runs), the egress summary and digest (lib/ai-pass-egress.ts), the scheduler tick (workers/ai-pass-scheduler.ts, AI_PASS_SCHEDULER and AI_PASS_SCHEDULER_TICK_MS), schedule and cap routes, the Scheduled passes section, and e2e/ai-ui-tour.spec.ts (opt-in) which seeds data, photographs 12 states in dark and light and asserts axe and no sideways scroll. UX problems found from the pictures and fixed: three stacked AI badges, a doubled full stop in the VEX line, monospace on whole sentences, a cap field that read as disabled and sat far from its button, refused scheduled runs listed twice, the not-yet-run statement far below the start form, destination lists that over-claimed with long role lists, and a keyboard-unreachable scrolling code block at 375px (axe scrollable-region-focusable). Not built: time-of-day control, per-repository caps, notifications for skipped runs. Diff mode was not run against a real forge and model."
         ]
+      },
+      {
+        "id": "W19-13",
+        "title": "Cheap UX fixes from the AI-layer screenshot review",
+        "phase": 19,
+        "module": "analysis",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "e2e/**",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W19-12"
+        ],
+        "acceptance": [
+          "Once a connection exists the by-hand Models form sits behind an Advanced disclosure (open when none exists); each routing row says in a sentence what the role will actually do (the chain with the model each link uses, or the shared pool); the quality table shows precision and recall in separate columns with the caveat as a visible caption; the AI review pass panel sits directly under the scanner coverage on the Security tab; the wizard's greyed-out Test and Save buttons say what is missing",
+          "Each change has a test, the screens are photographed in light and dark under docs/screenshots/w19/ and are axe-clean; full gate green"
+        ],
+        "points": 3,
+        "status": "done",
+        "notes": [
+          "Requested by the coordinator 2026-10-19 from the project's UX-REVIEW.md, which was not reachable from this machine (/mnt/project-files does not exist here): the five fixes were built from the relay's own descriptions, so anything in that file beyond them is not done.",
+          "Built 2026-10-19. Found by the new screenshots: splitting the quality table made it wide enough to scroll sideways, so its region is now labelled and keyboard-focusable (axe scrollable-region-focusable); the quality table repeated its caveat twice; the routing rows said shared pool twice."
+        ]
       }
   ]
 }

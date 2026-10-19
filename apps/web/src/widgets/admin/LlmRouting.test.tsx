@@ -124,4 +124,33 @@ describe('Admin → Models → Routing (W19-02)', () => {
       /role "security" would send to connection "Hosted"/,
     );
   });
+
+  it('says in a sentence what each role will actually do: the chain with its models, or the shared pool', async () => {
+    renderScreen();
+    // security: a one-link chain, using the connection's own model.
+    expect(await screen.findByTestId('routing-effective-security')).toHaveTextContent(
+      'Uses LAN · lan-m. If it is down or refuses, the role skips and says so.',
+    );
+    // No chain: the shared pool of ENABLED connections only.
+    const pool = screen.getByTestId('routing-effective-performance').textContent ?? '';
+    expect(pool).toMatch(/^Uses the shared pool: LAN · lan-m, Hosted · cloud-m\.$/);
+    expect(pool).not.toContain('Off');
+  });
+
+  it('updates the sentence as the chain is built, and states the local-only limit on the shared pool', async () => {
+    renderScreen();
+    await screen.findByTestId('routing-effective-security');
+    await userEvent.selectOptions(screen.getByTestId('routing-add-security'), '2');
+    expect(screen.getByTestId('routing-effective-security')).toHaveTextContent(
+      'Tries LAN · lan-m; if it is down or refuses, then Hosted · cloud-m.',
+    );
+    await userEvent.type(screen.getByTestId('routing-model-security-1'), 'big-model');
+    expect(screen.getByTestId('routing-effective-security')).toHaveTextContent(
+      'then Hosted · big-model.',
+    );
+    await userEvent.click(screen.getByTestId('routing-local-only'));
+    expect(screen.getByTestId('routing-effective-triage')).toHaveTextContent(
+      /limited to connections on your network \(local-only is on\)/,
+    );
+  });
 });

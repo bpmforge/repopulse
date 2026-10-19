@@ -25,3 +25,8 @@ The same run asserts **axe-clean** on every state and **no sideways scroll at 37
 | 09 | Finding drawer, an accepted false-positive suggestion: the finding is still open and dismissing is offered, not done |
 | 10 | Finding drawer, a finding raised by an AI specialist |
 | 11, 12 | Phone width: the schedule form, and a suggestion |
+| 13 | Models page routing rows, each with the sentence saying what the role will actually do |
+| 14 | Models page: the by-hand connection form folded behind "Advanced" once a connection exists |
+| 15 | Quality per model: precision and recall in separate columns, the caveat as a visible caption |
+| 16 | Model wizard: the greyed-out Test and Save buttons say what is missing |
+| 17 | Security tab: the AI review pass directly under the scanner coverage |
