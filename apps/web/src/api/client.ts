@@ -1,3 +1,4 @@
+import { presetCovering } from '@repopulse/shared/url-state';
 import type { paths } from './schema.gen.js';
 
 // Typed fetch client for /api/v1 (DASHBOARD §3, FR-API-1). The web app talks to
@@ -88,7 +89,12 @@ export function buildUrl(
   }
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(opts.query ?? {})) {
-    if (v !== undefined && v !== null && v !== '') qs.append(k, String(v));
+    if (v === undefined || v === null || v === '') continue;
+    // A custom `start..end` window travels in the URL but no endpoint can
+    // serve one yet (W20-09, UX_TODO DSH-56): it is read as the preset that
+    // covers it, and the window control says which. Without this every card
+    // on the page turned into a 400.
+    qs.append(k, k === 'window' ? presetCovering(String(v)) : String(v));
   }
   const query = qs.toString();
   const base = path.startsWith('/api/v1') ? path : `${API_BASE}${path}`;

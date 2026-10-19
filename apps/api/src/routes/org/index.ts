@@ -7,6 +7,7 @@ import { buildPulse, computeMetricTrend } from '@repopulse/insights';
 import { computeAiGovernance, readMetricTrend } from '@repopulse/metrics';
 import { healthBand } from '@repopulse/shared/health-band';
 import { sendProblem } from '../../lib/problem.js';
+import { scopedMetrics } from '../../lib/scope-metrics.js';
 import { isMeasured, repoHealthMany } from './health.js';
 import { collectTopActions, serializeTopActions } from './top-actions.js';
 
@@ -57,32 +58,63 @@ export default async function orgRoutes(
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   // GET /org/summary — 5 KPI tile values with deltas (FR-INSIGHTS-4).
-  typedApp.get('/org/summary', { schema: { querystring: windowQuery } }, async (request, reply) => {
-    const workspaceId = request.workspace?.id;
-    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
-    const { window } = request.query;
-    const tiles = await Promise.all(
-      KPI_METRICS.map(async (metricKey) => {
-        const trend = await computeMetricTrend(opts.db, {
-          workspaceId,
-          repoId: null,
-          metricKey,
-          window,
+  typedApp.get(
+    '/org/summary',
+    { schema: { querystring: repoScopedQuery } },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const { window } = request.query;
+      const repoIds = repoIdsOf(request.query.repos);
+      // W20-09 (UX_TODO DSH-02). A view scoped to three repositories showed the
+      // whole workspace's KPIs above three repositories' health tiles. With a
+      // repo set the tiles are that set's values — ratios pooled, counts summed
+      // (lib/scope-metrics) — and the previous value is the same read one window
+      // back, the comparison computeMetricTrend makes for the org series.
+      if (repoIds.length > 0) {
+        const windowMs = (Number(window.replace('d', '')) || 30) * 86_400_000;
+        const [current, previous] = await Promise.all([
+          scopedMetrics(opts.db, workspaceId, repoIds, window, { keys: KPI_METRICS }),
+          scopedMetrics(opts.db, workspaceId, repoIds, window, {
+            keys: KPI_METRICS,
+            asOf: new Date(Date.now() - windowMs),
+          }),
+        ]);
+        const tiles = KPI_METRICS.map((metricKey) => {
+          const value = current[metricKey]?.value ?? null;
+          const prev = previous[metricKey]?.value ?? null;
+          return {
+            metric_key: metricKey,
+            value,
+            delta: value === null || prev === null ? null : value - prev,
+            previous: prev,
+          };
         });
-        // `previous` travels with the delta (W16-56). The tile shows a PERCENT
-        // change, and an absolute delta cannot be turned into one without the
-        // baseline — so the web was rendering "−373" as "−373%", a fall of more
-        // than everything there was.
-        return {
-          metric_key: metricKey,
-          value: trend.current,
-          delta: trend.delta,
-          previous: trend.previous,
-        };
-      }),
-    );
-    return reply.send({ window, tiles });
-  });
+        return reply.send({ window, repo_ids: repoIds, tiles });
+      }
+      const tiles = await Promise.all(
+        KPI_METRICS.map(async (metricKey) => {
+          const trend = await computeMetricTrend(opts.db, {
+            workspaceId,
+            repoId: null,
+            metricKey,
+            window,
+          });
+          // `previous` travels with the delta (W16-56). The tile shows a PERCENT
+          // change, and an absolute delta cannot be turned into one without the
+          // baseline — so the web was rendering "−373" as "−373%", a fall of more
+          // than everything there was.
+          return {
+            metric_key: metricKey,
+            value: trend.current,
+            delta: trend.delta,
+            previous: trend.previous,
+          };
+        }),
+      );
+      return reply.send({ window, tiles });
+    },
+  );
 
   // GET /org/health-tiles — per-repo health grid (FR-INSIGHTS-2/3).
   typedApp.get(
@@ -243,12 +275,20 @@ export default async function orgRoutes(
   // them at, plan items keep the rank generatePlanItems() gave them, and no
   // model is asked. An empty list carries coverage state instead of an implied
   // clean bill of health.
-  app.get('/org/top-actions', async (request, reply) => {
-    const workspaceId = request.workspace?.id;
-    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
-    const result = await collectTopActions(opts.db, workspaceId);
-    return reply.send(serializeTopActions(result));
-  });
+  //
+  // W20-09 (UX_TODO DSH-02): `repos` narrows it to a view's repositories —
+  // findings in those repositories, and items of plans made for exactly them.
+  typedApp.get(
+    '/org/top-actions',
+    { schema: { querystring: z.object({ repos: reposCsv }) } },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const repoIds = repoIdsOf(request.query.repos);
+      const result = await collectTopActions(opts.db, workspaceId, { repoIds });
+      return reply.send(serializeTopActions(result));
+    },
+  );
 
   // GET /org/pulse — the deterministic weekly narrative (W6-06, R-A7).
   //
@@ -256,79 +296,123 @@ export default async function orgRoutes(
   // later (pass_kind='narrate'), but the numbers are settled before any model
   // sees them — a narrative that invents "coverage improved 12%" is worse than
   // none, because it is wrong in the register people quote.
-  app.get<{ Querystring: { window?: string } }>('/org/pulse', async (request, reply) => {
-    const workspaceId = request.workspace?.id;
-    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
-    const window = request.query.window ?? '30d';
+  //
+  // W20-09 (UX_TODO DSH-02): `repos` narrows every number to a view's
+  // repositories — the metric deltas through the same set reader the KPI row
+  // uses, the finding counts by repository, and verified plan items to plans
+  // for exactly that set.
+  typedApp.get(
+    '/org/pulse',
+    { schema: { querystring: repoScopedQuery } },
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const { window } = request.query;
+      const repoIds = repoIdsOf(request.query.repos);
 
-    const PULSE_METRICS: {
-      key: string;
-      label: string;
-      higherBetter: boolean;
-      unit: 'ratio' | 'count' | 'hours';
-    }[] = [
-      { key: 'M5', label: 'Review coverage', higherBetter: true, unit: 'ratio' },
-      { key: 'M8', label: 'Stale pull requests', higherBetter: false, unit: 'count' },
-      { key: 'M9', label: 'CI pass rate', higherBetter: true, unit: 'ratio' },
-      { key: 'M4', label: 'Cycle time', higherBetter: false, unit: 'hours' },
-    ];
+      const PULSE_METRICS: {
+        key: string;
+        label: string;
+        higherBetter: boolean;
+        unit: 'ratio' | 'count' | 'hours';
+      }[] = [
+        { key: 'M5', label: 'Review coverage', higherBetter: true, unit: 'ratio' },
+        { key: 'M8', label: 'Stale pull requests', higherBetter: false, unit: 'count' },
+        { key: 'M9', label: 'CI pass rate', higherBetter: true, unit: 'ratio' },
+        { key: 'M4', label: 'Cycle time', higherBetter: false, unit: 'hours' },
+      ];
 
-    const deltas = [];
-    for (const metric of PULSE_METRICS) {
-      // Two points from the SAME series: current and one window back. Reading
-      // the previous value from a different window would compare a 7-day figure
-      // with a 30-day one and report the difference as movement.
-      const series = await readMetricTrend(opts.db, {
-        workspaceId,
-        repoId: null,
-        metricKey: metric.key,
+      const deltas = [];
+      if (repoIds.length > 0) {
+        const keys = PULSE_METRICS.map((m) => m.key);
+        const windowMs = (Number(window.replace('d', '')) || 30) * 86_400_000;
+        const [current, previous] = await Promise.all([
+          scopedMetrics(opts.db, workspaceId, repoIds, window, { keys }),
+          scopedMetrics(opts.db, workspaceId, repoIds, window, {
+            keys,
+            asOf: new Date(Date.now() - windowMs),
+          }),
+        ]);
+        for (const metric of PULSE_METRICS) {
+          deltas.push({
+            key: metric.key,
+            label: metric.label,
+            current: current[metric.key]?.value ?? null,
+            previous: previous[metric.key]?.value ?? null,
+            higherBetter: metric.higherBetter,
+            unit: metric.unit,
+          });
+        }
+      }
+      for (const metric of repoIds.length > 0 ? [] : PULSE_METRICS) {
+        // Two points from the SAME series: current and one window back. Reading
+        // the previous value from a different window would compare a 7-day figure
+        // with a 30-day one and report the difference as movement.
+        const series = await readMetricTrend(opts.db, {
+          workspaceId,
+          repoId: null,
+          metricKey: metric.key,
+          window,
+          limit: 2,
+        });
+        deltas.push({
+          key: metric.key,
+          label: metric.label,
+          current: series[0] ? Number(series[0].value) : null,
+          previous: series[1] ? Number(series[1].value) : null,
+          higherBetter: metric.higherBetter,
+          unit: metric.unit,
+        });
+      }
+
+      const [findingCounts] = await opts.db
+        .select({
+          open: sql<number>`count(*) filter (where ${read.findings.status} in ('open','confirmed'))::int`,
+          recent: sql<number>`count(*) filter (where ${read.findings.firstSeenAt} > now() - interval '7 days')::int`,
+        })
+        .from(read.findings)
+        .where(
+          and(
+            eq(read.findings.workspaceId, workspaceId),
+            repoIds.length > 0 ? inArray(read.findings.repoId, repoIds) : undefined,
+          ),
+        );
+
+      const [planVerified] = await opts.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(plans.planItemEvents)
+        .innerJoin(plans.planItems, eq(plans.planItems.id, plans.planItemEvents.planItemId))
+        .innerJoin(plans.improvementPlans, eq(plans.improvementPlans.id, plans.planItems.planId))
+        .where(
+          and(
+            eq(plans.planItemEvents.workspaceId, workspaceId),
+            eq(plans.improvementPlans.workspaceId, workspaceId),
+            eq(plans.planItemEvents.toStatus, 'done'),
+            gte(plans.planItemEvents.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+            // Normalised on write (normalizeRepoIds), so array equality is the
+            // same scope comparison the Plans page makes.
+            repoIds.length > 0
+              ? sql`${plans.improvementPlans.repoIds} = ${sql.raw(`ARRAY[${[...repoIds].sort((a, b) => a - b).join(',')}]::bigint[]`)}`
+              : undefined,
+          ),
+        );
+
+      const bullets = buildPulse({
+        repoLabel: repoIds.length > 0 ? 'these repositories' : 'this workspace',
+        windowDays: Number(window.replace('d', '')) || 30,
+        deltas,
+        openFindings: findingCounts?.open ?? 0,
+        newFindingsThisWindow: findingCounts?.recent ?? 0,
+        planItemsVerified: planVerified?.n ?? 0,
+      });
+
+      return reply.send({
+        bullets,
+        // Provenance chip (R-D3). 'template' until a narrate pass runs — the card
+        // must never imply a model wrote something it did not.
+        provenance: 'template',
         window,
-        limit: 2,
       });
-      deltas.push({
-        key: metric.key,
-        label: metric.label,
-        current: series[0] ? Number(series[0].value) : null,
-        previous: series[1] ? Number(series[1].value) : null,
-        higherBetter: metric.higherBetter,
-        unit: metric.unit,
-      });
-    }
-
-    const [findingCounts] = await opts.db
-      .select({
-        open: sql<number>`count(*) filter (where ${read.findings.status} in ('open','confirmed'))::int`,
-        recent: sql<number>`count(*) filter (where ${read.findings.firstSeenAt} > now() - interval '7 days')::int`,
-      })
-      .from(read.findings)
-      .where(eq(read.findings.workspaceId, workspaceId));
-
-    const [planVerified] = await opts.db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(plans.planItemEvents)
-      .where(
-        and(
-          eq(plans.planItemEvents.workspaceId, workspaceId),
-          eq(plans.planItemEvents.toStatus, 'done'),
-          gte(plans.planItemEvents.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
-        ),
-      );
-
-    const bullets = buildPulse({
-      repoLabel: 'this workspace',
-      windowDays: Number(window.replace('d', '')) || 30,
-      deltas,
-      openFindings: findingCounts?.open ?? 0,
-      newFindingsThisWindow: findingCounts?.recent ?? 0,
-      planItemsVerified: planVerified?.n ?? 0,
-    });
-
-    return reply.send({
-      bullets,
-      // Provenance chip (R-D3). 'template' until a narrate pass runs — the card
-      // must never imply a model wrote something it did not.
-      provenance: 'template',
-      window,
-    });
-  });
+    },
+  );
 }

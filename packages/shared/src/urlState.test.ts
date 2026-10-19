@@ -72,3 +72,21 @@ describe('urlState — Findings + Table fragments', () => {
     expect(tableSearchSchema.safeParse({ density: 'x' }).success).toBe(false);
   });
 });
+
+// W20-09 (UX_TODO DSH-56): a custom range is read through the preset covering it.
+describe('presetCovering / customRange', () => {
+  it('passes presets through and maps a range to the smallest covering preset', async () => {
+    const { presetCovering, customRange } = await import('./urlState.js');
+    expect(presetCovering('90d')).toBe('90d');
+    expect(presetCovering('2026-09-01..2026-09-07')).toBe('7d');
+    expect(presetCovering('2026-09-01..2026-09-14')).toBe('30d');
+    expect(presetCovering('2026-01-01..2026-03-31')).toBe('90d');
+    expect(presetCovering('2024-01-01..2026-01-01')).toBe('365d');
+    expect(presetCovering('garbage')).toBe('30d');
+    expect(customRange('30d')).toBeNull();
+    expect(customRange('2026-09-01..2026-09-14')).toEqual({
+      start: '2026-09-01',
+      end: '2026-09-14',
+    });
+  });
+});

@@ -128,17 +128,22 @@ test('the org overview composes through WidgetGrid with 2x2 heroes (W4-21, R-D2)
   // '' for all, which read as "every panel is the same width". The data-w/
   // data-h attributes ARE the placement contract now, so they are what the
   // assertion reads.
-  const spans = await grid.locator('> div').evaluateAll((nodes) =>
-    nodes.map((n) => (n as HTMLElement).dataset['w']),
-  );
+  const spans = await grid
+    .locator('> div')
+    .evaluateAll((nodes) => nodes.map((n) => (n as HTMLElement).dataset['w']));
   expect(spans.length).toBeGreaterThan(2);
-  expect(new Set(spans).size, 'every panel is the same width — that is a spreadsheet').toBeGreaterThan(1);
+  expect(
+    new Set(spans).size,
+    'every panel is the same width — that is a spreadsheet',
+  ).toBeGreaterThan(1);
   // The two heroes are half-width and two rows tall.
-  const heroRows = await grid.locator('> div').evaluateAll((nodes) =>
-    nodes
-      .filter((n) => (n as HTMLElement).dataset['w'] === '6')
-      .map((n) => (n as HTMLElement).dataset['h']),
-  );
+  const heroRows = await grid
+    .locator('> div')
+    .evaluateAll((nodes) =>
+      nodes
+        .filter((n) => (n as HTMLElement).dataset['w'] === '6')
+        .map((n) => (n as HTMLElement).dataset['h']),
+    );
   expect(heroRows.length).toBe(2);
   for (const row of heroRows) expect(row).toBe('2');
 
@@ -193,16 +198,17 @@ test('the risk axes card shows a letter or says it was not measured', async ({ p
 
     if (await summary.isVisible()) {
       await expect(summary).toContainText('Supply Chain');
-      // Expanding must reveal the axis AND the reason it carries no letter.
+      // Expanding must reveal the axis AND the reason it carries no score.
       await summary.click();
       await expect(measuredRow).toBeVisible();
       await expect(page.getByTestId('axis-basis-supplyChain')).not.toBeEmpty();
-      expect((await page.getByTestId('axis-letter-supplyChain').innerText()).trim()).toBe('—');
+      expect((await page.getByTestId('axis-score-supplyChain').innerText()).trim()).toBe('—');
     } else {
-      // Measured: a real letter, and still a basis beside it.
+      // Measured: a 0–100 score, never a letter grade (W20-09, UX_TODO
+      // DSH-11), and still a basis beside it.
       await expect(measuredRow).toBeVisible();
-      expect((await page.getByTestId('axis-letter-supplyChain').innerText()).trim()).toMatch(
-        /^[A-E]$/,
+      expect((await page.getByTestId('axis-score-supplyChain').innerText()).trim()).toMatch(
+        /^\d{1,3}$/,
       );
       await expect(page.getByTestId('axis-basis-supplyChain')).not.toBeEmpty();
     }

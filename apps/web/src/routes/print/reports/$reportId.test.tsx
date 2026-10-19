@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
 import { Route as rootRoute, type RouterContext } from '../../__root.js';
-import { cell, Route as printRoute } from './$reportId.js';
+import { cell, Route as printRoute, weightsLine } from './$reportId.js';
 import { createQueryClient } from '../../../api/queryClient.js';
 
 // Print layout (W17-26). The PDF is what a customer is handed, and the two ways
@@ -171,5 +171,62 @@ describe('in-app viewer states (W20-04)', () => {
     expect(await screen.findByTestId('print-report-failed')).toHaveTextContent(
       'This report failed: chromium exploded',
     );
+  });
+});
+
+describe('weights and the plan hand-off (W20-09)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const WEIGHTS = { activity: 0.1, reviewHygiene: 0.4, ciHealth: 0.25, delivery: 0.25 };
+
+  it('the Basis box lists the pinned weights, or says the defaults were used (ADM-71)', async () => {
+    expect(weightsLine(undefined)).toMatch(/product defaults/);
+    expect(weightsLine(WEIGHTS)).toContain('review hygiene 0.40');
+    (window as unknown as { __REPORT_DATA: unknown }).__REPORT_DATA = {
+      ...DATA,
+      params: { ...DATA.params, healthWeights: WEIGHTS },
+    };
+    renderPrint();
+    expect(await screen.findByTestId('print-weights')).toHaveTextContent(
+      'activity 0.10 · review hygiene 0.40 · CI health 0.25 · delivery 0.25',
+    );
+    // A printed PDF carries no button: the run is injected, not a session.
+    expect(screen.queryByTestId('report-make-plan-5')).toBeNull();
+  });
+
+  it('the in-app viewer offers Make a plan with the report’s own scope (DSH-59)', async () => {
+    const calls: { method: string; url: string; body?: unknown }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown, init?: { method?: string; body?: string }) => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        calls.push({ method, url, body: init?.body ? JSON.parse(init.body) : undefined });
+        const body =
+          method === 'POST'
+            ? { id: 7, item_count: 1, reused: false, repo_ids: [3], window: '30d' }
+            : {
+                id: 5,
+                type: 'code_health',
+                status: 'ready',
+                error: null,
+                data: { ...DATA, params: { ...DATA.params, repoIds: ['3'] } },
+              };
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }),
+    );
+    renderPrint();
+    const button = await screen.findByTestId('report-make-plan-5');
+    button.click();
+    await screen.findByTestId('report-plan-link-5');
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      window: '30d',
+      repo_ids: [3],
+      from_report_id: 5,
+    });
   });
 });

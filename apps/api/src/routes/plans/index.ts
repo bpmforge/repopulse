@@ -20,9 +20,9 @@ import {
   planScopeKey,
   type Agreement,
   type AgreementKind,
-  type MetricSet,
 } from '@repopulse/insights';
 import { sendProblem } from '../../lib/problem.js';
+import { scopedMetrics } from '../../lib/scope-metrics.js';
 import { actorLoginFor } from '../../lib/actor.js';
 
 // Plans API (W5-06, FR-PLANS-2/6).
@@ -53,6 +53,13 @@ export const HUMAN_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
   dismissed: ['proposed'],
 };
 
+/**
+ * Item states a regeneration keeps (W20-09, UX_TODO DSH-58): what a person
+ * agreed to, what is under way, and what the verifier has measured. `proposed`
+ * is the default anyway; `dismissed` is carried separately.
+ */
+const CARRIED_STATUSES = ['accepted', 'in_progress', 'done', 'regressed'];
+
 export function humanTransitionAllowed(from: string, to: string): boolean {
   return (HUMAN_TRANSITIONS[from] ?? []).includes(to);
 }
@@ -68,46 +75,20 @@ function fail(
   return reply;
 }
 
-/** Latest snapshot per metric for the scope, shaped for the catalog. */
-async function metricsForScope(
-  db: Queryable,
-  workspaceId: number,
-  repoIds: number[],
-  window: string,
-): Promise<MetricSet> {
-  const rows = await db
-    .select()
-    .from(read.metricSnapshots)
-    .where(
-      and(
-        eq(read.metricSnapshots.workspaceId, workspaceId),
-        eq(read.metricSnapshots.window, window),
-        repoIds.length > 0 ? inArray(read.metricSnapshots.repoId, repoIds) : undefined,
-      ),
-    )
-    .orderBy(desc(read.metricSnapshots.computedAt));
-
-  const set: MetricSet = {};
-  for (const r of rows) {
-    // Newest-first, so the first row per key wins.
-    if (set[r.metricKey]) continue;
-    set[r.metricKey] = {
-      value: r.value === null ? null : Number(r.value),
-      dims: (r.dims ?? {}) as Record<string, unknown>,
-    };
-  }
-  return set;
-}
-
 /**
  * Plan items raised by a breached working agreement (W5-08).
  *
  * `already` carries the catalog ids the metric pass produced plus everything
  * dismissed, so an agreement can only ADD an item nobody has raised or refused.
+ *
+ * `repoIds` is the plan's scope (W20-09, UX_TODO DSH-86): only that set's PRs
+ * are checked, so a plan for acme/web is never handed an item raised by
+ * acme/api's PRs. Empty = the whole workspace, as everywhere else.
  */
 async function agreementSourcedItems(
   db: Queryable,
   workspaceId: number,
+  repoIds: readonly number[],
   already: ReadonlySet<string>,
 ): Promise<
   {
@@ -149,6 +130,7 @@ async function agreementSourcedItems(
       and(
         eq(facts.pullRequests.workspaceId, workspaceId),
         gte(facts.pullRequests.createdAt, since),
+        repoIds.length > 0 ? inArray(facts.pullRequests.repoId, [...repoIds]) : undefined,
       ),
     )
     .limit(500);
@@ -252,9 +234,22 @@ export default async function plansRoutes(
         if (known.length !== repoIds.length) return fail(request, reply, 404, 'Not Found');
       }
 
-      const fromReportId = Number.isInteger(Number(request.body?.from_report_id))
-        ? Number(request.body.from_report_id)
-        : undefined;
+      const rawReportId = request.body?.from_report_id;
+      const fromReportId =
+        rawReportId !== undefined && rawReportId !== null && Number.isInteger(Number(rawReportId))
+          ? Number(rawReportId)
+          : undefined;
+      // The report a plan is made from must be this workspace's (Law 5; W20-09,
+      // UX_TODO DSH-59 is what started sending it): another tenant's id is the
+      // same 404 an unknown one is, and no plan is written.
+      if (fromReportId !== undefined) {
+        const [report] = await db
+          .select({ id: read.reports.id })
+          .from(read.reports)
+          .where(and(eq(read.reports.id, fromReportId), eq(read.reports.workspaceId, workspaceId)))
+          .limit(1);
+        if (!report) return fail(request, reply, 404, 'Not Found');
+      }
 
       const result = await db.transaction(async (tx) => {
         // Held until commit: a concurrent generation for the same scope waits
@@ -266,17 +261,42 @@ export default async function plansRoutes(
         // Dismissals are per catalog id and survive regeneration (FR-PLANS-2).
         // Without this the next generation undoes a human decision, and the
         // dismiss button becomes something people learn to ignore.
-        const dismissed = await tx
-          .selectDistinct({ catalogId: plansSchema.planItems.catalogId })
+        //
+        // SCOPED TO THE REPOSITORIES (W20-09, UX_TODO DSH-57). This read every
+        // dismissal in the workspace, so dismissing "add CODEOWNERS" on one
+        // repository's plan hid it from every future plan for every repository
+        // and every window. A dismissal now speaks for the plan's own set of
+        // repositories — under any window, since "not for this repo" does not
+        // change when the window does (IMPROVEMENT_PLANS.md §2: "while the same
+        // catalog id + scope stays").
+        const dismissedRows = await tx
+          .select({
+            catalogId: plansSchema.planItems.catalogId,
+            repoIds: plansSchema.improvementPlans.repoIds,
+          })
           .from(plansSchema.planItems)
+          .innerJoin(
+            plansSchema.improvementPlans,
+            eq(plansSchema.improvementPlans.id, plansSchema.planItems.planId),
+          )
           .where(
             and(
               eq(plansSchema.planItems.workspaceId, workspaceId),
+              eq(plansSchema.improvementPlans.workspaceId, workspaceId),
               eq(plansSchema.planItems.status, 'dismissed'),
             ),
           );
+        const scopeRepos = repoIds.join(',');
+        const dismissed = [
+          ...new Set(
+            dismissedRows
+              .filter((d) => normalizeRepoIds(d.repoIds).join(',') === scopeRepos)
+              .map((d) => d.catalogId),
+          ),
+        ].map((catalogId) => ({ catalogId }));
 
-        const metrics = await metricsForScope(tx, workspaceId, repoIds, window);
+        // The SET's value per metric, not one repository's (DSH-86).
+        const metrics = await scopedMetrics(tx, workspaceId, repoIds, window);
         const dismissedIds = dismissed.map((d) => d.catalogId);
         const proposed = generatePlanItems({ metrics, dismissedCatalogIds: dismissedIds });
 
@@ -288,6 +308,7 @@ export default async function plansRoutes(
         const agreementItems = await agreementSourcedItems(
           tx,
           workspaceId,
+          repoIds,
           new Set([...proposed.map((p) => p.catalogId), ...dismissedIds]),
         );
         const allProposed = [...proposed, ...agreementItems].map((item, index) => ({
@@ -337,7 +358,12 @@ export default async function plansRoutes(
             )
             .orderBy(plansSchema.planItems.rank);
           if (isSameProposal(allProposed, items)) {
-            return { id: existing.id, itemCount: items.length, reused: true as const };
+            return {
+              id: existing.id,
+              itemCount: items.length,
+              reused: true as const,
+              supersededId: null,
+            };
           }
         }
 
@@ -354,23 +380,122 @@ export default async function plansRoutes(
           })
           .returning();
 
-        if (allProposed.length > 0) {
-          await tx.insert(plansSchema.planItems).values(
-            allProposed.map((item) => ({
+        // SUPERSEDE, AND CARRY THE WORK OVER (W20-09, UX_TODO DSH-58). A
+        // regeneration after the metrics moved used to leave the old plan
+        // active beside the new one, both headed "30d · All repositories", and
+        // every item the team had accepted or started came back `proposed` in
+        // the new one. The earlier plans for EXACTLY this scope are archived
+        // (history, not deleted), and an item the team had already decided on
+        // keeps that decision in the new plan.
+        const superseded = candidates.filter(
+          (c) =>
+            planScopeKey(workspaceId, window, c.repoIds) ===
+            planScopeKey(workspaceId, window, repoIds),
+        );
+        const carried = new Map<string, { status: string; verifiedAt: Date | null }>();
+        let carriedDismissed: (typeof plansSchema.planItems.$inferSelect)[] = [];
+        if (superseded.length > 0) {
+          const supersededIds = superseded.map((c) => c.id);
+          const previous = await tx
+            .select()
+            .from(plansSchema.planItems)
+            .where(
+              and(
+                eq(plansSchema.planItems.workspaceId, workspaceId),
+                inArray(plansSchema.planItems.planId, supersededIds),
+              ),
+            )
+            .orderBy(desc(plansSchema.planItems.planId));
+          // Newest plan first, so its state wins when two archived plans
+          // disagree about the same catalog id.
+          for (const item of previous) {
+            if (CARRIED_STATUSES.includes(item.status) && !carried.has(item.catalogId)) {
+              carried.set(item.catalogId, { status: item.status, verifiedAt: item.verifiedAt });
+            }
+          }
+          // The dismissed items come along as dismissed, so "Dismissed (n)" and
+          // its Restore still exist on the plan people are looking at.
+          const seen = new Set<string>();
+          carriedDismissed = previous.filter((item) => {
+            if (item.status !== 'dismissed' || seen.has(item.catalogId)) return false;
+            seen.add(item.catalogId);
+            return !allProposed.some((p) => p.catalogId === item.catalogId);
+          });
+          await tx
+            .update(plansSchema.improvementPlans)
+            .set({ status: 'archived' })
+            .where(
+              and(
+                eq(plansSchema.improvementPlans.workspaceId, workspaceId),
+                inArray(plansSchema.improvementPlans.id, supersededIds),
+              ),
+            );
+        }
+
+        const now = new Date();
+        const inserted =
+          allProposed.length + carriedDismissed.length === 0
+            ? []
+            : await tx
+                .insert(plansSchema.planItems)
+                .values([
+                  ...allProposed.map((item) => {
+                    const kept = carried.get(item.catalogId);
+                    return {
+                      workspaceId,
+                      planId: plan!.id,
+                      rank: item.rank,
+                      catalogId: item.catalogId,
+                      source: item.source,
+                      evidence: item.evidence,
+                      recommendation: item.recommendation,
+                      effort: item.effort,
+                      status: kept?.status ?? 'proposed',
+                      verifiedAt: kept?.verifiedAt ?? null,
+                      statusChangedAt: now,
+                      verifyCriterion: item.verifyCriterion as unknown as Record<string, unknown>,
+                    };
+                  }),
+                  ...carriedDismissed.map((item, index) => ({
+                    workspaceId,
+                    planId: plan!.id,
+                    rank: allProposed.length + index + 1,
+                    catalogId: item.catalogId,
+                    source: item.source,
+                    evidence: item.evidence,
+                    recommendation: item.recommendation,
+                    effort: item.effort,
+                    status: 'dismissed',
+                    statusChangedAt: now,
+                    verifyCriterion: item.verifyCriterion,
+                  })),
+                ])
+                .returning({
+                  id: plansSchema.planItems.id,
+                  catalogId: plansSchema.planItems.catalogId,
+                  status: plansSchema.planItems.status,
+                });
+        // A carried state is a transition nobody made by hand in THIS plan, so
+        // its history says where it came from rather than starting blank.
+        const carriedEvents = inserted.filter((i) => i.status !== 'proposed');
+        if (carriedEvents.length > 0) {
+          await tx.insert(plansSchema.planItemEvents).values(
+            carriedEvents.map((i) => ({
               workspaceId,
-              planId: plan!.id,
-              rank: item.rank,
-              catalogId: item.catalogId,
-              source: item.source,
-              evidence: item.evidence,
-              recommendation: item.recommendation,
-              effort: item.effort,
-              status: 'proposed',
-              verifyCriterion: item.verifyCriterion as unknown as Record<string, unknown>,
+              planItemId: i.id,
+              fromStatus: 'proposed',
+              toStatus: i.status,
+              actorUserId: null,
+              reason: `carried over from plan #${superseded[0]!.id}`,
             })),
           );
         }
-        return { id: plan!.id, itemCount: allProposed.length, reused: false as const };
+        return {
+          id: plan!.id,
+          itemCount: allProposed.length,
+          reused: false as const,
+          supersededId: superseded[0]?.id ?? null,
+        };
       });
 
       auditLog(request.log, {
@@ -390,6 +515,8 @@ export default async function plansRoutes(
         id: result.id,
         item_count: result.itemCount,
         reused: result.reused,
+        // The plan this one replaced, so the confirmation can say so (DSH-58).
+        superseded_id: result.supersededId,
         repo_ids: repoIds,
         window,
       });
@@ -401,12 +528,24 @@ export default async function plansRoutes(
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
 
+    // ACTIVE FIRST, then the archived history (W20-09, UX_TODO DSH-58). The
+    // list used to stop silently at the 20 newest plans of any status, so a
+    // team regenerating every sprint lost sight of which plan was current. A
+    // superseded plan is archived, and the page folds those away; `truncated`
+    // says when there was more than this page holds.
+    const PLAN_LIST_LIMIT = 100;
     const planRows = await db
       .select()
       .from(plansSchema.improvementPlans)
       .where(eq(plansSchema.improvementPlans.workspaceId, workspaceId))
-      .orderBy(desc(plansSchema.improvementPlans.createdAt))
-      .limit(20);
+      .orderBy(
+        sql`case when ${plansSchema.improvementPlans.status} = 'active' then 0 else 1 end`,
+        desc(plansSchema.improvementPlans.createdAt),
+        desc(plansSchema.improvementPlans.id),
+      )
+      .limit(PLAN_LIST_LIMIT + 1);
+    const truncated = planRows.length > PLAN_LIST_LIMIT;
+    if (truncated) planRows.pop();
 
     const itemRows =
       planRows.length === 0
@@ -426,6 +565,7 @@ export default async function plansRoutes(
             .orderBy(plansSchema.planItems.rank);
 
     return reply.send({
+      truncated,
       items: planRows.map((p) => ({
         id: p.id,
         window: p.window,
@@ -433,6 +573,7 @@ export default async function plansRoutes(
         catalog_version: p.catalogVersion,
         status: p.status,
         created_at: p.createdAt.toISOString(),
+        created_from_report_id: p.createdFromReportId,
         items: itemRows
           .filter((i) => i.planId === p.id)
           .map((i) => ({

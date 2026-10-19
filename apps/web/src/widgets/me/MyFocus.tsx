@@ -127,7 +127,10 @@ export function MyFocus({ search }: Props) {
   const queueColumns: DataTableColumn<ReviewQueueItem>[] = [
     {
       id: 'pr',
-      header: 'Awaiting my review',
+      // W20-09 (UX_TODO DSH-85): requested reviewers are not ingested, so
+      // this cannot be "awaiting MY review". It is what the API can know:
+      // open, non-draft, non-bot PRs by others that I have not reviewed.
+      header: 'Open PRs by others',
       cell: (row) => (
         <Link
           to="/repos/$repoId/prs/$number"
@@ -195,10 +198,7 @@ export function MyFocus({ search }: Props) {
         (since.data.review_requests > 0 ||
           since.data.prs_advanced > 0 ||
           since.data.findings_on_my_prs > 0) && (
-          <div
-            className="panel-inset px-3 py-2 text-xs"
-            data-testid="since-strip"
-          >
+          <div className="panel-inset px-3 py-2 text-xs" data-testid="since-strip">
             Since your last visit: {since.data.review_requests} review
             {since.data.review_requests === 1 ? ' request' : ' requests'}, {since.data.prs_advanced}{' '}
             of your pull requests advanced, {since.data.findings_on_my_prs} new findings on your
@@ -253,7 +253,7 @@ export function MyFocus({ search }: Props) {
       </WidgetFrame>
 
       <WidgetFrame
-        title={`Review queue (over ${REVIEW_SLA_DAYS}d flagged)`}
+        title={`Open PRs by others you haven't reviewed (over ${REVIEW_SLA_DAYS}d flagged)`}
         state={frameState({
           isLoading: queue.isLoading,
           isError: queue.isError,
@@ -261,7 +261,7 @@ export function MyFocus({ search }: Props) {
         })}
         {...(queue.error ? { errorMessage: queue.error.message } : {})}
         onRetry={() => void queue.refetch()}
-        emptyMessage="Your review queue is clear."
+        emptyMessage="No open pull requests by others are waiting without a review from you."
       >
         <div data-testid="review-queue">
           <DataTable

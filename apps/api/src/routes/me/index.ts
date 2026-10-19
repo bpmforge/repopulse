@@ -204,7 +204,14 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
       // requests, so the repo has to travel with the row. The join cannot drop
       // rows: repo_id is a NOT NULL foreign key into repos.
       .innerJoin(core.repos, eq(facts.pullRequests.repoId, core.repos.id))
-      .where(eq(facts.pullRequests.authorIdentityId, ctx.identityId))
+      .where(
+        and(
+          // Law 5: the identity is the caller's, but the query still names the
+          // workspace, like every other tenant-scoped read (W20-09).
+          eq(facts.pullRequests.workspaceId, ctx.workspaceId),
+          eq(facts.pullRequests.authorIdentityId, ctx.identityId),
+        ),
+      )
       .orderBy(desc(facts.pullRequests.updatedAt));
     return reply.send({
       items: rows.map((p) => ({
@@ -221,7 +228,16 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
     });
   });
 
-  // GET /me/review-queue — open PRs awaiting review that I did NOT author (age-sorted).
+  // GET /me/review-queue — open PRs by others that I have not reviewed (age-sorted).
+  //
+  // W20-09 (UX_TODO DSH-85). This is NOT "PRs where I am a requested
+  // reviewer": requested reviewers are not ingested, so the list cannot know
+  // who was asked. It used to be every open PR in the workspace that someone
+  // else wrote — drafts, bot PRs and PRs already reviewed included — under the
+  // heading "Awaiting my review", so on a real team everyone saw the whole
+  // org's open PRs as their own overdue queue. It now leaves out drafts, bot
+  // PRs and PRs this person has already reviewed, and the screen calls it what
+  // it is ("Open PRs by others"). The requested-reviewer list is what remains.
   app.get('/me/review-queue', async (request, reply) => {
     const ctx = await myIdentity(request);
     if (!ctx) return fail(request, reply, 401, 'No active session');
@@ -244,6 +260,12 @@ export default async function meRoutes(app: FastifyInstance, opts: MeRoutesOptio
           eq(facts.pullRequests.workspaceId, ctx.workspaceId),
           eq(facts.pullRequests.state, 'open'),
           ne(facts.pullRequests.authorIdentityId, ctx.identityId),
+          // A draft is not asking for review yet; a bot PR is nobody's queue.
+          eq(facts.pullRequests.isDraft, false),
+          eq(facts.pullRequests.isBot, false),
+          // Already reviewed by me: done from my side until it is re-requested,
+          // which is the part requested-reviewer ingestion would add.
+          sql`not exists (select 1 from ${facts.prReviews} where ${facts.prReviews.pullRequestId} = ${facts.pullRequests.id} and ${facts.prReviews.reviewerIdentityId} = ${ctx.identityId})`,
         ),
       )
       .orderBy(facts.pullRequests.createdAt); // oldest first (age-sorted review load)

@@ -95,6 +95,15 @@ describe('My Focus row identity across repositories', () => {
     expect(text.join('|')).toContain('acme/worker');
   });
 
+  it('calls the queue what it is, not "awaiting my review" (W20-09, DSH-85)', () => {
+    renderWith({ queue: [review(1, 'web', 4)] });
+    expect(
+      within(table('review-queue')).getByRole('columnheader', { name: 'Open PRs by others' }),
+    ).toBeTruthy();
+    expect(screen.queryByText('Awaiting my review')).toBeNull();
+    expect(screen.getByText(/Open PRs by others you haven't reviewed/)).toBeTruthy();
+  });
+
   it('tells apart two owned files with the same path', () => {
     renderWith({ hotspots: [owned(1, 'web', 'src/mod0.ts'), owned(2, 'api', 'src/mod0.ts')] });
     const text = within(table('my-hotspots'))

@@ -1,5 +1,6 @@
 import { KpiTile, Sparkline, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
+import { withRepos } from '../scopeRepos.js';
 import {
   KPI_TILES,
   deltaPctOf,
@@ -21,20 +22,26 @@ import {
 
 interface Props {
   window: string;
+  /** A repository csv (DSH-02), or absent for the whole workspace. */
+  repos?: string | undefined;
+  /** Frame title; the repo Pulse tab names its own (DSH-12). */
+  title?: string;
 }
 
 function KpiSparkline({
   metricKey,
   label,
   window,
+  repoId,
 }: {
   metricKey: string;
   label: string;
   window: string;
+  repoId?: string | undefined;
 }) {
   const { data } = useApiQuery<MetricSeries>({
     endpoint: '/metrics/series',
-    query: { metric_key: metricKey, window },
+    query: { metric_key: metricKey, window, ...(repoId ? { repo_id: repoId } : {}) },
   });
   const points = (data?.points ?? []).map((p) => p.value).filter((v): v is number => v !== null);
   // Below two points there is no line to draw — render nothing rather than a
@@ -43,11 +50,15 @@ function KpiSparkline({
   return <Sparkline points={points} label={`${label}, last ${window}`} />;
 }
 
-export function KpiRow({ window }: Props) {
+export function KpiRow({ window, repos, title = 'Delivery KPIs' }: Props) {
   const { data, isLoading, isError, error, refetch } = useApiQuery<OrgSummary>({
     endpoint: '/org/summary',
-    query: { window },
+    query: withRepos({ window }, repos),
   });
+  // A sparkline is one series: the org rollup, or ONE repository's. A set of
+  // several has no stored series, so its tiles carry the value and delta only
+  // rather than a line that would describe the whole workspace (DSH-02).
+  const single = repos && !repos.includes(',') ? repos : undefined;
 
   const byKey = new Map((data?.tiles ?? []).map((t) => [t.metric_key, t]));
   const state = frameState({
@@ -58,7 +69,7 @@ export function KpiRow({ window }: Props) {
 
   return (
     <WidgetFrame
-      title="Delivery KPIs"
+      title={title}
       state={state}
       {...(error ? { errorMessage: error.message, error } : {})}
       onRetry={() => void refetch()}
@@ -76,7 +87,16 @@ export function KpiRow({ window }: Props) {
               {...(tile.unit ? { unit: tile.unit } : {})}
               deltaPct={deltaPctOf(row?.delta ?? null, row?.previous ?? null)}
               polarity={tile.polarity}
-              aside={<KpiSparkline metricKey={tile.key} label={tile.label} window={window} />}
+              aside={
+                repos && !single ? undefined : (
+                  <KpiSparkline
+                    metricKey={tile.key}
+                    label={tile.label}
+                    window={window}
+                    repoId={single}
+                  />
+                )
+              }
             />
           );
         })}

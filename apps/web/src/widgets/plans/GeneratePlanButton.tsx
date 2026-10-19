@@ -1,3 +1,4 @@
+import { presetCovering } from '@repopulse/shared/url-state';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
 import {
@@ -24,7 +25,14 @@ export interface GeneratePlanButtonProps {
   repoNames?: RepoNames | undefined;
 }
 
-export function GeneratePlanButton({ window, repoIds, repoNames }: GeneratePlanButtonProps) {
+export function GeneratePlanButton({
+  window: requested,
+  repoIds,
+  repoNames,
+}: GeneratePlanButtonProps) {
+  // A plan is generated over a snapshot window, so a custom range means the
+  // preset that covers it — the same reading the cards make (W20-09, DSH-56).
+  const window = presetCovering(requested);
   const generate = useApiMutation<GenerateRequest, GenerateResult>(
     { endpoint: '/plans', method: 'POST' },
     { invalidate: [queryKeyFor(LIST)] },
@@ -51,7 +59,12 @@ export function GeneratePlanButton({ window, repoIds, repoNames }: GeneratePlanB
         <p className="text-xs text-fg-muted" data-testid="generate-plan-result" role="status">
           {result.reused
             ? `Nothing changed — the ${result.window} plan for ${planScopeLabel(result.repo_ids, repoNames)} (#${result.id}) already has these ${result.item_count} items.`
-            : `Plan #${result.id} created for ${planScopeLabel(result.repo_ids, repoNames)}: ${result.item_count} items.`}
+            : `Plan #${result.id} created for ${planScopeLabel(result.repo_ids, repoNames)}: ${result.item_count} items.` +
+              // W20-09 (UX_TODO DSH-58): the earlier plan for this scope is
+              // replaced, not left active beside the new one.
+              (result.superseded_id
+                ? ` It replaces plan #${result.superseded_id}; accepted and in-progress items kept their state.`
+                : '')}
         </p>
       )}
       <ErrorNote error={generate.error} testId="generate-plan-error" />

@@ -10527,6 +10527,54 @@
           "Remove connection: no repos -> row deleted; otherwise status 'removed', credential wiped, repos paused, history kept. Webhooks are NOT deleted on the forge (no provider deleteWebhook yet); deliveries then 401. activateRepos skips already-tracked repos (re-tracking used to reset live repos and register duplicate hooks).",
           "Left open: INS-09 (no auto-add of FUTURE repos — all_with_auto_add tracks today's repos only — and no purge-data option); INS-72 sub-suggestion 'flag a repo in Sync on signature failures' not done (core secret reuse is); INS-65 docs moved cron to the install user's crontab but backup.sh/scan-db-sync.sh do not yet refuse to run as root. AI/Models code strings still say 'Admin →' (other ticket's area)."
         ]
+      },
+      {
+        "id": "W20-09",
+        "title": "Reports, plans and dashboard accuracy",
+        "phase": 20,
+        "module": "web",
+        "stories": [],
+        "write_scope": [
+          "apps/web/**",
+          "apps/api/src/routes/plans/**",
+          "apps/api/src/routes/org/**",
+          "apps/api/src/routes/risk/**",
+          "apps/api/src/routes/security/index.ts",
+          "apps/api/src/routes/me/**",
+          "apps/api/src/routes/reports/**",
+          "apps/api/src/lib/scope-metrics.ts",
+          "apps/api/src/workers/plans-processor.ts",
+          "apps/api/src/workers/report-processor.ts",
+          "apps/api/src/app.ts",
+          "packages/insights/src/score/**",
+          "packages/reports/src/**",
+          "packages/shared/src/urlState.ts",
+          "packages/shared/src/urlState.test.ts",
+          "e2e/org-overview.spec.ts",
+          "docs/**",
+          "plan.json"
+        ],
+        "depends_on": [
+          "W20-05"
+        ],
+        "acceptance": [
+          "UX_TODO ADM-05/06/07/71: reports pick their repositories (validated, 404 outside the workspace), history shows scope, window and who generated it with Regenerate, schedules are listed and managed in the Report Center with their window and duplicates refused, and the workspace's health weights are pinned in the report params and printed in Basis",
+          "UX_TODO DSH-02/86: the KPI row, weekly pulse, top actions, plan tile, security and risk tiles take a view's repositories, and a set's metric is pooled from the set (ratios from numerators/denominators, counts summed, percentiles worst-repo), never the newest row of one repository",
+          "UX_TODO DSH-11/72/73: risk axes are a 0-100 score with a band word (no letters, no unmeasured Performance axis), rolled up org-wide as median + worst repository, and open security findings feed the health score's security sub-score",
+          "UX_TODO DSH-12/57/58/59: the repo Pulse tab leads with current values, top risks and the plan; dismissals are scoped to the plan's repositories and say so; regenerating supersedes and carries decided items; a report offers Make a plan",
+          "Every fix has a test; lint, typecheck and the web suite are green"
+        ],
+        "points": 8,
+        "status": "in_progress",
+        "notes": [
+          "Requested by Brad 2026-10-19 (fix the UX_TODO findings and loop).",
+          "DSH-56 partial: a pasted start..end range now shows its dates in the window control and is read as the smallest preset covering it (requests carry that preset, so no 400s). Remaining: a date picker, a 14d preset, and computing metrics for an arbitrary range.",
+          "DSH-85 partial: the review queue leaves out drafts, bot PRs and PRs the user already reviewed, and is titled 'Open PRs by others'. Remaining: ingest requested reviewers and list only PRs where the user was asked.",
+          "DSH-07 not done: repo pages are still not WidgetGrid compositions (see W20-05 notes).",
+          "DSH-02: a multi-repository KPI sparkline is omitted rather than showing the org series under a set's label (no per-set series is stored).",
+          "N-9 remainder: report PDFs still print health letters ('score (B)') and letter axes; the dashboard no longer does.",
+          "Found, not in UX_TODO: org rollup metric rows (repo_id NULL) are only written by the seed, so unscoped Overview reads rely on the new pool-all-repos fallback in scopedMetrics; the FINDINGS metric row is written for 30d only; /me/prs lacked a workspace filter and POST /plans did not tenancy-check from_report_id (both fixed); openapi.snapshot.json is stale."
+        ]
       }
   ]
 }

@@ -8,6 +8,7 @@ import {
   type ReportParams,
 } from '@repopulse/reports';
 import type { Job } from 'bullmq';
+import { readWorkspaceSettings } from '../lib/workspace-settings.js';
 
 // reports.generate processor (W5-04, REPORTS.md §3).
 //
@@ -50,6 +51,8 @@ async function createScheduledReport(
   data: ScheduledReportJobData,
 ): Promise<{ reportId: number; params: ReportParams }> {
   const now = new Date();
+  // Pinned the way a pressed Generate pins them (W20-09, UX_TODO ADM-71).
+  const { effective } = await readWorkspaceSettings(deps.db, data.workspaceId);
   const params: ReportParams = {
     type: data.type,
     workspaceId: String(data.workspaceId),
@@ -58,6 +61,7 @@ async function createScheduledReport(
     windowEnd: now.toISOString(),
     snapshotAt: now.toISOString(),
     weightsVersion: 'v1',
+    healthWeights: { ...effective.healthWeights },
     catalogVersion: 'v1',
     annotation: 'Generated automatically on schedule.',
   };

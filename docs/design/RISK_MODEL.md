@@ -98,6 +98,15 @@ Each axis chip expands to its top-3 open findings by effective_risk from its
 mapped dimensions. Absent sub-score ⇒ axis absent + basis label (FR-INSIGHTS-3
 pattern), never a fake grade.
 
+**Presentation, settled 2026-10-19 (W20-09, UX_TODO DSH-11/72):** the
+dashboard shows each axis as its 0–100 score plus the health band word
+(HEALTH_BAND_LABEL), never a letter — N-9 ("signals, not grades") wins over
+the letter chips above, and UX_SPEC already drew numbers. Org-wide the axis
+is the median of the repositories that have the sub-score, with the worst
+repository named and the count measured; Performance is not served until it
+has a sub-score. The letter bands stay in the catalog only for the report
+PDFs, which still print them (an N-9 remainder recorded on W20-09).
+
 ## 5. Surfaces (FR-RISK-5/6)
 
 - **Findings Explorer / Security tab / Code Health tab**: default sort

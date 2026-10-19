@@ -7,6 +7,7 @@ import { HealthTileGrid } from './HealthTileGrid.js';
 import { AttentionFeed } from './AttentionFeed.js';
 import { HotspotLeaderboard } from './HotspotLeaderboard.js';
 import { TopActionsCard } from './TopActionsCard.js';
+import { reposParam } from '../scopeRepos.js';
 
 // Registry entries for the Org Overview widgets (W4-21, R-D2).
 //
@@ -53,7 +54,10 @@ registerWidget({
   // would change the DOM the existing org-overview and a11y specs assert
   // against, and would look identical.
   defaultSize: { w: 12, h: 1 },
-  component: ({ widget }) => <KpiRow window={optionsOf(widget).window} />,
+  component: ({ widget }) => {
+    const { window, search } = optionsOf(widget);
+    return <KpiRow window={window} repos={reposParam(search)} />;
+  },
 });
 
 registerWidget({

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useApiQuery } from '../../../api/useApiQuery.js';
 import { ErrorNote, ReportMarkdown } from '../../../components/index.js';
+import { MakePlanButton } from '../../../widgets/plans/MakePlanButton.js';
 
 // Print route (W5-04, REPORTS.md §3).
 //
@@ -65,6 +66,9 @@ interface ReportDataShape {
     snapshotAt: string;
     windowEnd: string;
     annotation?: string;
+    repoIds?: (string | number)[];
+    /** Pinned at generation (W20-09, UX_TODO ADM-71); absent on older reports. */
+    healthWeights?: Record<string, number>;
   };
   sections: ReportSection[];
   appendix: { definitions: { id: string; name: string; formula: string; unit: string }[] };
@@ -83,6 +87,36 @@ interface ReportResponse {
   status: string;
   error?: string | null;
   data: ReportDataShape | null;
+}
+
+/** Health sub-score keys in words, for the Basis box's weights line. */
+const WEIGHT_LABEL: Record<string, string> = {
+  activity: 'activity',
+  reviewHygiene: 'review hygiene',
+  ciHealth: 'CI health',
+  delivery: 'delivery',
+  security: 'security',
+  codeHealth: 'code health',
+  supplyChain: 'supply chain',
+};
+
+/**
+ * "activity 0.20 · review hygiene 0.30 · …" — the weights this report was
+ * scored with (W20-09, UX_TODO ADM-71). Nothing in a report said which weights
+ * were used, so a reader could not tell why its score differed from the
+ * dashboard's after an admin changed them.
+ */
+export function weightsLine(weights: Record<string, number> | undefined): string {
+  if (!weights || Object.keys(weights).length === 0) {
+    return 'Health weights: the product defaults (generated before weights were recorded).';
+  }
+  return (
+    'Health weights: ' +
+    Object.entries(weights)
+      .map(([k, v]) => `${WEIGHT_LABEL[k] ?? k} ${v.toFixed(2)}`)
+      .join(' · ') +
+    ' — sub-scores with no data are left out and the rest renormalized.'
+  );
 }
 
 /** Still being made: the viewer polls these rather than calling them empty. */
@@ -214,13 +248,21 @@ function PrintReport() {
         A single link, hidden from print, is the whole fix. `print:hidden` keeps
         it out of the PDF, so the artefact is unchanged.
       */}
-      <Link
-        to="/reports"
-        data-testid="print-back"
-        className="mb-4 inline-block text-xs underline print:hidden"
-      >
-        ← Back to Report Center
-      </Link>
+      <div className="mb-4 flex flex-wrap items-center gap-4 print:hidden">
+        <Link to="/reports" data-testid="print-back" className="inline-block text-xs underline">
+          ← Back to Report Center
+        </Link>
+        {/* The retro's hand-off (W20-09, UX_TODO DSH-59): only for a human
+            with a session — an injected print run has neither a session nor
+            any use for a button, and print:hidden keeps it out of the PDF. */}
+        {injected === null && (
+          <MakePlanButton
+            reportId={Number(reportId)}
+            windowDays={report.params.windowDays}
+            repoIds={report.params.repoIds ?? []}
+          />
+        )}
+      </div>
 
       {/* Cover (REPORTS.md §5). */}
       <header className="mb-8 border-b border-border pb-4 break-inside-avoid">
@@ -248,6 +290,9 @@ function PrintReport() {
         <p className="mt-1 text-xs text-fg-muted">
           All figures read metric snapshots computed at or before {snapshotAt}. Regenerating this
           report with the same scope reproduces these numbers exactly.
+        </p>
+        <p className="mt-1 text-xs text-fg-muted" data-testid="print-weights">
+          {weightsLine(report.params.healthWeights)}
         </p>
         {report.dataQuality.length > 0 && (
           <table className={`mt-2 ${TABLE}`}>

@@ -1,12 +1,7 @@
 // Plans wire contracts (W5-07). Source of truth is apps/api/src/routes/plans.
 
 export type PlanItemStatus =
-  | 'proposed'
-  | 'accepted'
-  | 'in_progress'
-  | 'done'
-  | 'regressed'
-  | 'dismissed';
+  'proposed' | 'accepted' | 'in_progress' | 'done' | 'regressed' | 'dismissed';
 
 export interface PlanItem {
   id: number;
@@ -17,7 +12,13 @@ export interface PlanItem {
   effort: 'S' | 'M' | 'L';
   status: PlanItemStatus;
   evidence: Record<string, unknown>;
-  verify_criterion: { metricKey: string; op: 'gte' | 'lte'; target: number; windowDays: number; dimPath?: string[] };
+  verify_criterion: {
+    metricKey: string;
+    op: 'gte' | 'lte';
+    target: number;
+    windowDays: number;
+    dimPath?: string[];
+  };
   verified_at: string | null;
 }
 
@@ -26,8 +27,11 @@ export interface Plan {
   window: string;
   repo_ids: number[];
   catalog_version: string;
+  /** `active`, or `archived` once a regeneration superseded it (DSH-58). */
   status: string;
   created_at: string;
+  /** The report it was made from (W20-09, UX_TODO DSH-59). */
+  created_from_report_id?: number | null;
   items: PlanItem[];
 }
 
@@ -63,10 +67,7 @@ export function metricInWords(key: string, names?: MetricNames): string {
   return name ? `${name} (${key})` : key;
 }
 
-export function criterionInWords(
-  c: PlanItem['verify_criterion'],
-  names?: MetricNames,
-): string {
+export function criterionInWords(c: PlanItem['verify_criterion'], names?: MetricNames): string {
   const direction = c.op === 'gte' ? 'at least' : 'at most';
   const metric = metricInWords(c.metricKey, names);
   const what = c.dimPath?.length ? `${metric} ${c.dimPath.join(' ')}` : metric;
@@ -99,6 +100,8 @@ export interface GenerateResult {
   id: number;
   item_count: number;
   reused: boolean;
+  /** The active plan for this scope that this one replaced (W20-09, DSH-58). */
+  superseded_id?: number | null;
   repo_ids: number[];
   window: string;
 }
@@ -180,7 +183,8 @@ export function lastVerificationOf(item: Pick<PlanItem, 'evidence'>): LastVerifi
   return { outcome, observed: v.observed as number | null, checkedAt: v.checkedAt };
 }
 
-const day = (iso: string | null | undefined): string => (iso ? iso.slice(0, 10) : 'an unknown date');
+const day = (iso: string | null | undefined): string =>
+  iso ? iso.slice(0, 10) : 'an unknown date';
 
 /**
  * Why the item is in its status, or null when there is nothing to claim.
@@ -199,7 +203,8 @@ export function progressInWords(item: PlanItem, names?: MetricNames): string | n
   switch (item.status) {
     case 'accepted':
     case 'in_progress': {
-      if (!last) return 'Not checked yet: the nightly verifier has not run for this item since it was accepted.';
+      if (!last)
+        return 'Not checked yet: the nightly verifier has not run for this item since it was accepted.';
       if (last.outcome === 'unknown') return `Unknown: ${unmeasured(day(last.checkedAt))}`;
       if (last.outcome === 'broken') {
         return `Open because ${metric} was ${last.observed} on ${day(last.checkedAt)}; needs ${bound}.`;

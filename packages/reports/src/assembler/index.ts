@@ -4,6 +4,8 @@ import {
   computeHealthScore,
   healthInputsFromSnapshots,
   scoreLetter,
+  securityInputsMany,
+  type SecurityInputs,
 } from '@repopulse/insights';
 import { and, desc, eq } from 'drizzle-orm';
 import { read, type Database } from '@repopulse/shared';
@@ -77,7 +79,14 @@ export function createReportAssembler(db: Database): ReportAssembler {
     // Resolved ids, so an all-repos report reads snapshots for the repos it
     // actually covers rather than passing an empty IN list downstream.
     const scopedIds = repoIds.length > 0 ? repoIds : repos.map((r) => r.id);
-    return { workspaceId, repoIds: scopedIds, snapshotAt, windowEnd, repos, window: windowOf(params) };
+    return {
+      workspaceId,
+      repoIds: scopedIds,
+      snapshotAt,
+      windowEnd,
+      repos,
+      window: windowOf(params),
+    };
   }
 
   /**
@@ -94,21 +103,48 @@ export function createReportAssembler(db: Database): ReportAssembler {
     return repos.map((repo) => {
       const newest = [...snapshots.values()]
         .filter((s) => s.repoId === repo.id)
-        .reduce<Date | null>((acc, s) => (acc === null || s.computedAt > acc ? s.computedAt : acc), null);
+        .reduce<Date | null>(
+          (acc, s) => (acc === null || s.computedAt > acc ? s.computedAt : acc),
+          null,
+        );
       return {
         repoId: String(repo.id),
         repoName: `${repo.org}/${repo.name}`,
         phase: repo.syncStatus,
         partial: repo.syncStatus !== 'live',
-        syncLagHours: newest === null ? null : r2((windowEnd.getTime() - newest.getTime()) / HOUR_MS),
+        syncLagHours:
+          newest === null ? null : r2((windowEnd.getTime() - newest.getTime()) / HOUR_MS),
       };
     });
+  }
+
+  /**
+   * Everything the score needs beyond the snapshots (W20-09, UX_TODO
+   * ADM-71/DSH-73): the pinned weights, and the Security sub-score's inputs
+   * read through the same function the dashboard uses, bounded by the pin.
+   */
+  interface ScoreContext {
+    weights: Record<string, number> | undefined;
+    security: Map<number, SecurityInputs>;
+  }
+
+  async function scoreContext(
+    params: ReportParams,
+    workspaceId: number,
+    repoIds: number[],
+    snapshotAt: Date,
+  ): Promise<ScoreContext> {
+    return {
+      weights: params.healthWeights,
+      security: await securityInputsMany(db, workspaceId, repoIds, snapshotAt),
+    };
   }
 
   function breakdownRows(
     snapshots: Map<string, BoundedSnapshot>,
     repo: { id: number; pushedAt: Date | null },
     windowEnd: Date,
+    ctx: ScoreContext,
   ): {
     rows: ScoreBreakdownRow[];
     score: number;
@@ -128,8 +164,15 @@ export function createReportAssembler(db: Database): ReportAssembler {
       // pinned end of the window, or the same params would score differently
       // tomorrow.
       { pushedAt: repo.pushedAt, nowMs: windowEnd.getTime() },
+      {
+        openFindingDensity: ctx.security.get(repo.id)?.openFindingDensity ?? null,
+        worstOpenSeverity: ctx.security.get(repo.id)?.worstOpenSeverity ?? null,
+      },
     );
-    const score = computeHealthScore(buildHealthSubScores(inputs));
+    // The PINNED weights, as Overview passes the saved ones (ADM-71).
+    // buildHealthSubScores falls back per key to the defaults, which is also
+    // what a report stored before the pin existed was generated under.
+    const score = computeHealthScore(buildHealthSubScores(inputs, ctx.weights));
     const rows: ScoreBreakdownRow[] = [];
     for (const sub of score.subScores) {
       for (const input of sub.inputs) {
@@ -172,7 +215,9 @@ export function createReportAssembler(db: Database): ReportAssembler {
   async function repoHealthReport(params: ReportParams): Promise<ReportSection[]> {
     const { workspaceId, repoIds, snapshotAt, windowEnd, repos, window } = await common(params);
     if (repos.length === 0) {
-      return [noData('repo', 'No repository in scope — it may have been removed from the workspace.')];
+      return [
+        noData('repo', 'No repository in scope — it may have been removed from the workspace.'),
+      ];
     }
     const repo = repos[0]!;
     const snapshots = await readSnapshotsAsOf(db, {
@@ -183,7 +228,12 @@ export function createReportAssembler(db: Database): ReportAssembler {
       snapshotAt,
     });
 
-    const health = breakdownRows(snapshots, repo, windowEnd);
+    const health = breakdownRows(
+      snapshots,
+      repo,
+      windowEnd,
+      await scoreContext(params, workspaceId, [repo.id], snapshotAt),
+    );
     const sections: ReportSection[] = [
       {
         kind: 'summary',
@@ -199,7 +249,10 @@ export function createReportAssembler(db: Database): ReportAssembler {
     sections.push(
       health.rows.length > 0
         ? { kind: 'score_breakdown', rows: health.rows }
-        : noData('score_breakdown', 'No health-input metrics have been computed for this repository yet.'),
+        : noData(
+            'score_breakdown',
+            'No health-input metrics have been computed for this repository yet.',
+          ),
     );
 
     // W10-05: the axis letters, from the sub-scores above. An axis with no
@@ -215,9 +268,14 @@ export function createReportAssembler(db: Database): ReportAssembler {
             kind: 'table',
             id: 'hotspots',
             columns: ['File', 'Hotspot score', 'Gross churn', 'Last touched'],
-            rows: files.slice(0, 10).map((f) => [f.path, f.score, f.gross ?? null, f.lastTouchedAt ?? null]),
+            rows: files
+              .slice(0, 10)
+              .map((f) => [f.path, f.score, f.gross ?? null, f.lastTouchedAt ?? null]),
           }
-        : noData('hotspots', 'No hotspot snapshot for this window — the repository may have no commits in it.'),
+        : noData(
+            'hotspots',
+            'No hotspot snapshot for this window — the repository may have no commits in it.',
+          ),
     );
 
     // PR flow (M4 stages, M5 coverage, M6 bypass, M7 size, M8 stale).
@@ -313,10 +371,16 @@ export function createReportAssembler(db: Database): ReportAssembler {
       snapshotAt,
     });
 
-    const perRepo = repos.map((repo) => ({ repo, health: breakdownRows(snapshots, repo, windowEnd) }));
+    const ctx = await scoreContext(params, workspaceId, repoIds, snapshotAt);
+    const perRepo = repos.map((repo) => ({
+      repo,
+      health: breakdownRows(snapshots, repo, windowEnd, ctx),
+    }));
     const scored = perRepo.filter((p) => p.health.rows.length > 0);
     const mean =
-      scored.length > 0 ? Math.round(scored.reduce((s, p) => s + p.health.score, 0) / scored.length) : null;
+      scored.length > 0
+        ? Math.round(scored.reduce((s, p) => s + p.health.score, 0) / scored.length)
+        : null;
 
     const sections: ReportSection[] = [
       {
@@ -361,13 +425,24 @@ export function createReportAssembler(db: Database): ReportAssembler {
             id: 'dora',
             columns: ['Metric', 'Value', 'Basis'],
             rows: [
-              ['Deployment frequency', dimNum(m12.dims, ['deployFrequency']), basisOf(m12.dims, 'deployFrequency')],
+              [
+                'Deployment frequency',
+                dimNum(m12.dims, ['deployFrequency']),
+                basisOf(m12.dims, 'deployFrequency'),
+              ],
               ['Lead time (h)', dimNum(m12.dims, ['leadTimeHours']), basisOf(m12.dims, 'leadTime')],
-              ['Change-failure rate', dimNum(m12.dims, ['changeFailureRate']), basisOf(m12.dims, 'changeFailureRate')],
+              [
+                'Change-failure rate',
+                dimNum(m12.dims, ['changeFailureRate']),
+                basisOf(m12.dims, 'changeFailureRate'),
+              ],
               ['MTTR', dimNum(m12.dims, ['mttrHours']), 'needs incident data'],
             ],
           }
-        : noData('dora', 'No DORA snapshot at org level for this window (FR-METRICS-12 needs releases or deployments).'),
+        : noData(
+            'dora',
+            'No DORA snapshot at org level for this window (FR-METRICS-12 needs releases or deployments).',
+          ),
     );
 
     sections.push(
@@ -427,15 +502,30 @@ export function createReportAssembler(db: Database): ReportAssembler {
             id: 'dora_tiles',
             columns: ['Metric', 'Value', 'Basis'],
             rows: [
-              ['Deployment frequency', dimNum(m12.dims, ['deployFrequency']), basisOf(m12.dims, 'deployFrequency')],
-              ['Lead time for change (h)', dimNum(m12.dims, ['leadTimeHours']), basisOf(m12.dims, 'leadTime')],
-              ['Change-failure rate', dimNum(m12.dims, ['changeFailureRate']), basisOf(m12.dims, 'changeFailureRate')],
+              [
+                'Deployment frequency',
+                dimNum(m12.dims, ['deployFrequency']),
+                basisOf(m12.dims, 'deployFrequency'),
+              ],
+              [
+                'Lead time for change (h)',
+                dimNum(m12.dims, ['leadTimeHours']),
+                basisOf(m12.dims, 'leadTime'),
+              ],
+              [
+                'Change-failure rate',
+                dimNum(m12.dims, ['changeFailureRate']),
+                basisOf(m12.dims, 'changeFailureRate'),
+              ],
               // Never silently 0: no incident feed exists, and 0 would read as
               // "we always recover instantly" (FR-METRICS-12).
               ['Mean time to restore', dimNum(m12.dims, ['mttrHours']), 'needs incident data'],
             ],
           }
-        : noData('dora_tiles', 'No DORA snapshot for this window — needs releases, deployments or merges to the default branch.'),
+        : noData(
+            'dora_tiles',
+            'No DORA snapshot for this window — needs releases, deployments or merges to the default branch.',
+          ),
     );
 
     sections.push(
@@ -445,9 +535,21 @@ export function createReportAssembler(db: Database): ReportAssembler {
             id: 'cycle_stages',
             columns: ['Stage', 'Median (h)', 'p90 (h)'],
             rows: [
-              ['Open → first review', dimNum(m4.dims, ['stages', 'openToFirstReview', 'median']), dimNum(m4.dims, ['stages', 'openToFirstReview', 'p90'])],
-              ['First review → approval', dimNum(m4.dims, ['stages', 'reviewToApproval', 'median']), dimNum(m4.dims, ['stages', 'reviewToApproval', 'p90'])],
-              ['Approval → merge', dimNum(m4.dims, ['stages', 'approvalToMerge', 'median']), dimNum(m4.dims, ['stages', 'approvalToMerge', 'p90'])],
+              [
+                'Open → first review',
+                dimNum(m4.dims, ['stages', 'openToFirstReview', 'median']),
+                dimNum(m4.dims, ['stages', 'openToFirstReview', 'p90']),
+              ],
+              [
+                'First review → approval',
+                dimNum(m4.dims, ['stages', 'reviewToApproval', 'median']),
+                dimNum(m4.dims, ['stages', 'reviewToApproval', 'p90']),
+              ],
+              [
+                'Approval → merge',
+                dimNum(m4.dims, ['stages', 'approvalToMerge', 'median']),
+                dimNum(m4.dims, ['stages', 'approvalToMerge', 'p90']),
+              ],
             ],
           }
         : noData('cycle_stages', 'No pull-request cycle snapshot in this window.'),

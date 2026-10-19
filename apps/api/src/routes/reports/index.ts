@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { auditLog, read, type Database } from '@repopulse/shared';
+import { auditLog, core, read, type Database } from '@repopulse/shared';
 import { requireAdmin } from '../../lib/rbac.js';
 import {
   artifactPresent,
@@ -13,6 +13,7 @@ import {
   type ReportType,
 } from '@repopulse/reports';
 import { sendProblem } from '../../lib/problem.js';
+import { readWorkspaceSettings } from '../../lib/workspace-settings.js';
 
 // Report Center API (W5-04, FR-REPORTS-1/6/7, REPORTS.md §4).
 //
@@ -36,9 +37,16 @@ export interface ReportsRoutesOptions {
    * actually holding the timer. Injectable so tests run without Redis.
    */
   schedules?: {
-    list: (
-      workspaceId: number,
-    ) => Promise<{ key: string; type: string; cadence: string; next: number | null }[]>;
+    list: (workspaceId: number) => Promise<
+      {
+        key: string;
+        type: string;
+        cadence: string;
+        next: number | null;
+        /** Null for a schedule created before the window was kept in its name. */
+        windowDays?: number | null;
+      }[]
+    >;
     add: (workspaceId: number, type: string, cadence: string, windowDays: number) => Promise<void>;
     remove: (workspaceId: number, key: string) => Promise<void>;
   };
@@ -118,8 +126,31 @@ export default async function reportsRoutes(
       );
     }
     const repoIds = Array.isArray(request.body?.repo_ids)
-      ? (request.body.repo_ids as unknown[]).map(Number).filter(Number.isInteger)
+      ? [
+          ...new Set(
+            (request.body.repo_ids as unknown[])
+              .map(Number)
+              .filter((n) => Number.isInteger(n) && n > 0),
+          ),
+        ].sort((a, b) => a - b)
       : [];
+    // W20-09 (UX_TODO ADM-05): the form now sends a repository set, so the
+    // set is checked — another workspace's repository is a 404 (Law 5), and a
+    // report "for repository 99" where 99 is nothing would be a label with
+    // nothing behind it.
+    if (repoIds.length > 0) {
+      const known = await db
+        .select({ id: core.repos.id })
+        .from(core.repos)
+        .where(and(eq(core.repos.workspaceId, workspaceId), inArray(core.repos.id, repoIds)));
+      if (known.length !== repoIds.length) return fail(request, reply, 404, 'Not Found');
+    }
+    // The workspace's weights NOW, pinned with the report (W20-09, UX_TODO
+    // ADM-71): Overview scores with the saved weights, and a report scored
+    // with the code defaults disagreed with it the moment an admin changed
+    // them. Pinned rather than read at assembly so a regeneration of this
+    // report after a later edit still reproduces it.
+    const { effective } = await readWorkspaceSettings(db, workspaceId);
 
     // "now" and the snapshot high-watermark resolve ONCE, here, and are
     // stored with the report (FR-REPORTS-7). Resolving them in the worker
@@ -134,6 +165,7 @@ export default async function reportsRoutes(
       windowEnd: now.toISOString(),
       snapshotAt: now.toISOString(),
       weightsVersion: 'v1',
+      healthWeights: { ...effective.healthWeights },
       catalogVersion: 'v1',
       // Captured at generation and stored IN the params (R-A11), never as a
       // mutable column: a report is immutable, so changing the note means
@@ -175,19 +207,23 @@ export default async function reportsRoutes(
     const workspaceId = request.workspace?.id;
     if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
     const rows = await db
-      .select()
+      .select({ report: read.reports, generatedByLogin: core.users.login })
       .from(read.reports)
+      .leftJoin(core.users, eq(core.users.id, read.reports.generatedBy))
       .where(eq(read.reports.workspaceId, workspaceId))
       .orderBy(desc(read.reports.generatedAt))
       .limit(100);
     return reply.send({
       items: await Promise.all(
-        rows.map(async (r) => ({
+        rows.map(async ({ report: r, generatedByLogin }) => ({
           id: r.id,
           type: r.type,
           status: r.status,
           params: r.params,
           generated_at: r.generatedAt.toISOString(),
+          // W20-09 (UX_TODO ADM-05): "By" in the history, so two rows of one
+          // type can be told apart by who asked for them as well as by scope.
+          generated_by: generatedByLogin ?? null,
           error: r.error,
           ...(await artifactFields(r)),
         })),
@@ -426,6 +462,26 @@ export default async function reportsRoutes(
       const windowDays = Number(request.body?.window_days ?? 30);
       if (!WINDOWS.includes(windowDays)) return fail(request, reply, 400, 'Invalid window');
 
+      // Refused rather than silently stacked (W20-09, UX_TODO ADM-07): BullMQ
+      // keys a repeatable job on its name and pattern, so a second identical
+      // schedule would be a no-op the screen reported as a new one.
+      const existing = (await opts.schedules?.list(workspaceId)) ?? [];
+      if (
+        existing.some(
+          (e) =>
+            e.type === type &&
+            e.cadence === cadence &&
+            (e.windowDays === undefined || e.windowDays === null || e.windowDays === windowDays),
+        )
+      ) {
+        return fail(
+          request,
+          reply,
+          409,
+          'Already scheduled',
+          `A ${cadence} ${type} report is already scheduled; remove it first to change its window.`,
+        );
+      }
       await opts.schedules?.add(workspaceId, type, cadence, windowDays);
       auditLog(request.log, {
         event: 'report.scheduled',

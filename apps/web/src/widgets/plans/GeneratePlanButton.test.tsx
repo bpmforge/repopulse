@@ -36,7 +36,12 @@ function stubFetch(hold = false) {
 function renderButton(props: Partial<GeneratePlanButtonProps> = {}) {
   return render(
     <QueryClientProvider client={createQueryClient()}>
-      <GeneratePlanButton window="30d" repoIds={[12]} repoNames={{ 12: 'acme/payments' }} {...props} />
+      <GeneratePlanButton
+        window="30d"
+        repoIds={[12]}
+        repoNames={{ 12: 'acme/payments' }}
+        {...props}
+      />
     </QueryClientProvider>,
   );
 }
@@ -104,7 +109,7 @@ describe('GeneratePlanButton (W17-24)', () => {
     expect(posted()).toHaveLength(1);
   });
 
-  it('says when the server handed back an existing plan, in the server\'s scope', async () => {
+  it("says when the server handed back an existing plan, in the server's scope", async () => {
     answer = {
       status: 200,
       body: { id: 5, item_count: 2, reused: true, repo_ids: [12], window: '30d' },
@@ -115,6 +120,34 @@ describe('GeneratePlanButton (W17-24)', () => {
     expect(screen.getByTestId('generate-plan-result')).toHaveTextContent(
       'Nothing changed — the 30d plan for acme/payments (#5) already has these 2 items.',
     );
+  });
+
+  it('says which plan a regeneration replaced (W20-09, DSH-58)', async () => {
+    answer = {
+      status: 201,
+      body: {
+        id: 9,
+        item_count: 3,
+        reused: false,
+        superseded_id: 5,
+        repo_ids: [12],
+        window: '30d',
+      },
+    };
+    renderButton();
+    await userEvent.click(screen.getByTestId('generate-plan'));
+    await waitFor(() => expect(screen.getByTestId('generate-plan-result')).toBeInTheDocument());
+    expect(screen.getByTestId('generate-plan-result')).toHaveTextContent(
+      'Plan #9 created for acme/payments: 3 items. It replaces plan #5; accepted and in-progress items kept their state.',
+    );
+  });
+
+  it('generates a custom range as the preset that covers it (W20-09, DSH-56)', async () => {
+    renderButton({ window: '2026-09-01..2026-09-14' });
+    expect(screen.getByTestId('generate-plan')).toHaveTextContent('Generate 30d plan');
+    await userEvent.click(screen.getByTestId('generate-plan'));
+    await waitFor(() => expect(posted()).toHaveLength(1));
+    expect(posted()[0]!.body).toMatchObject({ window: '30d' });
   });
 
   it('shows a refusal beside the button', async () => {

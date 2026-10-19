@@ -90,6 +90,14 @@ describe('PlanItemCard dismissal is deliberate and reversible (W20-05)', () => {
     );
   });
 
+  it('says what the dismissal will hide before it hides it (W20-09, DSH-57)', () => {
+    render(<PlanItemCard item={item('proposed')} metricNames={names} scopeLabel="acme/web" />);
+    fireEvent.click(screen.getByTestId('plan-dismiss-7'));
+    expect(screen.getByTestId('plan-dismiss-scope-7')).toHaveTextContent(
+      'Future plans for acme/web will not propose it again; plans for other repositories still can.',
+    );
+  });
+
   it('offers Restore on a dismissed item', () => {
     render(<PlanItemCard item={item('dismissed')} metricNames={names} />);
     fireEvent.click(screen.getByTestId('plan-restore-7'));

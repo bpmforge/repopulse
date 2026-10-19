@@ -4,6 +4,7 @@ import { RiskBandChip } from '../../components/risk/RiskBandChip.js';
 import { RiskDecompositionPopover } from '../../components/risk/RiskDecompositionPopover.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { TopRisksResponse } from './contracts.js';
+import { reposParam, withRepos } from '../scopeRepos.js';
 
 // Top Risks (W9-11, RISK_MODEL.md §5, FR-RISK-5).
 //
@@ -12,10 +13,11 @@ import type { TopRisksResponse } from './contracts.js';
 // the CVE funnel, and a top-5 card without its denominator is a list that
 // implies the other 195 do not exist.
 
-export function TopRisksCard({ repoId }: { repoId?: string }) {
+export function TopRisksCard({ repoId, repos }: { repoId?: string; repos?: string | undefined }) {
+  // One repository (the repo pages), or a view's set (W20-09, UX_TODO DSH-02).
   const { data, isLoading, isError, error, refetch } = useApiQuery<TopRisksResponse>({
     endpoint: '/risk/top',
-    query: repoId ? { repo_id: repoId } : {},
+    query: repoId ? { repo_id: repoId } : withRepos({}, repos),
   });
 
   const items = data?.items ?? [];
@@ -61,10 +63,10 @@ export function TopRisksCard({ repoId }: { repoId?: string }) {
         ))}
       </ol>
 
-      {data && (
+      {data?.counts && (
         <p className="mt-2 text-xs text-fg-muted" data-testid="top-risks-counts">
-          {data.counts.open} open findings → {data.counts.act} act, {data.counts.schedule}{' '}
-          schedule, {data.counts.track} track
+          {data.counts.open} open findings → {data.counts.act} act, {data.counts.schedule} schedule,{' '}
+          {data.counts.track} track
           {/* Unpriced is called out rather than folded into `track`, which
               would claim the nightly job had judged them low risk. */}
           {data.counts.unpriced > 0 ? `, ${data.counts.unpriced} not yet priced` : ''}
@@ -82,6 +84,7 @@ registerWidget({
   component: ({ widget }) => {
     const options = widget.options ?? {};
     const repoId = typeof options.repoId === 'string' ? options.repoId : undefined;
-    return <TopRisksCard {...(repoId ? { repoId } : {})} />;
+    const repos = reposParam(options.search as Record<string, string> | undefined);
+    return <TopRisksCard {...(repoId ? { repoId } : { repos })} />;
   },
 });

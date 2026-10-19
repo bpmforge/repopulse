@@ -126,7 +126,10 @@ registerWidget({
 
 registerWidget({
   type: 'my-queue',
-  title: 'Waiting on my review',
+  // W20-09 (UX_TODO DSH-85): not "waiting on my review" — requested
+  // reviewers are not ingested, so the list is open PRs by others that this
+  // person has not reviewed, drafts and bots left out.
+  title: 'Open PRs by others',
   category: 'personal',
   defaultSize: { w: 6, h: 2 },
   component: () => {
@@ -136,7 +139,7 @@ registerWidget({
     const items = data?.items ?? [];
     return (
       <WidgetFrame
-        title="Waiting on my review"
+        title="Open PRs by others you haven't reviewed"
         state={frameState({
           isLoading,
           isError,
@@ -144,7 +147,7 @@ registerWidget({
         })}
         {...(error ? { errorMessage: error.message, error } : {})}
         onRetry={() => void refetch()}
-        emptyMessage="Nothing is waiting on your review."
+        emptyMessage="No open pull requests by others are waiting without a review from you."
       >
         <ul data-testid="widget-my-queue">
           {items.map((item) => (
