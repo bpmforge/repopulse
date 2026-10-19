@@ -248,6 +248,18 @@ export function FindingDetail({
             setReason('false_positive');
             noteRef.current?.focus();
           }}
+          onOfferConfirm={() => noteRef.current?.focus()}
+          finding={{
+            repoId: finding.repo.id,
+            file: finding.file,
+            line: finding.line_range[0],
+            status: finding.status,
+            scannerKey: finding.scanner_key ?? null,
+            ruleId: finding.rule_id ?? null,
+            // Absent (not null) means not sent: unknown, so not held against it.
+            hasContext: finding.context !== null,
+            experimental: finding.experimental === true,
+          }}
         />
 
         {/* W18-22: how far this rule has been shown to be right, before

@@ -132,6 +132,23 @@ export function AiGovernanceCard({ window, search }: Props) {
             </tbody>
           </table>
 
+          {/* W20-11 (UX_TODO AI-49): each measure's method and notes were only
+              `title` tooltips, unreadable on touch or from the keyboard. */}
+          <details className="text-xs" data-testid="ai-governance-methods">
+            <summary className="cursor-pointer text-fg-muted">How each measure is computed</summary>
+            <dl className="mt-1 flex flex-col gap-1">
+              {data.measures.map((m) => (
+                <div key={m.key}>
+                  <dt className="font-medium text-fg">{m.label}</dt>
+                  <dd className="text-fg-muted">
+                    {m.basis}
+                    {m.note ? ` ${m.note}` : ''}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+
           <p className="text-xs text-fg-muted" data-testid="ai-governance-basis">
             Signals, not grades — aggregated, never per person. From co-author trailers, agent bot
             accounts and agent branch names

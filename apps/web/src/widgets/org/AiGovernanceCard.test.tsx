@@ -89,6 +89,16 @@ describe('AiGovernanceCard (W18-20)', () => {
     expect(within(rework).getByText('too small to compare')).toBeInTheDocument();
   });
 
+  // W20-11 (UX_TODO AI-49): methods and notes in text, not only in tooltips.
+  it('lists how each measure is computed, with its note, in a disclosure', () => {
+    renderWith(response());
+    const methods = screen.getByTestId('ai-governance-methods');
+    expect(methods.tagName).toBe('DETAILS');
+    expect(methods).toHaveTextContent('Revert rate');
+    expect(methods).toHaveTextContent('M14');
+    expect(methods).toHaveTextContent(/at least 1000 of each are needed/);
+  });
+
   it('says plainly when nothing is comparable', () => {
     renderWith(response({ anyComparable: false }));
     expect(screen.getByTestId('ai-governance-small-sample')).toHaveTextContent(

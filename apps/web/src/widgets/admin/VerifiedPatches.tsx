@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
@@ -30,6 +31,12 @@ export interface PatchAttempt {
 export interface PatchAttempts {
   counts: Partial<Record<PatchAttempt['status'], number>>;
   items: PatchAttempt[];
+  /** W20-11 (UX_TODO AI-66): every model that drafted an attempt, for the filter. */
+  models?: string[];
+  /** Repositories with any attempt, for the filter. */
+  repos?: { id: number; name: string }[];
+  /** Pass back as `before` for older attempts; null on the last page. */
+  next_cursor?: string | null;
 }
 
 interface Gateway {
@@ -54,8 +61,26 @@ const STATUS_MARK: Record<PatchAttempt['status'], string> = {
 const ORDER: PatchAttempt['status'][] = ['verified', 'rejected', 'failed', 'pending'];
 
 export function VerifiedPatches() {
+  // W20-11 (UX_TODO AI-66): filter by outcome, model and repository, and page back past the
+  // hundred newest. Page cursors are kept so "Newer" can return.
+  const [status, setStatus] = useState<PatchAttempt['status'] | ''>('');
+  const [model, setModel] = useState('');
+  const [repoId, setRepoId] = useState('');
+  const [cursors, setCursors] = useState<string[]>([]);
+  const before = cursors[cursors.length - 1];
+  const filtered = status !== '' || model !== '' || repoId !== '' || before !== undefined;
   const { data, isLoading, isError, error, refetch } = useApiQuery<PatchAttempts>({
     endpoint: '/admin/patches',
+    ...(filtered
+      ? {
+          query: {
+            ...(status ? { status } : {}),
+            ...(model ? { model } : {}),
+            ...(repoId ? { repo_id: repoId } : {}),
+            ...(before ? { before } : {}),
+          },
+        }
+      : {}),
   });
   // Whether a fix CAN be drafted at all: Tier 2 needs a configured model.
   const { data: analysis } = useApiQuery<{ gateway?: Gateway }>({ endpoint: '/admin/analysis' });
@@ -123,6 +148,74 @@ export function VerifiedPatches() {
               A fix is shown to developers only when re-scanning the patched file cleared the
               finding and raised nothing new. Nothing is ever written to the repository.
             </p>
+            <div className="flex flex-wrap items-end gap-3 text-xs" data-testid="patch-filters">
+              <label className="flex flex-col gap-1 text-fg-muted">
+                Outcome
+                <select
+                  className="panel px-2 py-1 text-sm"
+                  data-testid="patch-filter-status"
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value as PatchAttempt['status'] | '');
+                    setCursors([]);
+                  }}
+                >
+                  <option value="">Every outcome</option>
+                  {ORDER.map((s) => (
+                    <option key={s} value={s}>
+                      {STATUS_WORD[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {(data.models ?? []).length > 0 ? (
+                <label className="flex flex-col gap-1 text-fg-muted">
+                  Model
+                  <select
+                    className="panel px-2 py-1 text-sm"
+                    data-testid="patch-filter-model"
+                    value={model}
+                    onChange={(e) => {
+                      setModel(e.target.value);
+                      setCursors([]);
+                    }}
+                  >
+                    <option value="">Every model</option>
+                    {(data.models ?? []).map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {(data.repos ?? []).length > 1 ? (
+                <label className="flex flex-col gap-1 text-fg-muted">
+                  Repository
+                  <select
+                    className="panel px-2 py-1 text-sm"
+                    data-testid="patch-filter-repo"
+                    value={repoId}
+                    onChange={(e) => {
+                      setRepoId(e.target.value);
+                      setCursors([]);
+                    }}
+                  >
+                    <option value="">Every repository</option>
+                    {(data.repos ?? []).map((x) => (
+                      <option key={x.id} value={String(x.id)}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+            {items.length === 0 ? (
+              <p className="text-xs text-fg-muted" data-testid="patch-list-empty">
+                No attempt matches these filters.
+              </p>
+            ) : null}
             <ul className="flex flex-col" data-testid="patch-list">
               {items.map((p) => (
                 <li
@@ -164,11 +257,38 @@ export function VerifiedPatches() {
                 </li>
               ))}
             </ul>
-            {total > items.length && (
+            {total > items.length && !filtered && !data.next_cursor && (
               <p className="text-xs text-fg-muted">
                 Showing the {items.length} most recent of {total} attempts.
               </p>
             )}
+            {data.next_cursor || cursors.length > 0 ? (
+              <div className="flex gap-3 text-xs" data-testid="patch-paging">
+                {cursors.length > 0 ? (
+                  <button
+                    type="button"
+                    className="underline underline-offset-2"
+                    data-testid="patch-newer"
+                    onClick={() => setCursors((c) => c.slice(0, -1))}
+                  >
+                    ← Newer attempts
+                  </button>
+                ) : null}
+                {data.next_cursor ? (
+                  <button
+                    type="button"
+                    className="underline underline-offset-2"
+                    data-testid="patch-older"
+                    onClick={() => {
+                      const next = data.next_cursor;
+                      if (next) setCursors((c) => [...c, next]);
+                    }}
+                  >
+                    Older attempts →
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         )}
       </WidgetFrame>

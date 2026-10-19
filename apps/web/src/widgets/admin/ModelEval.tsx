@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 
@@ -38,6 +39,14 @@ interface EvalResponse {
 
 const pct = (n: number | null): string => (n === null ? '—' : `${Math.round(n * 100)}%`);
 
+/**
+ * How a model is measured today (W20-11, UX_TODO AI-16, AI_LAYER.md "W19-05 as
+ * built"): a command run from a RepoPulse checkout, not a button. A newly added
+ * model showed "not yet run" forever with no way forward; it now shows this.
+ */
+export const MEASURE_COMMAND =
+  'npx tsx packages/security/src/eval/cli.ts --base-url <address> --model <model id>';
+
 /** Precision and recall as TWO cells, so the numbers line up and can be compared down a column. */
 function ScoreCells({ score, testId }: { score: RoleScore | undefined; testId: string }) {
   if (!score) {
@@ -49,13 +58,12 @@ function ScoreCells({ score, testId }: { score: RoleScore | undefined; testId: s
   }
   if (score.state === 'incomplete') {
     return (
-      <td
-        colSpan={2}
-        className="py-2 pr-3 text-xs text-warn"
-        data-testid={testId}
-        title={`${score.errored} of ${score.cases} cases hit a provider error and were not scored`}
-      >
-        incomplete ({score.errored} error{score.errored === 1 ? '' : 's'})
+      // W20-11 (UX_TODO AI-27): the explanation was a title tooltip, which
+      // keyboard and touch users never see; it is text, and the errors are
+      // listed under the row.
+      <td colSpan={2} className="py-2 pr-3 text-xs text-warn" data-testid={testId}>
+        incomplete: {score.errored} of {score.cases} case{score.cases === 1 ? '' : 's'} hit a
+        provider error (listed below)
       </td>
     );
   }
@@ -75,6 +83,7 @@ export function ModelEval() {
   const query = useApiQuery<EvalResponse>(EVAL);
   const models = query.data?.models ?? [];
   const roles = query.data?.roles ?? [];
+  const unmeasured = models.filter((m) => m.configured && m.result === null).map((m) => m.model);
 
   return (
     <WidgetFrame
@@ -93,6 +102,22 @@ export function ModelEval() {
           How each model did on labelled test cases, per role. <strong>Precision (P)</strong>: of
           what it reported, how much was real. <strong>Recall (R)</strong>: of the planted defects,
           how many it found.
+        </p>
+        {/* W20-11 (UX_TODO AI-28): the table showed numbers and helped decide
+            nothing. A short reading guide, and the way to act on it. */}
+        <p className="text-xs text-fg-muted" data-testid="model-eval-guide">
+          <strong>Reading it:</strong> each role has only four cases, so one case moves a number by
+          25 points or more; read a gap smaller than that as a tie. For Security and Triage, low
+          recall matters most (a missed real issue); for the other roles, low precision means noise
+          to wade through. To use a model for a role, put it first in that role&rsquo;s chain in{' '}
+          <a
+            href="#model-routing"
+            className="underline underline-offset-2"
+            data-testid="model-eval-routing-link"
+          >
+            Routing
+          </a>
+          .
         </p>
         {/* Wider now that precision and recall are separate columns, so it can scroll
             sideways: a scrollable region has to be reachable from the keyboard. */}
@@ -137,62 +162,93 @@ export function ModelEval() {
             </thead>
             <tbody>
               {models.map((m) => (
-                <tr
-                  key={`${m.model}-${m.provider_name ?? 'x'}`}
-                  className="border-t border-border align-top"
-                  data-testid={`model-eval-row-${m.model}`}
-                >
-                  <th scope="row" className="py-2 pr-3 text-left font-normal">
-                    <span className="font-mono text-xs">{m.model}</span>
-                    {m.configured ? (
-                      <span className="block text-xs text-fg-muted">{m.provider_name}</span>
-                    ) : (
-                      <span className="block text-xs text-fg-faint">not configured here</span>
-                    )}
-                  </th>
-                  {roles.map((r) => (
-                    <ScoreCells
-                      key={r.id}
-                      score={m.result?.roles[r.id]}
-                      testId={`model-eval-${m.model}-${r.id}`}
-                    />
-                  ))}
-                  <td className="py-2 pr-3 text-xs">
-                    {m.result?.triage ? (
-                      <span>
-                        {pct(m.result.triage.agreement)}
-                        {m.result.triage.missedReal > 0
-                          ? ` · ${m.result.triage.missedReal} real missed`
-                          : ''}
-                      </span>
-                    ) : (
-                      <span className="text-fg-faint">not yet run</span>
-                    )}
-                  </td>
-                  <td className="py-2 text-xs text-fg-muted">
-                    {m.result ? (
-                      <>
-                        {m.result.ranAt.slice(0, 10)}
-                        <span className="block">{m.result.engine}</span>
-                        {!m.result.complete ? (
-                          <span
-                            className="block text-warn"
-                            data-testid={`model-eval-incomplete-${m.model}`}
-                          >
-                            incomplete — {m.result.errors.length} provider error
+                <Fragment key={`${m.model}-${m.provider_name ?? 'x'}`}>
+                  <tr
+                    className="border-t border-border align-top"
+                    data-testid={`model-eval-row-${m.model}`}
+                  >
+                    <th scope="row" className="py-2 pr-3 text-left font-normal">
+                      <span className="font-mono text-xs">{m.model}</span>
+                      {m.configured ? (
+                        <span className="block text-xs text-fg-muted">{m.provider_name}</span>
+                      ) : (
+                        <span className="block text-xs text-fg-faint">not configured here</span>
+                      )}
+                    </th>
+                    {roles.map((r) => (
+                      <ScoreCells
+                        key={r.id}
+                        score={m.result?.roles[r.id]}
+                        testId={`model-eval-${m.model}-${r.id}`}
+                      />
+                    ))}
+                    <td className="py-2 pr-3 text-xs">
+                      {m.result?.triage ? (
+                        <span>
+                          {pct(m.result.triage.agreement)}
+                          {m.result.triage.missedReal > 0
+                            ? ` · ${m.result.triage.missedReal} real missed`
+                            : ''}
+                        </span>
+                      ) : (
+                        <span className="text-fg-faint">not yet run</span>
+                      )}
+                    </td>
+                    <td className="py-2 text-xs text-fg-muted">
+                      {m.result ? (
+                        <>
+                          {m.result.ranAt.slice(0, 10)}
+                          <span className="block">{m.result.engine}</span>
+                          {!m.result.complete ? (
+                            <span
+                              className="block text-warn"
+                              data-testid={`model-eval-incomplete-${m.model}`}
+                            >
+                              incomplete — {m.result.errors.length} provider error
+                              {m.result.errors.length === 1 ? '' : 's'}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  </tr>
+                  {m.result && m.result.errors.length > 0 ? (
+                    <tr data-testid={`model-eval-errors-${m.model}`}>
+                      <td colSpan={roles.length * 2 + 3} className="pb-2 text-xs">
+                        <details>
+                          <summary className="cursor-pointer text-warn">
+                            Why {m.model} is incomplete: {m.result.errors.length} provider error
                             {m.result.errors.length === 1 ? '' : 's'}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
+                          </summary>
+                          <ul className="mt-1 ml-4 list-disc text-fg-muted">
+                            {m.result.errors.map((e, i) => (
+                              <li key={`${e.role}-${e.caseId}-${i}`}>
+                                {roles.find((r) => r.id === e.role)?.label ?? e.role}, case{' '}
+                                <span className="font-mono">{e.caseId}</span>:{' '}
+                                <span className="font-mono break-words">{e.error}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
+        {unmeasured.length > 0 ? (
+          <p className="text-xs text-fg-muted" data-testid="model-eval-how-to-measure">
+            <strong>Not measured yet:</strong> {unmeasured.join(', ')}. Measuring is not run from
+            this screen: from a RepoPulse checkout, run{' '}
+            <code className="font-mono break-all">{MEASURE_COMMAND}</code>. Expect about an hour per
+            model on a local model (the first measured run took 54 minutes). The results appear here
+            once they are committed and RepoPulse is rebuilt.
+          </p>
+        ) : null}
       </div>
     </WidgetFrame>
   );

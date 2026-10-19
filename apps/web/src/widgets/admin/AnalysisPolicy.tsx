@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ErrorNote, WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery, useApiMutation, queryKeyFor } from '../../api/useApiQuery.js';
+import { localDateTime } from '../findings/aiContracts.js';
 
 // Admin → Analysis (W7-08, UX_SPEC §4.i).
 //
@@ -35,19 +36,32 @@ interface RepoPolicy {
   name: string;
   tier2_auto: boolean;
   tier3_opt_in: boolean;
-  egress: { calls: number; bytes: number; tokens_sent: number };
+  egress: { calls: number; bytes: number; tokens_sent: number; refused?: number };
 }
 
 interface EgressRow {
   id: number;
   repo_id: number;
+  /** W20-11 (UX_TODO AI-29): which repository, where to, how it ended, and who. */
+  repo?: string | null;
   model: string;
   bytes_sent: number;
-  tokens_sent: number;
-  tokens_received: number;
+  tokens_sent: number | null;
+  tokens_received: number | null;
+  outcome?: 'succeeded' | 'failed' | 'denied' | 'pending';
+  host?: string | null;
+  tier?: number | null;
+  initiator?: string | null;
   content_sha256: string;
   sent_at: string;
 }
+
+const OUTCOME_WORD: Record<NonNullable<EgressRow['outcome']>, string> = {
+  succeeded: 'sent, answered',
+  failed: 'sent, failed',
+  pending: 'sent, no outcome yet',
+  denied: 'refused by policy, nothing sent',
+};
 
 function RepoRow({ repo }: { repo: RepoPolicy }) {
   const patch = useApiMutation<{ tier3_opt_in?: boolean; tier2_auto?: boolean }, unknown>(
@@ -95,12 +109,17 @@ function RepoRow({ repo }: { repo: RepoPolicy }) {
           </label>
           <ErrorNote error={patch.error} testId={`tier3-error-${repo.id}`} />
         </td>
-        <td className="py-1 tabular-nums text-xs">
+        <td className="py-1 tabular-nums text-xs" data-testid={`egress-sum-${repo.id}`}>
           {repo.egress.calls === 0
             ? // Never "0 bytes": nothing has left, and saying so plainly is the
               // reassurance an admin is actually looking for on this screen.
               'nothing sent'
-            : `${repo.egress.calls} calls · ${Math.round(repo.egress.bytes / 1024)} KB`}
+            : `${repo.egress.calls} call${repo.egress.calls === 1 ? '' : 's'} · ${Math.round(repo.egress.bytes / 1024)} KB`}
+          {(repo.egress.refused ?? 0) > 0 ? (
+            <span className="block text-fg-muted">
+              {repo.egress.refused} refused by policy (nothing sent)
+            </span>
+          ) : null}
         </td>
       </tr>
       {confirming ? (
@@ -149,14 +168,35 @@ function RepoRow({ repo }: { repo: RepoPolicy }) {
 }
 
 export function AnalysisPolicy() {
+  // W20-11 (UX_TODO AI-80, partial): the log stopped at the 50 newest rows with
+  // no filter; it now narrows by repository and pages back. The policy table
+  // always reads the unfiltered first page (LIST), so it never changes under it.
+  const [logRepo, setLogRepo] = useState('');
+  const [cursors, setCursors] = useState<string[]>([]);
+  const before = cursors[cursors.length - 1];
+  const filtered = logRepo !== '' || before !== undefined;
   const { data, isLoading, isError, error, refetch } = useApiQuery<{
     gateway?: GatewayState;
     repos: RepoPolicy[];
     egress_log: EgressRow[];
+    egress_total?: number;
+    egress_next_cursor?: string | null;
   }>(LIST);
+  const page = useApiQuery<{
+    egress_log: EgressRow[];
+    egress_total?: number;
+    egress_next_cursor?: string | null;
+  }>(
+    {
+      ...LIST,
+      query: { ...(logRepo ? { repo_id: logRepo } : {}), ...(before ? { before } : {}) },
+    },
+    { enabled: filtered },
+  );
+  const logSource = filtered ? page.data : data;
 
   const repos = data?.repos ?? [];
-  const log = data?.egress_log ?? [];
+  const log = logSource?.egress_log ?? [];
   const gateway = data?.gateway;
 
   return (
@@ -254,18 +294,60 @@ export function AnalysisPolicy() {
 
       <WidgetFrame
         title="Egress audit"
-        state={frameState({ isLoading, isError, isEmpty: data !== undefined && log.length === 0 })}
+        state={frameState({
+          isLoading,
+          isError,
+          isEmpty: data !== undefined && !filtered && log.length === 0,
+        })}
         emptyMessage="No code has left this network. The log is written before each call, so an empty log means no call was made — not that one went unrecorded."
       >
+        <div className="mb-2 flex flex-wrap items-end gap-3 text-xs">
+          <label className="flex flex-col gap-1 text-fg-muted">
+            Repository
+            <select
+              className="panel px-2 py-1 text-sm"
+              data-testid="egress-filter-repo"
+              value={logRepo}
+              onChange={(e) => {
+                setLogRepo(e.target.value);
+                setCursors([]);
+              }}
+            >
+              <option value="">Every repository</option>
+              {repos.map((r) => (
+                <option key={r.id} value={String(r.id)}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {logSource?.egress_total !== undefined ? (
+            <span className="text-fg-muted" data-testid="egress-count">
+              Showing {log.length} of {logSource.egress_total} request
+              {logSource.egress_total === 1 ? '' : 's'}, newest first.
+            </span>
+          ) : null}
+        </div>
+        {filtered && log.length === 0 && !page.isLoading ? (
+          <p className="text-xs text-fg-muted" data-testid="egress-filter-empty">
+            Nothing from this repository has been sent off your network.
+          </p>
+        ) : null}
         {/* W18-28: scrolls in its own region at phone width; padded cells
             no longer fit 390px, and the page must not scroll sideways. */}
         <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Egress audit log">
           <table className="table-plain w-full text-sm">
-            <caption className="sr-only">Every Tier-3 call, newest first</caption>
+            {/* W20-11 (UX_TODO AI-29): hosted Tier-2 and scheduled-pass calls
+                are audited too, so "Every Tier-3 call" was wrong. */}
+            <caption className="sr-only">
+              Every request that would leave your network, one row per request, newest first
+            </caption>
             <thead>
               <tr className="text-left text-xs text-fg-muted">
                 <th scope="col">When</th>
-                <th scope="col">Model</th>
+                <th scope="col">Repository</th>
+                <th scope="col">Sent to</th>
+                <th scope="col">Outcome</th>
                 <th scope="col">Bytes</th>
                 <th scope="col">Tokens in/out</th>
                 <th scope="col">Content digest</th>
@@ -273,12 +355,31 @@ export function AnalysisPolicy() {
             </thead>
             <tbody data-testid="egress-rows">
               {log.map((row) => (
-                <tr key={row.id} className="border-t border-border">
-                  <td className="py-1 text-xs">{row.sent_at.slice(0, 16).replace('T', ' ')}</td>
-                  <td className="py-1 text-xs">{row.model}</td>
+                <tr
+                  key={row.id}
+                  className="border-t border-border"
+                  data-testid={`egress-row-${row.id}`}
+                >
+                  <td className="py-1 text-xs">{localDateTime(row.sent_at)}</td>
+                  <td className="py-1 text-xs">
+                    {row.repo ?? `repository ${row.repo_id}`}
+                    {row.initiator ? (
+                      <span className="block text-fg-muted">by {row.initiator}</span>
+                    ) : null}
+                  </td>
+                  <td className="py-1 text-xs">
+                    <span className="font-mono">{row.host ?? 'unrecorded host'}</span>
+                    <span className="block text-fg-muted">
+                      {row.model}
+                      {row.tier ? ` · Tier ${row.tier}` : ''}
+                    </span>
+                  </td>
+                  <td className="py-1 text-xs" data-testid={`egress-outcome-${row.id}`}>
+                    {row.outcome ? OUTCOME_WORD[row.outcome] : '—'}
+                  </td>
                   <td className="py-1 tabular-nums text-xs">{row.bytes_sent}</td>
                   <td className="py-1 tabular-nums text-xs">
-                    {row.tokens_sent}/{row.tokens_received}
+                    {row.tokens_sent ?? '?'}/{row.tokens_received ?? '?'}
                   </td>
                   <td className="py-1 font-mono text-xs">{row.content_sha256.slice(0, 12)}…</td>
                 </tr>
@@ -286,6 +387,36 @@ export function AnalysisPolicy() {
             </tbody>
           </table>
         </div>
+        {logSource?.egress_next_cursor || cursors.length > 0 ? (
+          <div className="mt-2 flex gap-3 text-xs" data-testid="egress-paging">
+            {cursors.length > 0 ? (
+              <button
+                type="button"
+                className="underline underline-offset-2"
+                onClick={() => setCursors((c) => c.slice(0, -1))}
+              >
+                ← Newer
+              </button>
+            ) : null}
+            {logSource?.egress_next_cursor ? (
+              <button
+                type="button"
+                className="underline underline-offset-2"
+                data-testid="egress-older"
+                onClick={() => {
+                  const next = logSource.egress_next_cursor;
+                  if (next) setCursors((c) => [...c, next]);
+                }}
+              >
+                Older →
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        <p className="mt-2 text-xs text-fg-faint">
+          &ldquo;?&rdquo; means the provider did not report token counts. The role and the AI pass a
+          request belonged to are not recorded in the audit.
+        </p>
       </WidgetFrame>
     </div>
   );

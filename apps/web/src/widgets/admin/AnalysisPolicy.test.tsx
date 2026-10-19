@@ -152,3 +152,66 @@ describe('Admin → Analysis (W20-06)', () => {
     expect(await screen.findByTestId('tier3-error-5')).toBeInTheDocument();
   });
 });
+
+describe('Admin → Analysis egress audit (W20-11)', () => {
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: 1,
+    repo_id: 5,
+    repo: 'acme/api',
+    model: 'gemini-2.5-flash',
+    bytes_sent: 2048,
+    tokens_sent: 500,
+    tokens_received: 40,
+    outcome: 'succeeded',
+    host: 'generativelanguage.googleapis.com',
+    tier: 2,
+    initiator: 'scheduled',
+    content_sha256: 'abc',
+    sent_at: '2026-10-18T10:00:00Z',
+    ...over,
+  });
+
+  // UX_TODO AI-29 (partial), AI-79: one row per request, with repository and outcome.
+  it('shows the repository, destination and outcome of each request, and refused calls apart', async () => {
+    body = {
+      ...(body as object),
+      repos: [repo({ egress: { calls: 1, bytes: 2048, tokens_sent: 500, refused: 2 } })],
+      egress_log: [row(), row({ id: 2, outcome: 'denied', bytes_sent: 0 })],
+      egress_total: 2,
+      egress_next_cursor: null,
+    };
+    renderIt();
+    expect(await screen.findByTestId('egress-row-1')).toHaveTextContent('acme/api');
+    expect(screen.getByTestId('egress-row-1')).toHaveTextContent(
+      'generativelanguage.googleapis.com',
+    );
+    expect(screen.getByTestId('egress-outcome-1')).toHaveTextContent('sent, answered');
+    expect(screen.getByTestId('egress-outcome-2')).toHaveTextContent(
+      'refused by policy, nothing sent',
+    );
+    expect(screen.getByTestId('egress-sum-5')).toHaveTextContent('1 call · 2 KB');
+    expect(screen.getByTestId('egress-sum-5')).toHaveTextContent('2 refused by policy');
+    expect(screen.getByTestId('egress-count')).toHaveTextContent('Showing 2 of 2 requests');
+  });
+
+  // UX_TODO AI-80 (partial): filter by repository, and page back.
+  it('filters the log by repository and pages to older rows', async () => {
+    body = {
+      ...(body as object),
+      repos: [repo()],
+      egress_log: [row()],
+      egress_total: 51,
+      egress_next_cursor: '1',
+    };
+    renderIt();
+    await screen.findByTestId('egress-row-1');
+    await userEvent.click(screen.getByTestId('egress-older'));
+    await waitFor(() => expect(requests.some((r) => r.url.includes('before=1'))).toBe(true));
+    await userEvent.selectOptions(screen.getByTestId('egress-filter-repo'), '5');
+    await waitFor(() =>
+      expect(requests.some((r) => r.url.includes('repo_id=5') && !r.url.includes('before='))).toBe(
+        true,
+      ),
+    );
+  });
+});

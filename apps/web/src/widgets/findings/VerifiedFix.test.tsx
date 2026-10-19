@@ -207,4 +207,67 @@ describe('VerifiedFix', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(container.textContent).toContain('<img src=x');
   });
+  // W20-11 (UX_TODO AI-45, AI-46).
+  it('says next to a verified diff what was not tested, and the diff is reachable by keyboard', () => {
+    respond({
+      eligible: true,
+      patch: { ...base, status: 'verified', diff: DIFF, filename: 'x.patch' },
+    });
+    render(<VerifiedFix findingId={5} />);
+    expect(screen.getByTestId('verified-fix-limits')).toHaveTextContent(
+      /not built and no tests were run/,
+    );
+    const pre = screen.getByTestId('verified-fix-diff');
+    expect(pre.getAttribute('tabindex')).toBe('0');
+    expect(pre.getAttribute('role')).toBe('region');
+  });
+
+  // W20-11 (UX_TODO AI-66): an admin can see the diff that failed, collapsed.
+  it('shows an admin the rejected diff, collapsed and marked not to apply', () => {
+    respond({ eligible: true, patch: { ...base, status: 'rejected', reason: 'r', diff: DIFF } });
+    render(<VerifiedFix findingId={5} />);
+    const d = screen.getByTestId('verified-fix-rejected-diff');
+    expect(d.tagName).toBe('DETAILS');
+    expect(d).toHaveTextContent(/do not apply it/);
+    expect(d).toHaveTextContent('return eval(cmd);');
+  });
+
+  // W20-11 (UX_TODO AI-65): the failure in words, by its code.
+  it('puts a failed attempt in plain words by its reason code', () => {
+    respond({
+      eligible: true,
+      patch: { ...base, status: 'failed', reason_code: 'model_busy', reason: 'ECONNRESET' },
+    });
+    render(<VerifiedFix findingId={5} />);
+    expect(screen.getByTestId('verified-fix-failed')).toHaveTextContent(
+      /the model was busy or down/,
+    );
+  });
+
+  // W20-11 (UX_TODO AI-65): no model, no button that can only fail.
+  it('offers no draft button when no model is set up', () => {
+    respond({
+      eligible: true,
+      patch: null,
+      drafter: { local_only: false, leaves_network: false, destinations: [] },
+    });
+    render(<VerifiedFix findingId={5} />);
+    expect(screen.queryByTestId('verified-fix-draft')).toBeNull();
+  });
+
+  // W20-11 (UX_TODO AI-64): a draft no worker took says so.
+  it('says when a pending draft has not been picked up for minutes', () => {
+    respond({
+      eligible: true,
+      patch: {
+        ...base,
+        status: 'pending',
+        created_at: new Date(Date.now() - 9 * 60 * 1000).toISOString(),
+      },
+    });
+    render(<VerifiedFix findingId={5} />);
+    expect(screen.getByTestId('verified-fix-stalled')).toHaveTextContent(
+      'It has waited 9 minutes and no worker has picked it up',
+    );
+  });
 });

@@ -5,6 +5,7 @@ import { credentials } from '@repopulse/auth';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MIN_CALLS_TO_START,
+  PR_REVIEW_ATTEMPTS,
   SCHEDULED_PASSES_PER_DAY,
   monthStart,
   runScheduleTick,
@@ -65,6 +66,7 @@ describeIfLiveInfra('the AI-pass scheduler (W19-12)', () => {
       await db.delete(read.aiPassSchedules).where(eq(read.aiPassSchedules.workspaceId, w));
       await db.delete(read.aiPassSettings).where(eq(read.aiPassSettings.workspaceId, w));
       await db.delete(facts.pullRequests).where(eq(facts.pullRequests.workspaceId, w));
+      await db.delete(facts.commits).where(eq(facts.commits.workspaceId, w));
     }
   }
 
@@ -471,6 +473,86 @@ describeIfLiveInfra('the AI-pass scheduler (W19-12)', () => {
       await tick();
       expect(enqueue).toHaveBeenCalledTimes(1);
     });
+
+    // W20-11 (UX_TODO AI-62): a review that failed (the model was off overnight)
+    // is not "reviewed": it is tried again, up to PR_REVIEW_ATTEMPTS times.
+    it('retries a pull request whose review failed, up to the attempt limit', async () => {
+      const s = await schedule({ scopeKind: 'new_pull_requests', paths: [] });
+      const p = await pr({ updatedAt: new Date(NOW.getTime() - 20 * 86_400_000) });
+      const failed = () =>
+        db.insert(read.aiPassRuns).values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: [],
+          mode: 'pull_request',
+          prNumber: p.number,
+          headRef: p.headSha,
+          trigger: 'scheduled',
+          status: 'failed',
+          reasonCode: 'error',
+          createdAt: new Date(NOW.getTime() - 1_800_000),
+        });
+      await failed();
+      await tick();
+      expect(enqueue).toHaveBeenCalledTimes(1);
+      expect((await runsOf()).at(-1)).toMatchObject({ status: 'pending', prNumber: p.number });
+
+      await db
+        .delete(read.aiPassRuns)
+        .where(and(eq(read.aiPassRuns.workspaceId, WS), eq(read.aiPassRuns.status, 'pending')));
+      for (let i = 1; i < PR_REVIEW_ATTEMPTS; i++) await failed();
+      await db
+        .update(read.aiPassSchedules)
+        .set({ nextRunAt: new Date(NOW.getTime() - 1000) })
+        .where(eq(read.aiPassSchedules.id, s.id));
+      await tick();
+      expect(enqueue).toHaveBeenCalledTimes(1);
+      expect((await runsOf()).at(-1)).toMatchObject({
+        status: 'skipped',
+        reasonCode: 'no_new_pull_requests',
+      });
+    });
+  });
+
+  // W20-11 (UX_TODO AI-84): a paths schedule does not re-read code that cannot
+  // have changed since its last successful run.
+  it('skips a paths run when no commit was ingested since the last one, and runs after a new commit', async () => {
+    const commit = (sha: string, minutesAgo: number) =>
+      db.insert(facts.commits).values({
+        workspaceId: WS,
+        repoId: REPO,
+        sha,
+        authorIdentityId: IDENT,
+        committerIdentityId: IDENT,
+        authoredAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+        committedAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+        messageHead: 'm',
+        isRevertHeuristic: false,
+      });
+    const s = await schedule({ paths: ['src', 'lib'] });
+    await commit('a'.repeat(40), 600);
+    await db.insert(read.aiPassRuns).values({
+      workspaceId: WS,
+      repoId: REPO,
+      paths: ['lib', 'src'],
+      mode: 'paths',
+      trigger: 'scheduled',
+      scheduleId: s.id,
+      status: 'succeeded',
+      commitSha: 'a'.repeat(40),
+      createdAt: new Date(NOW.getTime() - 7 * 86_400_000),
+    });
+    await tick();
+    expect((await runsOf()).at(-1)).toMatchObject({ status: 'skipped', reasonCode: 'unchanged' });
+    expect(enqueue).not.toHaveBeenCalled();
+
+    await commit('b'.repeat(40), 5);
+    await db
+      .update(read.aiPassSchedules)
+      .set({ nextRunAt: new Date(NOW.getTime() - 1000) })
+      .where(eq(read.aiPassSchedules.id, s.id));
+    await tick();
+    expect(enqueue).toHaveBeenCalledTimes(1);
   });
 
   it('is strictly per workspace: another workspace never counts toward this one, nor blocks it', async () => {

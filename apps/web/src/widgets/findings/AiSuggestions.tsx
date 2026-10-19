@@ -1,10 +1,14 @@
+import { Link } from '@tanstack/react-router';
 import { ErrorNote } from '../../components/index.js';
 import { useApiMutation, useApiQuery, queryKeyFor } from '../../api/useApiQuery.js';
+import { VEX_JUSTIFICATION_LABEL, type VexJustification } from '../security/contracts.js';
 import {
   passLabel,
   routeLabel,
+  specialistLabel,
   VERDICT_SENTENCE,
   type AiSuggestion,
+  type AiVerdict,
   type FindingAi,
 } from './aiContracts.js';
 
@@ -22,6 +26,50 @@ import {
 const ACTION_BUTTON =
   'rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
 
+/**
+ * The two answers, named for what they say about THIS verdict (W20-11, UX_TODO
+ * AI-41). "Accept suggestion" on "needs a human" agreed to what, exactly?
+ */
+export const ANSWER_LABEL: Record<AiVerdict, { agree: string; disagree: string }> = {
+  real: { agree: 'Agree it’s real', disagree: 'Disagree: not real' },
+  likely_false_positive: {
+    agree: 'Agree: likely a false positive',
+    disagree: 'Disagree: it’s real',
+  },
+  needs_human: { agree: 'Agree it needs a person', disagree: 'Disagree' },
+};
+
+/** Minutes the person who answered may change it (AI_DECISION_UNDO_MINUTES on the server). */
+const UNDO_MINUTES = 15;
+
+/** What the drawer knows about the finding, to say whether a pass can triage it. */
+export interface AiFindingContext {
+  repoId: number;
+  file: string | null;
+  line: number | null;
+  status: string;
+  scannerKey: string | null;
+  ruleId: string | null;
+  hasContext: boolean;
+  experimental: boolean;
+}
+
+/**
+ * Why an AI pass will never triage this finding, or null when one could
+ * (W20-11, UX_TODO AI-83). Mirrors the pass's own selection in
+ * apps/api/src/workers/ai-pass-processor.ts (triageStep): open, not shadow,
+ * rule-raised, on a file line, with stored code.
+ */
+export function triageIneligibleReason(f: AiFindingContext): string | null {
+  if (f.status !== 'open') return `it is ${f.status.replace(/_/g, ' ')}, not open`;
+  if (f.experimental) return 'it comes from a rule still in shadow';
+  if (!f.scannerKey || !f.ruleId) return 'it was not raised by a rule';
+  if (!f.file || f.line === null)
+    return 'it is not tied to a line of a file (a dependency CVE or a repository-level finding)';
+  if (!f.hasContext) return 'no code was stored with it when it was scanned';
+  return null;
+}
+
 export function AiBadge() {
   return (
     <span
@@ -38,13 +86,15 @@ function Suggestion({
   s,
   invalidate,
   onOfferDismiss,
+  onOfferConfirm,
 }: {
   findingId: number;
   s: AiSuggestion;
   invalidate: readonly (readonly unknown[])[];
   onOfferDismiss: () => void;
+  onOfferConfirm?: (() => void) | undefined;
 }) {
-  const decide = useApiMutation<{ decision: 'accepted' | 'dismissed' }, unknown>(
+  const decide = useApiMutation<{ decision: 'accepted' | 'dismissed' } | { undo: true }, unknown>(
     {
       endpoint: '/findings/{id}/ai-verdicts/{verdictId}/decide',
       path: { id: findingId, verdictId: s.id },
@@ -52,8 +102,10 @@ function Suggestion({
     },
     { invalidate },
   );
-  const pending = decide.isPending ? decide.variables?.decision : undefined;
+  const vars = decide.isPending ? decide.variables : undefined;
+  const pending = vars && 'decision' in vars ? vars.decision : undefined;
   const open = s.decision === null;
+  const labels = ANSWER_LABEL[s.verdict] ?? { agree: 'Agree', disagree: 'Disagree' };
 
   return (
     <li
@@ -64,7 +116,19 @@ function Suggestion({
       <p className="flex flex-wrap items-center gap-2 text-sm">
         <AiBadge />
         <span data-testid="ai-verdict">{VERDICT_SENTENCE[s.verdict]}</span>
-        <span className="text-xs text-fg-muted">confidence {s.confidence}/5</span>
+        {/* W20-11 (UX_TODO AI-42): the drawer showed two bare "confidence n/5"
+            figures, the finding's and the model's; this one says whose. */}
+        <span
+          className="text-xs text-fg-muted"
+          data-testid="ai-confidence"
+          title="How sure the model said it was, 1 (a guess) to 5 (certain). A model's own rating, not a measured accuracy."
+        >
+          AI confidence {s.confidence}/5
+        </span>
+      </p>
+      <p className="text-xs text-fg-faint" data-testid="ai-confidence-scale">
+        AI confidence is the model&rsquo;s own rating, 1 (a guess) to 5 (certain), not a measured
+        accuracy; it is separate from the finding&rsquo;s confidence above.
       </p>
       <p className="text-xs text-fg-muted" data-testid="ai-route">
         From a pass over {passLabel(s.pass ?? null)}. Produced by {routeLabel(s.route, s.model)}
@@ -102,7 +166,11 @@ function Suggestion({
 
       {s.vex ? (
         <p className="text-xs text-fg-muted" data-testid="ai-vex">
-          Proposed VEX justification: <span className="font-mono">{s.vex.justification}</span>
+          {/* W20-11 (UX_TODO AI-43, partial): the OpenVEX value in words, with
+              the raw value kept for whoever records it. */}
+          Proposed VEX justification:{' '}
+          {VEX_JUSTIFICATION_LABEL[s.vex.justification as VexJustification] ?? s.vex.justification}{' '}
+          (<span className="font-mono">{s.vex.justification}</span>)
           {s.vex.statement ? ` — ${s.vex.statement.replace(/[.\s]+$/, '')}` : ''}. Nothing is
           recorded as VEX until a person does it.
         </p>
@@ -126,7 +194,7 @@ function Suggestion({
             aria-busy={pending === 'accepted' || undefined}
             onClick={() => decide.mutate({ decision: 'accepted' })}
           >
-            {pending === 'accepted' ? 'Recording…' : 'Accept suggestion'}
+            {pending === 'accepted' ? 'Recording…' : labels.agree}
           </button>
           <button
             type="button"
@@ -136,23 +204,54 @@ function Suggestion({
             aria-busy={pending === 'dismissed' || undefined}
             onClick={() => decide.mutate({ decision: 'dismissed' })}
           >
-            {pending === 'dismissed' ? 'Recording…' : 'Dismiss suggestion'}
+            {pending === 'dismissed' ? 'Recording…' : labels.disagree}
           </button>
           <span className="text-xs text-fg-faint">
-            Your answer is recorded on the suggestion. It does not change the finding.
+            Your answer is recorded on the suggestion. It does not change the finding. You can
+            change it for {UNDO_MINUTES} minutes.
           </span>
         </div>
       ) : (
         <div data-testid="ai-decided">
           <p className="text-xs text-fg-muted" role="status">
             {s.decision === 'accepted'
-              ? 'Suggestion accepted'
+              ? `Answered “${labels.agree}”`
               : s.decision === 'dismissed'
-                ? 'Suggestion dismissed'
+                ? `Answered “${labels.disagree}”`
                 : 'Superseded'}
             {s.decided_by ? ` by ${s.decided_by}` : ''}
             {s.decided_at ? ` on ${s.decided_at.slice(0, 10)}` : ''}.
+            {s.can_undo ? (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  data-testid="ai-undo"
+                  disabled={decide.isPending}
+                  onClick={() => decide.mutate({ undo: true })}
+                >
+                  Change my answer
+                </button>
+              </>
+            ) : null}
           </p>
+          {/* W20-11 (UX_TODO AI-41): agreeing that a finding is real changed
+              nothing and offered nothing; it now points at Confirm. */}
+          {s.decision === 'accepted' && s.verdict === 'real' && onOfferConfirm ? (
+            <p className="mt-1 text-xs text-fg-muted" data-testid="ai-offer-confirm">
+              Agreeing does not confirm the finding: it is still open.{' '}
+              <button
+                type="button"
+                className="underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-testid="ai-prefill-confirm"
+                onClick={onOfferConfirm}
+              >
+                Confirm it
+              </button>{' '}
+              (takes you to the note below; you still write it and press Confirm).
+            </p>
+          ) : null}
           {s.decision === 'accepted' && s.verdict === 'likely_false_positive' ? (
             <p className="mt-1 text-xs text-fg-muted" data-testid="ai-offer-dismiss">
               Accepting a suggestion does not dismiss the finding: it is still open.{' '}
@@ -174,13 +273,61 @@ function Suggestion({
   );
 }
 
+/**
+ * No AI review on this finding (W20-11, UX_TODO AI-44, AI-83). It said "an admin
+ * can start one from the Security tab" with no link, also on findings no pass
+ * will ever triage, which sent admins to run passes that could not change it.
+ */
+function NotYetRun({ finding }: { finding: AiFindingContext | undefined }) {
+  const why = finding ? triageIneligibleReason(finding) : null;
+  if (finding && why) {
+    return (
+      <p className="mt-1 text-xs text-fg-muted" data-testid="ai-not-eligible">
+        No AI review, and an AI pass will not add one: AI triage covers only open, rule-raised
+        findings on a line of a file with stored code, and {why}. This says nothing about the
+        finding either way.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs text-fg-muted" data-testid="ai-not-run">
+      Not yet run: no AI review has been recorded for this finding. This says nothing about the
+      finding either way.{' '}
+      {finding?.file ? (
+        <>
+          An admin can{' '}
+          <Link
+            to="/repos/$repoId/security"
+            params={{ repoId: String(finding.repoId) } as never}
+            search={{ ai_path: finding.file } as never}
+            hash="ai-review-pass"
+            className="underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="ai-start-pass-link"
+          >
+            start an AI review pass on {finding.file}
+          </Link>{' '}
+          from the repository&rsquo;s Security tab.
+        </>
+      ) : (
+        <>An admin can start one from the repository&rsquo;s Security tab.</>
+      )}
+    </p>
+  );
+}
+
 export function AiSuggestions({
   findingId,
   onOfferDismiss,
+  onOfferConfirm,
+  finding,
 }: {
   findingId: number;
   /** Prefills the drawer's own dismiss form; never dismisses. */
   onOfferDismiss: () => void;
+  /** Takes the person to the note for Confirm; never confirms. */
+  onOfferConfirm?: () => void;
+  /** W20-11 (UX_TODO AI-44, AI-83): to say whether a pass can triage it, and link there. */
+  finding?: AiFindingContext;
 }) {
   const descriptor = { endpoint: '/findings/{id}/ai', path: { id: findingId } } as const;
   const { data, isError } = useApiQuery<FindingAi>(descriptor);
@@ -203,7 +350,7 @@ export function AiSuggestions({
       <h3 className="text-xs tracking-wide text-fg-muted uppercase">AI review</h3>
       {raisedBy ? (
         <p className="mt-1 text-xs text-fg-muted" data-testid="ai-raised-by">
-          This finding was raised by an AI specialist ({raisedBy.specialist.replace(/_/g, ' ')}),{' '}
+          This finding was raised by an AI specialist ({specialistLabel(raisedBy.specialist)}),{' '}
           {routeLabel(raisedBy.route, raisedBy.model)}, in a pass over{' '}
           {passLabel(raisedBy.pass ?? null)}. A rule did not find it.
         </p>
@@ -217,14 +364,12 @@ export function AiSuggestions({
               s={s}
               invalidate={invalidate}
               onOfferDismiss={onOfferDismiss}
+              onOfferConfirm={onOfferConfirm}
             />
           ))}
         </ul>
       ) : !raisedBy ? (
-        <p className="mt-1 text-xs text-fg-muted" data-testid="ai-not-run">
-          Not yet run: no AI review has been recorded for this finding. An admin can start one from
-          the repository&rsquo;s Security tab. This says nothing about the finding either way.
-        </p>
+        <NotYetRun finding={finding} />
       ) : (
         <p className="mt-1 text-xs text-fg-muted" data-testid="ai-no-verdict">
           No triage suggestion has been recorded for this finding.

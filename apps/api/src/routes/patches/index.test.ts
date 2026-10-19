@@ -480,4 +480,52 @@ describeIfLiveInfra('verified-patch routes (W18-19)', () => {
     expect(body.items[0]!.finding.file).toEqual(expect.any(String));
     expect(body.items[0]!.repo.id).toEqual(expect.any(Number));
   });
+  // W20-11 (UX_TODO AI-65): a member sees why a draft could not be made when
+  // the reason is not sensitive, and nothing more.
+  it('gives a member the reason code of a non-sensitive failure, never the text', async () => {
+    await setRow({ status: 'failed', reasonCode: 'model_busy', reason: 'ECONNRESET 10.0.0.5' });
+    const member = (
+      await app.inject({
+        method: 'GET',
+        url: `/findings/${findingId}/patch`,
+        headers: as('member'),
+      })
+    ).json();
+    expect(member.patch).toMatchObject({ status: 'failed', reason_code: 'model_busy' });
+    expect(JSON.stringify(member)).not.toContain('ECONNRESET');
+  });
+
+  it('keeps any other failure code from a member', async () => {
+    await setRow({ status: 'failed', reasonCode: 'error', reason: 'stack trace' });
+    const member = (
+      await app.inject({
+        method: 'GET',
+        url: `/findings/${findingId}/patch`,
+        headers: as('member'),
+      })
+    ).json();
+    expect(member.patch.reason_code ?? null).toBeNull();
+  });
+
+  // W20-11 (UX_TODO AI-66): filter by outcome, model and repository; page by cursor.
+  it('filters the attempts list and pages back by cursor', async () => {
+    const a = await setRow({ status: 'rejected', modelId: 'm1', commitSha: 'a'.repeat(40) });
+    const b = await setRow({ status: 'verified', modelId: 'm2', commitSha: 'b'.repeat(40) });
+    const get = async (qs: string) =>
+      app.inject({ method: 'GET', url: `/admin/patches${qs}`, headers: as('admin') });
+    const rejected = (await get('?status=rejected')).json();
+    expect(rejected.items.map((i: { id: number }) => i.id)).toEqual([a.id]);
+    expect(rejected.models).toEqual(['m1', 'm2']);
+    expect(rejected.repos).toEqual([expect.objectContaining({ id: repoId })]);
+    const byModel = (await get('?model=m2')).json();
+    expect(byModel.items.map((i: { id: number }) => i.id)).toEqual([b.id]);
+    expect((await get(`?repo_id=${repoId}`)).json().items).toHaveLength(2);
+    expect((await get(`?repo_id=${repoId + 100000}`)).json().items).toHaveLength(0);
+    const older = (await get(`?before=${b.id}`)).json();
+    expect(older.items.map((i: { id: number }) => i.id)).toEqual([a.id]);
+    expect(older.next_cursor).toBeNull();
+    expect((await get('?status=nope')).statusCode).toBe(400);
+    expect((await get('?before=x')).statusCode).toBe(400);
+    expect((await get('?repo_id=x')).statusCode).toBe(400);
+  });
 });

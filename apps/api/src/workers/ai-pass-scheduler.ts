@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, lte, or, sql } from 'drizzle-orm';
 import { core, facts, isConstraintViolation, read, type Database } from '@repopulse/shared';
 import { passEgress as defaultPassEgress, type PassEgress } from '../lib/ai-pass-egress.js';
 import { AI_PASS_MAX_CALLS } from './ai-pass-processor.js';
@@ -30,6 +30,12 @@ const RETRY_MS = 3 * 60 * 60 * 1000;
 /** After starting a pull-request pass with more waiting, look again in this long. */
 const DRAIN_MS = 60 * 60 * 1000;
 const FREQUENCY_MS = { daily: 24 * 60 * 60 * 1000, weekly: 7 * 24 * 60 * 60 * 1000 } as const;
+/**
+ * W20-11 (UX_TODO AI-62): a pull-request head whose scheduled review FAILED is
+ * tried again on later runs, at most this many times in all. A failure used to
+ * count as "reviewed", and the PR was never looked at again unless someone pushed.
+ */
+export const PR_REVIEW_ATTEMPTS = 3;
 
 export interface SchedulerAudit {
   (
@@ -247,6 +253,41 @@ export async function runScheduleTick(deps: SchedulerDeps): Promise<TickResult> 
         await skip('no_scope', 'No paths are configured for this schedule.', false);
         continue;
       }
+      // W20-11 (UX_TODO AI-84): the paths scope re-read the same code at every
+      // interval, spending up to 30 calls a day of the cap (and, on a hosted
+      // model, sending the same source out again). When the repository's head
+      // has not moved since this schedule's last finished pass over the same
+      // paths, nothing there can have changed, so it does not run.
+      const [head] = await db
+        .select({ sha: facts.commits.sha })
+        .from(facts.commits)
+        .where(and(eq(facts.commits.workspaceId, ws), eq(facts.commits.repoId, sch.repoId)))
+        .orderBy(desc(facts.commits.committedAt))
+        .limit(1);
+      const [last] = await db
+        .select({ commitSha: read.aiPassRuns.commitSha, paths: read.aiPassRuns.paths })
+        .from(read.aiPassRuns)
+        .where(
+          and(
+            eq(read.aiPassRuns.workspaceId, ws),
+            eq(read.aiPassRuns.scheduleId, sch.id),
+            eq(read.aiPassRuns.mode, 'paths'),
+            eq(read.aiPassRuns.status, 'succeeded'),
+          ),
+        )
+        .orderBy(desc(read.aiPassRuns.createdAt))
+        .limit(1);
+      const samePaths =
+        last !== undefined &&
+        [...last.paths].sort().join('\n') === [...sch.paths].sort().join('\n');
+      if (head?.sha && samePaths && last?.commitSha === head.sha) {
+        await skip(
+          'unchanged',
+          `No new commit has been ingested since the last scheduled pass reviewed these paths (at ${head.sha.slice(0, 8)}), so it did not run again.`,
+          false,
+        );
+        continue;
+      }
       scope = { mode: 'paths', paths: sch.paths };
     } else {
       const sinceDate = sch.lastRunAt ?? sch.enabledAt ?? now;
@@ -262,8 +303,15 @@ export async function runScheduleTick(deps: SchedulerDeps): Promise<TickResult> 
             eq(facts.pullRequests.repoId, sch.repoId),
             eq(facts.pullRequests.state, 'open'),
             eq(facts.pullRequests.isDraft, false),
-            gt(facts.pullRequests.updatedAt, sinceDate),
-            sql`not exists (select 1 from ai_pass_runs r where r.workspace_id = ${ws} and r.repo_id = ${sch.repoId} and r.mode = 'pull_request' and r.pr_number = ${facts.pullRequests.number} and r.head_ref = ${facts.pullRequests.headSha} and r.status <> 'skipped')`,
+            // W20-11 (UX_TODO AI-62): a head whose review failed is due again
+            // even though the PR has not changed since, and a failure is not
+            // "already reviewed" - up to PR_REVIEW_ATTEMPTS failures per head.
+            or(
+              gt(facts.pullRequests.updatedAt, sinceDate),
+              sql`exists (select 1 from ai_pass_runs r where r.workspace_id = ${ws} and r.repo_id = ${sch.repoId} and r.mode = 'pull_request' and r.pr_number = ${facts.pullRequests.number} and r.head_ref = ${facts.pullRequests.headSha} and r.status = 'failed')`,
+            ),
+            sql`not exists (select 1 from ai_pass_runs r where r.workspace_id = ${ws} and r.repo_id = ${sch.repoId} and r.mode = 'pull_request' and r.pr_number = ${facts.pullRequests.number} and r.head_ref = ${facts.pullRequests.headSha} and r.status not in ('skipped', 'failed'))`,
+            sql`(select count(*) from ai_pass_runs r where r.workspace_id = ${ws} and r.repo_id = ${sch.repoId} and r.mode = 'pull_request' and r.pr_number = ${facts.pullRequests.number} and r.head_ref = ${facts.pullRequests.headSha} and r.status = 'failed') < ${PR_REVIEW_ATTEMPTS}`,
           ),
         )
         .orderBy(asc(facts.pullRequests.updatedAt))

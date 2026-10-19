@@ -122,8 +122,18 @@ export function aiPassProcessor(deps: AiPassDeps) {
         ...(patch.reason ? { reason: patch.reason } : {}),
       };
     };
-    const fail = (code: string, reason: string, extra = {}) =>
-      finish('failed', { reasonCode: code, reason: reason.slice(0, 2000), ...extra });
+    const fail = (
+      code: string,
+      reason: string,
+      extra: Partial<typeof read.aiPassRuns.$inferInsert> = {},
+    ) => finish('failed', { reasonCode: code, reason: reason.slice(0, 2000), ...extra });
+    // W20-11 (UX_TODO AI-60): what a pass had already done when it failed
+    // partway (LM Studio crashing during triage, say). The calls were made, so
+    // they count toward the monthly cap, and the findings the specialists had
+    // already written are on the repository; both were dropped from the row.
+    // Calls inside a triage step that then threw are not known here, so the
+    // count is the specialists' (a floor, never an overcount).
+    let progress: Partial<typeof read.aiPassRuns.$inferInsert> = {};
 
     await db
       .update(read.aiPassRuns)
@@ -201,6 +211,16 @@ export function aiPassProcessor(deps: AiPassDeps) {
         prTitle: promptTitle,
         meta: { repoId: String(run.repoId), prNumber: 0, initiator: 'ai-pass' },
       });
+      progress = {
+        calls: spec.calls,
+        specialists: {
+          usage: spec.usage,
+          droppedForBudget: spec.droppedForBudget,
+          failures: spec.failures,
+          rejected: spec.rejected.length,
+          filesRead,
+        },
+      };
 
       // 2. Persist what they found, as ordinary findings, and how each was raised.
       const analysisRunIds: number[] = [];
@@ -358,7 +378,7 @@ export function aiPassProcessor(deps: AiPassDeps) {
       });
     } catch (err) {
       // A local-only refusal arrives here with its sentence (role and connection).
-      return fail('error', safeErrorText(err));
+      return fail('error', safeErrorText(err), progress);
     }
   };
 }

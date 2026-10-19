@@ -171,7 +171,9 @@ describe('ScheduledPasses', () => {
     expect(screen.getByTestId('schedule-on').textContent).toMatch(
       /Weekly, reviewing src\/payments/,
     );
-    expect(screen.getByTestId('schedule-times').textContent).toMatch(/Next run 2026-10-25 09:00/);
+    expect(screen.getByTestId('schedule-times').textContent).toMatch(
+      /Next run Oct 25, 2026, 09:00/,
+    );
     expect(screen.getByTestId('schedule-times').textContent).toMatch(/enabled by ada/);
     fireEvent.click(screen.getByTestId('schedule-off-button'));
     expect(state.put).toHaveBeenCalledWith({ enabled: false });
@@ -202,7 +204,7 @@ describe('ScheduledPasses', () => {
     }
     fireEvent.change(screen.getByTestId('schedule-cap-input'), { target: { value: '120' } });
     fireEvent.click(save);
-    expect(state.cap).toHaveBeenCalledWith({ monthly_call_cap: 120 });
+    expect(state.cap).toHaveBeenCalledWith({ monthly_call_cap: 120 }, expect.anything());
   });
 
   it('lists the last scheduled runs, including the skipped ones with their reason', () => {
@@ -257,6 +259,57 @@ describe('ScheduledPasses', () => {
     render(<ScheduledPasses repoId="3" isAdmin />);
     expect(screen.getByTestId('schedule-error').textContent).toMatch(
       /Acknowledge|destinations changed/,
+    );
+  });
+  // W20-11 (UX_TODO AI-37): a greyed-out Enable says what is missing.
+  it('says why Enable schedule is greyed out', () => {
+    render(<ScheduledPasses repoId="3" isAdmin />);
+    fireEvent.click(screen.getByTestId('schedule-edit'));
+    expect(screen.getByTestId('schedule-enable').getAttribute('aria-describedby')).toBe(
+      'schedule-enable-hint',
+    );
+    expect(screen.getByTestId('schedule-enable-hint')).toHaveTextContent(
+      'To enable: enter at least one path; tick the box above',
+    );
+    fireEvent.change(screen.getByTestId('schedule-paths'), { target: { value: 'src' } });
+    fireEvent.click(screen.getByTestId('schedule-ack'));
+    expect(screen.queryByTestId('schedule-enable-hint')).toBeNull();
+  });
+
+  // W20-11 (UX_TODO AI-36): the cap is workspace-wide, and saving says so.
+  it('labels the cap as workspace-wide and confirms a save', () => {
+    state.cap.mockImplementation((_b: unknown, o?: { onSuccess?: () => void }) => o?.onSuccess?.());
+    render(<ScheduledPasses repoId="3" isAdmin />);
+    expect(document.body.textContent).toMatch(
+      /Workspace monthly cap \(model calls, all repositories\)/,
+    );
+    fireEvent.change(screen.getByTestId('schedule-cap-input'), { target: { value: '120' } });
+    fireEvent.click(screen.getByTestId('schedule-cap-save'));
+    expect(screen.getByTestId('schedule-cap-saved')).toHaveTextContent('Saved.');
+  });
+
+  // W20-11 (UX_TODO AI-62): a failed pull-request review is retried, and says so.
+  it('says a failed pull-request review will be tried again', () => {
+    state.data = resp({
+      schedule: on({ scope: { kind: 'new_pull_requests' as const } }),
+      runs: [
+        {
+          id: 4,
+          status: 'failed',
+          mode: 'pull_request',
+          pr_number: 12,
+          paths: [],
+          reason_code: 'error',
+          reason: 'The model was not reachable.',
+          calls: 0,
+          created_at: '2026-10-18T09:00:00Z',
+          finished_at: '2026-10-18T09:00:00Z',
+        },
+      ],
+    });
+    render(<ScheduledPasses repoId="3" isAdmin />);
+    expect(screen.getByTestId('schedule-run-retry')).toHaveTextContent(
+      'PR #12: review failed. A later scheduled run tries it again, up to 3 times',
     );
   });
 });

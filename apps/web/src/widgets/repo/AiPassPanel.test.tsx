@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiPassPanel } from './AiPassPanel.js';
@@ -14,6 +15,25 @@ const state = vi.hoisted(() => ({
   error: null as unknown,
   isError: false,
   schedule: null as unknown,
+  more: false,
+}));
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    hash,
+    children,
+    search: _search,
+    ...rest
+  }: {
+    to: string;
+    hash?: string;
+    search?: unknown;
+    children: ReactNode;
+  }) => (
+    <a href={`${to}${hash ? `#${hash}` : ''}`} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 vi.mock('../../api/useApiQuery.js', () => ({
   useApiQuery: (d: { endpoint: string }) =>
@@ -21,7 +41,11 @@ vi.mock('../../api/useApiQuery.js', () => ({
       ? { data: { role: state.role } }
       : d.endpoint.endsWith('/schedule') && state.schedule
         ? { data: state.schedule, isLoading: false, isError: false }
-        : { data: { runs: state.runs }, isLoading: false, isError: state.isError },
+        : {
+            data: { runs: state.runs, more: state.more },
+            isLoading: false,
+            isError: state.isError,
+          },
   useApiMutation: () => ({
     mutate: state.mutate,
     isPending: state.isPending,
@@ -60,6 +84,7 @@ beforeEach(() => {
   state.error = null;
   state.isError = false;
   state.schedule = null;
+  state.more = false;
 });
 
 describe('AiPassPanel', () => {
@@ -111,11 +136,13 @@ describe('AiPassPanel', () => {
     state.runs = [run()];
     render(<AiPassPanel repoId="3" />);
     expect(screen.getByTestId('ai-pass-status').textContent).toBe('finished');
-    expect(screen.getByTestId('ai-pass-raised').textContent).toMatch(/security 1/);
+    expect(screen.getByTestId('ai-pass-raised').textContent).toMatch(/Security 1/);
     expect(screen.getByTestId('ai-pass-raised').textContent).not.toMatch(/performance/);
-    expect(screen.getByTestId('ai-pass-dropped').textContent).toMatch(/test coverage, ai slop/);
+    expect(screen.getByTestId('ai-pass-dropped').textContent).toMatch(/Test coverage, AI slop/);
     expect(screen.getByTestId('ai-pass-dropped').textContent).toMatch(/says nothing about/);
-    expect(screen.getByTestId('ai-pass-triage').textContent).toMatch(/1 finding reviewed/);
+    expect(screen.getByTestId('ai-pass-triage').textContent).toMatch(
+      /1 of 1 eligible finding reviewed, 1 gave a usable answer/,
+    );
     expect(screen.getByTestId('ai-pass-triage').textContent).toMatch(/1 real/);
   });
 
@@ -294,7 +321,7 @@ describe('AiPassPanel', () => {
     render(<AiPassPanel repoId="3" />);
     expect(screen.getByTestId('ai-pass-status')).toHaveTextContent('failed');
     expect(screen.getByTestId('ai-pass-failures')).toHaveTextContent(
-      /Could not use the answer of.*says nothing about these.*security: src\/a\.ts, src\/b\.ts/s,
+      /Could not use the answer of.*says nothing about these.*Security: src\/a\.ts, src\/b\.ts/s,
     );
     expect(screen.getByTestId('ai-pass-rejected')).toHaveTextContent(
       '2 suggested findings were discarded',
@@ -314,5 +341,137 @@ describe('AiPassPanel', () => {
     expect(screen.getByTestId('ai-pass-raised')).toHaveTextContent(
       /No usable answer raised a finding/,
     );
+  });
+  // W20-11 (UX_TODO AI-30, AI-34, AI-35, AI-44, AI-60, AI-64, AI-81, AI-82, AI-85).
+  it('says why Start is greyed out, for each mode and while a pass runs', () => {
+    render(<AiPassPanel repoId="3" />);
+    const start = screen.getByTestId('ai-pass-start');
+    expect(start.getAttribute('aria-describedby')).toBe('ai-pass-start-hint');
+    expect(screen.getByTestId('ai-pass-start-hint')).toHaveTextContent(
+      'enter at least one file or directory',
+    );
+    fireEvent.click(screen.getByTestId('ai-pass-mode-pull_request'));
+    expect(screen.getByTestId('ai-pass-start-hint')).toHaveTextContent('a pull request number');
+    fireEvent.click(screen.getByTestId('ai-pass-mode-commit_range'));
+    expect(screen.getByTestId('ai-pass-start-hint')).toHaveTextContent('commit SHA');
+    fireEvent.click(screen.getByTestId('ai-pass-mode-paths'));
+    fireEvent.change(screen.getByTestId('ai-pass-paths'), { target: { value: 'src' } });
+    expect(screen.queryByTestId('ai-pass-start-hint')).toBeNull();
+    expect(start.getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('prefills the paths from a finding link and lists the file types it reads', () => {
+    render(<AiPassPanel repoId="3" initialPaths="src/app.ts" />);
+    expect((screen.getByTestId('ai-pass-paths') as HTMLTextAreaElement).value).toBe('src/app.ts');
+    expect(screen.getByTestId('ai-pass-languages')).toHaveTextContent(/TypeScript.*Rust/);
+  });
+
+  it('gives a failed pass a next step by its reason code, admin link or member wording', () => {
+    state.runs = [
+      run({
+        status: 'failed',
+        reason_code: 'no_gateway',
+        reason: 'No model.',
+        triage_funnel: null,
+      }),
+    ];
+    const { unmount } = render(<AiPassPanel repoId="3" />);
+    const fix = screen.getByTestId('ai-pass-fix');
+    expect(fix.querySelector('a')?.getAttribute('href')).toBe('/admin/models');
+    unmount();
+    state.role = 'member';
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-fix')).toHaveTextContent('Ask an admin to set up a model');
+  });
+
+  it('a local-only refusal points at Routing', () => {
+    state.runs = [
+      run({
+        status: 'failed',
+        reason_code: 'error',
+        reason: 'Local-only is on: the security role would use Gemini.',
+        triage_funnel: null,
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-fix')).toHaveTextContent('Change the routing');
+  });
+
+  it('a pass that failed partway says which findings were saved before it failed', () => {
+    state.runs = [
+      run({
+        status: 'failed',
+        reason_code: 'error',
+        reason: 'The model crashed.',
+        calls: 9,
+        triage_funnel: null,
+        specialists: { usage: { security: { calls: 4, findings: 3 } } },
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-saved-before-failure')).toHaveTextContent(
+      '3 findings were saved before it failed (Security 3)',
+    );
+    expect(screen.getByTestId('ai-pass-1')).toHaveTextContent('9 model calls');
+  });
+
+  it('shows the triage funnel, links to the findings, and offers to triage the next ten', () => {
+    state.runs = [
+      run({
+        triage_funnel: {
+          candidates: 80,
+          selected: 10,
+          triaged: 10,
+          accepted: 9,
+          verdicts: { real: 9 },
+          skipped: { below_top_n: 70, budget_exhausted: 1 },
+        },
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    const t = screen.getByTestId('ai-pass-triage');
+    expect(t).toHaveTextContent('10 of 80 eligible findings reviewed, 9 gave a usable answer');
+    expect(t).toHaveTextContent('70 not looked at, because a pass triages at most 10');
+    expect(t).toHaveTextContent('1 dropped when the call budget ran out');
+    expect(screen.getByTestId('ai-pass-findings-link').getAttribute('href')).toBe('/findings');
+    fireEvent.click(screen.getByTestId('ai-pass-rerun'));
+    expect(state.mutate).toHaveBeenCalledWith({ paths: ['src/payments'] });
+  });
+
+  it('announces the newest pass in a live region, and flags a pass no worker picked up', () => {
+    state.runs = [
+      run({
+        status: 'pending',
+        calls: null,
+        specialists: null,
+        triage_funnel: null,
+        created_at: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-live')).toHaveTextContent('Newest AI pass: queued.');
+    expect(screen.getByTestId('ai-pass-live').getAttribute('role')).toBe('status');
+    expect(screen.getByTestId('ai-pass-stalled')).toHaveTextContent('no worker has picked it up');
+  });
+
+  it('shows how long a running pass has been running', () => {
+    state.runs = [
+      run({
+        status: 'running',
+        calls: null,
+        specialists: null,
+        triage_funnel: null,
+        started_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+      }),
+    ];
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-elapsed')).toHaveTextContent('Running for 3 min');
+  });
+
+  it('offers older passes when the API says there are more', () => {
+    state.runs = [run()];
+    state.more = true;
+    render(<AiPassPanel repoId="3" />);
+    expect(screen.getByTestId('ai-pass-older')).toBeTruthy();
   });
 });

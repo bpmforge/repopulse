@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { VerifiedPatches, type PatchAttempt, type PatchAttempts } from './VerifiedPatches.js';
 
@@ -106,5 +106,42 @@ describe('VerifiedPatches (W18-29)', () => {
     });
     expect(screen.getByTestId('patch-3')).toHaveTextContent('Finding #103');
     expect(screen.getByTestId('patch-reason-3')).toHaveTextContent('No reason was recorded.');
+  });
+});
+
+// W20-11 (UX_TODO AI-66): filters and paging past the hundred newest.
+describe('VerifiedPatches filters (W20-11)', () => {
+  const queries = () =>
+    useApiQuery.mock.calls
+      .map((c) => c[0] as { endpoint: string; query?: Record<string, string> })
+      .filter((d) => d.endpoint === '/admin/patches');
+
+  it('asks the API for one outcome, model or repository, and pages back by cursor', () => {
+    renderWith({
+      counts: { verified: 2 },
+      items: [attempt(1)],
+      models: ['qwen-local', 'gemini'],
+      repos: [
+        { id: 1, name: 'payments' },
+        { id: 2, name: 'web' },
+      ],
+      next_cursor: '1',
+    });
+    expect(queries()[0]!.query).toBeUndefined();
+    fireEvent.change(screen.getByTestId('patch-filter-status'), { target: { value: 'rejected' } });
+    expect(queries().at(-1)!.query).toEqual({ status: 'rejected' });
+    fireEvent.change(screen.getByTestId('patch-filter-model'), { target: { value: 'gemini' } });
+    fireEvent.change(screen.getByTestId('patch-filter-repo'), { target: { value: '2' } });
+    expect(queries().at(-1)!.query).toEqual({ status: 'rejected', model: 'gemini', repo_id: '2' });
+    fireEvent.click(screen.getByTestId('patch-older'));
+    expect(queries().at(-1)!.query).toMatchObject({ before: '1' });
+    fireEvent.click(screen.getByTestId('patch-newer'));
+    expect(queries().at(-1)!.query).not.toHaveProperty('before');
+  });
+
+  it('says when nothing matches the filters', () => {
+    renderWith({ counts: { verified: 2 }, items: [], models: ['m'] });
+    fireEvent.change(screen.getByTestId('patch-filter-status'), { target: { value: 'failed' } });
+    expect(screen.getByTestId('patch-list-empty')).toHaveTextContent('No attempt matches');
   });
 });

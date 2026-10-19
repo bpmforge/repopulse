@@ -111,6 +111,25 @@ function lineClass(line: string): string {
   return '';
 }
 
+/**
+ * A failed attempt's reason code, in words a member can act on (W20-11, UX_TODO
+ * AI-65). Members get the code, never the text: the text can quote a host or a
+ * path, the code cannot. "You can try again" was the whole message, even when no
+ * try could ever work.
+ */
+export const FAILED_PATCH_WORDS: Record<string, string> = {
+  no_gateway: 'no model is set up to draft fixes. Ask an admin to add one in Admin → Models.',
+  model_busy: 'the model was busy or down. Try again in a few minutes.',
+  no_connection:
+    'this repository has no working forge connection, so its file could not be read. Ask an admin to check it.',
+  source_unavailable:
+    'the file could not be read at the scanned commit (missing, binary or too large).',
+  tier3_not_opted_in: 'this repository is not opted in to Tier 3. Ask an admin.',
+};
+
+/** Minutes after which a draft no worker took is called stalled. */
+const STALLED_AFTER_MIN = 5;
+
 /** Hands the browser a file to save. Nothing leaves the browser for this. */
 function downloadPatch(diff: string, filename: string): void {
   const url = URL.createObjectURL(new Blob([diff], { type: 'text/x-diff' }));
@@ -157,6 +176,24 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
             Admin only: {patch.reason}
           </p>
         ) : null}
+        {/* W20-11 (UX_TODO AI-66): the API sends an admin the rejected diff, so
+            whoever decides whether the model or the rule needs attention can
+            see what failed. Collapsed, and labelled as not to be applied. */}
+        {patch.diff ? (
+          <details className="mt-1 text-xs" data-testid="verified-fix-rejected-diff">
+            <summary className="cursor-pointer text-fg-muted">
+              Admin only: show the rejected diff (do not apply it)
+            </summary>
+            <pre
+              className="mt-1 max-h-80 overflow-auto panel-inset p-2 font-mono text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              tabIndex={0}
+              role="region"
+              aria-label="Rejected diff"
+            >
+              {patch.diff}
+            </pre>
+          </details>
+        ) : null}
         <DrafterNote drafter={data.drafter} />
         <button
           type="button"
@@ -195,9 +232,20 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
           clears and no new finding appears in the file. Review it like any change — nothing has
           been written to your repository.
         </p>
+        {/* W20-11 (UX_TODO AI-45): "verified" proves the rules stop firing on
+            this file, nothing more; said next to the diff, where it is read. */}
+        <p className="mt-1 text-xs text-fg" data-testid="verified-fix-limits">
+          <strong>Not tested:</strong> the code was not built and no tests were run, so this change
+          may alter behaviour. Run your tests before merging it.
+        </p>
+        {/* W20-11 (UX_TODO AI-46): a scrolling block must be reachable from the
+            keyboard (axe scrollable-region-focusable), as W19-12 did for citations. */}
         <pre
-          className="mt-1 max-h-80 overflow-auto panel-inset p-2 font-mono text-xs"
+          className="mt-1 max-h-80 overflow-auto panel-inset p-2 font-mono text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           data-testid="verified-fix-diff"
+          tabIndex={0}
+          role="region"
+          aria-label="Verified patch diff"
         >
           {diff.split('\n').map((line, i) => (
             <span key={i} className={`block ${lineClass(line)}`}>
@@ -235,15 +283,28 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
   }
 
   if (patch?.status === 'pending' || request.isPending) {
+    // W20-11 (UX_TODO AI-64): a draft no worker takes used to say "this can take
+    // a minute" forever.
+    const started = patch ? new Date(patch.created_at).getTime() : Number.NaN;
+    const waited = Number.isNaN(started) ? 0 : Math.floor((Date.now() - started) / 60000);
     return (
       <div data-testid="verified-fix-pending">
         {heading}
         <p className="mt-1 text-xs text-fg-muted" role="status">
           Drafting a fix and re-scanning the file… This can take a minute.
         </p>
+        {waited >= STALLED_AFTER_MIN ? (
+          <p className="mt-1 text-xs text-fg" role="alert" data-testid="verified-fix-stalled">
+            It has waited {waited} minutes and no worker has picked it up. Ask an admin to check
+            that the worker is running.
+          </p>
+        ) : null}
       </div>
     );
   }
+
+  const noModel = data.drafter !== undefined && data.drafter.destinations.length === 0;
+  const failedWords = patch?.reason_code ? FAILED_PATCH_WORDS[patch.reason_code] : undefined;
 
   return (
     <div data-testid="verified-fix-request">
@@ -251,7 +312,11 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
       {patch?.status === 'failed' ? (
         <p className="mt-1 text-xs text-fg-muted" data-testid="verified-fix-failed">
           The last attempt could not be made
-          {patch.reason ? ` (${patch.reason})` : ''}. You can try again.
+          {failedWords ? `: ${failedWords}` : patch.reason ? ` (${patch.reason})` : '.'}
+          {patch.reason && failedWords ? (
+            <span className="block text-fg-faint">Admin only: {patch.reason}</span>
+          ) : null}
+          {noModel ? '' : ' You can try again.'}
         </p>
       ) : (
         <p className="mt-1 text-xs text-fg-muted">
@@ -261,14 +326,18 @@ export function VerifiedFix({ findingId }: { findingId: number }) {
         </p>
       )}
       <DrafterNote drafter={data.drafter} />
-      <button
-        type="button"
-        className={`mt-2 ${ACTION_BUTTON}`}
-        data-testid="verified-fix-draft"
-        onClick={() => request.mutate({ tier: 't2' })}
-      >
-        {patch?.status === 'failed' ? 'Try again' : 'Draft a verified fix'}
-      </button>
+      {/* W20-11 (UX_TODO AI-65): with no model at all, a request can only fail,
+          so there is no button to press; the note above says who can fix it. */}
+      {noModel ? null : (
+        <button
+          type="button"
+          className={`mt-2 ${ACTION_BUTTON}`}
+          data-testid="verified-fix-draft"
+          onClick={() => request.mutate({ tier: 't2' })}
+        >
+          {patch?.status === 'failed' ? 'Try again' : 'Draft a verified fix'}
+        </button>
+      )}
       <ErrorNote error={request.error} testId="verified-fix-error" className="mt-1" />
     </div>
   );

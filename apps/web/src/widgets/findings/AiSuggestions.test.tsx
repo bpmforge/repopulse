@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiSuggestions } from './AiSuggestions.js';
@@ -21,6 +22,33 @@ vi.mock('../../api/useApiQuery.js', () => ({
     return { mutate: state.mutate, isPending: state.isPending, error: null, variables: undefined };
   },
   queryKeyFor: () => [],
+}));
+
+// The "start an AI review pass" link (W20-11) renders as a plain anchor.
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    hash,
+    params,
+    search,
+    children,
+    ...rest
+  }: {
+    to: string;
+    hash?: string;
+    params?: Record<string, string>;
+    search?: Record<string, string>;
+    children: ReactNode;
+  }) => (
+    <a
+      href={`${to.replace('$repoId', params?.repoId ?? '')}${
+        search ? `?${new URLSearchParams(search).toString()}` : ''
+      }${hash ? `#${hash}` : ''}`}
+      {...rest}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 const suggestion = (over: Partial<AiSuggestion> = {}): AiSuggestion => ({
@@ -97,7 +125,7 @@ describe('AiSuggestions', () => {
     });
     render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
     expect(screen.getByTestId('ai-raised-by').textContent).toMatch(
-      /raised by an AI specialist \(code health\)/,
+      /raised by an AI specialist \(Code health\)/,
     );
     expect(screen.getByTestId('ai-raised-by').textContent).toMatch(/A rule did not find it/);
     // It was raised by a model, so "not yet run" would be false.
@@ -130,7 +158,7 @@ describe('AiSuggestions', () => {
     });
     render(<AiSuggestions findingId={1} onOfferDismiss={offer} />);
     expect(screen.getByTestId('ai-decided').textContent).toMatch(
-      /Suggestion accepted by ada on 2026-10-18/,
+      /Answered “Agree: likely a false positive” by ada on 2026-10-18/,
     );
     expect(screen.getByTestId('ai-offer-dismiss').textContent).toMatch(
       /does not dismiss the finding: it is still open/,
@@ -233,5 +261,114 @@ describe('AiSuggestions', () => {
       /Values are bound\. Nothing is recorded/,
     );
     expect(screen.getByTestId('ai-vex').textContent).not.toMatch(/\.\./);
+  });
+  // W20-11 (UX_TODO AI-39): the buttons name what is agreed with.
+  it('names the answer buttons after the verdict', () => {
+    respond({ raised_by: null, suggestions: [suggestion({ verdict: 'real' })] });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
+    expect(screen.getByTestId('ai-agree')).toHaveTextContent('Agree it’s real');
+    expect(screen.getByTestId('ai-disagree')).toHaveTextContent('Disagree: not real');
+  });
+
+  // W20-11 (UX_TODO AI-42): whose confidence it is, and what the scale means.
+  it('says the confidence is the model’s own rating', () => {
+    respond({ raised_by: null, suggestions: [suggestion()] });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
+    expect(screen.getByTestId('ai-confidence')).toHaveTextContent('AI confidence 4/5');
+    expect(screen.getByTestId('ai-confidence-scale')).toHaveTextContent(/not a measured accuracy/);
+  });
+
+  // W20-11 (UX_TODO AI-40, partial): a mis-click can be taken back for a while.
+  it('offers to change an answer while the server allows it, and sends an undo', () => {
+    respond({
+      raised_by: null,
+      suggestions: [
+        suggestion({
+          decision: 'dismissed',
+          decided_by: 'ada',
+          decided_at: '2026-10-18T11:00:00Z',
+          can_undo: true,
+        }),
+      ],
+    });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
+    fireEvent.click(screen.getByTestId('ai-undo'));
+    expect(state.mutate).toHaveBeenCalledWith({ undo: true });
+  });
+
+  it('offers no undo once the server says it is too late', () => {
+    respond({
+      raised_by: null,
+      suggestions: [suggestion({ decision: 'dismissed', decided_by: 'ada', can_undo: false })],
+    });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
+    expect(screen.queryByTestId('ai-undo')).toBeNull();
+  });
+
+  // W20-11 (UX_TODO AI-41): agreeing it is real points at Confirm, never confirms.
+  it('after agreeing a finding is real, offers Confirm without doing it', () => {
+    const confirm = vi.fn();
+    respond({
+      raised_by: null,
+      suggestions: [suggestion({ verdict: 'real', decision: 'accepted', decided_by: 'ada' })],
+    });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} onOfferConfirm={confirm} />);
+    expect(screen.getByTestId('ai-offer-confirm')).toHaveTextContent(
+      /does not confirm the finding/,
+    );
+    expect(confirm).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('ai-prefill-confirm'));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(state.mutate).not.toHaveBeenCalled();
+  });
+
+  // W20-11 (UX_TODO AI-43, partial): the OpenVEX value in words.
+  it('puts the proposed VEX justification in words, keeping the raw value', () => {
+    respond({
+      raised_by: null,
+      suggestions: [
+        suggestion({
+          vex: { justification: 'vulnerable_code_not_in_execute_path', statement: 'Dead code.' },
+        }),
+      ],
+    });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} />);
+    expect(screen.getByTestId('ai-vex')).toHaveTextContent(
+      'the vulnerable code is never executed (vulnerable_code_not_in_execute_path)',
+    );
+  });
+
+  const ctx = {
+    repoId: 3,
+    file: 'src/users.ts',
+    line: 3,
+    status: 'open',
+    scannerKey: 'semgrep',
+    ruleId: 'sql',
+    hasContext: true,
+    experimental: false,
+  };
+
+  // W20-11 (UX_TODO AI-44): "not yet run" for a finding a pass can never triage.
+  it('says when an AI pass would not triage this finding, and why', () => {
+    respond({ raised_by: null, suggestions: [] });
+    render(
+      <AiSuggestions
+        findingId={1}
+        onOfferDismiss={() => {}}
+        finding={{ ...ctx, file: null, line: null }}
+      />,
+    );
+    expect(screen.getByTestId('ai-not-eligible')).toHaveTextContent(/not tied to a line of a file/);
+    expect(screen.queryByTestId('ai-not-run')).toBeNull();
+  });
+
+  // W20-11 (UX_TODO AI-83): "not yet run" links to where a pass is started.
+  it('links "not yet run" to the AI review pass, with the file filled in', () => {
+    respond({ raised_by: null, suggestions: [] });
+    render(<AiSuggestions findingId={1} onOfferDismiss={() => {}} finding={ctx} />);
+    expect(screen.getByTestId('ai-start-pass-link').getAttribute('href')).toBe(
+      '/repos/3/security?ai_path=src%2Fusers.ts#ai-review-pass',
+    );
   });
 });

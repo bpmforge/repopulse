@@ -61,6 +61,8 @@ export interface AiSuggestion {
   decision: AiDecision;
   decided_by: string | null;
   decided_at: string | null;
+  /** W20-11 (UX_TODO AI-40): the caller answered it, recently enough to change the answer. */
+  can_undo?: boolean;
 }
 
 export interface FindingAi {
@@ -123,6 +125,8 @@ export interface AiPassRun {
     triaged?: number;
     accepted?: number;
     verdicts?: Partial<Record<AiVerdict, number>>;
+    /** W20-11 (UX_TODO AI-82): what was left out, and why. */
+    skipped?: { below_top_n?: number; budget_exhausted?: number };
   } | null;
   triage_skipped: string | null;
   calls: number | null;
@@ -131,6 +135,40 @@ export interface AiPassRun {
   started_at: string | null;
   finished_at: string | null;
 }
+
+/** At most this many findings get a triage answer per pass (TRIAGE_TOP_N on the server). */
+export const TRIAGE_PER_PASS = 10;
+
+/**
+ * W20-11 (UX_TODO AI-39): times were printed as the raw UTC string
+ * ("2026-10-19 14:05") with no zone, so a reader in Sydney took a 01:05 run
+ * for one in their afternoon. Local time, with the zone named.
+ */
+export function localDateTime(iso: string | null, empty = 'never'): string {
+  if (!iso) return empty;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(d);
+}
+
+/** Specialist ids as the Routing table names their roles (W20-11, UX_TODO AI-50). */
+export const SPECIALIST_LABEL: Record<string, string> = {
+  security: 'Security',
+  performance: 'Performance',
+  code_health: 'Code health',
+  best_practices: 'Best practices',
+  ai_slop: 'AI slop',
+  test_coverage: 'Test coverage',
+};
+export const specialistLabel = (id: string): string =>
+  SPECIALIST_LABEL[id] ?? id.replace(/_/g, ' ');
 
 // The caps are the server's (apps/api/src/workers/ai-pass-processor.ts and
 // routes/ai-pass). Said on the screen so a refusal is not a surprise.

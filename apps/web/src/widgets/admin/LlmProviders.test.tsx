@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '../../api/queryClient.js';
-import { LlmProviders } from './LlmProviders.js';
+import { LlmProviders, testNextStep } from './LlmProviders.js';
 
 // W16-07 (D-LLM-1, F5). The screen that makes "bring your own LLM" true.
 //
@@ -169,6 +169,8 @@ describe('Admin → Models (W16-07)', () => {
     expect(await screen.findByTestId('provider-test-result')).toHaveTextContent(
       'model not found: typo-3b',
     );
+    // W20-11 (UX_TODO AI-21): and what to do about it.
+    expect(screen.getByTestId('test-next-step')).toHaveTextContent(/does not know that model name/);
   });
 
   it('distinguishes a connection failure from a bad credential', async () => {
@@ -688,5 +690,90 @@ describe('Admin → Models (W16-07)', () => {
       renderScreen();
       expect(await screen.findByTestId('provider-off-network-8')).toHaveTextContent('yes');
     });
+  });
+});
+
+// W20-11 (UX_TODO AI-21): a failed test names a next step, by what failed.
+describe('testNextStep', () => {
+  it('maps the common failures to a next step, and a success to none', () => {
+    expect(testNextStep({ ok: true })).toBeNull();
+    expect(
+      testNextStep({ ok: false, detail: 'The model has crashed without additional information' }),
+    ).toMatch(/reload it/);
+    expect(testNextStep({ ok: false, status: 401, detail: 'Unauthorized' })).toMatch(
+      /key was refused/,
+    );
+    expect(testNextStep({ ok: false, status: 429, detail: '' })).toMatch(/rate or quota/);
+    expect(testNextStep({ ok: false, detail: 'connect ECONNREFUSED 10.0.0.5:1234' })).toMatch(
+      /Nothing answered/,
+    );
+  });
+});
+
+describe('Claude Code CLI switch-off and acceptance on the row (W20-11)', () => {
+  const accepted = {
+    statement: STATEMENT,
+    accepted: {
+      by: 'brad',
+      at: '2026-10-18T10:00:00.000Z',
+      version: 'claude-cli.v1',
+      current: true,
+    },
+    cli: { found: true, version: '2.1.287 (Claude Code)', reportsLoggedIn: true, reason: null },
+  };
+  const pick = async () => {
+    renderScreen();
+    await screen.findByRole('option', { name: /customer-supplied/ });
+    await userEvent.selectOptions(screen.getByTestId('provider-kind'), 'claude_cli');
+  };
+
+  // UX_TODO AI-75: Switch off asks first, and then says the CLI is still there.
+  it('Switch off asks first, then says how to remove the CLI itself', async () => {
+    claudeBody = accepted;
+    await pick();
+    await userEvent.click(await screen.findByTestId('claude-cli-revoke'));
+    expect(screen.getByTestId('claude-cli-revoke-confirm')).toHaveTextContent(
+      /Switch off the Claude Code CLI\?/,
+    );
+    expect(requests.some((r) => r.url.endsWith('/claude-cli/accept'))).toBe(false);
+    claudeBody = { ...accepted, accepted: null };
+    await userEvent.click(screen.getByTestId('claude-cli-revoke-do'));
+    expect(await screen.findByTestId('claude-cli-signout')).toHaveTextContent(
+      /still installed and signed in inside the worker/,
+    );
+  });
+
+  // UX_TODO AI-73 (partial): the check says which container it looked in.
+  it('says the CLI check runs in the API container', async () => {
+    await pick();
+    expect(await screen.findByTestId('claude-cli-panel')).toHaveTextContent(
+      /run in the API container/,
+    );
+  });
+
+  // UX_TODO AI-67: a CLI row says whether the statement is accepted.
+  it('a saved CLI row says when the statement is not accepted, so it is not used', async () => {
+    claudeBody = { ...accepted, accepted: null };
+    listBody = {
+      items: [
+        {
+          id: 9,
+          name: 'My Claude',
+          kind: 'claude_cli',
+          base_url: null,
+          model: 'sonnet',
+          credential: null,
+          headers: null,
+          allow_public_host: false,
+          enabled: true,
+          capabilities: null,
+          probed_at: null,
+        },
+      ],
+    };
+    renderScreen();
+    expect(await screen.findByTestId('provider-cli-acceptance-9')).toHaveTextContent(
+      /Not accepted: this connection is not used/,
+    );
   });
 });

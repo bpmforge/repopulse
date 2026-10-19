@@ -326,6 +326,22 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
       expect(res.json().detail).toMatch(/limit 10/);
     });
 
+    // W20-11 (UX_TODO AI-61): a skipped scheduled tick ran nothing, so it does
+    // not use up the day's passes.
+    it('does not count skipped rows against the daily limit', async () => {
+      for (let i = 0; i < AI_PASSES_PER_DAY; i++) {
+        await db.insert(read.aiPassRuns).values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: ['x'],
+          status: 'skipped',
+          trigger: 'scheduled',
+          createdAt: new Date(clock.getTime() - 3600_000),
+        });
+      }
+      expect((await start()).statusCode).toBe(202);
+    });
+
     it('says plainly when the queue is unavailable, and records nothing', async () => {
       queueUp = false;
       expect((await start()).statusCode).toBe(503);
@@ -343,7 +359,7 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
   describe('watching passes', () => {
     it('a repository nobody has run a pass on returns NO runs - "not yet run", never an empty success', async () => {
       const res = await app.inject({ method: 'GET', url: `/repos/${REPO}/ai-pass` });
-      expect(res.json()).toEqual({ runs: [] });
+      expect(res.json()).toEqual({ runs: [], more: false });
     });
 
     it('lists the recent passes with their status and reason, newest first', async () => {
@@ -371,6 +387,36 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
         reason_code: 'no_gateway',
         reason: 'No model.',
       });
+    });
+
+    // W20-11 (UX_TODO AI-81): skipped scheduled ticks no longer crowd real
+    // passes out of the list, and older passes can be asked for.
+    it('leaves skipped scheduled ticks out of the list, and pages with limit and more', async () => {
+      for (let i = 0; i < 12; i++) {
+        await db.insert(read.aiPassRuns).values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: ['x'],
+          status: 'skipped',
+          trigger: 'scheduled',
+          createdAt: new Date(clock.getTime() - 60_000 * i),
+        });
+      }
+      for (let i = 0; i < 3; i++) {
+        await db.insert(read.aiPassRuns).values({
+          workspaceId: WS,
+          repoId: REPO,
+          paths: ['src'],
+          status: 'succeeded',
+          createdAt: new Date(clock.getTime() - 3600_000 * (i + 1)),
+        });
+      }
+      const all = await app.inject({ method: 'GET', url: `/repos/${REPO}/ai-pass` });
+      expect(all.json().runs).toHaveLength(3);
+      expect(all.json().more).toBe(false);
+      const two = await app.inject({ method: 'GET', url: `/repos/${REPO}/ai-pass?limit=2` });
+      expect(two.json().runs).toHaveLength(2);
+      expect(two.json().more).toBe(true);
     });
 
     it("never shows another workspace's passes", async () => {
@@ -499,6 +545,35 @@ describeIfLiveInfra('AI pass routes (W19-09)', () => {
         (await db.select().from(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.id, vid)))[0]!
           .decision,
       ).toBe('accepted');
+    });
+
+    // W20-11 (UX_TODO AI-40, partial): a mis-click can be taken back by the
+    // person who made it, for a short while; then the answer stands.
+    it('lets the person who answered change it within the window, and not after', async () => {
+      const fid = await finding();
+      const vid = await verdict(fid);
+      const undo = () =>
+        app.inject({
+          method: 'POST',
+          url: `/findings/${fid}/ai-verdicts/${vid}/decide`,
+          headers: CSRF,
+          payload: { undo: true },
+        });
+      const row = async () =>
+        (
+          await db.select().from(read.aiTriageVerdicts).where(eq(read.aiTriageVerdicts.id, vid))
+        )[0]!;
+      await decide(fid, vid, 'dismissed');
+      const ai = await app.inject({ method: 'GET', url: `/findings/${fid}/ai` });
+      expect(ai.json().suggestions[0].can_undo).toBe(true);
+      expect((await undo()).statusCode).toBe(200);
+      expect(await row()).toMatchObject({ decision: null, decidedBy: null, decidedAt: null });
+      expect((await decide(fid, vid, 'accepted')).statusCode).toBe(200);
+      clock = new Date(clock.getTime() + 16 * 60 * 1000);
+      const late = await app.inject({ method: 'GET', url: `/findings/${fid}/ai` });
+      expect(late.json().suggestions[0].can_undo).toBe(false);
+      expect((await undo()).statusCode).toBe(409);
+      expect((await row()).decision).toBe('accepted');
     });
 
     it('accepts only accepted or dismissed - "superseded" is the system\'s, never a person\'s', async () => {

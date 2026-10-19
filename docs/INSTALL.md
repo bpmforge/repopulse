@@ -544,7 +544,22 @@ in the tests), and every other path against a faked CLI. **Not checked:** a
 successful answer from a live CLI (the available login had expired and signing
 in is yours to do, not ours), installing the CLI inside the worker image, and
 the compose override. Note that `claude auth status` can report *logged in* while
-the session has expired, so **Test connection** is the only proof.
+the session has expired, so **Test connection** is the only proof. Test and the
+"Found … on this server" line run in the **api** container; with the overlay the
+CLI lives in the **worker**, so on a container install they can report the CLI
+as missing even when the worker can use it.
+
+**Removing it.** **Switch off** only withdraws the acceptance: RepoPulse stops
+using the CLI, but it stays installed and signed in inside the worker's
+`claude-cli` volume. To remove it as well:
+
+1. Sign the CLI out, with its own sign-out command, run inside the worker
+   (`docker compose exec worker /var/lib/claude-cli/npm/bin/claude …`). This
+   ends the session at Anthropic's end too; deleting the volume alone only
+   forgets it locally.
+2. Start RepoPulse again without `-f deploy/compose.claude-cli.yaml`.
+3. Delete the volume, which holds the CLI and its login: `docker volume rm
+   <project>_claude-cli` (`docker volume ls` shows the exact name).
 
 ### If it does not connect
 

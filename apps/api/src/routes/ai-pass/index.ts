@@ -22,6 +22,9 @@ import scheduleRoutes from './schedule.js';
 
 export const AI_PASSES_PER_DAY = 10;
 
+/** W20-11 (UX_TODO AI-40): how long the person who answered a suggestion may withdraw it. */
+export const AI_DECISION_UNDO_MINUTES = 15;
+
 export interface AiPassRoutesOptions {
   db: Database;
   redisUrl?: string | undefined;
@@ -213,12 +216,21 @@ export default async function aiPassRoutes(
         .limit(1);
       if (active) return reply.code(202).send({ run: runView(active, null) });
 
+      // W20-11 (UX_TODO AI-61): only passes that RAN count. A scheduled tick
+      // that refused to start writes a `skipped` row; counting those let a few
+      // quiet schedules block every manual pass with "10 passes started" while
+      // the panel listed fewer. Failed passes did run (and spent calls), so
+      // they still count, and the message says so.
       const since = new Date(now().getTime() - 24 * 60 * 60 * 1000);
       const [{ n } = { n: 0 }] = await db
         .select({ n: sql<number>`count(*)::int` })
         .from(read.aiPassRuns)
         .where(
-          and(eq(read.aiPassRuns.workspaceId, workspaceId), gte(read.aiPassRuns.createdAt, since)),
+          and(
+            eq(read.aiPassRuns.workspaceId, workspaceId),
+            gte(read.aiPassRuns.createdAt, since),
+            sql`${read.aiPassRuns.status} <> 'skipped'`,
+          ),
         );
       if (n >= AI_PASSES_PER_DAY) {
         return fail(
@@ -226,7 +238,7 @@ export default async function aiPassRoutes(
           reply,
           429,
           'Daily AI-pass limit reached',
-          `This workspace has started ${n} passes in the last 24 hours (limit ${AI_PASSES_PER_DAY}). Each is many model calls over your source.`,
+          `${n} passes ran in this workspace in the last 24 hours, failed ones included (limit ${AI_PASSES_PER_DAY}). Each is many model calls over your source.`,
         );
       }
 
@@ -291,24 +303,45 @@ export default async function aiPassRoutes(
     },
   );
 
-  app.get<{ Params: { id: string } }>('/repos/:id/ai-pass', async (request, reply) => {
-    const workspaceId = request.workspace?.id;
-    if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
-    const repoId = Number(request.params.id);
-    if (!Number.isInteger(repoId)) return fail(request, reply, 400, 'Invalid repository id');
-    if (!(await ownRepo(workspaceId, repoId)))
-      return fail(request, reply, 404, 'No such repository');
+  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+    '/repos/:id/ai-pass',
+    async (request, reply) => {
+      const workspaceId = request.workspace?.id;
+      if (workspaceId === undefined) return fail(request, reply, 401, 'No active session');
+      const repoId = Number(request.params.id);
+      if (!Number.isInteger(repoId)) return fail(request, reply, 400, 'Invalid repository id');
+      if (!(await ownRepo(workspaceId, repoId)))
+        return fail(request, reply, 404, 'No such repository');
+      const asked = Number(request.query?.limit ?? 10);
+      const limit = Number.isInteger(asked) ? Math.min(50, Math.max(1, asked)) : 10;
 
-    const rows = await db
-      .select({ run: read.aiPassRuns, login: core.users.login })
-      .from(read.aiPassRuns)
-      .leftJoin(core.users, eq(core.users.id, read.aiPassRuns.requestedBy))
-      .where(and(eq(read.aiPassRuns.workspaceId, workspaceId), eq(read.aiPassRuns.repoId, repoId)))
-      .orderBy(desc(read.aiPassRuns.createdAt))
-      .limit(10);
-    // No pass ever started is `runs: []` - the screen says "not yet run", never "clean".
-    return reply.send({ runs: rows.map((r) => runView(r.run, r.login ?? null)) });
-  });
+      // W20-11 (UX_TODO AI-81): scheduled ticks that refused to run write a
+      // `skipped` row every few hours, and those used to fill the ten newest, so
+      // the panel (which hides them) showed few passes or none, and could say
+      // "not yet run" on a reviewed repository. They are left out here; the
+      // Scheduled passes section lists them from its own route.
+      const notScheduledSkip = sql`not (${read.aiPassRuns.trigger} = 'scheduled' and ${read.aiPassRuns.status} = 'skipped')`;
+      const rows = await db
+        .select({ run: read.aiPassRuns, login: core.users.login })
+        .from(read.aiPassRuns)
+        .leftJoin(core.users, eq(core.users.id, read.aiPassRuns.requestedBy))
+        .where(
+          and(
+            eq(read.aiPassRuns.workspaceId, workspaceId),
+            eq(read.aiPassRuns.repoId, repoId),
+            notScheduledSkip,
+          ),
+        )
+        .orderBy(desc(read.aiPassRuns.createdAt))
+        .limit(limit + 1);
+      // No pass ever started is `runs: []` - the screen says "not yet run", never
+      // "clean". With skips left out, an empty list now really means that.
+      return reply.send({
+        runs: rows.slice(0, limit).map((r) => runView(r.run, r.login ?? null)),
+        more: rows.length > limit,
+      });
+    },
+  );
 
   app.get<{ Params: { id: string } }>('/findings/:id/ai', async (request, reply) => {
     const workspaceId = request.workspace?.id;
@@ -409,83 +442,138 @@ export default async function aiPassRoutes(
         decision: v.decision,
         decided_by: login ?? null,
         decided_at: v.decidedAt,
+        // W20-11 (UX_TODO AI-40): whether the caller may still withdraw the answer.
+        can_undo:
+          v.decidedBy !== null &&
+          v.decidedBy === request.session?.get('userId') &&
+          v.decidedAt !== null &&
+          (v.decision === 'accepted' || v.decision === 'dismissed') &&
+          now().getTime() - v.decidedAt.getTime() < AI_DECISION_UNDO_MINUTES * 60 * 1000,
       })),
     });
   });
 
-  app.post<{ Params: { id: string; verdictId: string }; Body: { decision?: unknown } }>(
-    '/findings/:id/ai-verdicts/:verdictId/decide',
-    async (request, reply) => {
-      const workspaceId = request.workspace?.id;
-      const userId = request.session?.get('userId');
-      if (workspaceId === undefined || userId === undefined)
-        return fail(request, reply, 401, 'No active session');
-      const findingId = Number(request.params.id);
-      const verdictId = Number(request.params.verdictId);
-      if (!Number.isInteger(findingId) || !Number.isInteger(verdictId))
-        return fail(request, reply, 400, 'Invalid id');
-      const decision = request.body?.decision;
-      if (decision !== 'accepted' && decision !== 'dismissed') {
-        return fail(
-          request,
-          reply,
-          400,
-          'Invalid decision',
-          'decision must be "accepted" or "dismissed".',
-        );
-      }
+  app.post<{
+    Params: { id: string; verdictId: string };
+    Body: { decision?: unknown; undo?: unknown };
+  }>('/findings/:id/ai-verdicts/:verdictId/decide', async (request, reply) => {
+    const workspaceId = request.workspace?.id;
+    const userId = request.session?.get('userId');
+    if (workspaceId === undefined || userId === undefined)
+      return fail(request, reply, 401, 'No active session');
+    const findingId = Number(request.params.id);
+    const verdictId = Number(request.params.verdictId);
+    if (!Number.isInteger(findingId) || !Number.isInteger(verdictId))
+      return fail(request, reply, 400, 'Invalid id');
 
-      // Compare-and-set: only an undecided suggestion of THIS workspace and finding.
-      const rows = await db
+    // W20-11 (UX_TODO AI-40): an answer was final from the first click, so a
+    // mis-click on Dismiss could never be taken back. The person who answered
+    // may withdraw it for a short while; after that, or for anyone else, it
+    // stands. Still nothing about the finding moves.
+    if (request.body?.undo === true) {
+      const cutoff = new Date(now().getTime() - AI_DECISION_UNDO_MINUTES * 60 * 1000);
+      // A finding holds at most one unanswered suggestion; reopening this one
+      // while a newer one waits is refused by that index, and said so below.
+      const undone = await db
         .update(read.aiTriageVerdicts)
-        .set({ decision, decidedBy: userId, decidedAt: now() })
+        .set({ decision: null, decidedBy: null, decidedAt: null })
         .where(
           and(
             eq(read.aiTriageVerdicts.id, verdictId),
             eq(read.aiTriageVerdicts.findingId, findingId),
             eq(read.aiTriageVerdicts.workspaceId, workspaceId),
-            sql`decision is null`,
+            eq(read.aiTriageVerdicts.decidedBy, userId),
+            gte(read.aiTriageVerdicts.decidedAt, cutoff),
+            sql`${read.aiTriageVerdicts.decision} in ('accepted', 'dismissed')`,
           ),
         )
-        .returning({ id: read.aiTriageVerdicts.id, verdict: read.aiTriageVerdicts.verdict });
-      if (rows.length === 0) {
-        const [exists] = await db
-          .select({ decision: read.aiTriageVerdicts.decision })
-          .from(read.aiTriageVerdicts)
-          .where(
-            and(
-              eq(read.aiTriageVerdicts.id, verdictId),
-              eq(read.aiTriageVerdicts.findingId, findingId),
-              eq(read.aiTriageVerdicts.workspaceId, workspaceId),
-            ),
-          )
-          .limit(1);
-        return exists
-          ? fail(
-              request,
-              reply,
-              409,
-              'Already decided',
-              `This suggestion was already ${exists.decision}.`,
-            )
-          : fail(request, reply, 404, 'No such suggestion');
+        .returning({ id: read.aiTriageVerdicts.id })
+        .catch((err: unknown) => {
+          if (isConstraintViolation(err, 'ai_triage_verdicts_one_open_key')) return [];
+          throw err;
+        });
+      if (undone.length === 0) {
+        return fail(
+          request,
+          reply,
+          409,
+          'This answer can no longer be changed',
+          `Only the person who answered can change it, within ${AI_DECISION_UNDO_MINUTES} minutes.`,
+        );
       }
       auditLog(request.log, {
+        // The same event as an answer, recording that it was withdrawn.
         event: 'ai_verdict.decided',
         actorUserId: userId,
         workspaceId,
         ip: request.ip,
         ua: request.headers['user-agent'] ?? null,
-        detail: {
-          finding_id: findingId,
-          verdict_id: verdictId,
-          verdict: rows[0]!.verdict,
-          decision,
-        },
+        detail: { finding_id: findingId, verdict_id: verdictId, decision: null, undone: true },
       });
-      // Deliberately nothing about the finding: its status is moved by the person
-      // through PATCH /findings/:id, with a note.
-      return reply.send({ id: verdictId, decision });
-    },
-  );
+      return reply.send({ id: verdictId, decision: null });
+    }
+
+    const decision = request.body?.decision;
+    if (decision !== 'accepted' && decision !== 'dismissed') {
+      return fail(
+        request,
+        reply,
+        400,
+        'Invalid decision',
+        'decision must be "accepted" or "dismissed".',
+      );
+    }
+
+    // Compare-and-set: only an undecided suggestion of THIS workspace and finding.
+    const rows = await db
+      .update(read.aiTriageVerdicts)
+      .set({ decision, decidedBy: userId, decidedAt: now() })
+      .where(
+        and(
+          eq(read.aiTriageVerdicts.id, verdictId),
+          eq(read.aiTriageVerdicts.findingId, findingId),
+          eq(read.aiTriageVerdicts.workspaceId, workspaceId),
+          sql`decision is null`,
+        ),
+      )
+      .returning({ id: read.aiTriageVerdicts.id, verdict: read.aiTriageVerdicts.verdict });
+    if (rows.length === 0) {
+      const [exists] = await db
+        .select({ decision: read.aiTriageVerdicts.decision })
+        .from(read.aiTriageVerdicts)
+        .where(
+          and(
+            eq(read.aiTriageVerdicts.id, verdictId),
+            eq(read.aiTriageVerdicts.findingId, findingId),
+            eq(read.aiTriageVerdicts.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      return exists
+        ? fail(
+            request,
+            reply,
+            409,
+            'Already decided',
+            `This suggestion was already ${exists.decision}.`,
+          )
+        : fail(request, reply, 404, 'No such suggestion');
+    }
+    auditLog(request.log, {
+      event: 'ai_verdict.decided',
+      actorUserId: userId,
+      workspaceId,
+      ip: request.ip,
+      ua: request.headers['user-agent'] ?? null,
+      detail: {
+        finding_id: findingId,
+        verdict_id: verdictId,
+        verdict: rows[0]!.verdict,
+        decision,
+      },
+    });
+    // Deliberately nothing about the finding: its status is moved by the person
+    // through PATCH /findings/:id, with a note.
+    return reply.send({ id: verdictId, decision });
+  });
 }

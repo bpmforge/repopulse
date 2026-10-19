@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { WidgetFrame, frameState } from '../../components/index.js';
 import { useApiQuery } from '../../api/useApiQuery.js';
 import type { RatioParts, RepoReviewBots } from './contracts.js';
@@ -69,10 +70,34 @@ const UNAVAILABLE = 'Needs line-level review-comment data — see the note below
  * Why a cell is a dash. Two different facts: the data is missing entirely
  * (null), or it is there and nothing qualified (an empty denominator).
  */
-function blankReason(r: RatioParts | null, empty: string): { title?: string } {
-  if (r === null) return { title: UNAVAILABLE };
-  if (r.value === null) return { title: empty };
-  return {};
+function blankReason(r: RatioParts | null, empty: string): string | null {
+  if (r === null) return UNAVAILABLE;
+  if (r.value === null) return empty;
+  return null;
+}
+
+/**
+ * W20-11 (UX_TODO AI-47): the reasons for blank cells lived only in `title`
+ * tooltips, which keyboard, touch and screen-reader users never get. Each blank
+ * now carries a visible footnote number (and its words for a screen reader),
+ * and the notes are listed under the table.
+ */
+function footnotes() {
+  const notes: string[] = [];
+  const mark = (reason: string | null) => {
+    if (reason === null) return null;
+    let n = notes.indexOf(reason) + 1;
+    if (n === 0) n = notes.push(reason);
+    return (
+      <>
+        <sup aria-hidden="true" className="ml-0.5 text-fg-muted">
+          {n}
+        </sup>
+        <span className="sr-only"> ({reason})</span>
+      </>
+    );
+  };
+  return { notes, mark };
 }
 
 export function ReviewBots({ repoId, window }: Props) {
@@ -89,6 +114,7 @@ export function ReviewBots({ repoId, window }: Props) {
     isEmpty: data !== undefined && bots.length === 0,
   });
   const note = data ? lineDataNote(data) : null;
+  const { notes, mark } = footnotes();
 
   return (
     <div className="flex flex-col gap-4" data-testid="review-bots-tab">
@@ -97,6 +123,20 @@ export function ReviewBots({ repoId, window }: Props) {
         not people. Signals, not grades: no number here is better for being higher or lower, and
         none of it counts toward review coverage, cycle time or review load, which measure human
         review only.
+      </p>
+      {/* W20-11 (UX_TODO AI-15): people looking for RepoPulse's own AI review
+          landed here, on third-party bots. */}
+      <p className="max-w-3xl text-sm text-fg-muted" data-testid="review-bots-own-ai">
+        Looking for RepoPulse&rsquo;s own AI review of this repository? It is on the{' '}
+        <Link
+          to="/repos/$repoId/security"
+          params={{ repoId } as never}
+          hash="ai-review-pass"
+          className="text-fg underline underline-offset-2"
+        >
+          Security tab, under AI review pass
+        </Link>
+        .
       </p>
 
       <WidgetFrame
@@ -112,7 +152,14 @@ export function ReviewBots({ repoId, window }: Props) {
         testId="review-bots"
       >
         <div className="flex flex-col gap-3">
-          <div className="overflow-x-auto">
+          {/* W20-11 (UX_TODO AI-47): it scrolls sideways at phone width, so the
+              region takes keyboard focus and has a name. */}
+          <div
+            className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            tabIndex={0}
+            role="region"
+            aria-label="AI review tools, scrolls sideways"
+          >
             <table className="w-full min-w-[720px] text-sm" data-testid="review-bots-table">
               <caption className="sr-only">
                 AI review tools on pull requests opened in the last {window}, one row per tool
@@ -160,47 +207,56 @@ export function ReviewBots({ repoId, window }: Props) {
                     <td className="py-2 pr-3 text-right tabular-nums">
                       {formatPerPr(b.reviews_per_pr)}
                     </td>
-                    <td
-                      className="py-2 pr-3 text-right tabular-nums"
-                      {...blankReason(
-                        b.comments_per_pr,
-                        'No reviewed pull request had line-level data',
-                      )}
-                    >
+                    <td className="py-2 pr-3 text-right tabular-nums">
                       {formatPerPr(b.comments_per_pr)}
+                      {mark(
+                        blankReason(
+                          b.comments_per_pr,
+                          'No reviewed pull request had line-level data',
+                        ),
+                      )}
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">
                       {formatHours(b.time_to_first.median_hours)} ·{' '}
                       {formatHours(b.time_to_first.p90_hours)}
                     </td>
-                    <td
-                      className="py-2 pr-3 text-right tabular-nums"
-                      {...blankReason(
-                        b.followed_by_change,
-                        'No line comments on closed or merged pull requests yet',
-                      )}
-                    >
+                    <td className="py-2 pr-3 text-right tabular-nums">
                       {formatShare(b.followed_by_change)}
+                      {mark(
+                        blankReason(
+                          b.followed_by_change,
+                          'No line comments on closed or merged pull requests yet',
+                        ),
+                      )}
                       {b.followed_by_change !== null && b.followed_by_change.pending > 0 && (
                         <span className="block text-xs text-fg-faint">
                           {b.followed_by_change.pending} on open PRs, not counted yet
                         </span>
                       )}
                     </td>
-                    <td
-                      className="py-2 text-right tabular-nums"
-                      {...blankReason(
-                        b.repeat_after_dismiss,
-                        'None of this tool’s reviews with inline comments was dismissed',
-                      )}
-                    >
+                    <td className="py-2 text-right tabular-nums">
                       {formatShare(b.repeat_after_dismiss)}
+                      {mark(
+                        blankReason(
+                          b.repeat_after_dismiss,
+                          'None of this tool’s reviews with inline comments was dismissed',
+                        ),
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {notes.length > 0 ? (
+            <ol className="text-xs text-fg-muted" data-testid="review-bots-blank-notes">
+              {notes.map((n, i) => (
+                <li key={n}>
+                  <sup aria-hidden="true">{i + 1}</sup> Blank because: {n}.
+                </li>
+              ))}
+            </ol>
+          ) : null}
 
           {note && (
             <p className="text-xs text-fg-muted" data-testid="review-bots-line-data">
